@@ -22,7 +22,7 @@ export async function POST(request: Request, context: { params: { threadId: stri
   }
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'Planner AI is not configured.' }, { status: 503 });
-  const modelId = process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-2.5-flash';
+  const modelId = process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-3.7-flash';
   try {
     const turn = await ForesightPlannerDialogueService.runTurn({
       businessId: user.businessId,

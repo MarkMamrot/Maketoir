@@ -30,7 +30,7 @@ export async function POST(_request: Request, context: { params: { creativeId: s
   if (!apiKey) return NextResponse.json({ error: 'Creative assessment AI is not configured.' }, { status: 503 });
   const modelId = process.env.FORESIGHT_CREATIVE_MODEL?.trim()
     || process.env.FORESIGHT_PLANNER_MODEL?.trim()
-    || 'gemini-2.5-flash';
+    || 'gemini-3.7-flash';
   try {
     const assessment = await ForesightCreativeAssessmentService.assess({
       businessId: user.businessId, creativeId: id, actorUserId: user.userId,

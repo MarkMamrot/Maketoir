@@ -1,7 +1,15 @@
+## 2026-09-01 - Curated AI pricing and plan margins
+
+- SuperAdmin AI Usage & Credits now maintains one curated catalogue: Gemini 3.7 Flash, Gemini 3.5 Flash-Lite, Gemini 3.1 Pro Preview, Nano Banana 2, Nano Banana Pro, and Veo 3.1 Standard. The normal screen no longer exposes discovery, SKU mapping, arbitrary model enablement, explicit sell-rate cards, or manual effective-rate creation.
+- One editable AUD-per-USD rate converts the reviewed published USD manifest into effective provider costs. Every active plan uses an editable percentage markup; applying pricing updates FX, effective provider rates, the six-model allowlist, and all five plan markups in one transaction while retaining historical rate rows and per-call snapshots.
+- Google responses provide usage quantities rather than a monetary request total. Reservation and settlement remain usage based, including long-context Pro, image-output token, and generated-video-second dimensions.
+- Runtime model authorization no longer depends on discovered-model metadata. Hourly maintenance continues cycle advancement, account reconciliation, and unknown-call reporting but no longer runs broad model discovery. Dormant discovery tables and endpoints remain for historical audit.
+- Built-in Assistant, IMS, Customer Service, Foresight, Product Creative, and Website defaults now use the curated catalogue. Business model preference validation rejects old non-curated IDs. Pricing was not applied to live data because the current FX rate and five approved margins require explicit business input.
+
 ## 2026-09-01 - Ask Solvantis commercial model recovery
 
 - Public Sales Assistant and authenticated Ask Solvantis generation had fallen back or failed before provider submission because their `gemini-2.5-flash` default was globally disabled and no longer had complete active commercial rates after canonical model reconciliation.
-- Both Assistant orchestrators now default to `gemini-3.1-flash-lite`, while retaining their environment overrides. The replacement is current, globally approved, has complete input/cached-input/output/thinking provider rates, and is priceable across every active AI plan.
+- Both Assistant orchestrators now default to the curated Flash-Lite model, while retaining their environment overrides. The replacement is globally approved only after the curated pricing set is applied and has complete input/cached-input/output/thinking provider rates.
 - A live homepage request returned a genuine persisted answer through the tracked billing gateway. Focused public/private orchestration tests protect the shared default; Help now explains how users should handle a temporary incomplete response.
 
 ## 2026-08-31 - POS IndexedDB catalogue persistence

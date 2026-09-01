@@ -56,7 +56,7 @@ export async function POST(request: Request, context: { params: { threadId: stri
       if (changeReason.length > 1_000) return NextResponse.json({ error: 'changeReason is too long.' }, { status: 400 });
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return NextResponse.json({ error: 'Planner AI is not configured.' }, { status: 503 });
-      const modelId = process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-2.5-flash';
+      const modelId = process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-3.7-flash';
       const deliverable = await ForesightDeliverableService.generate({
         businessId: user.businessId, threadId: id, actorUserId: user.userId, modelId,
         model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'generate_deliverables', actorType: 'user', actorUserId: user.userId, referenceType: 'planning_thread', referenceId: id }), channels, changeReason: changeReason || null,

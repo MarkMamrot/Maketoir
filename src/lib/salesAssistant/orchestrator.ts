@@ -6,7 +6,7 @@ import { salesAssistantRepository } from './repository';
 import type { ProspectAssistantDecision, ProspectChatMessage, ProspectFit, ProspectIntent, PublicIntegrationOffering } from './types';
 
 export const SALES_PROMPT_VERSION = 'prospect-sales-v1';
-export const SALES_MODEL = process.env.SOLVANTIS_SALES_ASSISTANT_MODEL || 'gemini-3.1-flash-lite';
+export const SALES_MODEL = process.env.SOLVANTIS_SALES_ASSISTANT_MODEL || 'gemini-3.5-flash-lite';
 export const PROSPECT_MESSAGE_MAX_LENGTH = 4000;
 
 const FITS = new Set<ProspectFit>(['strong_fit', 'possible_fit', 'needs_discovery', 'not_fit']);

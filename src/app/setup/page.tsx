@@ -993,7 +993,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const [metaAccounts, setMetaAccounts] = useState<Array<{ accountId: string; name: string; currency: string | null; accountStatus: number | null }>>([]);
   const [cin7AccountId, setCin7AccountId] = useState('');
   const [cin7ApiKey, setCin7ApiKey] = useState('');
-  const [geminiModel, setGeminiModel] = useState('gemini-2.5-pro-preview');
+  const [geminiModel, setGeminiModel] = useState('gemini-3.1-pro-preview');
   const [gmailAddress, setGmailAddress] = useState('');
   const [gmailRefreshToken, setGmailRefreshToken] = useState('');
   const [gmailClientId, setGmailClientId] = useState('');
@@ -1150,7 +1150,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       const maa  = creds.MetaAdAccountId     || '';
       const c7id = creds.Cin7AccountId       || '';
       const c7k  = creds.Cin7ApiKey          || '';
-      const mdl  = creds.GeminiModel         || 'gemini-2.5-pro-preview';
+      const mdl  = creds.GeminiModel         || 'gemini-3.1-pro-preview';
       const gmAddr = creds.GmailAddress      || '';
       const gmTok  = creds.GmailRefreshToken || '';
       const gmCid  = creds.GmailClientId     || '';

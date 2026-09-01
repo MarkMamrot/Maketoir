@@ -1,5 +1,5 @@
 ---
-{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-08-31","owner":"platform"}
+{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-09-01","owner":"platform"}
 ---
 # Businesses and AI Plans
 
@@ -12,12 +12,10 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Enable or disable Intel & Automation, IMS, and POS access.
 - Identify sandbox businesses and pause their scheduled automation when required.
 - Set location and user limits and the monthly cost per location.
-- Open AI Usage & Credits for funding, enforcement, usage, and rate controls.
-- Compare supported Google Billing prices with current provider rates before approving changes.
-- Discover canonical Google models and resolve blocked billing mappings.
-- Review saved active provider rates whenever the AI Usage & Credits page opens.
-- Choose explicit sell rates or a persistent flat markup independently for each AI plan.
-- Select which active provider-priced models tenants can choose and use throughout Solvantis.
+- Open AI Usage & Credits for funding, enforcement, usage, model costs, and plan margins.
+- Maintain one AUD-per-USD exchange rate for the supported Google models.
+- Set the percentage markup for Starter, Core, Scale, Enterprise, and Platform.
+- Apply the complete six-model price set in one operation while retaining historical usage rates.
 
 ## At a glance
 
@@ -28,12 +26,9 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Module access | **Businesses > Settings** | Controls access to Intel & Automation, IMS, and POS |
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
 | AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |
-| Google provider rates | **AI Usage & Credits > Rate cards** | Previews supported Google Billing prices and activates only selected changes |
-| Model discovery and reconciliation | **AI Usage & Credits > Rate cards** | Shows canonical Google models, lifecycle, pricing completeness, and blocked billing items |
-| Active provider rates | **AI Usage & Credits > Rate cards** | Shows current provider costs and controls which priced models tenants may select or use |
-| Plan pricing | **AI Usage & Credits > Rate cards** | Chooses explicit sell rates or a saved flat provider markup independently for each plan |
-| Active plan sell rates | **AI Usage & Credits > Rate cards** | Shows and edits current customer rates only for plans using explicit sell rates |
-| Manual AI rates | **AI Usage & Credits > Rate cards** | Adds effective provider-cost and plan sell rates without changing rate history |
+| Supported model costs | **AI Usage & Credits > AI pricing** | Shows the published USD dimensions and converted AUD costs for six supported models |
+| AUD per USD | **AI Usage & Credits > AI pricing** | Converts the published Google prices into the provider costs used for future calls |
+| Plan markups | **AI Usage & Credits > AI pricing** | Applies a saved percentage above provider cost for each Solvantis AI plan |
 
 ## Before you begin
 
@@ -41,7 +36,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Finish or park any POS sale before changing businesses.
 - Confirm the requested plan and commercial arrangement before saving it.
 - Check the business name carefully, especially when a sandbox has a similar name.
-- For Google rate synchronization, confirm the billing connection is available before starting.
+- Confirm the current AUD-per-USD rate and each plan's approved markup before applying pricing.
 
 > **Important:** Changing the Solvantis AI plan changes the rates used for future AI usage. It does not add prepaid credit, reset current-cycle usage, or alter funding and enforcement settings.
 
@@ -70,65 +65,24 @@ When POS was configured for a different business, it returns to Device Setup aft
 
 > **Warning:** Always confirm the active business before changing stock, orders, payments, integrations, or accounting settings. Changing the active business reloads the workspace and closes any unsaved screen state.
 
-### Review Google provider rates
+### Configure AI pricing
 
 1. Open **Admin > AI Usage & Credits**.
-2. In **Rate cards**, select **Sync Google rates**.
-3. Review each supported rate's current value, Google value, status, model, metric, and SKU.
-	**Active and current** means every supported Google price already matches its active provider rate. **Ready for approval** means one or more supported changes are selected but not yet active.
-4. Expand the manual-review list and assess any unsupported tier, threshold, storage, tool, or modality prices separately.
-5. Clear the checkbox for any supported change that should not be activated.
-6. Select **Approve selected** and confirm the change.
-7. Refresh the preview and confirm approved rows now show **Unchanged**.
+2. Under **AI pricing**, review the six supported models and their published USD charging dimensions.
+3. Enter the current **AUD per USD** exchange rate.
+4. Enter the approved markup percentage for Starter, Core, Scale, Enterprise, and Platform.
+5. Select **Apply pricing**.
+6. Confirm every model shows **Active** and the page shows **Current**.
 
-> **Important:** Synchronization does not activate prices automatically. Google prices are retrieved again during approval, and approval stops when a selected price no longer matches the reviewed proposal.
+The supported catalogue includes a recent Flash model, Flash-Lite, Pro Preview, Nano Banana 2, Nano Banana Pro, and Veo 3.1 Standard. Applying pricing activates this complete set and makes other model IDs unavailable for new Solvantis AI work.
 
-### Reconcile models and billing families
+The calculation is **customer charge = provider cost × (1 + plan markup percentage)**. A 20% markup changes a $1.00 provider cost into a $1.20 customer charge. A markup percentage is not the same as a target gross-margin percentage.
 
-1. Open **Admin > AI Usage & Credits**.
-2. Under **Model discovery & reconciliation**, select **Discover models**.
-3. Review each canonical model's lifecycle, supported methods, modalities, context limit, and pricing status.
-4. Review blocked items in **Reconciliation queue**. The status identifies an unknown model, unknown metric, conflicting rates, incomplete pricing, unsupported tier, or currency issue.
-5. For an unknown billing family, choose the correct canonical model, enter identifying family text, choose **Contains** or **Regular expression**, and select **Save mapping**.
-6. Review the refreshed queue and Google Billing preview before activating any rates.
-7. Enable a model under **Active provider rates** only after its pricing is complete.
+Google responses provide usage quantities rather than a final dollar cost. Solvantis calculates the provider cost from returned token or duration usage and the rate active when the call began, then applies the business's plan markup.
 
-Discovery records Google model identities and capabilities but does not activate rates or enable tenant access. Models that disappear from Google remain visible as **Retired** for history and cannot be newly selected. Mapping changes are versioned and retain the administrator who made the change.
+> **Important:** Applying pricing affects future AI calls. Historical provider costs, customer charges, and the rate details recorded with completed calls remain unchanged.
 
-Pricing completeness follows the model's capability. Text models require the applicable input, cached-input, output, thinking, and long-context rates. Image models require their used input and image-output charging metrics. Video models require the duration price used by Solvantis. A model remains blocked when any required metric is missing.
-
-Solvantis represents Gemini Pro prices at their published context boundary. Metrics ending in **Over 200k** apply when the prompt, including cached input, exceeds 200,000 tokens. Standard token metrics apply at or below that boundary.
-
-Nano Banana models use **Output image tokens** because Google prices generated images by token consumption and resolution. The provider and sell-rate tables therefore show image-output token rates separately from flat **Output image** rates used by providers that charge per generated image.
-
-Each model under **Active provider rates** has one **Allowed** checkbox. Only checked, currently discovered, fully priced models appear in tenant AI model selectors. Unchecking a model also blocks new direct AI requests that submit its model ID.
-
-### Configure plan pricing
-
-1. Open **Admin > AI Usage & Credits**.
-2. Under **Active provider rates**, confirm the saved provider costs and effective dates.
-3. Check **Allowed** for each model tenants may select and use.
-4. Under **Plan pricing**, choose **Active sell rates** or **Flat markup** for each plan.
-5. For each **Flat markup** plan, enter its markup percentage.
-6. Select **Save plan pricing**.
-7. Refresh the page and confirm the modes and percentages remain displayed.
-
-The calculation is **customer sell rate = active provider cost × (1 + markup percentage)**. For example, a 25% markup changes a $1.00 provider rate to a $1.25 customer sell rate. The amount is rounded up to the nearest AUD micro where required.
-
-> **Important:** Flat markup mode does not create plan sell-rate rows. Solvantis applies the saved percentage to the provider rate that is active whenever each AI call starts. Provider price changes therefore flow through automatically. A markup percentage is not the same as a target gross-margin percentage.
-
-> **Important:** Active sell rates and flat markup are mutually exclusive for each plan. Existing explicit rate history remains available, but explicit rates are ignored while that plan uses flat markup.
-
-### Review or edit a sell rate
-
-1. Confirm the plan uses **Active sell rates** under **Plan pricing**.
-2. Under **Active plan sell rates**, choose a plan or leave **All plans** selected.
-3. Review the model, metric, sell rate, implied markup, and effective time.
-4. Select **Edit** on the required row.
-5. In **Edit sell rate**, change the AUD price or effective time and verify the plan, model, metric, and unit scale.
-6. Select **Save new effective rate**.
-
-> **Important:** Editing does not alter the rate used by historical AI calls. It ends the previous active rate at the selected effective time and creates a replacement for future usage.
+> **Important:** Gemini Pro uses separate prices when prompt and cached input exceed 200,000 tokens. Image generation is charged from image-output tokens. Veo Standard is charged per generated second; 4K video is not available through this price set.
 
 ## Troubleshooting
 
@@ -143,17 +97,11 @@ The calculation is **customer sell rate = active provider cost × (1 + markup pe
 | Saving reports that only the AI plan failed | Business settings saved but the AI account update did not | Verify the plan and retry after checking the reported error |
 | AI remains unavailable after a plan change | Funding is exhausted, enforcement is active, or the account is suspended | Review the business in AI Usage & Credits |
 | A deleted business is missing | Deleted rows are hidden by default | Enable **Show deleted** for historical review |
-| Google rate preview cannot connect | The billing account, billing connection, access permission, or Cloud Billing API is unavailable | Ask a platform administrator to restore the Google Billing connection, then retry |
-| A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or conflicts with another SKU mapped to the same model and metric | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear. Equivalent SKUs with the same price are consolidated automatically |
-| A billing SKU is marked Unknown model | No active billing-family mapping links its label to a current canonical model | Verify the runtime model, then create an audited mapping in **Model discovery & reconciliation** |
-| A discovered model is marked Incomplete pricing | One or more rates required for its capability are missing | Review its missing metrics and activate verified provider rates before enabling it |
-| A model is marked Retired | It was retained from an earlier discovery but is no longer returned by Google | Keep it disabled and move saved selections to a current fully priced model |
-| Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
-| Saved provider rates disappear after leaving the page | The page did not finish loading or the rate request failed | Refresh AI Usage & Credits; active provider rates should appear without running Google sync |
-| Save plan pricing is unavailable | No active provider rates exist | Sync or add provider rates, then retry |
-| A sell rate is not visible | The plan uses flat markup, a different plan filter is selected, or the rate is not currently effective | Choose **Active sell rates** for that plan, check the filter, and refresh |
-| A model is missing from tenant selectors | It is unchecked, retired, incompletely priced, or the tenant plan lacks a usable price | Review discovery lifecycle and missing metrics, check **Allowed**, and configure that plan's pricing mode |
-| A previously selected model stops working | A SuperAdmin disabled it or its effective provider pricing ended | Select another allowed model or restore current provider pricing and permission |
+| Apply pricing is unavailable | Pricing is still loading or a save is already running | Wait for the current operation to finish, then retry |
+| Apply pricing reports a missing markup | One of the five plan percentages is blank or invalid | Enter every plan markup, including zero where no markup is intended |
+| A model shows Apply required | Its current AUD rates or availability do not match the displayed price set | Verify the exchange rate and markups, then select **Apply pricing** |
+| A model is missing from tenant selectors | It is outside the supported six or the current price set has not been applied | Apply the complete AI price set, then choose one of the available models |
+| A previously selected model stops working | The saved model is outside the supported six | Choose an available model and save the setting again |
 
 ## Worked examples
 
@@ -169,6 +117,6 @@ A business is approved to move from Starter to Core. A SuperAdmin opens that bus
 
 A business remains on Scale but needs additional prepaid value. The SuperAdmin leaves its plan unchanged in Business Settings, opens **AI Usage & Credits**, and records the approved credit adjustment with its reference and reason.
 
-### Approve changed Google rates
+### Apply new exchange rate and margins
 
-The preview shows changed Gemini Flash rates and new standard and over-200k Gemini Pro rates. The SuperAdmin approves the checked rows, verifies the model is allowed under **Active provider rates**, and keeps earlier prices for historical usage. Plans using flat markup automatically value future calls from the new provider rates; plans using active sell rates continue using their explicit prices until changed.
+The approved exchange rate changes from 1.50 to 1.52 AUD per USD. The SuperAdmin enters **1.52**, keeps Starter at **20%**, and sets Scale to **15%** before selecting **Apply pricing**. Future usage uses the newly converted provider costs and each business's plan markup. Earlier calls keep their recorded cost and charge.

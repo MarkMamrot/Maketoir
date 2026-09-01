@@ -1,4 +1,4 @@
-import { isValidGeminiModelId } from '@/lib/website/contentPreferences';
+import { isCuratedAiModel } from '@/lib/ai/billing/curatedModels';
 
 export const BUSINESS_AI_MODEL_KEYS = [
   'documentExtraction',
@@ -20,10 +20,10 @@ export type BusinessAiModelSource = {
 };
 
 export const DEFAULT_BUSINESS_AI_MODELS: BusinessAiModelPreferences = {
-  documentExtraction: 'gemini-2.5-pro',
-  catalogueMatching: 'gemini-2.5-flash',
-  businessIntelligence: 'gemini-2.5-flash',
-  customerService: 'gemini-2.5-flash',
+  documentExtraction: 'gemini-3.1-pro-preview',
+  catalogueMatching: 'gemini-3.7-flash',
+  businessIntelligence: 'gemini-3.7-flash',
+  customerService: 'gemini-3.5-flash-lite',
 };
 
 export const BUSINESS_AI_MODEL_COLUMNS: Record<BusinessAiModelKey, keyof BusinessAiModelSource> = {
@@ -38,8 +38,8 @@ export function resolveBusinessAiModel(
   key: BusinessAiModelKey,
 ): string {
   const configured = source?.[BUSINESS_AI_MODEL_COLUMNS[key]];
-  if (configured && isValidGeminiModelId(configured)) return configured;
-  if (source?.gemini_model && isValidGeminiModelId(source.gemini_model)) return source.gemini_model;
+  if (configured && isCuratedAiModel(configured, 'text')) return configured;
+  if (source?.gemini_model && isCuratedAiModel(source.gemini_model, 'text')) return source.gemini_model;
   return DEFAULT_BUSINESS_AI_MODELS[key];
 }
 
@@ -55,6 +55,6 @@ export function validateBusinessAiModelPreferences(value: unknown): BusinessAiMo
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
   const entries = BUSINESS_AI_MODEL_KEYS.map(key => [key, typeof record[key] === 'string' ? record[key].trim() : ''] as const);
-  if (entries.some(([, modelId]) => !isValidGeminiModelId(modelId))) return null;
+  if (entries.some(([, modelId]) => !isCuratedAiModel(modelId, 'text'))) return null;
   return Object.fromEntries(entries) as BusinessAiModelPreferences;
 }

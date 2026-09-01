@@ -4,8 +4,8 @@ export const WEBSITE_AI_SETTING_KEYS = {
   measurementSystem: 'ai_measurement_system',
 } as const;
 
-export const DEFAULT_WEBSITE_CONTENT_MODEL = 'gemini-2.5-flash';
-export const DEFAULT_URL_JUDGE_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_WEBSITE_CONTENT_MODEL = 'gemini-3.7-flash';
+export const DEFAULT_URL_JUDGE_MODEL = 'gemini-3.5-flash-lite';
 
 export type MeasurementSystemPreference = 'auto' | 'metric' | 'imperial';
 export type MeasurementSystem = 'metric' | 'imperial';

@@ -35,7 +35,7 @@ describe('/api/foresight/planning/threads/[threadId]/lessons', () => {
   it('generates using Admin tenant and server-controlled model identity', async () => {
     const response = await POST(new Request('http://localhost', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'generate', modelId: 'attacker-model' }) }), context);
     expect(response.status).toBe(201);
-    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'business-1', threadId: 12, actorUserId: 7, modelId: 'gemini-2.5-flash' }));
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'business-1', threadId: 12, actorUserId: 7, modelId: 'gemini-3.7-flash' }));
   });
 
   it('returns expected lesson transition failures as 422', async () => {

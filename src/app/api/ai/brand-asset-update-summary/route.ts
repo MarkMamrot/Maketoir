@@ -3,7 +3,7 @@
  *
  * Fire-and-forget endpoint called when the AI creative panel closes.
  * Appends conversation to pending_buffer. When the buffer reaches ~500 words,
- * runs gemini-2.5-flash to rewrite the Creative Intelligence Brief and clears
+ * runs the curated general-purpose Flash model to rewrite the Creative Intelligence Brief and clears
  * the buffer. Otherwise just stores the buffer — no Gemini call, no cost.
  */
 import { NextResponse } from 'next/server';
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
   try {
     const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'update_brand_asset_summary', actorType: 'user' });
     const result = await (ai as any).models.generateContent({
-      model:             'gemini-2.5-flash',
+      model:             'gemini-3.7-flash',
       systemInstruction: SYSTEM_PROMPT,
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
     });

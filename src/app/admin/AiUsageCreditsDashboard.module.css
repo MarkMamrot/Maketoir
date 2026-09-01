@@ -156,6 +156,25 @@
 .empty { padding: 36px 20px; text-align: center; color: var(--ai-muted); }
 
 .rateBody { padding: 16px; }
+.pricingControls { display: grid; grid-template-columns: minmax(180px, .55fr) minmax(0, 2fr); gap: 12px; margin-bottom: 16px; }
+.fxControl, .planPricingControl { padding: 10px; border: 1px solid var(--ai-border); background: var(--ai-surface-subtle); border-radius: 6px; }
+.fxControl label, .planPricingControl label { display: block; margin-bottom: 5px; color: var(--ai-muted); font-size: 10px; font-weight: 750; text-transform: uppercase; }
+.fxControl > span { display: block; margin-top: 5px; color: var(--ai-muted); font-size: 10px; }
+.curatedModelList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.curatedModel { min-width: 0; border: 1px solid var(--ai-border); border-radius: 6px; overflow: hidden; }
+.curatedModelHeader { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; background: var(--ai-surface-subtle); }
+.curatedModelHeader > div { flex: 1; min-width: 0; }
+.curatedModelHeader strong, .curatedModelHeader span, .curatedModelHeader code { display: block; }
+.curatedModelHeader span { margin-top: 2px; color: var(--ai-muted); font-size: 11px; }
+.curatedModelHeader code { margin-top: 4px; overflow: hidden; color: var(--ai-faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.curatedRates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.curatedRate { min-width: 0; padding: 9px 12px; border-top: 1px solid var(--ai-border); }
+.curatedRate:nth-child(even) { border-left: 1px solid var(--ai-border); }
+.curatedRate span, .curatedRate strong, .curatedRate small { display: block; }
+.curatedRate span { color: var(--ai-muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.curatedRate strong { margin-top: 3px; font-size: 11px; }
+.curatedRate small { margin-top: 2px; color: var(--ai-muted); font-size: 10px; }
+.pricingNote { margin: 0; padding: 8px 12px; border-top: 1px solid var(--ai-border); color: var(--ai-muted); font-size: 10px; line-height: 1.4; }
 .rateSection { margin-bottom: 18px; border: 1px solid var(--ai-border); border-radius: 6px; overflow: hidden; }
 .rateSectionHeader { display: flex; align-items: center; gap: 12px; padding: 11px 12px; background: var(--ai-surface-subtle); }
 .rateSectionHeader > div { flex: 1; min-width: 0; font-size: 12px; }
@@ -243,6 +262,7 @@
   .rateGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .markupGrid { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
   .mappingEditor { grid-template-columns: 1fr 1fr; }
+  .pricingControls { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {
@@ -267,6 +287,7 @@
   .rateSectionControls .select { flex: 1; width: auto; }
   .warningRow { grid-template-columns: 1fr; gap: 3px; }
   .manualRateHeading { align-items: flex-start; flex-direction: column; }
+  .curatedModelList { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 430px) {
@@ -276,4 +297,6 @@
   .filters { align-items: stretch; flex-direction: column; }
   .search, .statusFilter { width: 100%; }
   .markupGrid { grid-template-columns: 1fr; }
+  .curatedRates { grid-template-columns: 1fr; }
+  .curatedRate:nth-child(even) { border-left: 0; }
 }

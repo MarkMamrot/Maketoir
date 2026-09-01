@@ -32,7 +32,7 @@ export async function POST(request: Request, context: { params: { threadId: stri
       if (!apiKey) return NextResponse.json({ error: 'Planner AI is not configured.' }, { status: 503 });
       const lesson = await ForesightCampaignLessonService.generate({
         businessId: user.businessId, threadId: id, actorUserId: user.userId,
-        modelId: process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-2.5-flash',
+        modelId: process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-3.7-flash',
         model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'generate_campaign_lesson', actorType: 'user', actorUserId: user.userId, referenceType: 'planning_thread', referenceId: id }),
         changeReason: typeof body.changeReason === 'string' ? body.changeReason : null,
       });

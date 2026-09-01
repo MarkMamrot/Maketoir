@@ -4,7 +4,7 @@ import { ASSISTANT_MODEL, assistantOrchestratorInternals } from '../orchestrator
 
 describe('assistant response normalization', () => {
   it('defaults to an approved model with complete commercial pricing', () => {
-    expect(ASSISTANT_MODEL).toBe('gemini-3.1-flash-lite');
+    expect(ASSISTANT_MODEL).toBe('gemini-3.5-flash-lite');
   });
 
   it('rejects non-JSON model output', () => {

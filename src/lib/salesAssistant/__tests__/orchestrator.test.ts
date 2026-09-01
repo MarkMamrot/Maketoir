@@ -3,7 +3,7 @@ import { normalizeSalesDecision, runProspectSalesAssistant, SALES_MODEL } from '
 
 describe('sales response normalization', () => {
   it('defaults to an approved model with complete commercial pricing', () => {
-    expect(SALES_MODEL).toBe('gemini-3.1-flash-lite');
+    expect(SALES_MODEL).toBe('gemini-3.5-flash-lite');
   });
 
   it('normalizes enums and nullable fields and keeps only retrieved source IDs', () => {

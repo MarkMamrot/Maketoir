@@ -6950,9 +6950,9 @@ function AiHelperView({ databaseId }: { databaseId: string }) {
       .then(data => {
         const model = data?.connections?.GeminiModel;
         if (model) setActiveModel(model);
-        else setActiveModel('gemini-2.5-flash-preview-04-17'); // default
+        else setActiveModel('gemini-3.7-flash'); // default
       })
-      .catch(() => setActiveModel('gemini-2.5-flash-preview-04-17'));
+      .catch(() => setActiveModel('gemini-3.7-flash'));
   }, [databaseId]);
 
   const [messages, setMessages] = useState<{ role: 'business' | 'professor'; text: string }[]>([

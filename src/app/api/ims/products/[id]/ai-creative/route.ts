@@ -410,7 +410,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     referenceImages = [],   // [{ data: base64, mimeType, label }]
     includeBrandProfile = true,
     includeBusinessInfo = true,
-    textModel = 'gemini-2.5-flash',
+    textModel = 'gemini-3.7-flash',
     additionalInstructions = '',
     similarProductIds = [],
     previewOnly = false,

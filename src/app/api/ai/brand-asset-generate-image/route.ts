@@ -11,12 +11,7 @@ import { requireAdminSession } from '@/lib/sessionUtils';
 // Nano Banana models that support image output via Interactions API
 const IMAGE_MODELS = new Set([
   'gemini-3.1-flash-image',
-  'gemini-3.1-flash-lite-image',
   'gemini-3-pro-image',
-  'gemini-2.5-flash-image',
-  'imagen-4.0-generate-001',
-  'imagen-4.0-ultra-generate-001',
-  'imagen-4.0-fast-generate-001',
 ]);
 
 const CATEGORY_RENDER_RULES: Record<string, string> = {

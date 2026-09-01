@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import AiUsageCreditsDashboard from './AiUsageCreditsDashboard';
+import AiUsageCreditsDashboard from './AiUsageCreditsDashboardSimple';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import IntegrationOfferingsView from './IntegrationOfferingsView';
 import ProspectInsightsView from './ProspectInsightsView';

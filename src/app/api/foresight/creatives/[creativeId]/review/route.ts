@@ -103,7 +103,7 @@ export async function POST(request: Request, context: { params: { creativeId: st
       if (!isoDate(body?.diagnosticsThrough)) return NextResponse.json({ error: 'diagnosticsThrough must be a valid complete-day YYYY-MM-DD date.' }, { status: 400 });
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return NextResponse.json({ error: 'Creative brief AI is not configured.' }, { status: 503 });
-      const modelId = process.env.FORESIGHT_CREATIVE_MODEL?.trim() || process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-2.5-flash';
+      const modelId = process.env.FORESIGHT_CREATIVE_MODEL?.trim() || process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-3.7-flash';
       const brief = await ForesightCreativeBriefService.generate({
         businessId: user.businessId, creativeId, threadId, expectedRevision,
         diagnosticsThrough: body.diagnosticsThrough, actorUserId: user.userId,

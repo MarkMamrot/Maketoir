@@ -1,5 +1,5 @@
 ---
-{"id":"ims-settings-ai-models","title":"AI Model Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings > AI Models","product":"ims","format":"task","parentId":"ims-settings-business-operations-pos","contexts":["ims-settings-ai-models","ai-models"],"contextSections":{"ims-settings-ai-models":"Step-by-step","ai-models":"Choose models by function"},"relatedTopics":["ims-settings-account-ai-credits","ims-purchase-orders","foresight-business-intelligence","foresight-content-production-customer-service"],"order":3,"summary":"Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.","lastReviewed":"2026-08-31","owner":"ims"}
+{"id":"ims-settings-ai-models","title":"AI Model Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings > AI Models","product":"ims","format":"task","parentId":"ims-settings-business-operations-pos","contexts":["ims-settings-ai-models","ai-models"],"contextSections":{"ims-settings-ai-models":"Step-by-step","ai-models":"Choose models by function"},"relatedTopics":["ims-settings-account-ai-credits","ims-purchase-orders","foresight-business-intelligence","foresight-content-production-customer-service"],"order":3,"summary":"Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.","lastReviewed":"2026-09-01","owner":"ims"}
 ---
 # AI Model Settings
 
@@ -17,10 +17,10 @@ Use AI Models to choose the Gemini text model used for different types of Solvan
 
 | Function | Typical work | Recommended starting point | Main trade-off |
 | --- | --- | --- | --- |
-| Document extraction | Supplier invoices and customer order documents | Gemini 2.5 Pro | Better handling of difficult scans and tables, with higher latency and cost |
-| Catalogue matching | Match extracted lines to products | Gemini 2.5 Flash | Faster and lower cost for code and name matching |
-| Business intelligence and content | Analysis, audits, estimates, schemas, and business AI requests | Gemini 2.5 Flash | Increase capability when the work needs deeper reasoning |
-| Customer service | Enquiry classification and assisted replies | Gemini 2.5 Flash | Dedicated Customer Service choices can override this fallback |
+| Document extraction | Supplier invoices and customer order documents | Gemini 3.1 Pro Preview | Better handling of difficult scans and tables, with higher latency and cost |
+| Catalogue matching | Match extracted lines to products | Gemini 3.7 Flash | Faster and lower cost for code and name matching |
+| Business intelligence and content | Analysis, audits, estimates, schemas, and business AI requests | Gemini 3.7 Flash | Use Pro Preview when the work needs deeper reasoning |
+| Customer service | Enquiry classification and assisted replies | Gemini 3.5 Flash-Lite | Dedicated Customer Service choices can override this fallback |
 
 ## Before you begin
 
@@ -56,13 +56,13 @@ Website content and Product Creative retain their own model controls. Changing t
 
 Different models can have different input, output, image, and video prices. A model change can therefore alter how quickly prepaid credit or an account limit is consumed, even when staff run the same number of tasks.
 
-The available list contains only models that Google currently exposes, a SuperAdmin has allowed, and Solvantis can price completely for the business's plan. Newly discovered, retired, partially priced, or unresolved models do not appear until their commercial setup is complete.
+The available list contains only the supported text models with complete current pricing for the business's plan. Older saved model IDs are replaced by the recommended supported default when they are no longer available.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Safe action |
 | --- | --- | --- |
-| A saved model is no longer listed | Google retired it, a required price is missing, or a SuperAdmin disabled it | Choose another available model and save again; ask a SuperAdmin to review model reconciliation when the model should still be current |
+| A saved model is no longer listed | It is outside the supported model set or the current price set has not been applied | Choose another available model and save again; ask a SuperAdmin to review AI pricing when no models are available |
 | Invoice lines or totals are wrong | The document is difficult or the extraction model misread its layout | Correct the draft, try Document extraction with a more capable model, and verify totals before saving |
 | Product matches are uncertain | Codes are absent or catalogue descriptions differ | Review low-confidence lines manually; do not create or select a product based only on the suggestion |
 | Responses are slow | The selected model prioritises capability over speed | Use Flash for lower-risk work where its output is consistently adequate |
@@ -72,7 +72,7 @@ The available list contains only models that Google currently exposes, a SuperAd
 
 ### Improve a difficult invoice import
 
-A multi-page supplier invoice contains small type, freight discounts, and a separate backorder table. Keep **Document extraction** on Gemini 2.5 Pro and **Catalogue matching** on Gemini 2.5 Flash. Upload the invoice, compare every supplied quantity and line total with the source, exclude backorders, and confirm the invoice total before saving the purchase order.
+A multi-page supplier invoice contains small type, freight discounts, and a separate backorder table. Keep **Document extraction** on Gemini 3.1 Pro Preview and **Catalogue matching** on Gemini 3.7 Flash. Upload the invoice, compare every supplied quantity and line total with the source, exclude backorders, and confirm the invoice total before saving the purchase order.
 
 ### Reduce latency for routine matching
 

@@ -56,7 +56,7 @@ interface AssistantToolResult {
 }
 
 const MAX_TOOL_STEPS = 4;
-export const ASSISTANT_MODEL = process.env.SOLVANTIS_ASSISTANT_MODEL || 'gemini-3.1-flash-lite';
+export const ASSISTANT_MODEL = process.env.SOLVANTIS_ASSISTANT_MODEL || 'gemini-3.5-flash-lite';
 
 const FINDING_CATEGORIES = new Set<WorkflowFindingCategory>([
   'logical_flow_error', 'workflow_gap', 'missing_capability', 'edge_case', 'documentation_gap',

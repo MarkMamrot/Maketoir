@@ -158,7 +158,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [textModels,  setTextModels]    = useState<{ id: string; displayName: string }[]>([]);
   const [imageModel, setImageModel]     = useModelPicker(LS_IMAGE_MODEL, 'gemini-3.1-flash-image');
   const [videoModel, setVideoModel]     = useModelPicker(LS_VIDEO_MODEL, 'veo-3.1-generate-preview');
-  const [textModel,  setTextModel]      = useModelPicker(LS_TEXT_MODEL,  'gemini-2.5-flash');
+  const [textModel,  setTextModel]      = useModelPicker(LS_TEXT_MODEL,  'gemini-3.7-flash');
   const [aspectRatio, setAspectRatio]   = useModelPicker(LS_ASPECT_RATIO, '1:1');
   const [videoModels, setVideoModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [includeBrandProfile, setIncludeBrandProfile] = useState(true);

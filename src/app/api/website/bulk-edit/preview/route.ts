@@ -332,7 +332,7 @@ export async function POST(req: Request) {
         const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'website_content', operation: 'preview_bulk_product_edits', actorType: 'user' });
 
         // Resolve Gemini model preference
-        let modelId = 'gemini-2.5-flash-preview-04-17';
+        let modelId = 'gemini-3.7-flash';
         try {
           const connRows = await sheets.getData(databaseId, 'Connections');
           if (connRows && connRows.length >= 2) {

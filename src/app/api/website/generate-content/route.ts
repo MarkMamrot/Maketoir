@@ -231,8 +231,8 @@ async function discoverProductUrls(
   businessId: string,
 ): Promise<string[]> {
   try {
-    // Use a stable model for URL discovery — gemini-2.5-flash returns groundingChunks in REST
-    const discoveryModel = 'gemini-2.5-flash';
+    // Use the curated general-purpose Flash model for URL discovery and grounding.
+    const discoveryModel = 'gemini-3.7-flash';
     const restRes = await trackedGenerateContentRest(apiKey, discoveryModel, {
         contents: [{ role: 'user', parts: [{ text: `Find the official product page and top major retailer listings for "${product.name}" by ${product.brand}. I need accurate URLs to specific product pages (not category or search result pages). List up to 6 page URLs.` }] }],
         tools: [{ google_search: {} }],

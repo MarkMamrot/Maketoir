@@ -20,6 +20,12 @@ export function ensureAiCommercialSchema(): Promise<void> {
       PRIMARY KEY (provider, model_id),
       INDEX idx_ai_provider_models_allowed (provider, is_allowed, model_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.execute(`CREATE TABLE IF NOT EXISTS ai_billing_settings (
+      setting_key VARCHAR(64) PRIMARY KEY,
+      decimal_value DECIMAL(20,8) NOT NULL,
+      updated_by INT NULL,
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await pool.execute(`CREATE TABLE IF NOT EXISTS ai_discovered_models (
       provider VARCHAR(32) NOT NULL DEFAULT 'google',
       model_id VARCHAR(150) NOT NULL,

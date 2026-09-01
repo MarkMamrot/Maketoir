@@ -69,8 +69,8 @@ export async function getCustomerServiceSettings(businessId: string): Promise<Cs
     unreadFirst: !!row?.unread_first,
     retentionMode: row?.retention_mode === 'limited' ? 'limited' : 'keep_all',
     retentionDays: [90, 180, 365].includes(Number(row?.retention_days)) ? Number(row.retention_days) : 90,
-    lightModelId: row?.light_model_id || 'gemini-2.5-flash',
-    capableModelId: row?.capable_model_id || 'gemini-2.5-pro',
+    lightModelId: row?.light_model_id || 'gemini-3.5-flash-lite',
+    capableModelId: row?.capable_model_id || 'gemini-3.1-pro-preview',
     enabledTools: parseStringArray(row?.enabled_tools_json, [...CS_BUSINESS_TOOL_NAMES])
       .filter(tool => CS_BUSINESS_TOOL_NAMES.includes(tool as any)),
     guidelines: row?.guidelines || '',
