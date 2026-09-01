@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { DEFAULT_BUSINESS_TIME_ZONE, formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
 
 interface GiftCard {
@@ -66,6 +67,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
   const [commandBusy, setCommandBusy] = useState<string | null>(null);
   const [gcMode, setGcMode]         = useState<'off' | 'combined'>('off');
   const [shopDomain, setShopDomain] = useState('');
+  const [businessTimeZone, setBusinessTimeZone] = useState(DEFAULT_BUSINESS_TIME_ZONE);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   useTableArrowScroll(bodyScrollRef);
@@ -73,6 +75,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
       if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
+      if (d.data?.business_timezone) setBusinessTimeZone(d.data.business_timezone);
       if (d.shopDomain) setShopDomain(d.shopDomain);
     }).catch(() => {});
   }, []);
@@ -639,7 +642,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                         const isPos = amt >= 0;
                         const icons: Record<string, string> = { issue: '🎁', redeem: '💳', return: '↩', adjust: '✏️' };
                         const icon = icons[t.type] ?? '•';
-                        const dt = new Date(t.created_at).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+                        const dt = formatAuditDateTime(t.created_at, businessTimeZone);
                         return (
                           <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--sv-etch)' : undefined }}>
                             <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>

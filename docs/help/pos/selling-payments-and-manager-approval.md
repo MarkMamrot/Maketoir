@@ -21,6 +21,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |
 | Stock | A completed tracked-product sale reduces stock at the active POS location; untracked products sell without a quantity check or stock movement |
 | Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |
+| Product results | The image, price, and **i** action stay top-aligned while optional product details use the remaining space |
 | Split tender | Add payment lines until **Remaining** is zero |
 | Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |

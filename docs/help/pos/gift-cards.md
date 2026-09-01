@@ -13,6 +13,7 @@ Gift cards are code-based value. Sell a new card from the cart or verify an exis
 - Redeem no more than the card balance or amount remaining.
 - Combine gift-card value with another payment when needed.
 - Issue a gift card while completing an eligible linked return.
+- Review a card's Balance History in IMS using the business timezone configured in IMS Settings.
 
 ## At a glance
 
@@ -23,6 +24,8 @@ Gift cards are code-based value. Sell a new card from the cart or verify an exis
 | Split gift card plus another tender | No | Gift-card code plus the second payment line |
 | Issue value from a return | No | The new or supplied code on the linked return |
 | Use in Training Mode | Not available | Training sales cannot change gift-card value |
+
+Balance History timestamps reflect the business timezone, regardless of the timezone configured on the device viewing IMS.
 
 ## Before you begin
 

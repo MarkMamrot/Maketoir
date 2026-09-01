@@ -19,6 +19,7 @@ import { deriveVariantSku } from '@/lib/ims/importSku';
 import { optionCombinations } from '@/lib/ims/bulkProductEditor';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
@@ -15829,7 +15830,7 @@ function GiftCardsView() {
                         const isPos  = amt >= 0;
                         const icons: Record<string, string> = { issue: '🎁', redeem: '💳', return: '↩', adjust: '✏️' };
                         const icon   = icons[t.type] ?? '•';
-                        const dt     = new Date(t.created_at).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+                        const dt     = formatAuditDateTime(t.created_at, activeBusinessTimeZone);
                         return (
                           <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--sv-etch)' : undefined }}>
                             <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>

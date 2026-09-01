@@ -1,15 +1,7 @@
 import { imsQuery } from '@/services/IMSMySQLService';
+import { DEFAULT_BUSINESS_TIME_ZONE, isValidBusinessTimeZone } from '@/lib/ims/businessTimeZoneValue';
 
-export const DEFAULT_BUSINESS_TIME_ZONE = 'Australia/Sydney';
-
-export function isValidBusinessTimeZone(timeZone: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-AU', { timeZone }).format();
-    return true;
-  } catch {
-    return false;
-  }
-}
+export { DEFAULT_BUSINESS_TIME_ZONE, isValidBusinessTimeZone } from '@/lib/ims/businessTimeZoneValue';
 
 export async function getBusinessTimeZone(businessId: string): Promise<string> {
   const rows = await imsQuery<{ value: string | null }>(
