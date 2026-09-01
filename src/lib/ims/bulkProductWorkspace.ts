@@ -1,4 +1,12 @@
-export type BulkProductSortKey = 'created_at' | 'name' | 'inventory' | 'rrp' | 'cost';
+type BulkProductLocationSortField = 'soh' | 'min_qty' | 'reorder_qty' | 'zone' | 'bin';
+type BulkProductForeignCurrency = 'USD' | 'EUR' | 'GBP' | 'THB' | 'CNY' | 'JPY';
+export type BulkProductSortKey =
+  | 'created_at' | 'name' | 'inventory' | 'rrp' | 'cost'
+  | 'base_sku' | 'brand' | 'supplier' | 'product_type' | 'category' | 'subcategory' | 'tags' | 'description'
+  | 'is_active' | 'is_stock_item' | 'is_online' | 'website_title' | 'allow_indent_wholesale'
+  | 'barcode' | 'price_wholesale' | 'price_rrp_sale' | 'discount_start_date' | 'discount_end_date' | 'weight_kg' | 'is_active_variant'
+  | `foreign_cost_${BulkProductForeignCurrency}`
+  | `location_${number}_${BulkProductLocationSortField}`;
 export type BulkProductSortDirection = 'asc' | 'desc';
 export type BulkProductFilterJoin = 'and' | 'or';
 export type BulkProductFilterField = 'status' | 'website' | 'shopify' | 'soh' | 'available' | 'zone' | 'bin' | 'min_qty' | 'reorder_point' | 'rrp' | 'cost';
@@ -27,6 +35,18 @@ const TEXT_FIELDS = new Set<BulkProductFilterField>(['zone', 'bin']);
 const BOOLEAN_FIELDS = new Set<BulkProductFilterField>(['status', 'website', 'shopify']);
 const NUMERIC_OPERATORS = new Set<BulkProductFilterOperator>(['=', '!=', '>', '<', '>=', '<=']);
 const TEXT_OPERATORS = new Set<BulkProductFilterOperator>(['=', '!=', 'contains']);
+const STATIC_SORT_KEYS = new Set<BulkProductSortKey>([
+  'created_at', 'name', 'inventory', 'rrp', 'cost', 'base_sku', 'brand', 'supplier', 'product_type', 'category', 'subcategory',
+  'tags', 'description', 'is_active', 'is_stock_item', 'is_online', 'website_title', 'allow_indent_wholesale', 'barcode',
+  'price_wholesale', 'price_rrp_sale', 'discount_start_date', 'discount_end_date', 'weight_kg', 'is_active_variant',
+]);
+
+export function isBulkProductSortKey(value: unknown): value is BulkProductSortKey {
+  const key = String(value ?? '');
+  return STATIC_SORT_KEYS.has(key as BulkProductSortKey)
+    || /^location_[1-9]\d*_(soh|min_qty|reorder_qty|zone|bin)$/.test(key)
+    || /^foreign_cost_(USD|EUR|GBP|THB|CNY|JPY)$/.test(key);
+}
 
 export const DEFAULT_BULK_PRODUCT_WORKSPACE: BulkProductWorkspaceSettings = {
   selectedFields: [],
@@ -61,8 +81,8 @@ export function sanitizeBulkProductFilters(value: unknown): BulkProductFilter[] 
 
 export function sanitizeBulkProductWorkspace(value: unknown): BulkProductWorkspaceSettings {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-  const sortKey = ['created_at', 'name', 'inventory', 'rrp', 'cost'].includes(String(raw.sortKey))
-    ? raw.sortKey as BulkProductSortKey
+  const sortKey = isBulkProductSortKey(raw.sortKey)
+    ? raw.sortKey
     : DEFAULT_BULK_PRODUCT_WORKSPACE.sortKey;
   return {
     selectedFields: Array.isArray(raw.selectedFields) ? raw.selectedFields.filter((field): field is string => typeof field === 'string').slice(0, 100) : [],
@@ -150,12 +170,47 @@ export function buildBulkProductListPlan(input: {
     inventory: `COALESCE((SELECT SUM(ss.qty_on_hand) FROM ims_product_variants sv JOIN ims_stock ss ON ss.variant_id = sv.variant_id AND ss.business_id = sv.business_id JOIN ims_locations sl ON sl.id = ss.location_id AND sl.business_id = ss.business_id AND sl.is_active = 1 WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
     rrp: `COALESCE((SELECT MIN(NULLIF(sv.price_rrp, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
     cost: `COALESCE((SELECT MIN(NULLIF(sv.cost_aud, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
+    base_sku: 'p.base_sku',
+    brand: 'p.brand',
+    supplier: 'c.name',
+    product_type: 'p.product_type',
+    category: 'p.category',
+    subcategory: 'p.subcategory',
+    tags: 'p.tags',
+    description: 'p.description',
+    is_active: 'p.is_active',
+    is_stock_item: 'p.is_stock_item',
+    is_online: 'p.is_online',
+    website_title: 'p.website_title',
+    allow_indent_wholesale: 'p.allow_indent_wholesale',
+    barcode: `COALESCE((SELECT MIN(sv.barcode) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), '')`,
+    price_wholesale: `COALESCE((SELECT MIN(sv.price_wholesale) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
+    price_rrp_sale: `COALESCE((SELECT MIN(sv.price_rrp_sale) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
+    discount_start_date: `COALESCE((SELECT MIN(sv.discount_start_date) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), '')`,
+    discount_end_date: `COALESCE((SELECT MIN(sv.discount_end_date) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), '')`,
+    weight_kg: `COALESCE((SELECT MIN(sv.weight_kg) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
+    is_active_variant: `COALESCE((SELECT MIN(sv.is_active) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id), 0)`,
   };
-  const sortKey = Object.prototype.hasOwnProperty.call(sortExpressions, input.sortKey) ? input.sortKey : 'name';
+  const sortKey = isBulkProductSortKey(input.sortKey) ? input.sortKey : 'name';
+  const locationSort = /^location_(\d+)_(soh|min_qty|reorder_qty|zone|bin)$/.exec(sortKey);
+  const foreignCostSort = /^foreign_cost_(USD|EUR|GBP|THB|CNY|JPY)$/.exec(sortKey);
+  let sortExpression = sortExpressions[sortKey];
+  if (locationSort) {
+    const locationId = Number(locationSort[1]);
+    const field = locationSort[2] as BulkProductLocationSortField;
+    const column = { soh: 'qty_on_hand', min_qty: 'min_qty', reorder_qty: 'reorder_qty', zone: 'zone', bin: 'bin' }[field];
+    const aggregate = field === 'soh' ? 'SUM' : 'MIN';
+    const fallback = field === 'zone' || field === 'bin' ? "''" : '0';
+    sortExpression = `COALESCE((SELECT ${aggregate}(bs.${column}) FROM ims_product_variants bv JOIN ims_stock bs ON bs.variant_id = bv.variant_id AND bs.business_id = bv.business_id JOIN ims_locations bl ON bl.id = bs.location_id AND bl.business_id = bs.business_id AND bl.is_active = 1 WHERE bv.product_id = p.product_id AND bv.business_id = p.business_id AND bv.is_active = 1 AND bs.location_id = ${locationId}), ${fallback})`;
+  }
+  if (foreignCostSort) {
+    const currencyCode = foreignCostSort[1] as BulkProductForeignCurrency;
+    sortExpression = `COALESCE((SELECT MIN(CAST(JSON_UNQUOTE(JSON_EXTRACT(sv.cost_foreign, '$.${currencyCode}')) AS DECIMAL(18,4))) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`;
+  }
   const direction = input.sortDirection === 'desc' ? 'DESC' : 'ASC';
   return {
     filterSql: conditions.length ? `(${conditions.map(condition => condition.sql).join(input.filterJoin === 'or' ? ' OR ' : ' AND ')})` : '',
     filterParams: conditions.flatMap(condition => condition.params),
-    orderBySql: `${sortExpressions[sortKey]} ${direction}, p.name ASC, p.product_id ASC`,
+    orderBySql: `${sortExpression} ${direction}, p.name ASC, p.product_id ASC`,
   };
 }

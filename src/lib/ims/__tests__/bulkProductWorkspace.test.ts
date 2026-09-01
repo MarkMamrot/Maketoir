@@ -59,4 +59,26 @@ describe('bulk product workspace', () => {
     const plan = buildBulkProductListPlan({ filters: [], filterJoin: 'and', sortKey: 'toString' as any, sortDirection: 'desc' });
     expect(plan.orderBySql).toBe('p.name DESC, p.name ASC, p.product_id ASC');
   });
+
+  it('sorts a branch replenishment heading with a validated location id', () => {
+    const plan = buildBulkProductListPlan({ filters: [], filterJoin: 'and', sortKey: 'location_7_reorder_qty', sortDirection: 'desc' });
+
+    expect(plan.orderBySql).toContain('MIN(bs.reorder_qty)');
+    expect(plan.orderBySql).toContain('bs.location_id = 7');
+    expect(plan.orderBySql).toContain('bl.is_active = 1');
+    expect(plan.orderBySql).toContain('DESC');
+  });
+
+  it('retains safe header sort keys in persisted workspaces', () => {
+    expect(sanitizeBulkProductWorkspace({ sortKey: 'base_sku' }).sortKey).toBe('base_sku');
+    expect(sanitizeBulkProductWorkspace({ sortKey: 'location_12_min_qty' }).sortKey).toBe('location_12_min_qty');
+    expect(sanitizeBulkProductWorkspace({ sortKey: 'location_12_min_qty DESC' }).sortKey).toBe('name');
+  });
+
+  it('sorts only whitelisted foreign-currency cost headings', () => {
+    const plan = buildBulkProductListPlan({ filters: [], filterJoin: 'and', sortKey: 'foreign_cost_USD', sortDirection: 'asc' });
+
+    expect(plan.orderBySql).toContain("JSON_EXTRACT(sv.cost_foreign, '$.USD')");
+    expect(sanitizeBulkProductWorkspace({ sortKey: 'foreign_cost_AUD' }).sortKey).toBe('name');
+  });
 });

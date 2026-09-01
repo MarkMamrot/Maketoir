@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
   enabledBulkProductFields,
@@ -143,6 +143,24 @@ const SORT_OPTIONS: Array<{ key: BulkProductSortKey; direction: BulkProductSortD
   { key: 'cost', direction: 'desc', label: 'Cost: High to low' },
   { key: 'cost', direction: 'asc', label: 'Cost: Low to high' },
 ];
+
+const FIELD_SORT_KEYS: Partial<Record<string, BulkProductSortKey>> = {
+  name: 'name', base_sku: 'base_sku', brand: 'brand', supplier_contact_id: 'supplier', product_type: 'product_type',
+  category: 'category', subcategory: 'subcategory', tags: 'tags', description: 'description', is_active: 'is_active',
+  is_stock_item: 'is_stock_item', is_online: 'is_online', website_title: 'website_title', allow_indent_wholesale: 'allow_indent_wholesale',
+  barcode: 'barcode', price_rrp: 'rrp', price_wholesale: 'price_wholesale', price_rrp_sale: 'price_rrp_sale',
+  discount_start_date: 'discount_start_date', discount_end_date: 'discount_end_date', cost_aud: 'cost', weight_kg: 'weight_kg',
+  is_active_variant: 'is_active_variant',
+};
+
+function fieldSortKey(field: BulkProductFieldDefinition): BulkProductSortKey | null {
+  const staticKey = FIELD_SORT_KEYS[field.id];
+  if (staticKey) return staticKey;
+  if (field.currencyCode && FOREIGN_CURRENCIES.includes(field.currencyCode)) return `foreign_cost_${field.currencyCode}` as BulkProductSortKey;
+  if (!field.locationId || !field.locationField) return null;
+  const suffix = { quantity: 'soh', minQty: 'min_qty', reorderQty: 'reorder_qty', zone: 'zone', bin: 'bin' }[field.locationField];
+  return `location_${field.locationId}_${suffix}`;
+}
 
 function filterDefaults(field: BulkProductFilterField): Pick<BulkProductFilter, 'operator' | 'value'> {
   const kind = FILTER_FIELDS.find(candidate => candidate.id === field)?.kind;
@@ -451,6 +469,12 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     !product.name.trim() || !product.base_sku.trim() || !product.variants.length || product.variants.some(variant => !variant.sku.trim()),
   );
   const storageKey = `solvantis:bulk-add-edit:fields:v1:${businessId}`;
+
+  const toggleColumnSort = (nextSortKey: BulkProductSortKey) => {
+    setSortDirection(current => sortKey === nextSortKey && current === 'asc' ? 'desc' : 'asc');
+    setSortKey(nextSortKey);
+    setPage(1);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -891,6 +915,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
         <select aria-label="Sort products" value={`${sortKey}:${sortDirection}`} onChange={event => { const [nextKey, nextDirection] = event.target.value.split(':') as [BulkProductSortKey, BulkProductSortDirection]; setSortKey(nextKey); setSortDirection(nextDirection); setPage(1); }} style={{ ...inputStyle, width: 225 }}>
+          {!SORT_OPTIONS.some(option => option.key === sortKey && option.direction === sortDirection) && <option value={`${sortKey}:${sortDirection}`}>{fields.find(field => fieldSortKey(field) === sortKey)?.label ?? 'Selected column'}: {sortDirection === 'asc' ? 'Ascending' : 'Descending'}</option>}
           {SORT_OPTIONS.map(option => <option key={`${option.key}:${option.direction}`} value={`${option.key}:${option.direction}`}>{option.label}</option>)}
         </select>
         <div style={{ position: 'relative' }}>
@@ -969,7 +994,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
       <div style={{ border: '1px solid var(--sv-etch)', minWidth: 0 }}>
         <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 10, overflow: 'hidden', background: 'var(--sv-bg-2)' }}>
-          <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34 }} /><th style={{ position: 'sticky', left: 44, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => <th key={field.id} style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: '0 7px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{field.label}</th>)}</tr></thead></table>
+          <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34 }} /><th style={{ position: 'sticky', left: 44, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => {
+            const columnSortKey = fieldSortKey(field);
+            const isActiveSort = columnSortKey === sortKey;
+            return <th key={field.id} aria-sort={isActiveSort ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined} style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: 0, fontSize: 11, color: 'var(--sv-text-dim)' }}>{columnSortKey ? <button type="button" aria-label={`Sort by ${field.label}${isActiveSort ? ` ${sortDirection === 'asc' ? 'descending' : 'ascending'}` : ''}`} onClick={() => toggleColumnSort(columnSortKey)} title={`Sort by ${field.label}`} style={{ width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, padding: '0 7px', border: 0, background: isActiveSort ? 'color-mix(in srgb, var(--sv-action) 8%, transparent)' : 'transparent', color: isActiveSort ? 'var(--sv-action)' : 'var(--sv-text-dim)', font: 'inherit', fontWeight: isActiveSort ? 750 : 650, cursor: 'pointer', textAlign: 'left' }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label}</span>{isActiveSort && (sortDirection === 'asc' ? <ArrowUp size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} /> : <ArrowDown size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} />)}</button> : <span style={{ display: 'flex', alignItems: 'center', height: 34, padding: '0 7px' }}>{field.label}</span>}</th>;
+          })}</tr></thead></table>
         </div>
         <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bulk-add-edit-products-scroll" tabIndex={0} role="region" aria-label="Bulk Add/Edit Products table. Use Left and Right arrows to scroll columns and Up and Down arrows to scroll the page." onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0 }}>
           <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<tbody>
