@@ -149,7 +149,7 @@ export function buildBulkProductListPlan(input: {
     rrp: `COALESCE((SELECT MIN(NULLIF(sv.price_rrp, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id), 0)`,
     cost: `COALESCE((SELECT MIN(NULLIF(sv.cost_aud, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id), 0)`,
   };
-  const sortKey = input.sortKey in sortExpressions ? input.sortKey : 'name';
+  const sortKey = Object.prototype.hasOwnProperty.call(sortExpressions, input.sortKey) ? input.sortKey : 'name';
   const direction = input.sortDirection === 'desc' ? 'DESC' : 'ASC';
   return {
     filterSql: conditions.length ? `(${conditions.map(condition => condition.sql).join(input.filterJoin === 'or' ? ' OR ' : ' AND ')})` : '',

@@ -50,4 +50,9 @@ describe('bulk product workspace', () => {
     expect(workspace.sortDirection).toBe('asc');
     expect(workspace.filters).toEqual([{ id: 'valid', field: 'rrp', operator: '>=', value: '10.5' }]);
   });
+
+  it('falls back from inherited or unknown sort keys', () => {
+    const plan = buildBulkProductListPlan({ filters: [], filterJoin: 'and', sortKey: 'toString' as any, sortDirection: 'desc' });
+    expect(plan.orderBySql).toBe('p.name DESC, p.name ASC, p.product_id ASC');
+  });
 });
