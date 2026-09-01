@@ -80,15 +80,18 @@ Before reimporting products that already use custom variant SKUs, align those SK
 
 1. Open **Products > Bulk Add/Edit** and filter existing products when needed.
 2. Use **Add New Products** above the table to add one or more new product rows. New products begin with one default variant on the main row.
-3. Use **Add fields** to show the product and variant columns needed for this task. Under **Currency costs**, choose each foreign currency that needs its own tax-exclusive Cost column. The selection is remembered in this browser for the active business.
+3. Use **Display Fields** to show the product and variant columns needed for this task. Under **Currency costs**, choose each foreign currency that needs its own tax-exclusive Cost column. The selection is remembered in this browser for the active business.
 4. Enter Product Name and Product SKU. **Auto Generate Product SKUs** fills only blank Product SKU cells, using each row's brand and the same format as New Product. A sole default variant uses the Product SKU as its hidden Variant SKU.
 5. Enter Barcode, **RRP $ (GST Inc)**, **Cost $ (GST Exc)** and any other selected variant values directly on the main row while the product has only its default variant.
 6. Select **Manage variants** on a product to open its variants popup. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Review or change generated Variant SKUs in the popup. Matching existing variants retain their saved identity and entered values.
 7. To repeat a value, drag from anywhere in a supported field through compatible visible cells in the same column. For Brand and Default Supplier, type to filter choices or use the arrow at the right to open them; clicking and dragging from the field body does not open the list. Solvantis highlights every field that will change while you drag. Product fields fill only product rows; variant fields fill only visible variant rows. The fill stops at the current page and does not include collapsed variants.
 8. Use the compact **Expand** and **Collapse** controls to show or hide child rows for products with generated variants. Default-only products do not have child rows.
 9. Under **Branch Level Variables**, optionally add SOH, Min Qty, Reorder Point, or Zone/Bin columns for every active branch. Min Qty and Reorder Point can be selected independently. These groups appear only when their matching Product or business setting is enabled.
-10. Enter SOH as the new absolute count. Leave an SOH blank to keep it unchanged. Saving an entered count creates and completes a stocktake for that branch, including the adjustment from current SOH to the entered count.
-11. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. Product changes, location fields and completed stocktakes are committed together; if any row fails, nothing in that save is applied.
+10. Choose a Sort order when needed. Inventory Level uses total SOH across all variants and branches; RRP and Cost use the product's lowest non-zero variant value.
+11. Use **Filter** to add one or more conditions. Choose **Match ALL** when every condition must be true or **Match ANY** when one condition is enough. Under Match ALL, Zone, Bin, SOH, Stock Available, Min Qty and Reorder Point conditions must match the same variant and branch row. Search, Brand and Supplier continue to narrow either result.
+12. Save Display Fields, Sort and Filter settings as a named **Preset** for repeated work. Presets are private to the signed-in user within the business, work across their devices, and the last selected preset is restored when they return.
+13. Enter SOH as the new absolute count. Leave an SOH blank to keep it unchanged. Saving an entered count creates and completes a stocktake for that branch, including the adjustment from current SOH to the entered count.
+14. Review the dirty count and select **Save** at the top right. Solvantis validates the complete changed batch first. Product changes, location fields and completed stocktakes are committed together; if any row fails, nothing in that save is applied.
 
 > **Important:** Use Bulk Add/Edit SOH only for a counted absolute quantity. Receive purchases, fulfil sales and complete transfers in their own workflows so Solvantis records the correct stock activity.
 

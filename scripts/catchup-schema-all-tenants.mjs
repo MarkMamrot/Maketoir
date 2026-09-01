@@ -1060,6 +1060,12 @@ const TABLE_DDLS = [
   ...ONLINE_SHOP_TABLE_DDLS,
 ];
 
+const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
+const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA-Z0-9_]+)`?/)?.[1] ?? '';
+if (requestedTable && !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requestedTable)) {
+  throw new Error(`Requested table is not registered for bootstrap: ${requestedTable}`);
+}
+
 // Column definitions: [table, column, definition]
 const COLUMNS = [
   ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
@@ -1503,7 +1509,8 @@ async function assertUniqueGiftCardTransactionIdentities(schema) {
 }
 
 async function migrateSchema(schema, businessId) {
-  for (const ddl of TABLE_DDLS) {
+  const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
+  for (const ddl of tableDdls) {
     try {
       await conn.query(`USE \`${schema}\``);
       await conn.query(ddl);
@@ -1511,6 +1518,7 @@ async function migrateSchema(schema, businessId) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
   }
+  if (requestedTable) return;
 
   const [onlineShopTables] = await conn.query(
     `SELECT TABLE_NAME FROM information_schema.TABLES
@@ -2058,6 +2066,7 @@ try {
   console.log(`Schemas: ${selectedSchemas.join(', ')}`);
   for (const schema of selectedSchemas) {
     await migrateSchema(schema, businessIdsBySchema.get(schema));
+    if (requestedTable) continue;
     await verifyBackorderMergeSchema(schema);
     await verifyStockAvailabilitySchema(schema);
     await verifyGiftCardReconciliationSchema(schema);

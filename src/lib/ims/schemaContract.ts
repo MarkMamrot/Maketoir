@@ -9,6 +9,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_crm_opportunities',
   'ims_crm_contact_merges',
   'ims_brands',
+  'ims_bulk_product_presets',
   'ims_locations',
   'pos_chat_messages',
   'pos_chat_attachments',
@@ -125,6 +126,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   loyalty_redemptions: ['expires_at'],
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
+  ims_bulk_product_presets: ['business_id', 'user_key', 'name', 'settings_json', 'last_used_at', 'created_at', 'updated_at'],
   pos_training_sales: ['business_id', 'local_id', 'location_id', 'items_json', 'payments_json', 'created_at'],
   pos_daybook_task_signoffs: ['business_id', 'staff_name', 'staff_initials', 'actor_user_id', 'actor_name', 'actor_tier', 'created_at'],
   pos_daybook_communication_reads: ['business_id', 'location_id', 'staff_name', 'staff_initials', 'actor_user_id', 'actor_name', 'read_at'],
@@ -226,6 +228,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
   ims_brands: ['uq_ims_brand_per_tenant', 'idx_ims_brand_business'],
+  ims_bulk_product_presets: ['uq_bulk_product_preset_name', 'idx_bulk_product_preset_user'],
   pos_training_sales: ['uq_pos_training_local', 'idx_pos_training_location'],
   ims_crm_interactions: ['idx_crm_interaction_timeline'],
   ims_crm_tasks: ['idx_crm_task_contact', 'idx_crm_task_assignee'],
