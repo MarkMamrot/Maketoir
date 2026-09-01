@@ -56,6 +56,7 @@ interface AssistantToolResult {
 }
 
 const MAX_TOOL_STEPS = 4;
+export const ASSISTANT_MODEL = process.env.SOLVANTIS_ASSISTANT_MODEL || 'gemini-3.1-flash-lite';
 
 const FINDING_CATEGORIES = new Set<WorkflowFindingCategory>([
   'logical_flow_error', 'workflow_gap', 'missing_capability', 'edge_case', 'documentation_gap',
@@ -159,7 +160,7 @@ export async function runAssistant(input: {
 }): Promise<AssistantResponse> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Assistant provider is not configured.');
-  const model = process.env.SOLVANTIS_ASSISTANT_MODEL || 'gemini-2.5-flash';
+  const model = ASSISTANT_MODEL;
   const prompt = await loadAssistantPrompt();
   const xeroAccountingEnabled = input.principal.audience === 'ims' || input.principal.audience === 'pos'
     ? await isXeroAccountingEnabled(input.principal.businessId).catch(() => false)

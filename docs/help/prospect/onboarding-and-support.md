@@ -11,6 +11,6 @@ Support varies by plan. Starter includes email support. Core includes a local bu
 
 ## Sales Assistant and Contact
 
-The public Solvantis Sales Assistant provides high-level feature, fit, pricing and integration guidance without requiring contact details. It never opens automatically. Visitors can remove their conversation and can choose to talk to sales at any time.
+The public Solvantis Sales Assistant provides high-level feature, fit, pricing and integration guidance without requiring contact details. It never opens automatically. Visitors can remove their conversation and can choose to talk to sales at any time. If it reports that it could not complete an answer, retry the question later or choose **Talk to sales**; do not treat that temporary response as product guidance.
 
 Assistant questions and responses are stored to improve Solvantis and may be reviewed. Follow-up is separate: a sales request requires a name, a valid email address or phone number, a preferred contact channel and explicit consent for a reply through that channel. Company, location count, current systems and timeframe are optional. When the online request cannot be sent, the form offers a direct email fallback.

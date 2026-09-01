@@ -1,3 +1,9 @@
+## 2026-09-01 - Ask Solvantis commercial model recovery
+
+- Public Sales Assistant and authenticated Ask Solvantis generation had fallen back or failed before provider submission because their `gemini-2.5-flash` default was globally disabled and no longer had complete active commercial rates after canonical model reconciliation.
+- Both Assistant orchestrators now default to `gemini-3.1-flash-lite`, while retaining their environment overrides. The replacement is current, globally approved, has complete input/cached-input/output/thinking provider rates, and is priceable across every active AI plan.
+- A live homepage request returned a genuine persisted answer through the tracked billing gateway. Focused public/private orchestration tests protect the shared default; Help now explains how users should handle a temporary incomplete response.
+
 ## 2026-08-31 - POS IndexedDB catalogue persistence
 
 - POS product catalogues and sync watermarks now persist in Dexie-backed IndexedDB under a business-and-location scope. Product refreshes update React memory and IndexedDB atomically, avoiding the `localStorage` size ceiling that made successful manual Sync results disappear after reload.

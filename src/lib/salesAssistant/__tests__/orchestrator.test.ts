@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeSalesDecision, runProspectSalesAssistant } from '../orchestrator';
+import { normalizeSalesDecision, runProspectSalesAssistant, SALES_MODEL } from '../orchestrator';
 
 describe('sales response normalization', () => {
+  it('defaults to an approved model with complete commercial pricing', () => {
+    expect(SALES_MODEL).toBe('gemini-3.1-flash-lite');
+  });
+
   it('normalizes enums and nullable fields and keeps only retrieved source IDs', () => {
     expect(normalizeSalesDecision({ answer: ' Solvantis supports multi-location retail. ', fit: 'invalid', intent: 'high_intent', sourceIds: ['allowed', 'private'], offerContact: true }, new Set(['allowed']))).toEqual({
       answer: 'Solvantis supports multi-location retail.', sourceIds: ['allowed'], followUpQuestion: null,

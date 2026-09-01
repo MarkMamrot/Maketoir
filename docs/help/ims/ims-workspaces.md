@@ -54,6 +54,7 @@ Notifications show a plain-language title and action summary. Open one to see la
 | Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |
 | A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |
 | Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |
+| Ask Solvantis cannot complete an answer | Confirm the internet connection, then retry once | Use Help for the maintained procedure or contact support if the retry also fails |
 
 ## Worked examples
 

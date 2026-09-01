@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { assistantOrchestratorInternals } from '../orchestrator';
+import { ASSISTANT_MODEL, assistantOrchestratorInternals } from '../orchestrator';
 
 describe('assistant response normalization', () => {
+  it('defaults to an approved model with complete commercial pricing', () => {
+    expect(ASSISTANT_MODEL).toBe('gemini-3.1-flash-lite');
+  });
+
   it('rejects non-JSON model output', () => {
     expect(() => assistantOrchestratorInternals.parseDecision('not json')).toThrow();
   });
