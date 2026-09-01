@@ -1,3 +1,11 @@
+## 2026-09-01 - Daybook collaboration and responsive workflow
+
+- Daybook task sign-off/reopen, communication acknowledgment, record status changes, comments, edits, and deletes now update in place and silently reconcile without replacing the workspace or resetting scroll position.
+- Checklist tasks, communications, customer requests, and store needs have immutable staff-attributed comment threads. Store Needs are grouped as Store Supplies, Stock Requests, or Uncategorized for legacy entries.
+- Reference desk uses expandable categories and supports optional encrypted, masked secrets with reveal/copy controls for Daybook staff. Secret values are excluded from normal reference payloads and search.
+- Daybook uses a wider large-screen canvas and denser seven-day task matrix. POS settings can expose a direct-linkable Daybook icon in the main bar and briefly animate it on initial/hourly checks while today's work remains incomplete.
+- `scripts/catchup-schema-all-tenants.mjs` added `pos_daybook_comments` and the encrypted reference columns to all four registered tenant schemas. Production build, 15 focused tests, Help indexing, and authenticated sandbox Playwright validation passed.
+
 ## 2026-09-01 - Curated AI pricing and plan margins
 
 - SuperAdmin AI Usage & Credits now maintains one curated catalogue: Gemini 3.7 Flash, Gemini 3.5 Flash-Lite, Gemini 3.1 Pro Preview, Nano Banana 2, Nano Banana Pro, and Veo 3.1 Standard. The normal screen no longer exposes discovery, SKU mapping, arbitrary model enablement, explicit sell-rate cards, or manual effective-rate creation.
