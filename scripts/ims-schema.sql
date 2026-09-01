@@ -1853,6 +1853,22 @@ CREATE TABLE IF NOT EXISTS pos_daybook_record_events (
   INDEX idx_daybook_record_events (business_id, record_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS pos_daybook_comments (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  location_id       INT NOT NULL,
+  item_type         ENUM('task','communication','record') NOT NULL,
+  item_id           BIGINT NOT NULL,
+  comment_text      TEXT NOT NULL,
+  staff_identity_id BIGINT NULL,
+  staff_name        VARCHAR(120) NOT NULL,
+  staff_initials    VARCHAR(8) NOT NULL,
+  actor_user_id     INT NULL,
+  actor_name        VARCHAR(255) NOT NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_daybook_comments (business_id, location_id, item_type, item_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS pos_daybook_references (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id     VARCHAR(100) NOT NULL,
@@ -1861,6 +1877,8 @@ CREATE TABLE IF NOT EXISTS pos_daybook_references (
   title           VARCHAR(255) NOT NULL,
   content         TEXT NOT NULL,
   link_url        VARCHAR(1000) NULL,
+  secret_label    VARCHAR(120) NULL,
+  secret_value_encrypted TEXT NULL,
   sort_order      INT NOT NULL DEFAULT 0,
   is_active       TINYINT(1) NOT NULL DEFAULT 1,
   background_color VARCHAR(32) NULL,

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
-  ClipboardPlus, ClipboardX, Megaphone, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
+  ClipboardPlus, ClipboardX, Copy, Eye, Megaphone, MessageSquare, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
   Trash2, Truck, UserRoundCheck, Users, X,
 } from 'lucide-react';
 import type { PosSession } from '../../_types';
@@ -19,15 +19,16 @@ import styles from './PosStoreDaybook.module.css';
 
 type Staff = { id?: number | null; name: string; initials: string };
 type TaskPhase = 'opening' | 'during_day' | 'closing';
-type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
+type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; comments?: DaybookComment[]; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
 type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; instructions?: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; is_active: number; can_edit: boolean; staff_name?: string; staff_initials?: string; signed_at?: string };
 type EditableTask = Pick<Task, 'template_id' | 'title_snapshot' | 'instructions' | 'phase' | 'recurrence' | 'weekday' | 'scheduled_date'>;
 type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
 type Reader = { name: string; initials: string; read_at: string };
+type DaybookComment = { id: number; item_type: 'task' | 'communication' | 'record'; item_id: number; comment_text: string; staff_name: string; staff_initials: string; actor_name: string; created_at: string };
 type Editable = { background_color?: ColourKey | null; can_edit: boolean };
-type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number; readers: Reader[] };
-type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null };
-type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null };
+type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number; readers: Reader[]; comments: DaybookComment[] };
+type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null; comments: DaybookComment[] };
+type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null; secret_label?: string | null; has_secret?: boolean };
 type GuideRow = Editable & { id: number; variant_id?: string | null; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
 type GuideProduct = { variant_id: string; product_id: string; product_name: string; option_label?: string | null; sku?: string | null; image_url?: string | null; image_alt?: string | null };
 type Location = { id: number; name: string };
@@ -35,6 +36,7 @@ type Workspace = {
   date: string;
   location: Location;
   permissions: { manager: boolean; editPolicy: 'author_only' | 'managers' | 'anyone' };
+  preferences: { showInMainMenu: boolean; hourlyReminder: boolean };
   tasks: Task[];
   taskDates: string[];
   taskHistory: TaskHistory[];
@@ -145,8 +147,8 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
     setClipboardMessage('');
   }, [clipboardKey]);
 
-  async function load(selectedStaff = staff) {
-    setLoading(true);
+  async function load(selectedStaff = staff, showLoading = true) {
+    if (showLoading) setLoading(true);
     setError('');
     try {
       const initials = selectedStaff?.initials ? `&initials=${encodeURIComponent(selectedStaff.initials)}` : '';
@@ -155,7 +157,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
       if (!response.ok) throw new Error(result.error || 'Daybook could not be loaded.');
       setWorkspace(result);
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Daybook could not be loaded.'); }
-    finally { setLoading(false); }
+    finally { if (showLoading) setLoading(false); }
   }
 
   useEffect(() => { void load(); }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -206,7 +208,52 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   }
 
   async function perform(action: string, payload: Record<string, unknown> = {}) {
-    try { await post(action, payload); setForm({}); setEditor(null); await load(); } catch {}
+    try {
+      const result = await post(action, payload);
+      setWorkspace(current => {
+        if (!current) return current;
+        if (action === 'sign_task') {
+          const instanceId = Number(payload.instance_id);
+          const completed = payload.signoff_action !== 'reopened';
+          const status = completed ? 'completed' : 'open';
+          const signer = staff ?? { name: session.full_name, initials: '' };
+          return {
+            ...current,
+            tasks: current.tasks.map(task => task.id === instanceId ? { ...task, status, last_staff_name: completed ? signer.name : undefined, last_staff_initials: completed ? signer.initials : undefined } : task),
+            taskHistory: current.taskHistory.map(task => task.id === instanceId ? { ...task, status, staff_name: completed ? signer.name : undefined, staff_initials: completed ? signer.initials : undefined } : task),
+          };
+        }
+        if (action === 'read_communication') {
+          const communicationId = Number(payload.communication_id);
+          const reader = staff ?? { name: session.full_name, initials: '' };
+          return { ...current, communications: current.communications.map(item => item.id === communicationId ? {
+            ...item, my_read: 1, read_count: Number(item.read_count) + (Number(item.my_read) ? 0 : 1),
+            readers: item.readers.some(existing => existing.initials === reader.initials) ? item.readers : [...item.readers, { ...reader, read_at: new Date().toISOString() }],
+          } : item) };
+        }
+        if (action === 'transition_record') {
+          return { ...current, records: current.records.map(record => record.id === Number(payload.record_id) ? { ...record, status: String(payload.status) } : record) };
+        }
+        if (action === 'add_comment' && result.comment) {
+          const comment = result.comment as DaybookComment;
+          if (comment.item_type === 'task') return { ...current, tasks: current.tasks.map(task => task.id === comment.item_id ? { ...task, comments: [...(task.comments ?? []), comment] } : task) };
+          if (comment.item_type === 'communication') return { ...current, communications: current.communications.map(item => item.id === comment.item_id ? { ...item, comments: [...item.comments, comment] } : item) };
+          return { ...current, records: current.records.map(record => record.id === comment.item_id ? { ...record, comments: [...record.comments, comment] } : record) };
+        }
+        if (action === 'delete_item') {
+          if (payload.item_type === 'task') {
+            const templateId = Number(payload.item_id);
+            return { ...current, tasks: current.tasks.filter(task => task.template_id !== templateId), taskHistory: current.taskHistory.map(task => task.template_id === templateId ? { ...task, is_active: 0, can_edit: false } : task) };
+          }
+          if (payload.item_type === 'record') return { ...current, records: current.records.filter(record => record.id !== Number(payload.item_id)) };
+        }
+        return current;
+      });
+      setForm({});
+      setEditor(null);
+      await load(staff, false);
+      return result;
+    } catch {}
   }
 
   async function writeDaybookClipboard(items: DaybookClipboardItem[]) {
@@ -313,6 +360,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
               if (!confirm(`Delete "${task.title_snapshot}" from the active Daybook? Future occurrences will stop, while existing sign-off history will be retained.`)) return;
               await perform('delete_item', { item_type: 'task', item_id: task.template_id });
             }}
+            onComment={(task, commentText) => perform('add_comment', { item_type: 'task', item_id: task.id, comment_text: commentText })}
             onAdd={workspace?.permissions.manager ? () => openEditor('task', { phase: taskPhase }) : undefined}
           />
         )}
@@ -324,6 +372,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
               <div className={styles.noticeMeta}><span>{item.priority}</span><time>{shortTime(item.published_at)}</time></div>
               <div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('communication', { _id: item.id, title: item.title, message: item.message, priority: item.priority, background_color: item.background_color })} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div><p>{item.message}</p>
               <div className={styles.readers}><Users size={15} />{item.readers.length ? item.readers.map(reader => <span key={reader.initials} title={`${reader.name} · ${shortTime(reader.read_at)}`}><b>{reader.initials}</b>{reader.name}</span>) : <small>No acknowledgments yet</small>}</div>
+              <CommentThread comments={item.comments} saving={saving} onAdd={commentText => perform('add_comment', { item_type: 'communication', item_id: item.id, comment_text: commentText })} />
               <footer><small>{item.read_count} acknowledgment{Number(item.read_count) === 1 ? '' : 's'}</small><button disabled={saving || Boolean(Number(item.my_read))} onClick={() => perform('read_communication', { communication_id: item.id })}>{Number(item.my_read) ? <><Check size={16} /> Read</> : 'Mark as read'}</button></footer>
             </article>)}</div>
           </section>
@@ -349,13 +398,15 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
           />
         )}
 
-        {!loading && active === 'references' && (
-          <section className={styles.contentSection}>
-            <Title title="Reference desk" subtitle="Contacts, guides and troubleshooting without hunting through old tabs." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('reference')}><Plus size={17} /> Add new</button> : undefined} />
-            <SearchBox value={query} onChange={setQuery} placeholder="Search references" />
-            <div className={styles.referenceGrid}>{workspace?.references.filter(item => `${item.title} ${item.content} ${item.category}`.toLowerCase().includes(query.toLowerCase())).map(item => <article className={`${styles.reference} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}><span>{item.category}</span><div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('reference', { _id: item.id, category: item.category, title: item.title, content: item.content, link_url: item.link_url, background_color: item.background_color })} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div><p>{item.content}</p>{item.link_url && <a href={item.link_url} target="_blank" rel="noreferrer">Open resource</a>}</article>)}</div>
-          </section>
-        )}
+        {!loading && active === 'references' && <ReferenceDesk
+          references={workspace?.references ?? []}
+          query={query}
+          onQueryChange={setQuery}
+          canAdd={Boolean(workspace?.permissions.manager)}
+          onAdd={() => openEditor('reference')}
+          onEdit={item => openEditor('reference', { _id: item.id, category: item.category, title: item.title, content: item.content, link_url: item.link_url, secret_label: item.secret_label, background_color: item.background_color })}
+          revealSecret={referenceId => post('reveal_reference_secret', { reference_id: referenceId })}
+        />}
 
         {!loading && active === 'guides' && (
           <section className={styles.contentSection}>
@@ -368,7 +419,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
           </section>
         )}
 
-        {!loading && active === 'settings' && workspace?.permissions.manager && <DaybookSettings policy={workspace.permissions.editPolicy} saving={saving} perform={perform} />}
+        {!loading && active === 'settings' && workspace?.permissions.manager && <DaybookSettings policy={workspace.permissions.editPolicy} preferences={workspace.preferences} saving={saving} perform={perform} />}
       </main>
 
       {editor && workspace && <div className={styles.modalBackdrop} role="presentation"><div className={styles.editorModal} role="dialog" aria-modal="true" aria-labelledby="editor-title">
@@ -391,7 +442,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   );
 }
 
-function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onAdd }: {
+function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onAdd, onComment }: {
   workspace: Workspace | null;
   phase: TaskPhase;
   onPhaseChange: (phase: TaskPhase) => void;
@@ -399,6 +450,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   onSign: (task: Task) => Promise<void>;
   onEdit: (task: EditableTask) => void;
   onDelete: (task: EditableTask) => Promise<void>;
+  onComment: (task: Task, commentText: string) => Promise<unknown>;
   onAdd?: () => void;
 }) {
   if (!workspace) return null;
@@ -451,7 +503,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
           {group.rows.map(row => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
           const display = getDaybookTaskDisplay(row.title, currentTask?.instructions_snapshot ?? row.instructions);
-          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <small>{display.instructions}</small>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button></div>}</th>{displayDates.map(taskDate => {
+          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <small>{display.instructions}</small>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button></div>}{currentTask && <CommentThread comments={currentTask.comments ?? []} saving={saving} onAdd={commentText => onComment(currentTask, commentText)} />}</th>{displayDates.map(taskDate => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
             if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;
@@ -468,6 +520,54 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
 
 function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className={styles.search}><Search size={17} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>; }
+
+function CommentThread({ comments, saving, onAdd }: { comments: DaybookComment[]; saving: boolean; onAdd: (commentText: string) => Promise<unknown> }) {
+  const [commentText, setCommentText] = useState('');
+  return <details className={styles.commentThread}>
+    <summary><MessageSquare size={14} /> Comments{comments.length ? ` (${comments.length})` : ''}</summary>
+    <div className={styles.commentList}>{comments.length === 0 && <small>No updates yet.</small>}{comments.map(comment => <div key={comment.id}><b>{comment.staff_name} ({comment.staff_initials})</b><time>{shortTime(comment.created_at)}</time><p>{comment.comment_text}</p></div>)}</div>
+    <form onSubmit={async event => { event.preventDefault(); const next = commentText.trim(); if (!next) return; await onAdd(next); setCommentText(''); }}>
+      <textarea value={commentText} onChange={event => setCommentText(event.target.value)} placeholder="Leave a comment or update" maxLength={4000} />
+      <button type="submit" disabled={saving || !commentText.trim()}>Add comment</button>
+    </form>
+  </details>;
+}
+
+function ReferenceDesk({ references, query, onQueryChange, canAdd, onAdd, onEdit, revealSecret }: {
+  references: ReferenceRow[];
+  query: string;
+  onQueryChange: (value: string) => void;
+  canAdd: boolean;
+  onAdd: () => void;
+  onEdit: (item: ReferenceRow) => void;
+  revealSecret: (referenceId: number) => Promise<{ secret_value?: string } | undefined>;
+}) {
+  const filtered = references.filter(item => `${item.title} ${item.content} ${item.category}`.toLowerCase().includes(query.toLowerCase()));
+  const categories = [...new Set(filtered.map(item => item.category || 'General'))].sort((left, right) => left.localeCompare(right));
+  return <section className={styles.contentSection}>
+    <Title title="Reference desk" subtitle="Contacts, access details, troubleshooting and guides grouped by category." action={canAdd ? <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button> : undefined} />
+    <SearchBox value={query} onChange={onQueryChange} placeholder="Search references" />
+    <div className={styles.referenceSections}>{categories.map((category, index) => <details key={category} open={Boolean(query) || index === 0}>
+      <summary><span>{category}</span><small>{filtered.filter(item => item.category === category).length} entries</small></summary>
+      <div className={styles.referenceGrid}>{filtered.filter(item => (item.category || 'General') === category).map(item => <article className={`${styles.reference} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}>
+        <div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div>
+        <p>{item.content}</p>
+        {item.has_secret && <ReferenceSecret label={item.secret_label || 'Password'} onReveal={() => revealSecret(item.id)} />}
+        {item.link_url && <a href={item.link_url} target="_blank" rel="noreferrer">Open resource</a>}
+      </article>)}</div>
+    </details>)}</div>
+  </section>;
+}
+
+function ReferenceSecret({ label, onReveal }: { label: string; onReveal: () => Promise<{ secret_value?: string } | undefined> }) {
+  const [secret, setSecret] = useState('');
+  const [visible, setVisible] = useState(false);
+  async function reveal() { const result = await onReveal(); setSecret(result?.secret_value ?? ''); setVisible(true); }
+  return <div className={styles.referenceSecret}><span><b>{label}</b><code>{visible ? secret : '••••••••'}</code></span>
+    <button type="button" onClick={() => visible ? setVisible(false) : void reveal()}><Eye size={14} /> {visible ? 'Hide' : 'Reveal'}</button>
+    <button type="button" disabled={!visible || !secret} onClick={() => void navigator.clipboard?.writeText(secret)}><Copy size={14} /> Copy</button>
+  </div>;
+}
 
 function Field({ label, value, onChange, type = 'text', placeholder = '' }: { label: string; value?: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
   return <label className={styles.field}><span>{label}</span>{type === 'textarea' ? <textarea value={value || ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} /> : <input type={type} value={value || ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} />}</label>;
@@ -495,18 +595,26 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit,
   };
   const labels: Record<string, string> = { customer_name: 'Customer name', contact_details: 'Contact details', item: 'Item', notes: 'Notes', quantity: 'Quantity', unit: 'Unit', store_notes: 'Store notes', sku: 'SKU / code', size: 'Size', system_quantity: 'System quantity', physical_quantity: 'Physical quantity found', time: 'Time', staff_present: 'Staff present', event_description: 'Event description', loss_or_damage: 'Loss or damage', emergency_services: 'Emergency services called?', instigator_description: 'Description of incident instigator', management_notified: 'Has management been told?' };
   const usesClipboard = type === 'customer_request' || type === 'store_need';
+  const recordGroups = type === 'store_need'
+    ? [
+      ['store_supplies', 'Store Supplies'],
+      ['stock_request', 'Stock Requests'],
+      ['uncategorized', 'Uncategorized'],
+    ].map(([key, label]) => ({ key, label, records: records.filter(record => String(detailsOf(record).need_category || 'uncategorized') === key) })).filter(group => group.records.length)
+    : [{ key: type, label: '', records }];
   return <section className={styles.contentSection}>
     <Title title={meta[type][0]} subtitle={meta[type][1]} action={<div className={styles.titleActions}>
       {usesClipboard && <button type="button" className={styles.clearClipboardButton} onClick={() => void onClearClipboard()} disabled={clipboardItems.length === 0}><ClipboardX size={16} /> Clear clipboard</button>}
       <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button>
     </div>} />
-      <div className={styles.recordList}>{records.length === 0 && <p className={styles.empty}>Nothing recorded here yet.</p>}{records.map(record => {
+      <div className={styles.recordList}>{records.length === 0 && <p className={styles.empty}>Nothing recorded here yet.</p>}{recordGroups.map(group => <section className={styles.recordGroup} key={group.key}>{group.label && <h3>{group.label}<span>{group.records.length}</span></h3>}{group.records.map(record => {
         const details = detailsOf(record);
         return <article className={`${styles.record} ${record.background_color ? styles[record.background_color] : ''}`} key={record.id}>
           <div className={styles.recordTop}><span>{record.status.replaceAll('_', ' ')}</span><time>{shortTime(record.created_at)}</time></div>
           <div className={styles.cardHeading}><h3>{record.title}</h3></div>
           <p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p>
           <small>Logged by {record.staff_name} ({record.staff_initials})</small>
+          {(type === 'customer_request' || type === 'store_need') && <CommentThread comments={record.comments} saving={saving} onAdd={commentText => perform('add_comment', { item_type: 'record', item_id: record.id, comment_text: commentText })} />}
           <div className={styles.recordFooter}>
             <StatusActions record={record} saving={saving} manager={manager} perform={perform} />
             {usesClipboard && <div className={styles.recordCardActions}>
@@ -516,7 +624,7 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit,
             </div>}
           </div>
         </article>;
-      })}</div>
+      })}</section>)}</div>
       {usesClipboard && <aside className={styles.daybookClipboard} aria-live="polite">
         <div><ClipboardCheck size={18} /><span><strong>Transfer notes clipboard</strong><small>{clipboardItems.length ? `${clipboardItems.length} ${clipboardItems.length === 1 ? 'item' : 'items'} ready to paste into branch transfer notes.` : 'Add cards above to build transfer notes.'}</small></span></div>
         {clipboardMessage && <p>{clipboardMessage}</p>}
@@ -549,7 +657,10 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
   const heading = { task: 'task', communication: 'communication', reference: 'reference', guide: 'product guide', customer_request: 'customer request', store_need: 'store need', stock_discrepancy: 'stock discrepancy', incident: 'incident report' }[type];
   async function submit() {
     if (isRecord) {
-      const details = Object.fromEntries(recordFields[type].map(key => [key, form[key] || '']));
+      const details = Object.fromEntries([
+        ...recordFields[type].map(key => [key, form[key] || '']),
+        ...(type === 'store_need' ? [['need_category', form.need_category || '']] : []),
+      ]);
       const title = type === 'incident' ? 'Incident report' : form.item || form.customer_name || '';
       await perform(editing ? 'update_record' : 'create_record', { record_id: form._id, record_type: type, title, occurred_on: form.occurred_on || todayLocal(), destination_location_id: form.destination_location_id || null, background_color: form.background_color || null, details });
       return;
@@ -563,10 +674,10 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
     await perform('delete_item', { item_type: itemType, item_id: Number(form._id) });
   }
   return <><h2 id="editor-title">{editing ? 'Edit' : 'Add new'} {heading}</h2><form className={styles.managerForm} onSubmit={event => { event.preventDefault(); void submit(); }}>
-    {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
+    {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{type === 'store_need' && <label className={styles.field}><span>Category</span><select required value={form.need_category || ''} onChange={event => setForm({ ...form, need_category: event.target.value })}><option value="">Choose a category</option><option value="store_supplies">Store Supplies</option><option value="stock_request">Stock Request</option></select></label>}{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
     {type === 'task' && <><Field label="Task title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
     {type === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Message" type="textarea" value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label>{!editing && <div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div>}</>}
-    {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Safe link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /></>}
+    {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} placeholder="Contacts, Logins, Troubleshooting, Guides" /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Resource link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /><div className={styles.formRow}><Field label="Secret label (optional)" value={form.secret_label} onChange={value => setForm({ ...form, secret_label: value })} placeholder="Password, PIN, Wi-Fi password" /><Field label={editing ? 'Replace secret (leave blank to keep)' : 'Secret value (optional)'} type="password" value={form.secret_value} onChange={value => setForm({ ...form, secret_value: value })} /></div></>}
     {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}
     {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
     {editing && confirmDelete && <div className={styles.deleteConfirmation} role="alert"><div><strong>Delete this {heading}?</strong><span>It will leave the active Daybook. Existing audit history is retained.</span></div><button type="button" onClick={() => setConfirmDelete(false)} disabled={saving}>Cancel</button><button type="button" className={styles.confirmDeleteButton} onClick={() => void deleteItem()} disabled={saving}>{saving ? 'Deleting…' : 'Delete item'}</button></div>}
@@ -605,14 +716,21 @@ function GuideProductPicker({ form, setForm }: { form: Record<string, string>; s
   </div>;
 }
 
-function DaybookSettings({ policy, saving, perform }: { policy: Workspace['permissions']['editPolicy']; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+function DaybookSettings({ policy, preferences, saving, perform }: { policy: Workspace['permissions']['editPolicy']; preferences: Workspace['preferences']; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
   const [value, setValue] = useState(policy);
-  useEffect(() => setValue(policy), [policy]);
-  return <section className={styles.contentSection}><Title title="Daybook settings" subtitle="Choose who can revise existing Daybook content across all stores." /><div className={styles.settingsPanel}><h3>Who can edit existing items?</h3><div className={styles.policyOptions}>{[
+  const [showInMainMenu, setShowInMainMenu] = useState(preferences.showInMainMenu);
+  const [hourlyReminder, setHourlyReminder] = useState(preferences.hourlyReminder);
+  useEffect(() => { setValue(policy); setShowInMainMenu(preferences.showInMainMenu); setHourlyReminder(preferences.hourlyReminder); }, [policy, preferences]);
+  const unchanged = value === policy && showInMainMenu === preferences.showInMainMenu && hourlyReminder === preferences.hourlyReminder;
+  return <section className={styles.contentSection}><Title title="Daybook settings" subtitle="Control editing and how Daybook appears to staff in POS." /><div className={styles.settingsPanel}><h3>Who can edit existing items?</h3><div className={styles.policyOptions}>{[
     ['author_only', 'Original author only', 'The creating account or staff identity. Managers can maintain imported items with no recorded author.'],
     ['managers', 'Managers only', 'Managers can edit all items, including imported content.'],
     ['anyone', 'Any staff member', 'Anyone with Daybook access can edit existing items.'],
-  ].map(([id, label, description]) => <label className={value === id ? styles.selectedPolicy : ''} key={id}><input type="radio" name="edit-policy" value={id} checked={value === id} onChange={() => setValue(id as Workspace['permissions']['editPolicy'])} /><span><b>{label}</b><small>{description}</small></span></label>)}</div><button className={styles.primary} disabled={saving || value === policy} onClick={() => perform('save_settings', { edit_policy: value })}>Save settings</button></div></section>;
+  ].map(([id, label, description]) => <label className={value === id ? styles.selectedPolicy : ''} key={id}><input type="radio" name="edit-policy" value={id} checked={value === id} onChange={() => setValue(id as Workspace['permissions']['editPolicy'])} /><span><b>{label}</b><small>{description}</small></span></label>)}</div>
+    <h3>POS access and reminders</h3><div className={styles.policyOptions}>
+      <label className={showInMainMenu ? styles.selectedPolicy : ''}><input type="checkbox" checked={showInMainMenu} onChange={event => setShowInMainMenu(event.target.checked)} /><span><b>Show Daybook in the POS main bar</b><small>Add a direct Daybook icon beside the everyday POS tools.</small></span></label>
+      <label className={hourlyReminder ? styles.selectedPolicy : ''}><input type="checkbox" checked={hourlyReminder} onChange={event => setHourlyReminder(event.target.checked)} /><span><b>Hourly incomplete-task reminder</b><small>Animate the Daybook icon after each hourly check while today's tasks remain incomplete.</small></span></label>
+    </div><button className={styles.primary} disabled={saving || unchanged} onClick={() => perform('save_settings', { edit_policy: value, show_in_main_menu: showInMainMenu, hourly_reminder: hourlyReminder })}>Save settings</button></div></section>;
 }
 
 function ColourPicker({ value, onChange }: { value?: string; onChange: (value: string) => void }) {

@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-09-01","owner":"retail"}
 ---
 # Store Daybook
 
@@ -9,6 +9,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 - Choose the staff member using Daybook for the current day.
 - Complete and sign opening, throughout-the-day, weekly and closing tasks.
+- Add timestamped comments and handover updates to checklist tasks, communications, customer requests and store needs.
 - Read and acknowledge store communications.
 - See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
@@ -25,7 +26,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 | Today | Opening, daily, weekly and closing tasks grouped by their scheduled day, with compact seven-day sign-off history | Staff name, initials, signed-in account and time are retained |
 | Comms | Manager notices for selected stores | Each staff member selects **Mark as read** |
 | Requests | Customer products and follow-up | Contacted, fulfilled or cancelled |
-| Store needs | Consumables or stock needed from a warehouse | Requested, approved, packed, sent and received |
+| Store needs | Store Supplies or Stock Requests needed from a warehouse | Requested, approved, packed, sent and received |
 | Discrepancies | Differences between system and physical quantities | A manager records the stocktake outcome |
 | Incidents | Factual safety, security, loss or damage reports | Staff sign on submission; managers review and close |
 | References and Product guide | Approved store information, product photos, shelf and box locations | Managers maintain the content |
@@ -48,12 +49,23 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 2. Read tasks in the **Every day** or weekday group where they are scheduled. Weekly daytime work appears together under Monday, Tuesday and the other relevant weekdays.
 3. Read the complete wrapping task text, then use the compact date headings to read across the row for signed initials, a task that was not signed, or a day when that task was not scheduled. The selected and latest date is closest to the task list; progressively older dates continue to the right. Weekday names appear in the date headings and schedule group headings rather than repeating in every sign-off cell.
 4. In the highlighted current-day column, select **Sign off** only after the work is complete.
-5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
+5. Check that your initials appear immediately without the page returning to the top. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
 8. Any Daybook staff member can use the pencil or bin icon beside every active task in Open the store, Keep the day moving, or Close with confidence. The bin always shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
+
+Task rows and sign-off cells use a compact layout so more of the week fits on screen. Daybook also expands across large monitors while retaining horizontal scrolling on smaller screens.
+
+### Add comments and updates
+
+1. Open **Comments** on a current checklist task, communication, customer request or store need.
+2. Enter a concise update and select **Add comment**.
+3. The comment appears immediately with the staff name, initials and time. Other staff see it on their next silent refresh.
+4. Add a new comment to correct or extend an earlier update; existing comments remain in the audit thread.
+
+Comments do not change completion or workflow status. Checking, reopening, acknowledging, commenting, editing, deleting and changing status keep the current Daybook position instead of replacing the whole page with a loading view.
 
 ## Open a location Daybook from IMS
 
@@ -75,7 +87,7 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 
 1. Open the relevant section: **Requests**, **Store needs**, **Discrepancies**, or **Incidents**.
 2. Select **Add new** at the top of the tab.
-3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours.
+3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited.
 4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
 5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
 
@@ -102,6 +114,8 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 
 Managers use **Add new** in Today, Comms, References and Product guide to add daily, weekly or one-date tasks, publish communications to selected stores, and maintain approved reference and product information. Staff use **Add new** in Requests, Store needs, Discrepancies and Incidents.
 
+Reference desk groups entries into expandable categories such as Contacts, Logins, Troubleshooting and Guides. Search opens matching categories. A reference can include ordinary information, a resource link and an optional encrypted secret. Secret values are masked until a Daybook staff member selects **Reveal**, can be copied while visible, and are never included in Reference search or Assistant knowledge.
+
 To add or edit a Product guide, search the active product list by product name, SKU or barcode and choose the matching variant. Daybook uses that catalogue product's primary photo automatically. A placeholder is shown when the product does not have a primary photo. The guide cannot be saved until a matching result is chosen.
 
 Some imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.
@@ -120,6 +134,13 @@ Managers open **Settings** and choose one tenant-wide editing policy:
 
 Status changes and incident visibility still follow their separate operational permissions. Editing changes descriptive content; it does not rewrite sign-off or acknowledgment history.
 
+The same POS-accessible Settings tab also controls:
+
+- **Show Daybook in the POS main bar** adds a direct Daybook icon to the POS header.
+- **Hourly incomplete-task reminder** checks today's tasks when POS opens and every hour. When tasks remain incomplete, the Daybook icon briefly pulses and shows the count. Reduced-motion browser preferences disable animation.
+
+The Store Daybook option is a normal link to `/pos?screen=daybook`, so staff can right-click it and open Daybook in a new tab. A normal click keeps the faster in-app transition.
+
 ## Privacy and access
 
 | Information | Access and handling |
@@ -128,7 +149,7 @@ Status changes and incident visibility still follow their separate operational p
 | Customer request | Use only the contact information needed for follow-up |
 | Incident report | Treat as sensitive; managers control review and closure |
 | Reference information | Store approved operational information only |
-| Passwords, PINs and access keys | Never enter them in Daybook references, guides, tasks or communications |
+| Passwords, PINs and access keys | Store only in the Reference secret field when authorised; values are encrypted at rest, masked by default and visible to all staff with Daybook access |
 
 ## Troubleshooting
 

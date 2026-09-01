@@ -79,3 +79,37 @@
 .scheduleGroup tr:not(.scheduleHeading)>td.openCell{background:#fff8df}
 
 @media(max-width:760px){.phaseSelector{grid-template-columns:1fr}.phaseSelector button{min-height:54px}.checklistTable{min-width:900px}.checklistTable col.taskColumn{width:54%}.checklistTable col.signoffColumn{width:6.57%}.checklistTable thead th:first-child{width:auto}.checklistTable thead th:not(:first-child){width:auto}}
+
+/* Wide operational canvas with dense task history and expandable collaboration details. */
+.main{width:100%;max-width:1920px;box-sizing:border-box}
+.contentSection{width:100%}
+.recordList{max-width:none}
+.recordGroup{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:10px}
+.recordGroup>h3{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:10px 0 2px;padding-bottom:7px;border-bottom:2px solid #173735;font:700 18px/1.2 Georgia,serif;color:#173735}
+.recordGroup>h3 span{display:grid;place-items:center;min-width:24px;height:22px;border-radius:4px;background:#173735;color:#fff;font:800 11px/1 "Aptos","Segoe UI",sans-serif}
+.checklistSection{gap:12px}
+.checklistTable thead th{height:48px;padding:5px 4px}
+.checklistTable tbody th{padding:7px 9px 7px 12px}
+.checklistTable td{padding:5px 3px}
+.checklistTable td button,.checklistTable td>div{min-height:38px}
+.checklistTable .scheduleHeading th{padding:4px 12px}
+.commentThread{margin-top:7px;border-top:1px solid rgba(23,55,53,.14);font-family:"Aptos","Segoe UI",sans-serif;font-weight:400}
+.commentThread summary{display:flex;align-items:center;gap:5px;width:max-content;padding-top:6px;color:#365956;font-size:11px;font-weight:800;cursor:pointer;list-style:none}
+.commentThread summary::-webkit-details-marker{display:none}
+.commentList{display:grid;gap:6px;margin-top:8px}
+.commentList>div{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 8px;border-left:3px solid #159a91;background:rgba(255,255,255,.66)}
+.commentList b,.commentList time{font-size:10px}.commentList time{color:#697572}.commentList p{grid-column:1/-1;margin:0;color:#34403e;font-size:12px;white-space:pre-wrap}
+.commentThread form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-top:7px}
+.commentThread textarea{min-height:40px;max-height:110px;resize:vertical;padding:7px 8px;border:1px solid #cfcac0;border-radius:5px;font:12px/1.35 inherit}
+.commentThread form button{align-self:end;min-height:34px;padding:6px 10px;border:0;border-radius:5px;background:#173735;color:#fff;font-size:11px;font-weight:800;cursor:pointer}
+.commentThread form button:disabled{opacity:.45;cursor:not-allowed}
+.referenceSections{display:grid;gap:10px}
+.referenceSections>details{border:1px solid #cfcac0;border-radius:6px;background:#fff;overflow:hidden}
+.referenceSections>details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;background:#e9efec;color:#173735;font-weight:800;cursor:pointer}
+.referenceSections>details>summary small{color:#596663;font-size:11px}
+.referenceSections .referenceGrid{padding:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.referenceSecret{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:10px;padding:8px;border:1px solid #d3cec3;border-radius:5px;background:#f4f2ec}
+.referenceSecret>span{display:grid;gap:2px;min-width:160px;margin-right:auto}.referenceSecret b{font-size:10px;color:#596663}.referenceSecret code{font-size:13px;overflow-wrap:anywhere}
+.referenceSecret button{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:5px 7px;border:1px solid #bfc8c5;border-radius:4px;background:#fff;color:#173735;font-size:11px;font-weight:700;cursor:pointer}
+.referenceSecret button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:900px){.recordGroup{grid-template-columns:1fr}.main{padding-inline:14px}}

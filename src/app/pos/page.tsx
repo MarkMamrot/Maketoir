@@ -1501,7 +1501,7 @@ function MainPos({
   onChangeDue:               (amount: number) => void;
   onReceiptSettingsSaved?:   (footer: string, giftMsg: string) => void;
 }) {
-  const [screen, setScreen] = useState<MainScreen>('pos');
+  const [screen, setScreen] = useState<MainScreen>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('screen') === 'daybook' ? 'daybook' : 'pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
   const [linkedReturnSaleId, setLinkedReturnSaleId] = useState<number | null>(() => {
     const saleId = Number(loadCurrentCart()[0]?.return_of_sale_id);
@@ -1581,6 +1581,9 @@ function MainPos({
   const [activeRegister, setActiveRegister] = useState<any>(null);
   const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
   const [btAccess, setBtAccess] = useState<'disabled' | 'manager' | 'all'>('all');
+  const [daybookPreferences, setDaybookPreferences] = useState({ showInMainMenu: false, hourlyReminder: false });
+  const [daybookIncomplete, setDaybookIncomplete] = useState(0);
+  const [daybookReminderPulse, setDaybookReminderPulse] = useState(false);
   const [xeroAccountingEnabled, setXeroAccountingEnabled] = useState(false);
   const [posCapabilitiesLoaded, setPosCapabilitiesLoaded] = useState(false);
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
@@ -1627,6 +1630,30 @@ function MainPos({
       .catch(() => {})
       .finally(() => setPosCapabilitiesLoaded(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let pulseTimer: ReturnType<typeof setTimeout> | undefined;
+    const refreshDaybookSummary = () => {
+      fetch('/api/pos/daybook?view=summary', { cache: 'no-store' })
+        .then(response => response.json())
+        .then(result => {
+          if (result.preferences) setDaybookPreferences(result.preferences);
+          const incomplete = Number(result.incompleteTasks ?? 0);
+          setDaybookIncomplete(incomplete);
+          if (result.preferences?.hourlyReminder && incomplete > 0) {
+            setDaybookReminderPulse(true);
+            if (pulseTimer) clearTimeout(pulseTimer);
+            pulseTimer = setTimeout(() => setDaybookReminderPulse(false), 15000);
+          } else {
+            setDaybookReminderPulse(false);
+          }
+        })
+        .catch(() => {});
+    };
+    refreshDaybookSummary();
+    const interval = setInterval(refreshDaybookSummary, 60 * 60 * 1000);
+    return () => { clearInterval(interval); if (pulseTimer) clearTimeout(pulseTimer); };
+  }, [session.location_id]);
 
   // Auto-sync unsynced online sales batches to Xero — once per browser session,
   // non-blocking. Works from POS login too (endpoint accepts any valid session).
@@ -2472,6 +2499,17 @@ function MainPos({
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" strokeWidth="2.5"/></svg>
         </button>
+        {(daybookPreferences.showInMainMenu || (daybookPreferences.hourlyReminder && daybookIncomplete > 0)) && <a
+          href="/pos?screen=daybook"
+          onClick={event => { event.preventDefault(); setScreen('daybook'); }}
+          className={daybookReminderPulse ? 'pos-daybook-reminder-pulse' : ''}
+          title={daybookIncomplete > 0 ? `Store Daybook: ${daybookIncomplete} incomplete task${daybookIncomplete === 1 ? '' : 's'}` : 'Store Daybook'}
+          aria-label={daybookIncomplete > 0 ? `Open Store Daybook, ${daybookIncomplete} incomplete tasks` : 'Open Store Daybook'}
+          style={{ position: 'relative', background: daybookIncomplete > 0 ? 'rgba(246,197,91,.16)' : 'none', border: daybookIncomplete > 0 ? '1px solid rgba(246,197,91,.45)' : 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: daybookIncomplete > 0 ? '#f6c55b' : 'var(--sv-text-dim)', flexShrink: 0 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          {daybookIncomplete > 0 && <span aria-hidden="true" style={{ position: 'absolute', top: -5, right: -5, minWidth: 16, height: 16, padding: '0 3px', display: 'grid', placeItems: 'center', borderRadius: 8, background: '#ef7357', color: '#fff', fontSize: 9, fontWeight: 900 }}>{daybookIncomplete > 99 ? '99+' : daybookIncomplete}</span>}
+        </a>}
         <button
           onClick={() => {
             if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) { setPosSettingsOpen(true); }
@@ -2551,14 +2589,14 @@ function MainPos({
                       {isLayby ? 'Layby: ON' : 'Layby: Off'}
                     </button>
                     <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
-                    <button onClick={() => { setScreen('daybook'); setMoreMenuOpen(false); }}
+                    <a href="/pos?screen=daybook" onClick={event => { event.preventDefault(); setScreen('daybook'); setMoreMenuOpen(false); }}
                       style={btnStyle({ color: '#f6c55b', fontWeight: 750 })}
                       onMouseEnter={e => (e.currentTarget.style.background = mHov)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
                       Store Daybook
-                    </button>
+                    </a>
                     <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
                     {/* Register */}
                     <button onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); setMoreMenuOpen(false); }}

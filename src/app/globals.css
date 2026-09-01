@@ -1,3 +1,15 @@
+@keyframes pos-daybook-reminder-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(246, 197, 91, .45); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(246, 197, 91, 0); }
+}
+
+.pos-daybook-reminder-pulse {
+  animation: pos-daybook-reminder-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pos-daybook-reminder-pulse { animation: none; }
+}
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@700;800;900&family=Public+Sans:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap');
 
 @tailwind base;
