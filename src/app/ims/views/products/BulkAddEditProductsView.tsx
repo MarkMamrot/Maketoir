@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
@@ -103,6 +104,104 @@ const FOREIGN_CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
 function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function EditableChoicePicker({ value, options, onChange, allowCustom, style, label }: {
+  value: string;
+  options: LookupOption[];
+  onChange: (value: string) => void;
+  allowCustom: boolean;
+  style: CSSProperties;
+  label: string;
+}) {
+  const listboxId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [filterChoices, setFilterChoices] = useState(false);
+  const selectedName = allowCustom ? value : options.find(option => String(option.id) === value)?.name ?? '';
+  const shownValue = open ? query : selectedName;
+  const filteredOptions = filterChoices
+    ? options.filter(option => option.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+  const bounds = inputRef.current?.getBoundingClientRect();
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!inputRef.current?.parentElement?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const reposition = () => setOpen(false);
+    document.addEventListener('pointerdown', close);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [open]);
+
+  const openChoices = () => {
+    setQuery(selectedName);
+    setFilterChoices(false);
+    setOpen(true);
+  };
+  const selectOption = (option: LookupOption) => {
+    onChange(allowCustom ? option.name : String(option.id));
+    setQuery(option.name);
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  return <div style={{ position: 'relative', width: '100%' }}>
+    <input
+      ref={inputRef}
+      role="combobox"
+      aria-label={label}
+      aria-expanded={open}
+      aria-controls={listboxId}
+      autoComplete="off"
+      value={shownValue}
+      onChange={event => {
+        const next = event.target.value;
+        setQuery(next);
+        setFilterChoices(true);
+        setOpen(true);
+        if (allowCustom) onChange(next);
+        else onChange(String(options.find(option => option.name.toLowerCase() === next.trim().toLowerCase())?.id ?? ''));
+      }}
+      onKeyDown={event => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); openChoices(); }
+        if (event.key === 'Escape') setOpen(false);
+        if (event.key === 'Enter' && filteredOptions.length === 1) { event.preventDefault(); selectOption(filteredOptions[0]); }
+      }}
+      onBlur={() => {
+        if (allowCustom) return;
+        const exact = options.find(option => option.name.toLowerCase() === query.trim().toLowerCase());
+        if (exact) onChange(String(exact.id));
+        else setQuery(selectedName);
+      }}
+      style={{ ...style, paddingRight: 30 }}
+    />
+    <button
+      type="button"
+      title={`Show ${label.toLowerCase()} choices`}
+      aria-label={`Show ${label.toLowerCase()} choices`}
+      onPointerDown={event => event.stopPropagation()}
+      onClick={() => open ? setOpen(false) : openChoices()}
+      style={{ position: 'absolute', top: 1, right: 1, bottom: 1, width: 28, display: 'grid', placeItems: 'center', padding: 0, border: 0, borderLeft: '1px solid var(--sv-etch)', borderRadius: '0 3px 3px 0', background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', cursor: 'pointer' }}
+    ><ChevronDown size={14} /></button>
+    {open && bounds && createPortal(
+      <div ref={menuRef} id={listboxId} role="listbox" onPointerDown={event => event.stopPropagation()} style={{ position: 'fixed', left: bounds.left, top: bounds.bottom + 3, zIndex: 2000, width: Math.max(bounds.width, 180), maxHeight: 240, overflowY: 'auto', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', boxShadow: '0 10px 24px rgba(15,23,42,.18)' }}>
+        {!allowCustom && <button type="button" role="option" aria-selected={!value} onPointerDown={event => { event.preventDefault(); selectOption({ id: '', name: 'None' }); }} style={{ width: '100%', padding: '6px 8px', border: 0, background: !value ? 'var(--sv-bg-2)' : 'transparent', color: 'var(--sv-text-main)', textAlign: 'left', fontSize: 12, cursor: 'pointer' }}>None</button>}
+        {filteredOptions.map(option => <button key={option.id} type="button" role="option" aria-selected={allowCustom ? option.name === value : String(option.id) === value} onPointerDown={event => { event.preventDefault(); selectOption(option); }} style={{ width: '100%', padding: '6px 8px', border: 0, background: (allowCustom ? option.name === value : String(option.id) === value) ? 'var(--sv-bg-2)' : 'transparent', color: 'var(--sv-text-main)', textAlign: 'left', fontSize: 12, cursor: 'pointer' }}>{option.name}</button>)}
+        {!filteredOptions.length && <div style={{ padding: '7px 8px', color: 'var(--sv-text-dim)', fontSize: 12 }}>No matching choices</div>}
+      </div>,
+      document.body,
+    )}
+  </div>;
 }
 
 function blankVariant(baseSku = ''): VariantDraft {
@@ -269,7 +368,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       if (productSettings.allowOpeningStock) fields.push({ id: `location_${location.id}_soh`, label: `${location.name} SOH`, owner: 'variant', editor: 'number', width: 125, fillDown: true, locationId: Number(location.id), locationField: 'quantity' });
       if (productSettings.showReplenishmentQuantities) fields.push(
         { id: `location_${location.id}_min_qty`, label: `${location.name} Min Qty`, owner: 'variant', editor: 'number', width: 145, fillDown: true, locationId: Number(location.id), locationField: 'minQty' },
-        { id: `location_${location.id}_reorder_qty`, label: `${location.name} Reorder Qty`, owner: 'variant', editor: 'number', width: 165, fillDown: true, locationId: Number(location.id), locationField: 'reorderQty' },
+        { id: `location_${location.id}_reorder_qty`, label: `${location.name} Reorder Point`, owner: 'variant', editor: 'number', width: 165, fillDown: true, locationId: Number(location.id), locationField: 'reorderQty' },
       );
       if (settings.use_zones_bins === 'yes') fields.push(
         { id: `location_${location.id}_zone`, label: `${location.name} Zone`, owner: 'variant', editor: 'text', width: 130, fillDown: true, locationId: Number(location.id), locationField: 'zone' },
@@ -568,9 +667,9 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     if (field.editor === 'boolean') {
       editor = <input type="checkbox" checked={Number(value) === 1} onChange={event => update(event.target.checked ? 1 : 0)} aria-label={field.label} />;
     } else if (field.id === 'brand') {
-      editor = <><input {...common} list="bulk-product-brands" /><datalist id="bulk-product-brands">{brands.map(brand => <option key={brand.id} value={brand.name} />)}</datalist></>;
+      editor = <EditableChoicePicker value={String(value ?? '')} options={brands} onChange={update} allowCustom style={common.style} label={field.label} />;
     } else if (field.id === 'supplier_contact_id') {
-      editor = <select {...common}><option value="">None</option>{suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select>;
+      editor = <EditableChoicePicker value={String(value ?? '')} options={suppliers} onChange={update} allowCustom={false} style={common.style} label={field.label} />;
     } else if (field.editor === 'textarea') {
       editor = <textarea {...common} rows={2} style={{ ...common.style, resize: 'vertical' }} />;
     } else {
@@ -662,11 +761,12 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
               {selectedCurrencyFields.map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" checked onChange={() => setFieldGroup([field.id], false)} />{field.label}</label>)}
             </div>}
             {locationFields.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
-              <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Add inventory</div>
+              <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Branch Level Variables</div>
               {([
                 ['SOH at every branch', locationFields.filter(field => field.locationField === 'quantity').map(field => field.id)],
-                ['Location Min Qty / Reorder Qty', locationFields.filter(field => field.locationField === 'minQty' || field.locationField === 'reorderQty').map(field => field.id)],
-                ['Location Zones / Bins', locationFields.filter(field => field.locationField === 'zone' || field.locationField === 'bin').map(field => field.id)],
+                ['Min Qty', locationFields.filter(field => field.locationField === 'minQty').map(field => field.id)],
+                ['Reorder Point', locationFields.filter(field => field.locationField === 'reorderQty').map(field => field.id)],
+                ['Zones / Bins', locationFields.filter(field => field.locationField === 'zone' || field.locationField === 'bin').map(field => field.id)],
               ] as Array<[string, string[]]>).filter(([, fieldIds]) => fieldIds.length).map(([label, fieldIds]) => <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', fontSize: 12 }}><input type="checkbox" checked={fieldIds.every(id => selectedFields.includes(id))} onChange={event => setFieldGroup(fieldIds, event.target.checked)} />{label}</label>)}
             </div>}
           </div>}
