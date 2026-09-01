@@ -419,6 +419,19 @@ CREATE TABLE IF NOT EXISTS ims_settings (
   INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_bulk_product_presets (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL,
+  user_key      VARCHAR(191) NOT NULL,
+  name          VARCHAR(80) NOT NULL,
+  settings_json MEDIUMTEXT NOT NULL,
+  last_used_at  DATETIME(3) NULL,
+  created_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_bulk_product_preset_name (business_id, user_key, name),
+  INDEX idx_bulk_product_preset_user (business_id, user_key, last_used_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Customer Service Inbox settings and durable Gmail cache
 CREATE TABLE IF NOT EXISTS ims_cs_settings (
   business_id          VARCHAR(100) NOT NULL PRIMARY KEY,

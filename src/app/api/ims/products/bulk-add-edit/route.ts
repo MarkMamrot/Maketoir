@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { BulkProductValidationError, saveBulkProducts } from '@/lib/ims/bulkProductSave';
+import { buildBulkProductListPlan, sanitizeBulkProductFilters, type BulkProductFilterJoin, type BulkProductSortDirection, type BulkProductSortKey } from '@/lib/ims/bulkProductWorkspace';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -16,6 +17,13 @@ export async function GET(request: Request) {
   const search = String(url.searchParams.get('q') ?? '').trim();
   const brand = String(url.searchParams.get('brand') ?? '').trim();
   const supplierId = Number(url.searchParams.get('supplier')) || 0;
+  const sortKey = String(url.searchParams.get('sort') ?? 'name') as BulkProductSortKey;
+  const sortDirection = String(url.searchParams.get('direction') ?? 'asc') as BulkProductSortDirection;
+  const filterJoin = String(url.searchParams.get('filterJoin') ?? 'and') as BulkProductFilterJoin;
+  let rawFilters: unknown = [];
+  try { rawFilters = JSON.parse(url.searchParams.get('filters') ?? '[]'); } catch { rawFilters = []; }
+  const filters = sanitizeBulkProductFilters(rawFilters);
+  const listPlan = buildBulkProductListPlan({ filters, filterJoin, sortKey, sortDirection });
   const conditions = ['p.business_id = ?'];
   const params: unknown[] = [businessId];
   if (search) {
@@ -26,6 +34,7 @@ export async function GET(request: Request) {
   }
   if (brand) { conditions.push('p.brand = ?'); params.push(brand); }
   if (supplierId) { conditions.push('p.supplier_contact_id = ?'); params.push(supplierId); }
+  if (listPlan.filterSql) { conditions.push(listPlan.filterSql); params.push(...listPlan.filterParams); }
 
   try {
     const where = conditions.join(' AND ');
@@ -35,7 +44,7 @@ export async function GET(request: Request) {
          FROM ims_products p
          LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id AND c.business_id = p.business_id
         WHERE ${where}
-        ORDER BY p.name, p.product_id
+        ORDER BY ${listPlan.orderBySql}
         LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
       params,
     );
@@ -85,7 +94,7 @@ export async function GET(request: Request) {
       operation: 'bulk_add_edit_list',
       title: 'Bulk Add/Edit products could not be loaded',
       error,
-      context: { page, hasSearch: Boolean(search), hasBrand: Boolean(brand), hasSupplier: Boolean(supplierId) },
+      context: { page, hasSearch: Boolean(search), hasBrand: Boolean(brand), hasSupplier: Boolean(supplierId), filterCount: filters.length, sortKey },
     });
     return NextResponse.json({ success: false, error: 'Products could not be loaded.' }, { status: 500 });
   }

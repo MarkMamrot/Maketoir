@@ -130,4 +130,22 @@ describe('GET /api/ims/products/bulk-add-edit', () => {
     expect(mocks.imsQuery.mock.calls[3][1]).toEqual(['business-1', 'variant-1']);
     expect(mocks.imsQuery.mock.calls[3][0]).toContain('FROM ims_stock');
   });
+
+  it('applies sanitized server-side filters and aggregate sorting to count and page queries', async () => {
+    mocks.imsQuery.mockResolvedValueOnce([{ total: 0 }]).mockResolvedValueOnce([]);
+    const filters = encodeURIComponent(JSON.stringify([
+      { id: 'zone', field: 'zone', operator: 'contains', value: 'Front' },
+      { id: 'min', field: 'min_qty', operator: '>=', value: '3' },
+    ]));
+
+    const response = await GET(new Request(`http://localhost/api/ims/products/bulk-add-edit?sort=inventory&direction=desc&filterJoin=and&filters=${filters}`));
+
+    expect(response.status).toBe(200);
+    expect(mocks.imsQuery).toHaveBeenCalledTimes(2);
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain("COALESCE(bs.zone, '') LIKE ?");
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('bs.min_qty >= ?');
+    expect(mocks.imsQuery.mock.calls[0][1]).toEqual(['business-1', '%Front%', 3]);
+    expect(mocks.imsQuery.mock.calls[1][0]).toContain('SUM(ss.qty_on_hand)');
+    expect(mocks.imsQuery.mock.calls[1][0]).toContain('DESC');
+  });
 });

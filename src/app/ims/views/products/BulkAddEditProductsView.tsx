@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
+import { Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
   enabledBulkProductFields,
@@ -15,6 +15,15 @@ import {
   type ProductOptionSet,
 } from '@/lib/ims/bulkProductEditor';
 import { parseProductSettings } from '@/lib/ims/productSettings';
+import {
+  DEFAULT_BULK_PRODUCT_WORKSPACE,
+  sanitizeBulkProductWorkspace,
+  type BulkProductFilter,
+  type BulkProductFilterField,
+  type BulkProductSortDirection,
+  type BulkProductSortKey,
+  type BulkProductWorkspaceSettings,
+} from '@/lib/ims/bulkProductWorkspace';
 import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
 
 interface LookupOption { id: number | string; name: string }
@@ -89,6 +98,13 @@ interface VisibleRow {
   variantClientId?: string;
 }
 
+interface BulkProductPreset {
+  id: string;
+  name: string;
+  settings: BulkProductWorkspaceSettings;
+  lastUsedAt: string | null;
+}
+
 const inputStyle = {
   width: '100%', minWidth: 0, boxSizing: 'border-box' as const, border: '1px solid var(--sv-etch)', borderRadius: 4,
   padding: '6px 7px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12,
@@ -101,6 +117,39 @@ const buttonStyle = {
 };
 
 const FOREIGN_CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
+const FILTER_FIELDS: Array<{ id: BulkProductFilterField; label: string; kind: 'boolean' | 'number' | 'text' }> = [
+  { id: 'status', label: 'Status', kind: 'boolean' },
+  { id: 'website', label: 'Website Product', kind: 'boolean' },
+  { id: 'shopify', label: 'Shopify Synced', kind: 'boolean' },
+  { id: 'soh', label: 'SOH', kind: 'number' },
+  { id: 'available', label: 'Stock Available', kind: 'number' },
+  { id: 'zone', label: 'Zone', kind: 'text' },
+  { id: 'bin', label: 'Bin', kind: 'text' },
+  { id: 'min_qty', label: 'Min Qty', kind: 'number' },
+  { id: 'reorder_point', label: 'Reorder Point', kind: 'number' },
+  { id: 'rrp', label: 'RRP', kind: 'number' },
+  { id: 'cost', label: 'Cost', kind: 'number' },
+];
+
+const SORT_OPTIONS: Array<{ key: BulkProductSortKey; direction: BulkProductSortDirection; label: string }> = [
+  { key: 'created_at', direction: 'desc', label: 'Date Created: Newest first' },
+  { key: 'created_at', direction: 'asc', label: 'Date Created: Oldest first' },
+  { key: 'name', direction: 'asc', label: 'Product Name: A to Z' },
+  { key: 'name', direction: 'desc', label: 'Product Name: Z to A' },
+  { key: 'inventory', direction: 'desc', label: 'Inventory Level: High to low' },
+  { key: 'inventory', direction: 'asc', label: 'Inventory Level: Low to high' },
+  { key: 'rrp', direction: 'desc', label: 'RRP: High to low' },
+  { key: 'rrp', direction: 'asc', label: 'RRP: Low to high' },
+  { key: 'cost', direction: 'desc', label: 'Cost: High to low' },
+  { key: 'cost', direction: 'asc', label: 'Cost: Low to high' },
+];
+
+function filterDefaults(field: BulkProductFilterField): Pick<BulkProductFilter, 'operator' | 'value'> {
+  const kind = FILTER_FIELDS.find(candidate => candidate.id === field)?.kind;
+  if (kind === 'boolean') return { operator: '=', value: '1' };
+  if (kind === 'text') return { operator: 'contains', value: '' };
+  return { operator: '>=', value: '' };
+}
 
 function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -339,8 +388,14 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [presets, setPresets] = useState<BulkProductPreset[]>([]);
+  const [activePresetId, setActivePresetId] = useState('');
   const [manageVariantsProductId, setManageVariantsProductId] = useState<string | null>(null);
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -349,6 +404,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
+  const [sortKey, setSortKey] = useState<BulkProductSortKey>(DEFAULT_BULK_PRODUCT_WORKSPACE.sortKey);
+  const [sortDirection, setSortDirection] = useState<BulkProductSortDirection>(DEFAULT_BULK_PRODUCT_WORKSPACE.sortDirection);
+  const [filterJoin, setFilterJoin] = useState<'and' | 'or'>(DEFAULT_BULK_PRODUCT_WORKSPACE.filterJoin);
+  const [advancedFilters, setAdvancedFilters] = useState<BulkProductFilter[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [fill, setFill] = useState<FillState | null>(null);
