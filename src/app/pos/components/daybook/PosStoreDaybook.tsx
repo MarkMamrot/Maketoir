@@ -29,6 +29,7 @@ type Editable = { background_color?: ColourKey | null; can_edit: boolean };
 type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number; readers: Reader[]; comments: DaybookComment[] };
 type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null; comments: DaybookComment[] };
 type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null; secret_label?: string | null; has_secret?: boolean };
+type ReferenceCategory = { id: number; name: string };
 type GuideRow = Editable & { id: number; variant_id?: string | null; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
 type GuideProduct = { variant_id: string; product_id: string; product_name: string; option_label?: string | null; sku?: string | null; image_url?: string | null; image_alt?: string | null };
 type Location = { id: number; name: string };
@@ -43,6 +44,7 @@ type Workspace = {
   communications: Communication[];
   records: RecordRow[];
   references: ReferenceRow[];
+  referenceCategories: ReferenceCategory[];
   guides: GuideRow[];
   staff: Staff[];
   locations: Location[];
@@ -256,6 +258,26 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
     } catch {}
   }
 
+  async function manageStaff(action: 'create_staff_identity' | 'update_staff_identity' | 'delete_staff_identity', payload: Record<string, unknown>) {
+    try {
+      const result = await post(action, payload);
+      if (action === 'update_staff_identity' && result.staff && staff?.id === Number(payload.identity_id)) {
+        setStaff(result.staff);
+        localStorage.setItem(identityKey, JSON.stringify(result.staff));
+      }
+      await load(action === 'update_staff_identity' && result.staff && staff?.id === Number(payload.identity_id) ? result.staff : staff, false);
+      return true;
+    } catch { return false; }
+  }
+
+  async function addReferenceCategory(name: string) {
+    try {
+      await post('create_reference_category', { name });
+      await load(staff, false);
+      return true;
+    } catch { return false; }
+  }
+
   async function writeDaybookClipboard(items: DaybookClipboardItem[]) {
     const text = serializeDaybookClipboard(items);
     try { localStorage.setItem(clipboardKey, JSON.stringify(items)); } catch {}
@@ -400,10 +422,12 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
 
         {!loading && active === 'references' && <ReferenceDesk
           references={workspace?.references ?? []}
+          explicitCategories={workspace?.referenceCategories ?? []}
           query={query}
           onQueryChange={setQuery}
           canAdd={Boolean(workspace?.permissions.manager)}
           onAdd={() => openEditor('reference')}
+          onAddCategory={addReferenceCategory}
           onEdit={item => openEditor('reference', { _id: item.id, category: item.category, title: item.title, content: item.content, link_url: item.link_url, secret_label: item.secret_label, background_color: item.background_color })}
           revealSecret={referenceId => post('reveal_reference_secret', { reference_id: referenceId })}
         />}
@@ -419,12 +443,12 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
           </section>
         )}
 
-        {!loading && active === 'settings' && workspace?.permissions.manager && <DaybookSettings policy={workspace.permissions.editPolicy} preferences={workspace.preferences} saving={saving} perform={perform} />}
+        {!loading && active === 'settings' && workspace?.permissions.manager && <DaybookSettings policy={workspace.permissions.editPolicy} preferences={workspace.preferences} staff={workspace.staff} selectedStaff={staff} saving={saving} perform={perform} manageStaff={manageStaff} />}
       </main>
 
       {editor && workspace && <div className={styles.modalBackdrop} role="presentation"><div className={styles.editorModal} role="dialog" aria-modal="true" aria-labelledby="editor-title">
         <button className={styles.modalClose} onClick={() => { setEditor(null); setForm({}); }} aria-label="Close"><X /></button>
-        <EditorForm type={editor} form={form} setForm={setForm} locations={workspace.locations} saving={saving} perform={perform} />
+        <EditorForm type={editor} form={form} setForm={setForm} locations={workspace.locations} referenceCategories={workspace.referenceCategories} saving={saving} perform={perform} />
       </div></div>}
 
       {identityOpen && <div className={styles.modalBackdrop} role="presentation"><div className={styles.identityModal} role="dialog" aria-modal="true" aria-labelledby="identity-title">
@@ -533,19 +557,23 @@ function CommentThread({ comments, saving, onAdd }: { comments: DaybookComment[]
   </details>;
 }
 
-function ReferenceDesk({ references, query, onQueryChange, canAdd, onAdd, onEdit, revealSecret }: {
+function ReferenceDesk({ references, explicitCategories, query, onQueryChange, canAdd, onAdd, onAddCategory, onEdit, revealSecret }: {
   references: ReferenceRow[];
+  explicitCategories: ReferenceCategory[];
   query: string;
   onQueryChange: (value: string) => void;
   canAdd: boolean;
   onAdd: () => void;
+  onAddCategory: (name: string) => Promise<boolean>;
   onEdit: (item: ReferenceRow) => void;
   revealSecret: (referenceId: number) => Promise<{ secret_value?: string } | undefined>;
 }) {
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categoryName, setCategoryName] = useState('');
   const filtered = references.filter(item => `${item.title} ${item.content} ${item.category}`.toLowerCase().includes(query.toLowerCase()));
-  const categories = [...new Set(filtered.map(item => item.category || 'General'))].sort((left, right) => left.localeCompare(right));
+  const categories = [...new Set([...explicitCategories.map(item => item.name), ...filtered.map(item => item.category || 'General')])].filter(category => !query || filtered.some(item => (item.category || 'General') === category)).sort((left, right) => left.localeCompare(right));
   return <section className={styles.contentSection}>
-    <Title title="Reference desk" subtitle="Contacts, access details, troubleshooting and guides grouped by category." action={canAdd ? <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button> : undefined} />
+    <Title title="Reference desk" subtitle="Contacts, access details, troubleshooting and guides grouped by category." action={canAdd ? <div className={styles.titleActions}><button className={styles.secondaryButton} onClick={() => setCategoryOpen(true)}><Plus size={17} /> Add category</button><button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add reference</button></div> : undefined} />
     <SearchBox value={query} onChange={onQueryChange} placeholder="Search references" />
     <div className={styles.referenceSections}>{categories.map((category, index) => <details key={category} open={Boolean(query) || index === 0}>
       <summary><span>{category}</span><small>{filtered.filter(item => item.category === category).length} entries</small></summary>
@@ -554,8 +582,9 @@ function ReferenceDesk({ references, query, onQueryChange, canAdd, onAdd, onEdit
         <p>{item.content}</p>
         {item.has_secret && <ReferenceSecret label={item.secret_label || 'Password'} onReveal={() => revealSecret(item.id)} />}
         {item.link_url && <a href={item.link_url} target="_blank" rel="noreferrer">Open resource</a>}
-      </article>)}</div>
+      </article>)}{!filtered.some(item => (item.category || 'General') === category) && <p className={styles.emptyCategory}>No references in this category yet.</p>}</div>
     </details>)}</div>
+    {categoryOpen && <div className={styles.modalBackdrop} role="presentation"><div className={styles.smallModal} role="dialog" aria-modal="true" aria-labelledby="category-title"><button className={styles.modalClose} onClick={() => setCategoryOpen(false)} aria-label="Close"><X /></button><h2 id="category-title">Add Reference category</h2><form className={styles.managerForm} onSubmit={async event => { event.preventDefault(); if (await onAddCategory(categoryName)) { setCategoryName(''); setCategoryOpen(false); } }}><Field label="Category name" value={categoryName} onChange={setCategoryName} placeholder="Contacts, Logins, Troubleshooting, Guides" /><button className={styles.primary} disabled={!categoryName.trim()}>Add category</button></form></div></div>}
   </section>;
 }
 
@@ -644,7 +673,7 @@ function StatusActions({ record, saving, manager, perform }: { record: RecordRow
   return next[record.record_type]?.length ? <div className={styles.statusActions}>{next[record.record_type].map(status => <button disabled={saving} key={status} onClick={() => perform('transition_record', { record_id: record.id, status })}>{status.replaceAll('_', ' ')}</button>)}</div> : null;
 }
 
-function EditorForm({ type, form, setForm, locations, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+function EditorForm({ type, form, setForm, locations, referenceCategories, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; referenceCategories: ReferenceCategory[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const recordFields: Record<string, string[]> = {
     customer_request: ['customer_name', 'contact_details', 'item', 'notes'], store_need: ['item', 'quantity', 'unit', 'store_notes'],
@@ -677,7 +706,7 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
     {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{type === 'store_need' && <label className={styles.field}><span>Category</span><select required value={form.need_category || ''} onChange={event => setForm({ ...form, need_category: event.target.value })}><option value="">Choose a category</option><option value="store_supplies">Store Supplies</option><option value="stock_request">Stock Request</option></select></label>}{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
     {type === 'task' && <><Field label="Task title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
     {type === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Message" type="textarea" value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label>{!editing && <div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div>}</>}
-    {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} placeholder="Contacts, Logins, Troubleshooting, Guides" /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Resource link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /><div className={styles.formRow}><Field label="Secret label (optional)" value={form.secret_label} onChange={value => setForm({ ...form, secret_label: value })} placeholder="Password, PIN, Wi-Fi password" /><Field label={editing ? 'Replace secret (leave blank to keep)' : 'Secret value (optional)'} type="password" value={form.secret_value} onChange={value => setForm({ ...form, secret_value: value })} /></div></>}
+    {type === 'reference' && <><label className={styles.field}><span>Category</span><input required list="daybook-reference-categories" value={form.category || ''} onChange={event => setForm({ ...form, category: event.target.value })} placeholder="Choose or enter a category" /><datalist id="daybook-reference-categories">{referenceCategories.map(category => <option value={category.name} key={category.id} />)}</datalist></label><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Resource link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /><div className={styles.formRow}><Field label="Secret label (optional)" value={form.secret_label} onChange={value => setForm({ ...form, secret_label: value })} placeholder="Password, PIN, Wi-Fi password" /><Field label={editing ? 'Replace secret (leave blank to keep)' : 'Secret value (optional)'} type="password" value={form.secret_value} onChange={value => setForm({ ...form, secret_value: value })} /></div></>}
     {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}
     {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
     {editing && confirmDelete && <div className={styles.deleteConfirmation} role="alert"><div><strong>Delete this {heading}?</strong><span>It will leave the active Daybook. Existing audit history is retained.</span></div><button type="button" onClick={() => setConfirmDelete(false)} disabled={saving}>Cancel</button><button type="button" className={styles.confirmDeleteButton} onClick={() => void deleteItem()} disabled={saving}>{saving ? 'Deleting…' : 'Delete item'}</button></div>}
@@ -716,7 +745,7 @@ function GuideProductPicker({ form, setForm }: { form: Record<string, string>; s
   </div>;
 }
 
-function DaybookSettings({ policy, preferences, saving, perform }: { policy: Workspace['permissions']['editPolicy']; preferences: Workspace['preferences']; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+function DaybookSettings({ policy, preferences, staff, selectedStaff, saving, perform, manageStaff }: { policy: Workspace['permissions']['editPolicy']; preferences: Workspace['preferences']; staff: Staff[]; selectedStaff: Staff | null; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void>; manageStaff: (action: 'create_staff_identity' | 'update_staff_identity' | 'delete_staff_identity', payload: Record<string, unknown>) => Promise<boolean> }) {
   const [value, setValue] = useState(policy);
   const [showInMainMenu, setShowInMainMenu] = useState(preferences.showInMainMenu);
   const [hourlyReminder, setHourlyReminder] = useState(preferences.hourlyReminder);
@@ -730,7 +759,20 @@ function DaybookSettings({ policy, preferences, saving, perform }: { policy: Wor
     <h3>POS access and reminders</h3><div className={styles.policyOptions}>
       <label className={showInMainMenu ? styles.selectedPolicy : ''}><input type="checkbox" checked={showInMainMenu} onChange={event => setShowInMainMenu(event.target.checked)} /><span><b>Show Daybook in the POS main bar</b><small>Add a direct Daybook icon beside the everyday POS tools.</small></span></label>
       <label className={hourlyReminder ? styles.selectedPolicy : ''}><input type="checkbox" checked={hourlyReminder} onChange={event => setHourlyReminder(event.target.checked)} /><span><b>Hourly incomplete-task reminder</b><small>Animate the Daybook icon after each hourly check while today's tasks remain incomplete.</small></span></label>
-    </div><button className={styles.primary} disabled={saving || unchanged} onClick={() => perform('save_settings', { edit_policy: value, show_in_main_menu: showInMainMenu, hourly_reminder: hourlyReminder })}>Save settings</button></div></section>;
+    </div><button className={styles.primary} disabled={saving || unchanged} onClick={() => perform('save_settings', { edit_policy: value, show_in_main_menu: showInMainMenu, hourly_reminder: hourlyReminder })}>Save settings</button></div><StaffManager staff={staff} selectedStaff={selectedStaff} saving={saving} manageStaff={manageStaff} /></section>;
+}
+
+function StaffManager({ staff, selectedStaff, saving, manageStaff }: { staff: Staff[]; selectedStaff: Staff | null; saving: boolean; manageStaff: (action: 'create_staff_identity' | 'update_staff_identity' | 'delete_staff_identity', payload: Record<string, unknown>) => Promise<boolean> }) {
+  const [editingId, setEditingId] = useState<number | 'new' | null>(null);
+  const [name, setName] = useState('');
+  const [initials, setInitials] = useState('');
+  function begin(item?: Staff) { setEditingId(item?.id ?? 'new'); setName(item?.name ?? ''); setInitials(item?.initials ?? ''); }
+  function cancel() { setEditingId(null); setName(''); setInitials(''); }
+  async function save() {
+    const action = editingId === 'new' ? 'create_staff_identity' : 'update_staff_identity';
+    if (await manageStaff(action, { identity_id: editingId === 'new' ? undefined : editingId, name, initials })) cancel();
+  }
+  return <div className={styles.settingsPanel}><div className={styles.settingsHeading}><div><h3>Daybook staff</h3><p>Add and maintain the staff names shown in the Daybook identity picker.</p></div><button className={styles.secondaryButton} onClick={() => begin()} disabled={saving || editingId !== null}><Plus size={16} /> Add staff</button></div><div className={styles.staffManagerList}>{staff.map(item => <div className={styles.staffManagerRow} key={item.id}>{editingId === item.id ? <><input aria-label="Staff name" value={name} onChange={event => setName(event.target.value)} /><input className={styles.initialsInput} aria-label="Staff initials" value={initials} maxLength={8} onChange={event => setInitials(event.target.value)} /><button className={styles.iconAction} onClick={() => void save()} disabled={saving || !name.trim()} aria-label={`Save ${item.name}`}><Check size={16} /></button><button className={styles.iconAction} onClick={cancel} disabled={saving} aria-label="Cancel editing"><X size={16} /></button></> : <><b>{item.initials}</b><span>{item.name}{selectedStaff?.id === item.id && <small>Currently selected</small>}</span><button className={styles.iconAction} onClick={() => begin(item)} disabled={saving || editingId !== null} aria-label={`Edit ${item.name}`}><Pencil size={16} /></button><button className={styles.iconActionDanger} onClick={() => { if (confirm(`Remove ${item.name} from the Daybook staff list? Historical activity will remain attributed to them.`)) void manageStaff('delete_staff_identity', { identity_id: item.id }); }} disabled={saving || editingId !== null || selectedStaff?.id === item.id} title={selectedStaff?.id === item.id ? 'Choose another staff identity before removing this one.' : `Remove ${item.name}`} aria-label={`Remove ${item.name}`}><Trash2 size={16} /></button></>}</div>)}{editingId === 'new' && <div className={styles.staffManagerRow}><input autoFocus aria-label="New staff name" placeholder="Staff name" value={name} onChange={event => setName(event.target.value)} /><input className={styles.initialsInput} aria-label="New staff initials" placeholder="Initials" value={initials} maxLength={8} onChange={event => setInitials(event.target.value)} /><button className={styles.iconAction} onClick={() => void save()} disabled={saving || !name.trim()} aria-label="Save new staff member"><Check size={16} /></button><button className={styles.iconAction} onClick={cancel} disabled={saving} aria-label="Cancel adding staff"><X size={16} /></button></div>}{staff.length === 0 && editingId !== 'new' && <p className={styles.empty}>No saved staff yet.</p>}</div></div>;
 }
 
 function ColourPicker({ value, onChange }: { value?: string; onChange: (value: string) => void }) {

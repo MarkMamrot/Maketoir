@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidGeminiModelId, measurementPrompt, resolveMeasurementSystem } from '../contentPreferences';
+import { DEFAULT_URL_JUDGE_MODEL, DEFAULT_WEBSITE_CONTENT_MODEL, isValidGeminiModelId, measurementPrompt, resolveMeasurementSystem, resolveWebsiteTextModel } from '../contentPreferences';
 
 describe('Website content preferences', () => {
   it('uses metric for Australian organisations in automatic mode', () => {
@@ -12,9 +12,12 @@ describe('Website content preferences', () => {
     expect(resolveMeasurementSystem('metric', 'America/New_York')).toBe('metric');
   });
 
-  it('accepts Gemini model IDs without allowing arbitrary provider strings', () => {
-    expect(isValidGeminiModelId('gemini-2.5-flash')).toBe(true);
+  it('accepts only curated Gemini text models and replaces stale settings', () => {
+    expect(isValidGeminiModelId('gemini-3.7-flash')).toBe(true);
+    expect(isValidGeminiModelId('gemini-2.5-flash')).toBe(false);
     expect(isValidGeminiModelId('gpt-4o')).toBe(false);
     expect(isValidGeminiModelId('gemini-2.5-flash<script>')).toBe(false);
+    expect(resolveWebsiteTextModel('gemini-2.5-flash', DEFAULT_WEBSITE_CONTENT_MODEL)).toBe('gemini-3.7-flash');
+    expect(resolveWebsiteTextModel('gemini-3.5-flash-lite', DEFAULT_URL_JUDGE_MODEL)).toBe('gemini-3.5-flash-lite');
   });
 });

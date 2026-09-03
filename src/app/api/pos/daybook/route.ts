@@ -241,7 +241,7 @@ export async function GET(request: Request) {
   try {
     const taskDates = getDaybookDateRange(taskDate, 7);
     for (const date of taskDates) await materializeTasks(context, date);
-    const [rawTasks, rawTaskHistory, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, rawComments, editPolicy] = await Promise.all([
+    const [rawTasks, rawTaskHistory, rawCommunications, rawRecords, rawReferences, referenceCategories, rawGuides, staff, locations, communicationReads, rawComments, editPolicy] = await Promise.all([
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
                 s.actor_name AS last_actor_name, s.created_at AS signed_at,
@@ -300,6 +300,11 @@ export async function GET(request: Request) {
         `SELECT * FROM pos_daybook_references
          WHERE business_id = ? AND is_active = 1 AND (location_id IS NULL OR location_id = ?)
          ORDER BY category, sort_order, title`,
+        [context.businessId, context.locationId],
+      ),
+      imsQuery<{ id: number; name: string }>(
+        `SELECT id, name FROM pos_daybook_reference_categories
+         WHERE business_id = ? AND location_id = ? AND is_active = 1 ORDER BY name`,
         [context.businessId, context.locationId],
       ),
       imsQuery(
@@ -388,6 +393,13 @@ export async function GET(request: Request) {
       communications,
       records,
       references,
+      referenceCategories: [...new Map([
+        ...referenceCategories.map(category => [category.name.toLocaleLowerCase(), category] as const),
+        ...rawReferences.map((reference, index) => {
+          const name = String(reference.category || 'General');
+          return [name.toLocaleLowerCase(), { id: -(index + 1), name }] as const;
+        }),
+      ]).values()].sort((left, right) => left.name.localeCompare(right.name)),
       guides,
       staff,
       locations,
@@ -777,14 +789,15 @@ export async function POST(request: Request) {
       if (!mayEdit(context, staff, await getEditPolicy(context.businessId), reference)) return error('You do not have permission to edit this item.', 403);
       const title = String(body.title ?? '').trim().slice(0, 255);
       const content = String(body.content ?? '').trim();
-      if (!title || !content) return error('Title and information are required.');
+      const category = String(body.category ?? '').trim().replace(/\s+/g, ' ').slice(0, 50);
+      if (!category || !title || !content) return error('Category, title, and information are required.');
       const secretValue = String(body.secret_value ?? '');
       const secretUpdate = secretValue ? encrypt(secretValue) : null;
       await imsExecute(
         `UPDATE pos_daybook_references SET category = ?, title = ?, content = ?, link_url = ?, secret_label = ?,
            secret_value_encrypted = CASE WHEN ? IS NULL THEN secret_value_encrypted ELSE ? END, background_color = ?
          WHERE id = ? AND business_id = ?`,
-        [String(body.category ?? 'General').slice(0, 50), title, content, String(body.link_url ?? '').trim() || null,
+        [category, title, content, String(body.link_url ?? '').trim() || null,
           String(body.secret_label ?? '').trim().slice(0, 120) || null, secretUpdate, secretUpdate,
           normalizeDaybookColour(body.background_color), referenceId, context.businessId],
       );
@@ -868,6 +881,77 @@ export async function POST(request: Request) {
 
     if (!context.isManager) return error('Manager access is required.', 403);
 
+    if (action === 'create_reference_category') {
+      const name = String(body.name ?? '').trim().replace(/\s+/g, ' ').slice(0, 50);
+      if (!name) return error('A category name is required.');
+      await imsExecute(
+        `INSERT INTO pos_daybook_reference_categories (business_id, location_id, name)
+         VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1`,
+        [context.businessId, context.locationId, name],
+      );
+      const rows = await imsQuery<{ id: number; name: string }>(
+        `SELECT id, name FROM pos_daybook_reference_categories
+         WHERE business_id = ? AND location_id = ? AND name = ? LIMIT 1`,
+        [context.businessId, context.locationId, name],
+      );
+      return NextResponse.json({ success: true, category: rows[0] });
+    }
+
+    if (action === 'create_staff_identity' || action === 'update_staff_identity') {
+      const identityId = Number(body.identity_id ?? 0);
+      const nextStaff = normalizeStaffIdentity({ name: String(body.name ?? ''), initials: String(body.initials ?? '') });
+      if (action === 'update_staff_identity') {
+        if (!Number.isInteger(identityId) || identityId <= 0) return error('A valid staff identity is required.');
+        const existing = await imsQuery<{ id: number }>(
+          `SELECT id FROM pos_daybook_staff_identities
+           WHERE id = ? AND business_id = ? AND location_id = ? AND is_active = 1 LIMIT 1`,
+          [identityId, context.businessId, context.locationId],
+        );
+        if (!existing[0]) return error('Staff identity not found.', 404);
+      }
+      const duplicate = await imsQuery<{ id: number; is_active: number }>(
+        `SELECT id, is_active FROM pos_daybook_staff_identities
+         WHERE business_id = ? AND location_id = ? AND initials = ? AND id <> ? LIMIT 1`,
+        [context.businessId, context.locationId, nextStaff.initials, identityId || 0],
+      );
+      if (duplicate[0]?.is_active) return error('Those initials are already assigned to another staff member.', 409);
+      if (action === 'create_staff_identity') {
+        if (duplicate[0]) {
+          await imsExecute(
+            `UPDATE pos_daybook_staff_identities SET name = ?, is_active = 1
+             WHERE id = ? AND business_id = ? AND location_id = ?`,
+            [nextStaff.name, duplicate[0].id, context.businessId, context.locationId],
+          );
+          return NextResponse.json({ success: true, staff: { ...nextStaff, id: duplicate[0].id } });
+        }
+        const result = await imsExecute(
+          `INSERT INTO pos_daybook_staff_identities (business_id, location_id, name, initials)
+           VALUES (?, ?, ?, ?)`,
+          [context.businessId, context.locationId, nextStaff.name, nextStaff.initials],
+        );
+        return NextResponse.json({ success: true, staff: { ...nextStaff, id: result.insertId } });
+      }
+      await imsExecute(
+        `UPDATE pos_daybook_staff_identities SET name = ?, initials = ?
+         WHERE id = ? AND business_id = ? AND location_id = ?`,
+        [nextStaff.name, nextStaff.initials, identityId, context.businessId, context.locationId],
+      );
+      return NextResponse.json({ success: true, staff: { ...nextStaff, id: identityId } });
+    }
+
+    if (action === 'delete_staff_identity') {
+      const identityId = Number(body.identity_id ?? 0);
+      if (!Number.isInteger(identityId) || identityId <= 0) return error('A valid staff identity is required.');
+      if (identityId === Number(body.staff_identity_id ?? 0)) return error('Choose another staff identity before removing the current one.', 409);
+      const result = await imsExecute(
+        `UPDATE pos_daybook_staff_identities SET is_active = 0
+         WHERE id = ? AND business_id = ? AND location_id = ? AND is_active = 1`,
+        [identityId, context.businessId, context.locationId],
+      );
+      if (!result.affectedRows) return error('Staff identity not found.', 404);
+      return NextResponse.json({ success: true });
+    }
+
     if (action === 'save_settings') {
       const editPolicy = normalizeDaybookEditPolicy(body.edit_policy);
       const preferences = {
@@ -931,14 +1015,18 @@ export async function POST(request: Request) {
     }
 
     if (action === 'save_reference') {
+      const category = String(body.category ?? '').trim().replace(/\s+/g, ' ').slice(0, 50);
+      const title = String(body.title ?? '').trim().slice(0, 255);
+      const content = String(body.content ?? '').trim();
+      if (!category || !title || !content) return error('Category, title, and information are required.');
       const secretValue = String(body.secret_value ?? '');
       await imsExecute(
         `INSERT INTO pos_daybook_references
            (business_id, location_id, category, title, content, link_url, secret_label, secret_value_encrypted, sort_order, background_color,
             author_user_id, author_name, author_staff_identity_id, author_staff_name, author_staff_initials)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [context.businessId, body.all_locations ? null : context.locationId, String(body.category ?? 'General').slice(0, 50),
-          String(body.title ?? '').trim().slice(0, 255), String(body.content ?? '').trim(), String(body.link_url ?? '').trim() || null,
+        [context.businessId, body.all_locations ? null : context.locationId, category,
+          title, content, String(body.link_url ?? '').trim() || null,
           String(body.secret_label ?? '').trim().slice(0, 120) || null, secretValue ? encrypt(secretValue) : null,
           Number(body.sort_order ?? 0), normalizeDaybookColour(body.background_color), context.actorUserId, context.actorName,
           staff.id, staff.name, staff.initials],

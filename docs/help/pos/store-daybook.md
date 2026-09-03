@@ -17,7 +17,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 - Follow warehouse requests through packing, sending and receipt.
 - Search approved reference information and product storage guidance.
 - Add new items from the tab where they belong and choose an optional card colour.
-- Let managers schedule tasks, publish store content and control who may edit existing items.
+- Let managers schedule tasks, publish store content, maintain Reference categories and manage the branch's Daybook staff list.
 
 ## At a glance
 
@@ -114,7 +114,7 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 
 Managers use **Add new** in Today, Comms, References and Product guide to add daily, weekly or one-date tasks, publish communications to selected stores, and maintain approved reference and product information. Staff use **Add new** in Requests, Store needs, Discrepancies and Incidents.
 
-Reference desk groups entries into expandable categories such as Contacts, Logins, Troubleshooting and Guides. Search opens matching categories. A reference can include ordinary information, a resource link and an optional encrypted secret. Secret values are masked until a Daybook staff member selects **Reveal**, can be copied while visible, and are never included in Reference search or Assistant knowledge.
+Reference desk groups entries into expandable categories such as Contacts, Logins, Troubleshooting and Guides. A manager selects **Add category**, enters the category name and saves it before adding entries. Empty categories remain visible, and the category picker also retains category names used by older References. Search opens matching categories. A reference can include ordinary information, a resource link and an optional encrypted secret. Secret values are masked until a Daybook staff member selects **Reveal**, can be copied while visible, and are never included in Reference search or Assistant knowledge.
 
 To add or edit a Product guide, search the active product list by product name, SKU or barcode and choose the matching variant. Daybook uses that catalogue product's primary photo automatically. A placeholder is shown when the product does not have a primary photo. The guide cannot be saved until a matching result is chosen.
 
@@ -138,6 +138,7 @@ The same POS-accessible Settings tab also controls:
 
 - **Show Daybook in the POS main bar** adds a direct Daybook icon to the POS header.
 - **Hourly incomplete-task reminder** checks today's tasks when POS opens and every hour. When tasks remain incomplete, the Daybook icon briefly pulses and shows the count. Reduced-motion browser preferences disable animation.
+- **Daybook staff** lets a manager add staff names and initials, edit existing entries, or remove former staff from the branch identity picker. Removing staff does not rewrite their historical sign-offs, acknowledgments or comments. The currently selected staff member cannot be removed until another identity is selected.
 
 The Store Daybook option is a normal link to `/pos?screen=daybook`, so staff can right-click it and open Daybook in a new tab. A normal click keeps the faster in-app transition.
 

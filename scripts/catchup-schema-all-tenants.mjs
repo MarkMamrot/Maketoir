@@ -40,6 +40,7 @@ const DAYBOOK_TABLES = [
   'pos_daybook_records',
   'pos_daybook_record_events',
   'pos_daybook_comments',
+  'pos_daybook_reference_categories',
   'pos_daybook_references',
   'pos_daybook_product_guides',
   'pos_daybook_import_runs',

@@ -11,6 +11,7 @@ import {
   DEFAULT_WEBSITE_CONTENT_MODEL,
   measurementPrompt,
   resolveMeasurementSystem,
+  resolveWebsiteTextModel,
   WEBSITE_AI_SETTING_KEYS,
 } from '@/lib/website/contentPreferences';
 
@@ -317,7 +318,10 @@ export async function POST(req: Request) {
 
     // Preserve the existing global Connections model as the fallback for tenants
     // that have not chosen a task-specific Website Content model yet.
-    let modelId = websiteSettings[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL;
+    let modelId = resolveWebsiteTextModel(
+      websiteSettings[WEBSITE_AI_SETTING_KEYS.contentModel],
+      DEFAULT_WEBSITE_CONTENT_MODEL,
+    );
     try {
       if (!websiteSettings[WEBSITE_AI_SETTING_KEYS.contentModel]) {
         const connRows = await sheets.getData(databaseId, 'Connections') as string[][];
@@ -325,7 +329,7 @@ export async function POST(req: Request) {
           const hdrs = connRows[0] as string[];
           const vals = connRows[1] as string[];
           const m = vals[hdrs.indexOf('GeminiModel')];
-          if (m?.trim()) modelId = m.trim();
+          modelId = resolveWebsiteTextModel(m, DEFAULT_WEBSITE_CONTENT_MODEL);
         }
       }
     } catch { /* use default */ }

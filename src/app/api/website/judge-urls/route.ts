@@ -4,7 +4,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
 import { imsQuery } from '@/services/IMSMySQLService';
-import { DEFAULT_URL_JUDGE_MODEL, WEBSITE_AI_SETTING_KEYS } from '@/lib/website/contentPreferences';
+import { DEFAULT_URL_JUDGE_MODEL, WEBSITE_AI_SETTING_KEYS, resolveWebsiteTextModel } from '@/lib/website/contentPreferences';
 
 /**
  * POST /api/website/judge-urls
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
       [session.businessId, WEBSITE_AI_SETTING_KEYS.urlJudgeModel],
     );
-    const modelId = modelRows[0]?.value?.trim() || DEFAULT_URL_JUDGE_MODEL;
+    const modelId = resolveWebsiteTextModel(modelRows[0]?.value, DEFAULT_URL_JUDGE_MODEL);
 
     const validUrls: string[] = urls.filter((u: any) => typeof u === 'string' && u.trim());
     const preferredDomains = (Array.isArray(preferredSites) ? preferredSites : [])

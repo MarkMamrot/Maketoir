@@ -1869,6 +1869,18 @@ CREATE TABLE IF NOT EXISTS pos_daybook_comments (
   INDEX idx_daybook_comments (business_id, location_id, item_type, item_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS pos_daybook_reference_categories (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NOT NULL,
+  name            VARCHAR(50) NOT NULL,
+  is_active       TINYINT(1) NOT NULL DEFAULT 1,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_reference_category (business_id, location_id, name),
+  INDEX idx_daybook_reference_categories (business_id, location_id, is_active, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS pos_daybook_references (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id     VARCHAR(100) NOT NULL,

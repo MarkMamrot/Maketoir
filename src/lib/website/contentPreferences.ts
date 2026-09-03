@@ -1,3 +1,5 @@
+import { isCuratedAiModel } from '@/lib/ai/billing/curatedModels';
+
 export const WEBSITE_AI_SETTING_KEYS = {
   contentModel: 'ai_website_content_model',
   urlJudgeModel: 'ai_url_judge_model',
@@ -24,7 +26,12 @@ const IMPERIAL_TIME_ZONES = new Set([
 ]);
 
 export function isValidGeminiModelId(value: string): boolean {
-  return /^gemini-[a-z0-9][a-z0-9.-]{0,99}$/.test(value.trim());
+  return isCuratedAiModel(value.trim(), 'text');
+}
+
+export function resolveWebsiteTextModel(value: unknown, fallback: string): string {
+  const modelId = typeof value === 'string' ? value.trim() : '';
+  return isValidGeminiModelId(modelId) ? modelId : fallback;
 }
 
 export function resolveMeasurementSystem(

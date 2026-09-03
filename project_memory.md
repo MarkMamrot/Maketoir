@@ -1,3 +1,16 @@
+## 2026-09-03 - Website Content Studio stale model recovery
+
+- Website descriptions and URL judging were failing because Monsterthreads, its sandbox, and Sage still stored `gemini-2.5-flash` after the curated catalogue disabled it. Runtime Issues recorded 31 description-generation failures and 27 URL-judge denials for the affected Monsterthreads workflow.
+- Website generation and URL judging now normalize saved model IDs at the provider-call boundary and fall back to the role-appropriate curated model. IMS Settings rejects retired/non-curated text model IDs so they cannot be saved again.
+- The three confirmed stale Website Content settings were transactionally migrated to `gemini-3.7-flash`. Google Models API metadata confirmed both Website fallback IDs are available. Focused settings/preferences tests and the production build passed; the full suite passed 494 files and 2,352 tests, with one unrelated date-sensitive stock-availability expectation now also returning `overdue`.
+
+## 2026-09-01 - Daybook Reference categories and staff management
+
+- Reference Desk now has a separate manager-only Add Category action. Categories persist independently of entries, remain visible while empty, and are available in the Reference editor alongside legacy category names.
+- Daybook Settings now has a per-location staff manager for adding, editing, and removing staff identities. Removal deactivates the picker entry while preserving historical attribution; the current identity must be changed before removal, and previously removed initials can be restored.
+- Added `pos_daybook_reference_categories` through canonical tenant SQL and deployed it to all four registered tenant schemas using targeted invocations of the multi-tenant catch-up script after Railway reset the long-running all-schema connection.
+- Help/Assistant indexes, the full 2,353-test suite, schema contract, production build, diagnostics, and diff checks passed. Authenticated browser validation was unavailable because the shared POS tabs had expired tenant/device sessions.
+
 ## 2026-09-01 - Daybook collaboration and responsive workflow
 
 - Daybook task sign-off/reopen, communication acknowledgment, record status changes, comments, edits, and deletes now update in place and silently reconcile without replacing the workspace or resetting scroll position.

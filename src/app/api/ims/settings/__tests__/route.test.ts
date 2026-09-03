@@ -175,6 +175,20 @@ describe('/api/ims/settings loyalty settings', () => {
     expect(mockImsExecute).not.toHaveBeenCalled();
   });
 
+  it('accepts curated Website AI models and rejects retired model IDs', async () => {
+    const retiredResponse = await PUT(putRequest({ ai_website_content_model: 'gemini-2.5-flash' }));
+    expect(retiredResponse.status).toBe(400);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+
+    const curatedResponse = await PUT(putRequest({ ai_website_content_model: 'gemini-3.7-flash' }));
+    expect(curatedResponse.status).toBe(200);
+    expect(mockImsExecute).toHaveBeenCalledWith(expect.any(String), [
+      'business-1',
+      'ai_website_content_model',
+      'gemini-3.7-flash',
+    ]);
+  });
+
   it.each([
     { connect_accounting_software: 'sometimes' },
     { accounting_software: 'quickbooks' },
