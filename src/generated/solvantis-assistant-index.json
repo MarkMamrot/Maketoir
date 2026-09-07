@@ -1839,7 +1839,8 @@
       },
       "relatedTopics": [
         "setup-connections",
-        "setup-business-brand-appearance"
+        "setup-business-brand-appearance",
+        "ims-workspaces"
       ],
       "order": 3,
       "summary": "Enroll people in one or more businesses with the least access they need and handle sign-in security safely.",
@@ -2151,7 +2152,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-29",
-      "content": "- Keep Business Key Information and Brand Profile accurate.\n- Refresh the relevant source before using time-sensitive results.\n- Match date ranges and locations when comparing figures.\n- Open the source records behind an inventory candidate before acting."
+      "content": "- Keep Business Key Information and Brand Profile accurate.\n- Refresh the relevant source before using time-sensitive results.\n- Match date ranges and locations when comparing figures.\n- Open the source records behind an inventory candidate before acting.\n- Ask the Assistant for a governed summary of the latest complete marketing and commerce days."
     },
     {
       "id": "foresight-business-intelligence:3",
@@ -2232,7 +2233,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-29",
-      "content": "Calculated views turn available source records into summaries. A result is only comparable when its date range, location, source freshness, and definition match the result beside it.\n\n| Result | Check before deciding | Human decision |\n| --- | --- | --- |\n| Sales or marketing trend | Same dates and current source data | Whether the movement needs investigation |\n| Stock turnover | Sales period, current stock, incoming stock, and seasonality | Whether ordering or merchandising should change |\n| Space efficiency | Product range and location context | Whether space use should be reviewed |"
+      "content": "Calculated views turn available source records into summaries. A result is only comparable when its date range, location, source freshness, and definition match the result beside it.\n\n| Result | Check before deciding | Human decision |\n| --- | --- | --- |\n| Sales or marketing trend | Same dates and current source data | Whether the movement needs investigation |\n| Stock turnover | Sales period, current stock, incoming stock, and seasonality | Whether ordering or merchandising should change |\n| Space efficiency | Product range and location context | Whether space use should be reviewed |\n\nThe Assistant can summarise up to 90 complete business days of stored paid-media and commerce observations when **Intel & Automation Marketing** is enabled. It reports Google Ads and Meta spend and platform-attributed revenue separately from authoritative online and POS sales. Its ecommerce MER uses authoritative tax-exclusive online net revenue divided by paid-media spend. Platform ROAS remains the platform's own attribution and should not be treated as the same measure.\n\nThe summary omits advertising account and campaign identities. It includes the latest observation date, tax-inclusive commerce sales and returns, extracted tax, tax-exclusive net revenue, cost coverage, and data-quality warnings. It reads stored Solvantis observations and does not contact an advertising platform live, so check source freshness before acting."
     },
     {
       "id": "foresight-business-intelligence:6",
@@ -3231,7 +3232,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-29",
-      "content": "- Read the evidence period, source, assumptions, risks, and proposed action.\n- Request approval, approve, reject, or continue planning as appropriate.\n- Review the exact creative or deliverable version submitted.\n- Use campaign audits as prompts for investigation.\n- Record implementation and later outcomes separately."
+      "content": "- Read the evidence period, source, assumptions, risks, and proposed action.\n- Request approval, approve, reject, or continue planning as appropriate.\n- Review the exact creative or deliverable version submitted.\n- Use campaign audits as prompts for investigation.\n- Record implementation and later outcomes separately.\n- Ask the Assistant for a bounded summary of stored recommendation and follow-up states."
     },
     {
       "id": "foresight-recommendations-creative-review-audits:3",
@@ -3311,7 +3312,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-29",
-      "content": "| State | Meaning | Safe next action |\n| --- | --- | --- |\n| Shadow | Visible for review but not submitted | Check evidence or dismiss it |\n| Pending approval | Waiting for a human decision | Approve or reject after review |\n| Approved | Approved to continue | Implement through the shown method |\n| Executing | A supported action is in progress | Wait and refresh status once |\n| Executed | The supported action reported success | Verify the external result and monitor it |\n| Execution failed | The action did not complete successfully | Read the error and verify external state before retrying |\n| Rejected | The recommendation will not continue | Record a reason where useful |"
+      "content": "| State | Meaning | Safe next action |\n| --- | --- | --- |\n| Shadow | Visible for review but not submitted | Check evidence or dismiss it |\n| Pending approval | Waiting for a human decision | Approve or reject after review |\n| Approved | Approved to continue | Implement through the shown method |\n| Executing | A supported action is in progress | Wait and refresh status once |\n| Executed | The supported action reported success | Verify the external result and monitor it |\n| Execution failed | The action did not complete successfully | Read the error and verify external state before retrying |\n| Rejected | The recommendation will not continue | Record a reason where useful |\n\nThe Assistant can list up to 20 recommendations by open, exact, or all states when **Intel & Automation Marketing** is enabled. It returns the evidence window, quality warnings, bounded observed metrics, confidence, proposed action type, expiry, and stored outcome or experiment follow-up status. It omits external account and campaign identifiers, contributor identities, actor details, review notes, generated rationale, and execution payloads.\n\nThis check does not generate a recommendation, approve or reject it, execute or roll back a change, or verify the current external platform state. Open Recommendation Inbox and inspect the exact evidence and live account before making a decision."
     },
     {
       "id": "foresight-recommendations-creative-review-audits:7",
@@ -3619,7 +3620,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-25",
-      "content": "A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.\n\nThe **Contact summary** is a pinned note for important information staff should know about the contact. Use **Edit** to record details such as contact preferences, accessibility requirements, or standing instructions, then select **Save**. Clearing and saving removes the note. Advisor accounts can read the summary but cannot change it.\n\nUse a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the contact summary into a running activity log.\n\n| Information | Where it comes from | Where to correct it |\n|---|---|---|\n| Name, company, email, phone, address, contact type | Contact record | **Contacts** |\n| POS purchase or return | Completed POS transaction | POS return or linked customer credit note workflow |\n| Customer order and fulfilment | Sales Order | The linked Sales Order |\n| Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |\n| Loyalty points | Loyalty activity | The supported loyalty or return workflow |\n| Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |\n| Important information about the contact | **Contact summary** | The customer profile |\n| Follow-up commitment | CRM task | The task queue or customer profile |\n| Potential sale and forecast value | CRM opportunity | The Pipeline |\n\n> **Note:** CRM summaries bring information together. Correct a sale, order, return, credit, or loyalty event at its source so every view stays consistent."
+      "content": "A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.\n\nAsk Solvantis can find an active customer by display name, company, or customer code, then check a bounded summary of that customer's sales, orders, credits, store credit, loyalty, and task counts. The live result does not include email, phone, address, free-text interactions, or staff names. Use the customer profile when those maintained details are needed.\n\nThe **Contact summary** is a pinned note for important information staff should know about the contact. Use **Edit** to record details such as contact preferences, accessibility requirements, or standing instructions, then select **Save**. Clearing and saving removes the note. Advisor accounts can read the summary but cannot change it.\n\nUse a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the contact summary into a running activity log.\n\n| Information | Where it comes from | Where to correct it |\n|---|---|---|\n| Name, company, email, phone, address, contact type | Contact record | **Contacts** |\n| POS purchase or return | Completed POS transaction | POS return or linked customer credit note workflow |\n| Customer order and fulfilment | Sales Order | The linked Sales Order |\n| Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |\n| Loyalty points | Loyalty activity | The supported loyalty or return workflow |\n| Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |\n| Important information about the contact | **Contact summary** | The customer profile |\n| Follow-up commitment | CRM task | The task queue or customer profile |\n| Potential sale and forecast value | CRM opportunity | The Pipeline |\n\n> **Note:** CRM summaries bring information together. Correct a sale, order, return, credit, or loyalty event at its source so every view stays consistent."
     },
     {
       "id": "ims-contacts-crm:5",
@@ -4075,7 +4076,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-30",
-      "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\nNotifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit."
+      "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nLive checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.\n\nYour recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\nNotifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit."
     },
     {
       "id": "ims-workspaces:5",
@@ -4433,7 +4434,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "- Confirm Shopify connection health and required access before syncing.\n- Import a Shopify catalogue into Solvantis in paced batches during onboarding or later catalogue maintenance.\n- Preview and import opening stock from matching Shopify Warehouse and Kotara locations.\n- Review products that are linked, not linked, or waiting for synchronization.\n- Trace customer, order, inventory, fulfilment, and webhook activity in sync history.\n- Repair variant linkage before retrying affected Shopify data.\n- Use Xero's Shopify Payouts area for payout accounting, not product sync."
+      "content": "- Confirm Shopify connection health and required access before syncing.\n- Import a Shopify catalogue into Solvantis in paced batches during onboarding or later catalogue maintenance.\n- Preview and import opening stock from matching Shopify Warehouse and Kotara locations.\n- Review products that are linked, not linked, or waiting for synchronization.\n- Trace customer, order, inventory, fulfilment, and webhook activity in sync history.\n- Ask Assistant for a bounded local summary of connection readiness, catalogue linkage and recent sync outcomes.\n- Repair variant linkage before retrying affected Shopify data.\n- Use Xero's Shopify Payouts area for payout accounting, not product sync."
     },
     {
       "id": "ims-shopify-sync:3",
@@ -4475,7 +4476,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "- [ ] Confirm the Shopify connection is active.\n- [ ] Identify the Shopify product, variant, order, or webhook involved.\n- [ ] Search IMS for an existing product before creating another one.\n- [ ] Compare the Shopify variant with the intended IMS variant.\n- [ ] Review sync history before making a manual stock change.\n\n> **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.\n\nFor products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization."
+      "content": "- [ ] Confirm the Shopify connection is active.\n- [ ] Identify the Shopify product, variant, order, or webhook involved.\n- [ ] Search IMS for an existing product before creating another one.\n- [ ] Compare the Shopify variant with the intended IMS variant.\n- [ ] Review sync history before making a manual stock change.\n\n> **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.\n\n### Ask Assistant about Shopify sync health\n\nAssistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.\n\nThis check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Shopify > Webhooks** when live registration must be verified, and use **Sync History** for the complete operational record.\n\nFor products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization."
     },
     {
       "id": "ims-shopify-sync:5",
@@ -4682,7 +4683,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-27",
-      "content": "- Maintain sync rules, account and tracking mappings, and payment routing.\n- Review Sync History for pending, successful, blocked, partial, or dismissed work.\n- Use COGS Reconciliation to investigate cost posting coverage.\n- Review and post balanced Shopify payout plans when enabled.\n- Retry only the accounting action that remains unfinished."
+      "content": "- Maintain sync rules, account and tracking mappings, and payment routing.\n- Review Sync History for pending, successful, blocked, partial, or dismissed work.\n- Ask Assistant for a bounded local summary of queued documents and categorized recent failures.\n- Use COGS Reconciliation to investigate cost posting coverage.\n- Review and post balanced Shopify payout plans when enabled.\n- Retry only the accounting action that remains unfinished."
     },
     {
       "id": "ims-xero-reconciliation:3",
@@ -4718,7 +4719,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-27",
-      "content": "- Enable **Accounting software** and choose **Xero** in **Settings > General > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.\n- [ ] Confirm Xero is connected and authorized.\n- [ ] Identify the exact IMS source and whether its operational action already succeeded.\n- [ ] Read the safe error shown in Sync History.\n- [ ] Check the required account, tax, tracking, and payment mappings.\n- [ ] Confirm whether the workflow is manual or automatic under Sync Rules.\n\n> **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry."
+      "content": "- Enable **Accounting software** and choose **Xero** in **Settings > General > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.\n- [ ] Confirm Xero is connected and authorized.\n- [ ] Identify the exact IMS source and whether its operational action already succeeded.\n- [ ] Read the safe error shown in Sync History.\n- [ ] Check the required account, tax, tracking, and payment mappings.\n- [ ] Confirm whether the workflow is manual or automatic under Sync Rules.\n\n> **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry.\n\n### Ask Assistant about Xero sync health\n\nAssistant can check whether the local Xero connection appears configured, list up to 30 source documents currently queued for posting, and categorize failed or skipped sync events from the last 1 to 365 days. Categories include authentication, account, tax, tracking or payment mapping, validation, rate limiting and service availability.\n\nThis check reads Solvantis records only. It does not contact Xero, refresh live Xero document states, retry or dismiss work, or expose raw error details, contact identities, tokens or request payloads. A historical failure may already have a later successful retry, so confirm the current source status in **Sync History** before acting."
     },
     {
       "id": "ims-xero-reconciliation:5",
@@ -5555,7 +5556,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "| Action | Use it when | Stock effect |\n|---|---|---|\n| New Purchase Order | You are preparing a supplier order | None while Draft |\n| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |\n| Receive | Goods have physically arrived | Adds the entered quantity to on hand |\n| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |\n| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |\n| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |\n\nAdvisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction."
+      "content": "| Action | Use it when | Stock effect |\n|---|---|---|\n| New Purchase Order | You are preparing a supplier order | None while Draft |\n| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |\n| Receive | Goods have physically arrived | Adds the entered quantity to on hand |\n| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |\n| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |\n| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |\n\nAdvisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.\n\nAsk Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.\n\nAn order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.\n\nAssistant shows outstanding value before tax in the PO currency and includes the recorded exchange rate for foreign-currency orders. It omits supplier contact channels, notes, invoice references, files, payment details and customer data."
     },
     {
       "id": "ims-purchase-orders:3",
@@ -6134,7 +6135,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "Order Planner compares available demand and supply information to suggest replenishment. A suggestion is a starting point; staff still decide whether the quantity, supplier, location and timing make sense.\n\nBefore creating a PO, review:\n\n- [ ] Current on-hand and available stock.\n- [ ] Customer commitments and unusual demand.\n- [ ] Supply already incoming on other POs.\n- [ ] The receiving location.\n- [ ] Supplier and lead time.\n- [ ] The planning window and any seasonal event.\n\n> **Important:** Creating a PO from a suggestion does not make the suggestion correct. Review the resulting Draft before confirmation."
+      "content": "Order Planner compares available demand and supply information to suggest replenishment. A suggestion is a starting point; staff still decide whether the quantity, supplier, location and timing make sense.\n\nAsk Assistant for a read-only reorder forecast when you need the highest nonzero suggestions for one supplier or brand. Choose a 7, 90, 180 or 365-day sales window and an order frequency. Assistant uses the same Order Planner calculation and returns at most 30 suggestions; it does not create or change a Purchase Order.\n\nSuggested quantity is average daily sales multiplied by order frequency plus supplier lead time, less available and incoming stock. The final reorder quantity is rounded to the product's pack size. Newer products use their shorter selling history after lead time rather than assuming the full sales window.\n\nBefore creating a PO, review:\n\n- [ ] Current on-hand and available stock.\n- [ ] Customer commitments and unusual demand.\n- [ ] Supply already incoming on other POs.\n- [ ] The receiving location.\n- [ ] Supplier and lead time.\n- [ ] The planning window and any seasonal event.\n\n> **Important:** Creating a PO from a suggestion does not make the suggestion correct. Review the resulting Draft before confirmation.\n\n> **Important:** Assistant forecasts are also suggestions. Seasonal events, unusual orders, stale sales-cache data, supplier minimums and unrecorded supply can make the calculated quantity unsuitable."
     },
     {
       "id": "ims-supplier-work:4",
@@ -6260,7 +6261,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Review the on-screen result before exporting."
+      "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting."
     },
     {
       "id": "ims-report-guide:3",
@@ -6341,7 +6342,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "### Choose and run a report\n\n1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.\n\n### Understand report dates\n\n| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.\n\n### Compare tax and cost correctly\n\n| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current average cost | Current organisation-wide average for a variant | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current average cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current average cost without rewriting the cost already attached to an earlier sale or stock movement."
+      "content": "### Choose and run a report\n\n1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.\n\n### Understand report dates\n\n| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.\n\n### Compare tax and cost correctly\n\n| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current average cost | Current organisation-wide average for a variant | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current average cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current average cost without rewriting the cost already attached to an earlier sale or stock movement.\n\n### Ask Assistant for a sales comparison\n\nAssistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period."
     },
     {
       "id": "ims-report-guide:6",
@@ -6915,7 +6916,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "- Find customer demand that is ready, incoming, at risk, overdue, or unsourced.\n- Allocate free incoming purchase-order quantity to a customer order.\n- Add an optional customer promise date.\n- Open the customer order when supply arrives and fulfil it separately."
+      "content": "- Find customer demand that is ready, incoming, at risk, overdue, or unsourced.\n- Allocate free incoming purchase-order quantity to a customer order.\n- Add an optional customer promise date.\n- Open the customer order when supply arrives and fulfil it separately.\n- Ask Solvantis to check current allocation exceptions by state when you need a read-only summary. The live check can show order, product, location, and quantity evidence, but omits customer and supplier identities."
     },
     {
       "id": "ims-stock-allocation-backorders:3",
@@ -8242,7 +8243,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "- Count every payment method for the open register session.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action."
+      "content": "- Count every payment method for the open register session.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action.\n- Ask the Assistant for the verified register's current expected takings and whether counts have been saved."
     },
     {
       "id": "pos-end-of-day-xero:3",
@@ -8308,7 +8309,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "1. Open **Register**, then select **End of Day**.\n2. Check the trading date and the expected amount for each payment method.\n3. For cash, enter the opening float and count the full drawer. The screen calculates cash sales as counted cash minus the float.\n4. Enter the counted total for each other payment method.\n5. Review the variance column. If a variance exists, recheck the count and add a note where useful.\n6. Select the save action. Confirm the variance warning if the difference is genuine.\n7. Print or retain the reconciliation summary as required by the business.\n8. Confirm the register is closed. The configured Xero sync starts in the background when at least one counted amount was saved."
+      "content": "1. Open **Register**, then select **End of Day**.\n2. Check the trading date and the expected amount for each payment method.\n3. For cash, enter the opening float and count the full drawer. The screen calculates cash sales as counted cash minus the float.\n4. Enter the counted total for each other payment method.\n5. Review the variance column. If a variance exists, recheck the count and add a note where useful.\n6. Select the save action. Confirm the variance warning if the difference is genuine.\n7. Print or retain the reconciliation summary as required by the business.\n8. Confirm the register is closed. The configured Xero sync starts in the background when at least one counted amount was saved.\n\nThe Assistant's register-status check uses the open session assigned to the verified POS register. Its payment-method amounts are expected takings, with recorded petty cash deducted from Cash. Sales totals are tax-inclusive and GST is shown as the extracted amount. A saved-count indicator confirms that at least one counted payment method exists; it does not mean the register has been closed or Xero has posted successfully."
     },
     {
       "id": "pos-end-of-day-xero:6",
@@ -9121,7 +9122,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "- Set up the device once with a location code, or use an existing Admin session to select a branch.\n- Select an active register for that branch.\n- Sign in with the cashier username and PIN, or use the Admin sign-in option.\n- Count and save the opening float before taking sales.\n- Resolve a register session that was left open."
+      "content": "- Set up the device once with a location code, or use an existing Admin session to select a branch.\n- Select an active register for that branch.\n- Sign in with the cashier username and PIN, or use the Admin sign-in option.\n- Count and save the opening float before taking sales.\n- Resolve a register session that was left open.\n- Ask the Assistant whether the verified register is open and for its current shared takings summary."
     },
     {
       "id": "pos-register-device-login:3",
@@ -9178,7 +9179,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "### Set up the device\n\n1. On **POS - Device Setup**, enter the location code supplied by a manager. If you are already signed in as an Admin, select the branch instead.\n2. Select **Next** and choose an active **Register / Till**.\n3. Select **Set Up Device**.\n4. Check the branch and register names shown on the login screen.\n\nIf the location has no active registers, setup explains that a register is required and provides **Open Locations in IMS**. In IMS, select the location and choose **Add Register**, then return to POS setup.\n\n### Sign in and open the register\n\n1. Enter your POS username and PIN, then select **Sign In**. Admins can use **Admin login** instead.\n2. If **Register Left Open** appears, choose **Continue Session** only when work genuinely belongs to that same session. Otherwise select **Close Register (Enter Counts)**.\n3. Open **Register**, select **Open Register**, and count the opening cash by denomination.\n4. Compare **Counted Float** with **Expected Float**, resolve any unexplained difference, and save.\n5. Return to POS and confirm the Charge action is available."
+      "content": "### Set up the device\n\n1. On **POS - Device Setup**, enter the location code supplied by a manager. If you are already signed in as an Admin, select the branch instead.\n2. Select **Next** and choose an active **Register / Till**.\n3. Select **Set Up Device**.\n4. Check the branch and register names shown on the login screen.\n\nIf the location has no active registers, setup explains that a register is required and provides **Open Locations in IMS**. In IMS, select the location and choose **Add Register**, then return to POS setup.\n\nThe Assistant can check the register assigned to the signed-in POS session. It reports whether that verified register has an open session and, while open, its session date, opening float, sale and return counts, tax-inclusive sales, extracted GST, expected payment-method takings, petty cash, and whether End of Day counts have been saved. It does not reveal operator or customer identities.\n\n### Sign in and open the register\n\n1. Enter your POS username and PIN, then select **Sign In**. Admins can use **Admin login** instead.\n2. If **Register Left Open** appears, choose **Continue Session** only when work genuinely belongs to that same session. Otherwise select **Close Register (Enter Counts)**.\n3. Open **Register**, select **Open Register**, and count the opening cash by denomination.\n4. Compare **Counted Float** with **Expected Float**, resolve any unexplained difference, and save.\n5. Return to POS and confirm the Charge action is available."
     },
     {
       "id": "pos-register-device-login:6",
@@ -9292,7 +9293,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion."
+      "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion.\n- Ask the Assistant for up to 20 recent completed transactions from the verified register over the last 1 to 30 days."
     },
     {
       "id": "pos-reports-transactions:3",
@@ -9349,7 +9350,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
-      "content": "1. Open **More > Reports**.\n2. Choose the required date. Reports loads that date for the active POS location.\n3. Review **Total Revenue**, **Transactions**, and the payment-method totals.\n4. Select a transaction row to expand its products, payment lines, and order notes.\n5. Choose **Print** to recreate its receipt.\n6. Choose **Return** on an eligible completed sale to start a linked return with the original quantities and values.\n7. Choose **Edit** to change only the payment allocation. Ensure the new lines still total the fixed sale amount.\n8. For an eligible transaction from the current open register session, choose **Transaction** or **Delete** and ask the authorised manager to enter their PIN.\n9. Reload or reselect the date after a correction and confirm the expected totals."
+      "content": "1. Open **More > Reports**.\n2. Choose the required date. Reports loads that date for the active POS location.\n3. Review **Total Revenue**, **Transactions**, and the payment-method totals.\n4. Select a transaction row to expand its products, payment lines, and order notes.\n5. Choose **Print** to recreate its receipt.\n6. Choose **Return** on an eligible completed sale to start a linked return with the original quantities and values.\n7. Choose **Edit** to change only the payment allocation. Ensure the new lines still total the fixed sale amount.\n8. For an eligible transaction from the current open register session, choose **Transaction** or **Delete** and ask the authorised manager to enter their PIN.\n9. Reload or reselect the date after a correction and confirm the expected totals.\n\nThe Assistant's recent-register check returns anonymous transaction references, timestamps, sale type, tax-inclusive total, extracted GST, discount, item counts, and payment-method names. It is restricted to the location and register in the signed-in POS session. It does not return customer details, cashier identity, notes, or payment references.\n\nAssistant live checks read shared server records. Parked carts and offline queues stored in this browser are not included, so reconnect and sync before treating the result as complete."
     },
     {
       "id": "pos-reports-transactions:6",
@@ -11463,6 +11464,24 @@
       "id": "setup-team-access-security:4",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
+      "heading": "Assistant access",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Setup > Team",
+      "topicId": "setup-team-access-security",
+      "contexts": [
+        "team"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "Ask Solvantis follows the person's verified access in the active business. It offers only supported read-only checks and cannot be used to bypass a hidden workspace, unavailable feature, or restricted account scope.\n\n- IMS users, including Advisors, can ask supported read-only questions about products, stock, orders, contacts, purchasing, and sales reports.\n- Advisor accounts cannot use Assistant checks for integration diagnostics or Intel & Automation Marketing.\n- Admin and Standard User accounts can use Xero, Shopify, and Intel & Automation Marketing checks only while the corresponding business capability is enabled.\n- POS checks use only the location and register assigned to the signed-in POS session.\n- Wholesale checks use only the signed-in member's company, location, role, and brand access.\n\nChanging tier, business, register, or wholesale account changes the live checks available in the corresponding verified session. Help articles may explain a feature that the current account cannot open, but the Assistant will not retrieve that feature's private business records without access."
+    },
+    {
+      "id": "setup-team-access-security:5",
+      "documentId": "setup-team-access-security",
+      "title": "Team Access and Security",
       "heading": "Switching businesses",
       "audiences": [
         "ims"
@@ -11478,7 +11497,7 @@
       "content": "Users enrolled in two or more businesses can choose the active business from the top bar. The page reloads into that business and applies the tier assigned there. On the next sign-in, Solvantis opens the most recently active business; if none has been used yet, it opens the default enrollment."
     },
     {
-      "id": "setup-team-access-security:5",
+      "id": "setup-team-access-security:6",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Before you begin",
@@ -11496,7 +11515,7 @@
       "content": "- Select the intended business.\n- Confirm the colleague's current work email directly with them.\n- Decide whether they truly need Admin access.\n- Make sure they can receive the invitation and complete their own sign-in setup.\n\n> **Warning:** Never ask a colleague to share their password, authenticator code, or recovery code. Support and administrators should not need those values."
     },
     {
-      "id": "setup-team-access-security:6",
+      "id": "setup-team-access-security:7",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Step-by-step",
@@ -11514,7 +11533,7 @@
       "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. Select **Send Invite Email** once.\n6. Read the success or error message before trying again.\n7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.\n8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.\n\nIf the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving."
     },
     {
-      "id": "setup-team-access-security:7",
+      "id": "setup-team-access-security:8",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Role and security decisions",
@@ -11532,7 +11551,7 @@
       "content": "| Decision | Choose | Reason |\n| --- | --- | --- |\n| Person only needs normal application work | User | Limits team-management access |\n| Person must manage setup and invite others | Admin | Grants full application access and invitation rights |\n| Email address may be wrong | Stop | Confirm it before sending an invitation |\n| Someone asks for a sign-in or recovery code | Do not share | Codes belong only to the account holder |\n| Business export is needed | Use Data Export only when authorised | The downloaded file contains business information even though protected connection details are excluded |"
     },
     {
-      "id": "setup-team-access-security:8",
+      "id": "setup-team-access-security:9",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Troubleshooting",
@@ -11550,7 +11569,7 @@
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Invitation email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before resending once |\n| Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |\n| User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |\n| User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |\n| User has different permissions after switching | Their tier differs between businesses | Review the tier assigned in the currently selected business |\n| User loses access to one business | Their enrollment in that business was removed | They can continue using any other business where they remain enrolled |\n| Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |\n| Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |\n| Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |"
     },
     {
-      "id": "setup-team-access-security:9",
+      "id": "setup-team-access-security:10",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Worked examples",

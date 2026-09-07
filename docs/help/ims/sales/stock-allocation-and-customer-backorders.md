@@ -11,6 +11,7 @@ Use Stock Allocation to connect confirmed incoming supply to outstanding custome
 - Allocate free incoming purchase-order quantity to a customer order.
 - Add an optional customer promise date.
 - Open the customer order when supply arrives and fulfil it separately.
+- Ask Solvantis to check current allocation exceptions by state when you need a read-only summary. The live check can show order, product, location, and quantity evidence, but omits customer and supplier identities.
 
 ## At a glance
 

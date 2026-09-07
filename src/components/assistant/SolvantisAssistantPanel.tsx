@@ -1,7 +1,13 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ArrowUp, BookOpen, Check, Database, MessageCircle, Sparkles, X } from 'lucide-react';
+import { ArrowUp, BookOpen, Check, Database, MessageCircle, Sparkles, Trash2, X } from 'lucide-react';
+
+import {
+  assistantSessionStorageKey,
+  parseAssistantSession,
+  serializeAssistantSession,
+} from '@/lib/assistant/sessionHistory';
 
 import styles from './SolvantisAssistantPanel.module.css';
 
@@ -28,8 +34,22 @@ const LIVE_CHECK_LABELS: Record<string, string> = {
   ims_order_summary: 'Order detail',
   ims_order_search: 'Recent orders',
   ims_stock_alerts: 'Stock exceptions',
+  ims_inventory_position: 'Inventory position',
+  ims_stock_movement_history: 'Stock movement history',
+  ims_stock_allocation_exceptions: 'Stock allocation exceptions',
+  ims_customer_lookup: 'Customer search',
+  ims_customer_activity: 'Customer activity',
+  ims_sales_performance: 'Sales performance',
+  ims_reorder_forecast: 'Reorder forecast',
+  ims_purchase_order_aging: 'Purchase order aging',
+  ims_xero_sync_diagnostics: 'Xero sync diagnostics',
+  ims_shopify_sync_diagnostics: 'Shopify sync diagnostics',
+  ims_marketing_performance: 'Marketing performance',
+  ims_marketing_recommendations: 'Marketing recommendations',
   pos_product_lookup: 'Location products and stock',
   pos_session_context: 'Register context',
+  pos_register_status: 'Register status and takings',
+  pos_recent_transactions: 'Recent register transactions',
   wholesale_catalogue_lookup: 'Approved catalogue',
   wholesale_order_summary: 'Account order',
   wholesale_account_summary: 'Account terms',
@@ -89,8 +109,23 @@ export function SolvantisAssistantPanel({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
+  const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const storageKey = assistantSessionStorageKey(chatEndpoint);
+
+  useEffect(() => {
+    const restored = parseAssistantSession(sessionStorage.getItem(storageKey));
+    setMessages(restored.map(message => ({ ...message, id: crypto.randomUUID() })));
+    setLoadedStorageKey(storageKey);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (loadedStorageKey !== storageKey) return;
+    const serialized = serializeAssistantSession(messages);
+    if (serialized) sessionStorage.setItem(storageKey, serialized);
+    else sessionStorage.removeItem(storageKey);
+  }, [loadedStorageKey, messages, storageKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -163,6 +198,11 @@ export function SolvantisAssistantPanel({
     }
   };
 
+  const clearConversation = () => {
+    sessionStorage.removeItem(storageKey);
+    setMessages([]);
+  };
+
   return (
     <div className={`${embedded ? styles.embeddedRoot : styles.root} ${side === 'left' ? styles.left : styles.right} ${open ? styles.open : ''}`}>
       {open && (
@@ -173,11 +213,18 @@ export function SolvantisAssistantPanel({
               <h2 id="solvantis-assistant-title">Solvantis Assistant</h2>
               <span>Business help and live lookups</span>
             </div>
-            {!embedded && (
-              <button className={styles.iconButton} onClick={() => setOpen(false)} aria-label="Close assistant" title="Close assistant">
-                <X size={19} />
-              </button>
-            )}
+            <div className={styles.headerActions}>
+              {messages.length > 0 && (
+                <button className={styles.iconButton} onClick={clearConversation} aria-label="Clear assistant conversation" title="Clear conversation">
+                  <Trash2 size={18} />
+                </button>
+              )}
+              {!embedded && (
+                <button className={styles.iconButton} onClick={() => setOpen(false)} aria-label="Close assistant" title="Close assistant">
+                  <X size={19} />
+                </button>
+              )}
+            </div>
           </header>
 
           <div className={styles.messages} ref={scrollRef} aria-live="polite">

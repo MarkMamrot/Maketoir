@@ -19,6 +19,10 @@ Purchasing starts with a reviewed need, not an automatic order. Use Order Planne
 
 Order Planner compares available demand and supply information to suggest replenishment. A suggestion is a starting point; staff still decide whether the quantity, supplier, location and timing make sense.
 
+Ask Assistant for a read-only reorder forecast when you need the highest nonzero suggestions for one supplier or brand. Choose a 7, 90, 180 or 365-day sales window and an order frequency. Assistant uses the same Order Planner calculation and returns at most 30 suggestions; it does not create or change a Purchase Order.
+
+Suggested quantity is average daily sales multiplied by order frequency plus supplier lead time, less available and incoming stock. The final reorder quantity is rounded to the product's pack size. Newer products use their shorter selling history after lead time rather than assuming the full sales window.
+
 Before creating a PO, review:
 
 - [ ] Current on-hand and available stock.
@@ -29,6 +33,8 @@ Before creating a PO, review:
 - [ ] The planning window and any seasonal event.
 
 > **Important:** Creating a PO from a suggestion does not make the suggestion correct. Review the resulting Draft before confirmation.
+
+> **Important:** Assistant forecasts are also suggestions. Seasonal events, unusual orders, stale sales-cache data, supplier minimums and unrecorded supply can make the calculated quantity unsuitable.
 
 ## Choose the next workflow
 

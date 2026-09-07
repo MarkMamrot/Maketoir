@@ -12,6 +12,7 @@ Use End of Day to compare physical takings with recorded sales, close the regist
 - Review and confirm any till variance before saving.
 - Close the register even when a separate Xero action needs repair.
 - Review Xero Sync History and retry only the unfinished accounting action.
+- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.
 
 ## At a glance
 
@@ -44,6 +45,8 @@ Use End of Day to compare physical takings with recorded sales, close the regist
 6. Select the save action. Confirm the variance warning if the difference is genuine.
 7. Print or retain the reconciliation summary as required by the business.
 8. Confirm the register is closed. The configured Xero sync starts in the background when at least one counted amount was saved.
+
+The Assistant's register-status check uses the open session assigned to the verified POS register. Its payment-method amounts are expected takings, with recorded petty cash deducted from Cash. Sales totals are tax-inclusive and GST is shown as the extracted amount. A saved-count indicator confirms that at least one counted payment method exists; it does not mean the register has been closed or Xero has posted successfully.
 
 ## Till variance and cash activity
 

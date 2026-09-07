@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { successfulToolEvidence } from '../evidence';
 import { ASSISTANT_MODEL, assistantOrchestratorInternals } from '../orchestrator';
 
 describe('assistant response normalization', () => {
@@ -36,7 +37,7 @@ describe('assistant response normalization', () => {
       .mockResolvedValueOnce({ mode: 'tool', tool: 'ims_order_summary', arguments: { orderType: 'sales', reference: 'SO-1' } })
       .mockResolvedValueOnce({ mode: 'tool', tool: 'ims_product_lookup', arguments: { search: 'SKU-1' } })
       .mockResolvedValueOnce({ mode: 'answer', answer: 'Synthesized answer', sourceIds: [] });
-    const execute = vi.fn(async (name: string) => ({ source: name }));
+    const execute = vi.fn(async (name: string) => successfulToolEvidence({ source: name }));
 
     const result = await assistantOrchestratorInternals.runResearchLoop({
       tools: [
@@ -59,7 +60,7 @@ describe('assistant response normalization', () => {
       .mockResolvedValueOnce(duplicate)
       .mockResolvedValueOnce(duplicate)
       .mockResolvedValueOnce({ mode: 'answer', answer: 'Final', sourceIds: [] });
-    const execute = vi.fn(async () => []);
+    const execute = vi.fn(async () => successfulToolEvidence([]));
 
     const result = await assistantOrchestratorInternals.runResearchLoop({
       tools: [{ name: 'ims_product_lookup', description: 'Product', audiences: ['ims'], arguments: {} }],
@@ -79,7 +80,7 @@ describe('assistant response normalization', () => {
       call += 1;
       return { mode: 'tool', tool: 'ims_product_lookup', arguments: { search: `SKU-${call}` } };
     });
-    const execute = vi.fn(async () => []);
+    const execute = vi.fn(async () => successfulToolEvidence([]));
 
     const result = await assistantOrchestratorInternals.runResearchLoop({
       tools: [{ name: 'ims_product_lookup', description: 'Product', audiences: ['ims'], arguments: {} }],

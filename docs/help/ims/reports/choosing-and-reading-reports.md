@@ -11,6 +11,7 @@ Use this guide to choose a report, understand what its dates and money mean, and
 - Align date range, location, status, and GST treatment.
 - Use detail rows to explain summary totals.
 - Distinguish current stock cost from cost recorded on historical sales or movements.
+- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.
 - Review the on-screen result before exporting.
 
 ## At a glance
@@ -79,6 +80,12 @@ Do not assume every report uses fulfilment date or accounting-posting date. Use 
 | Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |
 
 > **Important:** A later receipt can change current average cost without rewriting the cost already attached to an earlier sale or stock movement.
+
+### Ask Assistant for a sales comparison
+
+Assistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.
+
+Attached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.
 
 ## Troubleshooting
 

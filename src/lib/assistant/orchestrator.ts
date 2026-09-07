@@ -1,9 +1,19 @@
 import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
+import { getBusinessFeatureFlags } from '@/lib/businessFeatures';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
-import { retrieveAssistantKnowledge } from './knowledge';
+import { failedToolEvidence, successfulToolEvidence, type AssistantToolEvidence } from './evidence';
+import { buildAssistantRetrievalContext, retrieveAssistantKnowledge } from './knowledge';
 import { getOnlineChannelCapabilities, isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 import { loadAssistantPrompt } from './promptManifest';
-import { getAssistantToolDefinitions, executeAssistantTool, type AssistantPrincipal } from './tools';
+import {
+  AssistantToolAccessError,
+  AssistantToolValidationError,
+  getAssistantToolDefinitions,
+  executeAssistantTool,
+  type AssistantPrincipal,
+  type AssistantToolDefinition,
+} from './tools';
 import type { WorkflowFindingCategory } from './policy';
 import type { AssistantScreenContext } from './screenContext';
 
@@ -52,7 +62,7 @@ interface ModelDecision {
 interface AssistantToolResult {
   name: string;
   arguments: Record<string, unknown>;
-  result: unknown;
+  result: AssistantToolEvidence;
 }
 
 const MAX_TOOL_STEPS = 4;
@@ -124,7 +134,7 @@ function promptContext(input: {
 async function runResearchLoop(input: {
   tools: ReturnType<typeof getAssistantToolDefinitions>;
   request: (toolResults: AssistantToolResult[], mustAnswer: boolean) => Promise<ModelDecision>;
-  execute: (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+  execute: (toolName: string, args: Record<string, unknown>) => Promise<AssistantToolEvidence>;
 }): Promise<{ decision: ModelDecision; toolResults: AssistantToolResult[] }> {
   const toolResults: AssistantToolResult[] = [];
   const seenCalls = new Set<string>();
@@ -151,6 +161,34 @@ async function runResearchLoop(input: {
   return { decision, toolResults };
 }
 
+async function executeToolEvidence(
+  principal: AssistantPrincipal,
+  permittedTools: AssistantToolDefinition[],
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<AssistantToolEvidence> {
+  try {
+    const definition = permittedTools.find(tool => tool.name === toolName);
+    if (!definition) throw new AssistantToolAccessError('Assistant tool is not available for this account.');
+    return successfulToolEvidence(await executeAssistantTool(principal, toolName, args), definition?.maxRows);
+  } catch (error) {
+    if (error instanceof AssistantToolValidationError) return failedToolEvidence('invalid_request', error.message);
+    if (error instanceof AssistantToolAccessError) return failedToolEvidence('forbidden', error.message);
+    await reportRuntimeIssue({
+      businessId: principal.businessId,
+      source: `solvantis_assistant_${principal.audience}`,
+      operation: `tool_${toolName}`,
+      title: 'Solvantis Assistant live lookup failed',
+      error,
+      context: { audience: principal.audience, toolName },
+    });
+    return failedToolEvidence(
+      'operational_error',
+      'The live lookup could not be completed. Base the answer on other supplied evidence and explain that this check is unavailable.',
+    );
+  }
+}
+
 export async function runAssistant(input: {
   principal: AssistantPrincipal;
   message: string;
@@ -168,11 +206,16 @@ export async function runAssistant(input: {
   const onlineChannels = input.principal.audience === 'ims' || input.principal.audience === 'pos'
     ? await getOnlineChannelCapabilities(input.principal.businessId).catch(() => ({ shopifyEnabled: false, nativeShopEnabled: false }))
     : undefined;
+  const marketingEnabled = input.principal.audience === 'ims'
+    ? (await getBusinessFeatureFlags(input.principal.businessId)
+      .catch(() => ({ 'foresight.marketing': false })))['foresight.marketing']
+    : false;
   const knowledge = retrieveAssistantKnowledge({
     query: input.message,
+    conversationContext: buildAssistantRetrievalContext(input.history ?? []),
     audience: input.principal.audience,
     currentView: input.currentView,
-    limit: 5,
+    limit: 8,
     xeroAccountingEnabled,
     availableCapabilities: onlineChannels ? {
       xero: xeroAccountingEnabled,
@@ -180,7 +223,11 @@ export async function runAssistant(input: {
       native_shop: onlineChannels.nativeShopEnabled,
     } : undefined,
   });
-  const tools = getAssistantToolDefinitions(input.principal.audience);
+  const tools = getAssistantToolDefinitions(input.principal, {
+    xero: xeroAccountingEnabled,
+    shopify: onlineChannels?.shopifyEnabled,
+    'foresight.marketing': marketingEnabled,
+  });
   const ai = createTrackedGoogleGenAI(apiKey, { businessId: input.principal.businessId, area: 'assistant', operation: 'answer_private_assistant', actorType: 'user' });
   const request = async (toolResults: AssistantToolResult[], mustAnswer: boolean) => {
     const response = await ai.models.generateContent({
@@ -208,7 +255,7 @@ export async function runAssistant(input: {
   const research = await runResearchLoop({
     tools,
     request,
-    execute: (toolName, args) => executeAssistantTool(input.principal, toolName, args),
+    execute: (toolName, args) => executeToolEvidence(input.principal, tools, toolName, args),
   });
   const decision = research.decision;
   const toolsUsed = research.toolResults.map(result => result.name);
@@ -240,4 +287,4 @@ export async function runAssistant(input: {
   };
 }
 
-export const assistantOrchestratorInternals = { parseDecision, normalizeCandidate, runResearchLoop };
+export const assistantOrchestratorInternals = { parseDecision, normalizeCandidate, runResearchLoop, executeToolEvidence };

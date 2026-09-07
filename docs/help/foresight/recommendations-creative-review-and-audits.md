@@ -12,6 +12,7 @@ Use Recommendation Inbox and review screens to make a clear human decision witho
 - Review the exact creative or deliverable version submitted.
 - Use campaign audits as prompts for investigation.
 - Record implementation and later outcomes separately.
+- Ask the Assistant for a bounded summary of stored recommendation and follow-up states.
 
 ## At a glance
 
@@ -51,6 +52,10 @@ Use Recommendation Inbox and review screens to make a clear human decision witho
 | Executed | The supported action reported success | Verify the external result and monitor it |
 | Execution failed | The action did not complete successfully | Read the error and verify external state before retrying |
 | Rejected | The recommendation will not continue | Record a reason where useful |
+
+The Assistant can list up to 20 recommendations by open, exact, or all states when **Intel & Automation Marketing** is enabled. It returns the evidence window, quality warnings, bounded observed metrics, confidence, proposed action type, expiry, and stored outcome or experiment follow-up status. It omits external account and campaign identifiers, contributor identities, actor details, review notes, generated rationale, and execution payloads.
+
+This check does not generate a recommendation, approve or reject it, execute or roll back a change, or verify the current external platform state. Open Recommendation Inbox and inspect the exact evidence and live account before making a decision.
 
 ## Review creative work
 

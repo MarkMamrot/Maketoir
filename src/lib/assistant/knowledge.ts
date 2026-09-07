@@ -15,6 +15,7 @@ export interface AssistantKnowledgeResult {
 
 interface IndexedChunk {
   id: string;
+  topicId?: string;
   title: string;
   heading: string;
   audiences: AssistantAudience[];
@@ -29,6 +30,22 @@ interface IndexedChunk {
 const TERM_ALIASES: Record<string, string[]> = {
   po: ['purchase', 'order'],
   pos: ['point', 'sale'],
+  refund: ['return', 'credit'],
+  refunds: ['return', 'credit'],
+  return: ['refund', 'credit'],
+  returns: ['refund', 'credit'],
+  transfer: ['move', 'stock'],
+  transfers: ['move', 'stock'],
+  supplier: ['vendor'],
+  suppliers: ['vendor'],
+  vendor: ['supplier'],
+  vendors: ['supplier'],
+  receive: ['receipt', 'delivery'],
+  receiving: ['receipt', 'delivery'],
+  reorder: ['replenish'],
+  replenishment: ['reorder'],
+  variance: ['difference', 'discrepancy'],
+  discrepancy: ['difference', 'variance'],
   orders: ['order'],
   products: ['product'],
   variants: ['variant'],
@@ -48,8 +65,20 @@ function terms(value: string): string[] {
   return Array.from(new Set(raw.flatMap(term => [term, ...(TERM_ALIASES[term] ?? [])])));
 }
 
+const FOLLOW_UP_TERMS = new Set(['about', 'and', 'do', 'does', 'happen', 'happens', 'how', 'it', 'next', 'now', 'that', 'the', 'then', 'this', 'what', 'when', 'where', 'why']);
+
+export function buildAssistantRetrievalContext(history: Array<{ role: 'user' | 'assistant'; content: string }>): string {
+  return history
+    .slice(-4)
+    .map(message => message.content.replace(/\s+/g, ' ').trim().slice(0, 500))
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 1_500);
+}
+
 export function retrieveAssistantKnowledge(input: {
   query: string;
+  conversationContext?: string;
   audience: AssistantAudience;
   currentView?: string | null;
   limit?: number;
@@ -58,6 +87,8 @@ export function retrieveAssistantKnowledge(input: {
 }): AssistantKnowledgeResult[] {
   const queryTerms = new Set(terms(input.query));
   if (queryTerms.size === 0) return [];
+  const contextTerms = new Set(terms(input.conversationContext ?? '').filter(term => !queryTerms.has(term)));
+  const vagueFollowUp = Array.from(queryTerms).every(term => FOLLOW_UP_TERMS.has(term));
   const currentView = input.currentView?.trim().toLowerCase() ?? '';
   const availableCapabilities = input.availableCapabilities
     ?? (input.xeroAccountingEnabled === undefined ? undefined : { xero: input.xeroAccountingEnabled });
@@ -71,13 +102,21 @@ export function retrieveAssistantKnowledge(input: {
       const bodyTerms = terms(chunk.content);
       const titleMatches = titleTerms.filter(term => queryTerms.has(term)).length;
       const bodyMatches = bodyTerms.filter(term => queryTerms.has(term)).length;
+      const contextTitleMatches = titleTerms.filter(term => contextTerms.has(term)).length;
+      const contextBodyMatches = bodyTerms.filter(term => contextTerms.has(term)).length;
       const exactContextMatch = currentView && chunk.contexts?.some(context => context.toLowerCase() === currentView);
       const viewBoost = exactContextMatch ? 10 : currentView && (
         chunk.screen.toLowerCase().includes(currentView)
         || currentView.includes(chunk.screen.toLowerCase())
         || chunk.capability.toLowerCase() === currentView
       ) ? 4 : 0;
-      return { ...chunk, score: titleMatches * 5 + bodyMatches + viewBoost + Number(chunk.sourcePriority ?? 0) };
+      return {
+        ...chunk,
+        score: titleMatches * 5 + bodyMatches
+          + contextTitleMatches * (vagueFollowUp ? 5 : 1)
+          + contextBodyMatches * (vagueFollowUp ? 1 : 0.25)
+          + viewBoost + Number(chunk.sourcePriority ?? 0),
+      };
     })
     .filter(chunk => chunk.score > 0)
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));

@@ -13,6 +13,7 @@ Use Reports to review one trading date for the active POS location and open the 
 - Reprint a receipt or start a linked return.
 - Reallocate a fixed sale total between payment methods.
 - Use a manager PIN for current-register transaction edits or deletion.
+- Ask the Assistant for up to 20 recent completed transactions from the verified register over the last 1 to 30 days.
 
 ## At a glance
 
@@ -45,6 +46,10 @@ Use Reports to review one trading date for the active POS location and open the 
 7. Choose **Edit** to change only the payment allocation. Ensure the new lines still total the fixed sale amount.
 8. For an eligible transaction from the current open register session, choose **Transaction** or **Delete** and ask the authorised manager to enter their PIN.
 9. Reload or reselect the date after a correction and confirm the expected totals.
+
+The Assistant's recent-register check returns anonymous transaction references, timestamps, sale type, tax-inclusive total, extracted GST, discount, item counts, and payment-method names. It is restricted to the location and register in the signed-in POS session. It does not return customer details, cashier identity, notes, or payment references.
+
+Assistant live checks read shared server records. Parked carts and offline queues stored in this browser are not included, so reconnect and sync before treating the result as complete.
 
 ## Troubleshooting
 

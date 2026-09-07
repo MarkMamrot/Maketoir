@@ -30,6 +30,8 @@ When adding a contact, **Display Name** fills from Company first. If Company is 
 
 A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.
 
+Ask Solvantis can find an active customer by display name, company, or customer code, then check a bounded summary of that customer's sales, orders, credits, store credit, loyalty, and task counts. The live result does not include email, phone, address, free-text interactions, or staff names. Use the customer profile when those maintained details are needed.
+
 The **Contact summary** is a pinned note for important information staff should know about the contact. Use **Edit** to record details such as contact preferences, accessibility requirements, or standing instructions, then select **Save**. Clearing and saving removes the note. Advisor accounts can read the summary but cannot change it.
 
 Use a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the contact summary into a running activity log.

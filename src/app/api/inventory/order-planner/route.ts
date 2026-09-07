@@ -3,8 +3,7 @@ import { execute } from '@/services/MySQLService';
 import { getProductsWithSales, getSuppliers, getBranches, getStockPerBranch } from '@/lib/dataProvider';
 import type { StandardizedVariantWithSales, StandardizedContact, StandardizedLocation, VariantBranchStock } from '@/types/StandardizedData';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { calculateReorderSuggestion } from '@/lib/ims/orderPlanner';
 
 const SALES_FIELD_BY_WINDOW: Record<number, keyof StandardizedVariantWithSales> = {
   7: 'sales_qty_7d',
@@ -192,8 +191,6 @@ function buildPlannerRows(args: {
   }
 
   const salesField = SALES_FIELD_BY_WINDOW[salesWindowDays] ?? 'sales_qty_90d';
-  const now = Date.now();
-
   return products
     .map((p): PlannerRow | null => {
       const supplierId = String(p.supplier_id ?? '');
@@ -208,19 +205,19 @@ function buildPlannerRows(args: {
       const totalIncoming = round(branchStock ? branchStock.incoming : p.qty_incoming, 2);
       const salesQty = round(Number((p as any)[salesField] ?? 0), 2);
       const createdDate = p.created_date ?? '';
-      const createdAt = createdDate ? new Date(createdDate).getTime() : Number.NaN;
       const leadTimeDays = supplierLeadTimeMap.get(supplierId) ?? supplierLeadTimeMap.get('__global') ?? 0;
-      const coverageDays = Math.max(1, orderFrequencyDays) + Math.max(0, leadTimeDays);
-      const adjustedStart = Number.isFinite(createdAt) ? createdAt + (Math.max(0, leadTimeDays) * DAY_MS) : Number.NaN;
-      const stockDays = Number.isFinite(adjustedStart) ? Math.max(0, Math.floor((now - adjustedStart) / DAY_MS)) : salesWindowDays;
-      const effectiveSalesDays = Math.min(salesWindowDays, stockDays || salesWindowDays);
-      const avgDailySales = effectiveSalesDays > 0 ? round(salesQty / effectiveSalesDays, 4) : 0;
-      const suggestedQty = Math.max(0, Math.ceil((avgDailySales * coverageDays) - totalAvailable - totalIncoming));
       const cost = round(Number(p.cost ?? 0));
       const packSize = Math.max(0, Math.round(Number(p.pack_size ?? 0)));
-      const reorderQty = packSize > 0 && suggestedQty > 0
-        ? Math.max(packSize, Math.round(suggestedQty / packSize) * packSize)
-        : suggestedQty;
+      const suggestion = calculateReorderSuggestion({
+        salesQuantity: salesQty,
+        salesWindowDays,
+        createdDate,
+        supplierLeadTimeDays: leadTimeDays,
+        orderFrequencyDays,
+        availableQuantity: totalAvailable,
+        incomingQuantity: totalIncoming,
+        packSize,
+      });
 
       return {
         productId: p.parent_source_id ?? p.source_id,
@@ -231,20 +228,20 @@ function buildPlannerRows(args: {
         supplierId,
         supplierName: supplierNameMap.get(supplierId) ?? (supplierId ? `Supplier ${supplierId}` : 'Unassigned'),
         createdDate,
-        daysInStock: stockDays,
-        effectiveSalesDays,
+        daysInStock: suggestion.daysInStock,
+        effectiveSalesDays: suggestion.effectiveSalesDays,
         totalSOH,
         totalAvailable,
         totalIncoming,
         salesQty,
-        avgDailySales,
+        avgDailySales: suggestion.averageDailySales,
         leadTimeDays,
-        coverageDays,
-        suggestedQty,
+        coverageDays: suggestion.coverageDays,
+        suggestedQty: suggestion.suggestedQuantity,
         packSize,
-        reorderQty,
+        reorderQty: suggestion.reorderQuantity,
         cost,
-        estimatedLineValue: round(reorderQty * cost),
+        estimatedLineValue: round(suggestion.reorderQuantity * cost),
       };
     })
     .filter((r): r is PlannerRow => r !== null)

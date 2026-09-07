@@ -53,6 +53,7 @@
 .header h2 { margin: 0; font-size: 15px; letter-spacing: 0; color: var(--sv-text-strong, #14211f); }
 .header span { font-size: 11px; color: var(--sv-text-dim, #66736f); }
 .mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 7px; background: #d9efeb; color: #126c65; }
+.headerActions { display: flex; align-items: center; gap: 2px; }
 .iconButton { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; color: var(--sv-text-dim, #66736f); cursor: pointer; }
 
 .messages { min-height: 0; padding: 16px 13px; overflow-y: auto; background: var(--sv-bg-0, #f5f7f6); }
@@ -109,5 +110,5 @@
 }
 
 .embeddedRoot .header {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
 }

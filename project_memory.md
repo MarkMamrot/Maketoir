@@ -1,3 +1,19 @@
+## 2026-09-06 - Exact Assistant tool permissions
+
+- Authenticated Ask Solvantis tools now use one typed operation manifest for model-visible declarations and execution authorization. The policy follows each verified IMS tier, POS register principal, or wholesale company/member/brand scope instead of relying on audience alone.
+- Advisor remains read-only across supported IMS catalogue, stock, order, contact, purchasing, and sales-report checks, but cannot use integration diagnostics or Intel & Automation Marketing tools. Admin, Standard User, and SuperAdmin integration/Foresight tools are advertised only while the corresponding Xero, Shopify, or Marketing capability is enabled.
+- The research loop and evidence boundary both accept only the same filtered tool-definition set; direct forged calls are denied before tool services run. Existing tool-local capability checks remain in place as defense in depth.
+- Successful tool evidence is recursively scrubbed at the final model boundary for credential fields, contact channels, addresses, free-text notes, payment references, and staff identity. Query-level result shaping remains the primary privacy control; this catches accidental sensitive fields introduced by later service changes.
+- Canonical Team Access and IMS workspace Help describe the permission behavior. Validation passed 35 focused Assistant tests, the full 504-file / 2,399-test suite with one intentional skip, Help compilation with 65 topics / 525 private chunks, and the production build.
+
+## 2026-09-05 - Grounded Assistant foundation and stock research
+
+- Authenticated Ask Solvantis retrieval now uses the current question plus lower-weight recent conversation context, supplies up to eight audience/capability-filtered Help sections, and preserves exact current-view ranking. Browser-session history retains up to 20 bounded role/content messages for eight hours in `sessionStorage`, can be cleared from the Assistant header, and does not persist citations, tool payloads, workflow tokens, or server-side transcripts.
+- Assistant prompt v4 and typed tool evidence distinguish successful, empty, invalid, forbidden, unavailable, operational-error, and row-cap-truncated results. Unexpected live-tool failures are recorded through Runtime Issues and returned as unavailable evidence so other research can still be synthesized.
+- IMS research added bounded inventory-position, stock-movement-history, allocation-exception, customer-lookup, and customer-activity tools. Stock evidence is business-owned, active-location aware, read-only, and row/date capped. Allocation evidence omits customer/supplier identity; customer lookup omits contact channels/addresses, and activity omits free-text interactions and staff names.
+- The Stock Availability route and Assistant now share one extracted tenant-scoped query and the existing classification helper. Its test fixture now uses a future relative incoming date instead of a stale fixed date, preserving the intended non-overdue assertion without changing runtime behavior.
+- Validation passed 13 Assistant tool tests, Help compilation with 65 authenticated topics / 524 Assistant chunks, the full 497-file / 2,369-test suite with one intentional skip, production build, touched-file diagnostics, and diff checks.
+
 ## 2026-09-03 - Website Content Studio stale model recovery
 
 - Website descriptions and URL judging were failing because Monsterthreads, its sandbox, and Sage still stored `gemini-2.5-flash` after the curated catalogue disabled it. Runtime Issues recorded 31 description-generation failures and 27 URL-judge denials for the affected Monsterthreads workflow.

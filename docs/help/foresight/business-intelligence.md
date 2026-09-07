@@ -11,6 +11,7 @@ Use Business Intelligence to check the information behind a result before changi
 - Refresh the relevant source before using time-sensitive results.
 - Match date ranges and locations when comparing figures.
 - Open the source records behind an inventory candidate before acting.
+- Ask the Assistant for a governed summary of the latest complete marketing and commerce days.
 
 ## Business information and data
 
@@ -39,6 +40,10 @@ Calculated views turn available source records into summaries. A result is only 
 | Sales or marketing trend | Same dates and current source data | Whether the movement needs investigation |
 | Stock turnover | Sales period, current stock, incoming stock, and seasonality | Whether ordering or merchandising should change |
 | Space efficiency | Product range and location context | Whether space use should be reviewed |
+
+The Assistant can summarise up to 90 complete business days of stored paid-media and commerce observations when **Intel & Automation Marketing** is enabled. It reports Google Ads and Meta spend and platform-attributed revenue separately from authoritative online and POS sales. Its ecommerce MER uses authoritative tax-exclusive online net revenue divided by paid-media spend. Platform ROAS remains the platform's own attribution and should not be treated as the same measure.
+
+The summary omits advertising account and campaign identities. It includes the latest observation date, tax-inclusive commerce sales and returns, extracted tax, tax-exclusive net revenue, cost coverage, and data-quality warnings. It reads stored Solvantis observations and does not contact an advertising platform live, so check source freshness before acting.
 
 ## Inventory analysis
 

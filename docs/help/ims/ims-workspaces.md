@@ -32,7 +32,11 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 
 Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.
 
-Ask Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.
+Ask Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.
+
+Live checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.
+
+Your recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.
 
 Select the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.
 

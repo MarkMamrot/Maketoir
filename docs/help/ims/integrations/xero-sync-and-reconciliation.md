@@ -9,6 +9,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 
 - Maintain sync rules, account and tracking mappings, and payment routing.
 - Review Sync History for pending, successful, blocked, partial, or dismissed work.
+- Ask Assistant for a bounded local summary of queued documents and categorized recent failures.
 - Use COGS Reconciliation to investigate cost posting coverage.
 - Review and post balanced Shopify payout plans when enabled.
 - Retry only the accounting action that remains unfinished.
@@ -34,6 +35,12 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - [ ] Confirm whether the workflow is manual or automatic under Sync Rules.
 
 > **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry.
+
+### Ask Assistant about Xero sync health
+
+Assistant can check whether the local Xero connection appears configured, list up to 30 source documents currently queued for posting, and categorize failed or skipped sync events from the last 1 to 365 days. Categories include authentication, account, tax, tracking or payment mapping, validation, rate limiting and service availability.
+
+This check reads Solvantis records only. It does not contact Xero, refresh live Xero document states, retry or dismiss work, or expose raw error details, contact identities, tokens or request payloads. A historical failure may already have a later successful retry, so confirm the current source status in **Sync History** before acting.
 
 ## Step-by-step
 

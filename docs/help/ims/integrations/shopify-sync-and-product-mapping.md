@@ -12,6 +12,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 - Preview and import opening stock from matching Shopify Warehouse and Kotara locations.
 - Review products that are linked, not linked, or waiting for synchronization.
 - Trace customer, order, inventory, fulfilment, and webhook activity in sync history.
+- Ask Assistant for a bounded local summary of connection readiness, catalogue linkage and recent sync outcomes.
 - Repair variant linkage before retrying affected Shopify data.
 - Use Xero's Shopify Payouts area for payout accounting, not product sync.
 
@@ -36,6 +37,12 @@ Use Shopify integration status and history to keep supported catalogue and order
 - [ ] Review sync history before making a manual stock change.
 
 > **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.
+
+### Ask Assistant about Shopify sync health
+
+Assistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.
+
+This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Shopify > Webhooks** when live registration must be verified, and use **Sync History** for the complete operational record.
 
 For products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.
 

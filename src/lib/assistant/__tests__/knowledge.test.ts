@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { retrieveAssistantKnowledge } from '../knowledge';
+import { buildAssistantRetrievalContext, retrieveAssistantKnowledge } from '../knowledge';
 
 describe('assistant knowledge retrieval', () => {
   it('filters by verified audience before ranking', () => {
@@ -37,6 +37,31 @@ describe('assistant knowledge retrieval', () => {
     }));
     expect(result.content).toContain('purchase order records what you intend to buy');
     expect(result.topicId).toBe('ims-purchase-orders');
+  });
+
+  it('uses recent conversation to retrieve Help for a follow-up question', () => {
+    const conversationContext = buildAssistantRetrievalContext([
+      { role: 'user', content: 'I have partially received a purchase order.' },
+      { role: 'assistant', content: 'Which purchase order are you working with?' },
+    ]);
+    const results = retrieveAssistantKnowledge({
+      query: 'What happens next?',
+      conversationContext,
+      audience: 'ims',
+    });
+
+    expect(results.some(result => result.title === 'Receiving and Resolving Purchase Orders')).toBe(true);
+  });
+
+  it('keeps a specific current question ahead of unrelated conversation history', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'How do I refund a customer sale?',
+      conversationContext: 'Earlier we discussed purchase orders, suppliers, receipts, and deliveries.',
+      audience: 'ims',
+    });
+
+    expect(results.some(result => result.title === 'Customer Returns, Store Credit, and Refunds')).toBe(true);
+    expect(results[0]?.title).not.toBe('Purchase Orders');
   });
 
   it('returns actionable purchase-order creation guidance for PO synonyms', () => {

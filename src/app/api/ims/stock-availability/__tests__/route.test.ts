@@ -26,12 +26,13 @@ describe('GET /api/ims/stock-availability', () => {
 
   it('returns classified open stock demand and summary counts', async () => {
     mockSession.mockResolvedValue({ businessId: 'biz-1' });
+    const futureIncomingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     mockImsQuery.mockResolvedValue([{
       so_id: 11, so_item_id: 12, so_number: 'SO-11', status: 'confirmed',
       qty_ordered: '10', qty_fulfilled: '2', qty_allocated: '7',
       qty_received_assigned: '4', allocation_qty_fulfilled: '1',
       qty_on_hand: '5', qty_committed: '8', qty_incoming: '7', allocation_count: '2',
-      at_risk_count: '0', earliest_incoming_date: '2026-09-01',
+      at_risk_count: '0', earliest_incoming_date: futureIncomingDate,
     }]);
 
     const response = await GET();

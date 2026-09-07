@@ -12,6 +12,7 @@ Use this guide to bind a POS device to the correct branch and register, sign in 
 - Sign in with the cashier username and PIN, or use the Admin sign-in option.
 - Count and save the opening float before taking sales.
 - Resolve a register session that was left open.
+- Ask the Assistant whether the verified register is open and for its current shared takings summary.
 
 ## At a glance
 
@@ -42,6 +43,8 @@ Use this guide to bind a POS device to the correct branch and register, sign in 
 4. Check the branch and register names shown on the login screen.
 
 If the location has no active registers, setup explains that a register is required and provides **Open Locations in IMS**. In IMS, select the location and choose **Add Register**, then return to POS setup.
+
+The Assistant can check the register assigned to the signed-in POS session. It reports whether that verified register has an open session and, while open, its session date, opening float, sale and return counts, tax-inclusive sales, extracted GST, expected payment-method takings, petty cash, and whether End of Day counts have been saved. It does not reveal operator or customer identities.
 
 ### Sign in and open the register
 
