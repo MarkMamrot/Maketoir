@@ -6,8 +6,6 @@ export type ShippingCarrierAccountSummary = {
   id: number;
   provider: string;
   displayName: string;
-  environment: string;
-  baseUrl: string | null;
   accountNumber: string | null;
   dispatchLocationId: number | null;
   dispatchLocationName: string | null;
@@ -40,7 +38,7 @@ type CarrierAccountRow = {
 export const ShippingSettingsRepository = {
   async listAccounts(businessId: string): Promise<ShippingCarrierAccountSummary[]> {
     const rows = await imsQuery<CarrierAccountRow>(
-      `SELECT account.id, account.provider, account.display_name, account.environment, account.base_url, account.account_number,
+      `SELECT account.id, account.provider, account.display_name, account.account_number,
               account.dispatch_location_id, location.name AS dispatch_location_name, account.merchant_location_id,
               account.api_key_encrypted, account.password_encrypted, account.verified_at,
               account.verification_error, account.is_active
@@ -54,8 +52,6 @@ export const ShippingSettingsRepository = {
       id: Number(row.id),
       provider: row.provider,
       displayName: row.display_name,
-      environment: row.environment,
-      baseUrl: row.base_url,
       accountNumber: row.account_number,
       dispatchLocationId: row.dispatch_location_id == null ? null : Number(row.dispatch_location_id),
       dispatchLocationName: row.dispatch_location_name,
@@ -78,8 +74,7 @@ export const ShippingSettingsRepository = {
   },
 
   async getAccountCredentials(businessId: string, id: number): Promise<{
-    provider: string; environment: string; baseUrl: string | null; accountNumber: string;
-    apiKey: string; password: string;
+    provider: string; accountNumber: string; apiKey: string; password: string;
   } | null> {
     const rows = await imsQuery<CarrierAccountRow>(
       `SELECT id, provider, environment, base_url, account_number, api_key_encrypted, password_encrypted
@@ -90,8 +85,6 @@ export const ShippingSettingsRepository = {
     if (!row?.account_number || !row.api_key_encrypted || !row.password_encrypted) return null;
     return {
       provider: row.provider,
-      environment: row.environment,
-      baseUrl: row.base_url,
       accountNumber: row.account_number,
       apiKey: decrypt(row.api_key_encrypted),
       password: decrypt(row.password_encrypted),
@@ -118,13 +111,13 @@ export const ShippingSettingsRepository = {
     if (input.id) {
       const result = await imsExecute(
         `UPDATE ims_shipping_carrier_accounts
-            SET provider = ?, display_name = ?, environment = ?, base_url = ?, account_number = ?,
+            SET provider = ?, display_name = ?, environment = 'production', base_url = NULL, account_number = ?,
                 dispatch_location_id = ?, is_active = ?,
                 api_key_encrypted = COALESCE(?, api_key_encrypted),
                 password_encrypted = COALESCE(?, password_encrypted),
                 verified_at = NULL, verification_error = NULL
           WHERE business_id = ? AND id = ?`,
-        [input.provider, input.displayName.trim(), input.environment, input.baseUrl?.trim() || null, input.accountNumber?.trim() || null,
+        [input.provider, input.displayName.trim(), input.accountNumber?.trim() || null,
           input.dispatchLocationId ?? null, input.isActive === false ? 0 : 1, apiKey, password, businessId, input.id],
       );
       if (result.affectedRows === 0) throw new Error('Carrier account not found.');
@@ -134,8 +127,8 @@ export const ShippingSettingsRepository = {
       `INSERT INTO ims_shipping_carrier_accounts
         (business_id, provider, display_name, environment, base_url, account_number, api_key_encrypted,
           password_encrypted, dispatch_location_id, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [businessId, input.provider, input.displayName.trim(), input.environment, input.baseUrl?.trim() || null, input.accountNumber?.trim() || null,
+      VALUES (?, ?, ?, 'production', NULL, ?, ?, ?, ?, ?)`,
+          [businessId, input.provider, input.displayName.trim(), input.accountNumber?.trim() || null,
         apiKey, password, input.dispatchLocationId ?? null, input.isActive === false ? 0 : 1],
     );
     return Number(result.insertId);

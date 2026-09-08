@@ -12,7 +12,6 @@ export type AusPostEparcelCredentials = {
   apiKey: string;
   password: string;
   accountNumber: string;
-  baseUrl?: string;
 };
 
 export class AusPostApiError extends Error {
@@ -38,14 +37,10 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter {
     voidBeforeManifest: true,
   };
 
-  private readonly baseUrl: string;
-
   constructor(
     private readonly credentials: AusPostEparcelCredentials,
     private readonly fetchImpl: typeof fetch = fetch,
-  ) {
-    this.baseUrl = (credentials.baseUrl || PRODUCTION_BASE_URL).replace(/\/+$/, '');
-  }
+  ) {}
 
   verifyAccount(): Promise<unknown> {
     return this.request(`/accounts/${encodeURIComponent(this.credentials.accountNumber)}`);
@@ -88,7 +83,7 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter {
   }
 
   private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+    const response = await this.fetchImpl(`${PRODUCTION_BASE_URL}${path}`, {
       ...init,
       headers: {
         Accept: 'application/json',

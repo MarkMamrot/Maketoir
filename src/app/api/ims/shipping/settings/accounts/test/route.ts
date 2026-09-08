@@ -20,15 +20,10 @@ export async function POST(request: Request) {
     if (account.provider !== 'auspost_eparcel') {
       return NextResponse.json({ error: 'This carrier does not support connection testing yet.' }, { status: 400 });
     }
-    if (account.environment === 'test' && !account.baseUrl) {
-      return NextResponse.json({ error: 'Enter the testbed URL supplied by Australia Post.' }, { status: 400 });
-    }
-
     const result = await new AusPostEparcelClient({
       apiKey: account.apiKey,
       password: account.password,
       accountNumber: account.accountNumber,
-      baseUrl: account.baseUrl || undefined,
     }).verifyAccount() as Record<string, unknown>;
     const products = Array.isArray(result.postage_products) ? result.postage_products : [];
     await ShippingSettingsRepository.recordVerification(session.businessId, id, {

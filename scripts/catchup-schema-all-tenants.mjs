@@ -1664,6 +1664,18 @@ async function migrateSchema(schema, businessId) {
   }
   if (requestedTable) return;
 
+  await conn.query(
+    `UPDATE \`${schema}\`.ims_shipping_carrier_accounts
+        SET environment = 'production', base_url = NULL
+      WHERE provider = 'auspost_eparcel' AND (environment <> 'production' OR base_url IS NOT NULL)`,
+  );
+  const [legacyEparcelAccounts] = await conn.query(
+    `SELECT id FROM \`${schema}\`.ims_shipping_carrier_accounts
+      WHERE provider = 'auspost_eparcel' AND (environment <> 'production' OR base_url IS NOT NULL)
+      LIMIT 1`,
+  );
+  if (legacyEparcelAccounts.length) throw new Error(`${schema} still has an eParcel account using legacy endpoint settings`);
+
   const [onlineShopTables] = await conn.query(
     `SELECT TABLE_NAME FROM information_schema.TABLES
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,

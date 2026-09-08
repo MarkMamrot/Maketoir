@@ -10,6 +10,7 @@
 - Applied the additive IMS shipping foundation through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
 - The first run created the shipping account, package preset, manifest, shipment, parcel, parcel-item, label, and channel-job tables where absent and added variant length, width, and height columns to each tenant. The carrier account `base_url` column was included in the newly created table definition.
 - An immediate full rerun reported zero added columns and zero added indexes for every tenant while completing all schema verification checks. No carrier accounts, package presets, shipment records, labels, stock movements, order quantities, or other application data were created or changed.
+- Tenant-facing eParcel setup now uses Australia Post's fixed production Shipping API endpoint. The environment and custom URL controls were removed, saved account details remain populated in the editor, and the catch-up migration normalizes and verifies legacy eParcel endpoint flags without changing encrypted credentials.
 
 ## 2026-09-06 - Exact Assistant tool permissions
 

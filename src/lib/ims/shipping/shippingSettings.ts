@@ -4,8 +4,6 @@ export type CarrierAccountInput = {
   id?: number;
   provider: ShippingProvider;
   displayName: string;
-  environment: 'test' | 'production';
-  baseUrl?: string;
   accountNumber?: string;
   apiKey?: string;
   password?: string;
@@ -31,9 +29,6 @@ export function validateCarrierAccountInput(input: CarrierAccountInput, credenti
   const errors: string[] = [];
   if (!SHIPPING_PROVIDERS.includes(input.provider)) errors.push('Choose a supported carrier account type.');
   if (!input.displayName.trim() || input.displayName.trim().length > 120) errors.push('Account name is required and must be 120 characters or fewer.');
-  if (input.environment !== 'test' && input.environment !== 'production') errors.push('Choose test or production mode.');
-  if (input.environment === 'test' && !isHttpsUrl(input.baseUrl)) errors.push('Enter the HTTPS testbed URL supplied by Australia Post.');
-  if (input.environment === 'production' && input.baseUrl && !isHttpsUrl(input.baseUrl)) errors.push('Carrier API URL must use HTTPS.');
   if (input.provider === 'mypost_business' && input.isActive !== false) {
     errors.push('MyPost Business requires Australia Post partner access before it can be enabled.');
   }
@@ -47,15 +42,6 @@ export function validateCarrierAccountInput(input: CarrierAccountInput, credenti
     errors.push('Choose a valid dispatch location.');
   }
   return errors;
-}
-
-function isHttpsUrl(value: string | null | undefined): boolean {
-  if (!value?.trim()) return false;
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
 }
 
 export function validatePackagePresetInput(input: PackagePresetInput): string[] {

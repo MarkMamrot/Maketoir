@@ -6,7 +6,6 @@ const credentials = {
   apiKey: 'test-key',
   password: 'test-password',
   accountNumber: '0000123456',
-  baseUrl: 'https://test.example/shipping/v1/',
 };
 
 describe('AusPostEparcelClient', () => {
@@ -16,7 +15,7 @@ describe('AusPostEparcelClient', () => {
 
     await expect(client.verifyAccount()).resolves.toEqual({ account_number: credentials.accountNumber });
     expect(fetchImpl).toHaveBeenCalledWith(
-      `https://test.example/shipping/v1/accounts/${credentials.accountNumber}`,
+      `https://digitalapi.auspost.com.au/shipping/v1/accounts/${credentials.accountNumber}`,
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: `Basic ${Buffer.from('test-key:test-password').toString('base64')}`,
