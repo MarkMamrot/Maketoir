@@ -18,6 +18,7 @@ const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, char => ({ '&': 
 
 export async function POST(request: Request, { params }: { params: { slug: string } }) {
   let businessId: string | null = null;
+  let stage = 'resolve_profile';
   try {
     const email = String((await request.json())?.email ?? '').trim().toLowerCase();
     const fallback = fakeToken();
@@ -27,14 +28,19 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     const subject = createAuthRateLimitSubject('loyalty-portal-otp-request', businessId, email, clientIp(request));
     if ((await getAuthRateLimit('loyalty-portal-otp-request', subject)).locked) return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fallback });
     await recordAuthFailure({ action: 'loyalty-portal-otp-request', subjectHash: subject, threshold: 3, windowSeconds: 600, lockSeconds: 600 });
+    stage = 'resolve_shopify_credentials';
     const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
     const credentials = await getShopifyAdminCredentials(businessId);
     if (!credentials) throw new Error('Shopify is not configured for this loyalty portal.');
+    stage = 'find_shopify_customer';
     const customers = await new ShopifyService(credentials.shopDomain, credentials.token).findCustomersByExactEmail(email);
     if (customers.length !== 1) return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fallback });
+    stage = 'link_ims_contact';
     const contactId = await runImsForBusiness(businessId, () => upsertLoyaltyPortalCustomer(businessId!, customers[0]));
+    stage = 'create_challenge';
     const challenge = await createCustomerOtp({ businessId, contactId, email, purpose: 'loyalty_portal' });
     if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured.');
+    stage = 'send_email';
     const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'Solvantis <onboarding@resend.dev>', to: email,
       subject: `${challenge.code} is your ${profile.displayName} rewards sign-in code`,
@@ -43,7 +49,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, message: MESSAGE, challengeToken: challenge.challengeToken, expiresInSeconds: ONLINE_SHOP_OTP_EXPIRES_SECONDS });
   } catch (error) {
-    await reportRuntimeIssue({ businessId, source: 'loyalty_portal', operation: 'request_code', title: 'Loyalty portal sign-in code request failed', error }).catch(() => {});
+    await reportRuntimeIssue({ businessId, source: 'loyalty_portal', operation: 'request_code', title: 'Loyalty portal sign-in code request failed', error, context: { stage } }).catch(() => {});
     return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fakeToken() });
   }
 }

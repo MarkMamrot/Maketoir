@@ -16,7 +16,7 @@ export async function upsertLoyaltyPortalCustomer(
   const shopifyCustomerId = String(customer.id);
   const existing = await imsQuery<{ id: number }>(
     `SELECT id FROM ims_contacts
-      WHERE business_id = ? AND shopify_customer_id = ? AND deleted_at IS NULL
+      WHERE business_id = ? AND shopify_customer_id = ?
       LIMIT 2`, [businessId, shopifyCustomerId]);
   if (existing.length > 1) throw new Error('Multiple contacts are linked to this Shopify customer.');
   const name = [customer.firstName, customer.lastName].filter(Boolean).join(' ') || customer.email;

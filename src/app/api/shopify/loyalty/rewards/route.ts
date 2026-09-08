@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       const contacts = await imsQuery<{ id: number }>(
         `SELECT id
            FROM ims_contacts
-          WHERE business_id = ? AND shopify_customer_id = ? AND deleted_at IS NULL AND is_active = 1
+          WHERE business_id = ? AND shopify_customer_id = ? AND is_active = 1
             AND loyalty_member = 1 AND type IN ('retail_customer','b2b_customer','both')
           LIMIT 2`,
         [businessId, identity.shopifyCustomerId],

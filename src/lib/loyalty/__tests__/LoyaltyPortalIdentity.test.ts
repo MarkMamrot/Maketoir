@@ -15,6 +15,7 @@ describe('loyalty portal identity', () => {
     })).resolves.toBe(42);
     expect(imsExecute.mock.calls[0][0]).toContain('shopify_customer_id');
     expect(imsExecute.mock.calls[0][0]).not.toContain('loyalty_member');
+    expect(imsQuery.mock.calls[0][0]).not.toContain('deleted_at');
   });
 
   it('updates only the exact Shopify-linked contact', async () => {
@@ -24,5 +25,6 @@ describe('loyalty portal identity', () => {
       id: 99, email: 'buyer@example.com', firstName: null, lastName: null, phone: null,
     })).resolves.toBe(7);
     expect(imsExecute.mock.calls[0][1].slice(-3)).toEqual([7, 'biz-1', '99']);
+    expect(imsQuery.mock.calls[0][0]).not.toContain('deleted_at');
   });
 });

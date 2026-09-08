@@ -723,7 +723,7 @@
       },
       "order": 42,
       "summary": "Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.",
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-09-08",
       "owner": "customer",
       "filename": "docs/help/ims/contacts/loyalty-program-and-customer-rewards.md",
       "sections": [
@@ -770,7 +770,7 @@
         {
           "id": "ims-loyalty-customer-rewards:9",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code |\n| Portal cannot be published | Loyalty is off or Shopify is not connected | Save the enabled loyalty settings and confirm the Shopify connection |\n| A customer has no available rewards | They are not enrolled, the program has not started, or their balance is below the reward cost | Check membership, start date, current balance, and reward setup |\n| An old Shopify order earned no points | Its paid date is earlier than the customer's effective enrolment date | No correction is required; only future eligible purchases earn |\n| A Shopify code cannot be created | Shopify rejected the discount or the points are no longer available | Refresh the portal and retry once; if it continues, ask an administrator to review Runtime Issues |\n| An expired code still reduced the balance | Converting the reward deducted points immediately | Expired issued codes do not automatically return points |"
+          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code. If it still does not arrive, ask an administrator to review Runtime Issues and email delivery configuration |\n| Portal cannot be published | Loyalty is off or Shopify is not connected | Save the enabled loyalty settings and confirm the Shopify connection |\n| A customer has no available rewards | They are not enrolled, the program has not started, or their balance is below the reward cost | Check membership, start date, current balance, and reward setup |\n| An old Shopify order earned no points | Its paid date is earlier than the customer's effective enrolment date | No correction is required; only future eligible purchases earn |\n| A Shopify code cannot be created | Shopify rejected the discount or the points are no longer available | Refresh the portal and retry once; if it continues, ask an administrator to review Runtime Issues |\n| An expired code still reduced the balance | Converting the reward deducted points immediately | Expired issued codes do not automatically return points |"
         },
         {
           "id": "ims-loyalty-customer-rewards:10",

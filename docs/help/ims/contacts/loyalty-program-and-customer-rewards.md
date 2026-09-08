@@ -1,5 +1,5 @@
 ---
-{"id":"ims-loyalty-customer-rewards","title":"Loyalty Program and Customer Rewards","audiences":["ims","pos"],"capability":"navigation","screen":"IMS Settings > Loyalty","product":"ims","format":"task","parentId":"ims-contacts-crm","relatedTopics":["ims-contacts-crm","ims-customer-orders","pos-selling-payments-manager-approval"],"contexts":["loyalty","contact-profile","pos","online-sales"],"contextSections":{"loyalty":"Step-by-step","contact-profile":"Customer enrolment","pos":"Use points at POS","online-sales":"Convert points for Shopify"},"order":42,"summary":"Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.","lastReviewed":"2026-08-28","owner":"customer"}
+{"id":"ims-loyalty-customer-rewards","title":"Loyalty Program and Customer Rewards","audiences":["ims","pos"],"capability":"navigation","screen":"IMS Settings > Loyalty","product":"ims","format":"task","parentId":"ims-contacts-crm","relatedTopics":["ims-contacts-crm","ims-customer-orders","pos-selling-payments-manager-approval"],"contexts":["loyalty","contact-profile","pos","online-sales"],"contextSections":{"loyalty":"Step-by-step","contact-profile":"Customer enrolment","pos":"Use points at POS","online-sales":"Convert points for Shopify"},"order":42,"summary":"Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.","lastReviewed":"2026-09-08","owner":"customer"}
 ---
 # Loyalty Program and Customer Rewards
 
@@ -68,7 +68,7 @@ The issued code appears in the portal with a copy action and a **Shop now** link
 
 | Symptom | Likely reason | What to do |
 |---|---|---|
-| No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code |
+| No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code. If it still does not arrive, ask an administrator to review Runtime Issues and email delivery configuration |
 | Portal cannot be published | Loyalty is off or Shopify is not connected | Save the enabled loyalty settings and confirm the Shopify connection |
 | A customer has no available rewards | They are not enrolled, the program has not started, or their balance is below the reward cost | Check membership, start date, current balance, and reward setup |
 | An old Shopify order earned no points | Its paid date is earlier than the customer's effective enrolment date | No correction is required; only future eligible purchases earn |
