@@ -1637,11 +1637,27 @@ async function assertUniqueGiftCardTransactionIdentities(schema) {
 }
 
 async function migrateSchema(schema, businessId) {
+  const [variantColumns] = await conn.query(
+    `SELECT CHARACTER_SET_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_product_variants' AND COLUMN_NAME = 'variant_id'
+      LIMIT 1`,
+    [schema],
+  );
+  const variantCharacterSet = variantColumns[0]?.CHARACTER_SET_NAME;
+  const variantCollation = variantColumns[0]?.COLLATION_NAME;
+  if (!/^[a-zA-Z0-9_]+$/.test(variantCharacterSet ?? '') || !/^[a-zA-Z0-9_]+$/.test(variantCollation ?? '')) {
+    throw new Error(`${schema}.ims_product_variants.variant_id has no usable character set or collation`);
+  }
   const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
   for (const ddl of tableDdls) {
     try {
       await conn.query(`USE \`${schema}\``);
-      await conn.query(ddl);
+      const tableName = tableNameFromDdl(ddl);
+      const schemaDdl = PRODUCT_BUILD_TABLES.includes(tableName)
+        ? ddl.replace(/DEFAULT CHARSET=utf8mb4$/, `DEFAULT CHARSET=${variantCharacterSet} COLLATE=${variantCollation}`)
+        : ddl;
+      await conn.query(schemaDdl);
     } catch (e) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
@@ -2171,6 +2187,52 @@ async function verifyWholesaleSavedListsSchema(schema) {
   console.log(`  verified ${schema} wholesale locations, saved lists, favourites, and team audit schema`);
 }
 
+async function verifyProductBuildSchema(schema) {
+  const [tables] = await conn.query(
+    `SELECT TABLE_NAME
+       FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [schema, PRODUCT_BUILD_TABLES],
+  );
+  const presentTables = new Set(tables.map(row => row.TABLE_NAME));
+  const missingTables = PRODUCT_BUILD_TABLES.filter(table => !presentTables.has(table));
+  if (missingTables.length) throw new Error(`${schema} is missing Product Build tables: ${missingTables.join(', ')}`);
+
+  const [variantColumns] = await conn.query(
+    `SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND ((TABLE_NAME = 'ims_product_variants' AND COLUMN_NAME = 'variant_id')
+          OR (TABLE_NAME IN ('ims_product_build_recipes', 'ims_product_build_recipe_components',
+                             'ims_product_build_items', 'ims_product_build_item_components',
+                             'ims_product_build_requirements')
+            AND COLUMN_NAME IN ('output_variant_id', 'component_variant_id')))`,
+    [schema],
+  );
+  const referenceCollation = variantColumns.find(row => row.TABLE_NAME === 'ims_product_variants')?.COLLATION_NAME;
+  const mismatchedColumns = variantColumns.filter(row => row.TABLE_NAME !== 'ims_product_variants' && row.COLLATION_NAME !== referenceCollation);
+  if (!referenceCollation || mismatchedColumns.length) {
+    throw new Error(`${schema} Product Build variant columns do not match ims_product_variants.variant_id`);
+  }
+
+  const [movementColumns] = await conn.query(
+    `SELECT COLUMN_NAME, COLUMN_TYPE
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_stock_movements'
+        AND COLUMN_NAME IN ('movement_type', 'reference_type')`,
+    [schema],
+  );
+  const movementType = String(movementColumns.find(row => row.COLUMN_NAME === 'movement_type')?.COLUMN_TYPE ?? '');
+  const referenceType = String(movementColumns.find(row => row.COLUMN_NAME === 'reference_type')?.COLUMN_TYPE ?? '');
+  for (const value of ['build_component_consumed', 'build_output_produced', 'build_component_restored', 'build_output_reversed']) {
+    if (!movementType.includes(`'${value}'`)) throw new Error(`${schema}.ims_stock_movements.movement_type is missing ${value}`);
+  }
+  for (const value of ['product_build', 'product_build_reversal']) {
+    if (!referenceType.includes(`'${value}'`)) throw new Error(`${schema}.ims_stock_movements.reference_type is missing ${value}`);
+  }
+  console.log(`  verified ${schema} Product Build schema`);
+}
+
 try {
   const schemas = new Set();
   const businessIdsBySchema = new Map();
@@ -2207,6 +2269,7 @@ try {
     await verifyWholesaleOrderOwnershipSchema(schema);
     await verifyWholesalePreviewTestSchema(schema);
     await verifyWholesaleSavedListsSchema(schema);
+    await verifyProductBuildSchema(schema);
   }
   console.log('Done.');
 } finally {
