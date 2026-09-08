@@ -13,8 +13,7 @@
   top: 0;
   z-index: 120;
   height: 72px;
-  display: grid;
-  grid-template-columns: 248px minmax(220px, 620px) 1fr;
+  display: flex;
   align-items: center;
   gap: 24px;
   padding: 0 28px;
@@ -28,6 +27,7 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 0 0 auto;
 }
 
 .logo,
@@ -67,6 +67,8 @@
 
 .search {
   position: relative;
+  flex: 1 1 320px;
+  max-width: 520px;
 }
 
 .searchIcon {
@@ -105,8 +107,37 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  margin-left: auto;
+}
+
+.topNav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.topNavButton {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #4c5d54;
+  cursor: pointer;
+  font: 600 13px/1 ui-sans-serif, sans-serif;
+  white-space: nowrap;
+}
+
+.topNavButton:hover,
+.topNavButtonActive {
+  background: rgba(20, 93, 78, 0.1);
+  color: #145d4e;
 }
 
 .iconButton,
@@ -133,39 +164,115 @@
   font: 700 12px/1 ui-sans-serif, sans-serif;
 }
 
-.accountSummary {
-  max-width: 190px;
-  min-width: 0;
-  padding: 0 8px;
-  text-align: right;
+.locationLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #64756c;
+  font: 600 12px/1 ui-sans-serif, sans-serif;
+  white-space: nowrap;
 }
 
-.accountSummary strong,
-.accountSummary span {
-  display: block;
+.accountMenu {
+  position: relative;
+}
+
+.accountTrigger {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #cfd6d1;
+  border-radius: 6px;
+  background: #fff;
+  color: #33423b;
+  cursor: pointer;
+  font: 600 13px/1 ui-sans-serif, sans-serif;
+}
+
+.accountTriggerLabel {
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.accountSummary strong {
+.dropdownBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.accountDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 150;
+  width: 220px;
+  padding: 6px;
+  border: 1px solid #d8ddd8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(23, 32, 28, 0.18);
+}
+
+.accountDropdownHeader {
+  padding: 10px 12px 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #eef1ee;
+}
+
+.accountDropdownHeader strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
 }
 
-.accountSummary span {
+.accountDropdownHeader span {
+  display: block;
   margin-top: 2px;
   color: #708078;
   font: 11px/1.2 ui-sans-serif, sans-serif;
 }
 
+.accountDropdownItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #33423b;
+  cursor: pointer;
+  font: 600 13px/1 ui-sans-serif, sans-serif;
+  text-align: left;
+}
+
+.accountDropdownItem:hover {
+  background: #f1f4f1;
+}
+
+.accountDropdownDivider {
+  height: 1px;
+  margin: 6px 4px;
+  background: #eef1ee;
+}
+
 .body {
-  display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
   min-height: calc(100vh - 72px);
 }
 
 .bodyEditor {
-  grid-template-columns: 320px 224px minmax(0, 1fr);
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
 }
 
 .viewportControl {
@@ -246,17 +353,6 @@
   padding: 18px 14px 36px;
 }
 
-.sidebar {
-  position: sticky;
-  top: 72px;
-  height: calc(100vh - 72px);
-  display: flex;
-  flex-direction: column;
-  padding: 24px 16px 18px;
-  background: #1b2822;
-  color: #e8eee9;
-}
-
 .nav {
   display: grid;
   gap: 4px;
@@ -290,6 +386,19 @@
   border-top: 1px solid #35463e;
   color: #aab8b0;
   font: 11px/1.5 ui-sans-serif, sans-serif;
+}
+
+.drawerLogout {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 9px 0;
+  border: 0;
+  background: transparent;
+  color: #f2b8b8;
+  cursor: pointer;
+  font: 600 12px/1 ui-sans-serif, sans-serif;
 }
 
 .location {
@@ -329,14 +438,15 @@
 
 @media (max-width: 920px) {
   .topbar {
-    grid-template-columns: minmax(170px, 1fr) auto;
     height: 64px;
     padding: 0 16px;
+    gap: 12px;
   }
 
+  .topNav,
   .topbar > .search,
-  .accountSummary,
-  .sidebar {
+  .locationSelect,
+  .locationLabel {
     display: none;
   }
 
@@ -400,7 +510,7 @@
 @media (max-width: 520px) {
   .brandLabel,
   .cartValue,
-  .iconButton {
+  .accountTriggerLabel {
     display: none;
   }
 

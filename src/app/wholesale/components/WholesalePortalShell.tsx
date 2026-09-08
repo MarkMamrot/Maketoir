@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   BookOpen,
   Bookmark,
-  Building2,
+  ChevronDown,
   CircleUserRound,
   HelpCircle,
   House,
@@ -30,14 +30,22 @@ import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 
 export type WholesalePortalView = 'home' | 'catalogue' | 'lists' | 'orders' | 'account' | 'help';
 
-const navigation = [
+// Shown as direct tabs in the top bar.
+const primaryNavigation = [
   { id: 'home' as const, label: 'Home', icon: House },
-  { id: 'catalogue' as const, label: 'Catalogue', icon: PackageSearch },
+  { id: 'catalogue' as const, label: 'Shop', icon: PackageSearch },
   { id: 'lists' as const, label: 'Saved', icon: Bookmark },
+];
+
+// Tucked under the account dropdown in the top bar.
+const accountNavigation = [
   { id: 'orders' as const, label: 'Orders', icon: BookOpen },
   { id: 'account' as const, label: 'Account', icon: CircleUserRound },
   { id: 'help' as const, label: 'Help', icon: HelpCircle },
 ];
+
+// Full list, used for the mobile drawer only.
+const navigation = [...primaryNavigation, ...accountNavigation];
 
 function safeLogoUrl(url: string | null): string | null {
   if (!url || /drive\.google\.com/i.test(url)) return null;
@@ -98,6 +106,7 @@ export function WholesalePortalShell({
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(view === 'help');
   const [layoutEditorOpen, setLayoutEditorOpen] = useState(false);
   const [layoutEditorDirty, setLayoutEditorDirty] = useState(false);
@@ -127,6 +136,7 @@ export function WholesalePortalShell({
 
   const changeView = (nextView: WholesalePortalView) => {
     setDrawerOpen(false);
+    setAccountMenuOpen(false);
     if (nextView === 'help') {
       setHelpOpen(true);
       return;
@@ -186,6 +196,25 @@ export function WholesalePortalShell({
     </nav>
   );
 
+  const topNav = (
+    <nav className={styles.topNav} aria-label="Primary">
+      {primaryNavigation.map(item => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            className={`${styles.topNavButton} ${view === item.id ? styles.topNavButtonActive : ''}`}
+            onClick={() => changeView(item.id)}
+            aria-current={view === item.id ? 'page' : undefined}
+          >
+            <Icon size={16} aria-hidden="true" />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
   return (
     <div className={styles.shell}>
       {session.preview && <div role="status" style={{ minHeight: 42, padding: '8px 18px', background: '#fff3cd', borderBottom: '1px solid #e5c66b', color: '#533f03', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
@@ -212,39 +241,68 @@ export function WholesalePortalShell({
             <div className={styles.brandLabel}>Wholesale account</div>
           </div>
         </div>
+        {topNav}
         {search}
         <div className={styles.actions}>
-          <div className={styles.accountSummary}>
-            <strong>{session.company || session.name}</strong>
-            {(!isPreview || canTestCheckout) && locations && locations.length > 1 && onLocationChange ? (
-              <label className={styles.locationSelect}>
-                <MapPin size={13} aria-hidden="true" />
-                <select value={locationId} disabled={locationSwitching} onChange={event => onLocationChange(Number(event.target.value))} aria-label="Buying location">
-                  {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
-                </select>
-              </label>
-            ) : <span>{buyingLocation}</span>}
-          </div>
+          {(!isPreview || canTestCheckout) && locations && locations.length > 1 && onLocationChange ? (
+            <label className={styles.locationSelect}>
+              <MapPin size={13} aria-hidden="true" />
+              <select value={locationId} disabled={locationSwitching} onChange={event => onLocationChange(Number(event.target.value))} aria-label="Buying location">
+                {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
+            </label>
+          ) : (!isPreview || canTestCheckout) ? (
+            <span className={styles.locationLabel}><MapPin size={13} aria-hidden="true" />{buyingLocation}</span>
+          ) : null}
           {(!isPreview || canTestCheckout) && <button className={styles.cartButton} onClick={onCartOpen} aria-label={`Open cart with ${cartCount} items`}>
             <ShoppingCart size={17} aria-hidden="true" />
             <span>{cartCount}</span>
             <span className={styles.cartValue}>${cartValue.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</span>
           </button>}
-          {!isPreview && <button className={styles.iconButton} onClick={onLogout} aria-label="Sign out" title="Sign out">
-            <LogOut size={18} />
-          </button>}
+          <div className={styles.accountMenu}>
+            <button
+              className={styles.accountTrigger}
+              onClick={() => setAccountMenuOpen(open => !open)}
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
+            >
+              <CircleUserRound size={18} aria-hidden="true" />
+              <span className={styles.accountTriggerLabel}>{session.company || session.name}</span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
+            {accountMenuOpen && (
+              <>
+                <button className={styles.dropdownBackdrop} onClick={() => setAccountMenuOpen(false)} aria-label="Close account menu" />
+                <div className={styles.accountDropdown} role="menu">
+                  <div className={styles.accountDropdownHeader}>
+                    <strong>{session.company || session.name}</strong>
+                    <span>{buyingLocation}</span>
+                  </div>
+                  {accountNavigation.map(item => {
+                    const Icon = item.icon;
+                    return (
+                      <button key={item.id} role="menuitem" className={styles.accountDropdownItem} onClick={() => changeView(item.id)}>
+                        <Icon size={16} aria-hidden="true" /> {item.label}
+                      </button>
+                    );
+                  })}
+                  {!isPreview && (
+                    <>
+                      <div className={styles.accountDropdownDivider} />
+                      <button role="menuitem" className={styles.accountDropdownItem} onClick={onLogout}>
+                        <LogOut size={16} aria-hidden="true" /> Sign out
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
       <div className={`${styles.body} ${layoutEditorOpen ? styles.bodyEditor : ''}`}>
         {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={handleLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} products={layoutProducts} />}
-        <aside className={styles.sidebar}>
-          {nav}
-          <div className={styles.sidebarFooter}>
-            <div><Building2 size={14} aria-hidden="true" /> {session.company || session.name}</div>
-            <div className={styles.location}><MapPin size={14} aria-hidden="true" /> {buyingLocation}</div>
-          </div>
-        </aside>
         <div className={layoutEditorOpen ? styles.canvasStage : styles.canvasStageLive} data-viewport={layoutEditorOpen ? layoutViewport : undefined}>
           <main ref={layoutCanvasRef} className={styles.content} aria-label={layoutEditorOpen ? `${layoutViewport === 'mobile' ? 'Mobile' : 'Desktop'} layout preview canvas` : undefined}>{children}</main>
         </div>
@@ -265,9 +323,11 @@ export function WholesalePortalShell({
             {nav}
             <div className={styles.sidebarFooter}>
               <div className={styles.location}><MapPin size={14} aria-hidden="true" /> {buyingLocation}</div>
+              {!isPreview && <button className={styles.drawerLogout} onClick={onLogout}><LogOut size={14} aria-hidden="true" /> Sign out</button>}
             </div>
           </aside>
         </>
+
       )}
 
       {!online && <div className={styles.offline} role="status"><WifiOff size={16} /> Offline</div>}
