@@ -965,7 +965,7 @@
       },
       "order": 31,
       "summary": "Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.",
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "owner": "sales",
       "filename": "docs/help/ims/sales/sales-orders-and-fulfilment.md"
     },
@@ -2044,7 +2044,7 @@
       },
       "order": 1,
       "summary": "Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "owner": "wholesale",
       "filename": "docs/help/wholesale/portal.md"
     },
@@ -7010,7 +7010,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "content": "Use Sales Orders to record customer demand and reduce stock only when goods are actually shipped."
     },
     {
@@ -7028,7 +7028,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "content": "- Create and review a Draft order.\n- Confirm the order when customer demand is real.\n- Select eligible orders on the current page and prepare package drafts for shipping.\n- Fulfil only the quantities sent to the customer.\n- Continue a partial fulfilment or resolve the remainder."
     },
     {
@@ -7046,7 +7046,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "content": "| Stage or choice | What it means | Stock effect |\n|---|---|---|\n| Draft | The order is still being prepared | No shipment; stock is not reduced |\n| Confirmed | Customer demand is active | Quantity can be committed, but stock on hand is unchanged |\n| Prepare Shipments | Check delivery details and suggest packages for selected orders | Saves shipment drafts; stock is unchanged |\n| Partially fulfil now | Ship entered quantities and leave the balance on this order | Only the shipped quantity reduces stock |\n| Create backorder for remainder | Ship entered quantities and move the balance to a held child order | Only the shipped quantity reduces stock |\n| Complete | All intended shipments or remainder decisions are finished | No extra movement beyond recorded shipments |"
     },
     {
@@ -7064,7 +7064,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "content": "- [ ] Confirm the customer, delivery location, stock location, products, quantities, and tax-inclusive selling prices.\n- [ ] Check whether incoming stock is already protected for this order.\n- [ ] Count or verify the goods being dispatched.\n- [ ] Configure an active Australia Post eParcel account and package presets under **Settings > Shipping**.\n- [ ] Record variant weights and dimensions for products that will be packed automatically.\n- [ ] Make sure you are not using an advisor account, which is read-only.\n\n> **Important:** Record what physically ships. If a shipment succeeds but a later accounting action fails, retry the unfinished accounting action; do not fulfil the goods again."
     },
     {
@@ -7082,8 +7082,8 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
-      "content": "1. Open **Sales > Sales Orders** and select **New Sales Order**.\n2. Choose the customer and location, then add the products and ordered quantities.\n3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.\n4. Confirm the order when the customer demand is ready to proceed.\n5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**.\n6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.\n7. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.\n8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.\n9. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.\n10. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.\n\n> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.\n11. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.\n\n| Resolve Outstanding choice | Use it when | Result |\n|---|---|---|\n| Leave partially open | A short delay is expected | The remainder stays on the current order |\n| Cancel outstanding remainder | The customer no longer wants the balance | The source order closes at the quantity already shipped |\n| Create held backorder | The balance still needs supply and separate follow-up | Only the unshipped balance moves to a held child order |"
+      "lastReviewed": "2026-09-09",
+      "content": "1. Open **Sales > Sales Orders** and select **New Sales Order**.\n2. Choose the customer and location, then add the products and ordered quantities.\n3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.\n4. Confirm the order when the customer demand is ready to proceed.\n5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.\n6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.\n7. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.\n8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.\n9. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.\n10. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.\n\n> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.\n11. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.\n\n| Resolve Outstanding choice | Use it when | Result |\n|---|---|---|\n| Leave partially open | A short delay is expected | The remainder stays on the current order |\n| Cancel outstanding remainder | The customer no longer wants the balance | The source order closes at the quantity already shipped |\n| Create held backorder | The balance still needs supply and separate follow-up | Only the unshipped balance moves to a held child order |"
     },
     {
       "id": "ims-sales-orders-fulfilment:6",
@@ -7100,7 +7100,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |\n| An order cannot be selected for shipping | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress | Open the order and resolve its status or remaining quantities |\n| Shipment preparation reports missing physical data | A selected variant has no usable weight or dimensions | Update that variant under Products, then reopen Ship Orders |\n| No package is suggested | No active preset can contain the item within its dimensions and maximum weight | Add or update a package preset under Settings > Shipping |\n| A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |\n| Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |\n| The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |\n| Resolve Outstanding is blocked | Payments or accounting records need a controlled value decision | Read the preview and choose the offered settlement; do not alter shipped quantities |"
     },
     {
@@ -7118,7 +7118,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-09",
       "content": "### Ship an order in two deliveries\n\nA customer orders 10 shirts at $49.95 each, total $499.50 including GST. Ship 6 now, leaving 4 outstanding. The first fulfilment reduces stock by 6. When the last 4 arrive, use **Continue Fulfilment** and ship 4; the first 6 are not moved again.\n\n### Move the balance to a held backorder\n\nAn order contains 8 lamps. You dispatch 5 and choose **Create backorder for remainder**. Stock reduces by 5, the source order records that shipment, and a held child order carries the remaining 3 without another stock movement."
     },
     {
@@ -12622,7 +12622,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "Use this overview to choose the wholesale guide for your account, order, or team task."
     },
     {
@@ -12641,7 +12641,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Apply, verify your email, wait for approval, or sign in | Getting Started and Account Approval |\n| Browse approved products, use saved lists, reorder, or understand stock and indent | Ordering, Saved Lists, and Stock Rules |\n| Switch buying location, edit addresses, or manage team access | Team, Locations, and Permissions |\n\n> **Important:** The supplier controls account approval, wholesale pricing, brand access, payment terms, and which products permit indent ordering. The portal applies those current settings whenever you load or submit an order."
     },
     {
@@ -12660,7 +12660,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "Home shows the signed-in company, active buying location, available-product count, open-order count, and shortcuts into the approved catalogue and recent activity. Check the buying location in the header before starting work.\n\nAll signed-in roles can browse their approved catalogue, prepare carts, save drafts, submit orders, use saved lists and favourites, and review orders available to their company and assigned buying locations. Owner and Admin roles also receive account-management controls."
     },
     {
@@ -12679,7 +12679,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "Use **Help** for the supplier's support email or existing account-manager contact. Contact the supplier when an application needs review, a commercial term is wrong, a brand or product is unavailable, or an order needs a change that the portal does not offer.\n\nAsk Solvantis can explain products and workflows using read-only information limited to the signed-in buyer, company, assigned location, approved catalogue, and owned orders. It cannot submit or alter an order."
     },
     {
@@ -12698,8 +12698,8 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab. The portal starts as a customer-facing preview with the Layout Editor closed. Select **Edit layout** only when layout changes are needed.\n\n**Wholesale Applications** appears directly below **Preview Wholesale Portal** in the IMS Sales menu, keeping account review separate from the preview itself. Preview checkout remains a test workflow and does not create a confirmable live order."
+      "lastReviewed": "2026-09-08",
+      "content": "Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab. The portal starts as a customer-facing preview with the Layout Editor closed. Select **Edit layout** only when layout changes are needed.\n\n**Wholesale Applications** appears directly below **Preview Wholesale Portal** in the IMS Sales menu, keeping account review separate from the preview itself. Preview checkout remains a test workflow and does not create a confirmable live order.\n\nThe Layout Editor provides shared theme colours for primary highlights, secondary elements, accents, page background, surfaces, main text and muted text. Each page can inherit that shared theme or override individual colours. Colour controls accept a colour picker or hexadecimal value, and Foresight brand colours appear as reusable swatches when they are available. Save the draft, review each page preview, then publish to make colour changes visible to customers.\n\nIn **Settings > Wholesale Portal**, Product Card Style can show information below each image or use a larger image-led card that reveals product details over the lower half on hover or keyboard focus. Products with one variant show only the price; products with multiple variants show a starting price and option count."
     },
     {
       "id": "wholesale-portal:6",
@@ -12717,7 +12717,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "- [ ] Confirm the company and buying location in the portal header.\n- [ ] Review current price, pack rules, available quantity, and indent labels.\n- [ ] Read every adjustment message after loading a draft, saved list, or prior order.\n- [ ] Confirm the delivery address and payment terms before submission.\n- [ ] Use Orders to verify the submitted reference and status."
     },
     {
@@ -12736,7 +12736,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Expected products or brands are missing | They are not in the account's current approved catalogue | Clear filters, then contact the supplier if access should change |\n| Orders differ after changing location | Orders and drafts are tied to their buying location | Switch to the location shown on the order before editing its draft |\n| A repeat order has fewer lines or units | Current stock or catalogue rules changed | Review the adjustment message and cart before submitting |\n| Account controls are missing | The signed-in member is a Buyer | Ask an Owner or Admin to make the account change |"
     },
     {
@@ -12755,7 +12755,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "### Start an order for the correct shop\n\nMorgan is assigned to Sydney and Newcastle. The header shows Sydney, but the goods are for Newcastle. Morgan switches the buying location to Newcastle before opening Catalogue, then confirms the Newcastle shipping address in the cart before submission."
     },
     {
@@ -12774,7 +12774,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "Use the three related task guides for complete application, ordering, and account-management procedures."
     },
     {

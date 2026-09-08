@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.","lastReviewed":"2026-08-30","owner":"sales"}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.","lastReviewed":"2026-09-09","owner":"sales"}
 ---
 # Sales Orders and Fulfilment
 
@@ -41,7 +41,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 2. Choose the customer and location, then add the products and ordered quantities.
 3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.
 4. Confirm the order when the customer demand is ready to proceed.
-5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**.
+5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.
 6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.
 7. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.
 8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
