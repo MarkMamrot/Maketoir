@@ -1,3 +1,9 @@
+## 2026-09-08 - Shipping foundation tenant migration
+
+- Applied the additive IMS shipping foundation through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
+- The first run created the shipping account, package preset, manifest, shipment, parcel, parcel-item, label, and channel-job tables where absent and added variant length, width, and height columns to each tenant. The carrier account `base_url` column was included in the newly created table definition.
+- An immediate full rerun reported zero added columns and zero added indexes for every tenant while completing all schema verification checks. No carrier accounts, package presets, shipment records, labels, stock movements, order quantities, or other application data were created or changed.
+
 ## 2026-09-06 - Exact Assistant tool permissions
 
 - Authenticated Ask Solvantis tools now use one typed operation manifest for model-visible declarations and execution authorization. The policy follows each verified IMS tier, POS register principal, or wholesale company/member/brand scope instead of relying on audience alone.
