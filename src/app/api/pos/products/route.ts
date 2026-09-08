@@ -3,6 +3,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { getAdminSession, getPosSession } from '@/lib/sessionUtils';
+import { resolveBuildFromSalePolicy } from '@/lib/ims/builds/buildFromSalePolicy';
 
 export async function GET(req: Request) {
   const posSession   = getPosSession();
@@ -53,6 +54,20 @@ export async function GET(req: Request) {
      COALESCE(sall.total_on_hand, 0)                                  AS qty_on_hand_all,
      COALESCE(s.qty_on_hand, 0) - COALESCE(s.qty_committed, 0)       AS qty_available,
      COALESCE(sall.total_available, 0)                                AS qty_available_all,
+     EXISTS(
+       SELECT 1 FROM ims_product_build_recipes recipe
+        WHERE recipe.business_id = p.business_id AND recipe.output_variant_id = v.variant_id AND recipe.is_enabled = 1
+     ) AS has_build_recipe,
+     COALESCE((
+       SELECT MIN(GREATEST(0, COALESCE(component_stock.qty_on_hand, 0) - COALESCE(component_stock.qty_committed, 0)) / component.quantity_per_output)
+         FROM ims_product_build_recipes recipe
+         JOIN ims_product_build_recipe_components component ON component.recipe_version_id = recipe.active_version_id
+         LEFT JOIN ims_stock component_stock
+           ON component_stock.business_id = recipe.business_id
+          AND component_stock.variant_id = component.component_variant_id
+          AND component_stock.location_id = ${locationId}
+        WHERE recipe.business_id = p.business_id AND recipe.output_variant_id = v.variant_id AND recipe.is_enabled = 1
+     ), 0) AS buildable_quantity,
      v.is_active,
      p.is_active AS product_is_active`;
   const baseFrom = `
@@ -89,6 +104,8 @@ export async function GET(req: Request) {
     qty_on_hand_all:     string | null;
     qty_available:       string | null;
     qty_available_all:   string | null;
+    has_build_recipe:    number;
+    buildable_quantity:  string | null;
     is_active:           number;
     product_is_active:   number;
   };
@@ -134,6 +151,7 @@ export async function GET(req: Request) {
   }
 
   const timeZone = await getBusinessTimeZone(session.businessId);
+  const buildPolicy = await resolveBuildFromSalePolicy(session.businessId, locationId);
   const today = new Date().toLocaleDateString('sv-SE', { timeZone });
 
   const products = [];
@@ -172,9 +190,12 @@ export async function GET(req: Request) {
       soh_all:        Number(r.qty_on_hand_all ?? 0),
       available:      Number(r.qty_available ?? 0),
       available_all:  Number(r.qty_available_all ?? 0),
+      has_build_recipe: Boolean(r.has_build_recipe),
+      buildable_quantity: buildPolicy.enabled ? Number(r.buildable_quantity ?? 0) : 0,
+      build_from_sale_enabled: buildPolicy.enabled,
       image_url:      null as string | null, // merged client-side from image cache
     });
   }
 
-  return NextResponse.json({ products, removed, server_time: serverTime, location_id: locationId });
+  return NextResponse.json({ products, removed, server_time: serverTime, location_id: locationId, buildFromSale: buildPolicy });
 }

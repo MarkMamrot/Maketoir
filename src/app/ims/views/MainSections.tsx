@@ -7,7 +7,7 @@ import { WholesaleApplicationQueue } from './wholesale/WholesaleApplicationQueue
 import OnlineShopView from './onlineShop/OnlineShopView';
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
+  | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
@@ -53,6 +53,7 @@ interface MainSectionsProps {
 
   DashboardView: any;
   ProductsView: any;
+  ProductBuildsView: any;
   StockView: any;
   BulkEditView: any;
   BulkAddEditProductsView: any;
@@ -132,6 +133,7 @@ export function MainSections(props: MainSectionsProps) {
     onOpenPosSale,
     DashboardView,
     ProductsView,
+    ProductBuildsView,
     StockView,
     BulkEditView,
     BulkAddEditProductsView,
@@ -233,6 +235,7 @@ export function MainSections(props: MainSectionsProps) {
         setPendingOpenPO={setPendingOpenPO}
         setPendingOpenSO={setPendingOpenSO}
         ProductsView={ProductsView}
+        ProductBuildsView={ProductBuildsView}
         StockView={StockView}
         BrandsView={BrandsView}
         GiftCardsView={GiftCardsView}

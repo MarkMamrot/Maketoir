@@ -5,6 +5,7 @@ import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfi
 import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
+import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 
 function responseStatus(message: string): number {
   if (message.includes('not found')) return 404;
@@ -46,6 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (result.status === 'fulfilled') {
       await triggerSOXeroSync(businessId, soId, 'fulfilled');
     }
+    await recomputeBuildRequirementsSafely({ businessId, salesOrderId: soId });
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     if (error instanceof StockShortfallError) {

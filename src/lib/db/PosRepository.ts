@@ -13,6 +13,8 @@ import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMeta
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { planPosStockChange } from '@/lib/ims/posStockFloor';
+import { completeProductBuildInTransaction, ProductBuildConflictError } from '@/lib/ims/builds/buildService';
+import { isBuildFromSaleEnabled, planBuildFromSaleShortfalls } from '@/lib/ims/builds/buildFromSalePolicy';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -88,6 +90,94 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
       plan.resultingOnHand, input.averageCost, input.movementNote ?? null],
   );
   return plan;
+}
+
+async function applyCompletedPosSaleStock(connection: any, data: any, saleId: number): Promise<PosStockWarning[]> {
+  const stockWarnings: PosStockWarning[] = [];
+  for (const item of data.items) {
+    if (!item.variant_id) continue;
+    const qtyChange = getPosStockQtyChange(Number(item.qty), data.sale_type);
+    if (qtyChange === null) continue;
+    const [stockRows]: any = await connection.execute(
+      `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost,
+              COALESCE(p.is_stock_item, 1) AS is_stock_item
+         FROM ims_product_variants pv
+         JOIN ims_products p ON p.product_id = pv.product_id
+         LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
+        WHERE pv.variant_id = ? LIMIT 1
+        FOR UPDATE`,
+      [data.location_id, item.variant_id],
+    );
+    if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
+    const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
+    const quantityCommitted = Number(stockRows[0]?.qty_committed ?? 0);
+    const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
+    let incomingTransferQuantity = 0;
+    if (data.allow_incoming_transfer_sales === true && qtyChange < 0 && currentSoh + qtyChange < 0) {
+      const [incomingRows]: any = await connection.execute(
+        `SELECT COALESCE(SUM(GREATEST(bti.qty_sent - COALESCE(bti.qty_received, 0), 0)), 0) AS incoming_quantity
+           FROM ims_branch_transfers bt
+           JOIN ims_branch_transfer_items bti ON bti.transfer_id = bt.id
+          WHERE bt.business_id = ? AND bt.to_location_id = ?
+            AND bt.status IN ('sent', 'partial') AND bti.variant_id = ?`,
+        [data.business_id, data.location_id, item.variant_id],
+      );
+      incomingTransferQuantity = Math.max(0, Number(incomingRows[0]?.incoming_quantity ?? 0));
+    }
+    const stockPlan = planPosStockChange(currentSoh, qtyChange, -incomingTransferQuantity);
+    if (qtyChange < 0 && (stockPlan.uncappedResultingOnHand < 0 || stockPlan.resultingOnHand < quantityCommitted)) {
+      const usesIncomingTransferStock = stockPlan.resultingOnHand < 0 && incomingTransferQuantity > 0;
+      stockWarnings.push({
+        variantId: item.variant_id,
+        itemName: item.name,
+        previousOnHand: currentSoh,
+        resultingOnHand: stockPlan.resultingOnHand,
+        uncappedResultingOnHand: stockPlan.uncappedResultingOnHand,
+        automaticAdjustmentQuantity: stockPlan.automaticAdjustmentQuantity,
+        quantityCommitted,
+        ...(incomingTransferQuantity > 0 ? { incomingTransferQuantity } : {}),
+        reason: usesIncomingTransferStock
+          ? 'incoming_transfer_stock'
+          : stockPlan.uncappedResultingOnHand < 0 ? 'negative_stock' : 'committed_stock_at_risk',
+      });
+      if (stockPlan.resultingOnHand < quantityCommitted) {
+        await connection.execute(
+          `UPDATE ims_stock_allocations
+              SET promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk' ELSE promise_status END,
+                  risk_reason = 'POS sale reduced stock below confirmed customer demand.',
+                  revision = revision + 1
+            WHERE business_id = ? AND variant_id = ? AND location_id = ? AND state = 'active'
+              AND qty_received_assigned > qty_fulfilled`,
+          [data.business_id, item.variant_id, data.location_id],
+        );
+      }
+    }
+    await applyPosStockMovementWithFloor(connection, {
+      businessId: data.business_id,
+      variantId: item.variant_id,
+      locationId: data.location_id,
+      saleId,
+      currentOnHand: currentSoh,
+      requestedChange: qtyChange,
+      averageCost: avgCostAtTime,
+      hasStockRow: Boolean(stockRows[0]?.stock_variant_id),
+      minimumOnHand: -incomingTransferQuantity,
+    });
+  }
+  const incomingStockWarnings = stockWarnings.filter(warning => warning.reason === 'incoming_transfer_stock');
+  if (incomingStockWarnings.length > 0) {
+    const itemLines = incomingStockWarnings.map(warning =>
+      `- ${warning.itemName}: stock ${warning.previousOnHand} to ${warning.resultingOnHand}; ${warning.incomingTransferQuantity ?? 0} incoming on matching transfers.`
+    );
+    await connection.execute(
+      `INSERT INTO ims_notifications (business_id, type, source, title, message, detail)
+       VALUES (?, 'warning', 'pos_incoming_stock', 'POS sale used incoming transfer stock', ?, ?)`,
+      [data.business_id,
+        [`Sale #${saleId} sold stock before its branch transfer was received:`, ...itemLines, 'Confirm the goods arrived, complete the matching transfer receipt, and verify location stock.'].join('\n'),
+        JSON.stringify({ sale_id: saleId, location_id: data.location_id, warnings: incomingStockWarnings })],
+    );
+  }
+  return stockWarnings;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -257,8 +347,11 @@ export const PosSalesRepo = {
     return { sale, items, payments };
   },
 
-  async findByLocalId(localId: string): Promise<PosSaleRow | null> {
-    const rows = await imsQuery<any>('SELECT * FROM pos_sales WHERE local_id = ? LIMIT 1', [localId]);
+  async findByLocalId(localId: string, businessId?: string): Promise<PosSaleRow | null> {
+    const rows = await imsQuery<any>(
+      `SELECT * FROM pos_sales WHERE local_id = ?${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
+      businessId ? [localId, businessId] : [localId],
+    );
     return rows[0] ? parseSale(rows[0]) : null;
   },
 
@@ -314,6 +407,10 @@ export const PosSalesRepo = {
     parked_label?:     string | null;
     return_of_sale_id?: number | null;
     allow_incoming_transfer_sales?: boolean;
+    build_consent?: {
+      operation_key: string;
+      builds: Array<{ output_variant_id: string; quantity: number; recipe_revision: number }>;
+    } | null;
     items: Array<{
       return_of_sale_item_id?: number | null;
       variant_id:      string | null;
@@ -348,6 +445,7 @@ export const PosSalesRepo = {
     let loyalty: LoyaltyMutationResult | null = null;
     let loyaltyPoints = 0;
     let loyaltyRedemption: LoyaltyRedemptionResult | null = null;
+    let atomicStockWarnings: PosStockWarning[] | null = null;
     try {
       await conn.beginTransaction();
 
@@ -619,6 +717,61 @@ export const PosSalesRepo = {
         }
       }
 
+      if (data.build_consent) {
+        if (data.sale_type !== 'sale' || data.status !== 'completed' || !data.local_id) {
+          throw new ProductBuildConflictError('Build consent requires an online completed sale with a local id.', 'pos_build_consent_invalid');
+        }
+        const locationSettingKey = `build_from_sale_location:${data.location_id}`;
+        const [settingRows] = await conn.execute<any[]>(
+          'SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN (?, ?)',
+          [data.business_id, 'build_from_sale_enabled', locationSettingKey],
+        );
+        const settings = new Map(settingRows.map(row => [String(row.key), String(row.value ?? '')]));
+        if (!isBuildFromSaleEnabled(settings.get('build_from_sale_enabled'), settings.get(locationSettingKey))) {
+          throw new ProductBuildConflictError('Build from sale is not enabled at this location.', 'pos_build_policy_disabled');
+        }
+        const saleLines = data.items
+          .filter((item: any) => item.variant_id && !item.is_gift_card && Number(item.qty) > 0)
+          .map((item: any) => ({ variantId: String(item.variant_id), quantity: Number(item.qty) }));
+        const variantIds = [...new Set(saleLines.map((line: any) => line.variantId))].sort();
+        const [outputStockRows] = variantIds.length ? await conn.execute<any[]>(
+          `SELECT variant_id, qty_on_hand FROM ims_stock
+            WHERE business_id = ? AND location_id = ? AND variant_id IN (${variantIds.map(() => '?').join(',')})
+            ORDER BY variant_id FOR UPDATE`,
+          [data.business_id, data.location_id, ...variantIds],
+        ) : [[]];
+        const shortfalls = new Map(planBuildFromSaleShortfalls(
+          saleLines,
+          new Map(outputStockRows.map(row => [String(row.variant_id), Number(row.qty_on_hand)])),
+        ).map(item => [item.outputVariantId, item.shortfall]));
+        const consentBuilds = Array.isArray(data.build_consent.builds) ? data.build_consent.builds : [];
+        const seen = new Set<string>();
+        const builds = consentBuilds.map(build => {
+          const outputVariantId = String(build.output_variant_id ?? '').trim();
+          const expectedQuantity = shortfalls.get(outputVariantId);
+          if (!outputVariantId || seen.has(outputVariantId) || expectedQuantity == null
+            || Math.abs(Number(build.quantity) - expectedQuantity) > 0.00005
+            || !Number.isInteger(Number(build.recipe_revision)) || Number(build.recipe_revision) <= 0) {
+            throw new ProductBuildConflictError('The build preview is stale. Refresh the checkout preview and confirm again.', 'pos_build_preview_stale');
+          }
+          seen.add(outputVariantId);
+          return { outputVariantId, quantity: expectedQuantity, recipeRevision: Number(build.recipe_revision) };
+        });
+        if (!builds.length) throw new ProductBuildConflictError('Build consent must include at least one current shortfall.', 'pos_build_consent_invalid');
+        await completeProductBuildInTransaction(conn, {
+          businessId: data.business_id,
+          locationId: data.location_id,
+          operationKey: `pos-sale:${data.local_id}:build`,
+          builds,
+          sourceType: 'pos_sale',
+          sourceId: String(saleId),
+          sourceChannel: 'pos',
+          actorId: data.cashier_id,
+          actorName: data.cashier_name,
+        });
+        atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId);
+      }
+
       await conn.commit();
 
       // 4. Deduct IMS stock AFTER the sale transaction has committed.
@@ -627,97 +780,13 @@ export const PosSalesRepo = {
       //    Returns stockError string if deduction failed — API returns success
       //    anyway so the client clears the queue, but logs the issue.
       let stockError: string | undefined;
-      const stockWarnings: PosStockWarning[] = [];
-      if (data.status === 'completed' || data.status === 'layby_complete') {
+      let stockWarnings: PosStockWarning[] = atomicStockWarnings ?? [];
+      if (atomicStockWarnings === null && (data.status === 'completed' || data.status === 'layby_complete')) {
         const pool = getIMSPool();
         const stockConn = await pool.getConnection();
         try {
           await stockConn.beginTransaction();
-          for (const item of data.items) {
-            if (!item.variant_id) continue;
-            const qtyChange = getPosStockQtyChange(Number(item.qty), data.sale_type);
-            if (qtyChange === null) continue;
-            const [stockRows]: any = await stockConn.execute(
-                  `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost,
-                      COALESCE(p.is_stock_item, 1) AS is_stock_item
-               FROM ims_product_variants pv
-               JOIN ims_products p ON p.product_id = pv.product_id
-               LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
-               WHERE pv.variant_id = ? LIMIT 1
-               FOR UPDATE`,
-              [data.location_id, item.variant_id],
-            );
-            if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
-            const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
-            const quantityCommitted = Number(stockRows[0]?.qty_committed ?? 0);
-            const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
-            let incomingTransferQuantity = 0;
-            if (data.allow_incoming_transfer_sales === true && qtyChange < 0 && currentSoh + qtyChange < 0) {
-              const [incomingRows]: any = await stockConn.execute(
-                `SELECT COALESCE(SUM(GREATEST(bti.qty_sent - COALESCE(bti.qty_received, 0), 0)), 0) AS incoming_quantity
-                   FROM ims_branch_transfers bt
-                   JOIN ims_branch_transfer_items bti ON bti.transfer_id = bt.id
-                  WHERE bt.business_id = ? AND bt.to_location_id = ?
-                    AND bt.status IN ('sent', 'partial') AND bti.variant_id = ?`,
-                [data.business_id, data.location_id, item.variant_id],
-              );
-              incomingTransferQuantity = Math.max(0, Number(incomingRows[0]?.incoming_quantity ?? 0));
-            }
-            const stockPlan = planPosStockChange(currentSoh, qtyChange, -incomingTransferQuantity);
-            if (qtyChange < 0 && (stockPlan.uncappedResultingOnHand < 0 || stockPlan.resultingOnHand < quantityCommitted)) {
-              const usesIncomingTransferStock = stockPlan.resultingOnHand < 0 && incomingTransferQuantity > 0;
-              stockWarnings.push({
-                variantId: item.variant_id,
-                itemName: item.name,
-                previousOnHand: currentSoh,
-                resultingOnHand: stockPlan.resultingOnHand,
-                uncappedResultingOnHand: stockPlan.uncappedResultingOnHand,
-                automaticAdjustmentQuantity: stockPlan.automaticAdjustmentQuantity,
-                quantityCommitted,
-                ...(incomingTransferQuantity > 0 ? { incomingTransferQuantity } : {}),
-                reason: usesIncomingTransferStock
-                  ? 'incoming_transfer_stock'
-                  : stockPlan.uncappedResultingOnHand < 0 ? 'negative_stock' : 'committed_stock_at_risk',
-              });
-              if (stockPlan.resultingOnHand < quantityCommitted) {
-                await stockConn.execute(
-                  `UPDATE ims_stock_allocations
-                      SET promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk' ELSE promise_status END,
-                          risk_reason = 'POS sale reduced stock below confirmed customer demand.',
-                          revision = revision + 1
-                    WHERE business_id = ? AND variant_id = ? AND location_id = ? AND state = 'active'
-                      AND qty_received_assigned > qty_fulfilled`,
-                  [data.business_id, item.variant_id, data.location_id],
-                );
-              }
-            }
-
-            const hasStockRow = Boolean(stockRows[0]?.stock_variant_id);
-            await applyPosStockMovementWithFloor(stockConn, {
-              businessId: data.business_id,
-              variantId: item.variant_id,
-              locationId: data.location_id,
-              saleId,
-              currentOnHand: currentSoh,
-              requestedChange: qtyChange,
-              averageCost: avgCostAtTime,
-              hasStockRow,
-              minimumOnHand: -incomingTransferQuantity,
-            });
-          }
-          const incomingStockWarnings = stockWarnings.filter(warning => warning.reason === 'incoming_transfer_stock');
-          if (incomingStockWarnings.length > 0) {
-            const itemLines = incomingStockWarnings.map(warning =>
-              `- ${warning.itemName}: stock ${warning.previousOnHand} to ${warning.resultingOnHand}; ${warning.incomingTransferQuantity ?? 0} incoming on matching transfers.`
-            );
-            await stockConn.execute(
-              `INSERT INTO ims_notifications (business_id, type, source, title, message, detail)
-               VALUES (?, 'warning', 'pos_incoming_stock', 'POS sale used incoming transfer stock', ?, ?)`,
-              [data.business_id,
-                [`Sale #${saleId} sold stock before its branch transfer was received:`, ...itemLines, 'Confirm the goods arrived, complete the matching transfer receipt, and verify location stock.'].join('\n'),
-                JSON.stringify({ sale_id: saleId, location_id: data.location_id, warnings: incomingStockWarnings })],
-            );
-          }
+          stockWarnings = await applyCompletedPosSaleStock(stockConn, data, saleId);
           await stockConn.commit();
         } catch (stockErr: any) {
           await stockConn.rollback();

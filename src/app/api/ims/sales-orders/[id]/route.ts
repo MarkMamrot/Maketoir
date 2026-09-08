@@ -14,6 +14,7 @@ import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -236,6 +237,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
     }
+    await recomputeBuildRequirementsSafely({ businessId, salesOrderId: Number(params.id) });
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
     if (e instanceof OrderAmendmentConflict) {

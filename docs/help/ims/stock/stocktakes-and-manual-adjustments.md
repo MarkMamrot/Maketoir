@@ -1,5 +1,5 @@
 ---
-{"id":"ims-stocktakes-adjustments","title":"Stocktakes and Manual Adjustments","audiences":["ims"],"capability":"inventory","screen":"Stocktakes and Stock","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-branch-transfers","ims-inventory-costing","ims-product-setup-variants"],"contexts":["stocktakes"],"contextSections":{"stocktakes":"Step-by-step"},"order":52,"summary":"Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.","lastReviewed":"2026-08-31","owner":"inventory"}
+{"id":"ims-stocktakes-adjustments","title":"Stocktakes and Manual Adjustments","audiences":["ims"],"capability":"inventory","screen":"Stocktakes and Stock","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-branch-transfers","ims-inventory-costing","ims-product-setup-variants","ims-product-builds"],"contexts":["stocktakes"],"contextSections":{"stocktakes":"Step-by-step"},"order":52,"summary":"Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.","lastReviewed":"2026-09-08","owner":"inventory"}
 ---
 # Stocktakes and Manual Adjustments
 
@@ -35,6 +35,8 @@ Use a stocktake for a controlled physical count and a manual quantity adjustment
 - [ ] For a manual adjustment, record a clear reason and verify no other workflow already owns the movement.
 
 > **Warning:** Do not use a manual adjustment to imitate a transfer, receipt, return, or completed stocktake. That creates an unlinked second stock movement.
+
+Use **Products > Builds** to assemble or dismantle recipe-backed stock. Build confirmation and reversal create linked component and finished-product movements; manual adjustments must not duplicate them. After builds exist, reconcile Cin7 differences with a stocktake or audited adjustment because raw Cin7 stock replacement is blocked.
 
 ## Step-by-step
 

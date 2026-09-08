@@ -54,6 +54,8 @@ import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/rep
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
 import { StockAvailabilityManagementView } from './views/reports/StockAvailabilityManagementView';
 import { BulkAddEditProductsView } from './views/products/BulkAddEditProductsView';
+import { ProductBuildsView } from './views/products/ProductBuildsView';
+import { BuildRecipeEditor } from './views/products/BuildRecipeEditor';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
@@ -91,7 +93,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
+  | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
@@ -109,6 +111,7 @@ const NAV = [
   { id: 'dashboard',       label: 'Dashboard',        section: null },
   { id: '__products',      label: 'Products',         section: 'products', children: [
     { id: 'products',      label: 'All Products' },
+    { id: 'builds',        label: 'Builds' },
     { id: 'stock',         label: 'Stock Levels' },
     { id: 'brands',        label: 'Brands' },
     { id: 'gift-cards',    label: 'Gift Cards' },
@@ -7428,6 +7431,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           )}
 
+          {modal.edit?.product_id && Number(form.is_stock_item ?? 1) === 1 && (
+            <BuildRecipeEditor
+              productId={modal.edit.product_id}
+              outputVariants={variantRows.filter(row => !row._delete)}
+              isAdvisor={isAdvisor}
+            />
+          )}
+
           {/* ── Online Store ── */}
           {modal.edit?.product_id && (
             <>
@@ -7689,6 +7700,10 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     transfer_out:   'Transfer Out',
     pos_sale:       'POS Sale',
     pos_return:     'POS Return',
+    build_component_consumed: 'Build Component Used',
+    build_output_produced: 'Build Output Produced',
+    build_component_restored: 'Build Component Restored',
+    build_output_reversed: 'Build Output Reversed',
   };
 
   const movementColor = (type: string, qty: number): string => {
@@ -7703,6 +7718,8 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     if (m.so_number) return `${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
     if (m.cn_number) return m.cn_number;
     if (m.pos_sale_local_id) return `POS ${m.pos_sale_local_id}`;
+    if (m.reversal_number) return `${m.reversal_number}${m.build_number ? ` · ${m.build_number}` : ''}`;
+    if (m.build_number) return m.build_number;
     if (m.notes) return m.notes;
     return '—';
   };
@@ -7714,6 +7731,8 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
       return <button style={linkBtn} onClick={() => { onNavigateToPO(m.reference_id); onClose(); }}>{label}</button>;
     if (m.reference_type === 'sales_order' && m.reference_id && onNavigateToSO)
       return <button style={linkBtn} onClick={() => { onNavigateToSO(m.reference_id); onClose(); }}>{label}</button>;
+    if ((m.reference_type === 'product_build' || m.reference_type === 'product_build_reversal') && m.build_batch_id)
+      return <a style={linkBtn} href={`#builds/${m.build_batch_id}`} onClick={onClose}>{label}</a>;
     return <span style={{ color: 'var(--sv-text-dim)' }}>{label}</span>;
   };
 
@@ -13935,6 +13954,26 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const changeStatus = async (so: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
+    if (status === 'confirmed') {
+      try {
+        const previewResponse = await fetch(`/api/ims/sales-orders/${so.id}/build-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'confirm' }) });
+        const previewResult = await previewResponse.json();
+        if (previewResponse.ok && previewResult.data?.eligible) {
+          const offer = previewResult.data;
+          const outputs = offer.builds.map((item: any) => `${fmtQty(item.quantity)} ${offer.lines.find((line: any) => so.items?.find((candidate: any) => Number(candidate.id) === Number(line.itemId))?.variant_id === item.outputVariantId)?.productName || item.outputVariantId}`).join('\n');
+          const components = offer.preview.components.map((item: any) => `${fmtQty(item.required)} required, ${fmtQty(item.available)} available, ${fmtCurrency(item.cost)}`).join('\n');
+          if (confirm(`Finished stock is short, but this order can be built now:\n\n${outputs}\n\nComponents:\n${components}\n\nBuild and confirm this order atomically?`)) {
+            await apiFetch(`/api/ims/sales-orders/${so.id}/build-confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operationKey: crypto.randomUUID(), builds: offer.builds.map((item: any) => ({ outputVariantId: item.outputVariantId, recipeRevision: item.recipeRevision })) }) });
+            load();
+            if (viewModal.open && viewModal.so?.id === so.id) { const detail = await apiFetch(`/api/ims/sales-orders/${so.id}`); setViewModal({ open: true, so: detail.data }); }
+            return;
+          }
+        }
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Build preview failed.');
+        return;
+      }
+    }
     if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: buildOrderStatusOperationKey('sales_order', Number(so.id), status, so.updated_at), expectedUpdatedAt: so.updated_at ?? null }) });
@@ -21916,7 +21955,7 @@ export default function ImsPage() {
 
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
-    'dashboard','products','stock','brands','bulk-edit','bulk-add-edit','contacts','crm','locations',
+    'dashboard','products','builds','stock','brands','bulk-edit','bulk-add-edit','contacts','crm','locations',
     'purchase-orders','sales-orders','stock-availability','backorders','customer-backorders','supplier-backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
@@ -21939,6 +21978,7 @@ export default function ImsPage() {
       if (isXeroHash(`#${h}`)) return 'xero' as ImsView;
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
+      if (h.startsWith('builds/')) return 'builds' as ImsView;
       if (h.startsWith('contact-profile/')) {
         const contactId = Number(h.split('/')[1]);
         if (Number.isInteger(contactId) && contactId > 0) {
@@ -22402,6 +22442,7 @@ export default function ImsPage() {
               setScnPrefill={setScnPrefill}
               DashboardView={DashboardView}
               ProductsView={ProductsView}
+              ProductBuildsView={ProductBuildsView}
               StockView={StockView}
               BulkEditView={BulkEditView}
               BulkAddEditProductsView={BulkAddEditProductsView}
@@ -25969,6 +26010,13 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
   const [locs, setLocs]     = useState<Array<{ id: number; name: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
+  const [buildOverrides, setBuildOverrides] = useState<Record<string, string>>({});
+  const [buildDirty, setBuildDirty] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setBuildOverrides(Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('build_from_sale_location:'))));
+    setBuildDirty(new Set());
+  }, [settings]);
 
   useEffect(() => {
     fetch('/api/ims/locations')
@@ -26034,6 +26082,18 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
             Currently: <strong style={{ color: 'var(--sv-text-main)' }}>{locs.find(l => String(l.id) === current)?.name ?? current}</strong>
           </p>
         )}
+      </div>
+
+      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 5 }}>Build from sale by location</div>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.55 }}>Override the business policy for individual locations. Staff must still review and confirm every build.</p>
+        {locs.map(location => {
+          const key = `build_from_sale_location:${location.id}`;
+          const value = buildOverrides[key] ?? 'inherit';
+          const effective = value === 'enabled' || (value === 'inherit' && settings.build_from_sale_enabled === 'yes');
+          return <div key={location.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 160px 110px', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)' }}><span style={{ fontSize: 12, fontWeight: 600 }}>{location.name}</span><select value={value} disabled={!locs.length || saving} onChange={event => { const next = event.target.value; setBuildOverrides(previous => ({ ...previous, [key]: next })); setBuildDirty(previous => new Set(previous).add(key)); }} style={{ padding: '7px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="inherit">Use business default</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select><span style={{ color: effective ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700 }}>Effective: {effective ? 'Enabled' : 'Disabled'}</span></div>;
+        })}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button type="button" disabled={!buildDirty.size || saving || !locs.length} onClick={async () => { setSaving(true); setSaved(false); try { await saveSettings(Object.fromEntries([...buildDirty].map(key => [key, buildOverrides[key] ?? 'inherit']))); setBuildDirty(new Set()); setSaved(true); setTimeout(() => setSaved(false), 2000); } finally { setSaving(false); } }} style={{ ...btnStyle('action', 'sm'), opacity: !buildDirty.size ? .55 : 1 }}>{saving ? 'Saving…' : 'Save location policies'}</button></div>
       </div>
     </div>
   );
@@ -26266,6 +26326,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       sells_wholesale:          'yes',
       connect_accounting_software: 'no',
       accounting_software:      'xero',
+      build_from_sale_enabled:   'no',
       ...settings,
     });
     setTaxDirtyKeys(new Set());
@@ -26924,6 +26985,11 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <section style={{ marginBottom: 22 }}>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Purchasing</h4>
                 <OperationToggle setting="use_foreign_currencies" defaultValue="yes" label="Foreign currencies" description="Show currency and exchange-rate fields on purchase orders and products." />
+              </section>
+
+              <section style={{ marginBottom: 22 }}>
+                <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Inventory</h4>
+                <OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="When finished stock is short and recipe components are available, offer staff a reviewed Build & Sell, Build & Confirm, or Build & Fulfil action. Online marketplaces continue advertising actual finished stock only." />
               </section>
 
               <section>

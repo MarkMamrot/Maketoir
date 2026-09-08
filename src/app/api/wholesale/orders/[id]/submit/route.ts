@@ -18,6 +18,7 @@ import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib
 import { sendWholesaleOrderSubmittedReceipt } from '@/lib/wholesale/wholesaleOrderNotifications';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { previewDraftWhere, requireWholesaleDraftWriteAccess } from '@/lib/wholesale/wholesalePreviewPolicy';
+import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 
 type Ctx = { params: { id: string } };
 
@@ -262,6 +263,12 @@ export async function POST(_req: Request, { params }: Ctx) {
       );
       return NextResponse.json({ success: true, so_id: soId, so_number: soNumber, is_test: true });
     }
+
+    await recomputeBuildRequirementsSafely({
+      businessId: session.businessId,
+      salesOrderId: soId,
+      sourceChannel: 'wholesale',
+    });
 
     // ── 6. In-app notification ────────────────────────────────────────────────
     await createNotification(

@@ -5,6 +5,7 @@ import { LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
 import { getOrCreateOnlineShopCustomer } from '@/lib/onlineShop/onlineShopIdentity';
 import { allocateCentsProportionally } from '@/lib/onlineShop/onlineShopValueAllocation';
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 
 interface CheckoutRow {
   checkout_id: string; status: string; fulfilment_mode: 'single_location' | 'consolidate' | 'split'; fulfilment_type: string;
@@ -345,6 +346,9 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
         WHERE business_id = ? AND checkout_id = ?`, [soIds[0], input.businessId, input.checkoutId],
     );
     await connection.commit();
+    for (const salesOrderId of soIds) {
+      await recomputeBuildRequirementsSafely({ businessId: input.businessId, salesOrderId, sourceChannel: 'native_shop' });
+    }
     return soIds;
   } catch (error) {
     await connection.rollback(); throw error;

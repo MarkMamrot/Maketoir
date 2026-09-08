@@ -33,6 +33,9 @@ export interface CachedProduct {
   soh_all:        number;
   available:      number;
   available_all:  number;
+  has_build_recipe?: boolean;
+  buildable_quantity?: number;
+  build_from_sale_enabled?: boolean;
   image_url:      string | null;
 }
 

@@ -1676,10 +1676,12 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
     'so_confirmed','so_unconfirmed','so_fulfilled',
     'cn_returned','scn_returned','cn_return_reversed','scn_return_reversed',
     'adjustment','transfer_in','transfer_out',
-    'pos_sale','pos_return','stocktake','stocktake_reverted'
+    'pos_sale','pos_return','stocktake','stocktake_reverted',
+    'build_component_consumed','build_output_produced',
+    'build_component_restored','build_output_reversed'
   ) NOT NULL,
   channel        VARCHAR(20) NULL,
-  reference_type ENUM('purchase_order','sales_order','credit_note','supplier_credit_note','manual','pos_sale','stocktake','branch_transfer') NOT NULL,
+  reference_type ENUM('purchase_order','sales_order','credit_note','supplier_credit_note','manual','pos_sale','stocktake','branch_transfer','product_build','product_build_reversal') NOT NULL,
   reference_id   INT,
   qty_change     DECIMAL(12,4) NOT NULL,
   qty_after_soh  DECIMAL(12,4) NOT NULL,
@@ -1690,6 +1692,169 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   INDEX idx_business_id (business_id),
   INDEX idx_sm_location (location_id),
   INDEX idx_sm_ref      (reference_type, reference_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Product Build Recipes ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_product_build_recipes (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  output_variant_id      VARCHAR(36) NOT NULL,
+  active_version_id      BIGINT NULL,
+  is_enabled             TINYINT(1) NOT NULL DEFAULT 1,
+  created_by             INT NULL,
+  created_by_name        VARCHAR(255) NULL,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_recipe_output (business_id, output_variant_id),
+  INDEX idx_build_recipe_active (business_id, is_enabled, output_variant_id),
+  FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_recipe_versions (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  recipe_id              BIGINT NOT NULL,
+  revision               INT NOT NULL,
+  base_output_quantity   DECIMAL(12,4) NOT NULL DEFAULT 1,
+  overhead_per_output    DECIMAL(15,4) NOT NULL DEFAULT 0,
+  notes                  TEXT NULL,
+  created_by             INT NULL,
+  created_by_name        VARCHAR(255) NULL,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_recipe_revision (business_id, recipe_id, revision),
+  INDEX idx_build_recipe_version (business_id, recipe_id, id),
+  FOREIGN KEY (recipe_id) REFERENCES ims_product_build_recipes(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_recipe_components (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  recipe_version_id      BIGINT NOT NULL,
+  component_variant_id   VARCHAR(36) NOT NULL,
+  quantity_per_output    DECIMAL(12,4) NOT NULL,
+  sort_order             INT NOT NULL DEFAULT 0,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_recipe_component (business_id, recipe_version_id, component_variant_id),
+  INDEX idx_build_component_variant (business_id, component_variant_id, recipe_version_id),
+  FOREIGN KEY (recipe_version_id) REFERENCES ims_product_build_recipe_versions(id) ON DELETE RESTRICT,
+  FOREIGN KEY (component_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_batches (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  build_number           VARCHAR(50) NOT NULL,
+  location_id            INT NOT NULL,
+  status                 ENUM('completed','partially_reversed','reversed') NOT NULL DEFAULT 'completed',
+  source_type            ENUM('manual','pos_sale','sales_order') NOT NULL DEFAULT 'manual',
+  source_id              VARCHAR(100) NULL,
+  source_channel         VARCHAR(50) NULL,
+  notes                  TEXT NULL,
+  operation_key          VARCHAR(191) NOT NULL,
+  request_hash           CHAR(64) NOT NULL,
+  actor_id               INT NULL,
+  actor_name             VARCHAR(255) NULL,
+  completed_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_batch_number (business_id, build_number),
+  UNIQUE KEY uq_build_batch_operation (business_id, operation_key),
+  INDEX idx_build_batch_history (business_id, completed_at, id),
+  INDEX idx_build_batch_location (business_id, location_id, completed_at),
+  INDEX idx_build_batch_source (business_id, source_type, source_id),
+  FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_items (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  batch_id               BIGINT NOT NULL,
+  output_variant_id      VARCHAR(36) NOT NULL,
+  recipe_id              BIGINT NOT NULL,
+  recipe_version_id      BIGINT NOT NULL,
+  recipe_revision        INT NOT NULL,
+  quantity_built         DECIMAL(12,4) NOT NULL,
+  quantity_reversed      DECIMAL(12,4) NOT NULL DEFAULT 0,
+  component_cost_total   DECIMAL(15,4) NOT NULL,
+  component_cost_per_output DECIMAL(15,4) NOT NULL,
+  overhead_per_output    DECIMAL(15,4) NOT NULL DEFAULT 0,
+  output_unit_cost       DECIMAL(15,4) NOT NULL,
+  output_avg_cost_before DECIMAL(15,4) NOT NULL,
+  output_avg_cost_after  DECIMAL(15,4) NOT NULL,
+  source_line_id         VARCHAR(100) NULL,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_batch_output (business_id, batch_id, output_variant_id),
+  INDEX idx_build_item_output (business_id, output_variant_id, created_at),
+  INDEX idx_build_item_recipe (business_id, recipe_version_id),
+  FOREIGN KEY (batch_id) REFERENCES ims_product_build_batches(id) ON DELETE RESTRICT,
+  FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT,
+  FOREIGN KEY (recipe_id) REFERENCES ims_product_build_recipes(id) ON DELETE RESTRICT,
+  FOREIGN KEY (recipe_version_id) REFERENCES ims_product_build_recipe_versions(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_item_components (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  build_item_id          BIGINT NOT NULL,
+  component_variant_id   VARCHAR(36) NOT NULL,
+  quantity_per_output    DECIMAL(12,4) NOT NULL,
+  quantity_consumed      DECIMAL(12,4) NOT NULL,
+  component_avg_cost     DECIMAL(15,4) NOT NULL,
+  component_cost_total   DECIMAL(15,4) NOT NULL,
+  sort_order             INT NOT NULL DEFAULT 0,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_item_component (business_id, build_item_id, component_variant_id),
+  INDEX idx_build_snapshot_variant (business_id, component_variant_id, build_item_id),
+  FOREIGN KEY (build_item_id) REFERENCES ims_product_build_items(id) ON DELETE RESTRICT,
+  FOREIGN KEY (component_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_reversals (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  reversal_number        VARCHAR(50) NOT NULL,
+  build_item_id          BIGINT NOT NULL,
+  quantity_reversed      DECIMAL(12,4) NOT NULL,
+  reason                 VARCHAR(500) NOT NULL,
+  operation_key          VARCHAR(191) NOT NULL,
+  request_hash           CHAR(64) NOT NULL,
+  output_avg_cost_before DECIMAL(15,4) NOT NULL,
+  output_avg_cost_after  DECIMAL(15,4) NOT NULL,
+  actor_id               INT NULL,
+  actor_name             VARCHAR(255) NULL,
+  reversed_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_reversal_number (business_id, reversal_number),
+  UNIQUE KEY uq_build_reversal_operation (business_id, operation_key),
+  INDEX idx_build_reversal_item (business_id, build_item_id, reversed_at),
+  FOREIGN KEY (build_item_id) REFERENCES ims_product_build_items(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_requirements (
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id            VARCHAR(100) NOT NULL,
+  sales_order_id         INT NOT NULL,
+  sales_order_item_id    INT NOT NULL,
+  location_id            INT NOT NULL,
+  output_variant_id      VARCHAR(36) NOT NULL,
+  source_channel         VARCHAR(50) NOT NULL,
+  detected_shortfall     DECIMAL(12,4) NOT NULL,
+  state                  ENUM('open','completed','dismissed','no_longer_needed') NOT NULL DEFAULT 'open',
+  linked_build_item_id   BIGINT NULL,
+  detected_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at            DATETIME NULL,
+  resolved_by            INT NULL,
+  resolved_by_name       VARCHAR(255) NULL,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_requirement_source (business_id, sales_order_item_id, location_id),
+  INDEX idx_build_requirement_queue (business_id, state, location_id, detected_at),
+  INDEX idx_build_requirement_order (business_id, sales_order_id, state),
+  FOREIGN KEY (sales_order_id) REFERENCES ims_sales_orders(id) ON DELETE RESTRICT,
+  FOREIGN KEY (sales_order_item_id) REFERENCES ims_sales_order_items(id) ON DELETE RESTRICT,
+  FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE RESTRICT,
+  FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT,
+  FOREIGN KEY (linked_build_item_id) REFERENCES ims_product_build_items(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Stocktakes ──────────────────────────────────────────────

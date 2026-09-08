@@ -416,7 +416,8 @@ async function lookupImsStockMovementHistory(principal: ImsAssistantPrincipal, a
             p.name AS product_name, p.brand, v.variant_id, v.sku,
             CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant,
             l.id AS location_id, l.name AS location_name,
-            po.po_number, so.so_number, cn.cn_number, scn.scn_number
+            po.po_number, so.so_number, cn.cn_number, scn.scn_number,
+            build_batch.build_number, reversal.reversal_number
        FROM ims_stock_movements m
        JOIN ims_product_variants v ON v.variant_id = m.variant_id
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
@@ -425,6 +426,10 @@ async function lookupImsStockMovementHistory(principal: ImsAssistantPrincipal, a
        LEFT JOIN ims_sales_orders so ON so.id = m.reference_id AND m.reference_type = 'sales_order' AND so.business_id = p.business_id
        LEFT JOIN ims_credit_notes cn ON cn.id = m.reference_id AND m.reference_type = 'credit_note' AND cn.business_id = p.business_id
        LEFT JOIN ims_supplier_credit_notes scn ON scn.id = m.reference_id AND m.reference_type = 'supplier_credit_note' AND scn.business_id = p.business_id
+      LEFT JOIN ims_product_build_items build_item ON build_item.id = m.reference_id AND m.reference_type = 'product_build' AND build_item.business_id = p.business_id
+      LEFT JOIN ims_product_build_reversals reversal ON reversal.id = m.reference_id AND m.reference_type = 'product_build_reversal' AND reversal.business_id = p.business_id
+      LEFT JOIN ims_product_build_items reversal_item ON reversal_item.id = reversal.build_item_id AND reversal_item.business_id = p.business_id
+      LEFT JOIN ims_product_build_batches build_batch ON build_batch.id = COALESCE(build_item.batch_id, reversal_item.batch_id) AND build_batch.business_id = p.business_id
       WHERE (p.name LIKE ? OR v.sku LIKE ? OR v.barcode LIKE ?)
         AND m.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ${locationSql}
@@ -447,7 +452,7 @@ async function lookupImsStockMovementHistory(principal: ImsAssistantPrincipal, a
     quantityOnHandAfter: asNumber(row.qty_after_soh),
     unitCost: row.unit_cost == null ? null : asNumber(row.unit_cost),
     referenceType: row.reference_type,
-    reference: row.po_number ?? row.so_number ?? row.cn_number ?? row.scn_number ?? row.reference_id ?? null,
+    reference: row.po_number ?? row.so_number ?? row.cn_number ?? row.scn_number ?? row.reversal_number ?? row.build_number ?? row.reference_id ?? null,
     note: row.notes ?? null,
   }));
 }

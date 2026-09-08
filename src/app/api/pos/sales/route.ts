@@ -11,6 +11,8 @@ import { buildPosStockNotificationMessage } from '@/lib/ims/notificationPresenta
 import { LoyaltyRepository, LoyaltyReturnBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 import { allowsIncomingTransferSales, posLocationSettingsKey } from '@/lib/pos/locationSettings';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
+import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -166,7 +168,7 @@ export async function POST(req: Request) {
 
     // Idempotency: if local_id already exists, return the existing sale id
     if (body.local_id) {
-      const existing = await PosSalesRepo.findByLocalId(body.local_id);
+      const existing = await PosSalesRepo.findByLocalId(body.local_id, businessId);
       if (existing) {
         const creditNoteId = await ensurePosReturnCreditNote(body, existing.id, businessId, locationId, session.username ?? session.full_name);
         const loyalty = await LoyaltyRepository.getMutationByIdempotencyKey(businessId, `pos:sale:${existing.id}:earn`);
@@ -212,6 +214,7 @@ export async function POST(req: Request) {
       parked_label:      body.parked_label ?? null,
       return_of_sale_id: body.return_of_sale_id ?? null,
       allow_incoming_transfer_sales: allowsIncomingTransferSales(locationSettings[0]?.value),
+      build_consent: body.build_consent ?? null,
       items:             (body.items ?? []).map((item: any) => ({ ...item, is_gift_card: Boolean(item.is_gift_card) })),
       payments:          body.payments ?? [],
     });
@@ -273,7 +276,12 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('POS sale create error:', err);
-    const status = err instanceof LoyaltyReturnBlockedError ? err.status : err instanceof LoyaltyValidationError ? 400 : 500;
-    return NextResponse.json({ error: err.message || String(err) }, { status });
+    const status = err instanceof LoyaltyReturnBlockedError ? err.status
+      : err instanceof LoyaltyValidationError || err instanceof ProductBuildValidationError ? 400
+        : err instanceof ProductBuildConflictError ? 409 : 500;
+    return NextResponse.json({
+      error: err.message || String(err),
+      ...(err instanceof ProductBuildConflictError ? { code: err.code, ...err.details } : {}),
+    }, { status });
   }
 }

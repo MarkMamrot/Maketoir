@@ -587,6 +587,43 @@
       "filename": "docs/help/ims/products/inventory-costing.md"
     },
     {
+      "id": "ims-product-builds",
+      "title": "Product Builds",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-catalogue-stock",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "contextSections": {
+        "builds": "Step-by-step",
+        "products": "Step-by-step",
+        "stock": "Step-by-step",
+        "sales-orders": "Step-by-step",
+        "pos": "Step-by-step"
+      },
+      "relatedTopics": [
+        "ims-product-setup-variants",
+        "ims-stocktakes-adjustments",
+        "ims-business-operations-pos-settings",
+        "ims-inventory-costing"
+      ],
+      "order": 17,
+      "summary": "Create versioned recipes, build finished stock from available components, handle order shortfalls, and reverse completed builds safely.",
+      "lastReviewed": "2026-09-08",
+      "owner": "inventory",
+      "filename": "docs/help/ims/products/product-builds.md"
+    },
+    {
       "id": "ims-product-setup-variants",
       "title": "Product Setup, Variants, and Non-stock Items",
       "audiences": [
@@ -609,11 +646,12 @@
         "ims-catalogue-stock",
         "ims-stock-levels-adjustments",
         "ims-inventory-costing",
-        "ims-stocktakes-adjustments"
+        "ims-stocktakes-adjustments",
+        "ims-product-builds"
       ],
       "order": 16,
       "summary": "Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.",
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "owner": "inventory",
       "filename": "docs/help/ims/products/product-setup-variants-and-non-stock-items.md"
     },
@@ -1039,7 +1077,8 @@
         "setup-connections",
         "ims-online-shop",
         "pos-register-device-login",
-        "pos-store-daybook"
+        "pos-store-daybook",
+        "ims-product-builds"
       ],
       "contexts": [
         "dashboard",
@@ -1055,7 +1094,7 @@
       },
       "order": 90,
       "summary": "Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "owner": "setup",
       "filename": "docs/help/ims/settings/business-operations-and-pos.md"
     },
@@ -1157,7 +1196,8 @@
       "relatedTopics": [
         "ims-branch-transfers",
         "ims-inventory-costing",
-        "ims-product-setup-variants"
+        "ims-product-setup-variants",
+        "ims-product-builds"
       ],
       "contexts": [
         "stocktakes"
@@ -1167,7 +1207,7 @@
       },
       "order": 52,
       "summary": "Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "owner": "inventory",
       "filename": "docs/help/ims/stock/stocktakes-and-manual-adjustments.md"
     },
@@ -5173,6 +5213,182 @@
       "content": "### GST-inclusive supplier invoice\n\nA local supplier invoice shows 8 mugs at $22 each including GST. The tax-exclusive unit cost is `$22 ÷ 1.1 = $20`. Inventory value added before freight is `8 × $20 = $160`; the $16 GST is not part of stock value.\n\n### Value by location\n\nThe same scarf variant has an average cost of $18. Brisbane holds 12, so its stock value is $216. Sydney holds 5, so its value is $90. The unit cost is shared, but the location values differ because the quantities differ."
     },
     {
+      "id": "ims-product-builds:1",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Product Builds",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "Use Product Builds to convert stocked components into finished products at one location while preserving quantities, costs, recipe revisions, and operator history."
+    },
+    {
+      "id": "ims-product-builds:2",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "- Save a recipe for a finished product variant.\n- Preview and confirm several recipe outputs in one atomic build.\n- Review open **Build for Order** tasks without reserving components.\n- Use **Build & Confirm** or **Build & Fulfil** when an eligible sales order is short.\n- Reverse all or part of a completed build with a reason.\n- Follow build and reversal references from Stock History."
+    },
+    {
+      "id": "ims-product-builds:3",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "At a glance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "| Action | Stock effect | Important limit |\n|---|---|---|\n| Confirm build | Components decrease; finished products increase | Every component must have enough Available stock at the selected location |\n| Build for Order | Creates the required finished shortfall | The build does not fulfil the order by itself |\n| Build & Confirm | Builds the draft-order shortfall and confirms the order together | Available only when the location policy and all components permit it |\n| Build & Fulfil | Builds the shipment shortfall and fulfils it together | Existing normal, incoming-stock, and negative-stock choices remain separate |\n| Reverse build | Finished stock decreases; original component proportions return | Finished Available stock must cover the reversal |\n\n> **Important:** A preview is advisory. Confirmation checks the recipe revision and Available component stock again, and the whole batch succeeds or nothing changes."
+    },
+    {
+      "id": "ims-product-builds:4",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Before you begin",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "- [ ] Create and save the finished product and every component as active tracked-stock variants.\n- [ ] Check that all components are held at the location where the build will occur.\n- [ ] Confirm component average costs and the tax-exclusive overhead per output.\n- [ ] For sale-assisted builds, enable the business policy and review any location override.\n- [ ] Finish unrelated receipts, transfers, or stocktakes that could change component availability."
+    },
+    {
+      "id": "ims-product-builds:5",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Step-by-step",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "### Create or revise a recipe\n\n1. Open **Products > All Products** and edit the saved finished product.\n2. In **Build Recipe**, choose the output variant.\n3. Search for each component variant and enter the quantity needed for one output unit.\n4. Enter optional tax-exclusive overhead per output and revision notes.\n5. Review the current output cost, then select **Save New Revision**.\n\nEach save creates a new revision. Completed builds keep the exact recipe, quantities, costs, overhead, and revision used at confirmation.\n\n### Run a bulk build\n\n1. Open **Products > Builds** and select **New Build**.\n2. Choose one location for the complete batch.\n3. Add each recipe-backed output and enter its quantity. Add an overhead override only when this build differs from the recipe default.\n4. Review the combined component table: On Hand, Committed, Available, Required, After, average cost, and value.\n5. Check each resulting output unit cost, then select **Confirm atomic build**.\n6. Open the build detail to review captured components, costs, operator, source, and reversal history.\n\nShared component demand is combined before confirmation. A variant cannot be both an output and a component in the same batch.\n\n### Build for a sales order\n\nOpen **Build for Order** in the Builds workspace and select **Build item**. Review the live component and cost preview, then confirm. The task links to the completed build item. Building creates finished stock but does not fulfil the order; use the normal fulfilment action when the goods are ready to ship.\n\nFor a draft staff-managed order, **Build & Confirm** may be offered when only finished stock is short. For a confirmed or partly fulfilled order, **Build & Fulfil** may be offered for the selected shipment. Both actions build only the current shortfall and complete both operations together.\n\nShopify, the Solvantis Online Store, and Wholesale advertise actual finished Available stock, not potential component capacity. Eligible later shortfalls appear as staff tasks.\n\n### Build during a POS sale\n\nWhen the location policy is enabled, the register can show finished stock and separately show quantity that can currently be built. If checkout needs a build, staff review the exact shortage, components, availability, and cost before completing payment. The build and sale complete together.\n\nBuild-dependent checkout requires an online connection and is unavailable in Training Mode. Parked sales and laybys do not build until their existing completion action moves stock. A return or void restores the finished SKU through its normal workflow; it does not automatically dismantle the product.\n\n### Review and reverse a build\n\n1. Open **Products > Builds** and select the build number.\n2. Review each output and its immutable component snapshot.\n3. Select **Reverse** beside an output.\n4. Enter all or part of the remaining reversible quantity and a specific reason.\n5. Confirm the reversal.\n\nThe reversal removes finished Available stock and restores components in their original proportions at captured costs. It is blocked when committed finished stock leaves too little Available quantity."
+    },
+    {
+      "id": "ims-product-builds:6",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Costing and connected channels",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "Component value plus tax-exclusive overhead becomes the finished output cost. The finished variant's weighted average cost is updated for future sale cost of goods. Internal build conversion does not create a Xero journal.\n\nBuild and reversal movements update actual stock and queue affected Shopify-linked variants for inventory refresh. They never increase marketplace availability before finished stock exists.\n\nAfter completed build movements exist, raw Cin7 stock replacement is blocked because it could erase the quantity effect while leaving audit history behind. Use a stocktake or an audited stock adjustment to reconcile a verified difference. Catalogue-only Cin7 sync remains available."
+    },
+    {
+      "id": "ims-product-builds:7",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Preview reports a component shortage | Some on-hand units are committed or have moved since the last check | Receive, transfer, or release stock through its owning workflow, then preview again |\n| Confirm says the recipe is stale | Another user saved a new recipe revision | Reload the build and review the new components and cost |\n| Build from sale is not offered | The policy is off, the location override disables it, there is no eligible shortage, or components are unavailable | Review Settings, the active recipe, and current location stock |\n| Reversal is blocked | Finished Available stock is lower than the requested reversal | Reduce the quantity or resolve the finished-stock commitment first |\n| Cin7 stock sync is blocked | This business has completed build movements | Reconcile with a stocktake or audited stock adjustment instead of replacing balances |\n| Returned item did not restore components | Returns restore the sold finished SKU | Use a separate explicit build reversal only when the returned finished stock is available and dismantling is appropriate |\n\n> **Warning:** Do not imitate a build or reversal with manual adjustments. Use the build record so component quantities, output costs, and history remain connected."
+    },
+    {
+      "id": "ims-product-builds:8",
+      "documentId": "ims-product-builds",
+      "title": "Product Builds",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Products > Builds",
+      "topicId": "ims-product-builds",
+      "contexts": [
+        "builds",
+        "products",
+        "stock",
+        "sales-orders",
+        "pos"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "### Build several candle packs\n\nA recipe for one gift pack uses two candles at an average cost of $6 each, one box at $1.50, and $0.50 overhead. Building 10 requires 20 candles and 10 boxes. The output unit cost is $14.00 and the batch transfers $140.00 into finished inventory. If either component's Available stock is short, none of the batch is posted.\n\n### Reverse part of a build\n\nA build produced 10 gift packs and 3 remain Available after sales. Staff discover that two were assembled incorrectly. Reversing 2 removes two gift packs and restores four candles and two boxes using the captured recipe proportions. Eight units remain built and one further unit remains reversible from current Available stock."
+    },
+    {
       "id": "ims-product-setup-variants:1",
       "documentId": "ims-product-setup-variants",
       "title": "Product Setup, Variants, and Non-stock Items",
@@ -5188,7 +5404,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "Use this guide to create a clean product record and give each sellable option its own SKU, barcode, prices and cost."
     },
     {
@@ -5207,8 +5423,8 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
-      "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Optionally generate a Product SKU from the brand and current date and time.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Record weight and package dimensions for variants that may be shipped.\n- Choose which optional product and variant fields appear under **Settings > Products**.\n- Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.\n- Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use **Products > Bulk Add/Edit** to create or change several product families in one location-independent grid.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
+      "lastReviewed": "2026-09-08",
+      "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Optionally generate a Product SKU from the brand and current date and time.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Record weight and package dimensions for variants that may be shipped.\n- Choose which optional product and variant fields appear under **Settings > Products**.\n- Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.\n- Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use **Products > Bulk Add/Edit** to create or change several product families in one location-independent grid.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.\n- For an assembled stock item, save the product and variants first, then create a versioned **Build Recipe** in the edit form."
     },
     {
       "id": "ims-product-setup-variants:3",
@@ -5226,7 +5442,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "| Decision | Use | Example |\n|---|---|---|\n| One item with no choices | One default variant | Ceramic vase |\n| Same product in sizes or colours | One product with several variants | Linen shirt: S / Navy, M / Navy |\n| A fee or service that is not physically counted | Turn **Tracks Inventory** off | Gift wrapping service |\n| Different products that only look similar | Separate products | Adult raincoat and children's raincoat |\n\n> **Important:** Product Type is a catalogue label. **Tracks Inventory** is the control that decides whether Solvantis checks and moves stock. An untracked product can be sold in POS, the native Online Shop and Wholesale without an available-stock limit."
     },
     {
@@ -5245,7 +5461,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "- [ ] Search by name, Product SKU, variant SKU and barcode to avoid a duplicate.\n- [ ] Decide the product name customers and staff will recognise.\n- [ ] Decide which choices create separate variants.\n- [ ] Prepare unique SKUs and barcodes.\n- [ ] Confirm retail and wholesale prices, supplier cost and tax treatment.\n- [ ] Choose the default supplier and brand where known.\n\nSelling prices are tax-inclusive. A retail price of $110 includes $10 GST. The Cost field represents buying cost and should be entered on the appropriate tax-exclusive basis; do not enter the $110 selling price as cost."
     },
     {
@@ -5264,7 +5480,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "1. Open **Products > All Products** and search for the item.\n\tThe Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.\n4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.\n7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n8. For a simple product, add one blank row and use the default variant.\n9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant.\n11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.\n13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed. Zero is a valid value.\n14. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.\n\nUnder **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.\n\nOpening quantities are set through a completed stocktake at each location, so Stock History retains the adjustment. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.\n\nAuto SKU uses the format **ABC-YYMMDD-HHMMSS**. Changing the brand while Auto SKU is on refreshes the generated value. Typing in Product SKU turns Auto SKU off. Generated variant SKUs continue to use the Product SKU as their base."
     },
     {
@@ -5283,7 +5499,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV.\n\nEvery imported row requires **Product_SKU**. A default or single variant uses Product_SKU as its SKU. When option values are present, Solvantis derives the variant SKU by appending Option1, Option2 and Option3 values in order, with spaces removed. For example, Product_SKU **HLS** with Size **M** and Colour **Navy** becomes **HLS-M-Navy**. Product Import does not accept a separate variant SKU override.\n\nEach Product SKU must belong to only one product. Each variant SKU and each non-blank barcode must belong to only one variant. Solvantis checks all import rows before creating products, brands or suppliers. If an identifier is already used, the import stops and names both the imported product and the existing product causing the conflict. Correct the Product_SKU, option values or Barcode in the spreadsheet, then review and import it again. Rows classified as updates may retain the identifiers already assigned to that same product or variant.\n\nBefore reimporting products that already use custom variant SKUs, align those SKUs with the derived Product_SKU and option pattern. A legacy custom SKU that does not match the derived value cannot identify that existing variant during import."
     },
     {
@@ -5302,7 +5518,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "1. Open **Products > Bulk Add/Edit** and filter existing products when needed.\n2. Use **Add New Products** above the table to add one or more new product rows. New products begin with one default variant on the main row.\n3. Use **Display Fields** to show the product and variant columns needed for this task. Under **Currency costs**, choose each foreign currency that needs its own tax-exclusive Cost column. The selection is remembered in this browser for the active business.\n4. Enter Product Name and Product SKU. **Auto Generate Product SKUs** fills only blank Product SKU cells, using each row's brand and the same format as New Product. A sole default variant uses the Product SKU as its hidden Variant SKU.\n5. Enter Barcode, **RRP $ (GST Inc)**, **Cost $ (GST Exc)** and any other selected variant values directly on the main row while the product has only its default variant.\n6. Select **Manage variants** on a product to open its variants popup. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Review or change generated Variant SKUs in the popup. Matching existing variants retain their saved identity and entered values.\n7. To repeat a value, drag from anywhere in a supported field through compatible visible cells in the same column. For Brand and Default Supplier, type to filter choices or use the arrow at the right to open them; clicking and dragging from the field body does not open the list. Solvantis highlights every field that will change while you drag. Product fields fill only product rows; variant fields fill only visible variant rows. The fill stops at the current page and does not include collapsed variants.\n8. Use the compact **Expand** and **Collapse** controls to show or hide child rows for products with generated variants. Default-only products do not have child rows.\n9. Under **Branch Level Variables**, optionally add SOH, Min Qty / Reorder Point, or Zone/Bin columns for every active branch. Min Qty / Reorder Point is always available as one option that shows both columns. SOH and Zone/Bin appear only when their matching Product or business setting is enabled.\n10. Choose a Sort order when needed. Inventory Level uses total SOH across all variants and branches; RRP and Cost use the product's lowest non-zero variant value.\n11. Use **Filter** to add one or more conditions. Choose **Match ALL** when every condition must be true or **Match ANY** when one condition is enough. Under Match ALL, Zone, Bin, SOH, Stock Available, Min Qty and Reorder Point conditions must match the same variant and branch row. Search, Brand and Supplier continue to narrow either result.\n12. Save Display Fields, Sort and Filter settings as a named **Preset** for repeated work. Presets are private to the signed-in user within the business, work across their devices, and the last selected preset is restored when they return.\n13. Enter SOH as the new absolute count. Leave an SOH blank to keep it unchanged. Saving an entered count creates and completes a stocktake for that branch, including the adjustment from current SOH to the entered count.\n14. Review the dirty count and select **Save** at the top right. Solvantis validates the complete changed batch first. Product changes, location fields and completed stocktakes are committed together; if any row fails, nothing in that save is applied.\n\n> **Important:** Use Bulk Add/Edit SOH only for a counted absolute quantity. Receive purchases, fulfil sales and complete transfers in their own workflows so Solvantis records the correct stock activity."
     },
     {
@@ -5321,7 +5537,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |\n| Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Weight and dimensions | Variant | Kilograms and millimetres used to suggest shipping packages |\n| Active | Product and variant | Inactive records should not be used for new work |"
     },
     {
@@ -5340,7 +5556,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "| Item | Recommended setup | Quantity caution |\n|---|---|---|\n| Gift wrapping charged at checkout | Clearly named product with Tracks Inventory off | Sells without reservation, commitment or stock movement |\n| Repair labour | Separate product with Tracks Inventory off | Sells without an available-stock limit |\n| Display sample that can later be sold | Normal stock product | Track its physical location and count |\n| Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |"
     },
     {
@@ -5359,7 +5575,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |\n| Product save or import reports an identifier conflict | Another product or variant already uses that Product SKU, variant SKU or barcode | Search for the named existing product, then give the new product or variant a unique identifier |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A service is blocked by zero stock | Tracks Inventory is still on | Edit the product and turn Tracks Inventory off |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |\n| An order cannot be assigned to a package | A variant is missing weight or one or more dimensions | Enter its weight and length, width and height, then prepare the shipment again |"
     },
     {
@@ -5378,7 +5594,7 @@
         "bulk-add-edit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-08",
       "content": "### Create a shirt with size and colour variants\n\nCreate **Harbour Linen Shirt** with Product SKU **HLS**. Add Size values **S, M, L** and Colour values **Navy, White**, then generate six variants. Assign SKUs such as **HLS-S-NAVY** and **HLS-M-WHITE**. Set the shelf price to $110 including GST and the supplier cost to $42 tax-exclusive for each applicable row.\n\n### Set up gift wrapping\n\nCreate **Gift Wrapping Service** with one default variant and a tax-inclusive selling price of $8.80, which contains $0.80 GST. Classify it clearly for staff, but do not receive ten units on a PO or include it in a physical stocktake merely because Product Type says “Service”."
     },
     {
@@ -7367,7 +7583,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "Use IMS Settings to choose the workflows the business uses and to maintain the registers available at each location."
     },
     {
@@ -7388,7 +7604,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "- Complete business setup in the recommended dependency order.\n- Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.\n- Enable Shopify, the native Solvantis Online Store, both channels, or neither channel.\n- Set the tax rates and document labels Solvantis uses for sales and purchases.\n- Add, rename, activate, or set the default float for POS registers without changing location details.\n- Set the business-wide POS product-view fallback used by locations without their own override."
     },
     {
@@ -7409,7 +7625,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "| Need | Open | Result |\n|---|---|---|\n| Complete the guided checklist | IMS onboarding | Core records and settings prepared in dependency order |\n| Choose operational capabilities | Settings > General | Relevant IMS workflows enabled |\n| Manage tills by location | Settings > Point of Sale > Registers | Active registers available for POS device setup |\n| Set the POS catalogue fallback | Settings > Point of Sale > POS Display | Default view for locations that do not override it in POS Settings |"
     },
     {
@@ -7430,7 +7646,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "- Select the intended business.\n- Confirm the locations that will trade through POS.\n- Gather the brand names and active suppliers needed by the product catalogue.\n- Decide whether online sales will use Shopify, the native Solvantis Online Store, both during a transition, or neither."
     },
     {
@@ -7451,7 +7667,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "The onboarding checklist starts with business, tax, integration, user, and location decisions. Before importing products, add the brands and suppliers that the catalogue will reference.\n\nOnce the full checklist is finished, onboarding is complete for the whole business and does not reopen when Solvantis adds steps for future new businesses. An explicitly reopened step makes the checklist available again for that business.\n\n1. Complete Business identity, Operations, Tax settings, and Integrations.\n2. Add additional users and locations.\n3. Add brands.\n4. Add supplier contacts.\n5. Import products.\n6. Continue with sales orders, purchase orders, opening stock, and the POS readiness review.\n\nEach action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step."
     },
     {
@@ -7472,8 +7688,8 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
-      "content": "Open **Settings > General**. Business Operations is grouped by purpose:\n\n| Group | Settings | Effect |\n|---|---|---|\n| Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |\n| Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |\n| Sales channels and integrations | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |\n\nUse each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.\n\nThese settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.\n\n### Configure tax settings\n\nThe sales and purchase tax rates control tax calculations on Solvantis orders and invoices. For a standard Australian GST business, both rates are 10%. Selling prices remain tax-inclusive, so Solvantis extracts GST from the total rather than adding it on top.\n\n**Sales Tax Label (Solvantis)** and **Purchase Tax Label (Solvantis)** are labels used on Solvantis documents and as defaults when creating sales and purchase records. They are not Xero tax codes. Xero posting uses its own tax types and mappings, such as `OUTPUT`, `INPUT`, or `NONE`.\n\nTax settings belong to the business and remain stored when **Accounting software** is disabled or Xero is disconnected. Re-enabling or reconnecting Xero must not be required to restore them. Businesses without saved tax settings receive the standard Australian defaults: sales tax enabled, 10% sales and purchase rates, **GST**, and **GST on Purchases**.\n\nWhen **Accounting software** is off, accounting integration navigation, setup connections, document statuses, posting controls, automation, and contextual guidance are hidden. Integration requests are also blocked, so switching the capability off is more than a display preference. Turn it on and choose the supported accounting platform before connecting an organisation or configuring posting rules.\n\nEnable **Business requires POS** when the business sells directly to the public in stores or other staffed locations. This makes **Locations > Location Daybooks** available. Existing businesses default to enabled. If the switch is later disabled, Location Daybooks remains available while an active location still has POS enabled, an enrolment code, or an active register.\n\nShopify and the Solvantis Online Store are independent switches:\n\n- Enable **Solvantis Online Store** to configure the native hosted storefront. Setup can be completed before launch; the public storefront remains unavailable until it is activated.\n- Enable **Shopify** for Shopify product, inventory, customer, and order synchronisation.\n- Enable both while operating both channels or transitioning between them.\n- Disable both when the business does not use an online sales channel.\n\nDisabling a channel hides its integration workspace and stops new connection or synchronization activity. Existing credentials, historical orders, and source information are retained so the channel can be restored later. Historical native orders can still be corrected or refunded after the native storefront is disabled."
+      "lastReviewed": "2026-09-08",
+      "content": "Open **Settings > General**. Business Operations is grouped by purpose:\n\n| Group | Settings | Effect |\n|---|---|---|\n| Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |\n| Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |\n| Inventory | Offer build from sale | Allows staff-confirmed build offers when finished stock is short and recipe components are available |\n| Sales channels and integrations | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |\n\nUse each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.\n\nThese settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.\n\n**Offer build from sale** is off by default. Under **Settings > Locations**, each location can use the business default or explicitly enable or disable the offer. The effective policy is shown beside each location. The setting never builds silently, does not advertise component capacity to online marketplaces, and requires an online connection at POS.\n\n### Configure tax settings\n\nThe sales and purchase tax rates control tax calculations on Solvantis orders and invoices. For a standard Australian GST business, both rates are 10%. Selling prices remain tax-inclusive, so Solvantis extracts GST from the total rather than adding it on top.\n\n**Sales Tax Label (Solvantis)** and **Purchase Tax Label (Solvantis)** are labels used on Solvantis documents and as defaults when creating sales and purchase records. They are not Xero tax codes. Xero posting uses its own tax types and mappings, such as `OUTPUT`, `INPUT`, or `NONE`.\n\nTax settings belong to the business and remain stored when **Accounting software** is disabled or Xero is disconnected. Re-enabling or reconnecting Xero must not be required to restore them. Businesses without saved tax settings receive the standard Australian defaults: sales tax enabled, 10% sales and purchase rates, **GST**, and **GST on Purchases**.\n\nWhen **Accounting software** is off, accounting integration navigation, setup connections, document statuses, posting controls, automation, and contextual guidance are hidden. Integration requests are also blocked, so switching the capability off is more than a display preference. Turn it on and choose the supported accounting platform before connecting an organisation or configuring posting rules.\n\nEnable **Business requires POS** when the business sells directly to the public in stores or other staffed locations. This makes **Locations > Location Daybooks** available. Existing businesses default to enabled. If the switch is later disabled, Location Daybooks remains available while an active location still has POS enabled, an enrolment code, or an active register.\n\nShopify and the Solvantis Online Store are independent switches:\n\n- Enable **Solvantis Online Store** to configure the native hosted storefront. Setup can be completed before launch; the public storefront remains unavailable until it is activated.\n- Enable **Shopify** for Shopify product, inventory, customer, and order synchronisation.\n- Enable both while operating both channels or transitioning between them.\n- Disable both when the business does not use an online sales channel.\n\nDisabling a channel hides its integration workspace and stops new connection or synchronization activity. Existing credentials, historical orders, and source information are retained so the channel can be restored later. Historical native orders can still be corrected or refunded after the native storefront is disabled."
     },
     {
       "id": "ims-business-operations-pos-settings:7",
@@ -7493,7 +7709,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "1. Open **Settings > Point of Sale**.\n2. Expand **Registers**.\n3. Find the location in the read-only location table and select **Manage registers**.\n4. Add a register with a name and default float, or rename, change the float, deactivate, or reactivate an existing register.\n5. Configure any payment terminal separately under **Card Terminals**.\n\nLocation names, codes, addresses, and operational flags cannot be edited from this section. Use **Locations** for those changes.\n\n> **Important:** Deactivating a register prevents it from being selected for future POS device setup. It does not remove historical sales or register sessions."
     },
     {
@@ -7514,7 +7730,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "1. Open **Settings > Point of Sale**.\n2. Expand **POS Display**.\n3. Choose **All Products**, **In Stock Only**, **By Brand**, or **Specific Products**.\n4. Select the required brand or product variants, then save the default view.\n\nThis is the business-wide fallback for all branches. A location can choose its own value in **POS Settings > Misc > Default product view**; that location override takes precedence. Selecting **Use IMS business default** in POS Settings removes the override and follows this IMS value again."
     },
     {
@@ -7535,7 +7751,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| A supplier is missing during product setup | The supplier step was skipped or the contact is not an active Supplier | Open Contacts, create or update the supplier, then return to Products |\n| A brand is missing during product import | The brand has not been created | Open Brands, add it, then retry the product workflow |\n| Onboarding content does not fit at high browser zoom | The visible wizard area is shorter at higher zoom levels | Scroll the middle setup panel; the Back and continue buttons remain available below it |\n| A location has no register choices in POS | No active register exists for that location | Open Settings > Point of Sale > Registers and add or reactivate one |\n| Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Integrations > Online Shop |\n| Accounting integration controls are not available | Accounting software is disabled in Business Operations | Enable Accounting software, choose the supported platform, and save before opening its connection or posting setup |"
     },
     {
@@ -7556,7 +7772,7 @@
         "pos-sales"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-08",
       "content": "### Prepare a new shop for POS\n\nCreate the location first, then open **Settings > Point of Sale > Registers**. Select the new location, add **Front Till** with its normal opening float, and leave it active. The POS device can then be assigned to that location and register without changing any location address or stock settings."
     },
     {
@@ -7930,7 +8146,7 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "content": "Use a stocktake for a controlled physical count and a manual quantity adjustment for one verified correction that is not already explained by another workflow."
     },
     {
@@ -7948,7 +8164,7 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "content": "- Create a filtered or blank stocktake for one location.\n- Enter counts manually or from scanned barcode lists.\n- Decide whether uncounted items stay unchanged or count as zero.\n- Complete the count and review quantity and value differences.\n- Reverse a mistaken supported stocktake without deleting later movements.\n- Use a manual adjustment only for a known isolated discrepancy."
     },
     {
@@ -7966,7 +8182,7 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "content": "| Situation | Use | Quantity result |\n|---|---|---|\n| Periodic count of a range, brand, supplier, or product type | Stocktake | Each counted item is set to the physical quantity at completion |\n| Blank spot count built item by item | Stocktake | Only added and counted items can change |\n| Opening balance entered during New Product | Stocktake | Each location receives an auditable completed opening-stock count |\n| One verified damaged, lost, or data-entry quantity | Stock adjustment | Increase or decrease that item by the reviewed amount |\n| Goods moving between branches | Branch transfer | Source and destination changes remain linked |\n| Uncounted line left blank | Leave uncounted | Its quantity remains unchanged |\n| Uncounted line explicitly set to 0 | Apply 0 to uncounted | Its full current quantity is removed at completion |"
     },
     {
@@ -7984,8 +8200,8 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
-      "content": "- [ ] Choose the exact location and count scope.\n- [ ] Finish or identify open receipts, transfers, sales, and returns that could change the counted products.\n- [ ] Tell staff when the count starts and how movements during counting will be handled.\n- [ ] Confirm whether a blank field means “not counted” or should truly be zero.\n- [ ] For a manual adjustment, record a clear reason and verify no other workflow already owns the movement.\n\n> **Warning:** Do not use a manual adjustment to imitate a transfer, receipt, return, or completed stocktake. That creates an unlinked second stock movement."
+      "lastReviewed": "2026-09-08",
+      "content": "- [ ] Choose the exact location and count scope.\n- [ ] Finish or identify open receipts, transfers, sales, and returns that could change the counted products.\n- [ ] Tell staff when the count starts and how movements during counting will be handled.\n- [ ] Confirm whether a blank field means “not counted” or should truly be zero.\n- [ ] For a manual adjustment, record a clear reason and verify no other workflow already owns the movement.\n\n> **Warning:** Do not use a manual adjustment to imitate a transfer, receipt, return, or completed stocktake. That creates an unlinked second stock movement.\n\nUse **Products > Builds** to assemble or dismantle recipe-backed stock. Build confirmation and reversal create linked component and finished-product movements; manual adjustments must not duplicate them. After builds exist, reconcile Cin7 differences with a stocktake or audited adjustment because raw Cin7 stock replacement is blocked."
     },
     {
       "id": "ims-stocktakes-adjustments:5",
@@ -8002,7 +8218,7 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "content": "### Run a stocktake\n\n1. Open **Stocktakes** and choose **New Stocktake**.\n2. Choose the location and reference. Use **Pre-populate from filters** for a defined range, or **Blank** to add items manually.\n3. Review the number of included variants, then start the stocktake.\n4. Count physical units and enter each quantity. You can save and continue later.\n5. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.\n6. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.\n7. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.\n\nWhen opening quantities are entered while creating a tracked product, Solvantis creates and completes a separate stocktake for each location. The opening quantity is the counted quantity; Min Qty and Reorder Qty are saved with that location's stock settings. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.\n\n### Make a manual adjustment\n\n1. Open the stock view for the correct location and product variant.\n2. Check recent sales, receipts, transfers, returns, and stocktakes for an unfinished or duplicate movement.\n3. Enter the positive or negative correction offered by the stock adjustment action.\n4. Record a specific reason, such as “1 damaged mug removed after recount”.\n5. Save once and confirm the resulting stock on hand.\n\n### Reverse a mistaken stocktake\n\n1. Open the completed stocktake and select **Revert Mistaken Stocktake** when available.\n2. Enter a clear reason and review the confirmation.\n3. Complete the reversal. It compensates the original stocktake adjustments while preserving valid sales, receipts, or transfers recorded later.\n4. Start a new stocktake if a fresh physical count is still required."
     },
     {
@@ -8020,7 +8236,7 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Variance is unexpectedly large | Wrong location or variant, incorrect count, or a movement occurred during counting | Recount and review movement timing before completion |\n| Blank lines did not change | Uncounted items are deliberately ignored | Use zero only when zero stock was physically confirmed |\n| Reversal is unavailable | The record is not completed or an older count lacks the required detail | Review the offered correction path and use a controlled adjustment only if directed |\n| Accounting status failed | Stock completion succeeded but the separate journal did not | Retry the accounting action; do not complete or adjust stock again |\n| Manual adjustment would duplicate another record | A transfer, receipt, return, or stocktake already explains the quantity | Finish or correct that original workflow instead |"
     },
     {
@@ -8038,7 +8254,7 @@
         "stocktakes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-08",
       "content": "### Counted-versus-current stock math\n\nA stocktake started when the snapshot showed 20 candles. During the count, a valid sale reduces current stock to 19. Staff physically count 18. At completion, the applied adjustment is $18 - 19 = -1$, leaving stock on hand at 18. The earlier sale is preserved rather than removed a second time.\n\n### Count a missing item as zero\n\nThe current quantity is 7 scarves and staff confirm none are present. Enter 0, not a blank. Completion applies $0 - 7 = -7$. At an average cost of $12, the inventory variance value is $84.\n\n### Correct one damaged unit\n\nThe stock view shows 15 mugs and a recount confirms 14 because one was broken. No open return, transfer, or stocktake covers it. Enter a manual adjustment of -1 with the damage reason. Do not start a broad stocktake or make a second accounting quantity correction."
     },
     {

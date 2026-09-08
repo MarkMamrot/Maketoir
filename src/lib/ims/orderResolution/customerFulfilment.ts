@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import type { PoolConnection } from 'mysql2/promise';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { StockShortfallError, type StockShortfall } from './stockShortfall';
 import { reconcileStockAllocationsForFulfilment } from '../stockAllocation/service';
@@ -30,7 +31,7 @@ function scaledQuantity(value: number): number {
   return Math.round(value * QUANTITY_SCALE);
 }
 
-export async function fulfilSalesOrderPartial(input: {
+export type FulfilSalesOrderPartialInput = {
   businessId: string;
   soId: number;
   operationKey: string;
@@ -38,7 +39,12 @@ export async function fulfilSalesOrderPartial(input: {
   allowNegativeStock?: boolean;
   allowIncomingCoveredStockShortfall?: boolean;
   finalizeWhenComplete?: boolean;
-}): Promise<CustomerFulfilmentResult> {
+};
+
+export async function fulfilSalesOrderPartialInTransaction(
+  conn: PoolConnection,
+  input: FulfilSalesOrderPartialInput,
+): Promise<CustomerFulfilmentResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 191) throw new Error('A valid operation key is required.');
 
@@ -58,9 +64,6 @@ export async function fulfilSalesOrderPartial(input: {
     .update(JSON.stringify([...requested.entries()].sort(([left], [right]) => left - right)))
     .digest('hex');
 
-  const conn = await getIMSPool().getConnection();
-  try {
-    await conn.beginTransaction();
     await conn.execute(
       `INSERT IGNORE INTO ims_so_fulfilment_operations
         (business_id, operation_key, request_hash, so_id, status, request_json)
@@ -84,7 +87,6 @@ export async function fulfilSalesOrderPartial(input: {
       const result = typeof operation.response_json === 'string'
         ? JSON.parse(operation.response_json)
         : operation.response_json;
-      await conn.commit();
       return result as CustomerFulfilmentResult;
     }
 
@@ -267,6 +269,14 @@ export async function fulfilSalesOrderPartial(input: {
         WHERE business_id = ? AND operation_key = ?`,
       [JSON.stringify(result), input.businessId, operationKey],
     );
+    return result;
+}
+
+export async function fulfilSalesOrderPartial(input: FulfilSalesOrderPartialInput): Promise<CustomerFulfilmentResult> {
+  const conn = await getIMSPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await fulfilSalesOrderPartialInTransaction(conn, input);
     await conn.commit();
     return result;
   } catch (error) {

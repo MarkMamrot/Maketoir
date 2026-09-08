@@ -47,6 +47,17 @@ const DAYBOOK_TABLES = [
   'pos_daybook_content_events',
 ];
 
+const PRODUCT_BUILD_TABLES = [
+  'ims_product_build_recipes',
+  'ims_product_build_recipe_versions',
+  'ims_product_build_recipe_components',
+  'ims_product_build_batches',
+  'ims_product_build_items',
+  'ims_product_build_item_components',
+  'ims_product_build_reversals',
+  'ims_product_build_requirements',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -63,6 +74,12 @@ const DAYBOOK_TABLE_DDLS = DAYBOOK_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const PRODUCT_BUILD_TABLE_DDLS = PRODUCT_BUILD_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -74,6 +91,7 @@ const conn = await mysql.createConnection({
 
 const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
+  ...PRODUCT_BUILD_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -1795,8 +1813,8 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'tax_treatment', ['ex_tax', 'inc_tax', 'no_tax']);
-    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted']);
-    await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted', 'build_component_consumed', 'build_output_produced', 'build_component_restored', 'build_output_reversed']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note', 'product_build', 'product_build_reversal']);
     await ensureEnumValues(schema, 'ims_cs_drafts', 'compose_type', ['ai_reply', 'manual_reply', 'forward', 'new_message']);
     await ensureNullableColumn(schema, 'ims_cs_drafts', 'target_message_id', 'BIGINT NULL');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');

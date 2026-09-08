@@ -2190,7 +2190,7 @@ function MainPos({
       const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
       const db_discount_total = discount_total + order_disc_amount + totals.loyalty_discount_amount;
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         is_training:   trainingMode,
         local_id:       localId,
         register_id:    session.register_id ?? null,
@@ -2210,6 +2210,51 @@ function MainPos({
         items:    cart.map(i => ({ return_of_sale_item_id: i.return_of_sale_item_id ?? null, variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total, is_gift_card: Boolean(i.is_gift_card) })),
         payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
       };
+
+      const productByVariant = new Map(products.map(product => [product.variant_id, product]));
+      const buildDependentItems = isLayby || trainingMode || linkedReturnSaleId != null ? [] : cart.filter(item => {
+        if (!item.variant_id || item.qty <= 0 || item.is_gift_card) return false;
+        const product = productByVariant.get(item.variant_id);
+        return Boolean(product?.build_from_sale_enabled && product.has_build_recipe && item.qty > product.soh);
+      });
+      if (buildDependentItems.length > 0) {
+        if (!navigator.onLine) {
+          setSaleSubmitError('This sale needs stock to be built and must be completed online. Reconnect, refresh stock, and try again.');
+          return;
+        }
+        let previewResponse: Response;
+        try {
+          previewResponse = await fetch('/api/pos/build-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ location_id: session.location_id, items: payload.items }),
+          });
+        } catch {
+          setSaleSubmitError('The build preview could not reach the server. Reconnect and try again; this sale was not queued offline.');
+          return;
+        }
+        const previewData = await previewResponse.json().catch(() => ({}));
+        if (!previewResponse.ok || !previewData.preview || !previewData.buildable) {
+          setSaleSubmitError(previewData.error || 'The required products cannot currently be built. Review component availability and try again.');
+          return;
+        }
+        const buildLines = previewData.preview.builds.map((build: any) => {
+          const productName = productByVariant.get(String(build.outputVariantId))?.name ?? build.outputVariantId;
+          return `${productName}: build ${Number(build.quantity)} at $${Number(build.outputUnitCost).toFixed(2)} each`;
+        });
+        const componentLines = previewData.preview.components.map((component: any) =>
+          `${component.variantId}: ${Number(component.required)} required, ${Number(component.available)} available`
+        );
+        if (!window.confirm(['Build stock and complete this sale?', '', ...buildLines, '', 'Components:', ...componentLines].join('\n'))) return;
+        payload.build_consent = {
+          operation_key: `pos-sale:${localId}:build`,
+          builds: previewData.preview.builds.map((build: any) => ({
+            output_variant_id: build.outputVariantId,
+            quantity: build.quantity,
+            recipe_revision: build.recipeRevision,
+          })),
+        };
+      }
 
       let serverId: number | null = null;
       try {
@@ -2236,7 +2281,7 @@ function MainPos({
               );
             }
           }
-          else if (trainingMode || selectedReward || linkedReturnSaleId != null) {
+          else if (trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
             setSaleSubmitError(data.error || (linkedReturnSaleId != null ? 'The linked return could not be completed.' : 'Loyalty redemption could not be completed.'));
             return;
           } else addToOfflineQueue(payload);
@@ -2252,7 +2297,7 @@ function MainPos({
           addToOfflineQueue(payload);
         }
       } catch {
-        if (trainingMode || selectedReward || linkedReturnSaleId != null) {
+        if (trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
           setSaleSubmitError(linkedReturnSaleId != null ? 'The linked return could not reach the server. Try again while online.' : 'Loyalty redemption could not reach the server. Try completing the sale again.');
           return;
         }
@@ -4170,6 +4215,7 @@ function PosVariantPicker({ variants, onSelect, onInfo, onClose }: { variants: C
                   {variant.code && <span style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: '.7rem', marginTop: 2 }}>{variant.code}</span>}
                 </span>
                 <span style={{ color: (variant.available ?? variant.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: '.75rem', fontWeight: 700 }}>{(variant.available ?? variant.soh) > 0 ? `${variant.available ?? variant.soh} avail.` : 'OOS'}</span>
+                {variant.build_from_sale_enabled && Number(variant.buildable_quantity ?? 0) > 0 && <span style={{ color: 'var(--sv-action)', fontSize: '.72rem', fontWeight: 700 }}>Buildable: {Number(variant.buildable_quantity).toFixed(4).replace(/\.?0+$/, '')}</span>}
                 <span style={{ color: 'var(--sv-action)', fontWeight: 800 }}>${fmt(variant.price)}</span>
               </button>
             );

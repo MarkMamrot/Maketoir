@@ -18,6 +18,8 @@ export function SalesOrderFulfilmentModal({
   const [quantities, setQuantities] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [buildOffer, setBuildOffer] = useState<any>(null);
+  const [checkingBuild, setCheckingBuild] = useState(false);
 
   useEffect(() => {
     const initial: Record<number, string> = {};
@@ -38,6 +40,22 @@ export function SalesOrderFulfilmentModal({
     const allocations = Array.isArray(order?.stock_allocations) ? order.stock_allocations : [];
     return summarizeFulfilmentAllocations(allocations);
   }, [order?.stock_allocations]);
+
+  useEffect(() => {
+    const shipmentQuantities = items.map(item => ({ itemId: item.id, quantity: Number(quantities[item.id] ?? 0) })).filter(item => item.quantity > 0);
+    if (!shipmentQuantities.length) { setBuildOffer(null); return; }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCheckingBuild(true);
+      try {
+        const response = await fetch(`/api/ims/sales-orders/${order.id}/build-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ mode: 'fulfil', shipmentQuantities }) });
+        const json = await response.json();
+        setBuildOffer(response.ok && json.data?.eligible ? json.data : null);
+      } catch (caught) { if ((caught as Error).name !== 'AbortError') setBuildOffer(null); }
+      finally { if (!controller.signal.aborted) setCheckingBuild(false); }
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [items, order.id, quantities]);
 
   async function submit(allowNegativeStock = false, retryOperationKey?: string) {
     setSaving(true);
@@ -84,6 +102,18 @@ export function SalesOrderFulfilmentModal({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function buildAndFulfil() {
+    if (!buildOffer?.eligible) return;
+    setSaving(true); setError('');
+    try {
+      const shipmentQuantities = items.map(item => ({ itemId: item.id, quantity: Number(quantities[item.id] ?? 0) })).filter(item => item.quantity > 0);
+      const response = await fetch(`/api/ims/sales-orders/${order.id}/build-fulfil`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operationKey: crypto.randomUUID(), shipmentQuantities, builds: buildOffer.builds.map((item: any) => ({ outputVariantId: item.outputVariantId, recipeRevision: item.recipeRevision })) }) });
+      const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Build & Fulfil failed.');
+      await onResolved(); onClose();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Build & Fulfil failed.'); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -148,8 +178,11 @@ export function SalesOrderFulfilmentModal({
 
         {error ? <div style={{ marginTop: 14, padding: 10, borderRadius: 7, background: 'rgba(248,113,113,.12)', color: '#fecaca', fontSize: 13 }}>{error}</div> : null}
 
+        {buildOffer?.eligible && <div style={{ marginTop: 14, padding: 12, borderRadius: 8, border: '1px solid var(--sv-mint,#34d399)', background: 'rgba(52,211,153,.08)', fontSize: 12 }}><strong>Build available for this shipment</strong><div style={{ marginTop: 6, color: 'var(--sv-text-dim,#aab4c2)' }}>{buildOffer.builds.map((item: any) => `${item.quantity} ${buildOffer.lines.find((line: any) => items.find(candidate => candidate.id === line.itemId)?.variant_id === item.outputVariantId)?.productName || item.outputVariantId}`).join(', ')}</div><div style={{ marginTop: 5, color: 'var(--sv-text-dim,#aab4c2)' }}>{buildOffer.preview.components.map((component: any) => `${component.required} required / ${component.available} available`).join(' · ')}</div></div>}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
           <button onClick={onClose} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', border: '1px solid var(--sv-border,#364152)', color: 'inherit', cursor: 'pointer' }}>Cancel</button>
+          {buildOffer?.eligible && <button data-testid="so-build-fulfil-confirm" onClick={buildAndFulfil} disabled={saving || checkingBuild} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--sv-mint,#34d399)', background: 'transparent', color: 'var(--sv-mint,#34d399)', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Build & Fulfil'}</button>}
           <button data-testid="so-fulfil-confirm" onClick={() => submit()} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--sv-mint,#34d399)', color: '#052e16', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Confirm'}</button>
         </div>
       </div>

@@ -34,6 +34,7 @@ import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfi
 import { buildShopifyShipmentQuantities, parseShopifyShipment } from '@/lib/ims/shopifyFulfilment';
 import { persistShopifyShipment } from '@/lib/ims/shopifyShipmentPersistence';
 import { reconcileGiftCardsFromPaidShopifyOrder } from '@/lib/ims/shopifyGiftCardWebhook';
+import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 
 export const runtime = 'nodejs';
 
@@ -236,6 +237,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           return NextResponse.json({ error: error?.message ?? String(error) }, { status: 500 });
         }
       }
+      await recomputeBuildRequirementsSafely({ businessId, salesOrderId: existing[0].id, sourceChannel: 'shopify' });
       return respond();
     }
     if (!config.locationId) return respond();
@@ -303,6 +305,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
 
       await ImsSORepo.changeStatus(soId, 'confirmed');
       if (payload.fulfillment_status === 'fulfilled') await ImsSORepo.changeStatus(soId, 'fulfilled');
+      await recomputeBuildRequirementsSafely({ businessId, salesOrderId: soId, sourceChannel: 'shopify' });
       if (topic === 'orders/paid') await awardPaidOrderLoyalty(businessId, payload);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
@@ -336,7 +339,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       [orderIdStr, businessId],
     );
     if (existing.length && existing[0].status !== 'cancelled') {
-      try { await ImsSORepo.changeStatus(existing[0].id, 'cancelled'); } catch (e: any) {
+      try {
+        await ImsSORepo.changeStatus(existing[0].id, 'cancelled');
+        await recomputeBuildRequirementsSafely({ businessId, salesOrderId: existing[0].id, sourceChannel: 'shopify' });
+      } catch (e: any) {
         const msg = e?.message ?? String(e);
         console.error('[shopify-webhook] orders/cancelled error:', msg);
         await reportWebhookFailure(businessId, topic, e, {

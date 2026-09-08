@@ -27,6 +27,11 @@ import {
 } from '@/lib/wholesale/wholesalePortalSettings';
 import { applyProductSettingDefaults, validateProductSetting } from '@/lib/ims/productSettings';
 import { applyTaxSettingDefaults } from '@/lib/ims/taxSettings';
+import {
+  BUILD_FROM_SALE_SETTING_KEY,
+  DEFAULT_BUILD_FROM_SALE_SETTING,
+  validateBuildFromSaleSetting,
+} from '@/lib/ims/builds/buildFromSalePolicy';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -72,6 +77,7 @@ export async function GET() {
     settings[SALES_DOCUMENT_SETTING_KEYS.showLogo] ??= '1';
     settings[SELLS_WHOLESALE_SETTING_KEY] ??= 'yes';
     settings.business_requires_pos ??= 'yes';
+    settings[BUILD_FROM_SALE_SETTING_KEY] ??= DEFAULT_BUILD_FROM_SALE_SETTING;
     applyProductSettingDefaults(settings);
     applyTaxSettingDefaults(settings);
     applyWholesalePortalSettingDefaults(settings);
@@ -134,6 +140,14 @@ export async function PUT(req: Request) {
     }
     if (pairs.business_requires_pos !== undefined && !['yes', 'no'].includes(String(pairs.business_requires_pos))) {
       return NextResponse.json({ success: false, error: 'Business requires POS must be yes or no.' }, { status: 400 });
+    }
+    for (const [key, rawValue] of Object.entries(pairs)) {
+      try {
+        const normalized = validateBuildFromSaleSetting(key, rawValue);
+        if (normalized !== null) pairs[key] = normalized;
+      } catch (error) {
+        return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Invalid build from sale setting.' }, { status: 400 });
+      }
     }
     for (const [key, rawValue] of Object.entries(pairs)) {
       const result = validateProductSetting(key, rawValue);

@@ -1,5 +1,6 @@
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImportSession, getLegacyConn, makeSSEStream } from '../_helpers';
+import { assertCin7StockOverwriteAllowed } from '@/lib/ims/builds/cin7StockOverwriteGuard';
 
 export async function POST() {
   const session = await getImportSession();
@@ -7,6 +8,7 @@ export async function POST() {
   const businessId: string = session.businessId;
 
   return makeSSEStream(async (send) => {
+    await assertCin7StockOverwriteAllowed(businessId);
     send({ status: 'running', message: 'Reading Cin7 stock cache...' });
 
     const conn = await getLegacyConn(businessId);

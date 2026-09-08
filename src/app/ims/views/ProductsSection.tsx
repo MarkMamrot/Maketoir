@@ -1,7 +1,7 @@
 import React from 'react';
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
+  | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
@@ -18,6 +18,7 @@ interface ProductsSectionProps {
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
   ProductsView: any;
+  ProductBuildsView: any;
   StockView: any;
   BrandsView: any;
   GiftCardsView: any;
@@ -34,6 +35,7 @@ export function ProductsSection({
   setPendingOpenPO,
   setPendingOpenSO,
   ProductsView,
+  ProductBuildsView,
   StockView,
   BrandsView,
   GiftCardsView,
@@ -51,6 +53,7 @@ export function ProductsSection({
           onNavigateToSO={(id: number) => { setView('sales-orders'); setPendingOpenSO(id); }}
         />
       )}
+      {view === 'builds' && <ProductBuildsView isAdvisor={isAdvisor} />}
       {view === 'stock' && <StockView />}
       {view === 'brands' && <BrandsView />}
       {view === 'gift-cards' && <GiftCardsView />}

@@ -103,6 +103,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       shopify_order_id: string | null; so_type: string | null;
       supplier_name: string | null; customer_name: string | null;
       pos_sale_local_id: string | null;
+      build_number: string | null; build_batch_id: number | null; reversal_number: string | null;
       committed_change: number;
     }>(
       `SELECT
@@ -117,6 +118,9 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          sup.name AS supplier_name,
          cust.name AS customer_name,
          ps.local_id AS pos_sale_local_id,
+         build_batch.build_number,
+         build_batch.id AS build_batch_id,
+         reversal.reversal_number,
          CASE
            WHEN m.movement_type IN ('so_confirmed','so_committed')     THEN COALESCE(NULLIF(m.qty_change, 0), COALESCE(soi.qty, 0) + COALESCE(sob.qty, 0), 0)
            WHEN m.movement_type IN ('so_unconfirmed','so_uncommitted') THEN COALESCE(NULLIF(m.qty_change, 0), -(COALESCE(soi.qty, 0) + COALESCE(sob.qty, 0)), 0)
@@ -135,6 +139,14 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
        LEFT JOIN ims_contacts cust ON cust.id = so.customer_id
        LEFT JOIN pos_sales ps
          ON ps.id = m.reference_id AND m.reference_type = 'pos_sale'
+       LEFT JOIN ims_product_build_items build_item
+         ON build_item.id = m.reference_id AND m.reference_type = 'product_build' AND build_item.business_id = m.business_id
+       LEFT JOIN ims_product_build_reversals reversal
+         ON reversal.id = m.reference_id AND m.reference_type = 'product_build_reversal' AND reversal.business_id = m.business_id
+       LEFT JOIN ims_product_build_items reversal_item
+         ON reversal_item.id = reversal.build_item_id AND reversal_item.business_id = reversal.business_id
+       LEFT JOIN ims_product_build_batches build_batch
+         ON build_batch.id = COALESCE(build_item.batch_id, reversal_item.batch_id) AND build_batch.business_id = m.business_id
        LEFT JOIN (
          SELECT so_id, variant_id, SUM(qty_ordered) AS qty
          FROM ims_sales_order_items

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook"],"contexts":["dashboard","locations","location-daybooks","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.","lastReviewed":"2026-08-29","owner":"setup"}
+{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds"],"contexts":["dashboard","locations","location-daybooks","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.","lastReviewed":"2026-09-08","owner":"setup"}
 ---
 # Business Operations and POS Settings
 
@@ -53,11 +53,14 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 |---|---|---|
 | Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |
 | Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
+| Inventory | Offer build from sale | Allows staff-confirmed build offers when finished stock is short and recipe components are available |
 | Sales channels and integrations | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |
 
 Use each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.
 
 These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
+
+**Offer build from sale** is off by default. Under **Settings > Locations**, each location can use the business default or explicitly enable or disable the offer. The effective policy is shown beside each location. The setting never builds silently, does not advertise component capacity to online marketplaces, and requires an online connection at POS.
 
 ### Configure tax settings
 

@@ -19,6 +19,7 @@ vi.mock('@/lib/ims/orderResolution/customerFulfilment', () => ({ fulfilSalesOrde
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: mockRefresh }));
 vi.mock('@/lib/ims/xeroHooks', () => ({ triggerSOXeroSync: mockXeroSync }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReport }));
+vi.mock('@/lib/ims/builds/buildRequirementService', () => ({ recomputeBuildRequirementsSafely: vi.fn().mockResolvedValue([]) }));
 
 import { POST } from '../route';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';

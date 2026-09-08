@@ -1,3 +1,4 @@
+import { assertCin7StockOverwriteAllowed } from '@/lib/ims/builds/cin7StockOverwriteGuard';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { v4 as uuidv4 } from 'uuid';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -612,6 +613,7 @@ export async function POST(req: Request) {
 
         // -- Step E: Stock from Cin7 /Stock ---------------------------------
         if (stepsRequested.includes('stock')) {
+          await assertCin7StockOverwriteAllowed(businessId);
           send({ step: 'stock', status: 'running', message: 'Fetching stock levels from Cin7...' });
 
           const cin7Stock = await cin7FetchAllPages(creds.authHeader, '/Stock', {}, 'ims/stock');

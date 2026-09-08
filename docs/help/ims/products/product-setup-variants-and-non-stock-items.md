@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-01","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-08","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -20,6 +20,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
 - Use **Products > Bulk Add/Edit** to create or change several product families in one location-independent grid.
 - Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.
+- For an assembled stock item, save the product and variants first, then create a versioned **Build Recipe** in the edit form.
 
 ## At a glance
 
