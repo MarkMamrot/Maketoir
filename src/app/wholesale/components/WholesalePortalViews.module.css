@@ -1,11 +1,12 @@
 .page {
   max-width: 1180px;
   margin: 0 auto;
+  color: var(--wholesale-text, #17201c);
 }
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #145d4e;
+  color: var(--wholesale-primary, #145d4e);
   font: 700 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   text-transform: uppercase;
 }
@@ -13,7 +14,7 @@
 .title {
   max-width: 760px;
   margin: 0;
-  color: #17201c;
+  color: var(--wholesale-text, #17201c);
   font-size: clamp(28px, 4vw, 46px);
   line-height: 1.05;
   font-weight: 500;
@@ -22,7 +23,7 @@
 .lede {
   max-width: 620px;
   margin: 14px 0 0;
-  color: #65736c;
+  color: var(--wholesale-muted, #65736c);
   font: 15px/1.6 ui-sans-serif, sans-serif;
 }
 
@@ -46,19 +47,19 @@
   gap: 8px;
   padding: 0 15px;
   border-radius: 6px;
-  border: 1px solid #145d4e;
+  border: 1px solid var(--wholesale-primary, #145d4e);
   cursor: pointer;
   font: 700 13px/1 ui-sans-serif, sans-serif;
 }
 
 .primary {
-  background: #145d4e;
+  background: var(--wholesale-primary, #145d4e);
   color: #fff;
 }
 
 .secondary {
   background: transparent;
-  color: #145d4e;
+  color: var(--wholesale-primary, #145d4e);
 }
 
 .metrics {

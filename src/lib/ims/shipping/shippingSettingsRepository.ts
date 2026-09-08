@@ -1,6 +1,7 @@
 import { decrypt, encrypt } from '@/lib/encryption';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import type { CarrierAccountInput, PackagePresetInput } from './shippingSettings';
+import type { AusPostPackagingPreset } from './ausPostPackagingCatalogue';
 
 export type ShippingCarrierAccountSummary = {
   id: number;
@@ -11,6 +12,8 @@ export type ShippingCarrierAccountSummary = {
   dispatchLocationName: string | null;
   merchantLocationId: string | null;
   credentialsConfigured: boolean;
+  apiKeyLength: number;
+  passwordLength: number;
   verifiedAt: string | null;
   verificationError: string | null;
   isActive: boolean;
@@ -57,6 +60,8 @@ export const ShippingSettingsRepository = {
       dispatchLocationName: row.dispatch_location_name,
       merchantLocationId: row.merchant_location_id,
       credentialsConfigured: Boolean(row.api_key_encrypted && row.password_encrypted),
+      apiKeyLength: row.api_key_encrypted ? decrypt(row.api_key_encrypted).length : 0,
+      passwordLength: row.password_encrypted ? decrypt(row.password_encrypted).length : 0,
       verifiedAt: row.verified_at,
       verificationError: row.verification_error,
       isActive: Boolean(row.is_active),
@@ -181,6 +186,22 @@ export const ShippingSettingsRepository = {
       [businessId, ...params],
     );
     return Number(result.insertId);
+  },
+
+  async importAusPostPresets(businessId: string, presets: readonly AusPostPackagingPreset[]): Promise<number> {
+    let created = 0;
+    for (const preset of presets) {
+      const result = await imsExecute(
+        `INSERT IGNORE INTO ims_shipping_package_presets
+           (business_id, name, package_type, length_mm, width_mm, height_mm, tare_weight_kg,
+            max_weight_kg, allow_rotation, sort_priority, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+        [businessId, preset.name, preset.packageType, preset.lengthMm, preset.widthMm, preset.heightMm,
+          preset.tareWeightKg, preset.maxWeightKg, preset.allowRotation ? 1 : 0],
+      );
+      created += result.affectedRows;
+    }
+    return created;
   },
 
   async deactivatePreset(businessId: string, id: number): Promise<void> {

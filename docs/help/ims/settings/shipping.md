@@ -11,6 +11,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and define th
 - Test saved credentials against the Australia Post production Shipping API.
 - Keep MyPost Business unavailable until approved partner access is supported.
 - Add package presets with internal dimensions, tare weight and an optional maximum weight.
+- Add selected Australia Post reference packaging to the editable preset list.
 
 ## At a glance
 
@@ -27,7 +28,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and define th
 - [ ] Complete the dispatch location address.
 - [ ] Measure the packages used by the dispatch team.
 
-> **Important:** Carrier credentials are not shown again after saving. Leaving the credential fields blank while updating an existing account keeps the saved values.
+> **Important:** Carrier credentials are not shown again after saving. Each field shows one masking dot per stored character. Leave those dots unchanged to keep the saved value, or type a replacement.
 
 ## Step-by-step
 
@@ -35,10 +36,12 @@ Use Shipping Settings to connect an Australia Post eParcel account and define th
 2. Choose **Australia Post eParcel** and enter a recognisable account name.
 3. Enter the production account number, API key, API password, and dispatch location. Solvantis uses Australia Post's production Shipping API address automatically.
 4. Select **Add account** or **Update account**.
-5. Use the flask button beside the saved account to test the connection. Review any visible connection error before using the account for shipment preparation.
+5. Select **Test connection** beside the saved account. The status indicator changes to **Connected** after a successful test, or **Connection failed** when the carrier rejects the connection. Review the reported error before using the account for shipment preparation.
 6. Under Package presets, enter a name, package type, internal length, width and height in millimetres, and tare weight in kilograms.
-7. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.
-8. Save the preset. It becomes available when preparing selected Sales Orders.
+7. To start from carrier packaging, select **Australia Post presets**, choose the required satchels, envelopes or boxes, and select **Add selected**. Existing names are skipped rather than overwritten.
+8. Review imported dimensions and enter a measured tare weight where needed. Carrier packaging and service limits can change.
+9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.
+10. Save the preset. It becomes available when preparing selected Sales Orders.
 
 > **Note:** Preparing a shipment saves the selected parcels for later carrier submission. It does not by itself reduce stock or print a label.
 
@@ -50,6 +53,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and define th
 | Connection verification fails | The production credentials or account number do not match | Check the Australia Post details and retry once |
 | MyPost Business cannot be enabled | Approved ecommerce-partner API access is not available | Use eParcel or leave the MyPost record inactive |
 | A preset is not offered | It is inactive or cannot contain the item | Reactivate it or add a suitable larger package |
+| An Australia Post preset is marked Added | A tenant preset already uses that name | Edit the existing preset; importing will not overwrite it |
 
 ## Worked examples
 

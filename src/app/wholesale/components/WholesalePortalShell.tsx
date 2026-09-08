@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   BookOpen,
   Bookmark,
@@ -27,6 +27,7 @@ import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/whole
 import styles from './WholesalePortalShell.module.css';
 import { WholesaleLayoutEditor } from './layout/WholesaleLayoutEditor';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
+import { resolveWholesaleThemeColors } from '@/lib/wholesale/layout/validation';
 
 export type WholesalePortalView = 'home' | 'catalogue' | 'lists' | 'orders' | 'account' | 'help';
 
@@ -77,6 +78,8 @@ export function WholesalePortalShell({
   layoutCollectionId,
   layoutCollections,
   onLayoutCollectionChange,
+  layoutDocument,
+  layoutPage,
 }: {
   supplier: WholesaleSupplierProfile;
   session: WholesaleSession;
@@ -102,6 +105,8 @@ export function WholesalePortalShell({
   layoutCollectionId?: string;
   layoutCollections?: Array<{ id: string; label: string }>;
   onLayoutCollectionChange?: (collectionId: string) => void;
+  layoutDocument: WholesaleLayoutDocument;
+  layoutPage: WholesaleLayoutPageId;
 }) {
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
@@ -117,6 +122,16 @@ export function WholesalePortalShell({
   const logoUrl = safeLogoUrl(supplier.logoUrl);
   const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
   const buyingLocation = locationName || 'Buying location';
+  const themeColours = resolveWholesaleThemeColors(layoutDocument, layoutEditorOpen ? layoutEditorPage : layoutPage);
+  const themeStyle = {
+    '--wholesale-primary': themeColours.primary,
+    '--wholesale-secondary': themeColours.secondary,
+    '--wholesale-accent': themeColours.accent,
+    '--wholesale-page-bg': themeColours.pageBackground,
+    '--wholesale-surface': themeColours.surface,
+    '--wholesale-text': themeColours.text,
+    '--wholesale-muted': themeColours.mutedText,
+  } as CSSProperties;
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -216,7 +231,7 @@ export function WholesalePortalShell({
   );
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} style={themeStyle}>
       {session.preview && <div role="status" style={{ minHeight: 42, padding: '8px 18px', background: '#fff3cd', borderBottom: '1px solid #e5c66b', color: '#533f03', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
         <strong>Staff preview · Layout editor</strong>
         <span>{session.company} / {session.name} / {buyingLocation}</span>

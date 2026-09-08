@@ -3,8 +3,8 @@
   background:
     linear-gradient(135deg, rgba(20, 93, 78, 0.05), transparent 38%),
     repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(15, 23, 42, 0.025) 80px),
-    #f4f6f3;
-  color: #17201c;
+    var(--wholesale-page-bg, #f4f6f3);
+  color: var(--wholesale-text, #17201c);
   font-family: Georgia, 'Times New Roman', serif;
 }
 
@@ -17,7 +17,7 @@
   align-items: center;
   gap: 24px;
   padding: 0 28px;
-  background: rgba(252, 253, 250, 0.96);
+  background: color-mix(in srgb, var(--wholesale-surface, #fff) 96%, transparent);
   border-bottom: 1px solid #d8ddd8;
   backdrop-filter: blur(14px);
 }
@@ -45,8 +45,8 @@
   display: grid;
   place-items: center;
   color: #fff;
-  background: #145d4e;
-  border-color: #145d4e;
+  background: var(--wholesale-primary, #145d4e);
+  border-color: var(--wholesale-primary, #145d4e);
   font: 700 18px/1 Georgia, serif;
 }
 
@@ -93,8 +93,8 @@
 }
 
 .search input:focus {
-  border-color: #145d4e;
-  box-shadow: 0 0 0 3px rgba(20, 93, 78, 0.12);
+  border-color: var(--wholesale-accent, #d19a2a);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wholesale-accent, #d19a2a) 18%, transparent);
 }
 
 .clearSearch {
@@ -136,8 +136,8 @@
 
 .topNavButton:hover,
 .topNavButtonActive {
-  background: rgba(20, 93, 78, 0.1);
-  color: #145d4e;
+  background: color-mix(in srgb, var(--wholesale-secondary, #dce9e3) 68%, transparent);
+  color: var(--wholesale-primary, #145d4e);
 }
 
 .iconButton,
@@ -158,8 +158,8 @@
 
 .cartButton {
   padding: 0 13px;
-  background: #145d4e;
-  border-color: #145d4e;
+  background: var(--wholesale-primary, #145d4e);
+  border-color: var(--wholesale-primary, #145d4e);
   color: #fff;
   font: 700 12px/1 ui-sans-serif, sans-serif;
 }

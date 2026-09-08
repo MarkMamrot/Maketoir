@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { ArrowLeft, Check, FileText, MapPin, Minus, PackageCheck, Plus, Save, Send, ShoppingCart, Trash2, X } from 'lucide-react';
 import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/wholesaleAccountProfile';
-import type { WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import type { WholesaleLayoutDocument, WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import { resolveWholesaleThemeColors } from '@/lib/wholesale/layout/validation';
 import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
 import { wholesaleEntryQuantityToUnits, wholesalePackSize, wholesaleUnitsToEntryQuantity } from '@/lib/wholesale/wholesaleOrderQuantity';
 import type { WholesaleOrderQuantityMode } from '@/lib/wholesale/wholesalePortalSettings';
@@ -59,6 +60,7 @@ export function WholesaleCartPanel({
   layoutSections,
   featuredProducts,
   quantityMode,
+  layoutDocument,
 }: {
   items: WholesaleCartItem[];
   notes: string;
@@ -76,12 +78,15 @@ export function WholesaleCartPanel({
   layoutSections: WholesaleLayoutSection[];
   featuredProducts: WholesaleLayoutFeaturedProduct[];
   quantityMode: WholesaleOrderQuantityMode;
+  layoutDocument: WholesaleLayoutDocument;
 }) {
   const [step, setStep] = useState<CartStep>('cart');
   const [submittedNumber, setSubmittedNumber] = useState('');
   const subtotal = items.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
   const totalUnits = items.reduce((sum, item) => sum + item.qty, 0);
   const indentUnits = items.reduce((sum, item) => sum + Number(item.indent_qty || 0), 0);
+  const colours = resolveWholesaleThemeColors(layoutDocument, 'cart');
+  const themeStyle = { '--wholesale-primary': colours.primary, '--wholesale-secondary': colours.secondary, '--wholesale-accent': colours.accent, '--wholesale-page-bg': colours.pageBackground, '--wholesale-surface': colours.surface, '--wholesale-text': colours.text, '--wholesale-muted': colours.mutedText } as CSSProperties;
 
   const submit = async () => {
     const soNumber = await onSubmit();
@@ -91,7 +96,7 @@ export function WholesaleCartPanel({
   };
 
   return (
-    <div className={styles.layer} role="dialog" aria-modal="true" aria-labelledby="cart-panel-title">
+    <div className={styles.layer} style={themeStyle} role="dialog" aria-modal="true" aria-labelledby="cart-panel-title">
       <button className={styles.backdrop} onClick={onClose} aria-label="Close cart" />
       <aside className={styles.panel}>
         <header className={styles.header}>

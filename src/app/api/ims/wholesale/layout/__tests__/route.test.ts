@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   reportRuntimeIssue: vi.fn().mockResolvedValue(undefined),
   revalidatePath: vi.fn(),
   findOwnedActiveIds: vi.fn(),
+  getBrandProfile: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminTier: mocks.requireAdminTier }));
@@ -29,6 +30,7 @@ vi.mock('@/lib/wholesale/wholesaleSupplierProfile', () => ({
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
 vi.mock('@/lib/wholesale/wholesalePortalAsset', () => ({ WholesalePortalAssetRepository: { findOwnedActiveIds: mocks.findOwnedActiveIds } }));
+vi.mock('@/lib/db/BrandProfileRepository', () => ({ BrandProfileRepository: { get: mocks.getBrandProfile } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 
 import { GET, PUT } from '../route';
@@ -46,6 +48,7 @@ describe('IMS wholesale layout route', () => {
     vi.clearAllMocks();
     mocks.requireAdminTier.mockReturnValue({ user });
     mocks.findOwnedActiveIds.mockResolvedValue(new Set());
+    mocks.getBrandProfile.mockResolvedValue(null);
   });
 
   it('loads the tenant editor state', async () => {
@@ -53,6 +56,7 @@ describe('IMS wholesale layout route', () => {
     const response = await GET();
     expect(response.status).toBe(200);
     expect(mocks.getEditorState).toHaveBeenCalledWith('biz-1');
+    expect(mocks.getBrandProfile).toHaveBeenCalledWith('biz-1');
   });
 
   it('saves a normalized draft against the expected revision', async () => {

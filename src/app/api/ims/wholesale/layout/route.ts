@@ -9,13 +9,31 @@ import {
 } from '@/lib/wholesale/wholesalePortalLayout';
 import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
 import { WholesalePortalAssetRepository } from '@/lib/wholesale/wholesalePortalAsset';
+import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
+import { validStorefrontColor } from '@/lib/storefront/layoutValidation';
+
+function parseBrandColours(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(Object.entries(parsed)
+      .map(([key, value]) => [key, validStorefrontColor(value)])
+      .filter((entry): entry is [string, string] => Boolean(entry[1])));
+  } catch {
+    return {};
+  }
+}
 
 export async function GET() {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
   try {
-    const state = await WholesalePortalLayoutRepository.getEditorState(auth.user.businessId);
-    return NextResponse.json({ success: true, state });
+    const [state, brandProfile] = await Promise.all([
+      WholesalePortalLayoutRepository.getEditorState(auth.user.businessId),
+      BrandProfileRepository.get(auth.user.businessId),
+    ]);
+    return NextResponse.json({ success: true, state, brandColours: parseBrandColours(brandProfile?.brand_colours ?? null) });
   } catch (error) {
     await reportRuntimeIssue({
       businessId: auth.user.businessId,

@@ -2,7 +2,8 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import sanitizeHtml from 'sanitize-html';
-import type { WholesaleLayoutSection, WholesaleLayoutSectionType } from '@/lib/wholesale/layout/types';
+import type { WholesaleLayoutDocument, WholesaleLayoutPageId, WholesaleLayoutSection, WholesaleLayoutSectionType } from '@/lib/wholesale/layout/types';
+import { resolveWholesaleThemeColors } from '@/lib/wholesale/layout/validation';
 import styles from './WholesaleLayoutPageRenderer.module.css';
 
 export type WholesaleLayoutFeaturedProduct = {
@@ -57,12 +58,26 @@ function SharedSection({ section, products }: { section: WholesaleLayoutSection;
 
 const sharedTypes = new Set<WholesaleLayoutSectionType>(['banner', 'rich_text', 'image', 'text_image', 'divider', 'spacer', 'featured_products']);
 
-export function WholesaleLayoutPageRenderer({ sections, systemSections, products = [] }: {
+export function WholesaleLayoutPageRenderer({ sections, systemSections, products = [], layoutDocument, pageId }: {
   sections: WholesaleLayoutSection[];
   systemSections: Partial<Record<WholesaleLayoutSectionType, ReactNode>>;
   products?: WholesaleLayoutFeaturedProduct[];
+  layoutDocument?: WholesaleLayoutDocument;
+  pageId?: WholesaleLayoutPageId;
 }) {
-  return <>{sections.map(section => sharedTypes.has(section.type)
+  const content = sections.map(section => sharedTypes.has(section.type)
     ? <SharedSection key={section.id} section={section} products={products} />
-    : systemSections[section.type] ? <div key={section.id}>{systemSections[section.type]}</div> : null)}</>;
+    : systemSections[section.type] ? <div key={section.id}>{systemSections[section.type]}</div> : null);
+  if (!layoutDocument || !pageId) return <>{content}</>;
+  const colours = resolveWholesaleThemeColors(layoutDocument, pageId);
+  const style = {
+    '--wholesale-primary': colours.primary,
+    '--wholesale-secondary': colours.secondary,
+    '--wholesale-accent': colours.accent,
+    '--wholesale-page-bg': colours.pageBackground,
+    '--wholesale-surface': colours.surface,
+    '--wholesale-text': colours.text,
+    '--wholesale-muted': colours.mutedText,
+  } as CSSProperties;
+  return <div className={styles.themeRoot} style={style}>{content}</div>;
 }

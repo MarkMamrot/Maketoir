@@ -28,6 +28,7 @@ import {
   type WholesaleOrderQuantityMode,
   type WholesaleProductImageFit,
   type WholesaleProductImageRatio,
+  type WholesaleProductCardDisplay,
 } from '@/lib/wholesale/wholesalePortalSettings';
 import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
 import { WholesaleLayoutCanvasSample } from './components/layout/WholesaleLayoutCanvasSample';
@@ -131,7 +132,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 // Product Card
 // ─────────────────────────────────────────────────────────────────────────────
 function ProductCard({
-  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense, imageFit, imageRatio, quantityMode, orderView,
+  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense, imageFit, imageRatio, quantityMode, orderView, cardDisplay,
 }: {
   product: WholesaleProduct;
   onAdd: (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => void;
@@ -144,11 +145,15 @@ function ProductCard({
   imageRatio: WholesaleProductImageRatio;
   quantityMode: WholesaleOrderQuantityMode;
   orderView: WholesaleCatalogueOrderView;
+  cardDisplay: WholesaleProductCardDisplay;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const minimumPrice = Math.min(...product.variants.map(variant => Number(variant.price_wholesale)));
+  const singleVariant = product.variants.length === 1;
+  const imageOverlay = cardDisplay === 'image_overlay' && !dense;
 
   return (
-    <article className={`${catalogueStyles.productCard} ${dense ? catalogueStyles.productCardDense : ''}`}>
+    <article className={`${catalogueStyles.productCard} ${dense ? catalogueStyles.productCardDense : ''} ${imageOverlay ? catalogueStyles.productCardOverlay : ''}`}>
       {/* Image */}
       <button className={catalogueStyles.productImage} data-fit={imageFit} data-ratio={imageRatio} onClick={onOpen} aria-label={`View ${product.name} details`}>
         {product.image_url ? (
@@ -168,24 +173,30 @@ function ProductCard({
             </Tooltip>
           </div>
         )}
+        {imageOverlay && <span className={catalogueStyles.imageOverlayCopy}>
+          {product.brand && <span className={catalogueStyles.imageOverlayBrand}>{product.brand}</span>}
+          <strong>{product.name}</strong>
+          {product.category && <span>{[product.category, product.subcategory].filter(Boolean).join(' · ')}</span>}
+          <b>{singleVariant ? fmtCurrency(minimumPrice) : `From ${fmtCurrency(minimumPrice)}`}</b>
+        </span>}
       </button>
 
       {/* Body */}
-      <div style={{ padding: '14px 14px 6px', flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {!imageOverlay && <div style={{ padding: '14px 14px 6px', flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
         {product.brand && <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .6 }}>{product.brand}</span>}
         <button className={catalogueStyles.productNameButton} onClick={onOpen}>{product.name}</button>
         {product.category && <span style={{ fontSize: 11, color: '#94a3b8' }}>{[product.category, product.subcategory].filter(Boolean).join(' › ')}</span>}
-      </div>
+      </div>}
 
       {/* Variants */}
       <div style={{ padding: '6px 14px 14px' }}>
         {orderView === 'storefront' ? (
           <div style={{ display: 'grid', gap: 9 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <strong style={{ color: '#1e293b', fontSize: 14 }}>From {fmtCurrency(Math.min(...product.variants.map(variant => Number(variant.price_wholesale))))}</strong>
-              <span style={{ color: '#718078', fontSize: 10 }}>{product.variants.length} option{product.variants.length === 1 ? '' : 's'}</span>
+              {!imageOverlay && <strong style={{ color: '#1e293b', fontSize: 14 }}>{singleVariant ? fmtCurrency(minimumPrice) : `From ${fmtCurrency(minimumPrice)}`}</strong>}
+              {!singleVariant && <span style={{ color: '#718078', fontSize: 10 }}>{product.variants.length} options</span>}
             </div>
-            <button type="button" onClick={onOpen} style={{ width: '100%', minHeight: 36, border: '1px solid #267653', borderRadius: 4, background: '#fff', color: '#267653', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>View options</button>
+            <button type="button" onClick={onOpen} style={{ width: '100%', minHeight: 36, border: '1px solid #267653', borderRadius: 4, background: '#fff', color: '#267653', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>{singleVariant ? 'View product' : 'View options'}</button>
           </div>
         ) : <>
         {(expanded ? product.variants : product.variants.slice(0, 3)).map(v => {
@@ -266,6 +277,7 @@ export default function WholesalePortalClient({
   const [imageRatio, setImageRatio] = useState<WholesaleProductImageRatio>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageRatio);
   const [quantityMode, setQuantityMode] = useState<WholesaleOrderQuantityMode>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.orderQuantityMode);
   const [orderView, setOrderView] = useState<WholesaleCatalogueOrderView>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.catalogueOrderView);
+  const [cardDisplay, setCardDisplay] = useState<WholesaleProductCardDisplay>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productCardDisplay);
 
   useEffect(() => {
     fetch('/api/wholesale/settings').then(r => r.json()).then(d => {
@@ -275,6 +287,7 @@ export default function WholesalePortalClient({
         setImageRatio(['square', 'portrait'].includes(d.data.productImageRatio) ? d.data.productImageRatio : 'landscape');
         setQuantityMode(d.data.orderQuantityMode === 'pack' ? 'pack' : 'individual');
         setOrderView(d.data.catalogueOrderView === 'storefront' ? 'storefront' : 'quick_order');
+        setCardDisplay(d.data.productCardDisplay === 'image_overlay' ? 'image_overlay' : 'details');
       }
     }).catch(() => {});
   }, []);
@@ -712,6 +725,7 @@ export default function WholesalePortalClient({
   const canvasView = layoutPreviewPage === 'home' ? 'home' : layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection' ? 'catalogue' : view;
   const samplePage = layoutPreviewPage === 'login' || layoutPreviewPage === 'product' || layoutPreviewPage === 'cart' ? layoutPreviewPage : null;
   const catalogueLayoutPage = layoutPreviewPage === 'collection' || (!layoutPreviewPage && activeFilter !== '__all') ? 'collection' : 'catalogue';
+  const activeLayoutPage: WholesaleLayoutPageId = layoutPreviewPage ?? (view === 'catalogue' ? catalogueLayoutPage : 'home');
   const catalogueLayoutSections = canvasView === 'catalogue' ? effectiveLayout.pages[catalogueLayoutPage].sections : [];
   const catalogueBrowserType = catalogueLayoutPage === 'collection' ? 'collection_browser' : 'catalogue_browser';
   const catalogueBrowserIndex = catalogueLayoutSections.findIndex(section => section.type === catalogueBrowserType);
@@ -746,6 +760,7 @@ export default function WholesalePortalClient({
           layoutSections={effectiveLayout.pages.cart.sections}
           featuredProducts={allProducts}
           quantityMode={quantityMode}
+          layoutDocument={effectiveLayout}
         />
       )}
 
@@ -784,6 +799,7 @@ export default function WholesalePortalClient({
           onClose={() => setSelectedProduct(null)}
           layoutSections={effectiveLayout.pages.product.sections}
           featuredProducts={allProducts}
+          layoutDocument={effectiveLayout}
         />
       )}
 
@@ -811,6 +827,8 @@ export default function WholesalePortalClient({
         layoutCollectionId={activeFilter}
         layoutCollections={browseOptions}
         onLayoutCollectionChange={setActiveFilter}
+        layoutDocument={effectiveLayout}
+        layoutPage={activeLayoutPage}
       >
         {samplePage && layoutPreview ? (
           <WholesaleLayoutCanvasSample
@@ -943,7 +961,7 @@ export default function WholesalePortalClient({
                     {activeFilter !== '__all' && ` · ${activeFilter.split('||').join(' › ')}`}
                   </div>
                   <div className={catalogueViewMode === 'grid' ? catalogueStyles.productGrid : catalogueStyles.productList}>
-                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} imageFit={imageFit} imageRatio={imageRatio} quantityMode={quantityMode} orderView={orderView} />)}
+                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} imageFit={imageFit} imageRatio={imageRatio} quantityMode={quantityMode} orderView={orderView} cardDisplay={cardDisplay} />)}
                   </div>
                 </>
               )}

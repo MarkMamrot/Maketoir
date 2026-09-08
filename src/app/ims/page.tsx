@@ -26111,6 +26111,7 @@ const WHOLESALE_SETTINGS_DEFAULTS: Record<string, string> = {
   wholesale_product_image_ratio:  'landscape',
   wholesale_order_quantity_mode:  'individual',
   wholesale_catalogue_order_view: 'quick_order',
+  wholesale_product_card_display: 'details',
 };
 
 function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
@@ -26198,6 +26199,15 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
             </select>
             <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.45 }}>Storefront mode keeps catalogue cards browse-only and orders from product detail.</p>
           </div>
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <label style={lbl}>Product Card Style</label>
+          <select value={draft.wholesale_product_card_display ?? 'details'} onChange={sd('wholesale_product_card_display')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}>
+            <option value="details">Information below image</option>
+            <option value="image_overlay">Large image with details on hover</option>
+          </select>
+          <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.45 }}>The image-led style reveals product details over the lower half of the image on hover or keyboard focus.</p>
         </div>
       </div>
 

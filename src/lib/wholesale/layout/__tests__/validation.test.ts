@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultWholesaleLayout, getChangedWholesaleLayoutPages, isRequiredWholesaleLayoutSection, normalizeWholesaleLayoutDocument } from '../validation';
+import { createDefaultWholesaleLayout, getChangedWholesaleLayoutPages, isRequiredWholesaleLayoutSection, normalizeWholesaleLayoutDocument, resolveWholesaleThemeColors } from '../validation';
 
 describe('wholesale layout validation', () => {
   it('identifies only page templates changed from the published document', () => {
@@ -71,6 +71,29 @@ describe('wholesale layout validation', () => {
     expect(settings.backgroundColor).toBeUndefined();
     expect(settings.productIds).toHaveLength(24);
     expect(settings.productLimit).toBe(12);
+  });
+
+  it('normalizes shared theme colours and resolves page overrides', () => {
+    const layout = normalizeWholesaleLayoutDocument({
+      ...createDefaultWholesaleLayout(),
+      theme: {
+        colors: { primary: '#123456', accent: 'red; position: fixed' },
+        pageOverrides: { product: { primary: '#abcdef', surface: 'url(javascript:bad)' } },
+      },
+    });
+    expect(layout.theme.colors.primary).toBe('#123456');
+    expect(layout.theme.colors.accent).toBe('#d69e2e');
+    expect(resolveWholesaleThemeColors(layout, 'product')).toMatchObject({ primary: '#abcdef', surface: '#ffffff' });
+  });
+
+  it('tracks page and shared theme changes', () => {
+    const published = createDefaultWholesaleLayout();
+    const pageDraft = structuredClone(published);
+    pageDraft.theme.pageOverrides.cart = { pageBackground: '#eeeeee' };
+    expect(getChangedWholesaleLayoutPages(pageDraft, published)).toEqual(['cart']);
+    const sharedDraft = structuredClone(published);
+    sharedDraft.theme.colors.primary = '#112233';
+    expect(getChangedWholesaleLayoutPages(sharedDraft, published)).toEqual(['login', 'home', 'catalogue', 'cart', 'collection', 'product']);
   });
 
   it('sanitizes rich content with an allowlist', () => {

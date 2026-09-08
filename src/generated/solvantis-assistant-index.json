@@ -7809,7 +7809,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-08",
-      "content": "- Add or update an Australia Post eParcel account.\n- Test saved credentials against the Australia Post production Shipping API.\n- Keep MyPost Business unavailable until approved partner access is supported.\n- Add package presets with internal dimensions, tare weight and an optional maximum weight."
+      "content": "- Add or update an Australia Post eParcel account.\n- Test saved credentials against the Australia Post production Shipping API.\n- Keep MyPost Business unavailable until approved partner access is supported.\n- Add package presets with internal dimensions, tare weight and an optional maximum weight.\n- Add selected Australia Post reference packaging to the editable preset list."
     },
     {
       "id": "ims-shipping-settings:3",
@@ -7845,7 +7845,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-08",
-      "content": "- [ ] Obtain an eParcel account number, API key and API password from Australia Post.\n- [ ] Complete the dispatch location address.\n- [ ] Measure the packages used by the dispatch team.\n\n> **Important:** Carrier credentials are not shown again after saving. Leaving the credential fields blank while updating an existing account keeps the saved values."
+      "content": "- [ ] Obtain an eParcel account number, API key and API password from Australia Post.\n- [ ] Complete the dispatch location address.\n- [ ] Measure the packages used by the dispatch team.\n\n> **Important:** Carrier credentials are not shown again after saving. Each field shows one masking dot per stored character. Leave those dots unchanged to keep the saved value, or type a replacement."
     },
     {
       "id": "ims-shipping-settings:5",
@@ -7863,7 +7863,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-08",
-      "content": "1. Open **Settings > Shipping**.\n2. Choose **Australia Post eParcel** and enter a recognisable account name.\n3. Enter the production account number, API key, API password, and dispatch location. Solvantis uses Australia Post's production Shipping API address automatically.\n4. Select **Add account** or **Update account**.\n5. Use the flask button beside the saved account to test the connection. Review any visible connection error before using the account for shipment preparation.\n6. Under Package presets, enter a name, package type, internal length, width and height in millimetres, and tare weight in kilograms.\n7. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.\n8. Save the preset. It becomes available when preparing selected Sales Orders.\n\n> **Note:** Preparing a shipment saves the selected parcels for later carrier submission. It does not by itself reduce stock or print a label."
+      "content": "1. Open **Settings > Shipping**.\n2. Choose **Australia Post eParcel** and enter a recognisable account name.\n3. Enter the production account number, API key, API password, and dispatch location. Solvantis uses Australia Post's production Shipping API address automatically.\n4. Select **Add account** or **Update account**.\n5. Select **Test connection** beside the saved account. The status indicator changes to **Connected** after a successful test, or **Connection failed** when the carrier rejects the connection. Review the reported error before using the account for shipment preparation.\n6. Under Package presets, enter a name, package type, internal length, width and height in millimetres, and tare weight in kilograms.\n7. To start from carrier packaging, select **Australia Post presets**, choose the required satchels, envelopes or boxes, and select **Add selected**. Existing names are skipped rather than overwritten.\n8. Review imported dimensions and enter a measured tare weight where needed. Carrier packaging and service limits can change.\n9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.\n10. Save the preset. It becomes available when preparing selected Sales Orders.\n\n> **Note:** Preparing a shipment saves the selected parcels for later carrier submission. It does not by itself reduce stock or print a label."
     },
     {
       "id": "ims-shipping-settings:6",
@@ -7881,7 +7881,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-08",
-      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Credentials are unavailable | The account was saved without both credential values | Edit it, enter both values, and save again |\n| Connection verification fails | The production credentials or account number do not match | Check the Australia Post details and retry once |\n| MyPost Business cannot be enabled | Approved ecommerce-partner API access is not available | Use eParcel or leave the MyPost record inactive |\n| A preset is not offered | It is inactive or cannot contain the item | Reactivate it or add a suitable larger package |"
+      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Credentials are unavailable | The account was saved without both credential values | Edit it, enter both values, and save again |\n| Connection verification fails | The production credentials or account number do not match | Check the Australia Post details and retry once |\n| MyPost Business cannot be enabled | Approved ecommerce-partner API access is not available | Use eParcel or leave the MyPost record inactive |\n| A preset is not offered | It is inactive or cannot contain the item | Reactivate it or add a suitable larger package |\n| An Australia Post preset is marked Added | A tenant preset already uses that name | Edit the existing preset; importing will not overwrite it |"
     },
     {
       "id": "ims-shipping-settings:7",

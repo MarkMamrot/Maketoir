@@ -20,7 +20,7 @@ function validUrl(value: unknown): string | undefined {
   try { return new URL(url).protocol === 'https:' ? url : undefined; } catch { return undefined; }
 }
 
-function validColor(value: unknown): string | undefined {
+export function validStorefrontColor(value: unknown): string | undefined {
   const color = boundedString(value, 32);
   return color && /^(#[0-9a-f]{3,8}|rgb\([\d\s,.%]+\)|rgba\([\d\s,.%]+\))$/i.test(color) ? color : undefined;
 }
@@ -52,8 +52,8 @@ export function normalizeStorefrontSectionSettings(
   if (imageFits.has(String(value.imageFit))) settings.imageFit = value.imageFit as StorefrontLayoutSectionSettings['imageFit'];
   if (imageRatios.has(String(value.imageRatio))) settings.imageRatio = value.imageRatio as StorefrontLayoutSectionSettings['imageRatio'];
   if (value.imageSide === 'left' || value.imageSide === 'right') settings.imageSide = value.imageSide;
-  settings.backgroundColor = validColor(value.backgroundColor);
-  settings.textColor = validColor(value.textColor);
+  settings.backgroundColor = validStorefrontColor(value.backgroundColor);
+  settings.textColor = validStorefrontColor(value.textColor);
   settings.heading = boundedString(value.heading, 255);
   settings.bodyHtml = sanitizeStorefrontHtml(value.bodyHtml);
   settings.imageUrl = validUrl(value.imageUrl);

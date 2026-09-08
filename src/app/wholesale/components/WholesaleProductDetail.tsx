@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Heart, X } from 'lucide-react';
 import styles from './WholesaleProductDetail.module.css';
 import type { WholesaleProductImageFit, WholesaleProductImageRatio } from '@/lib/wholesale/wholesalePortalSettings';
-import type { WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import type { WholesaleLayoutDocument, WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import { resolveWholesaleThemeColors } from '@/lib/wholesale/layout/validation';
 import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
 import { WholesaleQuantityAdd } from './WholesaleQuantityAdd';
 import type { WholesaleOrderQuantityMode } from '@/lib/wholesale/wholesalePortalSettings';
@@ -50,6 +51,7 @@ export function WholesaleProductDetail({
   layoutSections,
   featuredProducts,
   quantityMode,
+  layoutDocument,
 }: {
   product: WholesaleProductDetailProduct;
   imageFit: WholesaleProductImageFit;
@@ -62,10 +64,13 @@ export function WholesaleProductDetail({
   layoutSections: WholesaleLayoutSection[];
   featuredProducts: WholesaleLayoutFeaturedProduct[];
   quantityMode: WholesaleOrderQuantityMode;
+  layoutDocument: WholesaleLayoutDocument;
 }) {
   const images = product.images?.length ? product.images : product.image_url ? [product.image_url] : [];
   const [activeImage, setActiveImage] = useState(images[0] ?? '');
   const [descriptionMode, setDescriptionMode] = useState<'source' | 'preview'>('preview');
+  const colours = resolveWholesaleThemeColors(layoutDocument, 'product');
+  const themeStyle = { '--wholesale-primary': colours.primary, '--wholesale-secondary': colours.secondary, '--wholesale-accent': colours.accent, '--wholesale-page-bg': colours.pageBackground, '--wholesale-surface': colours.surface, '--wholesale-text': colours.text, '--wholesale-muted': colours.mutedText } as CSSProperties;
 
   useEffect(() => setActiveImage(images[0] ?? ''), [product.product_id]);
   useEffect(() => setDescriptionMode('preview'), [product.product_id]);
@@ -76,7 +81,7 @@ export function WholesaleProductDetail({
   }, [onClose]);
 
   return (
-    <div className={styles.layer} role="dialog" aria-modal="true" aria-labelledby="product-detail-title">
+    <div className={styles.layer} style={themeStyle} role="dialog" aria-modal="true" aria-labelledby="product-detail-title">
       <button className={styles.backdrop} onClick={onClose} aria-label="Close product details" />
       <section className={styles.panel}>
         <header className={styles.header}>

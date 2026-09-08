@@ -85,7 +85,7 @@ export default function SupplierSignIn({ supplier, publishedLayout, featuredProd
           <div className="flex items-center gap-4">
             {canRenderLogo ? (
               <img
-                src={supplier.logoUrl}
+                src={supplier.logoUrl ?? undefined}
                 alt={`${supplier.displayName} logo`}
                 onError={() => setLogoFailed(true)}
                 className="h-14 w-auto max-w-[220px] object-contain object-left"
@@ -196,7 +196,7 @@ export default function SupplierSignIn({ supplier, publishedLayout, featuredProd
 
   return (
     <main className="min-h-screen bg-[#f4f3ef] text-[#18211d]">
-      <WholesaleLayoutPageRenderer sections={publishedLayout.pages.login.sections} systemSections={{ login_access: loginAccess }} products={featuredProducts} />
+      <WholesaleLayoutPageRenderer sections={publishedLayout.pages.login.sections} systemSections={{ login_access: loginAccess }} products={featuredProducts} layoutDocument={publishedLayout} pageId="login" />
     </main>
   );
 }

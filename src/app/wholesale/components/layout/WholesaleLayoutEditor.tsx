@@ -23,9 +23,11 @@ import { WHOLESALE_LAYOUT_SECTION_REGISTRY } from '@/lib/wholesale/layout/regist
 import { createDefaultWholesaleLayout, getChangedWholesaleLayoutPages, isRequiredWholesaleLayoutSection } from '@/lib/wholesale/layout/validation';
 import {
   WHOLESALE_LAYOUT_PAGE_IDS,
+  WHOLESALE_THEME_COLOR_KEYS,
   type WholesaleLayoutDocument,
   type WholesaleLayoutPageId,
   type WholesaleLayoutSection,
+  type WholesaleThemeColorKey,
 } from '@/lib/wholesale/layout/types';
 import type { WholesaleLayoutEditorState } from '@/lib/wholesale/wholesalePortalLayout';
 import type { WholesalePortalAsset } from '@/lib/wholesale/wholesalePortalAsset';
@@ -34,6 +36,11 @@ import styles from './WholesaleLayoutEditor.module.css';
 const pageLabels: Record<WholesaleLayoutPageId, string> = {
   login: 'Login', home: 'Home', catalogue: 'Catalogue', cart: 'Cart',
   collection: 'Category / Subcategory', product: 'Product',
+};
+
+const colourLabels: Record<WholesaleThemeColorKey, string> = {
+  primary: 'Primary highlight', secondary: 'Secondary', accent: 'Accent',
+  pageBackground: 'Page background', surface: 'Cards and surfaces', text: 'Main text', mutedText: 'Muted text',
 };
 
 function SortableSection({
@@ -93,6 +100,8 @@ export function WholesaleLayoutEditor({
   const [addType, setAddType] = useState('banner');
   const [productQuery, setProductQuery] = useState('');
   const [assets, setAssets] = useState<WholesalePortalAsset[]>([]);
+  const [brandColours, setBrandColours] = useState<Record<string, string>>({});
+  const [colourScope, setColourScope] = useState<'shared' | 'page'>('shared');
   const [uploadingAsset, setUploadingAsset] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingPage, setPendingPage] = useState<WholesaleLayoutPageId | null>(null);
@@ -115,6 +124,7 @@ export function WholesaleLayoutEditor({
         if (!response.ok || !body.success) throw new Error(body.error || 'Layout could not be loaded.');
         setState(body.state);
         setDocument(body.state.draft);
+        setBrandColours(body.brandColours ?? {});
       })
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Layout could not be loaded.'))
       .finally(() => setWorking(null));
@@ -213,6 +223,23 @@ export function WholesaleLayoutEditor({
   };
 
   const updateSetting = (key: keyof WholesaleLayoutSection['settings'], value: string | number | string[] | undefined) => updateSettings({ [key]: value || undefined });
+
+  const updateThemeColour = (key: WholesaleThemeColorKey, value: string) => {
+    if (!document || (value && !/^#[0-9a-f]{6}$/i.test(value))) return;
+    if (colourScope === 'shared') {
+      setDocument({ ...document, theme: { ...document.theme, colors: { ...document.theme.colors, [key]: value || document.theme.colors[key] } } });
+    } else {
+      const current = { ...(document.theme.pageOverrides[page] ?? {}) };
+      if (value) current[key] = value;
+      else delete current[key];
+      const pageOverrides = { ...document.theme.pageOverrides };
+      if (Object.keys(current).length > 0) pageOverrides[page] = current;
+      else delete pageOverrides[page];
+      setDocument({ ...document, theme: { ...document.theme, pageOverrides } });
+    }
+    setDirty(true);
+    setMessage('');
+  };
 
   const selectAsset = (asset: WholesalePortalAsset) => {
     updateSettings({ assetId: asset.assetId, imageUrl: undefined, altText: selected?.settings.altText || asset.altText || undefined });
@@ -342,6 +369,22 @@ export function WholesaleLayoutEditor({
         <button className={styles.resetPage} type="button" onClick={resetCurrentPage} disabled={!document || Boolean(working)}><RotateCcw size={14} /> Reset page</button>
       </header>
       <div className={styles.body}>
+        {document && <section className={styles.themeSettings} aria-labelledby="layout-colours-title">
+          <div className={styles.settingsHeader}><h3 id="layout-colours-title">Page colours</h3><select value={colourScope} onChange={event => setColourScope(event.target.value as 'shared' | 'page')} aria-label="Colour scope"><option value="shared">Shared theme</option><option value="page">{pageLabels[page]} overrides</option></select></div>
+          <p>{colourScope === 'shared' ? 'Used across every portal page.' : `Override shared colours on the ${pageLabels[page]} page.`}</p>
+          {WHOLESALE_THEME_COLOR_KEYS.map(key => {
+            const override = document.theme.pageOverrides[page]?.[key];
+            const value = colourScope === 'shared' ? document.theme.colors[key] : override ?? '';
+            const resolved = value || document.theme.colors[key];
+            return <div className={styles.colourRow} key={key}>
+              <label htmlFor={`theme-${colourScope}-${page}-${key}`}>{colourLabels[key]}</label>
+              <input className={styles.colourPicker} type="color" value={/^#[0-9a-f]{6}$/i.test(resolved) ? resolved : '#000000'} onChange={event => updateThemeColour(key, event.target.value)} aria-label={`Choose ${colourLabels[key]}`} />
+              <input id={`theme-${colourScope}-${page}-${key}`} className={styles.colourText} value={value} placeholder={colourScope === 'page' ? `Inherited ${document.theme.colors[key]}` : '#000000'} maxLength={7} onChange={event => updateThemeColour(key, event.target.value)} />
+              {colourScope === 'page' && override && <button className={styles.inheritButton} type="button" onClick={() => updateThemeColour(key, '')}>Inherit</button>}
+              {Object.entries(brandColours).length > 0 && <div className={styles.brandSwatches} aria-label={`Brand colours for ${colourLabels[key]}`}>{Object.entries(brandColours).map(([role, colour]) => /^#[0-9a-f]{6}$/i.test(colour) && <button key={role} type="button" style={{ backgroundColor: colour }} title={`Use Foresight ${role}: ${colour}`} aria-label={`Use Foresight ${role} colour`} onClick={() => updateThemeColour(key, colour)} />)}</div>}
+            </div>;
+          })}
+        </section>}
         {working === 'load' ? <div className={styles.loading}><Loader2 size={18} /> Loading layout...</div> : error && !document ? <div className={styles.error}>{error}</div> : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sections.map(section => section.id)} strategy={verticalListSortingStrategy}>

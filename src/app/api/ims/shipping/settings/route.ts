@@ -8,6 +8,7 @@ import {
   type PackagePresetInput,
 } from '@/lib/ims/shipping/shippingSettings';
 import { ShippingSettingsRepository } from '@/lib/ims/shipping/shippingSettingsRepository';
+import { getAusPostPackagingPresets } from '@/lib/ims/shipping/ausPostPackagingCatalogue';
 
 export async function GET() {
   const session = await getImsSession();
@@ -70,6 +71,17 @@ async function saveResource(request: Request) {
       if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 });
       const id = await ShippingSettingsRepository.savePreset(session.businessId, input);
       return NextResponse.json({ success: true, id });
+    }
+    if (body?.resource === 'auspost_catalogue') {
+      const requestedIds = Array.isArray(body.catalogueIds)
+        ? body.catalogueIds.filter((id: unknown): id is string => typeof id === 'string')
+        : [];
+      const presets = getAusPostPackagingPresets(requestedIds);
+      if (!presets.length || presets.length !== new Set(requestedIds).size) {
+        return NextResponse.json({ error: 'Choose valid Australia Post package presets.' }, { status: 400 });
+      }
+      const created = await ShippingSettingsRepository.importAusPostPresets(session.businessId, presets);
+      return NextResponse.json({ success: true, created, skipped: presets.length - created });
     }
     return NextResponse.json({ error: 'Choose a shipping settings resource.' }, { status: 400 });
   } catch (error) {
