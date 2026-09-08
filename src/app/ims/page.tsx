@@ -26100,6 +26100,19 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
 }
 
 // ─── Wholesale Portal Settings Section ───────────────────────────────────────
+const WHOLESALE_SETTINGS_DEFAULTS: Record<string, string> = {
+  wholesale_browse_mode:          'category',
+  wholesale_portal_title:         '',
+  wholesale_min_order_qty:        '1',
+  wholesale_show_rrp:             'yes',
+  wholesale_notification_email:   '',
+  wholesale_staff_preview_mode:   'read_only',
+  wholesale_product_image_fit:    'cover',
+  wholesale_product_image_ratio:  'landscape',
+  wholesale_order_quantity_mode:  'individual',
+  wholesale_catalogue_order_view: 'quick_order',
+};
+
 function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
   const [draft, setDraft]   = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -26107,19 +26120,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   const [error,  setError]  = useState('');
 
   useEffect(() => {
-    setDraft({
-      wholesale_browse_mode:         'category',
-      wholesale_portal_title:        '',
-      wholesale_min_order_qty:       '1',
-      wholesale_show_rrp:            'yes',
-      wholesale_notification_email:  '',
-      wholesale_staff_preview_mode:  'read_only',
-      wholesale_product_image_fit:   'cover',
-      wholesale_product_image_ratio: 'landscape',
-      wholesale_order_quantity_mode: 'individual',
-      wholesale_catalogue_order_view: 'quick_order',
-      ...settings,
-    });
+    setDraft({ ...WHOLESALE_SETTINGS_DEFAULTS, ...settings });
   }, [settings]);
 
   const sd = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -26128,7 +26129,10 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   const handleSave = async () => {
     setSaving(true); setSaved(false); setError('');
     try {
-      await saveSettings(draft);
+      // Only send the keys this section owns — draft also carries the full
+      // settings blob (spread in above) so the whole business config isn't re-validated.
+      const payload = Object.fromEntries(Object.keys(WHOLESALE_SETTINGS_DEFAULTS).map(key => [key, draft[key] ?? '']));
+      await saveSettings(payload);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
