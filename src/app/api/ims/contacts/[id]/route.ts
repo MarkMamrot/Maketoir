@@ -5,6 +5,7 @@ import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMeta
 import { getImsSession } from '@/lib/auth/imsSession';
 import { validateContactChannels } from '@/lib/ims/contactDataQuality';
 import { normalizeWholesaleBrands } from '@/lib/wholesale/wholesaleAccess';
+import { EarlyPaymentDiscountRulesRepository } from '@/lib/ims/earlyPaymentDiscountRules';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -39,6 +40,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
     }
     Object.assign(body, channels.normalized);
+    for (const field of ['customer_early_payment_discount_rule_id', 'supplier_early_payment_discount_rule_id'] as const) {
+      if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+      if (body[field] === '' || body[field] == null) body[field] = null;
+      else {
+        body[field] = Number(body[field]);
+        if (!Number.isInteger(body[field]) || body[field] <= 0) return NextResponse.json({ success: false, error: 'Invalid early-payment discount rule.' }, { status: 400 });
+        await EarlyPaymentDiscountRulesRepository.requireActive(body[field], businessId);
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(body, 'wholesale_allowed_brands_json')) {
       const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
       body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);

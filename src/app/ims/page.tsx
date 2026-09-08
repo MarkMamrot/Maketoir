@@ -12,6 +12,7 @@ import { DashboardSalesComparison } from './components/DashboardSalesComparison'
 import { DashboardProductInsights } from './components/DashboardProductInsights';
 import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
+import { EarlyPaymentDiscountSettingsSection } from './views/settings/EarlyPaymentDiscountSettingsSection';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
@@ -1838,6 +1839,8 @@ const BLANK_CONTACT = {
   promo_email: 0, promo_sms: 0,
   price_tier: 'retail', order_frequency_days: 45,
   wholesale_allowed_brands_json: null as string[] | string | null,
+  customer_early_payment_discount_rule_id: '' as string | number,
+  supplier_early_payment_discount_rule_id: '' as string | number,
   charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '',
 };
 const CONTACT_EXPORT_HEADERS = [
@@ -1948,6 +1951,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   const [importOpen, setImportOpen] = useState(false);
   const [exportingContacts, setExportingContacts] = useState(false);
   const [wholesaleBrands, setWholesaleBrands] = useState<string[]>([]);
+  const [earlyPaymentRules, setEarlyPaymentRules] = useState<any[]>([]);
 
   useEffect(() => {
     if (contactSettings.sells_wholesale === 'no') return;
@@ -1955,6 +1959,12 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
       if (payload.success && Array.isArray(payload.data)) setWholesaleBrands(payload.data);
     }).catch(() => {});
   }, [contactSettings.sells_wholesale]);
+
+  useEffect(() => {
+    fetch('/api/ims/early-payment-discount-rules').then(response => response.json()).then(payload => {
+      if (payload.success && Array.isArray(payload.data)) setEarlyPaymentRules(payload.data);
+    }).catch(() => {});
+  }, []);
 
   const flashSyncMsg = useCallback((message: string) => {
     setSyncMsg(message);
@@ -2600,6 +2610,12 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                   <Field label="Store Credit ($)"><input type="number" value={f.store_credit ?? 0} readOnly title="Read-only balance updated by completed manual or POS-generated customer credit notes." style={{ ...inputStyle, opacity: .72, cursor: 'not-allowed' }} /></Field>
                   <Field label="On Account Limit ($)"><input type="number" min="0" step="0.01" value={f.on_account_limit ?? ''} onChange={sf('on_account_limit')} style={inputStyle} /></Field>
                 </Row2>
+                {(form.type === 'b2b_customer' || form.type === 'both') && <Field label="Customer early-payment default">
+                  <select value={f.customer_early_payment_discount_rule_id ?? ''} onChange={sf('customer_early_payment_discount_rule_id')} style={inputStyle}>
+                    <option value="">No default</option>
+                    {earlyPaymentRules.filter(rule => Number(rule.is_active) || Number(rule.id) === Number(f.customer_early_payment_discount_rule_id)).map(rule => <option key={rule.id} value={rule.id}>{rule.name}{rule.is_active ? '' : ' (inactive)'}</option>)}
+                  </select>
+                </Field>}
                 <Row2>
                   <Field label="Price Tier">
                     <select value={f.price_tier ?? 'retail'} onChange={sf('price_tier')} style={inputStyle}>
@@ -2657,6 +2673,12 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
             {isSupplier && (
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>Supplier Settings</SectionLabel>
+                <Field label="Supplier early-payment default">
+                  <select value={f.supplier_early_payment_discount_rule_id ?? ''} onChange={sf('supplier_early_payment_discount_rule_id')} style={inputStyle}>
+                    <option value="">No default</option>
+                    {earlyPaymentRules.filter(rule => Number(rule.is_active) || Number(rule.id) === Number(f.supplier_early_payment_discount_rule_id)).map(rule => <option key={rule.id} value={rule.id}>{rule.name}{rule.is_active ? '' : ' (inactive)'}</option>)}
+                  </select>
+                </Field>
                 <Row2>
                   <Field label="Order Frequency (days)"><input type="number" min={1} value={f.order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} /></Field>
                   <Field label="Charges sales tax?">
@@ -9240,7 +9262,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const poCurrency = String(viewModal.po?.currency_code || 'AUD').toUpperCase();
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
-  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero' } | null>(null);
+  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero'; applyDiscount: boolean; operationKey: string } | null>(null);
+  const [poEarlyPaymentPreview, setPoEarlyPaymentPreview] = useState<any | null>(null);
   const [syncingPoPaymentId, setSyncingPoPaymentId] = useState<number | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
   const [poFileUploading, setPoFileUploading] = useState(false);
@@ -9249,6 +9272,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [variants, setVariants] = useState<any[]>([]);
   const [productTypes, setProductTypes] = useState<string[]>([]);
   const [poBrands, setPoBrands] = useState<Array<{ id: number; name: string }>>([]);
+  const [poEarlyPaymentRules, setPoEarlyPaymentRules] = useState<any[]>([]);
+  const [poEarlyPaymentChoice, setPoEarlyPaymentChoice] = useState('contact_default');
   const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
   const locationSoh = useLocationSoh(form.location_id);
   const [lineItems, setLineItems] = useState<any[]>([]);
@@ -9277,6 +9302,22 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings, capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
+  useEffect(() => {
+    if (!viewModal.po?.id || !poPayForm?.date) {
+      setPoEarlyPaymentPreview(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments/early-payment-preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount || 0) }),
+      signal: controller.signal,
+    }).then(response => response.json()).then(payload => {
+      if (payload.success) setPoEarlyPaymentPreview(payload.data);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [viewModal.po?.id, poPayForm?.date, poPayForm?.amount]);
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/ims/purchase-orders').then(r => r.json()).then(d => {
@@ -9293,6 +9334,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     fetch('/api/ims/product-types').then(r => r.json()).then(d => { if (d.success) setProductTypes(d.data); });
     fetch('/api/ims/brands').then(r => r.json()).then(d => { if (d.success) setPoBrands(d.data); });
     fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
+    fetch('/api/ims/early-payment-discount-rules').then(r => r.json()).then(d => { if (d.success) setPoEarlyPaymentRules((d.data ?? []).filter((rule: any) => Number(rule.is_active))); });
   }, []);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
@@ -9316,6 +9358,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       }
       return { ...p, supplier_id: supplierId, tax_treatment, tax_code: settings?.purchase_tax_code ?? p.tax_code ?? '' };
     });
+    setPoEarlyPaymentChoice('contact_default');
     if (sup) {
       const charges = Number(sup.charges_tax ?? 1);
       const rate = !charges ? 0
@@ -9417,6 +9460,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     setPoBulkDiscountPct('');
     setLandedCosts([]);
     setLcForm(null);
+    setPoEarlyPaymentChoice('contact_default');
     setModal({ open: true, edit: null });
   };
 
@@ -9469,7 +9513,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       const result = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined, xero_post_intent: xeroAccountingEnabled ? poPayForm.xeroIntent : 'solvantis_only' }),
+        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined, xero_post_intent: xeroAccountingEnabled ? poPayForm.xeroIntent : 'solvantis_only', apply_early_payment_discount: poPayForm.applyDiscount, early_payment_discount_operation_key: poPayForm.operationKey }),
       });
       if (xeroAccountingEnabled && result?.xeroWarning) alert(`Payment recorded in Solvantis, but Xero needs attention:\n\n${result.xeroWarning}`);
       setPoPayForm(null);
@@ -9572,7 +9616,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
           }
         }
       } else {
-        const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
+        const early_payment_discount_selection = poEarlyPaymentChoice === 'contact_default'
+          ? { mode: 'contact_default' }
+          : poEarlyPaymentChoice === 'none'
+            ? { mode: 'none' }
+            : { mode: 'override', ruleId: Number(poEarlyPaymentChoice) };
+        const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs, early_payment_discount_selection }) });
         savedPoId = Number(res?.id ?? 0) || null;
         if (andOrder && res?.id) {
           const createdPo = await apiFetch(`/api/ims/purchase-orders/${res.id}`);
@@ -10037,6 +10086,16 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 </select>
               </Field>
             </Row3>
+            {!modal.edit && <Row2>
+              <Field label="Early-payment discount">
+                <select value={poEarlyPaymentChoice} onChange={e => setPoEarlyPaymentChoice(e.target.value)} style={inputStyle}>
+                  <option value="contact_default">Supplier default</option>
+                  <option value="none">No early-payment discount</option>
+                  {poEarlyPaymentRules.map(rule => <option key={rule.id} value={rule.id}>Override: {rule.name}</option>)}
+                </select>
+              </Field>
+            </Row2>}
+            {modal.edit?.early_payment_discount_name && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Early-payment discount: {modal.edit.early_payment_discount_name} · cutoff {String(modal.edit.early_payment_discount_cutoff_date ?? '').slice(0, 10)}</div>}
             <Row2>
               <Field label="Supplier costs are…">
                 <select data-testid="po-tax-treatment" disabled={isContinuingReceipt} value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
@@ -10562,7 +10621,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!poPayForm && (
-                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -10611,6 +10670,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                       {([['solvantis_only', 'Record in Solvantis only'], ['post_to_xero', 'Post to Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setPoPayForm(f => f ? { ...f, xeroIntent: value } : f)} style={{ ...btnStyle(poPayForm.xeroIntent === value ? 'action' : 'ghost', 'sm'), flex: 1 }}>{label}</button>)}
                     </div>}
                     {xeroAccountingEnabled && poPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero bill. A linked Draft will be Authorised before the payment is applied.</div>}
+                    {poEarlyPaymentPreview?.available && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 5, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', fontSize: 12, lineHeight: 1.5 }}>
+                      <strong>{poEarlyPaymentPreview.name}</strong> · cutoff {poEarlyPaymentPreview.cutoffDate}<br />
+                      Discount {fmtFx(poEarlyPaymentPreview.discountGrossCents / 100, currency)} · qualifying settlement {fmtFx(poEarlyPaymentPreview.discountedSettlementCents / 100, currency)}
+                      <br /><span style={{ color: poEarlyPaymentPreview.eligible ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{poEarlyPaymentPreview.eligible ? 'This payment reaches the qualifying settlement.' : poEarlyPaymentPreview.excessSettlementCents > 0 ? `Reduce the payment by ${fmtFx(poEarlyPaymentPreview.excessSettlementCents / 100, currency)} to apply the discount.` : `${fmtFx(poEarlyPaymentPreview.remainingSettlementCents / 100, currency)} remains to qualify by the cutoff.`}</span>
+                      {poEarlyPaymentPreview.eligible && <label style={{ display: 'flex', gap: 7, alignItems: 'center', marginTop: 7, color: 'var(--sv-text)' }}><input type="checkbox" checked={poPayForm.applyDiscount} onChange={e => setPoPayForm(form => form ? { ...form, applyDiscount: e.target.checked } : form)} />Apply discount and create the supplier credit note</label>}
+                    </div>}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -10640,7 +10705,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={poPayForm.notes} onChange={e => setPoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
                       </div>
-                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date || (poPayForm.xeroIntent === 'post_to_xero' && !poPayForm.method)} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date || (poPayForm.xeroIntent === 'post_to_xero' && !poPayForm.method) || (poPayForm.applyDiscount && !poEarlyPaymentPreview?.eligible)} style={btnStyle('mint', 'sm')}>Save</button>
                       <button onClick={() => setPoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
                     </div>
                   </div>
@@ -13513,11 +13578,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
   const [posVoiding, setPosVoiding] = useState(false);
-  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero' } | null>(null);
+  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero'; applyDiscount: boolean; operationKey: string } | null>(null);
+  const [soEarlyPaymentPreview, setSoEarlyPaymentPreview] = useState<any | null>(null);
   const [syncingSoPaymentId, setSyncingSoPaymentId] = useState<number | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
+  const [soEarlyPaymentRules, setSoEarlyPaymentRules] = useState<any[]>([]);
+  const [soEarlyPaymentChoice, setSoEarlyPaymentChoice] = useState('contact_default');
   const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier: 'retail', tax_treatment: 'inc_tax', freight: '', discount: '', delivery_address: '', delivery_address2: '', delivery_suburb: '', delivery_city: '', delivery_state: '', delivery_postcode: '', delivery_country: '' });
   const locationSoh = useLocationSoh(form.location_id);
   const [lineItems, setLineItems] = useState<any[]>([]);
@@ -13543,6 +13611,22 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const shippedEditLocked = !!modal.edit && ['partially_fulfilled', 'fulfilled'].includes(String(modal.edit.status));
   const { settings } = useImsSettings();
+  useEffect(() => {
+    if (!viewModal.so?.id || !soPayForm?.date) {
+      setSoEarlyPaymentPreview(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/ims/sales-orders/${viewModal.so.id}/payments/early-payment-preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount || 0) }),
+      signal: controller.signal,
+    }).then(response => response.json()).then(payload => {
+      if (payload.success) setSoEarlyPaymentPreview(payload.data);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [viewModal.so?.id, soPayForm?.date, soPayForm?.amount]);
   const load = useCallback(() => {
     setLoading(true);
     setLoadError('');
@@ -13580,6 +13664,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
     fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
+    fetch('/api/ims/early-payment-discount-rules').then(r => r.json()).then(d => { if (d.success) setSoEarlyPaymentRules((d.data ?? []).filter((rule: any) => Number(rule.is_active))); });
   }, []);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
@@ -13638,6 +13723,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       delivery_postcode: customer?.postcode ?? '',
       delivery_country: customer?.country ?? '',
     }));
+    setSoEarlyPaymentChoice('contact_default');
     setLineItems(items => applySODefaultPricing(items, price_tier, tax_treatment, taxRate));
   };
 
@@ -13709,6 +13795,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const defaultTaxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate, notes: '' }]);
     setSoBulkDiscountPct('');
+    setSoEarlyPaymentChoice('contact_default');
     setModal({ open: true, edit: null });
   };
 
@@ -13839,7 +13926,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const result = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined, payment_method_id: soPayForm.method ? Number(soPayForm.method) : undefined, xero_post_intent: soPayForm.xeroIntent }),
+        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined, payment_method_id: soPayForm.method ? Number(soPayForm.method) : undefined, xero_post_intent: soPayForm.xeroIntent, apply_early_payment_discount: soPayForm.applyDiscount, early_payment_discount_operation_key: soPayForm.operationKey }),
       });
       if (result?.xeroWarning) alert(`Payment recorded in Solvantis, but Xero needs attention:\n\n${result.xeroWarning}`);
       setSoPayForm(null);
@@ -13915,7 +14002,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           : { ...form, items };
         await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...updateBody, operationKey: crypto.randomUUID(), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
       } else {
-        const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+        const early_payment_discount_selection = soEarlyPaymentChoice === 'contact_default'
+          ? { mode: 'contact_default' }
+          : soEarlyPaymentChoice === 'none'
+            ? { mode: 'none' }
+            : { mode: 'override', ruleId: Number(soEarlyPaymentChoice) };
+        const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, early_payment_discount_selection }) });
         savedSoId = Number(created?.id ?? created?.data?.id ?? 0) || null;
       }
       load();
@@ -14460,6 +14552,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 </select>
               </Field>
             </Row2>
+            {!modal.edit && <Row2>
+              <Field label="Early-payment discount">
+                <select value={soEarlyPaymentChoice} onChange={e => setSoEarlyPaymentChoice(e.target.value)} style={inputStyle}>
+                  <option value="contact_default">Customer default</option>
+                  <option value="none">No early-payment discount</option>
+                  {soEarlyPaymentRules.map(rule => <option key={rule.id} value={rule.id}>Override: {rule.name}</option>)}
+                </select>
+              </Field>
+            </Row2>}
+            {modal.edit?.early_payment_discount_name && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Early-payment discount: {modal.edit.early_payment_discount_name} · cutoff {String(modal.edit.early_payment_discount_cutoff_date ?? '').slice(0, 10)}</div>}
             <Row2>
               <Field label="Amounts Entered">
                 <select data-testid="so-tax-treatment" value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle} disabled={shippedEditLocked}>
@@ -14831,7 +14933,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!soPayForm && (
-                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -14885,6 +14987,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                       {([['solvantis_only', 'Record in Solvantis only'], ['post_to_xero', 'Post to Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setSoPayForm(f => f ? { ...f, xeroIntent: value } : f)} style={{ ...btnStyle(soPayForm.xeroIntent === value ? 'action' : 'ghost', 'sm'), flex: 1 }}>{label}</button>)}
                     </div>}
                     {xeroAccountingEnabled && soPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero invoice. A linked Draft will be Authorised before the payment is applied.</div>}
+                    {soEarlyPaymentPreview?.available && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 5, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', fontSize: 12, lineHeight: 1.5 }}>
+                      <strong>{soEarlyPaymentPreview.name}</strong> · cutoff {soEarlyPaymentPreview.cutoffDate}<br />
+                      Discount {fmtFx(soEarlyPaymentPreview.discountGrossCents / 100, currency)} · qualifying settlement {fmtFx(soEarlyPaymentPreview.discountedSettlementCents / 100, currency)}
+                      <br /><span style={{ color: soEarlyPaymentPreview.eligible ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{soEarlyPaymentPreview.eligible ? 'This payment reaches the qualifying settlement.' : soEarlyPaymentPreview.excessSettlementCents > 0 ? `Reduce the payment by ${fmtFx(soEarlyPaymentPreview.excessSettlementCents / 100, currency)} to apply the discount.` : `${fmtFx(soEarlyPaymentPreview.remainingSettlementCents / 100, currency)} remains to qualify by the cutoff.`}</span>
+                      {soEarlyPaymentPreview.eligible && <label style={{ display: 'flex', gap: 7, alignItems: 'center', marginTop: 7, color: 'var(--sv-text)' }}><input type="checkbox" checked={soPayForm.applyDiscount} onChange={e => setSoPayForm(form => form ? { ...form, applyDiscount: e.target.checked } : form)} />Apply discount and create the customer credit note</label>}
+                    </div>}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -14914,7 +15022,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={soPayForm.notes} onChange={e => setSoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
                       </div>
-                      <button onClick={handleAddSoPayment} disabled={!soPayForm.amount || !soPayForm.date || (soPayForm.xeroIntent === 'post_to_xero' && !soPayForm.method)} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={handleAddSoPayment} disabled={!soPayForm.amount || !soPayForm.date || (soPayForm.xeroIntent === 'post_to_xero' && !soPayForm.method) || (soPayForm.applyDiscount && !soEarlyPaymentPreview?.eligible)} style={btnStyle('mint', 'sm')}>Save</button>
                       <button onClick={() => setSoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
                     </div>
                   </div>
@@ -18141,6 +18249,8 @@ function SettingsView() {
           />
         </Field>
       </div>
+
+      <EarlyPaymentDiscountSettingsSection />
 
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Xero Tax Type Mapping</h3>

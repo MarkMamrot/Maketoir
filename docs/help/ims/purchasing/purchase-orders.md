@@ -31,7 +31,7 @@ Advisor access is read-only, so an Advisor cannot create or edit a purchase orde
 1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.
 2. Choose the supplier and receiving location.
 3. Add the exact product variants and quantities.
-4. Check order and expected dates, supplier invoice details, discounts, freight, currency, exchange rate, landed costs and notes.
+4. Check order and expected dates, supplier invoice details, early-payment discount, freight, currency, exchange rate, landed costs and notes.
 5. Check the supplier's tax treatment.
 6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.
 
@@ -40,6 +40,12 @@ When you use **Upload Invoice**, each printed line subtotal is the source of tru
 Supplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.
 
 Foreign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.
+
+For **Early-payment discount**, keep **Supplier default** to use the active rule configured on the supplier, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new PO. The supplier invoice date is the cutoff basis when supplied; otherwise the order date is used. Later changes to the supplier or rule do not rewrite the saved PO terms.
+
+When adding a payment to a PO with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.
+
+When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the supplier credit note** before saving. Solvantis records the payment, a stock-neutral supplier credit note, and the discount application together. The supplier credit reference remains blank unless the supplier actually issued one. An applied settlement payment and its credit note must be corrected together.
 
 > **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery.
 

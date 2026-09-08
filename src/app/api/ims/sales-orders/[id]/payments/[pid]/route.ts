@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { query } from '@/services/MySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string; pid: string } }) {
   try {
@@ -17,6 +18,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     if (!so) return NextResponse.json({ success: false, error: 'SO not found.' }, { status: 404 });
     const payment = (so.payments ?? []).find((p: any) => Number(p.id) === paymentId);
     if (!payment) return NextResponse.json({ success: false, error: 'Payment not found.' }, { status: 404 });
+    const application = await imsQuery<{ id: number }>(
+      `SELECT id FROM ims_early_payment_discount_applications
+        WHERE business_id = ? AND document_type = 'sales_order' AND document_id = ? AND settlement_payment_id = ? LIMIT 1`,
+      [session.businessId, soId, paymentId],
+    );
+    if (application[0]) return NextResponse.json({ success: false, error: 'This payment applied an early-payment discount and cannot be deleted separately.' }, { status: 409 });
 
     await ImsSORepo.deletePayment(Number(params.pid));
 

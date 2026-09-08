@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { resolveEarlyPaymentDiscountOrderSnapshot } from '@/lib/ims/earlyPaymentDiscountRules';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
@@ -99,8 +100,12 @@ export async function POST(req: Request) {
   const businessId = session.businessId as string;
   try {
     const body = await req.json();
-    const { items, ...soData } = body;
-    const id = await ImsSORepo.create(soData, items ?? [], businessId);
+    const { items, early_payment_discount_selection, ...soData } = body;
+    const discountSnapshot = await resolveEarlyPaymentDiscountOrderSnapshot({
+      businessId, documentType: 'sales_order', contactId: soData.customer_id,
+      orderDate: soData.order_date, selection: early_payment_discount_selection,
+    });
+    const id = await ImsSORepo.create({ ...soData, ...discountSnapshot }, items ?? [], businessId);
 
     // EVENT-DRIVEN CACHE UPDATE (Creation affects committed stock)
     if (items && items.length > 0) {

@@ -39,7 +39,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 
 1. Open **Sales > Sales Orders** and select **New Sales Order**.
 2. Choose the customer and location, then add the products and ordered quantities.
-3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.
+3. Review prices, tax treatment, early-payment discount, freight, dates, and notes. Save the order as Draft while it is still being prepared.
 4. Confirm the order when the customer demand is ready to proceed.
 5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.
 6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.
@@ -47,6 +47,12 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
 9. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
 10. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+
+For **Early-payment discount**, keep **Customer default** to use the active rule configured on the customer, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
+
+When adding a payment to a Sales Order with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.
+
+When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the customer credit note** before saving. Solvantis records the payment, a stock-neutral customer credit note, and the discount application together. It does not issue store credit because the credit note settles the order balance. An applied settlement payment and its credit note must be corrected together.
 
 > **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
 11. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.

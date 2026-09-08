@@ -1,3 +1,10 @@
+## 2026-09-09 - Early-payment discounts tenant migration
+
+- Applied the additive early-payment discount schema through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
+- The first pass added 18 contact and PO/SO rule-snapshot columns per tenant and ensured the rule and application ledger tables and required indexes were present. Strict readback verified both tables, all required indexes, and every default/snapshot column in each tenant.
+- An immediate full rerun added zero columns and zero indexes and passed all early-payment schema checks for every tenant.
+- A read-only audit after rollout found zero discount rules and applications in every tenant, and zero payments, customer or supplier credit notes, or stock movements created during the 30-minute rollout window. The migration created schema only and did not seed configuration or financial records.
+
 ## 2026-09-08 - Product Builds tenant migration
 
 - Applied the Product Builds schema through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.

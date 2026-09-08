@@ -7,6 +7,7 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { validateContactChannels } from '@/lib/ims/contactDataQuality';
 import { normalizeWholesaleBrands } from '@/lib/wholesale/wholesaleAccess';
+import { EarlyPaymentDiscountRulesRepository } from '@/lib/ims/earlyPaymentDiscountRules';
 
 let migrationDone = false;
 async function ensureMigration() {
@@ -35,6 +36,8 @@ async function ensureMigration() {
     ['loyalty_member_enrolled_at',  'DATETIME DEFAULT NULL'],
     ['loyalty_member_opted_out_at', 'DATETIME DEFAULT NULL'],
     ['wholesale_allowed_brands_json', 'JSON DEFAULT NULL'],
+    ['customer_early_payment_discount_rule_id', 'INT DEFAULT NULL'],
+    ['supplier_early_payment_discount_rule_id', 'INT DEFAULT NULL'],
   ];
   const existingCols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_contacts').catch(() => [] as { Field: string }[]);
   const colSet = new Set(existingCols.map((c: { Field: string }) => c.Field));
@@ -81,6 +84,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
     }
     Object.assign(body, channels.normalized);
+    for (const field of ['customer_early_payment_discount_rule_id', 'supplier_early_payment_discount_rule_id'] as const) {
+      if (body[field] === '' || body[field] == null) body[field] = null;
+      else {
+        body[field] = Number(body[field]);
+        if (!Number.isInteger(body[field]) || body[field] <= 0) return NextResponse.json({ success: false, error: 'Invalid early-payment discount rule.' }, { status: 400 });
+        await EarlyPaymentDiscountRulesRepository.requireActive(body[field], businessId);
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(body, 'wholesale_allowed_brands_json')) {
       const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
       body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);

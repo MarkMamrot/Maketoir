@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockSession, mockGet, mockAddPayment, mockXeroSync } = vi.hoisted(() => ({
+const { mockSession, mockGet, mockAddPayment, mockXeroSync, mockApplyDiscount } = vi.hoisted(() => ({
   mockSession: vi.fn(),
   mockGet: vi.fn(),
   mockAddPayment: vi.fn(),
   mockXeroSync: vi.fn(),
+  mockApplyDiscount: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
@@ -12,6 +13,8 @@ vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsSORepo: { get: mockGet, addPayment: mockAddPayment },
 }));
 vi.mock('@/lib/ims/xeroHooks', () => ({ triggerSOPaymentXeroSync: mockXeroSync }));
+vi.mock('@/lib/ims/earlyPaymentDiscountApplication', () => ({ applyEarlyPaymentDiscountWithPayment: mockApplyDiscount }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 
 import { POST } from '../route';
 
@@ -26,6 +29,7 @@ describe('POST /api/ims/sales-orders/[id]/payments', () => {
     vi.clearAllMocks();
     mockSession.mockResolvedValue({ businessId: 'biz-1' });
     mockAddPayment.mockResolvedValue({ id: 8 });
+    mockApplyDiscount.mockResolvedValue({ applicationId: 3, payment: { id: 8 }, creditNoteId: 9, preview: { discountGrossCents: 500 } });
   });
 
   it('records in Solvantis only by default without calling Xero', async () => {
@@ -56,5 +60,14 @@ describe('POST /api/ims/sales-orders/[id]/payments', () => {
     expect((await response.json()).error).toContain('Release this customer backorder');
     expect(mockAddPayment).not.toHaveBeenCalled();
     expect(mockXeroSync).not.toHaveBeenCalled();
+  });
+
+  it('uses the atomic workflow only when application is explicitly confirmed', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed' });
+    const response = await POST(request({ apply_early_payment_discount: true, early_payment_discount_operation_key: 'op-1' }) as any, { params: { id: '42' } });
+
+    expect(response.status).toBe(200);
+    expect(mockApplyDiscount).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz-1', documentType: 'sales_order', documentId: 42, operationKey: 'op-1' }));
+    expect(mockAddPayment).not.toHaveBeenCalled();
   });
 });

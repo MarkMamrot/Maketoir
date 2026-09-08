@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { triggerPOPaymentXeroSync } from '@/lib/ims/xeroHooks';
+import { applyEarlyPaymentDiscountWithPayment, markEarlyPaymentDiscountXeroFailure, reconcileEarlyPaymentDiscountXero } from '@/lib/ims/earlyPaymentDiscountApplication';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -17,9 +19,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  let businessId: string | undefined;
   try {
     const session = await getImsSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    businessId = session.businessId;
     const po = await ImsPORepo.get(Number(params.id), session.businessId);
     if (!po) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     if (po.status === 'backordered') {
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (isNaN(parsedRate) || parsedRate <= 0) {
       return NextResponse.json({ success: false, error: 'Exchange rate must be a positive number' }, { status: 400 });
     }
-    const payment = await ImsPORepo.addPayment(Number(params.id), {
+    const paymentInput = {
       payment_date,
       amount: parsedAmount,
       currency_code: (currency_code ?? 'AUD').toUpperCase(),
@@ -57,18 +61,55 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       notes: notes || undefined,
       payment_method_id: payment_method_id ? Number(payment_method_id) : undefined,
       xero_post_intent: xeroPostIntent,
-    }, session.businessId);
+    } as const;
+    let application: Awaited<ReturnType<typeof applyEarlyPaymentDiscountWithPayment>> | null = null;
+    const payment = body.apply_early_payment_discount
+      ? (application = await applyEarlyPaymentDiscountWithPayment({
+          businessId: session.businessId,
+          documentType: 'purchase_order',
+          documentId: Number(params.id),
+          operationKey: String(body.early_payment_discount_operation_key ?? ''),
+          payment: {
+            paymentDate: payment_date, amount: parsedAmount, currencyCode: paymentInput.currency_code,
+            exchangeRate: parsedRate, notes: notes || undefined, paymentMethodId: paymentInput.payment_method_id,
+            xeroPostIntent,
+          },
+          appliedBy: session.userId ?? null,
+        })).payment
+      : await ImsPORepo.addPayment(Number(params.id), paymentInput, session.businessId);
 
     const xeroResult = xeroPostIntent === 'post_to_xero' && session?.businessId && payment?.id
       ? await triggerPOPaymentXeroSync(session.businessId, Number(params.id), payment.id)
       : null;
+    let earlyPaymentXeroWarning: string | null = null;
+    if (application && xeroPostIntent === 'post_to_xero') {
+      if (xeroResult?.posted) {
+        try {
+          await reconcileEarlyPaymentDiscountXero({
+            businessId: session.businessId, documentType: 'purchase_order', documentId: Number(params.id),
+            applicationId: application.applicationId, creditNoteId: application.creditNoteId,
+            discountGrossCents: application.preview.discountGrossCents,
+            operationKey: String(body.early_payment_discount_operation_key),
+          });
+        } catch (error: any) {
+          earlyPaymentXeroWarning = error.message;
+        }
+      } else {
+        earlyPaymentXeroWarning = xeroResult?.warning ?? 'The Xero payment was not posted, so the early-payment credit note remains pending.';
+        await markEarlyPaymentDiscountXeroFailure(session.businessId, application.applicationId, earlyPaymentXeroWarning).catch(() => {});
+      }
+      if (earlyPaymentXeroWarning) await reportRuntimeIssue({ businessId: session.businessId, source: 'early_payment_discounts', operation: 'reconcile_purchase_order_discount_xero', title: 'Purchase-order early-payment discount needs Xero attention', error: earlyPaymentXeroWarning, reference: { type: 'purchase_order', id: Number(params.id) }, context: { applicationId: application.applicationId } }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,
       data: xeroResult ? { ...payment, xero_post_status: xeroResult.status, xero_payment_id: xeroResult.xeroPaymentId, xero_post_error: xeroResult.warning } : payment,
-      ...(xeroResult?.warning ? { xeroWarning: xeroResult.warning } : {}),
+      ...(application ? { earlyPaymentApplication: { id: application.applicationId, creditNoteId: application.creditNoteId, discountGrossCents: application.preview.discountGrossCents } } : {}),
+      ...(earlyPaymentXeroWarning || xeroResult?.warning ? { xeroWarning: earlyPaymentXeroWarning || xeroResult?.warning } : {}),
     });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    const validation = /does not qualify|operation key|already exists/i.test(e.message);
+    if (!validation) await reportRuntimeIssue({ businessId, source: 'early_payment_discounts', operation: 'apply_purchase_order_discount', title: 'Purchase-order early-payment discount could not be applied', error: e, reference: { type: 'purchase_order', id: Number(params.id) } }).catch(() => {});
+    return NextResponse.json({ success: false, error: e.message }, { status: validation ? 409 : 500 });
   }
 }

@@ -119,6 +119,8 @@ export interface ImsContact {
   wholesale_allowed_brands_json?: string[] | string | null;
   charges_tax?: number; prices_include_tax?: number; tax_rate?: number;
   website_url?: string;
+  customer_early_payment_discount_rule_id?: number | null;
+  supplier_early_payment_discount_rule_id?: number | null;
   created_at?: string; updated_at?: string;
 }
 
@@ -286,6 +288,10 @@ export interface ImsPO {
   received_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   supplier_invoice_number?: string; supplier_invoice_date?: string; payment_terms?: string;
+  early_payment_discount_rule_id?: number | null; early_payment_discount_name?: string | null;
+  early_payment_discount_basis_points?: number | null; early_payment_discount_days?: number | null;
+  early_payment_discount_base?: string | null; early_payment_discount_date_basis?: string | null;
+  early_payment_discount_cutoff_date?: string | null; early_payment_discount_source?: string | null;
   tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
   replacement_of_po_id?: number | null;
@@ -341,6 +347,10 @@ export interface ImsSO {
   shopify_order_id?: string; cin7_order_id?: string;
   price_tier?: 'retail' | 'wholesale';
   payment_terms?: string; tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
+  early_payment_discount_rule_id?: number | null; early_payment_discount_name?: string | null;
+  early_payment_discount_basis_points?: number | null; early_payment_discount_days?: number | null;
+  early_payment_discount_base?: string | null; early_payment_discount_date_basis?: string | null;
+  early_payment_discount_cutoff_date?: string | null; early_payment_discount_source?: string | null;
   currency_code?: string; exchange_rate?: number;
   replacement_of_so_id?: number | null;
   xero_invoice_id?: string | null; xero_invoice_number?: string | null;
@@ -492,8 +502,9 @@ export const ImsContactsRepo = {
          shopify_customer_id,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
           store_credit,on_account_limit,date_of_birth,gender,promo_email,promo_sms,
          loyalty_member,loyalty_member_enrolled_at,loyalty_member_opted_out_at,
-           cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,wholesale_allowed_brands_json,charges_tax,prices_include_tax,tax_rate,website_url)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?,?)`,
+           cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,wholesale_allowed_brands_json,charges_tax,prices_include_tax,tax_rate,website_url,
+           customer_early_payment_discount_rule_id,supplier_early_payment_discount_rule_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.type, data.name,
        data.first_name ?? null, data.last_name ?? null,
        data.company ?? null, data.customer_code ?? null, data.customer_group ?? null,
@@ -510,7 +521,9 @@ export const ImsContactsRepo = {
        data.order_frequency_days ?? 45, data.price_tier ?? 'retail',
       data.wholesale_allowed_brands_json ?? null,
        data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null,
-       data.website_url ?? null]
+      data.website_url ?? null,
+      data.customer_early_payment_discount_rule_id ?? null,
+      data.supplier_early_payment_discount_rule_id ?? null]
     );
     const newId = res.insertId;
     // Auto-assign a customer code if none was provided — format C-000142
@@ -529,6 +542,7 @@ export const ImsContactsRepo = {
       'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
       'on_account_limit','date_of_birth','gender','promo_email','promo_sms',
       'cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','wholesale_allowed_brands_json','charges_tax','prices_include_tax','tax_rate','website_url',
+      'customer_early_payment_discount_rule_id','supplier_early_payment_discount_rule_id',
     ];
     const sets: string[] = [];
     const vals: any[] = [];
@@ -1506,13 +1520,19 @@ export const ImsPORepo = {
       `INSERT INTO ims_purchase_orders
          (business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,
          supplier_invoice_number,supplier_invoice_date,payment_terms,tax_treatment,tax_code,currency_code,exchange_rate,
+         early_payment_discount_rule_id,early_payment_discount_name,early_payment_discount_basis_points,early_payment_discount_days,
+         early_payment_discount_base,early_payment_discount_date_basis,early_payment_discount_cutoff_date,early_payment_discount_source,
          freight,discount,subtotal,tax_amount,total_amount)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', po_number, data.supplier_id ?? null, data.location_id, 'draft',
       data.order_date, normalizePurchaseOrderField('expected_date', data.expected_date), data.notes ?? null,
        data.supplier_invoice_number ?? null, data.supplier_invoice_date || null, data.payment_terms ?? null,
        data.tax_treatment ?? 'ex_tax', data.tax_code ?? null,
        data.currency_code ?? 'AUD', data.exchange_rate ?? 1,
+      data.early_payment_discount_rule_id ?? null, data.early_payment_discount_name ?? null,
+      data.early_payment_discount_basis_points ?? null, data.early_payment_discount_days ?? null,
+      data.early_payment_discount_base ?? null, data.early_payment_discount_date_basis ?? null,
+      data.early_payment_discount_cutoff_date ?? null, data.early_payment_discount_source ?? null,
        freight, discount, subtotal, tax_amount, total_amount]
     );
     const po_id = res.insertId;
@@ -2836,8 +2856,10 @@ export const ImsSORepo = {
          is_staff_preview_test,staff_preview_session_id,staff_preview_actor_user_id,staff_preview_actor_name,
          customer_po_number,location_id,status,order_date,expected_date,
          delivery_address,delivery_address2,delivery_suburb,delivery_city,delivery_state,delivery_postcode,delivery_country,notes,
-         payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id,
+         early_payment_discount_rule_id,early_payment_discount_name,early_payment_discount_basis_points,early_payment_discount_days,
+        early_payment_discount_base,early_payment_discount_date_basis,early_payment_discount_cutoff_date,early_payment_discount_source)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', so_number, 'b2b', data.customer_id ?? null,
        data.wholesale_company_id ?? null, data.wholesale_location_id ?? null, data.wholesale_member_id ?? null,
       data.is_staff_preview_test ?? 0, data.staff_preview_session_id ?? null,
@@ -2847,7 +2869,11 @@ export const ImsSORepo = {
        data.delivery_suburb ?? null, data.delivery_city ?? null, data.delivery_state ?? null,
        data.delivery_postcode ?? null, data.delivery_country ?? null, data.notes ?? null,
        data.payment_terms ?? null, priceTier, taxTreatment, data.tax_code ?? null, soFreight, soDiscount,
-       totals.subtotal, totals.tax_amount, totals.total_amount, data.shopify_order_id ?? null]
+      totals.subtotal, totals.tax_amount, totals.total_amount, data.shopify_order_id ?? null,
+      data.early_payment_discount_rule_id ?? null, data.early_payment_discount_name ?? null,
+      data.early_payment_discount_basis_points ?? null, data.early_payment_discount_days ?? null,
+      data.early_payment_discount_base ?? null, data.early_payment_discount_date_basis ?? null,
+      data.early_payment_discount_cutoff_date ?? null, data.early_payment_discount_source ?? null]
     );
     const so_id = res.insertId;
     for (const item of items) {

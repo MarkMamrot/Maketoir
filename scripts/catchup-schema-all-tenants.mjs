@@ -58,6 +58,11 @@ const PRODUCT_BUILD_TABLES = [
   'ims_product_build_requirements',
 ];
 
+const EARLY_PAYMENT_DISCOUNT_TABLES = [
+  'ims_early_payment_discount_rules',
+  'ims_early_payment_discount_applications',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -80,6 +85,12 @@ const PRODUCT_BUILD_TABLE_DDLS = PRODUCT_BUILD_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const EARLY_PAYMENT_DISCOUNT_TABLE_DDLS = EARLY_PAYMENT_DISCOUNT_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -92,6 +103,7 @@ const conn = await mysql.createConnection({
 const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
   ...PRODUCT_BUILD_TABLE_DDLS,
+  ...EARLY_PAYMENT_DISCOUNT_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -1220,6 +1232,10 @@ const COLUMNS = [
   ['ims_brands', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_brands', 'website_url', 'VARCHAR(500) NULL AFTER name'],
   ['ims_brands', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'],
+  ['ims_contacts', 'customer_early_payment_discount_rule_id', 'INT NULL AFTER wholesale_allowed_brands_json'],
+  ['ims_contacts', 'supplier_early_payment_discount_rule_id', 'INT NULL AFTER customer_early_payment_discount_rule_id'],
+  ['ims_early_payment_discount_applications', 'discount_taxable_net', 'DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER paid_by_cutoff'],
+  ['ims_early_payment_discount_applications', 'discount_tax_free', 'DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER discount_taxable_net'],
   ['ims_online_shop_checkouts', 'fulfilment_mode', "VARCHAR(32) NOT NULL DEFAULT 'single_location' AFTER status"],
   ['ims_online_shop_value_reservations', 'reward_id', 'INT NULL AFTER value_type'],
   ['ims_online_shop_value_reservations', 'loyalty_redemption_id', 'BIGINT NULL AFTER reward_id'],
@@ -1269,6 +1285,14 @@ const COLUMNS = [
   ['ims_purchase_orders', 'supplier_invoice_number',  'VARCHAR(100) NULL'],
   ['ims_purchase_orders', 'supplier_invoice_date',    'DATE NULL'],
   ['ims_purchase_orders', 'payment_terms',            'VARCHAR(100) NULL'],
+  ['ims_purchase_orders', 'early_payment_discount_rule_id', 'INT NULL AFTER payment_terms'],
+  ['ims_purchase_orders', 'early_payment_discount_name', 'VARCHAR(120) NULL AFTER early_payment_discount_rule_id'],
+  ['ims_purchase_orders', 'early_payment_discount_basis_points', 'INT UNSIGNED NULL AFTER early_payment_discount_name'],
+  ['ims_purchase_orders', 'early_payment_discount_days', 'INT UNSIGNED NULL AFTER early_payment_discount_basis_points'],
+  ['ims_purchase_orders', 'early_payment_discount_base', 'VARCHAR(32) NULL AFTER early_payment_discount_days'],
+  ['ims_purchase_orders', 'early_payment_discount_date_basis', 'VARCHAR(40) NULL AFTER early_payment_discount_base'],
+  ['ims_purchase_orders', 'early_payment_discount_cutoff_date', 'DATE NULL AFTER early_payment_discount_date_basis'],
+  ['ims_purchase_orders', 'early_payment_discount_source', 'VARCHAR(32) NULL AFTER early_payment_discount_cutoff_date'],
   ['ims_purchase_orders', 'currency_code',            "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
   ['ims_purchase_orders', 'exchange_rate',            'DECIMAL(12,6) NOT NULL DEFAULT 1.000000'],
   ['ims_purchase_orders', 'cin7_contact_id',          'INT NULL'],
@@ -1295,6 +1319,14 @@ const COLUMNS = [
   ['ims_sales_orders', 'is_historical',       'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_sales_orders', 'replacement_of_so_id', 'INT NULL'],
   ['ims_sales_orders', 'payment_terms',       'VARCHAR(100) NULL'],
+  ['ims_sales_orders', 'early_payment_discount_rule_id', 'INT NULL AFTER payment_terms'],
+  ['ims_sales_orders', 'early_payment_discount_name', 'VARCHAR(120) NULL AFTER early_payment_discount_rule_id'],
+  ['ims_sales_orders', 'early_payment_discount_basis_points', 'INT UNSIGNED NULL AFTER early_payment_discount_name'],
+  ['ims_sales_orders', 'early_payment_discount_days', 'INT UNSIGNED NULL AFTER early_payment_discount_basis_points'],
+  ['ims_sales_orders', 'early_payment_discount_base', 'VARCHAR(32) NULL AFTER early_payment_discount_days'],
+  ['ims_sales_orders', 'early_payment_discount_date_basis', 'VARCHAR(40) NULL AFTER early_payment_discount_base'],
+  ['ims_sales_orders', 'early_payment_discount_cutoff_date', 'DATE NULL AFTER early_payment_discount_date_basis'],
+  ['ims_sales_orders', 'early_payment_discount_source', 'VARCHAR(32) NULL AFTER early_payment_discount_cutoff_date'],
   ['ims_sales_orders', 'delivery_address',    'VARCHAR(255) NULL'],
   ['ims_sales_orders', 'delivery_address2',   'VARCHAR(255) NULL'],
   ['ims_sales_orders', 'delivery_suburb',     'VARCHAR(100) NULL'],
@@ -1867,6 +1899,8 @@ async function migrateSchema(schema, businessId) {
     await ensureColumnCollationMatches(schema, 'ims_online_shop_products', 'product_id', 'ims_products', 'product_id');
     await ensureColumnCollationMatches(schema, 'ims_stock_allocations', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_stock_allocation_operations', 'business_id', 'ims_products', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_rules', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_applications', 'business_id', 'ims_contacts', 'business_id');
   } catch (e) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }
@@ -2066,6 +2100,41 @@ async function verifyOrderPaymentSchema(schema) {
     }
     console.log(`  verified ${schema}.${table}`);
   }
+}
+
+async function verifyEarlyPaymentDiscountSchema(schema) {
+  const requiredColumns = new Map([
+    ['ims_early_payment_discount_rules', ['business_id', 'name', 'discount_basis_points', 'discount_days', 'discount_base', 'date_basis', 'is_active']],
+    ['ims_early_payment_discount_applications', ['business_id', 'document_type', 'document_id', 'settlement_payment_id', 'operation_key', 'status', 'cutoff_date', 'paid_by_cutoff', 'discount_taxable_net', 'discount_tax_free', 'discount_net', 'discount_tax', 'discount_gross', 'currency_code', 'customer_credit_note_id', 'supplier_credit_note_id', 'xero_credit_note_id', 'xero_allocation_id', 'xero_status', 'xero_error']],
+    ['ims_contacts', ['customer_early_payment_discount_rule_id', 'supplier_early_payment_discount_rule_id']],
+    ['ims_purchase_orders', ['early_payment_discount_rule_id', 'early_payment_discount_name', 'early_payment_discount_basis_points', 'early_payment_discount_days', 'early_payment_discount_base', 'early_payment_discount_date_basis', 'early_payment_discount_cutoff_date', 'early_payment_discount_source']],
+    ['ims_sales_orders', ['early_payment_discount_rule_id', 'early_payment_discount_name', 'early_payment_discount_basis_points', 'early_payment_discount_days', 'early_payment_discount_base', 'early_payment_discount_date_basis', 'early_payment_discount_cutoff_date', 'early_payment_discount_source']],
+  ]);
+  for (const [table, columns] of requiredColumns) {
+    const [rows] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, table],
+    );
+    const present = new Set(rows.map(row => row.COLUMN_NAME));
+    for (const column of columns) {
+      if (!present.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
+    }
+  }
+  const requiredIndexes = new Map([
+    ['ims_early_payment_discount_rules', ['PRIMARY', 'uq_early_payment_rule_name', 'idx_early_payment_rule_active']],
+    ['ims_early_payment_discount_applications', ['PRIMARY', 'uq_early_payment_application_operation', 'uq_early_payment_application_document', 'idx_early_payment_application_status']],
+  ]);
+  for (const [table, indexes] of requiredIndexes) {
+    const [rows] = await conn.query(
+      `SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, table],
+    );
+    const present = new Set(rows.map(row => row.INDEX_NAME));
+    for (const index of indexes) {
+      if (!present.has(index)) throw new Error(`${schema}.${table} is missing index ${index}`);
+    }
+  }
+  console.log(`  verified ${schema} early-payment discount schema`);
 }
 
 async function verifySalesDocumentSchema(schema) {
@@ -2276,6 +2345,7 @@ try {
     await verifyInventoryDocumentOperationSchema(schema);
     await verifyInventoryDocumentCorrectionSchema(schema);
     await verifyOrderPaymentSchema(schema);
+    await verifyEarlyPaymentDiscountSchema(schema);
     await verifySalesDocumentSchema(schema);
     await verifyWholesaleAccessSchema(schema);
     await verifyWholesaleOrderOwnershipSchema(schema);

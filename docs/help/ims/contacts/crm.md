@@ -9,6 +9,7 @@ Contacts holds maintained customer, supplier, and lead details. CRM adds relatio
 
 - Search before creating a contact so one person or company is not duplicated.
 - Maintain names, contact details, company details, and contact type in Contacts.
+- Set independent customer and supplier early-payment defaults for eligible contacts.
 - Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.
 - Keep important information in the **Contact summary** pinned at the top of each CRM profile.
 - Open a customer profile to review activity and follow its source links.
@@ -25,6 +26,8 @@ Contacts holds maintained customer, supplier, and lead details. CRM adds relatio
 | Track a possible sale | **CRM > Pipeline** | The opportunity moves through open, won, or lost stages |
 
 When adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. After saving a lead or retail customer, Contacts switches to that contact type so the new record is visible. The form closes without saving only when you choose **Cancel** or press Escape.
+
+For a B2B customer, choose a **Customer early-payment default** when new Sales Orders should normally offer that rule. For a supplier, choose a **Supplier early-payment default** for new Purchase Orders. A contact of type **Both** can hold each default independently. The default is copied to a new order when it is saved; changing the contact later does not rewrite existing orders.
 
 ## Customer profiles
 

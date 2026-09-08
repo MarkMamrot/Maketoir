@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   website_url         VARCHAR(500) DEFAULT NULL,
   price_tier          VARCHAR(20) DEFAULT 'retail',
   wholesale_allowed_brands_json JSON DEFAULT NULL,
+  customer_early_payment_discount_rule_id INT NULL,
+  supplier_early_payment_discount_rule_id INT NULL,
   -- Misc
   notes       TEXT,
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
@@ -62,6 +64,23 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_business_id (business_id),
   UNIQUE KEY idx_shopify_customer_id (business_id, shopify_customer_id),
   INDEX idx_customer_code (business_id, customer_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Early-payment discount rules ───────────────────────────
+CREATE TABLE IF NOT EXISTS ims_early_payment_discount_rules (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL DEFAULT '',
+  name                  VARCHAR(120) NOT NULL,
+  discount_basis_points INT UNSIGNED NOT NULL,
+  discount_days         INT UNSIGNED NOT NULL,
+  discount_base         VARCHAR(32) NOT NULL DEFAULT 'merchandise',
+  date_basis            VARCHAR(40) NOT NULL DEFAULT 'invoice_date_order_fallback',
+  is_active             TINYINT(1) NOT NULL DEFAULT 1,
+  created_by            INT NULL,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_early_payment_rule_name (business_id, name),
+  INDEX idx_early_payment_rule_active (business_id, is_active, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Product brands ─────────────────────────────────────────
@@ -828,6 +847,14 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   supplier_invoice_number VARCHAR(100),
   supplier_invoice_date DATE,
   payment_terms VARCHAR(100),
+  early_payment_discount_rule_id INT NULL,
+  early_payment_discount_name VARCHAR(120) NULL,
+  early_payment_discount_basis_points INT UNSIGNED NULL,
+  early_payment_discount_days INT UNSIGNED NULL,
+  early_payment_discount_base VARCHAR(32) NULL,
+  early_payment_discount_date_basis VARCHAR(40) NULL,
+  early_payment_discount_cutoff_date DATE NULL,
+  early_payment_discount_source VARCHAR(32) NULL,
   xero_bill_id VARCHAR(100) NULL,
   xero_synced_at DATETIME NULL,
   xero_sync_status ENUM('synced','queued','error') NULL,
@@ -946,6 +973,14 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   delivery_postcode VARCHAR(30) NULL,
   delivery_country VARCHAR(100) NULL,
   payment_terms    VARCHAR(100) NULL,
+  early_payment_discount_rule_id INT NULL,
+  early_payment_discount_name VARCHAR(120) NULL,
+  early_payment_discount_basis_points INT UNSIGNED NULL,
+  early_payment_discount_days INT UNSIGNED NULL,
+  early_payment_discount_base VARCHAR(32) NULL,
+  early_payment_discount_date_basis VARCHAR(40) NULL,
+  early_payment_discount_cutoff_date DATE NULL,
+  early_payment_discount_source VARCHAR(32) NULL,
   notes            TEXT,
   tax_treatment    ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
   freight          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -1027,6 +1062,38 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE,
   INDEX idx_sop_so (so_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Applied early-payment discounts ────────────────────────
+CREATE TABLE IF NOT EXISTS ims_early_payment_discount_applications (
+  id                         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id                VARCHAR(100) NOT NULL DEFAULT '',
+  document_type              VARCHAR(20) NOT NULL,
+  document_id                INT NOT NULL,
+  settlement_payment_id      INT NULL,
+  operation_key              VARCHAR(191) NOT NULL,
+  status                     VARCHAR(32) NOT NULL DEFAULT 'pending',
+  cutoff_date                DATE NOT NULL,
+  paid_by_cutoff             DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_taxable_net       DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_tax_free          DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_net               DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_tax               DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_gross             DECIMAL(12,2) NOT NULL DEFAULT 0,
+  currency_code              VARCHAR(10) NOT NULL DEFAULT 'AUD',
+  customer_credit_note_id    INT NULL,
+  supplier_credit_note_id    INT NULL,
+  xero_credit_note_id        VARCHAR(100) NULL,
+  xero_allocation_id         VARCHAR(100) NULL,
+  xero_status                VARCHAR(32) NULL,
+  xero_error                 VARCHAR(500) NULL,
+  applied_by                 INT NULL,
+  applied_at                 DATETIME NULL,
+  created_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_early_payment_application_operation (business_id, operation_key),
+  UNIQUE KEY uq_early_payment_application_document (business_id, document_type, document_id),
+  INDEX idx_early_payment_application_status (business_id, status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (

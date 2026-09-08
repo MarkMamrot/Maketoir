@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { resolveEarlyPaymentDiscountOrderSnapshot } from '@/lib/ims/earlyPaymentDiscountRules';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
@@ -24,8 +25,13 @@ export async function POST(req: Request) {
   const businessId = session.businessId as string;
   try {
     const body = await req.json();
-    const { items, landed_costs, ...poData } = body;
-    const id = await ImsPORepo.create(poData, items ?? [], landed_costs ?? [], businessId);
+    const { items, landed_costs, early_payment_discount_selection, ...poData } = body;
+    const discountSnapshot = await resolveEarlyPaymentDiscountOrderSnapshot({
+      businessId, documentType: 'purchase_order', contactId: poData.supplier_id,
+      orderDate: poData.order_date, supplierInvoiceDate: poData.supplier_invoice_date,
+      selection: early_payment_discount_selection,
+    });
+    const id = await ImsPORepo.create({ ...poData, ...discountSnapshot }, items ?? [], landed_costs ?? [], businessId);
 
     // EVENT-DRIVEN CACHE UPDATE (Creation affects incoming stock)
     if (items && items.length > 0) {

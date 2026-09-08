@@ -33,6 +33,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_stock',
   'ims_stock_allocations',
   'ims_stock_allocation_operations',
+  'ims_early_payment_discount_rules',
+  'ims_early_payment_discount_applications',
   'ims_purchase_orders',
   'ims_po_landed_costs',
   'ims_purchase_order_items',
@@ -142,6 +144,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  ims_contacts: ['customer_early_payment_discount_rule_id', 'supplier_early_payment_discount_rule_id'],
   loyalty_redemptions: ['expires_at'],
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
   ims_bulk_product_presets: ['business_id', 'user_key', 'name', 'settings_json', 'last_used_at', 'created_at', 'updated_at'],
@@ -196,8 +199,10 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_stock_allocation_operations: ['operation_key', 'request_hash', 'action', 'state'],
   wholesale_draft_orders: ['wholesale_company_id', 'wholesale_location_id', 'wholesale_member_id', 'is_staff_preview_test', 'staff_preview_session_id', 'staff_preview_actor_user_id', 'staff_preview_actor_name'],
   wholesale_draft_order_items: ['is_indent', 'indent_qty'],
-  ims_purchase_orders: ['replacement_of_po_id'],
-  ims_sales_orders: ['replacement_of_so_id', 'wholesale_company_id', 'wholesale_location_id', 'wholesale_member_id', 'is_staff_preview_test', 'staff_preview_session_id', 'staff_preview_actor_user_id', 'staff_preview_actor_name', 'sales_channel', 'native_checkout_id'],
+  ims_early_payment_discount_rules: ['business_id', 'name', 'discount_basis_points', 'discount_days', 'discount_base', 'date_basis', 'is_active'],
+  ims_early_payment_discount_applications: ['business_id', 'document_type', 'document_id', 'settlement_payment_id', 'operation_key', 'status', 'cutoff_date', 'paid_by_cutoff', 'discount_taxable_net', 'discount_tax_free', 'discount_net', 'discount_tax', 'discount_gross', 'currency_code', 'customer_credit_note_id', 'supplier_credit_note_id', 'xero_credit_note_id', 'xero_allocation_id', 'xero_status', 'xero_error'],
+  ims_purchase_orders: ['replacement_of_po_id', 'early_payment_discount_rule_id', 'early_payment_discount_name', 'early_payment_discount_basis_points', 'early_payment_discount_days', 'early_payment_discount_base', 'early_payment_discount_date_basis', 'early_payment_discount_cutoff_date', 'early_payment_discount_source'],
+  ims_sales_orders: ['replacement_of_so_id', 'wholesale_company_id', 'wholesale_location_id', 'wholesale_member_id', 'is_staff_preview_test', 'staff_preview_session_id', 'staff_preview_actor_user_id', 'staff_preview_actor_name', 'sales_channel', 'native_checkout_id', 'early_payment_discount_rule_id', 'early_payment_discount_name', 'early_payment_discount_basis_points', 'early_payment_discount_days', 'early_payment_discount_base', 'early_payment_discount_date_basis', 'early_payment_discount_cutoff_date', 'early_payment_discount_source'],
   ims_purchase_order_items: ['discount_pct'],
   ims_purchase_order_payments: [
     'business_id',
@@ -259,6 +264,8 @@ export const IMS_SCHEMA_REQUIRED_INDEXES = {
   ims_crm_tags: ['uq_crm_tag_name', 'idx_crm_tag_lookup'],
   ims_crm_contact_tags: ['uq_crm_contact_tag', 'idx_crm_contact_tag_lookup'],
   ims_inventory_document_operations: ['uq_inventory_document_operation', 'idx_inventory_document_history'],
+  ims_early_payment_discount_rules: ['uq_early_payment_rule_name', 'idx_early_payment_rule_active'],
+  ims_early_payment_discount_applications: ['uq_early_payment_application_operation', 'uq_early_payment_application_document', 'idx_early_payment_application_status'],
   ims_purchase_orders: ['uq_po_replacement_source'],
   ims_sales_orders: ['uq_so_replacement_source', 'idx_so_wholesale_account', 'idx_so_staff_preview', 'idx_so_online_channel', 'uq_so_native_checkout'],
   wholesale_draft_orders: ['idx_wholesale_draft_account', 'idx_wholesale_draft_preview'],
