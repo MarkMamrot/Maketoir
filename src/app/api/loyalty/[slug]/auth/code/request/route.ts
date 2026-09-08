@@ -39,6 +39,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     const contactId = await runImsForBusiness(businessId, () => upsertLoyaltyPortalCustomer(businessId!, customers[0]));
     stage = 'create_challenge';
     const challenge = await createCustomerOtp({ businessId, contactId, email, purpose: 'loyalty_portal' });
+    stage = 'configure_email';
     if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured.');
     stage = 'send_email';
     const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({

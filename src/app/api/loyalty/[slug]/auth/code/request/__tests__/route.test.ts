@@ -83,4 +83,16 @@ describe('loyalty portal code request', () => {
       context: { stage: 'link_ims_contact' },
     }));
   });
+
+  it('identifies missing email delivery configuration after challenge creation', async () => {
+    vi.stubEnv('RESEND_API_KEY', '');
+
+    await POST(request(), { params: { slug: 'monsterthreads-rewards' } });
+
+    expect(mocks.createCustomerOtp).toHaveBeenCalledOnce();
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      context: { stage: 'configure_email' },
+    }));
+  });
 });
