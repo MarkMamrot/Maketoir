@@ -184,7 +184,7 @@ Use ONLY values from the business catalog for product_type and brand. If the inv
 Allowed product types: ${JSON.stringify(allowedProductTypes.map(r => r.product_type).filter(Boolean))}
 Allowed brands: ${JSON.stringify(allowedBrands.map(r => r.name).filter(Boolean))}
 
-Treat each product line_total as the source of truth. Derive the effective unit_price as line_total / qty for supplied product rows, even when the invoice shows RRP and a discount column that may be descriptive rather than a true wholesale discount. Keep RRP in the rrp field when available.
+Treat each product line_total as the source of truth. Preserve the printed pre-discount unit price in unit_price and extract a printed per-line dollar discount into discount_amount. Use discount_pct only when the invoice explicitly prints a percentage. Keep RRP in the rrp field when available. The system will retain a line discount only when the price, quantity, discount, and line total reconcile; otherwise it safely derives the effective unit cost from line_total.
 Do NOT convert inc-tax prices to ex-tax. The system handles tax arithmetic using prices_include_tax.
 
 Return ONLY a valid JSON object — no markdown fences, no extra text:
@@ -211,6 +211,7 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
       "qty": 0,
       "unit_price": 0.00,
       "rrp": 0.00,
+      "discount_amount": 0.00,
       "discount_pct": 0,
       "line_total": 0.00,
       "product_type": null,
@@ -226,8 +227,9 @@ Notes:
 - line_type = "product" for supplied items, "freight" for freight rows, or "backorder" for items not supplied on this invoice
 - Freight/delivery/shipping/postage rows must use line_type "freight", not "product"
 - line_total is the authoritative amount for each product. Preserve it exactly to two decimal places after line-level dollar or percentage discounts
-- unit_price must be the effective invoiced unit price for import, derived as line_total / qty for supplied lines
-- A DISCOUNTS column may contain a dollar amount, not a percentage. If discount meaning is ambiguous, set discount_pct to 0 and rely on line_total-derived unit_price
+- unit_price is the printed invoiced unit price before the line discount; do not replace it with line_total / qty
+- discount_amount is the printed dollar amount for that individual product line, entered as a positive number; use 0 when no line discount amount is printed
+- A DISCOUNTS column may contain a dollar amount, not a percentage. Put it in discount_amount and leave discount_pct as 0 unless a percentage is explicitly printed
 - barcode = barcode/EAN/UPC/GTIN printed for that product; preserve leading zeroes and return it as a string
 - rrp = recommended retail price, retail price, MSRP, or SRP if shown for that product; use null if not shown
 - tax_rate: 0.1 for Australian GST, 0 for GST-free items (applies even when prices_include_tax is inc_tax)

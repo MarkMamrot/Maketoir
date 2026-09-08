@@ -152,13 +152,14 @@ describe('ImsPORepo.update', () => {
 
     await ImsPORepo.update(42, {}, [
       { id: 10, variant_id: 'v-1', qty_ordered: 2, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 10, notes: null },
-      { variant_id: 'v-2', qty_ordered: 3, unit_cost: 7, discount_pct: 0, tax_rate: 0.1, line_total: 21, notes: 'Second' },
+      { variant_id: 'v-2', qty_ordered: 12, unit_cost: 5.68, discount_pct: 10.0059, tax_rate: 0.1, line_total: 61.34, notes: 'Second' },
     ]);
 
     const inserts = execute.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ims_purchase_order_items'));
     expect(inserts).toHaveLength(1);
     expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?)');
     expect(inserts[0][1]).toHaveLength(8);
+    expect(inserts[0][1]).toEqual([42, 'v-2', 12, 5.68, 10.0059, 0.1, 61.34, 'Second']);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE ims_purchase_order_items'),
       ['v-1', 2, 5, 0, 0.1, 10, null, 10, 42],

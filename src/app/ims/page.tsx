@@ -8441,7 +8441,7 @@ type InvoiceParseResult = {
   invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null; discount_total?: number | null; freight_total?: number | null };
   matched_supplier: { id: number; name: string } | null;
   line_results: Array<{
-    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
+    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_amount?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
     match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
   }>;
   po_comparison: Array<{
@@ -8453,7 +8453,7 @@ type InvoiceParseResult = {
 
 function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; line_total?: number | null; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   onVariantCreated?: (variant: any) => void;
   suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; poId?: number | null; pendingFile?: File | null;
@@ -8526,7 +8526,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     if (!result || !onImport) return;
     const line_items = result.line_results
       .filter((_, i) => !skipped.has(i))
-      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
+      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate ?? 0.1), line_total: lr.invoice_line.line_total ?? null, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, freight_total: result.invoice.freight_total ?? null, line_items });
     onClose();
@@ -8535,6 +8535,10 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   function openCreateProduct(i: number, line: InvoiceParseResult['line_results'][0]['invoice_line']) {
     setCreateLineIndex(i);
     setCreateProductError(null);
+    const quantity = Number(line.qty) || 1;
+    const effectiveUnitCost = line.line_total != null
+      ? Number(line.line_total) / quantity
+      : Number(line.unit_price ?? 0) * (1 - Number(line.discount_pct ?? 0) / 100);
     setCreateProductForm({
       name: line.product_name ?? '',
       sku: line.product_code ?? '',
@@ -8542,7 +8546,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       product_type: line.product_type ?? '',
       brand: line.brand ?? '',
       rrp: line.rrp == null ? '' : String(line.rrp),
-      cost: String(Number(line.unit_price ?? 0)),
+      cost: String(Math.round(effectiveUnitCost * 10000) / 10000),
       supplier_id: supplierId ? String(supplierId) : '',
     });
   }
@@ -9332,7 +9336,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, discount_pct: 0, tax_rate: poDefaultTaxRate }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
-  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i
+    ? { ...item, [k]: v, ...(k === 'qty_ordered' || k === 'unit_cost' || k === 'discount_pct' ? { line_total: undefined } : {}) }
+    : item));
   const applyPoDiscountToAllLines = () => {
     if (lineItems.length === 0) {
       alert('Add at least one line item first.');
@@ -9344,7 +9350,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       return;
     }
     const normalized = Math.max(0, Math.min(100, Math.round(parsed)));
-    setLineItems(p => p.map(item => ({ ...item, discount_pct: normalized })));
+    setLineItems(p => p.map(item => ({ ...item, discount_pct: normalized, line_total: undefined })));
     setPoBulkDiscountPct(String(normalized));
   };
 
@@ -9359,7 +9365,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       } catch {}
     }
     const tax_rate = lineItems[i]?.tax_rate ?? poDefaultTaxRate;
-    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate } : item));
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate, line_total: undefined } : item));
   };
 
   const handleCurrencyChange = async (cur: string) => {
@@ -9381,7 +9387,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     }
   };
 
-  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
+  const lineTotal = (item: any) => item.line_total != null
+    ? Number(item.line_total)
+    : Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const isContinuingReceipt = isReceiving && modal.edit?.status === 'partially_received';
@@ -9433,7 +9441,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       ? `Avg of ${payments.length} payment${payments.length !== 1 ? 's' : ''} (${derivedRate.toFixed(4)} AUD per ${cur})`
       : '';
     setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', supplier_invoice_date: d.data.supplier_invoice_date?.slice(0, 10) ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
-    setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, line_total: i.line_total, notes: i.notes ?? '' })));
     setPoBulkDiscountPct('');
     const initQtys: Record<string, number> = {};
     (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
@@ -10412,7 +10420,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtFx(item.unit_cost, poCurrency)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>
+                    {Number(item.discount_pct) > 0
+                      ? `${fmtFx(Math.max(0, Number(item.qty_ordered) * Number(item.unit_cost) - Number(item.line_total)), poCurrency)} (${Number(item.discount_pct).toFixed(1)}%)`
+                      : '—'}
+                  </td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
                   <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtFx(item.line_total, poCurrency)}</td>
                 </tr>
@@ -26032,6 +26044,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   const [draft, setDraft]   = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState('');
 
   useEffect(() => {
     setDraft({
@@ -26053,11 +26066,18 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
     setDraft(p => ({ ...p, [k]: e.target.value }));
 
   const handleSave = async () => {
-    setSaving(true); setSaved(false);
-    await saveSettings(draft);
-    setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaving(true); setSaved(false); setError('');
+    try {
+      await saveSettings(draft);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.message || 'Settings could not be saved.');
+    } finally {
+      setSaving(false);
+    }
   };
+
 
   const card: React.CSSProperties = { background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 };
   const lbl: React.CSSProperties  = { fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', textTransform: 'uppercase' as const, letterSpacing: .5, display: 'block', marginBottom: 6 };
@@ -26163,6 +26183,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
           {saving ? 'Saving…' : 'Save Settings'}
         </button>
         {saved && <span style={{ fontSize: 13, color: '#34d399' }}>✓ Saved</span>}
+        {error && <span style={{ fontSize: 13, color: '#f87171' }}>{error}</span>}
       </div>
     </div>
   );

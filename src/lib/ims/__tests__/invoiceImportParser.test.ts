@@ -18,8 +18,23 @@ describe('calculateTaxInclusiveRrp', () => {
 
 describe('deriveInvoicePoLine', () => {
   it('makes the printed subtotal authoritative and derives cost to four decimals', () => {
-    expect(deriveInvoicePoLine(10, 61.38, 6.82)).toEqual({ unitCost: 6.138, lineTotal: 61.38 });
-    expect(deriveInvoicePoLine(12, 61.34, 5.68)).toEqual({ unitCost: 5.1117, lineTotal: 61.34 });
+    expect(deriveInvoicePoLine(10, 61.38, 6.82)).toEqual({ unitCost: 6.138, discountAmount: 0, discountPct: 0, lineTotal: 61.38 });
+    expect(deriveInvoicePoLine(12, 61.34, 5.68)).toEqual({ unitCost: 5.1117, discountAmount: 0, discountPct: 0, lineTotal: 61.34 });
+  });
+
+  it('preserves a printed unit cost and derives the PO discount percentage from a reconciled dollar discount', () => {
+    expect(deriveInvoicePoLine(10, 61.38, 6.82, 6.82)).toEqual({
+      unitCost: 6.82,
+      discountAmount: 6.82,
+      discountPct: 10,
+      lineTotal: 61.38,
+    });
+    expect(deriveInvoicePoLine(12, 61.34, 5.68, 6.82)).toEqual({
+      unitCost: 5.68,
+      discountAmount: 6.82,
+      discountPct: 10.0059,
+      lineTotal: 61.34,
+    });
   });
 });
 
@@ -134,6 +149,31 @@ describe('normalizeParsedInvoice', () => {
       unit_price: 13.63,
       discount_pct: 0,
       rrp: 24.99,
+    });
+  });
+
+  it('propagates a reconciled line discount without changing the authoritative line total', () => {
+    const normalized = normalizeParsedInvoice({
+      currency: 'AUD',
+      prices_include_tax: 'ex_tax',
+      line_items: [{
+        product_code: '14-039',
+        barcode: '9341736102912',
+        product_name: 'Colour Surprise - Fairy Magic',
+        qty: 10,
+        unit_price: 6.82,
+        discount_amount: 6.82,
+        discount_pct: 0,
+        line_total: 61.38,
+        tax_rate: 0.1,
+      }],
+    });
+
+    expect(normalized.line_items[0]).toMatchObject({
+      unit_price: 6.82,
+      discount_amount: 6.82,
+      discount_pct: 10,
+      line_total: 61.38,
     });
   });
 });

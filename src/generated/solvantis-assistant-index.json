@@ -676,7 +676,7 @@
       ],
       "order": 10,
       "summary": "Create, confirm, review and correct supplier purchase orders.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/purchase-orders.md"
     },
@@ -5561,7 +5561,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "A purchase order records what you intend to buy from a supplier and where it should arrive. Confirmation makes the quantity incoming; receiving records the physical delivery."
     },
     {
@@ -5582,7 +5582,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "| Action | Use it when | Stock effect |\n|---|---|---|\n| New Purchase Order | You are preparing a supplier order | None while Draft |\n| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |\n| Receive | Goods have physically arrived | Adds the entered quantity to on hand |\n| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |\n| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |\n| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |\n\nAdvisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.\n\nAsk Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.\n\nAn order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.\n\nAssistant shows outstanding value before tax in the PO currency and includes the recorded exchange rate for foreign-currency orders. It omits supplier contact channels, notes, invoice references, files, payment details and customer data."
     },
     {
@@ -5603,8 +5603,8 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Advisor access is read-only, so an Advisor cannot create or edit a purchase order.\n\n1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.\n2. Choose the supplier and receiving location.\n3. Add the exact product variants and quantities.\n4. Check order and expected dates, supplier invoice details, discounts, freight, currency, exchange rate, landed costs and notes.\n5. Check the supplier's tax treatment.\n6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.\n\nSupplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.\n\nForeign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.\n\n> **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery."
+      "lastReviewed": "2026-09-08",
+      "content": "Advisor access is read-only, so an Advisor cannot create or edit a purchase order.\n\n1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.\n2. Choose the supplier and receiving location.\n3. Add the exact product variants and quantities.\n4. Check order and expected dates, supplier invoice details, discounts, freight, currency, exchange rate, landed costs and notes.\n5. Check the supplier's tax treatment.\n6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.\n\nWhen you use **Upload Invoice**, each printed line subtotal is the source of truth. If the printed quantity, pre-discount unit price and line discount reconcile to that subtotal, Solvantis carries the discount into the PO and shows its amount in the PO detail and generated PO document, with the derived percentage retained for accounting. If those columns do not reconcile, Solvantis preserves the subtotal and uses its effective unit cost instead of applying an uncertain discount twice.\n\nSupplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.\n\nForeign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.\n\n> **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery."
     },
     {
       "id": "ims-purchase-orders:4",
@@ -5624,7 +5624,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "| Status | What it means | Usual next action |\n|---|---|---|\n| Draft | The order is being prepared | Edit, confirm or delete |\n| Confirmed | The supplier order is active and quantity is incoming | Receive, edit, revert to Draft or cancel where offered |\n| Partially Received | Some goods arrived and some remain outstanding | Continue Receiving or Resolve Outstanding |\n| Backordered | Outstanding quantity was moved to a held child order | Release when it should become active, or cancel |\n| Complete | Receiving is finished | Review, return goods, correct a mistaken receipt or create a replacement draft |\n| Cancelled | The order is closed without further receiving | Review or create a replacement draft |"
     },
     {
@@ -5645,7 +5645,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, resolution choices, linked supplier credits and replacement orders.\n\nUse the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten."
     },
     {
@@ -5666,7 +5666,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "The received cost can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received variant.\n\n| Entered amount | Tax choice | Cost before other adjustments | GST |\n|---:|---|---:|---:|\n| $50.00 | Tax exclusive at 10% | $50.00 | $5.00 |\n| $55.00 | Tax inclusive at 10% | $50.00 | $5.00 |\n| $50.00 | No tax | $50.00 | $0.00 |"
     },
     {
@@ -5687,7 +5687,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "Choose the action that matches what happened:\n\n| Situation | Use | Do not use |\n|---|---|---|\n| The receipt was entered, but the goods never arrived | **Undo Mistaken Receipt**, when offered | Supplier Return / Credit |\n| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Mistaken Receipt |\n| You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |\n| Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |\n\nA replacement is a new Draft. It does not undo the original receipt or change the original accounting record."
     },
     {
@@ -5708,7 +5708,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |\n| Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |\n| Direct editing is limited | Receipts or later records already exist | Use Resolve Outstanding, Undo Mistaken Receipt, Supplier Return / Credit or Replacement as appropriate |\n| Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |"
     },
     {
@@ -5729,7 +5729,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-08",
       "content": "### Place a local supplier order\n\nA Brisbane store orders 20 water bottles at $15 each before GST. The PO subtotal is $300, GST is $30 and the supplier total is $330. Confirming makes 20 incoming. It does not add 20 to on hand until staff receive the delivery.\n\n### Replace a cancelled order\n\nA cancelled PO has the right products but the supplier has changed. Staff choose **Create Replacement Draft**, update the supplier and dates, review every line, then confirm the new order. The old PO stays cancelled for reference."
     },
     {

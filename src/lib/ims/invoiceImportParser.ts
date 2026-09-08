@@ -6,6 +6,7 @@ export type ParsedInvoiceLine = {
   qty: number;
   unit_price: number;
   rrp?: number | null;
+  discount_amount?: number | null;
   discount_pct: number;
   line_total: number;
   tax_rate: number;
@@ -47,14 +48,47 @@ export function invoiceUnitPriceToProductCost(
   return Math.round(exTaxCost * 10000) / 10000;
 }
 
-export function deriveInvoicePoLine(qty: number, printedLineTotal: number, fallbackUnitPrice: number) {
+export function deriveInvoicePoLine(
+  qty: number,
+  printedLineTotal: number,
+  printedUnitPrice: number,
+  printedDiscountAmount?: number | null,
+  printedDiscountPct?: number | null,
+) {
   const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
   const hasPrintedTotal = Number.isFinite(printedLineTotal) && printedLineTotal >= 0;
+  const safeUnitPrice = Number.isFinite(printedUnitPrice) ? Math.max(0, printedUnitPrice) : 0;
+  const grossTotal = safeQty * safeUnitPrice;
   const lineTotal = hasPrintedTotal
     ? Math.round(printedLineTotal * 100) / 100
-    : Math.round(safeQty * Math.max(0, fallbackUnitPrice || 0) * 100) / 100;
+    : Math.round(grossTotal * 100) / 100;
+  const discountAmount = Number(printedDiscountAmount);
+  const discountPct = Number(printedDiscountPct);
+  const amountReconciles = Number.isFinite(discountAmount)
+    && discountAmount > 0
+    && grossTotal > 0
+    && Math.abs(Math.round((grossTotal - discountAmount) * 100) / 100 - lineTotal) <= 0.01;
+  const pctReconciles = !amountReconciles
+    && Number.isFinite(discountPct)
+    && discountPct > 0
+    && discountPct <= 100
+    && grossTotal > 0
+    && Math.abs(Math.round(grossTotal * (1 - discountPct / 100) * 100) / 100 - lineTotal) <= 0.01;
+
+  if (amountReconciles || pctReconciles) {
+    const reconciledAmount = amountReconciles ? discountAmount : grossTotal - lineTotal;
+    return {
+      unitCost: Math.round(safeUnitPrice * 10000) / 10000,
+      discountAmount: Math.round(reconciledAmount * 100) / 100,
+      discountPct: Math.round((reconciledAmount / grossTotal) * 1000000) / 10000,
+      lineTotal,
+    };
+  }
+
   return {
     unitCost: Math.round((lineTotal / safeQty) * 10000) / 10000,
+    discountAmount: 0,
+    discountPct: 0,
     lineTotal,
   };
 }
@@ -72,9 +106,13 @@ export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | unde
       const qty = Number(line?.qty ?? 0);
       const rawUnitPrice = Number(line?.unit_price ?? 0);
       const rawDiscountPct = Number(line?.discount_pct ?? 0);
-      const discountMultiplier = 1 - (Number.isFinite(rawDiscountPct) ? Math.max(0, rawDiscountPct) : 0) / 100;
-      const fallbackNetUnitPrice = Math.max(0, rawUnitPrice) * Math.max(0, discountMultiplier);
-      const derived = deriveInvoicePoLine(qty, Number(line?.line_total), fallbackNetUnitPrice);
+      const derived = deriveInvoicePoLine(
+        qty,
+        Number(line?.line_total),
+        rawUnitPrice,
+        line?.discount_amount == null ? null : Number(line.discount_amount),
+        rawDiscountPct,
+      );
 
       return {
         line_type: 'product' as const,
@@ -82,11 +120,10 @@ export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | unde
         barcode: line?.barcode ?? null,
         product_name: line?.product_name ?? '',
         qty,
-        // Always use the effective net unit derived from line total / qty so decorative discount columns do not distort import cost.
         unit_price: derived.unitCost,
         rrp: line?.rrp == null ? null : Number(line.rrp),
-        // Discount semantics vary by supplier layout; once unit is derived from line total we keep discount neutral to avoid double-discounting.
-        discount_pct: 0,
+        discount_amount: derived.discountAmount,
+        discount_pct: derived.discountPct,
         line_total: derived.lineTotal,
         tax_rate: Number(line?.tax_rate ?? 0),
         product_type: line?.product_type ?? null,

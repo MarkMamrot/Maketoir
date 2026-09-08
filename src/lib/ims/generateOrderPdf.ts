@@ -276,6 +276,7 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
         { label: 'Qty Ord',    w: 50,  right: true  },
         { label: 'Qty Recv',   w: 55,  right: true  },
         { label: 'Unit Cost',  w: 65,  right: true  },
+        { label: 'Discount',   w: 55,  right: true  },
         { label: 'Tax',        w: 35,  right: true  },
         { label: 'Line Total', w: 75,  right: true  },
       ]
@@ -325,6 +326,7 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
     const vals = isPO
       ? [item.sku || '—', item.product_name || '—', item.variant_label || 'Default',
          fmtQty(item.qty_ordered), fmtQty(item.qty_received), fmt(item.unit_cost),
+        Number(item.discount_pct) > 0 ? fmt(Math.max(0, Number(item.qty_ordered) * Number(item.unit_cost) - Number(item.line_total))) : '—',
          fmtPct(item.tax_rate), fmt(item.line_total)]
       : [item.sku || '—', item.product_name || '—', item.variant_label || 'Default',
          fmtQty(item.qty_ordered), fmtQty(item.qty_fulfilled), fmt(item.unit_price),
