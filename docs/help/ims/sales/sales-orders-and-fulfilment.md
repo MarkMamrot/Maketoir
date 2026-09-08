@@ -9,6 +9,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 
 - Create and review a Draft order.
 - Confirm the order when customer demand is real.
+- Select eligible orders on the current page and prepare package drafts for shipping.
 - Fulfil only the quantities sent to the customer.
 - Continue a partial fulfilment or resolve the remainder.
 
@@ -18,6 +19,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 |---|---|---|
 | Draft | The order is still being prepared | No shipment; stock is not reduced |
 | Confirmed | Customer demand is active | Quantity can be committed, but stock on hand is unchanged |
+| Prepare Shipments | Check delivery details and suggest packages for selected orders | Saves shipment drafts; stock is unchanged |
 | Partially fulfil now | Ship entered quantities and leave the balance on this order | Only the shipped quantity reduces stock |
 | Create backorder for remainder | Ship entered quantities and move the balance to a held child order | Only the shipped quantity reduces stock |
 | Complete | All intended shipments or remainder decisions are finished | No extra movement beyond recorded shipments |
@@ -27,6 +29,8 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - [ ] Confirm the customer, delivery location, stock location, products, quantities, and tax-inclusive selling prices.
 - [ ] Check whether incoming stock is already protected for this order.
 - [ ] Count or verify the goods being dispatched.
+- [ ] Configure an active Australia Post eParcel account and package presets under **Settings > Shipping**.
+- [ ] Record variant weights and dimensions for products that will be packed automatically.
 - [ ] Make sure you are not using an advisor account, which is read-only.
 
 > **Important:** Record what physically ships. If a shipment succeeds but a later accounting action fails, retry the unfinished accounting action; do not fulfil the goods again.
@@ -37,12 +41,15 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 2. Choose the customer and location, then add the products and ordered quantities.
 3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.
 4. Confirm the order when the customer demand is ready to proceed.
-5. Select **Fulfil** and enter only the quantity in this shipment for each line.
-6. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
-7. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**.
+6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.
+7. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.
+8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
+9. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
+10. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
 > **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
-8. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
+11. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
 
 | Resolve Outstanding choice | Use it when | Result |
 |---|---|---|
@@ -55,6 +62,9 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 | Symptom | Likely reason | What to do |
 |---|---|---|
 | Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |
+| An order cannot be selected for shipping | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress | Open the order and resolve its status or remaining quantities |
+| Shipment preparation reports missing physical data | A selected variant has no usable weight or dimensions | Update that variant under Products, then reopen Ship Orders |
+| No package is suggested | No active preset can contain the item within its dimensions and maximum weight | Add or update a package preset under Settings > Shipping |
 | A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |
 | Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |
 | The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |

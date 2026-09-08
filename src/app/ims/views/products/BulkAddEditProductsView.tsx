@@ -69,6 +69,9 @@ interface VariantDraft extends BulkVariantDraft {
   discount_start_date: string;
   discount_end_date: string;
   weight_kg: string;
+  length_mm: string;
+  width_mm: string;
+  height_mm: string;
   cost_foreign: string;
   foreignCosts: Record<string, string>;
   foreignCostsParseFailed: boolean;
@@ -275,7 +278,7 @@ function blankVariant(baseSku = ''): VariantDraft {
   return {
     clientId: newId('variant'), option1Value: '', option2Value: '', option3Value: '', sku: baseSku, barcode: '',
     cost_aud: '', price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '',
-    weight_kg: '', cost_foreign: '', foreignCosts: {}, foreignCostsParseFailed: false, foreignCostsEdited: false, locationStock: {}, locationEdits: {}, is_active: 1,
+    weight_kg: '', length_mm: '', width_mm: '', height_mm: '', cost_foreign: '', foreignCosts: {}, foreignCostsParseFailed: false, foreignCostsEdited: false, locationStock: {}, locationEdits: {}, is_active: 1,
   };
 }
 
@@ -336,7 +339,11 @@ function productFromApi(product: Record<string, any>): ProductDraft {
       price_rrp_sale: variant.price_rrp_sale == null ? '' : String(variant.price_rrp_sale),
       discount_start_date: variant.discount_start_date ? String(variant.discount_start_date).slice(0, 10) : '',
       discount_end_date: variant.discount_end_date ? String(variant.discount_end_date).slice(0, 10) : '',
-      weight_kg: variant.weight_kg == null ? '' : String(variant.weight_kg), cost_foreign: String(variant.cost_foreign ?? ''), foreignCosts, foreignCostsParseFailed, foreignCostsEdited: false,
+      weight_kg: variant.weight_kg == null ? '' : String(variant.weight_kg),
+      length_mm: variant.length_mm == null ? '' : String(variant.length_mm),
+      width_mm: variant.width_mm == null ? '' : String(variant.width_mm),
+      height_mm: variant.height_mm == null ? '' : String(variant.height_mm),
+      cost_foreign: String(variant.cost_foreign ?? ''), foreignCosts, foreignCostsParseFailed, foreignCostsEdited: false,
       locationStock, locationEdits: {},
       is_active: Number(variant.is_active ?? 1),
       };

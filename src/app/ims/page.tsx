@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { BrainCircuit, ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, RefreshCw, Search, WalletCards, Wrench } from 'lucide-react';
+import { BrainCircuit, ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Search, Truck, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -41,6 +41,8 @@ import {
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
+import { ShippingSettingsSection } from './views/settings/ShippingSettingsSection';
+import { ShipOrdersWorkspace } from './views/orders/ShipOrdersWorkspace';
 import { LocationDaybooksView } from './views/locations/LocationDaybooksView';
 import { BackordersView } from './views/backorders/BackordersView';
 import { StockAvailabilityWorkbenchView } from './views/orders/StockAvailabilityWorkbenchView';
@@ -3295,6 +3297,9 @@ interface VariantRow {
   discount_start_date: string;
   discount_end_date: string;
   weight_kg: string;
+  length_mm: string;
+  width_mm: string;
+  height_mm: string;
   price_wholesale: string;
   is_active: number;
   foreignCosts: Record<string, string>; // e.g. { USD: '10.50', THB: '380' }
@@ -3312,7 +3317,7 @@ const blankRow = (): VariantRow => ({
   sku: '', barcode: '', cost_aud: '', price_rrp: '',
   price_wholesale: '',
   price_rrp_sale: '', discount_start_date: '', discount_end_date: '',
-  weight_kg: '', is_active: 1, foreignCosts: {},
+  weight_kg: '', length_mm: '', width_mm: '', height_mm: '', is_active: 1, foreignCosts: {},
 });
 
 const PAGE_SIZE = 100;
@@ -6065,6 +6070,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         discount_start_date: v.discount_start_date ? String(v.discount_start_date).slice(0, 10) : '',
         discount_end_date: v.discount_end_date ? String(v.discount_end_date).slice(0, 10) : '',
         weight_kg: v.weight_kg != null ? String(v.weight_kg) : '',
+        length_mm: v.length_mm != null ? String(v.length_mm) : '',
+        width_mm: v.width_mm != null ? String(v.width_mm) : '',
+        height_mm: v.height_mm != null ? String(v.height_mm) : '',
         is_active: v.is_active ?? 1,
         foreignCosts: fc,
       };
@@ -6174,6 +6182,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           discount_start_date: row.discount_start_date || null,
           discount_end_date: row.discount_end_date || null,
           weight_kg: row.weight_kg === '' ? null : Number(row.weight_kg),
+          length_mm: row.length_mm === '' ? null : Number(row.length_mm),
+          width_mm: row.width_mm === '' ? null : Number(row.width_mm),
+          height_mm: row.height_mm === '' ? null : Number(row.height_mm),
           is_active: row.is_active,
           cost_foreign: Object.keys(fcObj).length ? JSON.stringify(fcObj) : null,
         };
@@ -7280,7 +7291,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','RRP $',...(productFeatures.showWholesalePrice ? ['Wholesale $'] : []),'Sale $','Sale From','Sale To','Copy','Cost $',...(productFeatures.showWeight ? ['Wt kg'] : []),
+                    {['Variant','SKU','Barcode','RRP $',...(productFeatures.showWholesalePrice ? ['Wholesale $'] : []),'Sale $','Sale From','Sale To','Copy','Cost $',...(productFeatures.showWeight ? ['Wt kg','L mm','W mm','H mm'] : []),
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -7330,6 +7341,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         </td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost_aud', e.target.value)} style={cellInput} /></td>
                         {productFeatures.showWeight && <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>}
+                        {productFeatures.showWeight && <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="1" min="0" value={row.length_mm} onChange={e => updateRow(row._tempId, 'length_mm', e.target.value)} style={cellInput} /></td>}
+                        {productFeatures.showWeight && <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="1" min="0" value={row.width_mm} onChange={e => updateRow(row._tempId, 'width_mm', e.target.value)} style={cellInput} /></td>}
+                        {productFeatures.showWeight && <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="1" min="0" value={row.height_mm} onChange={e => updateRow(row._tempId, 'height_mm', e.target.value)} style={cellInput} /></td>}
                         {activeCurrencies.map(cur => (
                           <td key={cur} style={{ padding: '2px 4px', minWidth: 72 }}>
                             <input type="number" step="0.01" min="0"
@@ -13517,6 +13531,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [soActionSelections, setSoActionSelections] = useState<Record<string, string>>({});
+  const [selectedSoIds, setSelectedSoIds] = useState<Set<number>>(new Set());
+  const [shipOrdersOpen, setShipOrdersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
@@ -14109,6 +14125,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const totalPagesSO = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePageSO = Math.min(page, totalPagesSO);
   const visibleSOs = sos;
+  const selectedSOs = visibleSOs.filter((so: any) => selectedSoIds.has(Number(so.id)));
+  const selectableSOs = visibleSOs.filter((so: any) => !so.is_pos_ledger
+    && ['confirmed', 'partially_fulfilled'].includes(String(so.status))
+    && ['b2b', 'online', 'shopify'].includes(String(so.so_type || 'b2b').toLowerCase())
+    && Number(so.remaining_quantity ?? 0) > 0);
+  const allSelectableSelected = selectableSOs.length > 0 && selectableSOs.every((so: any) => selectedSoIds.has(Number(so.id)));
   useEffect(() => {
     if (page > totalPagesSO) setPage(totalPagesSO);
   }, [page, totalPagesSO]);
@@ -14120,9 +14142,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
-  const soTableWidth = 1050;
+  const soTableWidth = 1094;
   const renderSoColGroup = () => (
     <colgroup>
+      <col style={{ width: 44 }} />
       <col style={{ width: 110 }} />
       <col style={{ width: 190 }} />
       <col style={{ width: 150 }} />
@@ -14250,15 +14273,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <table style={{ width: soTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
               {renderSoColGroup()}
             <thead>
-              <tr style={{ background: 'var(--sv-bg-2)' }}>
+              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th colSpan={8} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong><button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button><button type="button" onClick={() => setSelectedSoIds(new Set())} style={btnStyle('ghost', 'sm')}>Clear</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
+                <th style={{ padding: '10px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all shippable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th>
                 {([['so_number','SO #'],['customer_name','Customer'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: col === 'so_number' || col === 'customer_name' ? 'sticky' : undefined, left: col === 'so_number' ? 0 : col === 'customer_name' ? 110 : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'so_number' || col === 'customer_name' ? 3 : 1, boxShadow: col === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: col === 'so_number' || col === 'customer_name' ? 'sticky' : undefined, left: col === 'so_number' ? 44 : col === 'customer_name' ? 154 : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'so_number' || col === 'customer_name' ? 3 : 1, boxShadow: col === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
                 <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
-              </tr>
+              </tr>}
             </thead>
             </table>
           </div>
@@ -14282,14 +14306,15 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 const selectedAction = soActionSelections[so.id] ?? soActions[0]?.value ?? 'open';
                 return (
                   <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
+                    <td style={{ padding: '10px 8px', textAlign: 'center', position: 'sticky', left: 0, zIndex: 4, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><input type="checkbox" aria-label={`Select ${so.so_number} for shipping`} checked={selectedSoIds.has(Number(so.id))} disabled={!selectableSOs.some((candidate: any) => Number(candidate.id) === Number(so.id))} onChange={event => setSelectedSoIds(current => { const next = new Set(current); if (event.target.checked) next.add(Number(so.id)); else next.delete(Number(so.id)); return next; })} /></td>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 44, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                       {so.is_pos_ledger ? (
                         <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       ) : (
                         <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}{so.is_staff_preview_test ? ' · TEST' : ''}</button>
                       )}
                     </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 110, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{so.customer_name || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 154, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{so.customer_name || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
@@ -14338,6 +14363,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <button onClick={() => setPage(totalPagesSO)} disabled={safePageSO === totalPagesSO} style={btnStyle('secondary', 'sm')}>»</button>
         </div>
       )}
+
+      {shipOrdersOpen && <ShipOrdersWorkspace orders={selectedSOs} onClose={() => setShipOrdersOpen(false)} />}
 
       {/* Create / Edit SO Modal */}
       {modal.open && (
@@ -21560,7 +21587,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'shipping' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -26415,6 +26442,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'ai-account',      label: 'Account & AI Credits', icon: <WalletCards size={15} /> },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'shipping',        label: 'Shipping',        icon: <Truck size={15} /> },
     { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'loyalty',         label: 'Loyalty',         icon: '★' },
@@ -27435,6 +27463,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {/* ── Loyalty ── */}
         {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />}
+        {active === 'shipping' && <ShippingSettingsSection />}
 
       </div>{/* ─ end right content ─ */}
     </div>

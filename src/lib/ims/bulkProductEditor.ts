@@ -72,6 +72,9 @@ export const BULK_PRODUCT_FIELDS: BulkProductFieldDefinition[] = [
   { id: 'discount_end_date', label: 'Sale To', owner: 'variant', editor: 'date', width: 135, fillDown: true },
   { id: 'cost_aud', label: 'Cost $ (GST Exc)', owner: 'variant', editor: 'number', width: 135, defaultVisible: true, fillDown: true },
   { id: 'weight_kg', label: 'Weight kg', owner: 'variant', editor: 'number', width: 110, fillDown: true, enabled: settings => settings.showWeight },
+  { id: 'length_mm', label: 'Length mm', owner: 'variant', editor: 'number', width: 110, fillDown: true, enabled: settings => settings.showWeight },
+  { id: 'width_mm', label: 'Width mm', owner: 'variant', editor: 'number', width: 110, fillDown: true, enabled: settings => settings.showWeight },
+  { id: 'height_mm', label: 'Height mm', owner: 'variant', editor: 'number', width: 110, fillDown: true, enabled: settings => settings.showWeight },
   { id: 'cost_foreign', label: 'Foreign Costs', owner: 'variant', editor: 'text', width: 180, fillDown: true, enabled: (_settings, useForeignCurrencies) => useForeignCurrencies },
   { id: 'is_active_variant', label: 'Variant Active', owner: 'variant', editor: 'boolean', width: 115, fillDown: true },
 ];

@@ -150,6 +150,7 @@ export interface ImsVariant {
   option3_value?: string; cost_aud?: number; price_rrp?: number; price_wholesale?: number;
   price_rrp_sale?: number; discount_start_date?: string;
   discount_end_date?: string; weight_kg?: number;
+  length_mm?: number; width_mm?: number; height_mm?: number;
   pack_size?: number; cin7_option_id?: number;
   shopify_variant_id?: string;
   shopify_inventory_item_id?: string;
@@ -289,6 +290,7 @@ export interface ImsPO {
   currency_code?: string; exchange_rate?: number;
   replacement_of_po_id?: number | null;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
+  so_type?: string; remaining_quantity?: number;
   created_at?: string; updated_at?: string;
   supplier_name?: string; supplier_email?: string; location_name?: string;
   items?: ImsPOItem[]; payments?: ImsPayment[]; landed_costs?: LandedCostRow[]; files?: ImsPoFile[];
@@ -356,6 +358,7 @@ export interface ImsSOItem {
   qty_fulfilled: number; unit_price: number; unit_cost?: number;
   discount_pct: number; tax_rate: number; line_total: number; notes?: string;
   sku?: string; product_name?: string; variant_label?: string;
+  weight_kg?: number | null; length_mm?: number | null; width_mm?: number | null; height_mm?: number | null;
   is_stock_item?: number;
 }
 
@@ -916,14 +919,15 @@ export const ImsVariantsRepo = {
          (variant_id,product_id,business_id,sku,barcode,option1_name,option1_value,
           option2_name,option2_value,option3_name,option3_value,
           cost_aud,price_rrp,price_wholesale,price_rrp_sale,discount_start_date,discount_end_date,
-          weight_kg,shopify_variant_id,is_active,cost_foreign,pack_size,cin7_option_id,bin,zone)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           weight_kg,length_mm,width_mm,height_mm,shopify_variant_id,is_active,cost_foreign,pack_size,cin7_option_id,bin,zone)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [variant_id, data.product_id, businessId ?? '', data.sku ?? null, data.barcode ?? null,
        data.option1_name ?? null, data.option1_value ?? null, data.option2_name ?? null, data.option2_value ?? null,
        data.option3_name ?? null, data.option3_value ?? null, data.cost_aud ?? null, data.price_rrp ?? null,
        data.price_wholesale ?? null,
        data.price_rrp_sale ?? null, data.discount_start_date ?? null, data.discount_end_date ?? null,
-       data.weight_kg ?? null, data.shopify_variant_id ?? null, data.is_active ?? 1,
+      data.weight_kg ?? null, data.length_mm ?? null, data.width_mm ?? null, data.height_mm ?? null,
+      data.shopify_variant_id ?? null, data.is_active ?? 1,
        data.cost_foreign ?? null, data.pack_size ?? null, data.cin7_option_id ?? null,
        data.bin ?? null, data.zone ?? null]
     );
@@ -934,7 +938,7 @@ export const ImsVariantsRepo = {
     const fields = [
       'sku','barcode','option1_name','option1_value','option2_name','option2_value',
       'option3_name','option3_value','cost_aud','price_rrp','price_wholesale','price_rrp_sale',
-      'discount_start_date','discount_end_date','weight_kg','shopify_variant_id','is_active',
+      'discount_start_date','discount_end_date','weight_kg','length_mm','width_mm','height_mm','shopify_variant_id','is_active',
       'cost_foreign','pack_size','cin7_option_id','bin','zone'
     ];
     const sets: string[] = [];
@@ -2600,7 +2604,8 @@ export const ImsSORepo = {
                 COALESCE(pay.amount_paid, 0) AS amount_paid,
                 COALESCE(pay.amount_paid_local, 0) AS amount_paid_local,
                 so.total_amount - COALESCE(pay.amount_paid, 0) AS balance,
-                (so.total_amount * so.exchange_rate) - COALESCE(pay.amount_paid_local, 0) AS balance_local
+                  (so.total_amount * so.exchange_rate) - COALESCE(pay.amount_paid_local, 0) AS balance_local,
+                  COALESCE(item_totals.remaining_quantity, 0) AS remaining_quantity
          FROM ims_sales_orders so
          LEFT JOIN ims_contacts c ON c.id = so.customer_id
          JOIN ims_locations l ON l.id = so.location_id
@@ -2611,16 +2616,27 @@ export const ImsSORepo = {
            FROM ims_sales_order_payments
            GROUP BY so_id
          ) pay ON pay.so_id = so.id
+         LEFT JOIN (
+           SELECT so_id, SUM(GREATEST(qty_ordered - qty_fulfilled, 0)) AS remaining_quantity
+             FROM ims_sales_order_items
+            GROUP BY so_id
+         ) item_totals ON item_totals.so_id = so.id
          ${where}
          ORDER BY so.created_at DESC`,
         params
       );
     } catch {
       return imsQuery<ImsSO>(
-        `SELECT so.*, c.name AS customer_name, l.name AS location_name
+        `SELECT so.*, c.name AS customer_name, l.name AS location_name,
+                COALESCE(item_totals.remaining_quantity, 0) AS remaining_quantity
          FROM ims_sales_orders so
          LEFT JOIN ims_contacts c ON c.id = so.customer_id
          JOIN ims_locations l ON l.id = so.location_id
+         LEFT JOIN (
+           SELECT so_id, SUM(GREATEST(qty_ordered - qty_fulfilled, 0)) AS remaining_quantity
+             FROM ims_sales_order_items
+            GROUP BY so_id
+         ) item_totals ON item_totals.so_id = so.id
          ${where}
          ORDER BY so.created_at DESC`,
         params
@@ -2771,7 +2787,8 @@ export const ImsSORepo = {
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
               ) AS variant_label,
-              COALESCE(v.avg_cost, v.cost_aud) AS unit_cost
+              COALESCE(v.avg_cost, v.cost_aud) AS unit_cost,
+              v.weight_kg, v.length_mm, v.width_mm, v.height_mm
        FROM ims_sales_order_items i
        LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
        LEFT JOIN ims_products p ON p.product_id = v.product_id

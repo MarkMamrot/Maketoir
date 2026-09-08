@@ -13,6 +13,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Give each variant a unique SKU and, where used, a unique barcode.
 - Optionally generate a Product SKU from the brand and current date and time.
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
+- Record weight and package dimensions for variants that may be shipped.
 - Choose which optional product and variant fields appear under **Settings > Products**.
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
 - Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.
@@ -54,7 +55,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
 8. For a simple product, add one blank row and use the default variant.
 9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
-10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
+10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant.
 11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
 13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed. Zero is a valid value.
@@ -107,7 +108,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | SKU and barcode | Variant | Keep each sellable row unique |
 | RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |
 | Cost | Variant | Tax-exclusive buying cost used for purchasing reference |
-| Weight | Variant | Optional kilograms used where the item needs a recorded weight |
+| Weight and dimensions | Variant | Kilograms and millimetres used to suggest shipping packages |
 | Active | Product and variant | Inactive records should not be used for new work |
 
 ## Non-stock decision guide
@@ -130,6 +131,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |
 | A service is blocked by zero stock | Tracks Inventory is still on | Edit the product and turn Tracks Inventory off |
 | Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |
+| An order cannot be assigned to a package | A variant is missing weight or one or more dimensions | Enter its weight and length, width and height, then prepare the shipment again |
 
 ## Worked examples
 

@@ -32,6 +32,9 @@ export interface BulkProductSaveVariantInput {
   discount_start_date?: unknown;
   discount_end_date?: unknown;
   weight_kg?: unknown;
+  length_mm?: unknown;
+  width_mm?: unknown;
+  height_mm?: unknown;
   cost_foreign?: unknown;
   is_active?: unknown;
   locationStock?: BulkProductLocationStockInput[];
@@ -115,10 +118,13 @@ const PRODUCT_COLUMNS = [
 const VARIANT_COLUMNS = [
   'sku', 'barcode', 'option1_name', 'option1_value', 'option2_name', 'option2_value',
   'option3_name', 'option3_value', 'cost_aud', 'price_rrp', 'price_wholesale', 'price_rrp_sale',
-  'discount_start_date', 'discount_end_date', 'weight_kg', 'cost_foreign', 'is_active',
+  'discount_start_date', 'discount_end_date', 'weight_kg', 'length_mm', 'width_mm', 'height_mm',
+  'cost_foreign', 'is_active',
 ] as const;
 
-const NUMERIC_VARIANT_FIELDS = new Set(['cost_aud', 'price_rrp', 'price_wholesale', 'price_rrp_sale', 'weight_kg']);
+const NUMERIC_VARIANT_FIELDS = new Set([
+  'cost_aud', 'price_rrp', 'price_wholesale', 'price_rrp_sale', 'weight_kg', 'length_mm', 'width_mm', 'height_mm',
+]);
 const BOOLEAN_PRODUCT_FIELDS = new Set(['is_active', 'is_stock_item', 'is_online', 'allow_indent_wholesale']);
 const DATE_FIELDS = new Set(['discount_start_date', 'discount_end_date']);
 
