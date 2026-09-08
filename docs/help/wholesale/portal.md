@@ -1,5 +1,5 @@
 ---
-{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-09-08","owner":"wholesale"}
+{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-09-09","owner":"wholesale"}
 ---
 # Wholesale Portal
 
@@ -33,7 +33,7 @@ Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab.
 
 **Wholesale Applications** appears directly below **Preview Wholesale Portal** in the IMS Sales menu, keeping account review separate from the preview itself. Preview checkout remains a test workflow and does not create a confirmable live order.
 
-The Layout Editor provides shared theme colours for primary highlights, secondary elements, accents, page background, surfaces, main text and muted text. Each page can inherit that shared theme or override individual colours. Colour controls accept a colour picker or hexadecimal value, and Foresight brand colours appear as reusable swatches when they are available. Save the draft, review each page preview, then publish to make colour changes visible to customers.
+The Layout Editor provides shared theme colours for primary highlights, secondary elements, accents, page background, surfaces, main text and muted text. Each page can inherit that shared theme or override individual colours. Open a colour control to use the colour spectrum, enter a hexadecimal value, or choose a saved Foresight brand swatch. Rich-text sections provide formatting for headings, font, size, emphasis, text colour, alignment, lists, quotes and links, with HTML source available when direct markup editing is needed. Save the draft, review each page preview, then publish to make changes visible to customers.
 
 In **Settings > Wholesale Portal**, Product Card Style can show information below each image or use a larger image-led card that reveals product details over the lower half on hover or keyboard focus. Products with one variant show only the price; products with multiple variants show a starting price and option count.
 

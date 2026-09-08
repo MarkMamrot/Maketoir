@@ -29,8 +29,16 @@ export function sanitizeStorefrontHtml(value: unknown): string | undefined {
   const html = boundedString(value, 20_000);
   if (!html) return undefined;
   return sanitizeHtml(html, {
-    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'h4', 'a'],
-    allowedAttributes: { a: ['href', 'target', 'rel'] },
+    allowedTags: ['p', 'br', 'span', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'h4', 'a'],
+    allowedAttributes: { '*': ['style'], a: ['href', 'target', 'rel'] },
+    allowedStyles: {
+      '*': {
+        color: [/^#[0-9a-f]{6}$/i, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i],
+        'font-family': [/^(Arial, sans-serif|Georgia, serif|Helvetica, Arial, sans-serif|'Times New Roman', serif|Verdana, sans-serif)$/],
+        'font-size': [/^(12|14|16|18|20|24|30|36)px$/],
+        'text-align': [/^(left|center|right|justify)$/],
+      },
+    },
     allowedSchemes: ['https', 'mailto'],
     allowProtocolRelative: false,
     transformTags: {

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","requiresCapabilities":["native_shop"],"screen":"Integrations > Online Shop","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"contextSections":{"online-shop":"Storefront workflow","online-shop-settings":"Store settings","online-shop-templates":"Templates and pages","online-shop-pages":"Templates and pages","online-shop-products":"Products and publication","online-shop-shipping":"Shipping and fulfilment","online-shop-checkout":"Checkout and signed-in customers","online-shop-account":"Checkout and signed-in customers"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-customer-orders"],"order":95,"summary":"Configure, publish, fulfil, and support the native Solvantis consumer storefront.","lastReviewed":"2026-08-31","owner":"commerce"}
+{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","requiresCapabilities":["native_shop"],"screen":"Integrations > Online Shop","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"contextSections":{"online-shop":"Storefront workflow","online-shop-settings":"Store settings","online-shop-templates":"Templates and pages","online-shop-pages":"Templates and pages","online-shop-products":"Products and publication","online-shop-shipping":"Shipping and fulfilment","online-shop-checkout":"Checkout and signed-in customers","online-shop-account":"Checkout and signed-in customers"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-customer-orders"],"order":95,"summary":"Configure, publish, fulfil, and support the native Solvantis consumer storefront.","lastReviewed":"2026-09-09","owner":"commerce"}
 ---
 # Online Shop
 
@@ -37,7 +37,7 @@ A product needs at least one active variant with a retail price and a unique nat
 
 ## Templates and pages
 
-Templates and content pages keep separate draft and published revisions. Save the draft before publishing; publishing is blocked while the editor has unsaved changes. A content page is public only when it has published content and **Visible when published** is selected.
+Templates and content pages keep separate draft and published revisions. Rich-text template sections provide headings, font, size, emphasis, text colour, alignment, lists, quotes and links, plus an HTML-source view. Background colour controls open a colour spectrum and also accept a hexadecimal value. Save the draft before publishing; publishing is blocked while the editor has unsaved changes. A content page is public only when it has published content and **Visible when published** is selected.
 
 ## Shipping and fulfilment
 

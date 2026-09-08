@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, FilePlus2, Globe2, ImagePlus, Loader2, Plus, RotateCcw, Save, Send, Store, Trash2 } from 'lucide-react';
+import { ColourPickerField } from '@/components/editor/ColourPickerField';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { ONLINE_SHOP_LAYOUT_SECTION_REGISTRY } from '@/lib/onlineShop/layout/registry';
 import { ONLINE_SHOP_LAYOUT_PAGE_IDS, ONLINE_SHOP_SHARED_SECTION_TYPES, type OnlineShopContentPageDocument,
   type OnlineShopLayoutDocument, type OnlineShopLayoutPageId, type OnlineShopLayoutSection, type OnlineShopLayoutSectionType } from '@/lib/onlineShop/layout/types';
@@ -65,10 +67,10 @@ function SectionComposer({ sections, allowedTypes, requiredTypes, assets, onChan
     {selected && <div className={styles.settingsPanel}>
       <strong>{ONLINE_SHOP_LAYOUT_SECTION_REGISTRY[selected.type as OnlineShopLayoutSectionType]?.label}</strong>
       {'heading' in selected.settings && <label>Heading<input value={selected.settings.heading ?? ''} onChange={event => updateSettings({ heading: event.target.value })} /></label>}
-      {'bodyHtml' in selected.settings && <label>Content<textarea rows={5} value={selected.settings.bodyHtml ?? ''} onChange={event => updateSettings({ bodyHtml: event.target.value })} /></label>}
+      {'bodyHtml' in selected.settings && <RichTextEditor key={selected.id} label="Content" value={selected.settings.bodyHtml ?? ''} onChange={bodyHtml => updateSettings({ bodyHtml })} />}
       {['image', 'text_image'].includes(selected.type) && <><label>Image<select value={selected.settings.assetId ?? ''} onChange={event => { const asset = assets.find(item => item.assetId === event.target.value); updateSettings({ assetId: asset?.assetId, imageUrl: asset?.url }); }}><option value="">No image</option>{assets.map(asset => <option value={asset.assetId} key={asset.assetId}>{asset.originalName}</option>)}</select></label><label>Alt text<input value={selected.settings.altText ?? ''} onChange={event => updateSettings({ altText: event.target.value })} /></label></>}
       {'alignment' in selected.settings && <label>Alignment<select value={selected.settings.alignment ?? 'left'} onChange={event => updateSettings({ alignment: event.target.value })}><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label>}
-      {'backgroundColor' in selected.settings && <label>Background colour<input type="color" value={selected.settings.backgroundColor || '#ffffff'} onChange={event => updateSettings({ backgroundColor: event.target.value })} /></label>}
+      {'backgroundColor' in selected.settings && <ColourPickerField label="Background colour" value={selected.settings.backgroundColor} fallback="#ffffff" onChange={backgroundColor => updateSettings({ backgroundColor: backgroundColor || undefined })} allowClear clearLabel="Use default background" />}
     </div>}
   </div>;
 }

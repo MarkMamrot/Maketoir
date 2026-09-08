@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-08","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-09","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -51,7 +51,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 2. Select **New Product** when no matching product exists.
 3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.
 4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.
-5. Add a description and set Active to **Yes** when the item should be available.
+5. Add a description and set Active to **Yes** when the item should be available. Use the description toolbar for headings, font, size, emphasis, colour, alignment, lists, quotes and links. Use **HTML source** only when direct markup editing is needed.
 6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.
 7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
 8. For a simple product, add one blank row and use the default variant.

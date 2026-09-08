@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
 
 export interface WebsiteGeneratedContent {
   title: string;
@@ -25,7 +26,6 @@ export function WebsiteGeneratedContentEditor({
   onChange: (field: WebsiteContentField, value: string) => void;
   onApplyField?: (field: WebsiteContentField) => void;
 }) {
-  const [showHtmlSource, setShowHtmlSource] = useState(false);
   const applyButton = (field: WebsiteContentField, label: string) => onApplyField ? (
     <button
       type="button"
@@ -74,31 +74,8 @@ export function WebsiteGeneratedContentEditor({
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Website Description</label>
             {applyButton('websiteDescription', 'Website Description')}
           </div>
-          <button
-            type="button"
-            onClick={() => setShowHtmlSource(current => !current)}
-            className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
-          >
-            {showHtmlSource ? 'Preview' : 'HTML source'}
-          </button>
         </div>
-        {!showHtmlSource ? (
-          <div
-            key={`preview-${content.websiteDescription}`}
-            contentEditable
-            suppressContentEditableWarning
-            className="min-h-32 w-full max-w-none cursor-text overflow-auto rounded-lg border border-indigo-300 bg-white px-4 py-3 text-sm leading-6 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 [&_h1]:mb-3 [&_h1]:mt-5 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mb-2 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-3 [&_ol]:pl-6 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6"
-            dangerouslySetInnerHTML={{ __html: content.websiteDescription }}
-            onBlur={event => onChange('websiteDescription', event.currentTarget.innerHTML)}
-          />
-        ) : (
-          <textarea
-            value={content.websiteDescription}
-            onChange={event => onChange('websiteDescription', event.target.value)}
-            rows={8}
-            className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        )}
+        <RichTextEditor label="Website description" value={content.websiteDescription} onChange={value => onChange('websiteDescription', value)} minHeight={128} />
       </div>
 
       {footer}

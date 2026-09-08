@@ -28,6 +28,7 @@ import { buildTaxSettingsUpdate, TAX_SETTING_DEFAULTS } from '@/lib/ims/taxSetti
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { BusinessContextSwitcher } from '@/components/BusinessContextSwitcher';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
@@ -5799,7 +5800,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [stockAvail, setStockAvail] = useState<Record<string, number>>({});
   const [stockSohLoading, setStockSohLoading] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
-  const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('preview');
   const [descBuilderOpen, setDescBuilderOpen] = useState(false);
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
   const [autoGenerateSku, setAutoGenerateSku] = useState(false);
@@ -6013,7 +6013,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   const openNew = () => {
     clearPendingProductPhotos();
-    setDescHtmlMode('preview');
     setForm({ ...BLANK_PRODUCT });
     setAutoGenerateSku(false);
     setOpeningStock({});
@@ -6026,7 +6025,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   const openEdit = (p: any) => {
     clearPendingProductPhotos();
-    setDescHtmlMode('preview');
     setAutoGenerateSku(false);
     // Prefer DB-stored base_sku; fall back to deriving from variant SKU common prefix
     let base_sku = p.base_sku || '';
@@ -7146,31 +7144,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                     >✨</button>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {(['source', 'preview'] as const).map(m => (
-                    <button key={m} type="button" onClick={() => setDescHtmlMode(m)}
-                      style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: descHtmlMode === m ? 'var(--sv-action)' : 'transparent', color: descHtmlMode === m ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', textTransform: 'capitalize' }}>
-                      {m === 'source' ? 'HTML' : 'Preview'}
-                    </button>
-                  ))}
-                </div>
               </div>
-              {descHtmlMode === 'source' ? (
-                <textarea value={form.description ?? ''} onChange={sf('description') as any} rows={5}
-                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
-              ) : (
-                <div
-                  key={`description-preview-${modal.edit?.product_id ?? 'new'}`}
-                  contentEditable
-                  suppressContentEditableWarning
-                  className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
-                  onBlur={event => {
-                    const description = event.currentTarget.innerHTML;
-                    setForm((previous: any) => ({ ...previous, description }));
-                  }}
-                  style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13, padding: '12px 14px', cursor: 'text' }}
-                  dangerouslySetInnerHTML={{ __html: form.description || '' }} />
-              )}
+              <RichTextEditor key={`product-description-${modal.edit?.product_id ?? 'new'}`} label="Description" value={form.description ?? ''} minHeight={120} onChange={description => setForm((previous: any) => ({ ...previous, description }))} />
               {descBuilderOpen && modal.edit?.product_id && (
                 <AiDescriptionBuilder
                   product={{ ...modal.edit, ...form, product_id: modal.edit.product_id }}
@@ -7179,7 +7154,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   currentTags={form.tags ?? ''}
                   onApply={description => {
                     setForm((p: any) => ({ ...p, description }));
-                    setDescHtmlMode('preview');
                     setDescBuilderOpen(false);
                   }}
                   onClose={() => setDescBuilderOpen(false)}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import sanitizeHtml from 'sanitize-html';
+import { sanitizeStorefrontHtml } from '@/lib/storefront/layoutValidation';
 import type { WholesaleLayoutDocument, WholesaleLayoutPageId, WholesaleLayoutSection, WholesaleLayoutSectionType } from '@/lib/wholesale/layout/types';
 import { resolveWholesaleThemeColors } from '@/lib/wholesale/layout/validation';
 import styles from './WholesaleLayoutPageRenderer.module.css';
@@ -22,13 +22,7 @@ function safeUrl(value?: string) {
 }
 
 function safeHtml(value?: string) {
-  return sanitizeHtml(value ?? '', {
-    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'h4', 'a'],
-    allowedAttributes: { a: ['href', 'target', 'rel'] },
-    allowedSchemes: ['https', 'mailto'],
-    allowProtocolRelative: false,
-    transformTags: { a: (_tagName, attributes) => ({ tagName: 'a', attribs: { ...attributes, target: '_blank', rel: 'noopener noreferrer' } }) },
-  });
+  return sanitizeStorefrontHtml(value) ?? '';
 }
 
 function SharedSection({ section, products }: { section: WholesaleLayoutSection; products: WholesaleLayoutFeaturedProduct[] }) {
