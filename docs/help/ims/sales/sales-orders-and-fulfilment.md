@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.","lastReviewed":"2026-09-09","owner":"sales"}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-09-09","owner":"sales"}
 ---
 # Sales Orders and Fulfilment
 
@@ -9,6 +9,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 
 - Create and review a Draft order.
 - Confirm the order when customer demand is real.
+- Choose **Display Fields** to show the order details needed for the current task.
 - Select eligible orders on the current page and prepare package drafts for shipping.
 - Fulfil only the quantities sent to the customer.
 - Continue a partial fulfilment or resolve the remainder.
@@ -34,6 +35,14 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - [ ] Make sure you are not using an advisor account, which is read-only.
 
 > **Important:** Record what physically ships. If a shipment succeeds but a later accounting action fails, retry the unfinished accounting action; do not fulfil the goods again.
+
+## Choose list fields
+
+Select **Display Fields** above the Sales Orders list to choose its visible columns. **SO #** and **Customer** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.
+
+**Channel Order #** shows the order reference supplied by Shopify or another connected sales channel, while **SO #** remains the Solvantis order number. Search matches customer names, Solvantis order numbers and connected-channel order references. Other optional fields include channel, location, status, dates, payment details, totals, notes and delivery address.
+
+For Shopify orders, Solvantis copies the shipping address supplied on the order into the Sales Order delivery fields when the order is created, paid, updated or imported. Shopify pickup or other orders without a shipping address may correctly leave those fields blank.
 
 ## Step-by-step
 

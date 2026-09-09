@@ -92,6 +92,7 @@ export function OrdersSection({
       {view === 'purchase-orders' && (
         <PurchaseOrdersView
           isAdvisor={isAdvisor}
+          businessId={businessId}
           pendingOpenId={pendingOpenPO}
           onPendingHandled={() => setPendingOpenPO(null)}
           onOpenActivityDocument={openActivityDocument}
@@ -101,6 +102,7 @@ export function OrdersSection({
       {view === 'sales-orders' && (
         <SalesOrdersView
           isAdvisor={isAdvisor}
+          businessId={businessId}
           pendingOpenId={pendingOpenSO}
           onPendingHandled={() => setPendingOpenSO(null)}
           onOpenActivityDocument={openActivityDocument}

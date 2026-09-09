@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { BrainCircuit, ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Search, Truck, WalletCards, Wrench } from 'lucide-react';
+import { BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Search, Truck, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -9254,7 +9254,58 @@ function ImportPOsModal({ locations, showFxCosts, onClose, onDone }: {
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, onOpenActivityDocument, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; isAdvisor?: boolean } = {}) {
+type OrderDisplayField = {
+  id: string;
+  label: string;
+  width: number;
+  group: 'Order' | 'Dates' | 'Financial' | 'Delivery';
+  required?: boolean;
+  sortKey?: string;
+  render: (order: any) => React.ReactNode;
+};
+
+function useOrderDisplayFields(storageKey: string, fields: readonly OrderDisplayField[], defaultIds: readonly string[]) {
+  const requiredIds = fields.filter(field => field.required).map(field => field.id);
+  const sanitize = useCallback((ids: readonly string[]) => {
+    const allowed = new Set(fields.map(field => field.id));
+    return [...new Set([...requiredIds, ...ids.filter(id => allowed.has(id))])];
+  }, [fields, requiredIds]);
+  const [selectedIds, setSelectedIdsState] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return sanitize(defaultIds);
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+      return sanitize(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : defaultIds);
+    } catch {
+      return sanitize(defaultIds);
+    }
+  });
+  const setSelectedIds = useCallback((ids: string[]) => {
+    const sanitized = sanitize(ids);
+    setSelectedIdsState(sanitized);
+    try { localStorage.setItem(storageKey, JSON.stringify(sanitized)); } catch {}
+  }, [sanitize, storageKey]);
+  return { selectedIds, setSelectedIds, selectedFields: fields.filter(field => selectedIds.includes(field.id)) };
+}
+
+function OrderDisplayFieldsMenu({ fields, selectedIds, onChange }: { fields: readonly OrderDisplayField[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  return <div style={{ position: 'relative' }}>
+    <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><Columns3 size={14} />Display Fields</button>
+    {open && <><div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} /><div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 100, width: 300, maxHeight: 'min(560px, calc(100vh - 180px))', overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+      {(['Order', 'Dates', 'Financial', 'Delivery'] as const).map(group => {
+        const groupFields = fields.filter(field => field.group === group);
+        if (!groupFields.length) return null;
+        return <div key={group}><div style={{ margin: '7px 4px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{group}</div>{groupFields.map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedIds.includes(field.id)} onChange={event => onChange(event.target.checked ? [...selectedIds, field.id] : selectedIds.filter(id => id !== field.id))} />{field.label}</label>)}</div>;
+      })}
+    </div></>}
+  </div>;
+}
+
+function getChannelOrderNumber(order: any): string {
+  return String(order.channel_order_number ?? order.external_order_number ?? order.shopify_order_name ?? order.native_checkout_id ?? '').trim();
+}
+
+function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, onOpenActivityDocument, isAdvisor = false, businessId = '' }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; isAdvisor?: boolean; businessId?: string } = {}) {
   const poHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const poBodyScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(poBodyScrollRef);
@@ -9305,6 +9356,32 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
   const { settings, capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
+  const poDisplayFields = useMemo<readonly OrderDisplayField[]>(() => [
+    { id: 'po_number', label: 'PO #', width: 110, group: 'Order', required: true, render: order => order.po_number },
+    { id: 'supplier_name', label: 'Supplier', width: 165, group: 'Order', required: true, render: order => order.supplier_name || '—' },
+    { id: 'supplier_invoice_number', label: 'Supplier Inv #', width: 145, group: 'Order', render: order => order.supplier_invoice_number || '—' },
+    { id: 'location_name', label: 'Location', width: 130, group: 'Order', render: order => order.location_name || '—' },
+    { id: 'status', label: 'Status', width: 120, group: 'Order', render: order => <StatusBadge status={order.status} orderKind="purchase_order" /> },
+    { id: 'payment_terms', label: 'Payment Terms', width: 140, group: 'Order', render: order => order.payment_terms || '—' },
+    { id: 'notes', label: 'Notes', width: 220, group: 'Order', render: order => order.notes || '—' },
+    { id: 'order_date', label: 'Order Date', width: 105, group: 'Dates', render: order => order.order_date?.slice(0, 10) || '—' },
+    { id: 'expected_date', label: 'Expected Date', width: 110, group: 'Dates', render: order => order.expected_date?.slice(0, 10) || '—' },
+    { id: 'received_date', label: 'Received Date', width: 110, group: 'Dates', render: order => order.received_date?.slice(0, 10) || '—' },
+    { id: 'subtotal', label: 'Subtotal', width: 105, group: 'Financial', render: order => fmtFx(order.subtotal, order.currency_code) },
+    { id: 'tax_amount', label: 'Tax', width: 95, group: 'Financial', render: order => fmtFx(order.tax_amount, order.currency_code) },
+    { id: 'freight', label: 'Freight', width: 95, group: 'Financial', render: order => fmtFx(order.freight, order.currency_code) },
+    { id: 'discount', label: 'Discount', width: 95, group: 'Financial', render: order => fmtFx(order.discount, order.currency_code) },
+    { id: 'total_amount', label: 'Total', width: 110, group: 'Financial', render: order => fmtFx(order.total_amount, order.currency_code) },
+    { id: 'amount_paid', label: 'Paid', width: 105, group: 'Financial', render: order => fmtFx(order.amount_paid, order.currency_code) },
+    { id: 'balance', label: 'Balance', width: 105, group: 'Financial', render: order => fmtFx(order.balance, order.currency_code) },
+    { id: 'currency_code', label: 'Currency', width: 90, group: 'Financial', render: order => order.currency_code || 'AUD' },
+    { id: 'exchange_rate', label: 'Exchange Rate', width: 115, group: 'Financial', render: order => Number(order.exchange_rate ?? 1).toFixed(4) },
+  ], []);
+  const { selectedIds: selectedPoFieldIds, setSelectedIds: setSelectedPoFieldIds, selectedFields: selectedPoFields } = useOrderDisplayFields(
+    `solvantis:${businessId || 'unknown'}:purchase-orders:display-fields`,
+    poDisplayFields,
+    ['po_number', 'supplier_name', 'supplier_invoice_number', 'location_name', 'order_date', 'total_amount', 'status'],
+  );
   useEffect(() => {
     if (!viewModal.po?.id || !poPayForm?.date) {
       setPoEarlyPaymentPreview(null);
@@ -9875,16 +9952,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
-  const poTableWidth = 1070;
+  const poTableWidth = selectedPoFields.reduce((total, field) => total + field.width, 0) + 228;
   const renderPoColGroup = () => (
     <colgroup>
-      <col style={{ width: 110 }} />
-      <col style={{ width: 165 }} />
-      <col style={{ width: 145 }} />
-      <col style={{ width: 120 }} />
-      <col style={{ width: 96 }} />
-      <col style={{ width: 96 }} />
-      <col style={{ width: 110 }} />
+      {selectedPoFields.map(field => <col key={field.id} style={{ width: field.width }} />)}
       <col style={{ width: 228 }} />
     </colgroup>
   );
@@ -9895,6 +9966,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
         {!isAdvisor && <button onClick={() => window.open('/receive', '_blank')} style={btnStyle('ghost')}>📱 Smart Device Receive</button>}
         {!isAdvisor && <button onClick={() => setImportPOsOpen(true)} style={btnStyle('ghost')}>⬆ Import POs</button>}
+        <OrderDisplayFieldsMenu fields={poDisplayFields} selectedIds={selectedPoFieldIds} onChange={setSelectedPoFieldIds} />
         {!isAdvisor && <button data-testid="po-new" onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -9964,10 +10036,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               {renderPoColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
-                {([['po_number','PO #'],['supplier_name','Supplier'],['supplier_invoice_number','Supplier Inv #'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
-                  <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: col === 'po_number' || col === 'supplier_name' ? 'sticky' : undefined, left: col === 'po_number' ? 0 : col === 'supplier_name' ? 110 : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'po_number' || col === 'supplier_name' ? 3 : 1, boxShadow: col === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
-                    {label}<SortIcon col={col} />
+                {selectedPoFields.map(field => (
+                  <th key={field.id} onClick={() => toggleSort(field.sortKey ?? field.id)}
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === (field.sortKey ?? field.id) ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: field.id === 'po_number' || field.id === 'supplier_name' ? 'sticky' : undefined, left: field.id === 'po_number' ? 0 : field.id === 'supplier_name' ? 110 : undefined, background: 'var(--sv-bg-2)', zIndex: field.id === 'po_number' || field.id === 'supplier_name' ? 3 : 1, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                    {field.label}<SortIcon col={field.sortKey ?? field.id} />
                   </th>
                 ))}
                 <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
@@ -9995,15 +10067,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 const selectedAction = poActionSelections[po.id] ?? poActions[0]?.value ?? 'open';
                 return (
                   <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
-                      <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{po.po_number}</button>
-                    </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 110, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{po.supplier_name || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtFx(po.total_amount, po.currency_code)}</td>
-                    <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
+                    {selectedPoFields.map(field => {
+                      const frozen = field.id === 'po_number' || field.id === 'supplier_name';
+                      const background = i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)';
+                      return <td key={field.id} title={typeof field.render(po) === 'string' ? String(field.render(po)) : undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: frozen ? 'sticky' : undefined, left: field.id === 'po_number' ? 0 : field.id === 'supplier_name' ? 110 : undefined, zIndex: frozen ? 3 : undefined, background: frozen ? background : undefined, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                        {field.id === 'po_number' ? <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{po.po_number}</button> : field.render(po)}
+                      </td>;
+                    })}
                     <td style={{ padding: '10px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}>
                         <select
@@ -13554,9 +13624,38 @@ function ImportSOsModal({ locations, onClose, onDone }: {
   );
 }
 
-function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
+function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled, businessId = '' }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void; businessId?: string } = {}) {
   const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
+  const soDisplayFields = useMemo<readonly OrderDisplayField[]>(() => [
+    { id: 'so_number', label: 'SO #', width: 110, group: 'Order', required: true, render: order => order.so_number },
+    { id: 'customer_name', label: 'Customer', width: 190, group: 'Order', required: true, render: order => order.customer_name || '—' },
+    { id: 'channel_order_number', label: 'Channel Order #', width: 145, group: 'Order', render: order => getChannelOrderNumber(order) || '—' },
+    { id: 'sales_channel', label: 'Channel', width: 105, group: 'Order', render: order => order.sales_channel || (order.shopify_order_name ? 'Shopify' : order.so_type || 'B2B') },
+    { id: 'location_name', label: 'Location', width: 145, group: 'Order', render: order => order.location_name || '—' },
+    { id: 'status', label: 'Status', width: 120, group: 'Order', render: order => <StatusBadge status={order.status} orderKind="sales_order" /> },
+    { id: 'customer_po_number', label: 'Customer PO #', width: 135, group: 'Order', render: order => order.customer_po_number || '—' },
+    { id: 'payment_gateway', label: 'Payment Gateway', width: 145, group: 'Order', render: order => order.payment_gateway || '—' },
+    { id: 'financial_status', label: 'Payment Status', width: 125, group: 'Order', render: order => order.financial_status || '—' },
+    { id: 'notes', label: 'Notes', width: 220, group: 'Order', render: order => order.notes || '—' },
+    { id: 'order_date', label: 'Order Date', width: 105, group: 'Dates', render: order => order.order_date?.slice(0, 10) || '—' },
+    { id: 'expected_date', label: 'Expected Date', width: 110, group: 'Dates', render: order => order.expected_date?.slice(0, 10) || '—' },
+    { id: 'fulfilled_date', label: 'Fulfilled Date', width: 110, group: 'Dates', render: order => order.fulfilled_date?.slice(0, 10) || '—' },
+    { id: 'subtotal', label: 'Subtotal', width: 105, group: 'Financial', render: order => fmtCurrency(order.subtotal) },
+    { id: 'tax_amount', label: 'Tax', width: 95, group: 'Financial', render: order => fmtCurrency(order.tax_amount) },
+    { id: 'freight', label: 'Freight', width: 95, group: 'Financial', render: order => fmtCurrency(order.freight) },
+    { id: 'discount', label: 'Discount', width: 95, group: 'Financial', render: order => fmtCurrency(order.discount) },
+    { id: 'total_amount', label: 'Total', width: 110, group: 'Financial', render: order => fmtCurrency(order.total_amount) },
+    { id: 'amount_paid', label: 'Paid', width: 105, group: 'Financial', render: order => fmtCurrency(order.amount_paid) },
+    { id: 'balance', label: 'Balance', width: 105, group: 'Financial', render: order => fmtCurrency(order.balance) },
+    { id: 'currency_code', label: 'Currency', width: 90, group: 'Financial', render: order => order.currency_code || 'AUD' },
+    { id: 'delivery_address', label: 'Delivery Address', width: 260, group: 'Delivery', render: order => [order.delivery_address, order.delivery_address2, order.delivery_suburb || order.delivery_city, order.delivery_state, order.delivery_postcode, order.delivery_country].filter(Boolean).join(', ') || '—' },
+  ], []);
+  const { selectedIds: selectedSoFieldIds, setSelectedIds: setSelectedSoFieldIds, selectedFields: selectedSoFields } = useOrderDisplayFields(
+    `solvantis:${businessId || 'unknown'}:sales-orders:display-fields`,
+    soDisplayFields,
+    ['so_number', 'customer_name', 'channel_order_number', 'location_name', 'order_date', 'total_amount', 'status'],
+  );
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const soBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -14262,16 +14361,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
-  const soTableWidth = 1094;
+  const soTableWidth = selectedSoFields.reduce((total, field) => total + field.width, 0) + 44 + 250;
   const renderSoColGroup = () => (
     <colgroup>
       <col style={{ width: 44 }} />
-      <col style={{ width: 110 }} />
-      <col style={{ width: 190 }} />
-      <col style={{ width: 150 }} />
-      <col style={{ width: 120 }} />
-      <col style={{ width: 120 }} />
-      <col style={{ width: 110 }} />
+      {selectedSoFields.map(field => <col key={field.id} style={{ width: field.width }} />)}
       <col style={{ width: 250 }} />
     </colgroup>
   );
@@ -14306,6 +14400,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
         {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
+        <OrderDisplayFieldsMenu fields={soDisplayFields} selectedIds={selectedSoFieldIds} onChange={setSelectedSoFieldIds} />
         {!isAdvisor && <button data-testid="so-new" onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -14393,12 +14488,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <table style={{ width: soTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
               {renderSoColGroup()}
             <thead>
-              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th style={{ padding: '7px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all shippable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th><th colSpan={7} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong><button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
+              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th style={{ padding: '7px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all shippable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th><th colSpan={selectedSoFields.length + 1} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong><button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
                 <th style={{ padding: '10px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all shippable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th>
-                {([['so_number','SO #'],['customer_name','Customer'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
-                  <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: col === 'so_number' || col === 'customer_name' ? 'sticky' : undefined, left: col === 'so_number' ? 44 : col === 'customer_name' ? 154 : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'so_number' || col === 'customer_name' ? 3 : 1, boxShadow: col === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
-                    {label}<SortIcon col={col} />
+                {selectedSoFields.map(field => (
+                  <th key={field.id} onClick={() => toggleSort(field.sortKey ?? field.id)}
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === (field.sortKey ?? field.id) ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: field.id === 'so_number' || field.id === 'customer_name' ? 'sticky' : undefined, left: field.id === 'so_number' ? 44 : field.id === 'customer_name' ? 154 : undefined, background: 'var(--sv-bg-2)', zIndex: field.id === 'so_number' || field.id === 'customer_name' ? 3 : 1, boxShadow: field.id === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                    {field.label}<SortIcon col={field.sortKey ?? field.id} />
                   </th>
                 ))}
                 <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
@@ -14427,18 +14522,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 return (
                   <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 8px', textAlign: 'center', position: 'sticky', left: 0, zIndex: 4, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><input type="checkbox" aria-label={`Select ${so.so_number} for shipping`} checked={selectedSoIds.has(Number(so.id))} disabled={!selectableSOs.some((candidate: any) => Number(candidate.id) === Number(so.id))} onChange={event => setSelectedSoIds(current => { const next = new Set(current); if (event.target.checked) next.add(Number(so.id)); else next.delete(Number(so.id)); return next; })} /></td>
-                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 44, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
-                      {so.is_pos_ledger ? (
-                        <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
-                      ) : (
-                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}{so.is_staff_preview_test ? ' · TEST' : ''}</button>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 154, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{so.customer_name || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
-                    <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} orderKind="sales_order" /></td>
+                    {selectedSoFields.map(field => {
+                      const frozen = field.id === 'so_number' || field.id === 'customer_name';
+                      const background = i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)';
+                      const rendered = field.render(so);
+                      return <td key={field.id} title={typeof rendered === 'string' ? rendered : undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: frozen ? 'sticky' : undefined, left: field.id === 'so_number' ? 44 : field.id === 'customer_name' ? 154 : undefined, zIndex: frozen ? 3 : undefined, background: frozen ? background : undefined, boxShadow: field.id === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                        {field.id === 'so_number' ? (so.is_pos_ledger ? <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button> : <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}{so.is_staff_preview_test ? ' · TEST' : ''}</button>) : rendered}
+                      </td>;
+                    })}
                     <td style={{ padding: '10px 12px' }}>
                       {so.is_pos_ledger ? (
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>

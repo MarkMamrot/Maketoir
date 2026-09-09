@@ -1,5 +1,5 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders.","lastReviewed":"2026-09-08","owner":"inventory"}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, with configurable list fields.","lastReviewed":"2026-09-09","owner":"inventory"}
 ---
 # Purchase Orders
 
@@ -17,6 +17,8 @@ A purchase order records what you intend to buy from a supplier and where it sho
 | Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |
 
 Advisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.
+
+Select **Display Fields** above the Purchase Orders list to choose which order, date and financial columns are visible. **PO #** and **Supplier** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.
 
 Ask Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.
 

@@ -35,6 +35,7 @@ import { buildShopifyShipmentQuantities, parseShopifyShipment } from '@/lib/ims/
 import { persistShopifyShipment } from '@/lib/ims/shopifyShipmentPersistence';
 import { reconcileGiftCardsFromPaidShopifyOrder } from '@/lib/ims/shopifyGiftCardWebhook';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
+import { parseShopifyOrderDeliveryAddress } from '@/lib/ims/shopifyOrderAddress';
 
 export const runtime = 'nodejs';
 
@@ -198,6 +199,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     if (orderDate < config.syncFrom) return respond();
 
     const orderIdStr = String(payload.id ?? '');
+    const delivery = parseShopifyOrderDeliveryAddress(payload);
 
     const onlineCustomerId = await getOrCreateOnlineCustomerId(businessId);
     const customerId = await resolveShopifyOrderCustomerId(
@@ -211,12 +213,16 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       [orderIdStr, businessId],
     );
     if (existing.length > 0) {
-      if (customerId && Number(existing[0].customer_id) !== customerId) {
-        await imsExecute(
-          'UPDATE ims_sales_orders SET customer_id = ? WHERE id = ? AND business_id = ?',
-          [customerId, existing[0].id, businessId],
-        );
-      }
+      await imsExecute(
+        `UPDATE ims_sales_orders
+            SET customer_id = COALESCE(?, customer_id),
+                delivery_address = ?, delivery_address2 = ?, delivery_suburb = ?, delivery_city = ?,
+                delivery_state = ?, delivery_postcode = ?, delivery_country = ?
+          WHERE id = ? AND business_id = ?`,
+        [customerId, delivery.delivery_address, delivery.delivery_address2, delivery.delivery_suburb,
+          delivery.delivery_city, delivery.delivery_state, delivery.delivery_postcode, delivery.delivery_country,
+          existing[0].id, businessId],
+      );
       if (existing[0].status === 'draft') {
         await ImsSORepo.changeStatus(existing[0].id, 'confirmed');
         if (payload.fulfillment_status === 'fulfilled') {
@@ -285,12 +291,16 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         const [r] = await conn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, customer_id, location_id, status, order_date, freight, discount,
-              subtotal, tax_amount, total_amount, gift_card_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
-            VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
+              subtotal, tax_amount, total_amount, gift_card_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status,
+              delivery_address, delivery_address2, delivery_suburb, delivery_city, delivery_state, delivery_postcode, delivery_country,
+              price_tier, tax_treatment, notes)
+            VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [businessId, soNumber, customerId, config.locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), giftCardAmount, orderIdStr, payload.name ?? null,
-           gateway, topic === 'orders/paid' ? 'paid' : payload.financial_status ?? null,
-           `Shopify ${payload.name ?? ''}`.trim()],
+            gateway, topic === 'orders/paid' ? 'paid' : payload.financial_status ?? null,
+            delivery.delivery_address, delivery.delivery_address2, delivery.delivery_suburb, delivery.delivery_city,
+            delivery.delivery_state, delivery.delivery_postcode, delivery.delivery_country,
+            `Shopify ${payload.name ?? ''}`.trim()],
         );
         soId = r.insertId;
         for (const it of items) {
@@ -613,7 +623,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             so_id: existing[0].id,
             shopify_refund_id: String(payload.id ?? ''),
           });
-          return respond({ error: e?.message ?? 'Shopify refund processing failed' }, 500);
+          return NextResponse.json(
+            { error: e?.message ?? 'Shopify refund processing failed' },
+            { status: 500 },
+          );
         }
       }
     }
@@ -634,6 +647,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         const so = existing[0];
         try {
           const customerId = await resolveShopifyOrderCustomerId(businessId, payload);
+          const delivery = parseShopifyOrderDeliveryAddress(payload);
           // Draft and confirmed orders have not moved on-hand stock. The repository
           // transaction safely releases old commitments and commits replacement lines.
           if ((so.status === 'draft' || so.status === 'confirmed') && Array.isArray(payload.line_items)) {
@@ -677,11 +691,15 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
                    customer_id = COALESCE(?, customer_id),
                    financial_status = COALESCE(?, financial_status),
                    payment_gateway  = COALESCE(?, payment_gateway),
-                   shopify_order_name = COALESCE(?, shopify_order_name)
-             WHERE id = ?`,
+                   shopify_order_name = COALESCE(?, shopify_order_name),
+                   delivery_address = ?, delivery_address2 = ?, delivery_suburb = ?, delivery_city = ?,
+                   delivery_state = ?, delivery_postcode = ?, delivery_country = ?
+                 WHERE id = ? AND business_id = ?`,
             [subtotal, taxAmount, totalAmount, freight, discount,
              giftCardAmount, customerId,
-             payload.financial_status ?? null, gateway, payload.name ?? null, so.id],
+                 payload.financial_status ?? null, gateway, payload.name ?? null,
+                 delivery.delivery_address, delivery.delivery_address2, delivery.delivery_suburb, delivery.delivery_city,
+                 delivery.delivery_state, delivery.delivery_postcode, delivery.delivery_country, so.id, businessId],
           );
         } catch (e: any) {
           console.error('[shopify-webhook] orders/updated error:', e.message);

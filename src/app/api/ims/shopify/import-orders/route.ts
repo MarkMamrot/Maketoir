@@ -22,6 +22,7 @@ import { createNotification } from '@/lib/ims/createNotification';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 import { getOrCreateOnlineCustomerId, resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
+import { parseShopifyOrderDeliveryAddress } from '@/lib/ims/shopifyOrderAddress';
 
 function getShopifyGiftCardAmount(lineItems: any[]): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -184,6 +185,7 @@ export async function POST(req: Request) {
 
   for (const order of shopifyOrders) {
     const orderIdStr = String(order.id);
+    const delivery = parseShopifyOrderDeliveryAddress(order);
     const orderCustomerId = await resolveShopifyOrderCustomerId(
       businessId,
       order,
@@ -194,13 +196,17 @@ export async function POST(req: Request) {
     // Already imported — but self-heal if it got stuck at draft (stock never committed).
     const existing = existingById.get(orderIdStr);
     if (existing) {
-      if (orderCustomerId && Number(existing.customer_id) !== orderCustomerId) {
-        await imsExecute(
-          'UPDATE ims_sales_orders SET customer_id = ? WHERE id = ? AND business_id = ?',
-          [orderCustomerId, existing.id, businessId],
-        );
-        existing.customer_id = orderCustomerId;
-      }
+      await imsExecute(
+        `UPDATE ims_sales_orders
+            SET customer_id = COALESCE(?, customer_id),
+                delivery_address = ?, delivery_address2 = ?, delivery_suburb = ?, delivery_city = ?,
+                delivery_state = ?, delivery_postcode = ?, delivery_country = ?
+          WHERE id = ? AND business_id = ?`,
+        [orderCustomerId, delivery.delivery_address, delivery.delivery_address2, delivery.delivery_suburb,
+          delivery.delivery_city, delivery.delivery_state, delivery.delivery_postcode, delivery.delivery_country,
+          existing.id, businessId],
+      );
+      if (orderCustomerId) existing.customer_id = orderCustomerId;
       if (existing.status === 'draft') {
         try {
           // Backfill the real AEST order time (early imports stored date-only).
@@ -273,12 +279,16 @@ export async function POST(req: Request) {
         const [result] = await poolConn.execute<any>(
           `INSERT INTO ims_sales_orders
              (business_id, so_number, so_type, customer_id, location_id, status, order_date, freight, discount,
-              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
-            VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
+              subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status,
+              delivery_address, delivery_address2, delivery_suburb, delivery_city, delivery_state, delivery_postcode, delivery_country,
+              price_tier, tax_treatment, notes)
+            VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [
             businessId, soNumber, orderCustomerId, locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, totalAmount, orderIdStr, order.name ?? null,
             gateway, order.financial_status ?? null,
+            delivery.delivery_address, delivery.delivery_address2, delivery.delivery_suburb, delivery.delivery_city,
+            delivery.delivery_state, delivery.delivery_postcode, delivery.delivery_country,
             `Shopify order ${order.name ?? ''}`.trim(),
           ],
         );

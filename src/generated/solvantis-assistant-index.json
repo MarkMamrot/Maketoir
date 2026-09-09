@@ -742,8 +742,8 @@
         "ims-supplier-work"
       ],
       "order": 10,
-      "summary": "Create, confirm, review and correct supplier purchase orders.",
-      "lastReviewed": "2026-09-08",
+      "summary": "Create, confirm, review and correct supplier purchase orders, with configurable list fields.",
+      "lastReviewed": "2026-09-09",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/purchase-orders.md"
     },
@@ -993,7 +993,7 @@
         "sales-orders": "Step-by-step"
       },
       "order": 31,
-      "summary": "Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.",
+      "summary": "Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.",
       "lastReviewed": "2026-09-09",
       "owner": "sales",
       "filename": "docs/help/ims/sales/sales-orders-and-fulfilment.md"
@@ -5896,7 +5896,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "A purchase order records what you intend to buy from a supplier and where it should arrive. Confirmation makes the quantity incoming; receiving records the physical delivery."
     },
     {
@@ -5917,8 +5917,8 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
-      "content": "| Action | Use it when | Stock effect |\n|---|---|---|\n| New Purchase Order | You are preparing a supplier order | None while Draft |\n| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |\n| Receive | Goods have physically arrived | Adds the entered quantity to on hand |\n| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |\n| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |\n| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |\n\nAdvisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.\n\nAsk Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.\n\nAn order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.\n\nAssistant shows outstanding value before tax in the PO currency and includes the recorded exchange rate for foreign-currency orders. It omits supplier contact channels, notes, invoice references, files, payment details and customer data."
+      "lastReviewed": "2026-09-09",
+      "content": "| Action | Use it when | Stock effect |\n|---|---|---|\n| New Purchase Order | You are preparing a supplier order | None while Draft |\n| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |\n| Receive | Goods have physically arrived | Adds the entered quantity to on hand |\n| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |\n| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |\n| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |\n\nAdvisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.\n\nSelect **Display Fields** above the Purchase Orders list to choose which order, date and financial columns are visible. **PO #** and **Supplier** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.\n\nAsk Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.\n\nAn order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.\n\nAssistant shows outstanding value before tax in the PO currency and includes the recorded exchange rate for foreign-currency orders. It omits supplier contact channels, notes, invoice references, files, payment details and customer data."
     },
     {
       "id": "ims-purchase-orders:3",
@@ -5938,7 +5938,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "Advisor access is read-only, so an Advisor cannot create or edit a purchase order.\n\n1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.\n2. Choose the supplier and receiving location.\n3. Add the exact product variants and quantities.\n4. Check order and expected dates, supplier invoice details, early-payment discount, freight, currency, exchange rate, landed costs and notes.\n5. Check the supplier's tax treatment.\n6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.\n\nWhen you use **Upload Invoice**, each printed line subtotal is the source of truth. If the printed quantity, pre-discount unit price and line discount reconcile to that subtotal, Solvantis carries the discount into the PO and shows its amount in the PO detail and generated PO document, with the derived percentage retained for accounting. If those columns do not reconcile, Solvantis preserves the subtotal and uses its effective unit cost instead of applying an uncertain discount twice.\n\nSupplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.\n\nForeign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.\n\nFor **Early-payment discount**, keep **Supplier default** to use the active rule configured on the supplier, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new PO. The supplier invoice date is the cutoff basis when supplied; otherwise the order date is used. Later changes to the supplier or rule do not rewrite the saved PO terms.\n\nWhen adding a payment to a PO with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.\n\nWhen the entered payment reaches the qualifying settlement, turn on **Apply discount and create the supplier credit note** before saving. Solvantis records the payment, a stock-neutral supplier credit note, and the discount application together. The supplier credit reference remains blank unless the supplier actually issued one. An applied settlement payment and its credit note must be corrected together.\n\n> **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery."
     },
     {
@@ -5959,7 +5959,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "| Status | What it means | Usual next action |\n|---|---|---|\n| Draft | The order is being prepared | Edit, confirm or delete |\n| Confirmed | The supplier order is active and quantity is incoming | Receive, edit, revert to Draft or cancel where offered |\n| Partially Received | Some goods arrived and some remain outstanding | Continue Receiving or Resolve Outstanding |\n| Backordered | Outstanding quantity was moved to a held child order | Release when it should become active, or cancel |\n| Complete | Receiving is finished | Review, return goods, correct a mistaken receipt or create a replacement draft |\n| Cancelled | The order is closed without further receiving | Review or create a replacement draft |"
     },
     {
@@ -5980,7 +5980,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, resolution choices, linked supplier credits and replacement orders.\n\nUse the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten."
     },
     {
@@ -6001,7 +6001,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "The received cost can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received variant.\n\n| Entered amount | Tax choice | Cost before other adjustments | GST |\n|---:|---|---:|---:|\n| $50.00 | Tax exclusive at 10% | $50.00 | $5.00 |\n| $55.00 | Tax inclusive at 10% | $50.00 | $5.00 |\n| $50.00 | No tax | $50.00 | $0.00 |"
     },
     {
@@ -6022,7 +6022,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "Choose the action that matches what happened:\n\n| Situation | Use | Do not use |\n|---|---|---|\n| The receipt was entered, but the goods never arrived | **Undo Mistaken Receipt**, when offered | Supplier Return / Credit |\n| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Mistaken Receipt |\n| You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |\n| Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |\n\nA replacement is a new Draft. It does not undo the original receipt or change the original accounting record."
     },
     {
@@ -6043,7 +6043,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |\n| Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |\n| Direct editing is limited | Receipts or later records already exist | Use Resolve Outstanding, Undo Mistaken Receipt, Supplier Return / Credit or Replacement as appropriate |\n| Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |"
     },
     {
@@ -6064,7 +6064,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-09-09",
       "content": "### Place a local supplier order\n\nA Brisbane store orders 20 water bottles at $15 each before GST. The PO subtotal is $300, GST is $30 and the supplier total is $330. Confirming makes 20 incoming. It does not add 20 to on hand until staff receive the delivery.\n\n### Replace a cancelled order\n\nA cancelled PO has the right products but the supplier has changed. Staff choose **Create Replacement Draft**, update the supplier and dates, review every line, then confirm the new order. The old PO stays cancelled for reference."
     },
     {
@@ -7148,7 +7148,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-09",
-      "content": "- Create and review a Draft order.\n- Confirm the order when customer demand is real.\n- Select eligible orders on the current page and prepare package drafts for shipping.\n- Fulfil only the quantities sent to the customer.\n- Continue a partial fulfilment or resolve the remainder."
+      "content": "- Create and review a Draft order.\n- Confirm the order when customer demand is real.\n- Choose **Display Fields** to show the order details needed for the current task.\n- Select eligible orders on the current page and prepare package drafts for shipping.\n- Fulfil only the quantities sent to the customer.\n- Continue a partial fulfilment or resolve the remainder."
     },
     {
       "id": "ims-sales-orders-fulfilment:3",
@@ -7190,6 +7190,24 @@
       "id": "ims-sales-orders-fulfilment:5",
       "documentId": "ims-sales-orders-fulfilment",
       "title": "Sales Orders and Fulfilment",
+      "heading": "Choose list fields",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Sales > Sales Orders",
+      "topicId": "ims-sales-orders-fulfilment",
+      "contexts": [
+        "sales-orders"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-09",
+      "content": "Select **Display Fields** above the Sales Orders list to choose its visible columns. **SO #** and **Customer** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.\n\n**Channel Order #** shows the order reference supplied by Shopify or another connected sales channel, while **SO #** remains the Solvantis order number. Search matches customer names, Solvantis order numbers and connected-channel order references. Other optional fields include channel, location, status, dates, payment details, totals, notes and delivery address.\n\nFor Shopify orders, Solvantis copies the shipping address supplied on the order into the Sales Order delivery fields when the order is created, paid, updated or imported. Shopify pickup or other orders without a shipping address may correctly leave those fields blank."
+    },
+    {
+      "id": "ims-sales-orders-fulfilment:6",
+      "documentId": "ims-sales-orders-fulfilment",
+      "title": "Sales Orders and Fulfilment",
       "heading": "Step-by-step",
       "audiences": [
         "ims"
@@ -7205,7 +7223,7 @@
       "content": "1. Open **Sales > Sales Orders** and select **New Sales Order**.\n2. Choose the customer and location, then add the products and ordered quantities.\n3. Review prices, tax treatment, early-payment discount, freight, dates, and notes. Save the order as Draft while it is still being prepared.\n4. Confirm the order when the customer demand is ready to proceed.\n5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.\n6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.\n7. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.\n8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.\n9. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.\n10. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.\n\nFor **Early-payment discount**, keep **Customer default** to use the active rule configured on the customer, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.\n\nWhen adding a payment to a Sales Order with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.\n\nWhen the entered payment reaches the qualifying settlement, turn on **Apply discount and create the customer credit note** before saving. Solvantis records the payment, a stock-neutral customer credit note, and the discount application together. It does not issue store credit because the credit note settles the order balance. An applied settlement payment and its credit note must be corrected together.\n\n> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.\n11. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.\n\n| Resolve Outstanding choice | Use it when | Result |\n|---|---|---|\n| Leave partially open | A short delay is expected | The remainder stays on the current order |\n| Cancel outstanding remainder | The customer no longer wants the balance | The source order closes at the quantity already shipped |\n| Create held backorder | The balance still needs supply and separate follow-up | Only the unshipped balance moves to a held child order |"
     },
     {
-      "id": "ims-sales-orders-fulfilment:6",
+      "id": "ims-sales-orders-fulfilment:7",
       "documentId": "ims-sales-orders-fulfilment",
       "title": "Sales Orders and Fulfilment",
       "heading": "Troubleshooting",
@@ -7223,7 +7241,7 @@
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |\n| An order cannot be selected for shipping | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress | Open the order and resolve its status or remaining quantities |\n| Shipment preparation reports missing physical data | A selected variant has no usable weight or dimensions | Update that variant under Products, then reopen Ship Orders |\n| No package is suggested | No active preset can contain the item within its dimensions and maximum weight | Add or update a package preset under Settings > Shipping |\n| A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |\n| Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |\n| The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |\n| Resolve Outstanding is blocked | Payments or accounting records need a controlled value decision | Read the preview and choose the offered settlement; do not alter shipped quantities |"
     },
     {
-      "id": "ims-sales-orders-fulfilment:7",
+      "id": "ims-sales-orders-fulfilment:8",
       "documentId": "ims-sales-orders-fulfilment",
       "title": "Sales Orders and Fulfilment",
       "heading": "Worked examples",

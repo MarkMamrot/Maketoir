@@ -68,7 +68,9 @@ export async function GET(req: Request) {
     }
 
     if (customer) {
-      merged = merged.filter((row: any) => String(row?.customer_name ?? '').toLowerCase().includes(customer));
+      merged = merged.filter((row: any) => [row?.customer_name, row?.so_number, row?.channel_order_number,
+        row?.external_order_number, row?.shopify_order_name, row?.native_checkout_id]
+        .some(value => String(value ?? '').toLowerCase().includes(customer)));
     }
 
     merged.sort((a: any, b: any) => {
