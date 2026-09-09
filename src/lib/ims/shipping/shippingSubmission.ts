@@ -281,12 +281,18 @@ async function persistCarrierShipment(
     if (!parcel) continue;
     await imsExecute(
       `UPDATE ims_shipping_parcels
-          SET provider_item_id = ?, article_id = ?, consignment_id = ?
+          SET provider_item_id = ?, article_id = ?, consignment_id = ?, tracking_url = ?
         WHERE business_id = ? AND id = ? AND shipment_id = ?`,
       [text(item.item_id) || null, text(item.tracking_details?.article_id) || null,
-        text(item.tracking_details?.consignment_id) || null, businessId, parcel.id, shipment.id],
+        text(item.tracking_details?.consignment_id) || null,
+        ausPostTrackingUrl(text(item.tracking_details?.article_id)) || null,
+        businessId, parcel.id, shipment.id],
     );
   }
+}
+
+function ausPostTrackingUrl(articleId: string): string {
+  return articleId ? `https://auspost.com.au/mypost/track/#/details/${encodeURIComponent(articleId)}` : '';
 }
 
 async function persistLabelResponse(

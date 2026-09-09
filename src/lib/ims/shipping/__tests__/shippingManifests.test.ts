@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AusPostApiError } from '../carriers/auspostEparcel/client';
-import { isDefinitiveManifestFailure } from '../shippingManifests';
+import { isDefinitiveManifestFailure, manifestExistingOperationAction } from '../shippingManifests';
 
 describe('shipping manifests', () => {
   it('only releases shipments after a definitive carrier rejection', () => {
@@ -16,5 +16,12 @@ describe('shipping manifests', () => {
     expect(isDefinitiveManifestFailure(new AusPostApiError('Conflict.', 409, []))).toBe(false);
     expect(isDefinitiveManifestFailure(new AusPostApiError('Throttled.', 429, []))).toBe(false);
     expect(isDefinitiveManifestFailure(new AusPostApiError('Unavailable.', 503, []))).toBe(false);
+  });
+
+  it('never repeats an in-progress or unknown carrier booking', () => {
+    expect(manifestExistingOperationAction('complete')).toBe('return');
+    expect(manifestExistingOperationAction('failed')).toBe('retry');
+    expect(manifestExistingOperationAction('submitting')).toBe('block');
+    expect(manifestExistingOperationAction('submission_unknown')).toBe('reconcile');
   });
 });

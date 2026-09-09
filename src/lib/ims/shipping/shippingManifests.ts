@@ -108,11 +108,13 @@ export async function createShippingManifest(input: {
     const existing = existingRows[0];
     if (existing) {
       if (existing.request_hash !== requestHash) throw new Error('This manifest operation key was already used for different shipments.');
-      if (existing.status === 'complete') {
+      const existingAction = manifestExistingOperationAction(existing.status);
+      if (existingAction === 'return') {
         await connection.commit();
         return getShippingManifest(input.businessId, Number(existing.id));
       }
-      if (existing.status === 'submission_unknown') throw new Error('This manifest has an unknown carrier outcome and must be reconciled before continuing.');
+      if (existingAction === 'block') throw new Error('This manifest booking is already in progress. Refresh the workspace before taking another action.');
+      if (existingAction === 'reconcile') throw new Error('This manifest has an unknown carrier outcome and must be reconciled before continuing.');
       manifestId = Number(existing.id);
     }
 
@@ -356,4 +358,11 @@ function totalParcels(candidates: ManifestCandidate[]): number {
 export function isDefinitiveManifestFailure(error: unknown): boolean {
   if (/does not support|credentials are incomplete/i.test(error instanceof Error ? error.message : '')) return true;
   return error instanceof AusPostApiError && error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status);
+}
+
+export function manifestExistingOperationAction(status: string): 'return' | 'retry' | 'block' | 'reconcile' {
+  if (status === 'complete') return 'return';
+  if (status === 'submission_unknown') return 'reconcile';
+  if (status === 'submitting') return 'block';
+  return 'retry';
 }

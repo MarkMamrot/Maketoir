@@ -155,11 +155,16 @@ async function createShopifyFulfilment(businessId: string, shipmentId: number, s
     [businessId, shipmentId],
   );
   if (lines.some(line => !line.shopify_line_item_id)) throw new Error('A dispatched line is not mapped to a Shopify order line.');
-  const tracking = await imsQuery<{ article_id: string | null; tracking_url: string | null }>(
-    `SELECT article_id, tracking_url FROM ims_shipping_parcels
-      WHERE business_id = ? AND shipment_id = ? AND article_id IS NOT NULL ORDER BY parcel_number`,
+  const trackingRows = await imsQuery<{ provider: string; article_id: string | null; consignment_id: string | null; tracking_url: string | null }>(
+    `SELECT shipment.provider, parcel.article_id, parcel.consignment_id, parcel.tracking_url
+       FROM ims_shipping_parcels parcel
+       JOIN ims_shipping_shipments shipment
+         ON shipment.id = parcel.shipment_id AND shipment.business_id = parcel.business_id
+      WHERE parcel.business_id = ? AND parcel.shipment_id = ? ORDER BY parcel.parcel_number`,
     [businessId, shipmentId],
   );
+  const tracking = buildOutboundTracking(trackingRows);
+  if (!tracking.numbers.length) throw new Error('Carrier tracking numbers are not available for this dispatched shipment.');
   const endpoint = `https://${credentials.shopDomain}/admin/api/2025-10/graphql.json`;
   const queryResponse = await fetch(endpoint, {
     method: 'POST', cache: 'no-store',
@@ -173,14 +178,12 @@ async function createShopifyFulfilment(businessId: string, shipmentId: number, s
   if (!queryResponse.ok || queryPayload?.errors?.length) throw new Error(formatShopifyFulfilmentError(queryResponse.status, queryPayload));
   const groups = buildShopifyFulfilmentGroups(lines, queryPayload?.data?.order?.fulfillmentOrders?.nodes ?? []);
   if (!groups.length) return;
-  const numbers = tracking.map(item => String(item.article_id ?? '')).filter(Boolean);
-  const urls = tracking.map(item => item.tracking_url || `https://auspost.com.au/mypost/track/#/details/${encodeURIComponent(String(item.article_id))}`);
   const mutationResponse = await fetch(endpoint, {
     method: 'POST', cache: 'no-store',
     headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': credentials.token },
     body: JSON.stringify({
       query: `mutation CreateShippingFulfillment($fulfillment: FulfillmentInput!) { fulfillmentCreate(fulfillment: $fulfillment) { fulfillment { id status } userErrors { field message } } }`,
-      variables: { fulfillment: { lineItemsByFulfillmentOrder: groups, notifyCustomer: true, ...(numbers.length ? { trackingInfo: { company: 'Australia Post', numbers, urls } } : {}) } },
+      variables: { fulfillment: { lineItemsByFulfillmentOrder: groups, notifyCustomer: true, trackingInfo: tracking } },
     }),
   });
   const mutationPayload = await mutationResponse.json().catch(() => null) as any;
@@ -218,4 +221,25 @@ export function buildShopifyFulfilmentGroups(
 export function formatShopifyFulfilmentError(status: number, payload: any, userErrors: any[] = []): string {
   const messages = [...(payload?.errors ?? []), ...userErrors].map(error => String(error?.message ?? '')).filter(Boolean);
   return `Shopify fulfillment failed${status ? ` (HTTP ${status})` : ''}${messages.length ? `: ${messages.join('; ')}` : '.'}`;
+}
+
+export function buildOutboundTracking(rows: Array<{
+  provider: string;
+  article_id: string | null;
+  consignment_id: string | null;
+  tracking_url: string | null;
+}>): { company: string; numbers: string[]; urls: string[] } {
+  const provider = rows[0]?.provider ?? '';
+  const company = provider === 'auspost_eparcel' ? 'Australia Post' : provider || 'Other';
+  const seen = new Set<string>();
+  const items = rows.flatMap(row => {
+    const number = String(row.article_id || row.consignment_id || '').trim();
+    if (!number || seen.has(number)) return [];
+    seen.add(number);
+    const fallbackUrl = row.provider === 'auspost_eparcel'
+      ? `https://auspost.com.au/mypost/track/#/details/${encodeURIComponent(number)}`
+      : '';
+    return [{ number, url: String(row.tracking_url || fallbackUrl).trim() }];
+  });
+  return { company, numbers: items.map(item => item.number), urls: items.map(item => item.url) };
 }

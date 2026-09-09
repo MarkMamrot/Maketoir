@@ -12,6 +12,7 @@ The Online Shop is Solvantis's native consumer storefront. Its publication is se
 - Publish eligible IMS products independently of Shopify.
 - Configure delivery rates, click and collect, and order fulfilment.
 - Support signed-in customer rewards, store credit, orders, and refunds.
+- Show carrier tracking for each dispatched parcel in the signed-in customer's order history.
 
 ## Storefront workflow
 
@@ -56,7 +57,7 @@ Choose consolidation when staff can manage the transfer and the customer should 
 | Guest | Delivery or click and collect, current pricing, secure Stripe payment |
 | Signed in | Guest capabilities plus eligible loyalty rewards and available store credit |
 
-Signed-in customers can view account value and use one eligible fixed-value loyalty reward, store credit, or both. The reward reduces eligible merchandise first; store credit then settles the remaining order value before Stripe. Reservations do not change points or store credit until checkout succeeds. If account value covers the whole order, checkout completes without opening Stripe.
+Signed-in customers can view account value and use one eligible fixed-value loyalty reward, store credit, or both. The reward reduces eligible merchandise first; store credit then settles the remaining order value before Stripe. Reservations do not change points or store credit until checkout succeeds. If account value covers the whole order, checkout completes without opening Stripe. After a delivery is marked dispatched, the account order history shows every tracking number and carrier link returned for its parcels.
 
 For a native return, create the customer credit note from the linked Sales Order and complete the supported refund choice. A partial mixed-payment refund restores the original store-credit payment before sending any remainder to Stripe. Stock and customer value do not change if Stripe rejects the refund.
 
