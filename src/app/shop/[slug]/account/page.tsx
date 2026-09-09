@@ -49,7 +49,15 @@ export default async function OnlineShopAccountPage({ params }: { params: { slug
     ) : [];
     return {
       contact: contacts[0] ?? null,
-      orders: orders.map(order => ({ ...order, tracking: tracking.filter(item => Number(item.so_id) === Number(order.id)) })),
+      orders: orders.map(order => ({
+        ...order,
+        tracking: tracking.filter(item => Number(item.so_id) === Number(order.id)).map(item => ({
+          ...item,
+          tracking_url: item.tracking_url || (item.provider === 'auspost_eparcel'
+            ? `https://auspost.com.au/mypost/track/#/details/${encodeURIComponent(item.tracking_number)}`
+            : null),
+        })),
+      })),
     };
   });
   if (!data.contact) redirect(`/shop/${profile.slug}/login`);
