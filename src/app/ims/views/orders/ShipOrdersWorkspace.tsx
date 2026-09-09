@@ -92,7 +92,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       widthMm: Number(parcel.widthMm),
       heightMm: Number(parcel.heightMm),
       weightKg: Number(parcel.weightKg),
-      allocations: parcel.allocations,
+      allocations: parcel.allocations.filter(allocation => allocation.quantity > 0),
     })),
   }));
 
@@ -101,6 +101,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       ...current,
       [soId]: (current[soId] ?? []).map((parcel, index) => index === parcelIndex ? { ...parcel, ...patch } : parcel),
     }));
+    setError('');
     setQuotesByOrder({});
   };
 
@@ -132,11 +133,13 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
         allocations: remainingAllocations(order, 0),
       }],
     }));
+    setError('');
     setQuotesByOrder({});
   };
 
   const removeParcel = (soId: number, parcelIndex: number) => {
     setParcelsByOrder(current => ({ ...current, [soId]: (current[soId] ?? []).filter((_, index) => index !== parcelIndex) }));
+    setError('');
     setQuotesByOrder({});
   };
 
@@ -291,7 +294,9 @@ function remainingAllocations(order: SalesOrderDetail, quantityMultiplier = 1): 
 
 function validEditableParcels(order: SalesOrderDetail, parcels: EditableParcel[] | undefined): boolean {
   if (!parcels?.length || parcels.some(parcel => ![parcel.lengthMm, parcel.widthMm, parcel.heightMm, parcel.weightKg]
-    .every(value => Number.isFinite(Number(value)) && Number(value) > 0))) return false;
+    .every(value => Number.isFinite(Number(value)) && Number(value) > 0)
+    || !parcel.allocations.some(allocation => allocation.quantity > 0)
+    || parcel.allocations.some(allocation => !Number.isFinite(allocation.quantity) || allocation.quantity < 0))) return false;
   return (order.items ?? []).every(item => {
     const remaining = Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled));
     const allocated = parcels.reduce((sum, parcel) => sum + (parcel.allocations.find(value => value.soItemId === Number(item.id))?.quantity ?? 0), 0);
