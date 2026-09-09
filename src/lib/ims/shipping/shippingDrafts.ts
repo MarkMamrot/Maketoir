@@ -112,7 +112,7 @@ export async function prepareShippingRequest(input: ShippingRequestInput): Promi
     const order = await ImsSORepo.get(Number(requested.soId), input.businessId);
     if (!order?.items) throw new Error(`Sales order ${requested.soId} was not found.`);
     const remainingQuantity = order.items.reduce((sum, item) => sum + Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)), 0);
-    const eligibility = getShippingOrderEligibility({ status: order.status, soType: order.so_type, remainingQuantity });
+    const eligibility = getShippingOrderEligibility({ status: order.status, soType: (order as typeof order & { so_type?: string | null }).so_type, remainingQuantity });
     if (!eligibility.eligible) throw new Error(`${order.so_number}: ${eligibility.reason}`);
     const lines = order.items.map(item => ({ soItemId: Number(item.id), remainingQuantity: Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)) }));
     const parcelErrors = validateShippingParcels(lines, requested.parcels);
@@ -136,8 +136,8 @@ export async function prepareShippingRequest(input: ShippingRequestInput): Promi
 async function queryRows<T extends RowDataPacket>(sql: string, params: unknown[]): Promise<T[]> {
   const connection = await getIMSPool().getConnection();
   try {
-    const [rows] = await connection.execute<T[]>(sql, params);
-    return rows;
+    const [rows] = await connection.execute<RowDataPacket[]>(sql, params);
+    return rows as T[];
   } finally {
     connection.release();
   }
