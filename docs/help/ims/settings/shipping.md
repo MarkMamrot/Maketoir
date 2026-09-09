@@ -12,6 +12,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 - Keep MyPost Business unavailable until approved partner access is supported.
 - Add package presets with internal dimensions, tare weight and an optional maximum weight.
 - Add selected Australia Post reference packaging to the editable preset list.
+- Create one manifest for each carrier account and physical pickup location, then print its lodgement summary.
 
 ## At a glance
 
@@ -46,6 +47,10 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 > **Note:** Preparing a shipment saves the selected service, price and parcels locally. The separate confirmed **Submit to Australia Post & create labels** action creates the billable carrier shipment. Neither action reduces stock; use Sales Order fulfilment when goods physically leave.
 
 Close the shipping dialog at any time and use **Shipping Workspace** in Sales Orders to reopen saved work. Local drafts that have not been submitted to the carrier can be selected and deleted, making their Sales Orders available to prepare again. Carrier-submitted shipments cannot be deleted there because postage may already have been charged. Once labelled parcels physically leave, **Mark dispatched** applies the parcel quantities to Sales Order fulfillment and sends tracking to the connected channel. Channel retries do not repeat stock movement or postage.
+
+Before the carrier pickup, open the **Manifests** tab. Solvantis groups dispatched shipments by carrier account and dispatch location. Choose the shipments in that pickup, then select **Create booking & manifest**. Australia Post requires one Order per pickup and a signed Order Summary when the parcels are lodged. Print the summary immediately or reprint it later from manifest history. A completed manifest cannot accept more shipments.
+
+> **Warning:** An unknown manifest outcome may already represent a carrier booking. Check the carrier portal and use **Reconcile** with the confirmed order ID instead of creating another booking.
 
 Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions and final packed weight. Australia Post prices use the current parcel details and the saved account's contract rates. Selected shipments are sent in one label request so Australia Post can fill each sheet. Generated PDF labels use four labels per A4 page for Parcel Post and three per A4 page for Express Post; mixed layouts can produce separate batch PDFs. Manifest submission remains a separate later operation.
 

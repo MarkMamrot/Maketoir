@@ -11,6 +11,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - Confirm the order when customer demand is real.
 - Choose **Display Fields** to show the order details needed for the current task.
 - Select eligible orders, choose a carrier service, submit shipments and download labels.
+- Close dispatched shipments into a carrier manifest and print the lodgement summary.
 - Fulfil only the quantities sent to the customer.
 - Continue a partial fulfilment or resolve the remainder.
 
@@ -22,6 +23,8 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 | Confirmed | Customer demand is active | Quantity can be committed, but stock on hand is unchanged |
 | Prepare Shipments | Check delivery details, enter packages and review carrier prices | Saves shipment drafts; stock is unchanged |
 | Submit to Australia Post & create labels | Creates billable Australia Post shipments and generates printable labels | Postage is charged; stock is unchanged |
+| Mark dispatched | Records the parcel quantities that physically left and sends tracking to the connected channel | Shipped quantities reduce stock |
+| Create booking & manifest | Seals selected dispatched shipments into one carrier pickup batch | No additional stock movement |
 | Partially fulfil now | Ship entered quantities and leave the balance on this order | Only the shipped quantity reduces stock |
 | Create backorder for remainder | Ship entered quantities and move the balance to a held child order | Only the shipped quantity reduces stock |
 | Complete | All intended shipments or remainder decisions are finished | No extra movement beyond recorded shipments |
@@ -59,11 +62,16 @@ For Shopify orders, Solvantis copies the shipping address supplied on the order 
 10. Review the saved services and prices, then select **Submit to Australia Post & create labels** and confirm the billable action. Solvantis rechecks each selected service and price immediately before submission. If a price changed or the service became unavailable, retrieve prices and prepare a new shipment rather than silently accepting the change.
 11. Open the available **Batch PDF** and print it. Solvantis sends the selected shipment batch in one label request so Australia Post can fill each sheet. Parcel Post uses Australia Post's four-label A4 layout; Express Post uses its supported three-label A4 layout, so a mixed-service batch can produce a separate PDF for each required layout. Labels include both the Solvantis SO number and the connected channel order number when the channel supplies one. Use **Check label status** when Australia Post is still generating a label.
 12. After the labelled parcels physically leave, select **Mark dispatched**. Solvantis fulfills the quantities assigned to those parcels, reduces stock, and marks the Sales Order In Progress or Completed. Shopify orders then receive the matching fulfillment and Australia Post tracking details. A channel error leaves the shipment at **Channel sync pending** without repeating stock movement; reopen it and select **Mark dispatched** to retry only the channel sync.
+13. Open the **Manifests** tab in Shipping Workspace. Dispatched shipments are grouped by carrier account and dispatch location so each group represents one physical pickup origin.
+14. Select the shipments going in the pickup and choose **Create booking & manifest**. For Australia Post this creates one carrier Order and seals those shipments so they cannot enter another manifest.
+15. Choose **Print manifest**, print the Australia Post Order Summary, and sign it for lodgement. The same document can be printed again from manifest history.
+
+> **Important:** If Solvantis reports that the carrier outcome is unknown, do not create another booking. Check the Australia Post portal, then use **Reconcile** with the confirmed carrier order ID. Solvantis verifies that the carrier order contains exactly the expected shipments before enabling the manifest printout.
 
 Prepared shipments are not lost when the dialog closes. Open **Shipping Workspace** from the Sales Orders header, choose one or more saved shipments, and use **Open selected** to continue pricing submission, label polling, printing, dispatch, or a pending channel retry. To discard local drafts, choose them and use **Delete selected**. A shipment that has reached Australia Post cannot be removed in the workspace because it may already have incurred postage; continue or resolve it with the carrier instead.
-12. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
-13. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
-14. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+16. To record goods that leave outside Shipping Workspace, select **Fulfil** and enter only the quantity in this shipment for each line.
+17. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
+18. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
 For **Early-payment discount**, keep **Customer default** to use the active rule configured on the customer, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
 
@@ -95,6 +103,8 @@ When the entered payment reaches the qualifying settlement, turn on **Apply disc
 | Label processing does not finish immediately | Australia Post accepted the shipment but is still generating the PDF | Select **Check label status**; do not prepare or submit the shipment again |
 | Channel sync remains pending after dispatch | The connected channel rejected the fulfillment, commonly because the Shopify custom app lacks fulfillment-order permissions | In Shopify, grant the app `read_merchant_managed_fulfillment_orders` and `write_merchant_managed_fulfillment_orders`, refresh its access token in **Setup > Connections**, then reopen the shipment and select **Mark dispatched** to retry the channel sync only |
 | Submission outcome requires review | The connection ended without a definitive Australia Post response | Stop and verify the shipment in Australia Post before retrying so postage is not purchased twice |
+| Manifest outcome needs review | The carrier may have accepted the booking before the connection ended | Check the Australia Post portal, then use **Reconcile** with the matching order ID; do not create another manifest |
+| A dispatched shipment is missing from Manifests | Its label is not ready, it is not marked dispatched, or it already belongs to a manifest | Finish the shipment stage or review its existing manifest history |
 | A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |
 | Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |
 | The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |
