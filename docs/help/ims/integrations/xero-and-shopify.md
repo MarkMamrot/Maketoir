@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-08-23","owner":"integrations"}
+{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-sales-channels","ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-09-09","owner":"integrations"}
 ---
 # Xero and Shopify
 
@@ -16,6 +16,7 @@ Xero handles supported accounting work. Shopify exchanges supported catalogue, c
 
 | Need | Open | Detailed guide |
 |---|---|---|
+| Review every connected storefront and its operating state | **Sales Channels** | **Sales Channels** |
 | Configure Xero accounts, tracking, payments, or sync rules | **Xero > Setup** | **Xero Sync and Reconciliation** |
 | Investigate an accounting warning | **Xero > Sync History** | **Xero Sync and Reconciliation** |
 | Review COGS or Shopify payouts in Xero | **Xero > Activity** | **Xero Sync and Reconciliation** |

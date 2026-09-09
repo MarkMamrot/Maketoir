@@ -790,6 +790,121 @@ CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
   INDEX idx_ssl_biz_created (business_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Sales Channel Mappings and Work Queues ─────────────────
+CREATE TABLE IF NOT EXISTS ims_channel_product_selections (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  product_id          VARCHAR(36) NOT NULL,
+  desired_enabled     TINYINT(1) NOT NULL DEFAULT 0,
+  observed_enabled    TINYINT(1) NULL,
+  publication_status  VARCHAR(32) NOT NULL DEFAULT 'not_selected',
+  last_requested_at   DATETIME(3) NULL,
+  last_synced_at      DATETIME(3) NULL,
+  safe_error          VARCHAR(1000) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_product_selection (business_id, channel_instance_id, product_id),
+  INDEX idx_channel_product_selection_status (business_id, channel_instance_id, publication_status),
+  INDEX idx_channel_product_selection_product (business_id, product_id),
+  CONSTRAINT fk_channel_selection_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_channel_product_mappings (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  product_id          VARCHAR(36) NOT NULL,
+  external_product_id VARCHAR(191) NOT NULL,
+  external_parent_id  VARCHAR(191) NULL,
+  external_status     VARCHAR(64) NULL,
+  metadata_json       JSON NULL,
+  last_synced_at      DATETIME(3) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_product_mapping (business_id, channel_instance_id, product_id),
+  UNIQUE KEY uq_channel_external_product (business_id, channel_instance_id, external_product_id),
+  INDEX idx_channel_product_mapping_product (business_id, product_id),
+  CONSTRAINT fk_channel_mapping_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_channel_variant_mappings (
+  id                         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id                VARCHAR(100) NOT NULL,
+  channel_instance_id        CHAR(36) NOT NULL,
+  variant_id                 VARCHAR(36) NOT NULL,
+  external_variant_id        VARCHAR(191) NOT NULL,
+  external_inventory_item_id VARCHAR(191) NULL,
+  external_sku               VARCHAR(191) NULL,
+  external_asin              VARCHAR(32) NULL,
+  metadata_json              JSON NULL,
+  last_synced_at             DATETIME(3) NULL,
+  created_at                 DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at                 DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_variant_mapping (business_id, channel_instance_id, variant_id),
+  UNIQUE KEY uq_channel_external_variant (business_id, channel_instance_id, external_variant_id),
+  INDEX idx_channel_variant_mapping_variant (business_id, variant_id),
+  INDEX idx_channel_variant_mapping_sku (business_id, channel_instance_id, external_sku),
+  CONSTRAINT fk_channel_mapping_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_channel_customer_mappings (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  channel_instance_id  CHAR(36) NOT NULL,
+  contact_id           INT NOT NULL,
+  external_customer_id VARCHAR(191) NOT NULL,
+  last_synced_at       DATETIME(3) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_customer_mapping (business_id, channel_instance_id, contact_id),
+  UNIQUE KEY uq_channel_external_customer (business_id, channel_instance_id, external_customer_id),
+  INDEX idx_channel_customer_mapping_contact (business_id, contact_id),
+  CONSTRAINT fk_channel_mapping_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_channel_events (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  channel_instance_id  CHAR(36) NOT NULL,
+  provider_event_id    VARCHAR(191) NOT NULL,
+  event_type           VARCHAR(128) NOT NULL,
+  payload_hash         CHAR(64) NOT NULL,
+  encrypted_payload    MEDIUMTEXT NOT NULL,
+  status               VARCHAR(32) NOT NULL DEFAULT 'pending',
+  attempts             INT UNSIGNED NOT NULL DEFAULT 0,
+  available_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  processed_at         DATETIME(3) NULL,
+  safe_error           VARCHAR(1000) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_event (business_id, channel_instance_id, provider_event_id, event_type),
+  INDEX idx_channel_event_queue (business_id, channel_instance_id, status, available_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_channel_sync_jobs (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  channel_instance_id  CHAR(36) NOT NULL,
+  operation            VARCHAR(64) NOT NULL,
+  resource_type        VARCHAR(64) NOT NULL,
+  resource_id          VARCHAR(191) NOT NULL,
+  idempotency_key      VARCHAR(191) NOT NULL,
+  payload_json         JSON NULL,
+  status               VARCHAR(32) NOT NULL DEFAULT 'pending',
+  attempts             INT UNSIGNED NOT NULL DEFAULT 0,
+  available_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  lease_token          CHAR(36) NULL,
+  lease_expires_at     DATETIME(3) NULL,
+  completed_at         DATETIME(3) NULL,
+  safe_error           VARCHAR(1000) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_sync_job (business_id, channel_instance_id, idempotency_key),
+  INDEX idx_channel_sync_job_queue (business_id, channel_instance_id, status, available_at, id),
+  INDEX idx_channel_sync_job_lease (status, lease_expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Website Content Attempts ────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,

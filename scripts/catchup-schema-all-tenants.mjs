@@ -63,6 +63,15 @@ const EARLY_PAYMENT_DISCOUNT_TABLES = [
   'ims_early_payment_discount_applications',
 ];
 
+const CHANNEL_TABLES = [
+  'ims_channel_product_selections',
+  'ims_channel_product_mappings',
+  'ims_channel_variant_mappings',
+  'ims_channel_customer_mappings',
+  'ims_channel_events',
+  'ims_channel_sync_jobs',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -91,6 +100,15 @@ const EARLY_PAYMENT_DISCOUNT_TABLE_DDLS = EARLY_PAYMENT_DISCOUNT_TABLES.map(tabl
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const CHANNEL_TABLE_DDLS = CHANNEL_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0]
+    .replace(/^\s*CONSTRAINT (?:fk_channel_selection_product|fk_channel_mapping_product|fk_channel_mapping_variant|fk_channel_mapping_contact)\b[^\n]*,?\r?\n/gm, '')
+    .replace(/,\s*(\) ENGINE=)/, '\n$1')
+    .replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -104,6 +122,7 @@ const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
   ...PRODUCT_BUILD_TABLE_DDLS,
   ...EARLY_PAYMENT_DISCOUNT_TABLE_DDLS,
+  ...CHANNEL_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -1897,6 +1916,12 @@ async function migrateSchema(schema, businessId) {
       await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
     }
     await ensureColumnCollationMatches(schema, 'ims_online_shop_products', 'product_id', 'ims_products', 'product_id');
+    for (const table of CHANNEL_TABLES) {
+      await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
+    }
+    await ensureColumnCollationMatches(schema, 'ims_channel_product_selections', 'product_id', 'ims_products', 'product_id');
+    await ensureColumnCollationMatches(schema, 'ims_channel_product_mappings', 'product_id', 'ims_products', 'product_id');
+    await ensureColumnCollationMatches(schema, 'ims_channel_variant_mappings', 'variant_id', 'ims_product_variants', 'variant_id');
     await ensureColumnCollationMatches(schema, 'ims_stock_allocations', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_stock_allocation_operations', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_rules', 'business_id', 'ims_contacts', 'business_id');
@@ -2314,6 +2339,38 @@ async function verifyProductBuildSchema(schema) {
   console.log(`  verified ${schema} Product Build schema`);
 }
 
+async function verifyChannelMappingSchema(schema) {
+  const [tables] = await conn.query(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [schema, CHANNEL_TABLES],
+  );
+  const presentTables = new Set(tables.map(row => row.TABLE_NAME));
+  for (const table of CHANNEL_TABLES) {
+    if (!presentTables.has(table)) throw new Error(`${schema} is missing ${table}`);
+  }
+  const requiredIndexes = {
+    ims_channel_product_selections: ['uq_channel_product_selection', 'idx_channel_product_selection_status'],
+    ims_channel_product_mappings: ['uq_channel_product_mapping', 'uq_channel_external_product'],
+    ims_channel_variant_mappings: ['uq_channel_variant_mapping', 'uq_channel_external_variant'],
+    ims_channel_customer_mappings: ['uq_channel_customer_mapping', 'uq_channel_external_customer'],
+    ims_channel_events: ['uq_channel_event', 'idx_channel_event_queue'],
+    ims_channel_sync_jobs: ['uq_channel_sync_job', 'idx_channel_sync_job_queue', 'idx_channel_sync_job_lease'],
+  };
+  const [indexes] = await conn.query(
+    `SELECT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [schema, CHANNEL_TABLES],
+  );
+  const presentIndexes = new Set(indexes.map(row => `${row.TABLE_NAME}.${row.INDEX_NAME}`));
+  for (const [table, indexNames] of Object.entries(requiredIndexes)) {
+    for (const indexName of indexNames) {
+      if (!presentIndexes.has(`${table}.${indexName}`)) throw new Error(`${schema}.${table} is missing ${indexName}`);
+    }
+  }
+  console.log(`  verified ${schema} sales channel mapping schema`);
+}
+
 try {
   const schemas = new Set();
   const businessIdsBySchema = new Map();
@@ -2352,6 +2409,7 @@ try {
     await verifyWholesalePreviewTestSchema(schema);
     await verifyWholesaleSavedListsSchema(schema);
     await verifyProductBuildSchema(schema);
+    await verifyChannelMappingSchema(schema);
   }
   console.log('Done.');
 } finally {

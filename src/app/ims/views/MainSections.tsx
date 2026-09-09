@@ -5,6 +5,7 @@ import { ReportsSection } from './ReportsSection';
 import { ContactCrmProfile } from './contacts/ContactCrmProfile';
 import { WholesaleApplicationQueue } from './wholesale/WholesaleApplicationQueue';
 import OnlineShopView from './onlineShop/OnlineShopView';
+import SalesChannelsView from './channels/SalesChannelsView';
 
 type ImsView =
   | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
@@ -13,7 +14,7 @@ type ImsView =
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
-  | 'xero' | 'shopify' | 'online-shop';
+  | 'xero' | 'sales-channels' | 'shopify' | 'online-shop';
 
 interface MainSectionsProps {
   view: ImsView;
@@ -297,6 +298,9 @@ export function MainSections(props: MainSectionsProps) {
       />
 
       {/* Integrations */}
+      {view === 'sales-channels' && (shopifyEnabled || nativeShopEnabled) && (
+        <SalesChannelsView canManage={userTier === 'Admin' || userTier === 'SuperAdmin'} />
+      )}
       {view === 'xero' && xeroAccountingEnabled && (
         <XeroView
           businessId={businessId}

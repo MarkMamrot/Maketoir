@@ -1,3 +1,15 @@
+## 2026-09-09 - Multi-channel commerce foundation
+
+- Added the provider-agnostic sales-channel registry and authenticated read-only `/api/ims/channels` boundary. Existing Shopify and Native Shop runtime reads remain unchanged; Amazon is a recognized future provider but is not registered as operational.
+- Added **Integrations > Sales Channels** for businesses entitled to Shopify or Native Shop. It displays each instance's provider, external account identity, operating/readiness state, last synchronization, safe error, and supported operations without exposing credentials.
+- Admin and SuperAdmin users can rename business-owned instances and run an exact-instance Shopify readiness test. The test renews client-credential tokens within the selected encrypted envelope when required, verifies Shopify returns the expected permanent domain, persists only safe readiness state, and performs no commerce synchronization.
+- Pause/resume remains deliberately unavailable until every legacy provider route, webhook, and worker honors instance state; credential editing and product-selection writes also remain deferred.
+- Added the contextual Sales Channels Help topic and regenerated both private Help/Assistant indexes.
+- Applied and idempotently verified four main control-plane tables for channel instances, encrypted credential envelopes, webhook registrations, and business-level primary roles. No legacy capability or connection rows were changed.
+- Applied and idempotently verified six tenant tables for product selections, exact product/variant/customer mappings, encrypted inbound events, and retryable outbound jobs across Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox. The migration created schema only and no operational events or jobs.
+- Backfilled three legacy Shopify stores into channel instances with encrypted credential envelopes and primary customer-value roles. Exact-ID mappings verified as Monsterthreads 5,362 products / 6,919 variants / 5,364 selections, Sandbox 1 / 3 / 1, and Sage 1,050 / 4,655 / 1,050.
+- Monsterthreads has one duplicated legacy Shopify product ID shared by two product owners and one duplicated Shopify variant ID shared by two variant owners. The compatibility backfill deliberately maps neither ambiguous ID, retains the affected product selections as `mapping_conflict`, and leaves all legacy Shopify columns untouched for explicit repair later.
+
 ## 2026-09-09 - Early-payment discounts tenant migration
 
 - Applied the additive early-payment discount schema through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.

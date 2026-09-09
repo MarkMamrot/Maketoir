@@ -439,6 +439,34 @@
       "filename": "docs/help/ims/integrations/online-shop.md"
     },
     {
+      "id": "ims-sales-channels",
+      "title": "Sales Channels",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Integrations > Sales Channels",
+      "product": "ims",
+      "format": "overview",
+      "parentId": "ims-xero-shopify",
+      "contexts": [
+        "sales-channels"
+      ],
+      "contextSections": {
+        "sales-channels": "Review channel instances"
+      },
+      "relatedTopics": [
+        "ims-shopify-sync",
+        "ims-online-shop",
+        "ims-xero-shopify"
+      ],
+      "order": 91,
+      "summary": "Review each connected online storefront and its current operating state.",
+      "lastReviewed": "2026-09-09",
+      "owner": "integrations",
+      "filename": "docs/help/ims/integrations/sales-channels.md"
+    },
+    {
       "id": "ims-shopify-sync",
       "title": "Shopify Sync and Product Mapping",
       "audiences": [
@@ -487,13 +515,14 @@
         "integrations": "Choose an integration"
       },
       "relatedTopics": [
+        "ims-sales-channels",
         "ims-xero-reconciliation",
         "ims-shopify-sync",
         "ims-online-shop"
       ],
       "order": 90,
       "summary": "Choose the right setup, monitoring, and recovery guide for Xero or Shopify.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-09",
       "owner": "integrations",
       "filename": "docs/help/ims/integrations/xero-and-shopify.md"
     },
@@ -4462,6 +4491,96 @@
       "content": "### Choose split or consolidated fulfilment\n\nA customer orders a jacket held at Brisbane and shoes held at Sydney. **Split by fulfilment location** creates separate branch Sales Orders. **Consolidate** creates transfer work to the chosen dispatch branch so one team can send the complete parcel.\n\n### Combine a reward and store credit\n\nFor a $100 order, a signed-in customer applies a $20 reward and $30 store credit. The order records a $20 merchandise discount, $30 settled by store credit, and $50 due through Stripe. Points and store credit change only after successful checkout."
     },
     {
+      "id": "ims-sales-channels:1",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Sales Channels",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Integrations > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-09",
+      "content": "Sales Channels shows each online storefront separately. A business with multiple Shopify stores has one row per store, while the Solvantis Online Store appears as its own channel."
+    },
+    {
+      "id": "ims-sales-channels:2",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Integrations > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-09",
+      "content": "- Confirm that every expected storefront appears as a separate channel.\n- Check whether a channel is active, paused, waiting for setup, or needs attention.\n- Review the external account identity and last successful synchronization time.\n- Compare the operations supported by each provider.\n- Rename a channel so staff can distinguish its purpose.\n- Test a Shopify instance against its exact saved store and credentials.\n- Open the provider's integration area when catalogue, order, mapping, or synchronization work is required."
+    },
+    {
+      "id": "ims-sales-channels:3",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Review channel instances",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Integrations > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-09",
+      "content": "Open **Integrations > Sales Channels**. Each row identifies the storefront, provider, operating state, account identity, last synchronization time, and supported operations.\n\nAdministrators can use the pencil button beside a channel name to rename it. Other IMS users can review the same status information but cannot change it.\n\nAdministrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.\n\n| Status | Meaning | Next step |\n|---|---|---|\n| Active | The instance is enabled and passed its latest readiness check | Continue normal monitoring |\n| Paused | New provider synchronization is paused for this instance | Review the provider setup before resuming it |\n| Setup pending | The instance has not completed readiness checks | Complete the provider connection setup |\n| Needs attention | The latest readiness or runtime state contains an operational problem | Read the safe error summary and inspect the provider integration |\n\n> **Important:** The operating state is informational on this screen. Use the existing provider setup while connection and synchronization controls are being moved into Sales Channels."
+    },
+    {
+      "id": "ims-sales-channels:4",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Integrations > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-09",
+      "content": "| Symptom | What to check |\n|---|---|\n| An expected store is missing | Confirm the business has that provider enabled, then review its connection setup |\n| Two stores look similar | Compare the external account identity; channel names are labels and may be changed later |\n| A row needs attention | Use its error summary, then open the matching provider integration for detailed history |\n| Products or orders are stale | Check the exact channel instance before retrying provider synchronization |"
+    },
+    {
+      "id": "ims-sales-channels:5",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Integrations > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-09",
+      "content": "### Review two Shopify stores\n\nA retailer operates separate Australian retail and wholesale Shopify stores. **Sales Channels** shows two Shopify rows with different store domains. Staff use the domain to choose the correct instance before investigating a stale order or product mapping."
+    },
+    {
       "id": "ims-shopify-sync:1",
       "documentId": "ims-shopify-sync",
       "title": "Shopify Sync and Product Mapping",
@@ -4623,7 +4742,7 @@
         "integrations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-09",
       "content": "Xero handles supported accounting work. Shopify exchanges supported catalogue, customer, order, inventory, fulfilment, and payout information. Each integration has its own connection, mappings, statuses, and retry path."
     },
     {
@@ -4641,7 +4760,7 @@
         "integrations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-09",
       "content": "- Confirm connection health before changing mappings or retrying records.\n- Use Xero for accounting setup, Sync History, cost reconciliation, and Shopify payout posting.\n- Use Shopify for commerce sync, product linkage, webhooks, and sync history.\n- Retry only the failed integration action after fixing its cause."
     },
     {
@@ -4659,8 +4778,8 @@
         "integrations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Need | Open | Detailed guide |\n|---|---|---|\n| Configure Xero accounts, tracking, payments, or sync rules | **Xero > Setup** | **Xero Sync and Reconciliation** |\n| Investigate an accounting warning | **Xero > Sync History** | **Xero Sync and Reconciliation** |\n| Review COGS or Shopify payouts in Xero | **Xero > Activity** | **Xero Sync and Reconciliation** |\n| Sync products or check Shopify linkage | **Shopify** | **Shopify Sync and Product Mapping** |\n| Investigate a stale order, inventory update, or webhook | **Shopify > Sync History** | **Shopify Sync and Product Mapping** |\n| Publish through Solvantis instead of Shopify | **Online Shop** | **Online Shop** |"
+      "lastReviewed": "2026-09-09",
+      "content": "| Need | Open | Detailed guide |\n|---|---|---|\n| Review every connected storefront and its operating state | **Sales Channels** | **Sales Channels** |\n| Configure Xero accounts, tracking, payments, or sync rules | **Xero > Setup** | **Xero Sync and Reconciliation** |\n| Investigate an accounting warning | **Xero > Sync History** | **Xero Sync and Reconciliation** |\n| Review COGS or Shopify payouts in Xero | **Xero > Activity** | **Xero Sync and Reconciliation** |\n| Sync products or check Shopify linkage | **Shopify** | **Shopify Sync and Product Mapping** |\n| Investigate a stale order, inventory update, or webhook | **Shopify > Sync History** | **Shopify Sync and Product Mapping** |\n| Publish through Solvantis instead of Shopify | **Online Shop** | **Online Shop** |"
     },
     {
       "id": "ims-xero-shopify:4",
@@ -4677,7 +4796,7 @@
         "integrations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-09",
       "content": "An IMS operation and its integration posting are separate steps. A sale, fulfilment, receipt, return, or credit can be complete even when Xero or Shopify still needs attention.\n\n> **Warning:** Do not recreate a successful IMS transaction to clear an integration error. Repair the connection or mapping, then retry the unfinished sync where offered."
     },
     {
@@ -4695,7 +4814,7 @@
         "integrations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-09",
       "content": "| Symptom | Start with | Do not do |\n|---|---|---|\n| Many Xero items fail together | Connection authorization | Recreate every source transaction |\n| One Xero item is blocked | Its required account, tax, tracking, or payment mapping | Post an unrelated manual duplicate |\n| Shopify information looks stale | Connection, sync history, and webhooks | Edit stock independently in both systems without tracing the sync |\n| Shopify Misc Charge appears | The original Shopify line and variant linkage | Edit or delete the protected fallback product |"
     },
     {
@@ -4713,7 +4832,7 @@
         "integrations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-09",
       "content": "### Choose the right recovery page\n\nA completed supplier receipt shows a Xero warning. Open **Xero > Sync History**, not the Purchase Order receipt action. Fix the named accounting setup and retry the posting so the stock receipt is not repeated."
     },
     {

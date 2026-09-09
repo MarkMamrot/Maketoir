@@ -101,7 +101,7 @@ type ImsView =
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
-  | 'xero' | 'shopify' | 'online-shop';
+  | 'xero' | 'sales-channels' | 'shopify' | 'online-shop';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
 
@@ -147,6 +147,7 @@ const NAV = [
   { id: 'stocktakes',       label: 'Stocktakes',       section: null },
   { id: 'reports',          label: 'Reports',          section: null },
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
+    { id: 'sales-channels', label: 'Sales Channels' },
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
     { id: 'online-shop',    label: 'Online Shop' },
@@ -651,6 +652,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
     reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+    'sales-channels':   'M3 7h18M5 7l1-4h12l1 4M5 7v13h14V7M9 20v-6h6v6',
     xero:               'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     settings:           'M12 15a3 3 0 100-6 3 3 0 000 6z',
   };
@@ -700,6 +702,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             if (child.id === 'location-daybooks') return showLocationDaybooks;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
             if (child.id === 'xero') return showXero;
+            if (child.id === 'sales-channels') return showShopify || showNativeShop;
             if (child.id === 'shopify') return showShopify;
             if (child.id === 'online-shop') return showNativeShop;
             return true;
@@ -22104,7 +22107,8 @@ export default function ImsPage() {
 
   useEffect(() => {
     if (!hasRestoredInitialHash || !settingsLoaded) return;
-    const disabledView = (view === 'shopify' && !pageCapabilities.shopifyEnabled)
+    const disabledView = (view === 'sales-channels' && !pageCapabilities.shopifyEnabled && !pageCapabilities.nativeShopEnabled)
+      || (view === 'shopify' && !pageCapabilities.shopifyEnabled)
       || (view === 'online-shop' && !pageCapabilities.nativeShopEnabled);
     if (!disabledView) return;
     window.history.replaceState(window.history.state, '', '#dashboard');

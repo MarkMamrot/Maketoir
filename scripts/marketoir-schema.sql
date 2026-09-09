@@ -50,6 +50,74 @@ CREATE TABLE IF NOT EXISTS business_online_channels (
   INDEX idx_business_online_channels_native (native_shop_enabled, business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS sales_channel_instances (
+  channel_instance_id  CHAR(36) NOT NULL,
+  business_id          VARCHAR(100) NOT NULL,
+  provider             VARCHAR(32) NOT NULL,
+  display_name         VARCHAR(120) NOT NULL,
+  external_account_key VARCHAR(255) NULL,
+  singleton_key        VARCHAR(32) NULL,
+  is_enabled           TINYINT(1) NOT NULL DEFAULT 0,
+  runtime_status       VARCHAR(32) NOT NULL DEFAULT 'draft',
+  readiness_status     VARCHAR(32) NOT NULL DEFAULT 'not_tested',
+  settings_json        JSON NULL,
+  last_sync_at         DATETIME(3) NULL,
+  last_checkpoint_json JSON NULL,
+  safe_error           VARCHAR(1000) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (channel_instance_id),
+  UNIQUE KEY uq_sales_channel_external_account (provider, external_account_key),
+  UNIQUE KEY uq_sales_channel_singleton (business_id, provider, singleton_key),
+  INDEX idx_sales_channel_business (business_id, provider, is_enabled),
+  INDEX idx_sales_channel_runtime (runtime_status, readiness_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sales_channel_credentials (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  channel_instance_id  CHAR(36) NOT NULL,
+  credential_type      VARCHAR(64) NOT NULL,
+  encrypted_payload    MEDIUMTEXT NOT NULL,
+  expires_at           DATETIME(3) NULL,
+  last_rotated_at      DATETIME(3) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_sales_channel_credential (channel_instance_id, credential_type),
+  INDEX idx_sales_channel_credential_expiry (expires_at),
+  CONSTRAINT fk_sales_channel_credential_instance FOREIGN KEY (channel_instance_id)
+    REFERENCES sales_channel_instances(channel_instance_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sales_channel_webhooks (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  channel_instance_id      CHAR(36) NOT NULL,
+  topic                    VARCHAR(128) NOT NULL,
+  provider_registration_id VARCHAR(255) NULL,
+  encrypted_secret         MEDIUMTEXT NULL,
+  registration_status      VARCHAR(32) NOT NULL DEFAULT 'pending',
+  last_verified_at         DATETIME(3) NULL,
+  safe_error               VARCHAR(1000) NULL,
+  created_at               DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at               DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_sales_channel_webhook (channel_instance_id, topic),
+  INDEX idx_sales_channel_webhook_status (channel_instance_id, registration_status),
+  CONSTRAINT fk_sales_channel_webhook_instance FOREIGN KEY (channel_instance_id)
+    REFERENCES sales_channel_instances(channel_instance_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sales_channel_business_roles (
+  business_id          VARCHAR(100) NOT NULL,
+  role_key             VARCHAR(64) NOT NULL,
+  channel_instance_id  CHAR(36) NOT NULL,
+  updated_by_user_id   INT NULL,
+  updated_by_name      VARCHAR(255) NULL,
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (business_id, role_key),
+  INDEX idx_sales_channel_role_instance (channel_instance_id),
+  CONSTRAINT fk_sales_channel_role_instance FOREIGN KEY (channel_instance_id)
+    REFERENCES sales_channel_instances(channel_instance_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS online_shop_profiles (
   business_id          VARCHAR(100) PRIMARY KEY,
   slug                 VARCHAR(80) NOT NULL,

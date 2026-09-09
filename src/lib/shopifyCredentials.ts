@@ -3,6 +3,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt, encrypt } from '@/lib/encryption';
 import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { execute, query } from '@/services/MySQLService';
 
 export type ShopifyAuthMode = 'legacy_token' | 'client_credentials';
 
@@ -19,6 +20,19 @@ type ShopifyCredentialDependencies = {
   encryptToken: typeof encrypt;
   persistToken: (businessId: string, encryptedToken: string, expiresAt: number) => Promise<void>;
 };
+
+interface ShopifyChannelCredentialRow {
+  encrypted_payload: string;
+}
+
+interface ShopifyChannelCredentialEnvelope {
+  authMode: ShopifyAuthMode;
+  shopDomain: string;
+  accessToken: string;
+  clientId: string;
+  clientSecret: string;
+  tokenExpiresAt: number | null;
+}
 
 const TOKEN_RENEWAL_MARGIN_MS = 5 * 60 * 1000;
 
@@ -125,4 +139,72 @@ export async function getShopifyAdminCredentials(businessId: string): Promise<Sh
     }).catch(() => undefined);
     throw error;
   }
+}
+
+function parseShopifyChannelCredentialEnvelope(encryptedPayload: string): ShopifyChannelCredentialEnvelope {
+  const parsed = JSON.parse(decrypt(encryptedPayload)) as Partial<ShopifyChannelCredentialEnvelope>;
+  if (parsed.authMode !== 'legacy_token' && parsed.authMode !== 'client_credentials') {
+    throw new Error('Shopify channel authentication mode is invalid.');
+  }
+  return {
+    authMode: parsed.authMode,
+    shopDomain: String(parsed.shopDomain ?? ''),
+    accessToken: String(parsed.accessToken ?? ''),
+    clientId: String(parsed.clientId ?? ''),
+    clientSecret: String(parsed.clientSecret ?? ''),
+    tokenExpiresAt: parsed.tokenExpiresAt == null ? null : Number(parsed.tokenExpiresAt),
+  };
+}
+
+export async function getShopifyChannelAdminCredentials(
+  businessIdInput: string,
+  channelInstanceIdInput: string,
+  dependencies: ShopifyCredentialDependencies = defaultDependencies,
+): Promise<ShopifyAdminCredentials | null> {
+  const businessId = businessIdInput.trim();
+  const channelInstanceId = channelInstanceIdInput.trim();
+  if (!businessId || !channelInstanceId) return null;
+  const rows = await query<ShopifyChannelCredentialRow>(
+    `SELECT credential.encrypted_payload
+       FROM sales_channel_instances instance
+       JOIN sales_channel_credentials credential
+         ON credential.channel_instance_id = instance.channel_instance_id
+        AND credential.credential_type = 'shopify_admin_api'
+      WHERE instance.business_id = ? AND instance.channel_instance_id = ? AND instance.provider = 'shopify'
+      LIMIT 1`,
+    [businessId, channelInstanceId],
+  );
+  if (!rows[0]) return null;
+
+  const envelope = parseShopifyChannelCredentialEnvelope(rows[0].encrypted_payload);
+  const connection = {
+    business_id: businessId,
+    shopify_shop_id: envelope.shopDomain,
+    shopify_auth_mode: envelope.authMode,
+    shopify_access_token: envelope.accessToken,
+    shopify_client_id: envelope.clientId,
+    shopify_client_secret: envelope.clientSecret,
+    shopify_token_expires_at: envelope.tokenExpiresAt,
+  } as ConnectionsRow;
+
+  return resolveShopifyAdminCredentials(businessId, connection, {
+    ...dependencies,
+    encryptToken: value => value,
+    persistToken: async (_, accessToken, tokenExpiresAt) => {
+      const encryptedPayload = encrypt(JSON.stringify({
+        ...envelope,
+        accessToken,
+        tokenExpiresAt,
+      }));
+      await execute(
+        `UPDATE sales_channel_credentials credential
+          JOIN sales_channel_instances instance ON instance.channel_instance_id = credential.channel_instance_id
+           SET credential.encrypted_payload = ?, credential.expires_at = FROM_UNIXTIME(? / 1000),
+               credential.last_rotated_at = CURRENT_TIMESTAMP(3), credential.updated_at = CURRENT_TIMESTAMP(3)
+         WHERE instance.business_id = ? AND instance.channel_instance_id = ?
+           AND credential.credential_type = 'shopify_admin_api'`,
+        [encryptedPayload, tokenExpiresAt, businessId, channelInstanceId],
+      );
+    },
+  });
 }
