@@ -3842,7 +3842,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-08",
-      "content": "| What you need to do | Start here | Result |\n|---|---|---|\n| Configure earning and publish the portal | **IMS Settings > Loyalty** | Sets the program name, points rate, start date, portal address, and customer policy links |\n| Enrol or opt out one customer | The customer's **CRM profile**, or the customer rewards portal | Changes only that customer's membership; their existing balance and history remain available after opt-out |\n| Use points during an in-store sale | Link the customer in **POS**, then select an available reward | Applies the reward directly to that sale without creating or entering a code |\n| Use points online | Customer rewards portal | Deducts points immediately and creates a single-use Shopify discount for that Shopify customer |\n| Review balances and activity | Customer **CRM profile** or rewards portal | Shows the current balance, earning, redemption, and Shopify discount activity |"
+      "content": "| What you need to do | Start here | Result |\n|---|---|---|\n| Configure earning and publish the portal | **IMS Settings > Loyalty** | Sets the program name, points rate, start date, portal address, and customer policy links |\n| Enrol or opt out one customer | The customer's **CRM profile**, or the customer rewards portal | Changes only that customer's membership; their existing balance and history remain available after opt-out |\n| Use points during an in-store sale | Link the customer in **POS**, then select an available reward | Applies the reward directly to that sale without creating or entering a code |\n| Use points online | Customer rewards portal | Deducts points immediately and creates a single-use Shopify discount for that Shopify customer |\n| Review balances and activity | Customer **CRM profile** or rewards portal | Shows the current balance, earning, redemption, and Shopify discount activity |\n| Correct a customer's points | Customer **CRM profile > Loyalty rewards > Adjust points** | Records an audited whole-point adjustment and refreshes the Shopify balance |"
     },
     {
       "id": "ims-loyalty-customer-rewards:5",
@@ -3892,6 +3892,28 @@
       "id": "ims-loyalty-customer-rewards:7",
       "documentId": "ims-loyalty-customer-rewards",
       "title": "Loyalty Program and Customer Rewards",
+      "heading": "Adjust points manually",
+      "audiences": [
+        "ims",
+        "pos"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Loyalty",
+      "topicId": "ims-loyalty-customer-rewards",
+      "contexts": [
+        "loyalty",
+        "contact-profile",
+        "pos",
+        "online-sales"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-09-08",
+      "content": "An Admin or SuperAdmin can open an enrolled customer's CRM profile and choose **Adjust points** in **Loyalty rewards**. Enter a positive whole number to add points or a negative whole number to remove points, then enter the reason. Review the displayed resulting balance and confirm the adjustment.\n\nManual adjustments are recorded in loyalty activity with the signed-in administrator, reason, time, and resulting balance. An adjustment cannot reduce the balance below zero. Do not use an adjustment to duplicate points already owned by a sale, return, reward, migration, or another recorded transaction.\n\nAfter the ledger is saved, Solvantis refreshes the customer's Shopify loyalty details when that customer is linked. A Shopify refresh warning does not undo the points adjustment; retry the Shopify loyalty sync from the customer profile instead of entering the adjustment again."
+    },
+    {
+      "id": "ims-loyalty-customer-rewards:8",
+      "documentId": "ims-loyalty-customer-rewards",
+      "title": "Loyalty Program and Customer Rewards",
       "heading": "Use points at POS",
       "audiences": [
         "ims",
@@ -3911,7 +3933,7 @@
       "content": "Link the correct customer before selecting a reward. POS uses the customer's live Solvantis balance and applies the chosen reward directly to the sale. The customer does not need a voucher code.\n\nVoiding an eligible sale reverses its loyalty effect through the linked sale history. Do not create a separate Shopify discount for a reward being used at POS."
     },
     {
-      "id": "ims-loyalty-customer-rewards:8",
+      "id": "ims-loyalty-customer-rewards:9",
       "documentId": "ims-loyalty-customer-rewards",
       "title": "Loyalty Program and Customer Rewards",
       "heading": "Convert points for Shopify",
@@ -3933,7 +3955,7 @@
       "content": "The customer chooses **Create Shopify discount** in the rewards portal and confirms the conversion. Solvantis deducts the required points immediately, then Shopify creates a discount that:\n\n- can be used only by the linked Shopify customer;\n- can be used once;\n- cannot be combined with another discount; and\n- expires after 90 days.\n\nThe issued code appears in the portal with a copy action and a **Shop now** link. A converted reward cannot also be used at POS and cannot be changed back into points from the portal. Expiry does not automatically restore points."
     },
     {
-      "id": "ims-loyalty-customer-rewards:9",
+      "id": "ims-loyalty-customer-rewards:10",
       "documentId": "ims-loyalty-customer-rewards",
       "title": "Loyalty Program and Customer Rewards",
       "heading": "Troubleshooting",
@@ -3952,10 +3974,10 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-08",
-      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code. If it still does not arrive, ask an administrator to review Runtime Issues and email delivery configuration |\n| Portal cannot be published | Loyalty is off or Shopify is not connected | Save the enabled loyalty settings and confirm the Shopify connection |\n| A customer has no available rewards | They are not enrolled, the program has not started, or their balance is below the reward cost | Check membership, start date, current balance, and reward setup |\n| An old Shopify order earned no points | Its paid date is earlier than the customer's effective enrolment date | No correction is required; only future eligible purchases earn |\n| A Shopify code cannot be created | Shopify rejected the discount or the points are no longer available | Refresh the portal and retry once; if it continues, ask an administrator to review Runtime Issues |\n| An expired code still reduced the balance | Converting the reward deducted points immediately | Expired issued codes do not automatically return points |"
+      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code. If it still does not arrive, ask an administrator to review Runtime Issues and email delivery configuration |\n| Portal cannot be published | Loyalty is off or Shopify is not connected | Save the enabled loyalty settings and confirm the Shopify connection |\n| A customer has no available rewards | They are not enrolled, the program has not started, or their balance is below the reward cost | Check membership, start date, current balance, and reward setup |\n| **Adjust points** is not shown | The customer is not enrolled, or the signed-in account is not an Admin or SuperAdmin | Confirm membership and ask an authorised administrator to make the correction |\n| An adjustment would make the balance negative | More points are being removed than the customer has available | Check the amount and existing activity; do not force a negative balance |\n| An old Shopify order earned no points | Its paid date is earlier than the customer's effective enrolment date | No correction is required; only future eligible purchases earn |\n| A Shopify code cannot be created | Shopify rejected the discount or the points are no longer available | Refresh the portal and retry once; if it continues, ask an administrator to review Runtime Issues |\n| An expired code still reduced the balance | Converting the reward deducted points immediately | Expired issued codes do not automatically return points |"
     },
     {
-      "id": "ims-loyalty-customer-rewards:10",
+      "id": "ims-loyalty-customer-rewards:11",
       "documentId": "ims-loyalty-customer-rewards",
       "title": "Loyalty Program and Customer Rewards",
       "heading": "Worked examples",

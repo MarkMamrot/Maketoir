@@ -24,6 +24,7 @@ Confirm Shopify is connected, decide the earning rate, start date, and fixed-dol
 | Use points during an in-store sale | Link the customer in **POS**, then select an available reward | Applies the reward directly to that sale without creating or entering a code |
 | Use points online | Customer rewards portal | Deducts points immediately and creates a single-use Shopify discount for that Shopify customer |
 | Review balances and activity | Customer **CRM profile** or rewards portal | Shows the current balance, earning, redemption, and Shopify discount activity |
+| Correct a customer's points | Customer **CRM profile > Loyalty rewards > Adjust points** | Records an audited whole-point adjustment and refreshes the Shopify balance |
 
 ## Step-by-step
 
@@ -46,6 +47,14 @@ The loyalty terms and privacy policy must be public HTTPS pages that customers c
 A customer signs in to the rewards portal using the email address on their Shopify customer account and a one-time six-digit code. New portal customers are not enrolled automatically. They must accept the current loyalty terms before joining.
 
 Points begin on eligible purchases made after the effective enrolment date. Earlier orders are not backdated, including older Shopify orders imported or replayed later. If a customer opts out and later rejoins, future earning resumes from the new enrolment date.
+
+## Adjust points manually
+
+An Admin or SuperAdmin can open an enrolled customer's CRM profile and choose **Adjust points** in **Loyalty rewards**. Enter a positive whole number to add points or a negative whole number to remove points, then enter the reason. Review the displayed resulting balance and confirm the adjustment.
+
+Manual adjustments are recorded in loyalty activity with the signed-in administrator, reason, time, and resulting balance. An adjustment cannot reduce the balance below zero. Do not use an adjustment to duplicate points already owned by a sale, return, reward, migration, or another recorded transaction.
+
+After the ledger is saved, Solvantis refreshes the customer's Shopify loyalty details when that customer is linked. A Shopify refresh warning does not undo the points adjustment; retry the Shopify loyalty sync from the customer profile instead of entering the adjustment again.
 
 ## Use points at POS
 
@@ -71,6 +80,8 @@ The issued code appears in the portal with a copy action and a **Shop now** link
 | No sign-in email arrives | The email does not identify exactly one Shopify customer, the message is delayed, or request limits were reached | Confirm the email on the Shopify customer, wait briefly, then request one new code. If it still does not arrive, ask an administrator to review Runtime Issues and email delivery configuration |
 | Portal cannot be published | Loyalty is off or Shopify is not connected | Save the enabled loyalty settings and confirm the Shopify connection |
 | A customer has no available rewards | They are not enrolled, the program has not started, or their balance is below the reward cost | Check membership, start date, current balance, and reward setup |
+| **Adjust points** is not shown | The customer is not enrolled, or the signed-in account is not an Admin or SuperAdmin | Confirm membership and ask an authorised administrator to make the correction |
+| An adjustment would make the balance negative | More points are being removed than the customer has available | Check the amount and existing activity; do not force a negative balance |
 | An old Shopify order earned no points | Its paid date is earlier than the customer's effective enrolment date | No correction is required; only future eligible purchases earn |
 | A Shopify code cannot be created | Shopify rejected the discount or the points are no longer available | Refresh the portal and retry once; if it continues, ask an administrator to review Runtime Issues |
 | An expired code still reduced the balance | Converting the reward deducted points immediately | Expired issued codes do not automatically return points |
