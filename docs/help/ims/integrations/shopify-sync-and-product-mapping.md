@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Shopify","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["shopify"],"contextSections":{"shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.","lastReviewed":"2026-08-31","owner":"integrations"}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Shopify","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["shopify"],"contextSections":{"shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.","lastReviewed":"2026-09-09","owner":"integrations"}
 ---
 # Shopify Sync and Product Mapping
 
@@ -10,6 +10,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 - Confirm Shopify connection health and required access before syncing.
 - Import a Shopify catalogue into Solvantis in paced batches during onboarding or later catalogue maintenance.
 - Preview and import opening stock from matching Shopify Warehouse and Kotara locations.
+- Pull Shopify customers into IMS and choose how long customers without recent orders remain active.
 - Review products that are linked, not linked, or waiting for synchronization.
 - Trace customer, order, inventory, fulfilment, and webhook activity in sync history.
 - Ask Assistant for a bounded local summary of connection readiness, catalogue linkage and recent sync outcomes.
@@ -23,6 +24,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 | Bring an existing Shopify catalogue into Solvantis | Shopify connection and existing SKU or barcode records | Use **Products > Import from Shopify** and review any warnings |
 | Establish opening stock after catalogue import | Warehouse and Kotara exist in both systems with matching names | Preview, review, then apply Shopify opening stock |
 | Product is missing from Shopify sync | Product eligibility and sync status | Sync or retry where offered |
+| Shopify customer is missing from active lists | Customer Sync result and recent Shopify order activity | Pull customers again; a new identified order reactivates its linked customer automatically |
 | Inventory looks stale | Variant linkage, location mapping, and recent sync or webhook | Fix the cause, then retry or wait for the queued update |
 | Order line shows Shopify Misc Charge | Original Shopify title and variant linkage | Repair the intended product mapping |
 | Fulfilment or tracking is stale | Fulfilment webhook and sync history | Process the supported update again after fixing the cause |
@@ -66,6 +68,18 @@ Shopify supplies one standard **vendor** value rather than separate brand and su
 > **Important:** Catalogue import does not change stock on hand, committed stock, incoming stock, or location quantities. Review and establish opening stock through the normal stock onboarding process.
 
 > **Tip:** Run the import again when Shopify catalogue details or image links need refreshing. The batches are deliberately paced, so large catalogues take longer and place less pressure on Shopify.
+
+### Synchronize Shopify customers
+
+1. Open **Integrations > Shopify** and find **Customer Sync**.
+2. Set **Inactive after** to the number of months of Shopify order history that should keep a customer active.
+3. Choose **Pull Customers From Shopify** and keep the page open while all batches complete.
+4. Review the created, linked, updated, skipped, and error totals.
+5. Search **Contacts** for the customer and confirm the Shopify customer link and active status.
+
+Pull matches the Shopify customer ID first and then uses an exact email match when no Shopify link exists. Existing nonblank IMS contact details are preserved. Customers older than the selected period with no order in that period are marked inactive. When a later identified Shopify order arrives, its linked IMS customer is reactivated automatically and blank profile details are filled from the order.
+
+> **Warning:** **Push IMS Retail Customers** sends IMS status and details to Shopify. Review unexpectedly inactive customers before running a push, because an inactive linked IMS customer is disabled in Shopify.
 
 ### Import opening stock from Shopify
 
@@ -129,6 +143,7 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 | Opening-stock apply stops partway through | A request or connection failed between batches | Preview again and retry; completed batches are protected from duplicate application |
 | Import stops partway through | The browser closed, the connection failed, or Shopify rejected a request | Correct the connection issue and run the import again; completed records will be updated rather than duplicated |
 | Several sync actions fail | Authorization or required Shopify access changed | Reconnect or correct access before retrying individual items |
+| A returning Shopify customer is inactive in IMS | An earlier customer pull placed their previous order outside the selected activity window | Process or re-import the identified Shopify order, or pull customers again; the linked contact becomes active without creating a duplicate |
 | One product remains unlinked | Variant linkage is absent or points to another item | Inspect every variant and repair the intended match |
 | Inventory differs between systems | Queued update, location mapping, webhook failure, or manual change | Trace sync history and source stock before correcting anything |
 | A Shopify order is missing or remains Draft after a sync interruption | The order event was not received, or processing stopped before confirmation | Correct the connection or reported configuration issue, then retry the Shopify order sync; existing Drafts resume without creating a duplicate order |
@@ -152,3 +167,7 @@ Online Sales shows **Shopify Misc Charge**, with **Shopify item: Harbour Tee - B
 ### Investigate stale inventory
 
 Shopify shows 4 units while IMS shows 2 available. Check the exact variant linkage, mapped location, and recent inventory sync or webhook. Correct the failed mapping or event and retry that sync; do not simply set both systems to a guessed quantity.
+
+### Reactivate a returning customer
+
+A Shopify customer was marked inactive because their last order fell outside the selected activity period. They later place a new order using the same Shopify customer account. Solvantis links the order to the existing contact, reactivates that contact, and fills blank profile details from the order without replacing staff-maintained values.

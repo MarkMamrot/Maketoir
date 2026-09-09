@@ -43,9 +43,24 @@ describe('Shopify order customer resolution', () => {
 
   it('resolves an exact tenant-scoped Shopify customer match', async () => {
     mockImsQuery.mockResolvedValueOnce([{ id: 42 }]);
+    mockImsExecute.mockResolvedValueOnce({ affectedRows: 1 });
 
-    await expect(resolveShopifyOrderCustomerId('business-1', { customer: { id: 12345 } }, 7)).resolves.toBe(42);
+    await expect(resolveShopifyOrderCustomerId('business-1', {
+      customer: {
+        id: 12345,
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+        email: 'ada@example.com',
+        default_address: { city: 'Melbourne', province: 'VIC' },
+      },
+    }, 7)).resolves.toBe(42);
     expect(mockImsQuery).toHaveBeenCalledWith(expect.stringContaining('shopify_customer_id = ?'), ['business-1', '12345']);
+    expect(mockImsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('is_active = 1'),
+      expect.arrayContaining(['Ada Lovelace', 'Ada', 'Lovelace', 'ada@example.com', 'Melbourne', 'VIC', 42, 'business-1']),
+    );
+    expect(mockImsExecute.mock.calls[0][0]).toContain("type = CASE WHEN type = 'lead' THEN 'retail_customer'");
+    expect(mockImsExecute.mock.calls[0][0]).toContain("LOWER(TRIM(name)) = LOWER(TRIM(email))");
   });
 
   it('retains the operational fallback for guest or unknown customers', async () => {

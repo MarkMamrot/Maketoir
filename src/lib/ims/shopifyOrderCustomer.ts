@@ -77,7 +77,33 @@ export async function resolveShopifyOrderCustomerId(
       LIMIT 1`,
     [businessId, customer.id],
   );
-  if (rows[0]) return Number(rows[0].id);
+  if (rows[0]) {
+    const contactId = Number(rows[0].id);
+    await imsExecute(
+      `UPDATE ims_contacts
+          SET type = CASE WHEN type = 'lead' THEN 'retail_customer' ELSE type END,
+              name = CASE
+                WHEN NULLIF(TRIM(name), '') IS NULL
+                  OR (email IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM(email)))
+                THEN ? ELSE name END,
+              first_name = COALESCE(NULLIF(TRIM(first_name), ''), ?),
+              last_name = COALESCE(NULLIF(TRIM(last_name), ''), ?),
+              email = COALESCE(NULLIF(TRIM(email), ''), ?),
+              phone = COALESCE(NULLIF(TRIM(phone), ''), ?),
+              address = COALESCE(NULLIF(TRIM(address), ''), ?),
+              address2 = COALESCE(NULLIF(TRIM(address2), ''), ?),
+              city = COALESCE(NULLIF(TRIM(city), ''), ?),
+              state = COALESCE(NULLIF(TRIM(state), ''), ?),
+              postcode = COALESCE(NULLIF(TRIM(postcode), ''), ?),
+              country = COALESCE(NULLIF(TRIM(country), ''), ?),
+              is_active = 1
+        WHERE id = ? AND business_id = ?`,
+      [customer.name, customer.firstName, customer.lastName, customer.email, customer.phone,
+        customer.address, customer.address2, customer.city, customer.state, customer.postcode,
+        customer.country, contactId, businessId],
+    );
+    return contactId;
+  }
   if (!options.createIfMissing) return fallbackCustomerId;
 
   const result = await imsExecute(
