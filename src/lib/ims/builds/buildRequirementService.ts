@@ -167,7 +167,6 @@ export async function listBuildRequirements(
   if (options.state) { where.push('requirement.state = ?'); params.push(options.state); }
   if (options.locationId) { where.push('requirement.location_id = ?'); params.push(options.locationId); }
   const limit = Math.min(200, Math.max(1, Number(options.limit) || 50));
-  params.push(limit);
   return imsQuery(
     `SELECT requirement.*, orders.so_number, products.name AS product_name, variants.sku,
             versions.revision AS current_recipe_revision
@@ -177,7 +176,7 @@ export async function listBuildRequirements(
        JOIN ims_products products ON products.product_id = variants.product_id AND products.business_id = requirement.business_id
        LEFT JOIN ims_product_build_recipes recipes ON recipes.output_variant_id = requirement.output_variant_id AND recipes.business_id = requirement.business_id
        LEFT JOIN ims_product_build_recipe_versions versions ON versions.id = recipes.active_version_id
-      WHERE ${where.join(' AND ')} ORDER BY requirement.detected_at, requirement.id LIMIT ?`,
+      WHERE ${where.join(' AND ')} ORDER BY requirement.detected_at, requirement.id LIMIT ${limit}`,
     params,
   );
 }

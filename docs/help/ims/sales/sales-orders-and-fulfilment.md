@@ -20,7 +20,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 |---|---|---|
 | Draft | The order is still being prepared | No shipment; stock is not reduced |
 | Confirmed | Customer demand is active | Quantity can be committed, but stock on hand is unchanged |
-| Prepare Shipments | Check delivery details and suggest packages for selected orders | Saves shipment drafts; stock is unchanged |
+| Prepare Shipments | Check delivery details, enter packages and review carrier prices | Saves shipment drafts; stock is unchanged |
 | Partially fulfil now | Ship entered quantities and leave the balance on this order | Only the shipped quantity reduces stock |
 | Create backorder for remainder | Ship entered quantities and move the balance to a held child order | Only the shipped quantity reduces stock |
 | Complete | All intended shipments or remainder decisions are finished | No extra movement beyond recorded shipments |
@@ -30,7 +30,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - [ ] Confirm the customer, delivery location, stock location, products, quantities, and tax-inclusive selling prices.
 - [ ] Check whether incoming stock is already protected for this order.
 - [ ] Count or verify the goods being dispatched.
-- [ ] Configure an active Australia Post eParcel account and package presets under **Settings > Shipping**.
+- [ ] Configure an active Australia Post eParcel account under **Settings > Shipping**.
 - [ ] Record variant weights and dimensions for products that will be packed automatically.
 - [ ] Make sure you are not using an advisor account, which is read-only.
 
@@ -51,11 +51,13 @@ For Shopify orders, Solvantis copies the shipping address supplied on the order 
 3. Review prices, tax treatment, early-payment discount, freight, dates, and notes. Save the order as Draft while it is still being prepared.
 4. Confirm the order when the customer demand is ready to proceed.
 5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.
-6. Choose the carrier account and review each delivery address and suggested package. Orders remain blocked when the address, product weight, dimensions, or a suitable package preset is missing.
-7. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.
-8. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
-9. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
-10. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+6. Choose the carrier account and review each delivery address. Solvantis starts with suggested packages when product measurements and suitable presets are available. Otherwise, enter the parcel length, width, height and final packed weight manually. A preset is optional and only fills its saved dimensions.
+7. Use **Add parcel** when the order is packed into more than one parcel. Assign each remaining order-line quantity across the parcels; the total assigned quantity must match the quantity still to ship.
+8. Select **Get shipping prices** to retrieve the available Australia Post contract services and GST-inclusive prices for the current destination, dimensions and packed weight. Change a parcel and select **Refresh prices** to price it again.
+9. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.
+10. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
+11. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
+12. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
 For **Early-payment discount**, keep **Customer default** to use the active rule configured on the customer, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
 
@@ -64,7 +66,7 @@ When adding a payment to a Sales Order with saved early-payment terms, Solvantis
 When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the customer credit note** before saving. Solvantis records the payment, a stock-neutral customer credit note, and the discount application together. It does not issue store credit because the credit note settles the order balance. An applied settlement payment and its credit note must be corrected together.
 
 > **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
-11. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
+13. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
 
 | Resolve Outstanding choice | Use it when | Result |
 |---|---|---|
@@ -78,8 +80,9 @@ When the entered payment reaches the qualifying settlement, turn on **Apply disc
 |---|---|---|
 | Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |
 | An order cannot be selected for shipping | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress | Open the order and resolve its status or remaining quantities |
-| Shipment preparation reports missing physical data | A selected variant has no usable weight or dimensions | Update that variant under Products, then reopen Ship Orders |
-| No package is suggested | No active preset can contain the item within its dimensions and maximum weight | Add or update a package preset under Settings > Shipping |
+| Automatic packing is unavailable | Product measurements are missing or no preset fits | Enter the actual packed dimensions and weight directly, or choose a suitable preset |
+| Get shipping prices is unavailable | A parcel field is empty, non-positive, or line quantities are not fully assigned | Complete every parcel measurement and assign the full remaining quantity |
+| Australia Post returns no common service | The selected service is not available for every parcel | Review parcel measurements and destination, or prepare separate shipments where appropriate |
 | A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |
 | Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |
 | The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |

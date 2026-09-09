@@ -1,9 +1,9 @@
 ---
-{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Step-by-step"},"order":53,"summary":"Connect an Australia Post eParcel account and define package presets used to prepare Sales Order shipments.","lastReviewed":"2026-09-08","owner":"sales"}
+{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Step-by-step"},"order":53,"summary":"Connect an Australia Post eParcel account and optionally define reusable package presets.","lastReviewed":"2026-09-09","owner":"sales"}
 ---
 # Shipping Settings
 
-Use Shipping Settings to connect an Australia Post eParcel account and define the boxes, satchels, pallets or custom packages available when preparing Sales Orders.
+Use Shipping Settings to connect an Australia Post eParcel account and optionally define reusable boxes, satchels, pallets or custom packages. Staff can also enter actual parcel measurements directly while preparing Sales Orders.
 
 ## Main operations
 
@@ -44,6 +44,8 @@ Use Shipping Settings to connect an Australia Post eParcel account and define th
 10. Save the preset. It becomes available when preparing selected Sales Orders.
 
 > **Note:** Preparing a shipment saves the selected parcels for later carrier submission. It does not by itself reduce stock or print a label.
+
+Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions and final packed weight. Australia Post prices use the current parcel details and the saved account's contract rates.
 
 ## Troubleshooting
 

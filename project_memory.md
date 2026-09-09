@@ -21,7 +21,8 @@
 
 - Applied the Product Builds schema through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
 - The first pass exposed legacy `utf8mb4_general_ci` product variant keys in Monsterthreads and Sandbox. The catch-up bootstrap now derives each tenant's `ims_product_variants.variant_id` character set and collation for Product Build tables instead of assuming the canonical `utf8mb4_0900_ai_ci` default.
-- Strict post-migration verification now requires all eight Product Build tables, matching variant-key collations, the four build movement types, and both build reference types in every tenant. An immediate full rerun added zero columns and zero indexes and passed all Product Build checks for every tenant.
+- A partially created batch table retained the newer collation and caused the Builds history join to fail immediately in Monsterthreads and Sandbox. Catch-up now also aligns every Product Build `business_id` to the tenant's location ownership collation, and strict verification covers both business and variant join keys alongside all eight tables and required movement/reference enum values.
+- After repair, the exact history and Build for Order list queries passed read-only in all four tenant schemas. An immediate full rerun added zero columns and zero indexes and passed all Product Build checks for every tenant.
 - The migration created no recipes, builds, reversals, requirements, stock movements, or other Product Build operational records.
 
 ## 2026-09-08 - Shipping foundation tenant migration

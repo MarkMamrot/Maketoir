@@ -50,6 +50,16 @@ describe('shipping workflow', () => {
     ]);
   });
 
+  it('rejects an order line that is missing or only partly assigned to parcels', () => {
+    expect(validateShippingParcels(
+      [{ soItemId: 10, remainingQuantity: 2 }, { soItemId: 11, remainingQuantity: 1 }],
+      [{ parcelNumber: 1, lengthMm: 200, widthMm: 150, heightMm: 100, weightKg: 0.8, allocations: [{ soItemId: 10, quantity: 1 }] }],
+    )).toEqual([
+      'Assign the full remaining quantity for order line 10 to a parcel.',
+      'Assign the full remaining quantity for order line 11 to a parcel.',
+    ]);
+  });
+
   it('enforces Australia Post synchronous PDF and ZPL label limits', () => {
     expect(getAusPostLabelBatchLimit('PDF', true)).toBe(250);
     expect(getAusPostLabelBatchLimit('PDF', false)).toBeNull();

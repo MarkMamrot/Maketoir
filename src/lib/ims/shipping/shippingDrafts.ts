@@ -10,45 +10,33 @@ export type ShippingDraftInput = {
   businessId: string;
   operationKey: string;
   carrierAccountId: number;
+  shipments: ShippingRequestInput['shipments'];
+};
+
+export type ShippingRequestInput = {
+  businessId: string;
+  carrierAccountId: number;
   shipments: Array<{
     soId: number;
     parcels: Array<ShippingParcelDraft & { packagePresetId?: number | null; packageType?: string }>;
   }>;
 };
 
+export type PreparedShippingRequest = {
+  account: { id: number; provider: string; dispatchLocationId: number | null };
+  entries: Array<{
+    requested: ShippingRequestInput['shipments'][number];
+    order: NonNullable<Awaited<ReturnType<typeof ImsSORepo.get>>> & { so_type?: string | null };
+    dispatchLocationId: number;
+    sender: { name: string; lines: string[]; suburb: string; state: string; postcode: string; country: string; phone: string };
+    recipient: { name: string; lines: string[]; suburb: string; state: string; postcode: string; country: string; email: string };
+  }>;
+};
+
 export async function createShippingDrafts(input: ShippingDraftInput): Promise<Array<{ soId: number; shipmentId: number }>> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150) throw new Error('A valid operation key is required.');
-  if (!Number.isInteger(input.carrierAccountId) || input.carrierAccountId <= 0) throw new Error('Choose a carrier account.');
-  if (!input.shipments.length) throw new Error('Choose at least one sales order.');
-
-  const accountRows = await queryRows<{ id: number; provider: string; dispatch_location_id: number | null }>(
-    `SELECT id, provider, dispatch_location_id FROM ims_shipping_carrier_accounts
-      WHERE business_id = ? AND id = ? AND is_active = 1 LIMIT 1`,
-    [input.businessId, input.carrierAccountId],
-  );
-  const account = accountRows[0];
-  if (!account) throw new Error('Active carrier account not found.');
-
-  const prepared = [];
-  for (const requested of input.shipments) {
-    const order = await ImsSORepo.get(Number(requested.soId), input.businessId);
-    if (!order?.items) throw new Error(`Sales order ${requested.soId} was not found.`);
-    const remainingQuantity = order.items.reduce((sum, item) => sum + Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)), 0);
-    const eligibility = getShippingOrderEligibility({ status: order.status, soType: order.so_type, remainingQuantity });
-    if (!eligibility.eligible) throw new Error(`${order.so_number}: ${eligibility.reason}`);
-    const lines = order.items.map(item => ({ soItemId: Number(item.id), remainingQuantity: Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)) }));
-    const parcelErrors = validateShippingParcels(lines, requested.parcels);
-    if (parcelErrors.length) throw new Error(`${order.so_number}: ${parcelErrors[0]}`);
-    const dispatchLocationId = account.dispatch_location_id ?? order.location_id;
-    const location = await ImsLocationsRepo.get(dispatchLocationId, input.businessId);
-    if (!location) throw new Error(`${order.so_number}: dispatch location not found.`);
-    const sender = { name: location.name, lines: [location.address].filter(Boolean), suburb: location.city || '', state: location.state || '', postcode: location.postcode || '', country: location.country || 'AU', phone: location.phone || '' };
-    const recipient = { name: order.customer_name || order.so_number, lines: [order.delivery_address, order.delivery_address2].filter(Boolean), suburb: order.delivery_suburb || order.delivery_city || '', state: order.delivery_state || '', postcode: order.delivery_postcode || '', country: order.delivery_country || 'AU', email: order.customer_email || '' };
-    if (!sender.lines.length || !sender.suburb || !sender.state || !sender.postcode) throw new Error(`${order.so_number}: dispatch address is incomplete.`);
-    if (!recipient.lines.length || !recipient.suburb || !recipient.state || !recipient.postcode) throw new Error(`${order.so_number}: delivery address is incomplete.`);
-    prepared.push({ requested, order, dispatchLocationId, sender, recipient });
-  }
+  const { account, entries: prepared } = await prepareShippingRequest(input);
 
   const connection = await getIMSPool().getConnection();
   try {
@@ -105,6 +93,44 @@ export async function createShippingDrafts(input: ShippingDraftInput): Promise<A
   } finally {
     connection.release();
   }
+}
+
+export async function prepareShippingRequest(input: ShippingRequestInput): Promise<PreparedShippingRequest> {
+  if (!Number.isInteger(input.carrierAccountId) || input.carrierAccountId <= 0) throw new Error('Choose a carrier account.');
+  if (!input.shipments.length) throw new Error('Choose at least one sales order.');
+
+  const accountRows = await queryRows<RowDataPacket & { id: number; provider: string; dispatch_location_id: number | null }>(
+    `SELECT id, provider, dispatch_location_id FROM ims_shipping_carrier_accounts
+      WHERE business_id = ? AND id = ? AND is_active = 1 LIMIT 1`,
+    [input.businessId, input.carrierAccountId],
+  );
+  const accountRow = accountRows[0];
+  if (!accountRow) throw new Error('Active carrier account not found.');
+
+  const entries: PreparedShippingRequest['entries'] = [];
+  for (const requested of input.shipments) {
+    const order = await ImsSORepo.get(Number(requested.soId), input.businessId);
+    if (!order?.items) throw new Error(`Sales order ${requested.soId} was not found.`);
+    const remainingQuantity = order.items.reduce((sum, item) => sum + Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)), 0);
+    const eligibility = getShippingOrderEligibility({ status: order.status, soType: order.so_type, remainingQuantity });
+    if (!eligibility.eligible) throw new Error(`${order.so_number}: ${eligibility.reason}`);
+    const lines = order.items.map(item => ({ soItemId: Number(item.id), remainingQuantity: Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)) }));
+    const parcelErrors = validateShippingParcels(lines, requested.parcels);
+    if (parcelErrors.length) throw new Error(`${order.so_number}: ${parcelErrors[0]}`);
+    const dispatchLocationId = Number(accountRow.dispatch_location_id ?? order.location_id);
+    if (!Number.isInteger(dispatchLocationId) || dispatchLocationId <= 0) throw new Error(`${order.so_number}: dispatch location is required.`);
+    const location = await ImsLocationsRepo.get(dispatchLocationId, input.businessId);
+    if (!location) throw new Error(`${order.so_number}: dispatch location not found.`);
+    const sender = { name: location.name, lines: [location.address].filter((line): line is string => Boolean(line)), suburb: location.city || '', state: location.state || '', postcode: location.postcode || '', country: location.country || 'AU', phone: location.phone || '' };
+    const recipient = { name: order.customer_name || order.so_number, lines: [order.delivery_address, order.delivery_address2].filter((line): line is string => Boolean(line)), suburb: order.delivery_suburb || order.delivery_city || '', state: order.delivery_state || '', postcode: order.delivery_postcode || '', country: order.delivery_country || 'AU', email: order.customer_email || '' };
+    if (!sender.lines.length || !sender.suburb || !sender.state || !sender.postcode) throw new Error(`${order.so_number}: dispatch address is incomplete.`);
+    if (!recipient.lines.length || !recipient.suburb || !recipient.state || !recipient.postcode) throw new Error(`${order.so_number}: delivery address is incomplete.`);
+    entries.push({ requested, order, dispatchLocationId, sender, recipient });
+  }
+  return {
+    account: { id: Number(accountRow.id), provider: accountRow.provider, dispatchLocationId: accountRow.dispatch_location_id },
+    entries,
+  };
 }
 
 async function queryRows<T extends RowDataPacket>(sql: string, params: unknown[]): Promise<T[]> {

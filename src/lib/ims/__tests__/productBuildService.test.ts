@@ -7,16 +7,19 @@ const mocks = vi.hoisted(() => ({
   rollback: vi.fn(),
   release: vi.fn(),
   getConnection: vi.fn(),
+  imsQuery: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: () => ({ getConnection: mocks.getConnection }),
+  imsQuery: mocks.imsQuery,
 }));
 
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: vi.fn() }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 
-import { previewProductBuildBatch } from '../builds/buildService';
+import { listProductBuildBatches, previewProductBuildBatch } from '../builds/buildService';
+import { listBuildRequirements } from '../builds/buildRequirementService';
 import { saveProductBuildRecipe } from '../builds/recipeService';
 
 const connection = {
@@ -84,6 +87,30 @@ describe('product build services', () => {
     });
 
     expect(result.components[0]).toEqual(expect.objectContaining({ required: 6 }));
+  });
+
+  it('embeds validated pagination integers instead of binding LIMIT parameters', async () => {
+    mocks.execute
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ total: 0 }], []]);
+
+    await listProductBuildBatches('business-1', { page: 3, pageSize: 20 });
+
+    const [statement, params] = mocks.execute.mock.calls[0];
+    expect(statement).toContain('LIMIT 20 OFFSET 40');
+    expect(statement).not.toMatch(/LIMIT \?|OFFSET \?/);
+    expect(params).toEqual(['business-1']);
+  });
+
+  it('embeds the validated build requirement limit instead of binding it', async () => {
+    mocks.imsQuery.mockResolvedValueOnce([]);
+
+    await listBuildRequirements('business-1', { state: 'open', limit: 500 });
+
+    const [statement, params] = mocks.imsQuery.mock.calls[0];
+    expect(statement).toContain('LIMIT 200');
+    expect(statement).not.toContain('LIMIT ?');
+    expect(params).toEqual(['business-1', 'open']);
   });
 
   it('saves a recipe by appending a version and advancing the active pointer', async () => {

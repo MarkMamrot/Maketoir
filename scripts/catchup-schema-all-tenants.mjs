@@ -1926,6 +1926,9 @@ async function migrateSchema(schema, businessId) {
     await ensureColumnCollationMatches(schema, 'ims_stock_allocation_operations', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_rules', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_applications', 'business_id', 'ims_contacts', 'business_id');
+    for (const table of PRODUCT_BUILD_TABLES) {
+      await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_locations', 'business_id');
+    }
   } catch (e) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }
@@ -2319,6 +2322,19 @@ async function verifyProductBuildSchema(schema) {
   const mismatchedColumns = variantColumns.filter(row => row.TABLE_NAME !== 'ims_product_variants' && row.COLLATION_NAME !== referenceCollation);
   if (!referenceCollation || mismatchedColumns.length) {
     throw new Error(`${schema} Product Build variant columns do not match ims_product_variants.variant_id`);
+  }
+
+  const [businessColumns] = await conn.query(
+    `SELECT TABLE_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND COLUMN_NAME = 'business_id'
+        AND TABLE_NAME IN ('ims_locations', ?)`,
+    [schema, PRODUCT_BUILD_TABLES],
+  );
+  const businessReferenceCollation = businessColumns.find(row => row.TABLE_NAME === 'ims_locations')?.COLLATION_NAME;
+  const mismatchedBusinessColumns = businessColumns.filter(row => row.TABLE_NAME !== 'ims_locations' && row.COLLATION_NAME !== businessReferenceCollation);
+  if (!businessReferenceCollation || businessColumns.length !== PRODUCT_BUILD_TABLES.length + 1 || mismatchedBusinessColumns.length) {
+    throw new Error(`${schema} Product Build business_id columns do not match ims_locations.business_id`);
   }
 
   const [movementColumns] = await conn.query(

@@ -557,6 +557,7 @@ export async function listProductBuildBatches(
 ) {
   const page = Math.max(1, Number(options.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(options.pageSize) || 25));
+  const offset = (page - 1) * pageSize;
   const filters = ['b.business_id = ?'];
   const params: unknown[] = [businessId];
   if (options.locationId) { filters.push('b.location_id = ?'); params.push(options.locationId); }
@@ -573,8 +574,8 @@ export async function listProductBuildBatches(
         WHERE ${filters.join(' AND ')}
         GROUP BY b.id
         ORDER BY b.completed_at DESC, b.id DESC
-        LIMIT ? OFFSET ?`,
-      [...params, pageSize, (page - 1) * pageSize],
+        LIMIT ${pageSize} OFFSET ${offset}`,
+      params,
     );
     const [counts] = await connection.execute<RowDataPacket[]>(
       `SELECT COUNT(*) AS total FROM ims_product_build_batches b WHERE ${filters.join(' AND ')}`,

@@ -78,9 +78,12 @@ export function validateShippingParcels(
     }
   }
 
-  for (const [soItemId, allocated] of allocatedByItem) {
-    if (allocated > (remainingByItem.get(soItemId) ?? 0)) {
+  for (const [soItemId, remaining] of remainingByItem) {
+    const allocated = allocatedByItem.get(soItemId) ?? 0;
+    if (allocated > remaining) {
       errors.push(`Allocated quantity exceeds the remaining quantity for order line ${soItemId}.`);
+    } else if (allocated < remaining) {
+      errors.push(`Assign the full remaining quantity for order line ${soItemId} to a parcel.`);
     }
   }
 
