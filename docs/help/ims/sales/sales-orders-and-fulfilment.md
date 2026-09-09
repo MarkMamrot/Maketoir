@@ -10,7 +10,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - Create and review a Draft order.
 - Confirm the order when customer demand is real.
 - Choose **Display Fields** to show the order details needed for the current task.
-- Select eligible orders on the current page and prepare package drafts for shipping.
+- Select eligible orders, choose a carrier service, submit shipments and download labels.
 - Fulfil only the quantities sent to the customer.
 - Continue a partial fulfilment or resolve the remainder.
 
@@ -21,6 +21,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 | Draft | The order is still being prepared | No shipment; stock is not reduced |
 | Confirmed | Customer demand is active | Quantity can be committed, but stock on hand is unchanged |
 | Prepare Shipments | Check delivery details, enter packages and review carrier prices | Saves shipment drafts; stock is unchanged |
+| Submit to Australia Post & create labels | Creates billable Australia Post shipments and generates printable labels | Postage is charged; stock is unchanged |
 | Partially fulfil now | Ship entered quantities and leave the balance on this order | Only the shipped quantity reduces stock |
 | Create backorder for remainder | Ship entered quantities and move the balance to a held child order | Only the shipped quantity reduces stock |
 | Complete | All intended shipments or remainder decisions are finished | No extra movement beyond recorded shipments |
@@ -53,11 +54,13 @@ For Shopify orders, Solvantis copies the shipping address supplied on the order 
 5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.
 6. Choose the carrier account and review each Solvantis SO number, Channel Order # and delivery address. The selected carrier account's dispatch location must have a street address, suburb or city, state and postcode; use **Update location** when the shipping screen identifies missing sender fields. Solvantis starts with suggested packages when product measurements and suitable presets are available. Otherwise, enter the parcel length, width, height and final packed weight manually. A preset is optional and only fills its saved dimensions.
 7. Use **Add parcel** when the order is packed into more than one parcel. Assign each remaining order-line quantity across the parcels; the total assigned quantity must match the quantity still to ship.
-8. Select **Get shipping prices** to retrieve the available Australia Post contract services and GST-inclusive prices for the current destination, dimensions and packed weight. Change a parcel and select **Refresh prices** to price it again.
-9. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.
-10. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
-11. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
-12. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+8. Select **Get shipping prices** to retrieve the available Australia Post contract services and GST-inclusive prices for the current destination, dimensions and packed weight. Choose one quoted service for each order. Change a parcel and select **Refresh prices** to price it again.
+9. Select **Prepare Shipments** to save the reviewed service, price and parcel drafts. Preparing drafts is local to Solvantis: it does not charge postage, reduce stock, create a carrier shipment or print a label.
+10. Review the saved services and prices, then select **Submit to Australia Post & create labels** and confirm the billable action. Solvantis rechecks each selected service and price immediately before submission. If a price changed or the service became unavailable, retrieve prices and prepare a new shipment rather than silently accepting the change.
+11. Open each available **PDF label** and print it. Parcel Post uses Australia Post's four-label A4 layout; Express Post uses its supported three-label A4 layout. Use **Check label status** when Australia Post is still generating a label.
+12. To record goods that have physically left, select **Fulfil** and enter only the quantity in this shipment for each line.
+13. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
+14. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
 For **Early-payment discount**, keep **Customer default** to use the active rule configured on the customer, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
 
@@ -66,7 +69,7 @@ When adding a payment to a Sales Order with saved early-payment terms, Solvantis
 When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the customer credit note** before saving. Solvantis records the payment, a stock-neutral customer credit note, and the discount application together. It does not issue store credit because the credit note settles the order balance. An applied settlement payment and its credit note must be corrected together.
 
 > **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
-13. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
+15. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
 
 | Resolve Outstanding choice | Use it when | Result |
 |---|---|---|
@@ -83,7 +86,11 @@ When the entered payment reaches the qualifying settlement, turn on **Apply disc
 | Dispatch location is incomplete | The location selected on the carrier account is missing one or more sender fields | Select **Update location** and complete the named street, suburb or city, state, or postcode fields |
 | Automatic packing is unavailable | Product measurements are missing or no preset fits | Enter the actual packed dimensions and weight directly, or choose a suitable preset |
 | Get shipping prices is unavailable | A parcel field is empty, non-positive, or line quantities are not fully assigned | Complete every parcel measurement and assign the full remaining quantity |
+| Prepare Shipments is unavailable after pricing | A quoted service has not been selected for every order | Choose one service for each order |
 | Australia Post returns no common service | The selected service is not available for every parcel | Review parcel measurements and destination, or prepare separate shipments where appropriate |
+| The price changed before submission | Australia Post returned a different live price for the selected service | Retrieve prices again, review the new amount and prepare a new shipment |
+| Label processing does not finish immediately | Australia Post accepted the shipment but is still generating the PDF | Select **Check label status**; do not prepare or submit the shipment again |
+| Submission outcome requires review | The connection ended without a definitive Australia Post response | Stop and verify the shipment in Australia Post before retrying so postage is not purchased twice |
 | A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |
 | Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |
 | The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |

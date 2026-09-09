@@ -10,7 +10,9 @@ export type ShippingDraftInput = {
   businessId: string;
   operationKey: string;
   carrierAccountId: number;
-  shipments: ShippingRequestInput['shipments'];
+  shipments: Array<ShippingRequestInput['shipments'][number] & {
+    service: { serviceCode: string; serviceName: string; total: number; totalExGst: number; gst: number };
+  }>;
 };
 
 export type ShippingRequestInput = {
@@ -36,23 +38,37 @@ export type PreparedShippingRequest = {
 export async function createShippingDrafts(input: ShippingDraftInput): Promise<Array<{ soId: number; shipmentId: number }>> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150) throw new Error('A valid operation key is required.');
+  for (const shipment of input.shipments) {
+    if (!shipment.service?.serviceCode?.trim() || !shipment.service.serviceName?.trim()) {
+      throw new Error('Choose a quoted shipping service for every order.');
+    }
+    if (![shipment.service.total, shipment.service.totalExGst, shipment.service.gst].every(value => Number.isFinite(value) && value >= 0)) {
+      throw new Error('The selected shipping price is invalid. Refresh prices and choose the service again.');
+    }
+  }
   const { account, entries: prepared } = await prepareShippingRequest(input);
+  const servicesByOrder = new Map(input.shipments.map(shipment => [shipment.soId, shipment.service]));
 
   const connection = await getIMSPool().getConnection();
   try {
     await connection.beginTransaction();
     const result: Array<{ soId: number; shipmentId: number }> = [];
     for (const entry of prepared) {
+      const service = servicesByOrder.get(entry.requested.soId);
+      if (!service) throw new Error(`${entry.order.so_number}: choose a quoted shipping service.`);
       const shipmentOperationKey = `${operationKey}:${entry.order.id}`;
       const requestHash = createHash('sha256').update(JSON.stringify(entry.requested)).digest('hex');
       const providerReference = `${entry.order.so_number}-${operationKey.slice(0, 24)}`;
       const [insert] = await connection.execute<ResultSetHeader>(
         `INSERT IGNORE INTO ims_shipping_shipments
            (business_id, operation_key, request_hash, so_id, carrier_account_id, dispatch_location_id,
-            provider, status, provider_reference, sender_json, recipient_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
+            provider, status, provider_reference, service_code, service_name, quoted_cost,
+            quoted_cost_ex_gst, quoted_gst, sender_json, recipient_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
         [input.businessId, shipmentOperationKey, requestHash, entry.order.id, input.carrierAccountId,
-          entry.dispatchLocationId, account.provider, providerReference, JSON.stringify(entry.sender), JSON.stringify(entry.recipient)],
+          entry.dispatchLocationId, account.provider, providerReference, service.serviceCode.trim(),
+          service.serviceName.trim(), service.total, service.totalExGst,
+          service.gst, JSON.stringify(entry.sender), JSON.stringify(entry.recipient)],
       );
       let shipmentId = Number(insert.insertId);
       if (!shipmentId) {
@@ -83,6 +99,11 @@ export async function createShippingDrafts(input: ShippingDraftInput): Promise<A
           );
         }
       }
+      await connection.execute(
+        `UPDATE ims_shipping_shipments SET status = 'superseded'
+          WHERE business_id = ? AND so_id = ? AND status = 'draft' AND provider_shipment_id IS NULL AND id <> ?`,
+        [input.businessId, entry.order.id, shipmentId],
+      );
       result.push({ soId: entry.order.id, shipmentId });
     }
     await connection.commit();

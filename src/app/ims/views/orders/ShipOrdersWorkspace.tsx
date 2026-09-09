@@ -1,6 +1,6 @@
 'use client';
 
-import { PackageCheck, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { Download, PackageCheck, Plus, RefreshCw, Send, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { suggestParcels, type PackableUnit, type PackingPreset } from '@/lib/ims/shipping/packingSuggestions';
@@ -43,6 +43,10 @@ type EditableParcel = {
   allocations: ParcelAllocation[];
 };
 type ShippingRate = { serviceCode: string; serviceName: string; total: number; totalExGst: number; gst: number };
+type ShippingSubmissionResult = {
+  shipmentId: number; soId: number; status: 'label_pending' | 'label_ready';
+  providerShipmentId: string; labelUrl: string | null; chargedCost: number | null;
+};
 
 export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSummary[]; onClose: () => void }) {
   const ordersRef = useRef(orders);
@@ -56,9 +60,12 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   const [carrierAccountId, setCarrierAccountId] = useState('');
   const [parcelsByOrder, setParcelsByOrder] = useState<Record<number, EditableParcel[]>>({});
   const [quotesByOrder, setQuotesByOrder] = useState<Record<number, ShippingRate[]>>({});
+  const [selectedServiceByOrder, setSelectedServiceByOrder] = useState<Record<number, ShippingRate>>({});
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<Array<{ soId: number; shipmentId: number }>>([]);
+  const [submissionResults, setSubmissionResults] = useState<ShippingSubmissionResult[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +123,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
     }));
     setError('');
     setQuotesByOrder({});
+    setSelectedServiceByOrder({});
   };
 
   const choosePreset = (soId: number, parcelIndex: number, presetId: string) => {
@@ -148,12 +156,14 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
     }));
     setError('');
     setQuotesByOrder({});
+    setSelectedServiceByOrder({});
   };
 
   const removeParcel = (soId: number, parcelIndex: number) => {
     setParcelsByOrder(current => ({ ...current, [soId]: (current[soId] ?? []).filter((_, index) => index !== parcelIndex) }));
     setError('');
     setQuotesByOrder({});
+    setSelectedServiceByOrder({});
   };
 
   const getQuotes = async () => {
@@ -163,10 +173,11 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carrierAccountId: Number(carrierAccountId), shipments }),
       });
-      const result = await response.json();
+      const result = await readJsonResponse(response);
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to retrieve shipping prices.');
       const quotes = Object.fromEntries((result.data ?? []).map((quote: { soId: number; rates: ShippingRate[] }) => [quote.soId, quote.rates]));
       setQuotesByOrder(quotes);
+      setSelectedServiceByOrder({});
       if ((result.data ?? []).some((quote: { rates: ShippingRate[] }) => quote.rates.length === 0)) {
         setError('Australia Post did not return a common service for every parcel on one or more orders.');
       }
@@ -181,15 +192,36 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           operationKey: crypto.randomUUID(), carrierAccountId: Number(carrierAccountId),
-          shipments,
+          shipments: shipments.map(shipment => ({
+            ...shipment,
+            service: selectedServiceByOrder[shipment.soId],
+          })),
         }),
       });
-      const result = await response.json();
+      const result = await readJsonResponse(response);
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to prepare shipments.');
       setCreated(result.data ?? []);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to prepare shipments.'); }
     finally { setSaving(false); }
   };
+
+  const submitToCarrier = async () => {
+    if (!window.confirm('Submit these shipments to Australia Post and create billable postage labels?')) return;
+    setSubmitting(true); setError('');
+    try {
+      const response = await fetch('/api/ims/shipping/submit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipmentIds: created.map(item => item.shipmentId) }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to submit shipments to Australia Post.');
+      setSubmissionResults(result.data ?? []);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to submit shipments to Australia Post.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const hasSelectedServices = plans.length > 0 && plans.every(plan => Boolean(selectedServiceByOrder[plan.order.id]));
+  const labelsPending = submissionResults.some(result => result.status === 'label_pending');
 
   return <div role="dialog" aria-modal="true" aria-label="Ship orders" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(15,23,42,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
     <div style={{ width: 'min(920px, 100%)', maxHeight: 'calc(100vh - 40px)', overflow: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
@@ -200,7 +232,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       <div style={{ padding: 18 }}>
         {loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Checking order lines and delivery addresses...</div>}
         {error && <div role="alert" style={{ color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
-        {!loading && !created.length && <div style={{ marginBottom: 14 }}><label style={{ display: 'block', width: 'min(360px,100%)' }}><span style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Carrier account</span><select value={carrierAccountId} onChange={event => { setCarrierAccountId(event.target.value); setError(''); setQuotesByOrder({}); }} style={selectStyle}><option value="">Choose an account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}{account.verifiedAt ? '' : ' (not verified)'}</option>)}</select></label>{selectedAccount?.dispatchAddressMissingFields.length ? <div role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--sv-red)' }}>Dispatch location <strong>{selectedAccount.dispatchLocationName || 'not selected'}</strong> is missing {selectedAccount.dispatchAddressMissingFields.join(', ')}. <button type="button" onClick={() => { onClose(); window.location.hash = 'locations'; }} style={linkButtonStyle}>Update location</button></div> : null}</div>}
+        {!loading && !created.length && <div style={{ marginBottom: 14 }}><label style={{ display: 'block', width: 'min(360px,100%)' }}><span style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Carrier account</span><select value={carrierAccountId} onChange={event => { setCarrierAccountId(event.target.value); setError(''); setQuotesByOrder({}); setSelectedServiceByOrder({}); }} style={selectStyle}><option value="">Choose an account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}{account.verifiedAt ? '' : ' (not verified)'}</option>)}</select></label>{selectedAccount?.dispatchAddressMissingFields.length ? <div role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--sv-red)' }}>Dispatch location <strong>{selectedAccount.dispatchLocationName || 'not selected'}</strong> is missing {selectedAccount.dispatchAddressMissingFields.join(', ')}. <button type="button" onClick={() => { onClose(); window.location.hash = 'locations'; }} style={linkButtonStyle}>Update location</button></div> : null}</div>}
         {!loading && !created.length && plans.map(({ order, remainingQuantity, eligibility, hasAddress, ready, suggestion }) => {
           const orderParcels = parcelsByOrder[order.id] ?? [];
           const rates = quotesByOrder[order.id] ?? [];
@@ -232,18 +264,38 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
             </div>)}
             <div><button type="button" onClick={() => addParcel(order)} style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus size={14} />Add parcel</button></div>
             {parcelIssue && <div role="status" style={{ fontSize: 11, color: 'var(--sv-red)' }}>{parcelIssue}</div>}
-            {rates.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{rates.map(rate => <div key={rate.serviceCode} style={{ padding: '7px 9px', border: '1px solid var(--sv-etch)', borderRadius: 6, fontSize: 12 }}><strong>{rate.serviceName}</strong> · {formatAud(rate.total)} <span style={{ color: 'var(--sv-text-dim)' }}>incl. GST</span></div>)}</div>}
+            {rates.length > 0 && <fieldset style={{ margin: 0, padding: 0, border: 0 }}><legend style={{ marginBottom: 6, fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>Choose shipping service</legend><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{rates.map(rate => {
+              const selected = selectedServiceByOrder[order.id]?.serviceCode === rate.serviceCode;
+              return <label key={rate.serviceCode} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 9px', border: `1px solid ${selected ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 6, background: selected ? 'var(--sv-action-soft)' : 'var(--sv-bg-1)', fontSize: 12, cursor: 'pointer' }}><input type="radio" name={`shipping-service-${order.id}`} checked={selected} onChange={() => { setSelectedServiceByOrder(current => ({ ...current, [order.id]: rate })); setError(''); }} /><span><strong>{rate.serviceName}</strong> · {formatAud(rate.total)} <span style={{ color: 'var(--sv-text-dim)' }}>incl. GST</span></span></label>;
+            })}</div></fieldset>}
           </div>}</div>;
         })}
-        {created.length > 0 && <div role="status" style={{ padding: 14, border: '1px solid var(--sv-etch)', borderRadius: 6 }}><strong style={{ fontSize: 13 }}>Shipment drafts prepared</strong><div style={{ marginTop: 4, color: 'var(--sv-text-dim)', fontSize: 12 }}>{created.length} shipment{created.length === 1 ? '' : 's'} saved. Carrier submission and labels are the next step.</div></div>}
+        {created.length > 0 && <div role="status" style={{ padding: 14, border: '1px solid var(--sv-etch)', borderRadius: 6 }}><strong style={{ fontSize: 13 }}>{submissionResults.length ? 'Australia Post submission' : 'Shipment drafts prepared'}</strong><div style={{ marginTop: 4, color: 'var(--sv-text-dim)', fontSize: 12 }}>{submissionResults.length ? `${submissionResults.length} shipment${submissionResults.length === 1 ? '' : 's'} created with Australia Post.` : `${created.length} shipment${created.length === 1 ? '' : 's'} saved locally. Review and confirm the billable carrier submission.`}</div>{!submissionResults.length && created.map(item => {
+          const order = details.find(detail => Number(detail.id) === item.soId);
+          const service = selectedServiceByOrder[item.soId];
+          return <div key={item.shipmentId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>{order?.so_number ?? `Shipment ${item.shipmentId}`}</strong><span>{service?.serviceName} · {service ? formatAud(service.total) : ''} incl. GST</span></div>;
+        })}{submissionResults.map(result => {
+          const order = details.find(item => Number(item.id) === result.soId);
+          return <div key={result.shipmentId} style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>{order?.so_number ?? `Shipment ${result.shipmentId}`}</strong><span style={{ color: 'var(--sv-text-dim)' }}>{result.chargedCost == null ? '' : `${formatAud(result.chargedCost)} charged`}</span><span style={{ marginLeft: 'auto', color: result.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)' }}>{result.status === 'label_ready' ? 'Label ready' : 'Label processing'}</span>{result.labelUrl && <a href={result.labelUrl} target="_blank" rel="noopener noreferrer" style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Download size={14} />PDF label</a>}</div>;
+        })}</div>}
         {!loading && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
-          <button type="button" onClick={onClose} style={secondaryButtonStyle}>Cancel</button>
+          <button type="button" onClick={onClose} style={secondaryButtonStyle}>{submissionResults.length ? 'Close' : 'Cancel'}</button>
           {!created.length && <button type="button" disabled={!canCreate || quoting || saving} onClick={getQuotes} style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 7, opacity: canCreate && !quoting && !saving ? 1 : .55, cursor: canCreate && !quoting && !saving ? 'pointer' : 'not-allowed' }}><RefreshCw size={15} />{quoting ? 'Getting prices...' : Object.keys(quotesByOrder).length ? 'Refresh prices' : 'Get shipping prices'}</button>}
-          {!created.length && <button type="button" disabled={!canCreate || saving} onClick={createDrafts} style={{ ...primaryButtonStyle, opacity: canCreate && !saving ? 1 : .55, cursor: canCreate && !saving ? 'pointer' : 'not-allowed' }}><PackageCheck size={15} />{saving ? 'Preparing...' : 'Prepare Shipments'}</button>}
+          {!created.length && <button type="button" disabled={!canCreate || !hasSelectedServices || saving} onClick={createDrafts} title={canCreate && !hasSelectedServices ? 'Choose a quoted shipping service for every order.' : undefined} style={{ ...primaryButtonStyle, opacity: canCreate && hasSelectedServices && !saving ? 1 : .55, cursor: canCreate && hasSelectedServices && !saving ? 'pointer' : 'not-allowed' }}><PackageCheck size={15} />{saving ? 'Preparing...' : 'Prepare Shipments'}</button>}
+          {created.length > 0 && (!submissionResults.length || labelsPending) && <button type="button" disabled={submitting} onClick={submitToCarrier} style={{ ...primaryButtonStyle, opacity: submitting ? .55 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}><Send size={15} />{submitting ? 'Submitting...' : labelsPending ? 'Check label status' : 'Submit to Australia Post & create labels'}</button>}
         </div>}
       </div>
     </div>
   </div>;
+}
+
+async function readJsonResponse(response: Response): Promise<any> {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`The server returned an invalid response (${response.status}). Refresh the page and try again.`);
+  }
 }
 
 const iconButtonStyle: React.CSSProperties = { width: 34, height: 34, display: 'grid', placeItems: 'center', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer' };

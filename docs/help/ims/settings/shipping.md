@@ -43,9 +43,9 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.
 10. Save the preset. It becomes available when preparing selected Sales Orders.
 
-> **Note:** Preparing a shipment saves the selected parcels for later carrier submission. It does not by itself reduce stock or print a label.
+> **Note:** Preparing a shipment saves the selected service, price and parcels locally. The separate confirmed **Submit to Australia Post & create labels** action creates the billable carrier shipment. Neither action reduces stock; use Sales Order fulfilment when goods physically leave.
 
-Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions and final packed weight. Australia Post prices use the current parcel details and the saved account's contract rates.
+Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions and final packed weight. Australia Post prices use the current parcel details and the saved account's contract rates. Generated PDF labels use four labels per A4 page for Parcel Post and three per A4 page for Express Post. Manifest submission remains a separate later operation.
 
 ## Troubleshooting
 
