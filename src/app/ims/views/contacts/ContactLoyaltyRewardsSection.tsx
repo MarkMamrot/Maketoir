@@ -1,6 +1,6 @@
 'use client';
 
-import { CloudUpload, Copy, Gift, RefreshCw } from 'lucide-react';
+import { CloudUpload, Copy, Gift, PlusMinus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface LoyaltyReward {
@@ -20,6 +20,7 @@ interface IssuedRedemption {
 }
 
 interface LoyaltySummary {
+  canAdjustPoints: boolean;
   enabled: boolean;
   active: boolean;
   member: boolean;
@@ -36,6 +37,11 @@ function claimKey(contactId: number, rewardId: number): string {
   return `ims:contact:${contactId}:reward:${rewardId}:${nonce}`;
 }
 
+function adjustmentKey(contactId: number): string {
+  const nonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `ims:adjust:${contactId}:${nonce}`;
+}
+
 export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number }) {
   const [summary, setSummary] = useState<LoyaltySummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +49,12 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
   const [issuingRewardId, setIssuingRewardId] = useState<number | null>(null);
   const [syncingShopify, setSyncingShopify] = useState(false);
   const [copiedCode, setCopiedCode] = useState('');
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  const [adjustmentPoints, setAdjustmentPoints] = useState('');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
+  const [adjustingPoints, setAdjustingPoints] = useState(false);
   const retryKeys = useRef(new Map<number, string>());
+  const adjustmentRetryKey = useRef('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,6 +72,12 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
   }, [contactId]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    setAdjustmentOpen(false);
+    setAdjustmentPoints('');
+    setAdjustmentReason('');
+    adjustmentRetryKey.current = '';
+  }, [contactId]);
 
   const syncShopifyMetafields = async () => {
     setSyncingShopify(true);
@@ -111,6 +128,52 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
     }
   };
 
+  const adjustPoints = async () => {
+    const pointsDelta = Number(adjustmentPoints);
+    if (!Number.isInteger(pointsDelta) || pointsDelta === 0) {
+      setError('Enter a non-zero whole-number points adjustment.');
+      return;
+    }
+    const reason = adjustmentReason.trim();
+    if (!reason) {
+      setError('Enter a reason for this adjustment.');
+      return;
+    }
+    const balanceAfter = (summary?.balancePoints ?? 0) + pointsDelta;
+    if (balanceAfter < 0) {
+      setError('The adjustment cannot reduce the balance below zero.');
+      return;
+    }
+    if (!confirm(`${pointsDelta > 0 ? 'Add' : 'Remove'} ${Math.abs(pointsDelta).toLocaleString()} ${summary?.pointsLabel ?? 'points'}? The balance will become ${balanceAfter.toLocaleString()}.`)) return;
+
+    const idempotencyKey = adjustmentRetryKey.current || adjustmentKey(contactId);
+    adjustmentRetryKey.current = idempotencyKey;
+    setAdjustingPoints(true);
+    setError('');
+    try {
+      const response = await fetch('/api/ims/loyalty/adjustments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId, pointsDelta, reason, idempotencyKey }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status < 500) adjustmentRetryKey.current = '';
+        throw new Error(data.error || 'Loyalty points could not be adjusted.');
+      }
+      adjustmentRetryKey.current = '';
+      setAdjustmentPoints('');
+      setAdjustmentReason('');
+      setAdjustmentOpen(false);
+      await load();
+      if (data.warning) setError(data.warning);
+    } catch (adjustmentError) {
+      setError(adjustmentError instanceof Error ? adjustmentError.message : 'Loyalty points could not be adjusted.');
+    } finally {
+      setAdjustingPoints(false);
+    }
+  };
+
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code).catch(() => {});
     setCopiedCode(code);
@@ -129,6 +192,11 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{summary?.programName ?? 'Loyalty rewards'}</div>
           {summary && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{summary.balancePoints.toLocaleString()} {summary.pointsLabel} available</div>}
         </div>
+        {summary?.canAdjustPoints && summary.member && (
+          <button type="button" onClick={() => { setAdjustmentOpen(open => !open); setError(''); }} title="Adjust loyalty points" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer', padding: '5px 8px', fontSize: 11, fontWeight: 700 }}>
+            <PlusMinus size={14} aria-hidden="true" />Adjust points
+          </button>
+        )}
         <button type="button" onClick={() => void load()} disabled={loading} title="Refresh loyalty rewards" aria-label="Refresh loyalty rewards" style={{ border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: loading ? 'wait' : 'pointer', padding: 4 }}>
           <RefreshCw size={15} aria-hidden="true" />
         </button>
@@ -141,6 +209,29 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
 
       <div style={{ padding: '12px 14px' }}>
         {error && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: 'rgba(248,113,113,.1)', color: '#f87171', fontSize: 12 }}>{error}</div>}
+        {adjustmentOpen && summary?.canAdjustPoints && summary.member && (
+          <div style={{ marginBottom: 12, padding: 11, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)' }}>
+            <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--sv-text-strong)' }}>Manual points adjustment</div>
+            <div style={{ marginTop: 3, fontSize: 11, color: 'var(--sv-text-dim)' }}>Use a positive number to add points or a negative number to remove them.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, .45fr) minmax(180px, 1fr)', gap: 8, marginTop: 9 }}>
+              <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Points
+                <input type="number" step="1" value={adjustmentPoints} onChange={event => { setAdjustmentPoints(event.target.value); adjustmentRetryKey.current = ''; }} placeholder="e.g. 100 or -50" style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 3, padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+              </label>
+              <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Reason
+                <input maxLength={500} value={adjustmentReason} onChange={event => { setAdjustmentReason(event.target.value); adjustmentRetryKey.current = ''; }} placeholder="Why is this adjustment required?" style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 3, padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+              </label>
+            </div>
+            {Number.isInteger(Number(adjustmentPoints)) && Number(adjustmentPoints) !== 0 && (
+              <div style={{ marginTop: 8, fontSize: 11, color: (summary.balancePoints + Number(adjustmentPoints)) < 0 ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>
+                Balance: {summary.balancePoints.toLocaleString()} → {(summary.balancePoints + Number(adjustmentPoints)).toLocaleString()} {summary.pointsLabel}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, marginTop: 9 }}>
+              <button type="button" onClick={() => { setAdjustmentOpen(false); setAdjustmentPoints(''); setAdjustmentReason(''); adjustmentRetryKey.current = ''; }} disabled={adjustingPoints} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 9px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>Cancel</button>
+              <button type="button" onClick={() => void adjustPoints()} disabled={adjustingPoints || !adjustmentPoints || !adjustmentReason.trim()} style={{ border: 0, borderRadius: 5, background: 'var(--sv-action)', color: '#fff', padding: '6px 10px', cursor: adjustingPoints ? 'wait' : 'pointer', opacity: adjustingPoints || !adjustmentPoints || !adjustmentReason.trim() ? .55 : 1, fontSize: 11, fontWeight: 750 }}>{adjustingPoints ? 'Applying...' : 'Apply adjustment'}</button>
+            </div>
+          </div>
+        )}
         {summary && !summary.enabled && <p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>Loyalty is switched off in IMS Settings.</p>}
         {summary?.enabled && !summary.active && <p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>The loyalty program has not started yet.</p>}
         {summary?.active && !summary.member && <p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>Save this customer as a loyalty member before issuing rewards.</p>}
