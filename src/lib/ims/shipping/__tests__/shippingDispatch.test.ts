@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildOutboundTracking, buildShopifyFulfilmentGroups, formatShopifyFulfilmentError } from '../shippingDispatch';
+import { buildOutboundTracking, buildShopifyFulfilmentGroups, findMatchingShopifyFulfilmentId, formatShopifyFulfilmentError } from '../shippingDispatch';
 
 describe('shipping dispatch Shopify mapping', () => {
   it('maps dispatched quantities to fulfillment-order lines', () => {
@@ -15,6 +15,24 @@ describe('shipping dispatch Shopify mapping', () => {
       [{ shopify_line_item_id: '101', quantity: 2 }],
       [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 0, lineItem: { legacyResourceId: '101' } }] } }],
     )).toEqual([]);
+  });
+
+  it('matches an existing Shopify fulfillment before updating its carrier tracking', () => {
+    expect(findMatchingShopifyFulfilmentId(
+      [{ shopify_line_item_id: '101', quantity: 2 }, { shopify_line_item_id: '102', quantity: 1 }],
+      [
+        { shopify_fulfilment_id: 'fulfillment-2', shopify_line_item_id: '101', quantity: 2 },
+        { shopify_fulfilment_id: 'fulfillment-1', shopify_line_item_id: '101', quantity: 2 },
+        { shopify_fulfilment_id: 'fulfillment-1', shopify_line_item_id: '102', quantity: 1 },
+      ],
+    )).toBe('fulfillment-1');
+  });
+
+  it('does not attach tracking to an unrelated existing Shopify fulfillment', () => {
+    expect(findMatchingShopifyFulfilmentId(
+      [{ shopify_line_item_id: '101', quantity: 2 }],
+      [{ shopify_fulfilment_id: 'fulfillment-1', shopify_line_item_id: '101', quantity: 1 }],
+    )).toBeNull();
   });
 
   it('rejects a partial remainder and preserves Shopify error details', () => {

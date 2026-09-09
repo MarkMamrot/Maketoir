@@ -57,16 +57,29 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
         [input.businessId, row.id],
       );
       const operationKey = row.ims_fulfilment_operation_key || `shipping-dispatch:${row.id}`;
-      const fulfilment = await fulfilSalesOrderPartialInTransaction(connection, {
-        businessId: input.businessId,
-        soId: row.so_id,
-        operationKey,
-        shipmentQuantities: allocations.map(allocation => ({ itemId: Number(allocation.item_id), quantity: Number(allocation.quantity) })),
-      });
-      fulfilledVariantIds = fulfilment.fulfilledVariantIds;
-      orderStatus = fulfilment.status;
-      didFulfil = true;
       const needsShopify = row.sales_channel === 'shopify' || Boolean(row.shopify_order_id);
+      if (row.so_status === 'fulfilled' && needsShopify) {
+        const [[existingShopifyFulfilment]] = await connection.execute<any[]>(
+          `SELECT id FROM ims_so_shipments
+            WHERE business_id = ? AND so_id = ? AND shopify_fulfilment_id <> ''
+            ORDER BY COALESCE(fulfilled_at, created_at) DESC, id DESC LIMIT 1`,
+          [input.businessId, row.so_id],
+        );
+        if (!existingShopifyFulfilment) {
+          throw new Error('This order is already fulfilled, but its Shopify fulfillment could not be matched.');
+        }
+        orderStatus = row.so_status;
+      } else {
+        const fulfilment = await fulfilSalesOrderPartialInTransaction(connection, {
+          businessId: input.businessId,
+          soId: row.so_id,
+          operationKey,
+          shipmentQuantities: allocations.map(allocation => ({ itemId: Number(allocation.item_id), quantity: Number(allocation.quantity) })),
+        });
+        fulfilledVariantIds = fulfilment.fulfilledVariantIds;
+        orderStatus = fulfilment.status;
+        didFulfil = true;
+      }
       await connection.execute(
         `UPDATE ims_shipping_shipments
             SET status = ?, ims_fulfilment_operation_key = ?, ims_fulfilled_at = NOW(),
@@ -145,8 +158,8 @@ async function createShopifyFulfilment(businessId: string, shipmentId: number, s
   if (!shopifyOrderId) throw new Error('The Shopify order ID is missing.');
   const credentials = await getShopifyAdminCredentials(businessId);
   if (!credentials) throw new Error('Shopify credentials are unavailable.');
-  const lines = await imsQuery<{ shopify_line_item_id: string | null; quantity: number }>(
-    `SELECT order_item.shopify_line_item_id, SUM(parcel_item.quantity) AS quantity
+  const lines = await imsQuery<{ so_id: number; shopify_line_item_id: string | null; quantity: number }>(
+    `SELECT MAX(order_item.so_id) AS so_id, order_item.shopify_line_item_id, SUM(parcel_item.quantity) AS quantity
        FROM ims_shipping_parcel_items parcel_item
        JOIN ims_shipping_parcels parcel ON parcel.id = parcel_item.parcel_id AND parcel.business_id = parcel_item.business_id
        JOIN ims_sales_order_items order_item ON order_item.id = parcel_item.so_item_id AND order_item.business_id = parcel_item.business_id
@@ -177,7 +190,39 @@ async function createShopifyFulfilment(businessId: string, shipmentId: number, s
   const queryPayload = await queryResponse.json().catch(() => null) as any;
   if (!queryResponse.ok || queryPayload?.errors?.length) throw new Error(formatShopifyFulfilmentError(queryResponse.status, queryPayload));
   const groups = buildShopifyFulfilmentGroups(lines, queryPayload?.data?.order?.fulfillmentOrders?.nodes ?? []);
-  if (!groups.length) return;
+  if (!groups.length) {
+    const existingRows = await imsQuery<{
+      shopify_fulfilment_id: string; shopify_line_item_id: string; quantity: number;
+    }>(
+      `SELECT shipment.shopify_fulfilment_id, item.shopify_line_item_id, item.quantity
+         FROM ims_so_shipments shipment
+         JOIN ims_so_shipment_items item
+           ON item.shipment_id = shipment.id AND item.business_id = shipment.business_id
+        WHERE shipment.business_id = ? AND shipment.so_id = ?
+        ORDER BY COALESCE(shipment.fulfilled_at, shipment.created_at) DESC, shipment.id DESC, item.id`,
+      [businessId, Number(lines[0]?.so_id)],
+    );
+    const existingFulfilmentId = findMatchingShopifyFulfilmentId(lines, existingRows);
+    if (!existingFulfilmentId) throw new Error('The existing Shopify fulfillment could not be matched to this shipment.');
+    const trackingResponse = await fetch(endpoint, {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': credentials.token },
+      body: JSON.stringify({
+        query: `mutation UpdateShippingTracking($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) { fulfillmentTrackingInfoUpdate(fulfillmentId: $fulfillmentId, trackingInfoInput: $trackingInfoInput, notifyCustomer: $notifyCustomer) { fulfillment { id status } userErrors { field message } } }`,
+        variables: {
+          fulfillmentId: existingFulfilmentId.startsWith('gid://') ? existingFulfilmentId : `gid://shopify/Fulfillment/${existingFulfilmentId}`,
+          trackingInfoInput: tracking,
+          notifyCustomer: true,
+        },
+      }),
+    });
+    const trackingPayload = await trackingResponse.json().catch(() => null) as any;
+    const trackingErrors = trackingPayload?.data?.fulfillmentTrackingInfoUpdate?.userErrors ?? [];
+    if (!trackingResponse.ok || trackingPayload?.errors?.length || trackingErrors.length) {
+      throw new Error(formatShopifyFulfilmentError(trackingResponse.status, trackingPayload, trackingErrors));
+    }
+    return;
+  }
   const mutationResponse = await fetch(endpoint, {
     method: 'POST', cache: 'no-store',
     headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': credentials.token },
@@ -242,4 +287,24 @@ export function buildOutboundTracking(rows: Array<{
     return [{ number, url: String(row.tracking_url || fallbackUrl).trim() }];
   });
   return { company, numbers: items.map(item => item.number), urls: items.map(item => item.url) };
+}
+
+export function findMatchingShopifyFulfilmentId(
+  requestedLines: Array<{ shopify_line_item_id: string | null; quantity: number }>,
+  existingRows: Array<{ shopify_fulfilment_id: string; shopify_line_item_id: string; quantity: number }>,
+): string | null {
+  const requested = new Map(requestedLines.map(line => [String(line.shopify_line_item_id), Number(line.quantity)]));
+  const byFulfilment = new Map<string, Map<string, number>>();
+  for (const row of existingRows) {
+    const fulfilmentId = String(row.shopify_fulfilment_id || '').trim();
+    if (!fulfilmentId) continue;
+    const quantities = byFulfilment.get(fulfilmentId) ?? new Map<string, number>();
+    const lineId = String(row.shopify_line_item_id);
+    quantities.set(lineId, (quantities.get(lineId) ?? 0) + Number(row.quantity));
+    byFulfilment.set(fulfilmentId, quantities);
+  }
+  for (const [fulfilmentId, quantities] of byFulfilment) {
+    if ([...requested].every(([lineId, quantity]) => (quantities.get(lineId) ?? 0) >= quantity)) return fulfilmentId;
+  }
+  return null;
 }
