@@ -1,6 +1,6 @@
 'use client';
 
-import { CloudUpload, Copy, Gift, PlusMinus, RefreshCw } from 'lucide-react';
+import { CirclePlus, CloudUpload, Copy, Gift, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface LoyaltyReward {
@@ -194,7 +194,7 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
         </div>
         {summary?.canAdjustPoints && summary.member && (
           <button type="button" onClick={() => { setAdjustmentOpen(open => !open); setError(''); }} title="Adjust loyalty points" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer', padding: '5px 8px', fontSize: 11, fontWeight: 700 }}>
-            <PlusMinus size={14} aria-hidden="true" />Adjust points
+            <CirclePlus size={14} aria-hidden="true" />Adjust points
           </button>
         )}
         <button type="button" onClick={() => void load()} disabled={loading} title="Refresh loyalty rewards" aria-label="Refresh loyalty rewards" style={{ border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: loading ? 'wait' : 'pointer', padding: 4 }}>
