@@ -133,7 +133,7 @@ export async function prepareShippingRequest(input: ShippingRequestInput): Promi
   };
 }
 
-async function queryRows<T extends RowDataPacket>(sql: string, params: unknown[]): Promise<T[]> {
+async function queryRows<T extends RowDataPacket>(sql: string, params: Array<string | number | null>): Promise<T[]> {
   const connection = await getIMSPool().getConnection();
   try {
     const [rows] = await connection.execute<RowDataPacket[]>(sql, params);
