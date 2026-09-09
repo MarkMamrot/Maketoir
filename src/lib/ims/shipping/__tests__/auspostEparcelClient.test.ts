@@ -39,8 +39,8 @@ describe('AusPostEparcelClient', () => {
     const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
 
     const rates = await client.getRates({
-      from: { name: 'Sender', lines: ['1 Main St'], suburb: 'Melbourne', state: 'VIC', postcode: '3000', country: 'AU' },
-      to: { name: 'Buyer', lines: ['2 High St'], suburb: 'Sydney', state: 'NSW', postcode: '2000', country: 'AU' },
+      from: { name: 'Sender', lines: ['1 Main St'], suburb: 'Melbourne', state: 'VIC', postcode: '3000', country: 'AUSTRALIA' },
+      to: { name: 'Buyer', lines: ['2 High St'], suburb: 'Sydney', state: 'NSW', postcode: '2000', country: 'Australia' },
       parcels: [{ reference: 'SO-1-P1', lengthMm: 205, widthMm: 150, heightMm: 99, weightKg: 1.25 }],
     });
 

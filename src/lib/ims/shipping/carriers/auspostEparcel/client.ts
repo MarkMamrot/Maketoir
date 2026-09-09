@@ -124,8 +124,13 @@ function toAusPostLocality(address: CarrierAddress): Record<string, string> {
   return {
     postcode: address.postcode,
     suburb: address.suburb,
-    country: address.country || 'AU',
+    country: normalizeAusPostCountry(address.country),
   };
+}
+
+function normalizeAusPostCountry(country: string): string {
+  const normalized = country.trim().toUpperCase();
+  return !normalized || normalized === 'AUSTRALIA' || normalized === 'AUS' ? 'AU' : normalized;
 }
 
 function toAusPostParcel(parcel: CarrierParcel): Record<string, string | number> {
