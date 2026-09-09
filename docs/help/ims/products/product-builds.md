@@ -28,6 +28,8 @@ Use Product Builds to convert stocked components into finished products at one l
 
 ## Before you begin
 
+- [ ] Enable **Use Builds** under **Settings > General > Inventory**.
+- [ ] Edit each finished product that will be assembled and enable **Use Builds** on that product.
 - [ ] Create and save the finished product and every component as active tracked-stock variants.
 - [ ] Check that all components are held at the location where the build will occur.
 - [ ] Confirm component average costs and the tax-exclusive overhead per output.
@@ -39,10 +41,11 @@ Use Product Builds to convert stocked components into finished products at one l
 ### Create or revise a recipe
 
 1. Open **Products > All Products** and edit the saved finished product.
-2. In **Build Recipe**, choose the output variant.
-3. Search for each component variant and enter the quantity needed for one output unit.
-4. Enter optional tax-exclusive overhead per output and revision notes.
-5. Review the current output cost, then select **Save New Revision**.
+2. Confirm **Tracks Inventory** is on, then enable **Use Builds** for this product. The Build Recipe section is hidden for products that have not opted in.
+3. In **Build Recipe**, choose the output variant.
+4. Search the existing product catalogue by product name, variant, SKU, or barcode and select each component. Enter the quantity needed for one output unit.
+5. Enter optional tax-exclusive overhead per output and revision notes.
+6. Review the current output cost, then select **Save New Revision**.
 
 Each save creates a new revision. Completed builds keep the exact recipe, quantities, costs, overhead, and revision used at confirmation.
 
@@ -96,6 +99,7 @@ After completed build movements exist, raw Cin7 stock replacement is blocked bec
 | Preview reports a component shortage | Some on-hand units are committed or have moved since the last check | Receive, transfer, or release stock through its owning workflow, then preview again |
 | Confirm says the recipe is stale | Another user saved a new recipe revision | Reload the build and review the new components and cost |
 | Build from sale is not offered | The policy is off, the location override disables it, there is no eligible shortage, or components are unavailable | Review Settings, the active recipe, and current location stock |
+| Builds or Build Recipe is not visible | Builds is disabled for the business, or the product has not opted in | Enable **Use Builds** in Settings, then enable **Use Builds** on the tracked product |
 | Reversal is blocked | Finished Available stock is lower than the requested reversal | Reduce the quantity or resolve the finished-stock commitment first |
 | Cin7 stock sync is blocked | This business has completed build movements | Reconcile with a stocktake or audited stock adjustment instead of replacing balances |
 | Returned item did not restore components | Returns restore the sold finished SKU | Use a separate explicit build reversal only when the returned finished stock is available and dismantling is appropriate |

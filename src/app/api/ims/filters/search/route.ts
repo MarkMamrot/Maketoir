@@ -8,6 +8,7 @@ export interface FilterSuggestion {
   value: string;
   label: string;
   meta?: string;
+  averageCost?: number;
 }
 
 /**
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q     = (searchParams.get('q') ?? '').trim();
   const only  = (searchParams.get('only') ?? '').trim();
+  const stockOnly = searchParams.get('stock') === '1';
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') ?? '25', 10)));
 
   // In mixed mode require ≥1 char; in only-mode allow empty (browse all)
@@ -106,10 +108,10 @@ export async function GET(req: Request) {
   if (wantProduct && q.length > 0) {
     try {
       const rows = await imsQuery<{
-        variant_id: string; sku: string | null; barcode: string | null;
+        variant_id: string; sku: string | null; barcode: string | null; average_cost: number;
         product_name: string; brand: string | null; option_label: string | null;
       }>(`
-        SELECT v.variant_id, v.sku, v.barcode, p.name AS product_name, p.brand,
+        SELECT v.variant_id, v.sku, v.barcode, COALESCE(v.avg_cost, v.cost_aud, 0) AS average_cost, p.name AS product_name, p.brand,
           TRIM(BOTH ' / ' FROM CONCAT_WS(' / ',
             NULLIF(TRIM(COALESCE(v.option1_value,'')), ''),
             NULLIF(TRIM(COALESCE(v.option2_value,'')), ''),
@@ -119,6 +121,7 @@ export async function GET(req: Request) {
         JOIN ims_products p ON p.product_id = v.product_id
         WHERE v.is_active = 1 AND p.is_active = 1
           ${businessId ? 'AND p.business_id = ?' : ''}
+          ${stockOnly ? 'AND p.is_stock_item = 1' : ''}
           AND (v.sku LIKE ? OR v.barcode LIKE ? OR p.name LIKE ?)
         ORDER BY p.name, v.sku
         LIMIT ${limit}
@@ -134,6 +137,7 @@ export async function GET(req: Request) {
           value: r.variant_id,
           label: `Product: ${nameParts.join(' — ')}  ·  Brand: ${r.brand ?? '—'}`,
           meta: metaParts.join('  ·  ') || undefined,
+          averageCost: Number(r.average_cost ?? 0),
         };
       });
     } catch { /* skip */ }

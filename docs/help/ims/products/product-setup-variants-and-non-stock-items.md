@@ -20,7 +20,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
 - Use **Products > Bulk Add/Edit** to create or change several product families in one location-independent grid.
 - Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.
-- For an assembled stock item, save the product and variants first, then create a versioned **Build Recipe** in the edit form.
+- For an assembled stock item, enable the business **Use Builds** setting, save the tracked product and variants, then enable **Use Builds** on that product and create a versioned **Build Recipe** in the edit form.
 
 ## At a glance
 
@@ -61,6 +61,8 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
 13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed. Zero is a valid value.
 14. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.
+
+When **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.
 
 Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.
 

@@ -53,14 +53,16 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 |---|---|---|
 | Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |
 | Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
-| Inventory | Offer build from sale | Allows staff-confirmed build offers when finished stock is short and recipe components are available |
+| Inventory | Use Builds, Offer build from sale | Enables product recipes and build history; optionally allows staff-confirmed build offers when finished stock is short and recipe components are available |
 | Sales channels and integrations | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |
 
 Use each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.
 
 These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
 
-**Offer build from sale** is off by default. Under **Settings > Locations**, each location can use the business default or explicitly enable or disable the offer. The effective policy is shown beside each location. The setting never builds silently, does not advertise component capacity to online marketplaces, and requires an online connection at POS.
+**Use Builds** is off by default. When it is off, Builds navigation, product recipe controls, and build-from-sale settings are hidden. Existing recipes and history are retained. After enabling it, each tracked finished product must also enable **Use Builds** in its edit form before its recipe controls and build operations become available.
+
+**Offer build from sale** is a separate option shown only while **Use Builds** is enabled. It is off by default. Under **Settings > Locations**, each location can use the business default or explicitly enable or disable the offer. The effective policy is shown beside each location. The setting never builds silently, does not advertise component capacity to online marketplaces, and requires an online connection at POS.
 
 ### Configure tax settings
 
