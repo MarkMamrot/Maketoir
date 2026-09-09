@@ -353,7 +353,7 @@ function totalParcels(candidates: ManifestCandidate[]): number {
   return candidates.reduce((sum, candidate) => sum + candidate.parcelCount, 0);
 }
 
-function isDefinitiveManifestFailure(error: unknown): boolean {
+export function isDefinitiveManifestFailure(error: unknown): boolean {
   if (/does not support|credentials are incomplete/i.test(error instanceof Error ? error.message : '')) return true;
   return error instanceof AusPostApiError && error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status);
 }

@@ -48,7 +48,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 
 Close the shipping dialog at any time and use **Shipping Workspace** in Sales Orders to reopen saved work. Local drafts that have not been submitted to the carrier can be selected and deleted, making their Sales Orders available to prepare again. Carrier-submitted shipments cannot be deleted there because postage may already have been charged. Once labelled parcels physically leave, **Mark dispatched** applies the parcel quantities to Sales Order fulfillment and sends tracking to the connected channel. Channel retries do not repeat stock movement or postage.
 
-Before the carrier pickup, open the **Manifests** tab. Solvantis groups dispatched shipments by carrier account and dispatch location. Choose the shipments in that pickup, then select **Create booking & manifest**. Australia Post requires one Order per pickup and a signed Order Summary when the parcels are lodged. Print the summary immediately or reprint it later from manifest history. A completed manifest cannot accept more shipments.
+Before the carrier pickup, open the **Manifests** tab. Solvantis groups dispatched shipments by carrier account and dispatch location. Choose the shipments in that pickup, then use **Create booking & manifest**. Australia Post requires one Order per pickup and a signed Order Summary when the parcels are lodged. Print the summary immediately or use manifest history when another copy is needed. A completed manifest cannot accept more shipments.
 
 > **Warning:** An unknown manifest outcome may already represent a carrier booking. Check the carrier portal and use **Reconcile** with the confirmed order ID instead of creating another booking.
 
