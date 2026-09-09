@@ -123,7 +123,8 @@ export async function prepareShippingRequest(input: ShippingRequestInput): Promi
     if (!location) throw new Error(`${order.so_number}: dispatch location not found.`);
     const sender = { name: location.name, lines: [location.address].filter((line): line is string => Boolean(line)), suburb: location.city || '', state: location.state || '', postcode: location.postcode || '', country: location.country || 'AU', phone: location.phone || '' };
     const recipient = { name: order.customer_name || order.so_number, lines: [order.delivery_address, order.delivery_address2].filter((line): line is string => Boolean(line)), suburb: order.delivery_suburb || order.delivery_city || '', state: order.delivery_state || '', postcode: order.delivery_postcode || '', country: order.delivery_country || 'AU', email: order.customer_email || '' };
-    if (!sender.lines.length || !sender.suburb || !sender.state || !sender.postcode) throw new Error(`${order.so_number}: dispatch address is incomplete.`);
+    const missingSenderFields = [!sender.lines.length ? 'street address' : '', !sender.suburb ? 'suburb/city' : '', !sender.state ? 'state' : '', !sender.postcode ? 'postcode' : ''].filter(Boolean);
+    if (missingSenderFields.length) throw new Error(`${order.so_number}: dispatch location ${location.name} is missing ${missingSenderFields.join(', ')}.`);
     if (!recipient.lines.length || !recipient.suburb || !recipient.state || !recipient.postcode) throw new Error(`${order.so_number}: delivery address is incomplete.`);
     entries.push({ requested, order, dispatchLocationId, sender, recipient });
   }

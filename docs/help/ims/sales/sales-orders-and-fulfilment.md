@@ -51,7 +51,7 @@ For Shopify orders, Solvantis copies the shipping address supplied on the order 
 3. Review prices, tax treatment, early-payment discount, freight, dates, and notes. Save the order as Draft while it is still being prepared.
 4. Confirm the order when the customer demand is ready to proceed.
 5. To prepare carrier shipments, select one or more eligible Confirmed or In Progress orders on the current page, then select **Ship Orders**. The header checkbox selects every eligible order on the page and remains available while orders are selected; clear it to deselect them all.
-6. Choose the carrier account and review each delivery address. Solvantis starts with suggested packages when product measurements and suitable presets are available. Otherwise, enter the parcel length, width, height and final packed weight manually. A preset is optional and only fills its saved dimensions.
+6. Choose the carrier account and review each Solvantis SO number, Channel Order # and delivery address. The selected carrier account's dispatch location must have a street address, suburb or city, state and postcode; use **Update location** when the shipping screen identifies missing sender fields. Solvantis starts with suggested packages when product measurements and suitable presets are available. Otherwise, enter the parcel length, width, height and final packed weight manually. A preset is optional and only fills its saved dimensions.
 7. Use **Add parcel** when the order is packed into more than one parcel. Assign each remaining order-line quantity across the parcels; the total assigned quantity must match the quantity still to ship.
 8. Select **Get shipping prices** to retrieve the available Australia Post contract services and GST-inclusive prices for the current destination, dimensions and packed weight. Change a parcel and select **Refresh prices** to price it again.
 9. Select **Prepare Shipments** to save the reviewed shipment and parcel drafts. Preparing drafts does not reduce stock and does not by itself create a carrier label.
@@ -80,6 +80,7 @@ When the entered payment reaches the qualifying settlement, turn on **Apply disc
 |---|---|---|
 | Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |
 | An order cannot be selected for shipping | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress | Open the order and resolve its status or remaining quantities |
+| Dispatch location is incomplete | The location selected on the carrier account is missing one or more sender fields | Select **Update location** and complete the named street, suburb or city, state, or postcode fields |
 | Automatic packing is unavailable | Product measurements are missing or no preset fits | Enter the actual packed dimensions and weight directly, or choose a suitable preset |
 | Get shipping prices is unavailable | A parcel field is empty, non-positive, or line quantities are not fully assigned | Complete every parcel measurement and assign the full remaining quantity |
 | Australia Post returns no common service | The selected service is not available for every parcel | Review parcel measurements and destination, or prepare separate shipments where appropriate |

@@ -10,6 +10,7 @@ export type ShippingCarrierAccountSummary = {
   accountNumber: string | null;
   dispatchLocationId: number | null;
   dispatchLocationName: string | null;
+  dispatchAddressMissingFields: string[];
   merchantLocationId: string | null;
   credentialsConfigured: boolean;
   apiKeyLength: number;
@@ -30,6 +31,10 @@ type CarrierAccountRow = {
   account_number: string | null;
   dispatch_location_id: number | null;
   dispatch_location_name: string | null;
+  dispatch_address: string | null;
+  dispatch_city: string | null;
+  dispatch_state: string | null;
+  dispatch_postcode: string | null;
   merchant_location_id: string | null;
   api_key_encrypted: string | null;
   password_encrypted: string | null;
@@ -43,6 +48,8 @@ export const ShippingSettingsRepository = {
     const rows = await imsQuery<CarrierAccountRow>(
       `SELECT account.id, account.provider, account.display_name, account.account_number,
               account.dispatch_location_id, location.name AS dispatch_location_name, account.merchant_location_id,
+              location.address AS dispatch_address, location.city AS dispatch_city,
+              location.state AS dispatch_state, location.postcode AS dispatch_postcode,
               account.api_key_encrypted, account.password_encrypted, account.verified_at,
               account.verification_error, account.is_active
          FROM ims_shipping_carrier_accounts account
@@ -58,6 +65,12 @@ export const ShippingSettingsRepository = {
       accountNumber: row.account_number,
       dispatchLocationId: row.dispatch_location_id == null ? null : Number(row.dispatch_location_id),
       dispatchLocationName: row.dispatch_location_name,
+      dispatchAddressMissingFields: [
+        !row.dispatch_address?.trim() ? 'street address' : '',
+        !row.dispatch_city?.trim() ? 'suburb/city' : '',
+        !row.dispatch_state?.trim() ? 'state' : '',
+        !row.dispatch_postcode?.trim() ? 'postcode' : '',
+      ].filter(Boolean),
       merchantLocationId: row.merchant_location_id,
       credentialsConfigured: Boolean(row.api_key_encrypted && row.password_encrypted),
       apiKeyLength: row.api_key_encrypted ? decrypt(row.api_key_encrypted).length : 0,

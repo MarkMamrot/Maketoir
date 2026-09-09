@@ -9,6 +9,10 @@ import { getShippingOrderEligibility } from '@/lib/ims/shipping/shippingWorkflow
 type SalesOrderSummary = {
   id: number;
   so_number: string;
+  channel_order_number?: string | null;
+  external_order_number?: string | null;
+  shopify_order_name?: string | null;
+  native_checkout_id?: string | null;
   customer_name?: string | null;
   status: string;
   so_type?: string | null;
@@ -24,7 +28,10 @@ type SalesOrderDetail = SalesOrderSummary & {
   items?: Array<{ id: number; sku?: string | null; product_name?: string | null; qty_ordered: number; qty_fulfilled: number; weight_kg?: number | null; length_mm?: number | null; width_mm?: number | null; height_mm?: number | null }>;
 };
 
-type CarrierAccount = { id: number; displayName: string; provider: string; verifiedAt: string | null; isActive: boolean };
+type CarrierAccount = {
+  id: number; displayName: string; provider: string; verifiedAt: string | null; isActive: boolean;
+  dispatchLocationName: string | null; dispatchAddressMissingFields: string[];
+};
 type ParcelAllocation = { soItemId: number; quantity: number };
 type EditableParcel = {
   packagePresetId: string;
@@ -85,7 +92,9 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   }, [selectedOrderKey]);
 
   const plans = details.map(order => ({ order, ...buildPackingPlan(order, presets) }));
-  const canCreate = Boolean(carrierAccountId) && plans.length > 0 && plans.every(plan => plan.ready && validEditableParcels(plan.order, parcelsByOrder[plan.order.id]));
+  const selectedAccount = accounts.find(account => String(account.id) === carrierAccountId);
+  const dispatchAddressReady = Boolean(selectedAccount && selectedAccount.dispatchAddressMissingFields.length === 0);
+  const canCreate = dispatchAddressReady && plans.length > 0 && plans.every(plan => plan.ready && validEditableParcels(plan.order, parcelsByOrder[plan.order.id]));
   const shipments = plans.map(plan => ({
     soId: plan.order.id,
     parcels: (parcelsByOrder[plan.order.id] ?? []).map((parcel, index) => ({
@@ -191,13 +200,13 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       <div style={{ padding: 18 }}>
         {loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Checking order lines and delivery addresses...</div>}
         {error && <div role="alert" style={{ color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
-        {!loading && !created.length && <label style={{ display: 'block', width: 'min(360px,100%)', marginBottom: 14 }}><span style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Carrier account</span><select value={carrierAccountId} onChange={event => { setCarrierAccountId(event.target.value); setQuotesByOrder({}); }} style={selectStyle}><option value="">Choose an account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}{account.verifiedAt ? '' : ' (not verified)'}</option>)}</select></label>}
+        {!loading && !created.length && <div style={{ marginBottom: 14 }}><label style={{ display: 'block', width: 'min(360px,100%)' }}><span style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Carrier account</span><select value={carrierAccountId} onChange={event => { setCarrierAccountId(event.target.value); setError(''); setQuotesByOrder({}); }} style={selectStyle}><option value="">Choose an account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}{account.verifiedAt ? '' : ' (not verified)'}</option>)}</select></label>{selectedAccount?.dispatchAddressMissingFields.length ? <div role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--sv-red)' }}>Dispatch location <strong>{selectedAccount.dispatchLocationName || 'not selected'}</strong> is missing {selectedAccount.dispatchAddressMissingFields.join(', ')}. <button type="button" onClick={() => { onClose(); window.location.hash = 'locations'; }} style={linkButtonStyle}>Update location</button></div> : null}</div>}
         {!loading && !created.length && plans.map(({ order, remainingQuantity, eligibility, hasAddress, ready, suggestion }) => {
           const orderParcels = parcelsByOrder[order.id] ?? [];
           const rates = quotesByOrder[order.id] ?? [];
           const parcelIssue = editableParcelIssue(order, orderParcels);
           return <div key={order.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--sv-etch)' }}><div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px,.7fr) minmax(170px,1fr) minmax(220px,1.3fr) auto', gap: 14, alignItems: 'center' }}>
-            <div><strong style={{ fontSize: 13 }}>{order.so_number}</strong><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{remainingQuantity} unit{remainingQuantity === 1 ? '' : 's'} remaining</div></div>
+            <div><strong style={{ fontSize: 13 }}>{order.so_number}</strong>{getChannelOrderNumber(order) && <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>Channel Order # {getChannelOrderNumber(order)}</div>}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{remainingQuantity} unit{remainingQuantity === 1 ? '' : 's'} remaining</div></div>
             <div style={{ fontSize: 12 }}>{order.customer_name || 'No customer name'}</div>
             <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{hasAddress ? [order.delivery_address, order.delivery_suburb, order.delivery_state, order.delivery_postcode].filter(Boolean).join(', ') : 'Delivery address is incomplete'}</div>
             <span style={{ fontSize: 11, fontWeight: 700, color: ready ? 'var(--sv-green)' : 'var(--sv-red)' }}>{ready ? 'Ready' : eligibility.eligible ? 'Address required' : eligibility.reason}</span>
@@ -243,6 +252,7 @@ const secondaryButtonStyle: React.CSSProperties = { padding: '8px 12px', border:
 const primaryButtonStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700 };
 const selectStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' };
 const fieldStyle: React.CSSProperties = { display: 'grid', gap: 4, minWidth: 0, color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700 };
+const linkButtonStyle: React.CSSProperties = { padding: 0, border: 0, background: 'transparent', color: 'var(--sv-action)', font: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' };
 
 function ParcelNumberField({ label, value, step = '1', onChange }: { label: string; value: string; step?: string; onChange: (value: string) => void }) {
   return <label style={fieldStyle}><span>{label}</span><input type="number" min="0" step={step} value={value} onChange={event => onChange(event.target.value)} style={selectStyle} /></label>;
@@ -326,4 +336,8 @@ function editableParcelIssue(order: SalesOrderDetail, parcels: EditableParcel[] 
 
 function formatAud(value: number): string {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value);
+}
+
+function getChannelOrderNumber(order: SalesOrderDetail): string {
+  return String(order.channel_order_number ?? order.external_order_number ?? order.shopify_order_name ?? order.native_checkout_id ?? '').trim();
 }

@@ -17,7 +17,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 
 | Setting | Purpose | Practical rule |
 |---|---|---|
-| Dispatch location | Supplies the sender address | Keep its street, suburb, state and postcode complete |
+| Dispatch location | Supplies the sender address used for carrier prices and shipments | Keep its street, suburb or city, state and postcode complete |
 | Package dimensions | Determines whether a product can fit | Enter internal length, width and height in millimetres |
 | Tare weight | Adds the empty package weight | Enter kilograms |
 | Maximum weight | Prevents an overweight suggestion | Leave blank only when the package has no configured limit |
@@ -53,6 +53,7 @@ Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Sh
 |---|---|---|
 | Credentials are unavailable | The account was saved without both credential values | Edit it, enter both values, and save again |
 | Connection verification fails | The production credentials or account number do not match | Check the Australia Post details and retry once |
+| Shipping says the dispatch address is incomplete | The selected location is missing one or more sender fields | Follow **Update location** from Ship Orders and complete every field named there |
 | MyPost Business cannot be enabled | Approved ecommerce-partner API access is not available | Use eParcel or leave the MyPost record inactive |
 | A preset is not offered | It is inactive or cannot contain the item | Reactivate it or add a suitable larger package |
 | An Australia Post preset is marked Added | A tenant preset already uses that name | Edit the existing preset; importing will not overwrite it |
