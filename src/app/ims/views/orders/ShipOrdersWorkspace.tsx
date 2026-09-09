@@ -206,7 +206,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   };
 
   const submitToCarrier = async () => {
-    if (!window.confirm('Submit these shipments to Australia Post and create billable postage labels?')) return;
+    if (!labelsPending && !window.confirm('Submit these shipments to Australia Post and create billable postage labels?')) return;
     setSubmitting(true); setError('');
     try {
       const response = await fetch('/api/ims/shipping/submit', {
@@ -279,7 +279,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
           return <div key={result.shipmentId} style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>{order?.so_number ?? `Shipment ${result.shipmentId}`}</strong><span style={{ color: 'var(--sv-text-dim)' }}>{result.chargedCost == null ? '' : `${formatAud(result.chargedCost)} charged`}</span><span style={{ marginLeft: 'auto', color: result.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)' }}>{result.status === 'label_ready' ? 'Label ready' : 'Label processing'}</span>{result.labelUrl && <a href={result.labelUrl} target="_blank" rel="noopener noreferrer" style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Download size={14} />PDF label</a>}</div>;
         })}</div>}
         {!loading && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
-          <button type="button" onClick={onClose} style={secondaryButtonStyle}>{submissionResults.length ? 'Close' : 'Cancel'}</button>
+          <button type="button" onClick={onClose} style={secondaryButtonStyle}>{created.length ? 'Close' : 'Cancel'}</button>
           {!created.length && <button type="button" disabled={!canCreate || quoting || saving} onClick={getQuotes} style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 7, opacity: canCreate && !quoting && !saving ? 1 : .55, cursor: canCreate && !quoting && !saving ? 'pointer' : 'not-allowed' }}><RefreshCw size={15} />{quoting ? 'Getting prices...' : Object.keys(quotesByOrder).length ? 'Refresh prices' : 'Get shipping prices'}</button>}
           {!created.length && <button type="button" disabled={!canCreate || !hasSelectedServices || saving} onClick={createDrafts} title={canCreate && !hasSelectedServices ? 'Choose a quoted shipping service for every order.' : undefined} style={{ ...primaryButtonStyle, opacity: canCreate && hasSelectedServices && !saving ? 1 : .55, cursor: canCreate && hasSelectedServices && !saving ? 'pointer' : 'not-allowed' }}><PackageCheck size={15} />{saving ? 'Preparing...' : 'Prepare Shipments'}</button>}
           {created.length > 0 && (!submissionResults.length || labelsPending) && <button type="button" disabled={submitting} onClick={submitToCarrier} style={{ ...primaryButtonStyle, opacity: submitting ? .55 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}><Send size={15} />{submitting ? 'Submitting...' : labelsPending ? 'Check label status' : 'Submit to Australia Post & create labels'}</button>}

@@ -1,5 +1,3 @@
-import type { ResultSetHeader } from 'mysql2/promise';
-
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { AusPostApiError, AusPostEparcelClient } from './carriers/auspostEparcel/client';
 import type { CarrierAddress, CarrierRate } from './carriers/types';
@@ -163,18 +161,21 @@ async function ensureLabel(
   client: AusPostEparcelClient,
 ): Promise<{ requestId: string; status: string; url?: string }> {
   const existing = (await imsQuery<{
-    provider_request_id: string | null; status: string; label_url: string | null;
+    provider_request_id: string | null; status: string; label_url: string | null; label_url_expires_at: string | Date | null;
   }>(
-    `SELECT provider_request_id, status, label_url FROM ims_shipping_labels
+    `SELECT provider_request_id, status, label_url, label_url_expires_at FROM ims_shipping_labels
       WHERE business_id = ? AND shipment_id = ? ORDER BY id DESC LIMIT 1`,
     [businessId, shipment.id],
   ))[0];
   if (existing?.provider_request_id) {
-    if (existing.status === 'available' && existing.label_url) {
+    const expiresAt = existing.label_url_expires_at ? new Date(existing.label_url_expires_at).getTime() : null;
+    if (existing.status === 'available' && existing.label_url && (!expiresAt || expiresAt > Date.now())) {
       return { requestId: existing.provider_request_id, status: 'AVAILABLE', url: existing.label_url };
     }
-    const response = await client.getLabel(existing.provider_request_id) as AusPostLabelResponse;
-    return persistLabelResponse(businessId, shipment.id, existing.provider_request_id, response);
+    if (existing.status !== 'error') {
+      const response = await client.getLabel(existing.provider_request_id) as AusPostLabelResponse;
+      return persistLabelResponse(businessId, shipment.id, existing.provider_request_id, response);
+    }
   }
   if (shipment.status === 'label_submitting' || shipment.status === 'label_unknown') {
     throw new Error(`${shipment.so_number}: label request outcome is unknown. Review it before retrying.`);

@@ -57,7 +57,7 @@ export async function createShippingDrafts(input: ShippingDraftInput): Promise<A
       const service = servicesByOrder.get(entry.requested.soId);
       if (!service) throw new Error(`${entry.order.so_number}: choose a quoted shipping service.`);
       const shipmentOperationKey = `${operationKey}:${entry.order.id}`;
-      const requestHash = createHash('sha256').update(JSON.stringify(entry.requested)).digest('hex');
+      const requestHash = createHash('sha256').update(JSON.stringify({ shipment: entry.requested, service })).digest('hex');
       const providerReference = `${entry.order.so_number}-${operationKey.slice(0, 24)}`;
       const [insert] = await connection.execute<ResultSetHeader>(
         `INSERT IGNORE INTO ims_shipping_shipments
@@ -99,11 +99,6 @@ export async function createShippingDrafts(input: ShippingDraftInput): Promise<A
           );
         }
       }
-      await connection.execute(
-        `UPDATE ims_shipping_shipments SET status = 'superseded'
-          WHERE business_id = ? AND so_id = ? AND status = 'draft' AND provider_shipment_id IS NULL AND id <> ?`,
-        [input.businessId, entry.order.id, shipmentId],
-      );
       result.push({ soId: entry.order.id, shipmentId });
     }
     await connection.commit();
