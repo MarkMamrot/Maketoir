@@ -7,6 +7,20 @@ import type {
 } from './types';
 
 const QUANTITY_SCALE = 10_000;
+const AUSPOST_MANIFEST_PARCEL_LIMIT = 2_000;
+
+export type ManifestCandidate = {
+  shipmentId: number;
+  carrierAccountId: number;
+  dispatchLocationId: number | null;
+  provider: string;
+  providerShipmentId: string | null;
+  shipmentStatus: string;
+  labelStatus: string | null;
+  imsFulfilledAt: string | Date | null;
+  manifestId: number | null;
+  parcelCount: number;
+};
 
 const SHIPMENT_TRANSITIONS: Record<ShippingShipmentStatus, readonly ShippingShipmentStatus[]> = {
   draft: ['quoting', 'failed'],
@@ -51,6 +65,23 @@ export function canTransitionShippingShipment(
 
 export function canDeleteShippingDraft(status: string, providerShipmentId: string | null): boolean {
   return !providerShipmentId && ['draft', 'quoting', 'failed'].includes(status);
+}
+
+export function validateManifestCandidates(candidates: ManifestCandidate[]): string[] {
+  if (!candidates.length) return ['Choose at least one dispatched shipment.'];
+  const errors: string[] = [];
+  if (candidates.some(candidate => !candidate.providerShipmentId)) errors.push('Every shipment must exist with the carrier.');
+  if (candidates.some(candidate => candidate.labelStatus !== 'available')) errors.push('Every shipment must have a ready label.');
+  if (candidates.some(candidate => !candidate.imsFulfilledAt)) errors.push('Every shipment must be marked dispatched.');
+  if (candidates.some(candidate => candidate.manifestId != null)) errors.push('A shipment is already included in a manifest.');
+  if (new Set(candidates.map(candidate => candidate.carrierAccountId)).size !== 1) errors.push('Choose shipments from one carrier account.');
+  if (new Set(candidates.map(candidate => candidate.dispatchLocationId)).size !== 1) errors.push('Choose shipments from one dispatch location.');
+  if (new Set(candidates.map(candidate => candidate.provider)).size !== 1) errors.push('Choose shipments from one carrier.');
+  const parcelCount = candidates.reduce((sum, candidate) => sum + candidate.parcelCount, 0);
+  if (candidates[0]?.provider === 'auspost_eparcel' && parcelCount > AUSPOST_MANIFEST_PARCEL_LIMIT) {
+    errors.push(`Australia Post manifests can contain no more than ${AUSPOST_MANIFEST_PARCEL_LIMIT} parcels.`);
+  }
+  return errors;
 }
 
 export function validateShippingParcels(

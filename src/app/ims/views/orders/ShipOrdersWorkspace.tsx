@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, PackageCheck, Plus, RefreshCw, Send, Trash2, X } from 'lucide-react';
+import { ClipboardList, Download, PackageCheck, Plus, Printer, RefreshCw, Send, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { suggestParcels, type PackableUnit, type PackingPreset } from '@/lib/ims/shipping/packingSuggestions';
@@ -55,7 +55,19 @@ type SavedShippingShipment = {
   chargedCost: number | null; providerShipmentId: string | null; labelStatus: string | null; labelUrl: string | null;
 };
 
+type ManifestCandidateRow = {
+  shipmentId: number; carrierAccountId: number; dispatchLocationId: number | null; provider: string;
+  soNumber: string; channelOrderNumber: string | null; carrierName: string; dispatchLocationName: string | null;
+  chargedCost: number | null; parcelCount: number;
+};
+type ManifestSummaryRow = {
+  id: number; provider: string; providerReference: string; providerOrderId: string | null; status: string;
+  carrierAccountId: number; carrierName: string; dispatchLocationId: number | null; dispatchLocationName: string | null;
+  shipmentCount: number; parcelCount: number; safeError: string | null; createdAt: string; completedAt: string | null;
+};
+
 export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSummary[]; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<'shipments' | 'manifests'>('shipments');
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
   const selectedOrderKey = orders.map(order => Number(order.id)).sort((left, right) => left - right).join(',');
@@ -301,10 +313,15 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   return <div role="dialog" aria-modal="true" aria-label="Ship orders" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(15,23,42,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
     <div style={{ width: 'min(920px, 100%)', maxHeight: 'calc(100vh - 40px)', overflow: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><PackageCheck size={19} color="var(--sv-action)" /><div><h2 style={{ margin: 0, fontSize: 17 }}>Ship orders</h2><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>{orders.length} selected</div></div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><PackageCheck size={19} color="var(--sv-action)" /><div><h2 style={{ margin: 0, fontSize: 17 }}>Shipping workspace</h2><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>{orders.length ? `${orders.length} order${orders.length === 1 ? '' : 's'} selected` : 'Saved shipping operations'}</div></div></div>
         <button type="button" title="Close" onClick={onClose} style={iconButtonStyle}><X size={17} /></button>
       </header>
       <div style={{ padding: 18 }}>
+        <div role="tablist" aria-label="Shipping workspace views" style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--sv-etch)' }}>
+          <button type="button" role="tab" aria-selected={activeTab === 'shipments'} onClick={() => setActiveTab('shipments')} style={tabButtonStyle(activeTab === 'shipments')}><PackageCheck size={14} />Shipments</button>
+          <button type="button" role="tab" aria-selected={activeTab === 'manifests'} onClick={() => setActiveTab('manifests')} style={tabButtonStyle(activeTab === 'manifests')}><ClipboardList size={14} />Manifests</button>
+        </div>
+        {activeTab === 'manifests' ? <ManifestsWorkspacePanel /> : <>
         {loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Checking order lines and delivery addresses...</div>}
         {error && <div role="alert" style={{ color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
         {dispatchMessage && <div role="status" style={{ marginBottom: 12, color: 'var(--sv-green)', fontSize: 13 }}>{dispatchMessage}</div>}
@@ -363,6 +380,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
           {created.length > 0 && needsCarrierAction && <button type="button" disabled={submitting} onClick={submitToCarrier} style={{ ...primaryButtonStyle, opacity: submitting ? .55 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}><Send size={15} />{submitting ? 'Submitting...' : labelsPending ? 'Check label status' : 'Submit to Australia Post & create labels'}</button>}
           {created.length > 0 && submissionResults.length === created.length && submissionResults.every(result => result.status === 'label_ready') && <button type="button" disabled={dispatching} onClick={markDispatched} style={{ ...primaryButtonStyle, opacity: dispatching ? .55 : 1, cursor: dispatching ? 'not-allowed' : 'pointer' }}><PackageCheck size={15} />{dispatching ? 'Updating orders...' : 'Mark dispatched'}</button>}
         </div>}
+        </>}
       </div>
     </div>
   </div>;
@@ -377,6 +395,95 @@ async function readJsonResponse(response: Response): Promise<any> {
   }
 }
 
+function ManifestsWorkspacePanel() {
+  const [candidates, setCandidates] = useState<ManifestCandidateRow[]>([]);
+  const [manifests, setManifests] = useState<ManifestSummaryRow[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  const load = async () => {
+    setLoading(true); setError('');
+    try {
+      const response = await fetch('/api/ims/shipping/manifests');
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load manifests.');
+      setCandidates(result.data?.candidates ?? []);
+      setManifests(result.data?.manifests ?? []);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load manifests.'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const groups = new Map<string, ManifestCandidateRow[]>();
+  for (const candidate of candidates) {
+    const key = manifestGroupKey(candidate);
+    groups.set(key, [...(groups.get(key) ?? []), candidate]);
+  }
+  const selectedRows = candidates.filter(candidate => selected.has(candidate.shipmentId));
+  const createManifest = async () => {
+    if (!selectedRows.length) return;
+    if (!window.confirm(`Create the ${selectedRows[0].carrierName} booking and close a manifest containing ${selectedRows.length} shipment${selectedRows.length === 1 ? '' : 's'}?`)) return;
+    setCreating(true); setError(''); setMessage('');
+    try {
+      const response = await fetch('/api/ims/shipping/manifests', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey: crypto.randomUUID(), shipmentIds: selectedRows.map(row => row.shipmentId) }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to create the carrier manifest.');
+      setMessage(`Manifest ${result.data.providerOrderId || result.data.providerReference} created. Print and sign the carrier summary for lodgement.`);
+      setSelected(new Set());
+      await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to create the carrier manifest.'); }
+    finally { setCreating(false); }
+  };
+  const reconcile = async (manifest: ManifestSummaryRow) => {
+    const providerOrderId = window.prompt('Enter the Australia Post order ID after confirming this booking in the carrier portal.');
+    if (!providerOrderId?.trim()) return;
+    setCreating(true); setError('');
+    try {
+      const response = await fetch(`/api/ims/shipping/manifests/${manifest.id}/reconcile`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerOrderId }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to reconcile the manifest.');
+      setMessage(`Manifest ${result.data.providerOrderId} reconciled and ready to print.`);
+      await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to reconcile the manifest.'); }
+    finally { setCreating(false); }
+  };
+
+  return <div role="tabpanel">
+    {loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading dispatched shipments and manifest history...</div>}
+    {error && <div role="alert" style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
+    {message && <div role="status" style={{ marginBottom: 12, color: 'var(--sv-green)', fontSize: 13 }}>{message}</div>}
+    {!loading && groups.size === 0 && <div style={{ marginBottom: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No dispatched, unmanifested shipments are ready. Create labels and mark parcels dispatched first.</div>}
+    {[...groups.entries()].map(([key, rows]) => {
+      const groupSelected = rows.filter(row => selected.has(row.shipmentId));
+      return <section key={key} style={{ marginBottom: 18, border: '1px solid var(--sv-etch)', borderRadius: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: 12, background: 'var(--sv-bg-2)', flexWrap: 'wrap' }}><div><strong style={{ fontSize: 13 }}>{rows[0].carrierName}</strong><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{rows[0].dispatchLocationName || 'No dispatch location'} · {rows.reduce((sum, row) => sum + row.parcelCount, 0)} parcel{rows.reduce((sum, row) => sum + row.parcelCount, 0) === 1 ? '' : 's'}</div></div><button type="button" onClick={() => setSelected(new Set(groupSelected.length === rows.length ? [] : rows.map(row => row.shipmentId)))} style={secondaryButtonStyle}>{groupSelected.length === rows.length ? 'Clear group' : 'Select group'}</button></div>
+        {rows.map(row => <label key={row.shipmentId} style={{ display: 'grid', gridTemplateColumns: '24px minmax(150px,1fr) minmax(120px,.8fr) auto', gap: 10, alignItems: 'center', padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><input type="checkbox" checked={selected.has(row.shipmentId)} onChange={event => setSelected(current => { const next = manifestGroupKey(row) === manifestGroupKey(selectedRows[0] ?? row) ? new Set(current) : new Set<number>(); if (event.target.checked) next.add(row.shipmentId); else next.delete(row.shipmentId); return next; })} /><span><strong>{row.soNumber}</strong>{row.channelOrderNumber && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{row.channelOrderNumber}</span>}</span><span>{row.parcelCount} parcel{row.parcelCount === 1 ? '' : 's'}</span><span>{row.chargedCost == null ? '' : formatAud(row.chargedCost)}</span></label>)}
+      </section>;
+    })}
+    {selectedRows.length > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 22 }}><button type="button" disabled={creating} onClick={createManifest} style={{ ...primaryButtonStyle, opacity: creating ? .55 : 1 }}><ClipboardList size={15} />{creating ? 'Creating booking...' : 'Create booking & manifest'}</button></div>}
+    {!loading && <section><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 }}><strong style={{ fontSize: 13 }}>Manifest history</strong><button type="button" title="Refresh manifests" onClick={() => void load()} style={smallIconButtonStyle}><RefreshCw size={14} /></button></div>{manifests.length === 0 ? <div style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>No manifests have been created.</div> : manifests.map(manifest => <div key={manifest.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) minmax(130px,.7fr) auto', gap: 12, alignItems: 'center', padding: '10px 4px', borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><span><strong>{manifest.providerOrderId || manifest.providerReference}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{manifest.carrierName} · {manifest.dispatchLocationName || 'No dispatch location'}</span></span><span>{manifest.shipmentCount} shipment{manifest.shipmentCount === 1 ? '' : 's'} · {manifest.parcelCount} parcel{manifest.parcelCount === 1 ? '' : 's'}<span style={{ display: 'block', color: manifest.status === 'complete' ? 'var(--sv-green)' : manifest.status === 'submission_unknown' ? 'var(--sv-red)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{manifestStatusLabel(manifest.status)}</span></span><span>{manifest.status === 'complete' ? <a href={`/api/ims/shipping/manifests/${manifest.id}/summary`} target="_blank" rel="noopener noreferrer" style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Printer size={14} />Print manifest</a> : manifest.status === 'submission_unknown' ? <button type="button" disabled={creating} onClick={() => void reconcile(manifest)} style={secondaryButtonStyle}>Reconcile</button> : null}</span>{manifest.safeError && <span style={{ gridColumn: '1 / -1', color: 'var(--sv-red)', fontSize: 11 }}>{manifest.safeError}</span>}</div>)}</section>}
+  </div>;
+}
+
+function manifestGroupKey(row: Pick<ManifestCandidateRow, 'provider' | 'carrierAccountId' | 'dispatchLocationId'>): string {
+  return `${row.provider}:${row.carrierAccountId}:${row.dispatchLocationId ?? 'none'}`;
+}
+
+function manifestStatusLabel(status: string): string {
+  if (status === 'complete') return 'Ready to print';
+  if (status === 'submission_unknown') return 'Carrier outcome needs review';
+  if (status === 'failed') return 'Not created';
+  return 'Creating';
+}
+
 const iconButtonStyle: React.CSSProperties = { width: 34, height: 34, display: 'grid', placeItems: 'center', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer' };
 const smallIconButtonStyle: React.CSSProperties = { ...iconButtonStyle, width: 28, height: 28 };
 const secondaryButtonStyle: React.CSSProperties = { padding: '8px 12px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontWeight: 700, cursor: 'pointer' };
@@ -384,6 +491,7 @@ const primaryButtonStyle: React.CSSProperties = { display: 'inline-flex', alignI
 const selectStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' };
 const fieldStyle: React.CSSProperties = { display: 'grid', gap: 4, minWidth: 0, color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700 };
 const linkButtonStyle: React.CSSProperties = { padding: 0, border: 0, background: 'transparent', color: 'var(--sv-action)', font: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' };
+const tabButtonStyle = (active: boolean): React.CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 10px', border: 0, borderBottom: `2px solid ${active ? 'var(--sv-action)' : 'transparent'}`, background: 'transparent', color: active ? 'var(--sv-action)' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' });
 
 function ParcelNumberField({ label, value, step = '1', onChange }: { label: string; value: string; step?: string; onChange: (value: string) => void }) {
   return <label style={fieldStyle}><span>{label}</span><input type="number" min="0" step={step} value={value} onChange={event => onChange(event.target.value)} style={selectStyle} /></label>;

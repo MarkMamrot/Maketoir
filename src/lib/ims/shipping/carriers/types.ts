@@ -52,3 +52,9 @@ export interface ShippingCarrierAdapter {
   createLabels(input: unknown): Promise<unknown>;
   getLabel(requestId: string): Promise<unknown>;
 }
+
+export interface ShippingManifestCarrierAdapter {
+  createOrderFromShipments(input: { orderReference: string; shipmentIds: string[] }): Promise<{ orderId: string }>;
+  getOrder(orderId: string): Promise<{ orderId: string; shipmentIds: string[] }>;
+  getOrderSummaryPdf(orderId: string): Promise<Uint8Array>;
+}

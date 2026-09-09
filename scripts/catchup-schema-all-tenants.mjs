@@ -406,10 +406,15 @@ const TABLE_DDLS = [
     INDEX idx_shipping_package_active (business_id, is_active, sort_priority, id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
   `CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, carrier_account_id BIGINT NOT NULL,
-    dispatch_location_id INT NULL, provider_order_id VARCHAR(150) NULL, status VARCHAR(30) NOT NULL DEFAULT 'submitting',
-    shipment_count INT NOT NULL DEFAULT 0, summary_url VARCHAR(2000) NULL, summary_url_expires_at DATETIME NULL,
-    safe_error VARCHAR(500) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NOT NULL, carrier_account_id BIGINT NOT NULL, dispatch_location_id INT NULL,
+    provider VARCHAR(50) NOT NULL, provider_reference VARCHAR(50) NOT NULL, provider_order_id VARCHAR(150) NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'submitting', shipment_count INT NOT NULL DEFAULT 0,
+    parcel_count INT NOT NULL DEFAULT 0, summary_url VARCHAR(2000) NULL, summary_url_expires_at DATETIME NULL,
+    safe_error VARCHAR(500) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    submitted_at DATETIME NULL, completed_at DATETIME NULL,
+    UNIQUE KEY uq_shipping_manifest_operation (business_id, operation_key),
+    UNIQUE KEY uq_shipping_manifest_reference (business_id, provider, provider_reference),
     UNIQUE KEY uq_shipping_manifest_provider (business_id, carrier_account_id, provider_order_id),
     INDEX idx_shipping_manifest_status (business_id, status, created_at),
     CONSTRAINT fk_shipping_manifest_account FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
@@ -1223,6 +1228,13 @@ if (requestedTable && !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requeste
 const COLUMNS = [
   ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
   ['ims_shipping_carrier_accounts', 'base_url', 'VARCHAR(500) NULL AFTER environment'],
+  ['ims_shipping_manifests', 'operation_key', "VARCHAR(191) NOT NULL DEFAULT '' AFTER business_id"],
+  ['ims_shipping_manifests', 'request_hash', "CHAR(64) NOT NULL DEFAULT '' AFTER operation_key"],
+  ['ims_shipping_manifests', 'provider', "VARCHAR(50) NOT NULL DEFAULT 'auspost_eparcel' AFTER dispatch_location_id"],
+  ['ims_shipping_manifests', 'provider_reference', "VARCHAR(50) NOT NULL DEFAULT '' AFTER provider"],
+  ['ims_shipping_manifests', 'parcel_count', 'INT NOT NULL DEFAULT 0 AFTER shipment_count'],
+  ['ims_shipping_manifests', 'submitted_at', 'DATETIME NULL AFTER created_at'],
+  ['ims_shipping_shipments', 'manifested_at', 'DATETIME NULL AFTER ims_fulfilled_at'],
   ['ims_product_variants', 'length_mm', 'DECIMAL(10,2) NULL AFTER weight_kg'],
   ['ims_product_variants', 'width_mm', 'DECIMAL(10,2) NULL AFTER length_mm'],
   ['ims_product_variants', 'height_mm', 'DECIMAL(10,2) NULL AFTER width_mm'],
@@ -1507,6 +1519,8 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
+  ['ims_shipping_manifests', 'uq_shipping_manifest_operation', 'UNIQUE INDEX `uq_shipping_manifest_operation` (`business_id`, `operation_key`)'],
+  ['ims_shipping_manifests', 'uq_shipping_manifest_reference', 'UNIQUE INDEX `uq_shipping_manifest_reference` (`business_id`, `provider`, `provider_reference`)'],
   ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],
   ['ims_brands', 'idx_ims_brand_business', 'INDEX `idx_ims_brand_business` (`business_id`)'],
   ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],
@@ -1812,6 +1826,17 @@ async function migrateSchema(schema, businessId) {
     } catch (e) {
       console.error(`  ✗ ${schema}.${table}.${col}: ${e.message}`);
     }
+  }
+
+  try {
+    await conn.query(
+      `UPDATE \`${schema}\`.ims_shipping_manifests
+          SET operation_key = CASE WHEN operation_key = '' THEN CONCAT('legacy-manifest:', id) ELSE operation_key END,
+              request_hash = CASE WHEN request_hash = '' THEN SHA2(CONCAT('legacy-manifest:', id), 256) ELSE request_hash END,
+              provider_reference = CASE WHEN provider_reference = '' THEN CONCAT('LEGACY-', id) ELSE provider_reference END`,
+    );
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_shipping_manifests identity backfill: ${e.message}`);
   }
 
   if (businessId) {

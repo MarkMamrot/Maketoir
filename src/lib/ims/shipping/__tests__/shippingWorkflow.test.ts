@@ -6,6 +6,7 @@ import {
   getAusPostLabelBatchLimit,
   getShippingOrderEligibility,
   splitAusPostLabelBatch,
+  validateManifestCandidates,
   validateShippingParcels,
 } from '../shippingWorkflow';
 
@@ -47,6 +48,31 @@ describe('shipping workflow', () => {
     expect(canDeleteShippingDraft('failed', 'carrier-123')).toBe(false);
     expect(canDeleteShippingDraft('carrier_created', null)).toBe(false);
     expect(canDeleteShippingDraft('label_ready', 'carrier-123')).toBe(false);
+  });
+
+  it('groups manifests by carrier account and dispatch location after dispatch', () => {
+    const candidate = {
+      shipmentId: 1, carrierAccountId: 2, dispatchLocationId: 3, provider: 'auspost_eparcel',
+      providerShipmentId: 'AP-SHIP-1', shipmentStatus: 'channel_pending', labelStatus: 'available',
+      imsFulfilledAt: '2026-09-09 01:00:00', manifestId: null, parcelCount: 1,
+    };
+    expect(validateManifestCandidates([candidate])).toEqual([]);
+    expect(validateManifestCandidates([candidate, { ...candidate, shipmentId: 2, dispatchLocationId: 4 }]))
+      .toContain('Choose shipments from one dispatch location.');
+    expect(validateManifestCandidates([{ ...candidate, imsFulfilledAt: null }]))
+      .toContain('Every shipment must be marked dispatched.');
+    expect(validateManifestCandidates([{ ...candidate, manifestId: 8 }]))
+      .toContain('A shipment is already included in a manifest.');
+  });
+
+  it('enforces the Australia Post 2,000 parcel manifest limit', () => {
+    const candidate = {
+      shipmentId: 1, carrierAccountId: 2, dispatchLocationId: 3, provider: 'auspost_eparcel',
+      providerShipmentId: 'AP-SHIP-1', shipmentStatus: 'complete', labelStatus: 'available',
+      imsFulfilledAt: '2026-09-09 01:00:00', manifestId: null, parcelCount: 2001,
+    };
+    expect(validateManifestCandidates([candidate])).toContain('Australia Post manifests can contain no more than 2000 parcels.');
+    expect(validateManifestCandidates([{ ...candidate, parcelCount: 2000 }])).toEqual([]);
   });
 
   it('accepts fractional line allocations and rejects over-allocation or invalid parcels', () => {

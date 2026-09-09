@@ -4,6 +4,7 @@ import type {
   CarrierParcel,
   CarrierRate,
   ShippingCarrierAdapter,
+  ShippingManifestCarrierAdapter,
 } from '../types';
 
 const PRODUCTION_BASE_URL = 'https://digitalapi.auspost.com.au/shipping/v1';
@@ -25,7 +26,7 @@ export class AusPostApiError extends Error {
   }
 }
 
-export class AusPostEparcelClient implements ShippingCarrierAdapter {
+export class AusPostEparcelClient implements ShippingCarrierAdapter, ShippingManifestCarrierAdapter {
   readonly provider = 'auspost_eparcel' as const;
   readonly capabilities: CarrierCapabilities = {
     domesticShipping: true,
@@ -82,16 +83,55 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter {
     return this.request(`/shipments/${encodeURIComponent(shipmentId)}`, { method: 'DELETE' });
   }
 
+  async createOrderFromShipments(input: { orderReference: string; shipmentIds: string[] }): Promise<{ orderId: string }> {
+    const payload = await this.request<AusPostOrderResponse>('/orders', {
+      method: 'PUT',
+      body: JSON.stringify({
+        order_reference: input.orderReference.slice(0, 50),
+        payment_method: 'CHARGE_TO_ACCOUNT',
+        shipments: input.shipmentIds.map(shipmentId => ({ shipment_id: shipmentId })),
+      }),
+    });
+    const orderId = String(payload.order?.order_id ?? '').trim();
+    if (!orderId) throw new Error('Australia Post did not return an order ID.');
+    return { orderId };
+  }
+
+  async getOrder(orderId: string): Promise<{ orderId: string; shipmentIds: string[] }> {
+    const payload = await this.request<AusPostOrderResponse>(`/orders/${encodeURIComponent(orderId)}`);
+    const order = payload.order;
+    const returnedOrderId = String(order?.order_id ?? '').trim();
+    if (!returnedOrderId) throw new Error('Australia Post did not return the requested order.');
+    return {
+      orderId: returnedOrderId,
+      shipmentIds: (order?.shipments ?? []).map(shipment => String(shipment.shipment_id ?? '').trim()).filter(Boolean),
+    };
+  }
+
+  async getOrderSummaryPdf(orderId: string): Promise<Uint8Array> {
+    const path = `/accounts/${encodeURIComponent(this.credentials.accountNumber)}/orders/${encodeURIComponent(orderId)}/summary`;
+    const response = await this.fetchImpl(`${PRODUCTION_BASE_URL}${path}`, {
+      headers: this.headers({ Accept: 'application/pdf' }),
+    });
+    if (!response.ok) {
+      const payload = await parseResponse(response);
+      const errors = normalizeAusPostErrors(payload);
+      throw new AusPostApiError(
+        errors.map(error => error.message).join(' ') || `Australia Post request failed with HTTP ${response.status}.`,
+        response.status,
+        errors,
+      );
+    }
+    if (!String(response.headers.get('content-type') ?? '').toLowerCase().includes('application/pdf')) {
+      throw new Error('Australia Post did not return a PDF order summary.');
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
   private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await this.fetchImpl(`${PRODUCTION_BASE_URL}${path}`, {
       ...init,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Basic ${Buffer.from(`${this.credentials.apiKey}:${this.credentials.password}`).toString('base64')}`,
-        'account-number': this.credentials.accountNumber,
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init.headers,
-      },
+      headers: this.headers({ Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers }),
     });
     const payload = await parseResponse(response);
     if (!response.ok) {
@@ -104,7 +144,22 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter {
     }
     return payload as T;
   }
+
+  private headers(extra: HeadersInit = {}): HeadersInit {
+    return {
+      Authorization: `Basic ${Buffer.from(`${this.credentials.apiKey}:${this.credentials.password}`).toString('base64')}`,
+      'account-number': this.credentials.accountNumber,
+      ...extra,
+    };
+  }
 }
+
+type AusPostOrderResponse = {
+  order?: {
+    order_id?: string;
+    shipments?: Array<{ shipment_id?: string }>;
+  };
+};
 
 type AusPostPriceItem = {
   prices?: Array<{

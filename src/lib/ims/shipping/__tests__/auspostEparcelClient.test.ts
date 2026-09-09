@@ -72,4 +72,50 @@ describe('AusPostEparcelClient', () => {
       errors: [{ code: '41007', name: 'CONTRACT_SETUP_ERROR', message: 'Contract is not ready.', field: undefined }],
     }));
   });
+
+  it('creates an Australia Post order from existing shipments', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ order: { order_id: 'AP00042' } }), { status: 201 }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+
+    await expect(client.createOrderFromShipments({ orderReference: 'SOL-MAN-42', shipmentIds: ['SHIP-1', 'SHIP-2'] }))
+      .resolves.toEqual({ orderId: 'AP00042' });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://digitalapi.auspost.com.au/shipping/v1/orders',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          order_reference: 'SOL-MAN-42', payment_method: 'CHARGE_TO_ACCOUNT',
+          shipments: [{ shipment_id: 'SHIP-1' }, { shipment_id: 'SHIP-2' }],
+        }),
+      }),
+    );
+  });
+
+  it('retrieves an order for reconciliation', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+      order: { order_id: 'AP00042', shipments: [{ shipment_id: 'SHIP-1' }, { shipment_id: 'SHIP-2' }] },
+    }), { status: 200 }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+
+    await expect(client.getOrder('AP00042')).resolves.toEqual({ orderId: 'AP00042', shipmentIds: ['SHIP-1', 'SHIP-2'] });
+  });
+
+  it('downloads the printable order summary as PDF bytes', async () => {
+    const bytes = new Uint8Array([37, 80, 68, 70]);
+    const fetchImpl = vi.fn(async () => new Response(bytes, { status: 200, headers: { 'Content-Type': 'application/pdf' } }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+
+    await expect(client.getOrderSummaryPdf('AP00042')).resolves.toEqual(bytes);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://digitalapi.auspost.com.au/shipping/v1/accounts/0000123456/orders/AP00042/summary',
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/pdf' }) }),
+    );
+  });
+
+  it('rejects a non-PDF order summary response', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+
+    await expect(client.getOrderSummaryPdf('AP00042')).rejects.toThrow('Australia Post did not return a PDF order summary.');
+  });
 });
