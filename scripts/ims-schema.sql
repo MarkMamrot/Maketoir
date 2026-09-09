@@ -1087,6 +1087,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   delivery_state   VARCHAR(100) NULL,
   delivery_postcode VARCHAR(30) NULL,
   delivery_country VARCHAR(100) NULL,
+  channel_shipping_method VARCHAR(255) NULL,
+  channel_delivery_type VARCHAR(20) NULL,
   payment_terms    VARCHAR(100) NULL,
   early_payment_discount_rule_id INT NULL,
   early_payment_discount_name VARCHAR(120) NULL,
@@ -1422,7 +1424,7 @@ CREATE TABLE IF NOT EXISTS ims_shipping_labels (
   available_at             DATETIME NULL,
   last_printed_at          DATETIME NULL,
   print_count              INT NOT NULL DEFAULT 0,
-  UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id),
+  UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id, shipment_id),
   INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
   FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

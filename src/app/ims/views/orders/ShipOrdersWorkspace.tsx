@@ -13,6 +13,8 @@ type SalesOrderSummary = {
   external_order_number?: string | null;
   shopify_order_name?: string | null;
   native_checkout_id?: string | null;
+  channel_shipping_method?: string | null;
+  channel_delivery_type?: string | null;
   customer_name?: string | null;
   status: string;
   so_type?: string | null;
@@ -47,6 +49,11 @@ type ShippingSubmissionResult = {
   shipmentId: number; soId: number; status: 'label_pending' | 'label_ready';
   providerShipmentId: string; labelUrl: string | null; chargedCost: number | null;
 };
+type SavedShippingShipment = {
+  shipmentId: number; soId: number; soNumber: string; channelOrderNumber: string | null; customerName: string | null;
+  status: string; serviceCode: string | null; serviceName: string | null; quotedCost: number | null;
+  chargedCost: number | null; providerShipmentId: string | null; labelStatus: string | null; labelUrl: string | null;
+};
 
 export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSummary[]; onClose: () => void }) {
   const ordersRef = useRef(orders);
@@ -64,8 +71,12 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatchMessage, setDispatchMessage] = useState('');
   const [created, setCreated] = useState<Array<{ soId: number; shipmentId: number }>>([]);
   const [submissionResults, setSubmissionResults] = useState<ShippingSubmissionResult[]>([]);
+  const [savedShipments, setSavedShipments] = useState<SavedShippingShipment[]>([]);
+  const [savedSelection, setSavedSelection] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -83,7 +94,12 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
         if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load shipping settings.');
         return result.data as { accounts: CarrierAccount[]; presets: PackingPreset[] };
       }),
-    ]).then(([orderDetails, settings]) => {
+      fetch('/api/ims/shipping/drafts').then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load saved shipments.');
+        return result.data as SavedShippingShipment[];
+      }),
+    ]).then(([orderDetails, settings, activeShipments]) => {
       if (!active) return;
       setDetails(orderDetails);
       const activeAccounts = settings.accounts.filter(account => account.isActive && account.provider === 'auspost_eparcel');
@@ -92,13 +108,15 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       setPresets(activePresets);
       setCarrierAccountId(activeAccounts[0] ? String(activeAccounts[0].id) : '');
       setParcelsByOrder(Object.fromEntries(orderDetails.map(order => [order.id, initialParcels(order, activePresets)])));
+      setSavedShipments(activeShipments);
     })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to prepare these orders.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [selectedOrderKey]);
 
-  const plans = details.map(order => ({ order, ...buildPackingPlan(order, presets) }));
+  const savedOrderIds = new Set(savedShipments.map(shipment => shipment.soId));
+  const plans = details.filter(order => !savedOrderIds.has(order.id)).map(order => ({ order, ...buildPackingPlan(order, presets) }));
   const selectedAccount = accounts.find(account => String(account.id) === carrierAccountId);
   const dispatchAddressReady = Boolean(selectedAccount && selectedAccount.dispatchAddressMissingFields.length === 0);
   const canCreate = dispatchAddressReady && plans.length > 0 && plans.every(plan => plan.ready && validEditableParcels(plan.order, parcelsByOrder[plan.order.id]));
@@ -222,6 +240,44 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
 
   const hasSelectedServices = plans.length > 0 && plans.every(plan => Boolean(selectedServiceByOrder[plan.order.id]));
   const labelsPending = submissionResults.some(result => result.status === 'label_pending');
+  const needsCarrierAction = submissionResults.length < created.length || labelsPending;
+  const visibleSavedShipments = orders.length
+    ? savedShipments.filter(shipment => orders.some(order => Number(order.id) === shipment.soId))
+    : savedShipments;
+  const openSavedShipments = () => {
+    const selected = visibleSavedShipments.filter(shipment => savedSelection.has(shipment.shipmentId));
+    setCreated(selected.map(shipment => ({ soId: shipment.soId, shipmentId: shipment.shipmentId })));
+    setSubmissionResults(selected.filter(shipment => shipment.providerShipmentId).map(shipment => ({
+      shipmentId: shipment.shipmentId, soId: shipment.soId,
+      status: shipment.labelStatus === 'available' ? 'label_ready' : 'label_pending',
+      providerShipmentId: shipment.providerShipmentId!, labelUrl: shipment.labelUrl,
+      chargedCost: shipment.chargedCost,
+    })));
+    setError('');
+  };
+  const markDispatched = async () => {
+    if (!window.confirm('Mark these labelled shipments as dispatched? This updates stock and Sales Order fulfillment, then syncs the connected channel.')) return;
+    setDispatching(true); setError(''); setDispatchMessage('');
+    try {
+      const response = await fetch('/api/ims/shipping/dispatch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipmentIds: created.map(item => item.shipmentId) }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to mark shipments dispatched.');
+      const pending = (result.data ?? []).filter((item: any) => item.shipmentStatus === 'channel_pending');
+      setDispatchMessage(pending.length
+        ? `${result.data.length} shipment${result.data.length === 1 ? '' : 's'} dispatched in Solvantis; ${pending.length} channel sync${pending.length === 1 ? '' : 's'} need retry.`
+        : `${result.data.length} shipment${result.data.length === 1 ? '' : 's'} marked dispatched.`);
+      setSavedShipments(current => current.filter(item => !(result.data ?? []).some((done: any) => done.shipmentId === item.shipmentId && done.shipmentStatus === 'complete')));
+      if (!pending.length) {
+        setCreated([]);
+        setSubmissionResults([]);
+        setSavedSelection(new Set());
+      }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to mark shipments dispatched.'); }
+    finally { setDispatching(false); }
+  };
 
   return <div role="dialog" aria-modal="true" aria-label="Ship orders" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(15,23,42,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
     <div style={{ width: 'min(920px, 100%)', maxHeight: 'calc(100vh - 40px)', overflow: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 22px 60px rgba(0,0,0,.28)' }}>
@@ -232,6 +288,8 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       <div style={{ padding: 18 }}>
         {loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Checking order lines and delivery addresses...</div>}
         {error && <div role="alert" style={{ color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
+        {dispatchMessage && <div role="status" style={{ marginBottom: 12, color: 'var(--sv-green)', fontSize: 13 }}>{dispatchMessage}</div>}
+        {!loading && !created.length && visibleSavedShipments.length > 0 && <section style={{ marginBottom: 18 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}><div><strong style={{ fontSize: 13 }}>Saved shipments</strong><div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>Prepared shipments remain here when you close this workspace.</div></div><button type="button" disabled={!savedSelection.size} onClick={openSavedShipments} style={{ ...secondaryButtonStyle, opacity: savedSelection.size ? 1 : .55 }}>Open selected</button></div><div style={{ borderTop: '1px solid var(--sv-etch)' }}>{visibleSavedShipments.map(shipment => <label key={shipment.shipmentId} style={{ display: 'grid', gridTemplateColumns: '24px minmax(150px,.8fr) minmax(160px,1fr) minmax(150px,1fr) auto', gap: 10, alignItems: 'center', padding: '10px 4px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}><input type="checkbox" checked={savedSelection.has(shipment.shipmentId)} onChange={event => setSavedSelection(current => { const next = new Set(current); if (event.target.checked) next.add(shipment.shipmentId); else next.delete(shipment.shipmentId); return next; })} /><span><strong>{shipment.soNumber}</strong>{shipment.channelOrderNumber && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{shipment.channelOrderNumber}</span>}</span><span>{shipment.customerName || 'No customer name'}</span><span>{shipment.serviceName || 'Service not selected'}{shipment.quotedCost != null && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{formatAud(shipment.quotedCost)} quoted</span>}</span><span style={{ color: shipment.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{shippingStatusLabel(shipment.status)}</span></label>)}</div></section>}
         {!loading && !created.length && <div style={{ marginBottom: 14 }}><label style={{ display: 'block', width: 'min(360px,100%)' }}><span style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Carrier account</span><select value={carrierAccountId} onChange={event => { setCarrierAccountId(event.target.value); setError(''); setQuotesByOrder({}); setSelectedServiceByOrder({}); }} style={selectStyle}><option value="">Choose an account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}{account.verifiedAt ? '' : ' (not verified)'}</option>)}</select></label>{selectedAccount?.dispatchAddressMissingFields.length ? <div role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--sv-red)' }}>Dispatch location <strong>{selectedAccount.dispatchLocationName || 'not selected'}</strong> is missing {selectedAccount.dispatchAddressMissingFields.join(', ')}. <button type="button" onClick={() => { onClose(); window.location.hash = 'locations'; }} style={linkButtonStyle}>Update location</button></div> : null}</div>}
         {!loading && !created.length && plans.map(({ order, remainingQuantity, eligibility, hasAddress, ready, suggestion }) => {
           const orderParcels = parcelsByOrder[order.id] ?? [];
@@ -239,7 +297,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
           const parcelIssue = editableParcelIssue(order, orderParcels);
           return <div key={order.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--sv-etch)' }}><div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px,.7fr) minmax(170px,1fr) minmax(220px,1.3fr) auto', gap: 14, alignItems: 'center' }}>
             <div><strong style={{ fontSize: 13 }}>{order.so_number}</strong>{getChannelOrderNumber(order) && <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>Channel Order # {getChannelOrderNumber(order)}</div>}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{remainingQuantity} unit{remainingQuantity === 1 ? '' : 's'} remaining</div></div>
-            <div style={{ fontSize: 12 }}>{order.customer_name || 'No customer name'}</div>
+            <div style={{ fontSize: 12 }}>{order.customer_name || 'No customer name'}{formatChannelShippingMethod(order) && <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>{formatChannelShippingMethod(order)}</div>}</div>
             <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{hasAddress ? [order.delivery_address, order.delivery_suburb, order.delivery_state, order.delivery_postcode].filter(Boolean).join(', ') : 'Delivery address is incomplete'}</div>
             <span style={{ fontSize: 11, fontWeight: 700, color: ready ? 'var(--sv-green)' : 'var(--sv-red)' }}>{ready ? 'Ready' : eligibility.eligible ? 'Address required' : eligibility.reason}</span>
           </div>{ready && <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
@@ -274,15 +332,17 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
           const order = details.find(detail => Number(detail.id) === item.soId);
           const service = selectedServiceByOrder[item.soId];
           return <div key={item.shipmentId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>{order?.so_number ?? `Shipment ${item.shipmentId}`}</strong><span>{service?.serviceName} · {service ? formatAud(service.total) : ''} incl. GST</span></div>;
-        })}{submissionResults.map(result => {
+        })}{[...new Map(submissionResults.filter(result => result.labelUrl).map(result => [result.labelUrl, result])).values()].map((result, index) => <div key={result.labelUrl} style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}><a href={result.labelUrl!} target="_blank" rel="noopener noreferrer" style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Download size={14} />{submissionResults.filter(item => item.labelUrl === result.labelUrl).length > 1 ? `Batch PDF${index ? ` ${index + 1}` : ''}` : 'PDF label'}</a></div>)}{submissionResults.map(result => {
           const order = details.find(item => Number(item.id) === result.soId);
-          return <div key={result.shipmentId} style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>{order?.so_number ?? `Shipment ${result.shipmentId}`}</strong><span style={{ color: 'var(--sv-text-dim)' }}>{result.chargedCost == null ? '' : `${formatAud(result.chargedCost)} charged`}</span><span style={{ marginLeft: 'auto', color: result.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)' }}>{result.status === 'label_ready' ? 'Label ready' : 'Label processing'}</span>{result.labelUrl && <a href={result.labelUrl} target="_blank" rel="noopener noreferrer" style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Download size={14} />PDF label</a>}</div>;
+          const saved = savedShipments.find(item => item.shipmentId === result.shipmentId);
+          return <div key={result.shipmentId} style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>{order?.so_number ?? saved?.soNumber ?? `Shipment ${result.shipmentId}`}</strong><span style={{ color: 'var(--sv-text-dim)' }}>{result.chargedCost == null ? '' : `${formatAud(result.chargedCost)} charged`}</span><span style={{ marginLeft: 'auto', color: result.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)' }}>{result.status === 'label_ready' ? 'Label ready' : 'Label processing'}</span></div>;
         })}</div>}
         {!loading && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
           <button type="button" onClick={onClose} style={secondaryButtonStyle}>{created.length ? 'Close' : 'Cancel'}</button>
           {!created.length && <button type="button" disabled={!canCreate || quoting || saving} onClick={getQuotes} style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 7, opacity: canCreate && !quoting && !saving ? 1 : .55, cursor: canCreate && !quoting && !saving ? 'pointer' : 'not-allowed' }}><RefreshCw size={15} />{quoting ? 'Getting prices...' : Object.keys(quotesByOrder).length ? 'Refresh prices' : 'Get shipping prices'}</button>}
           {!created.length && <button type="button" disabled={!canCreate || !hasSelectedServices || saving} onClick={createDrafts} title={canCreate && !hasSelectedServices ? 'Choose a quoted shipping service for every order.' : undefined} style={{ ...primaryButtonStyle, opacity: canCreate && hasSelectedServices && !saving ? 1 : .55, cursor: canCreate && hasSelectedServices && !saving ? 'pointer' : 'not-allowed' }}><PackageCheck size={15} />{saving ? 'Preparing...' : 'Prepare Shipments'}</button>}
-          {created.length > 0 && (!submissionResults.length || labelsPending) && <button type="button" disabled={submitting} onClick={submitToCarrier} style={{ ...primaryButtonStyle, opacity: submitting ? .55 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}><Send size={15} />{submitting ? 'Submitting...' : labelsPending ? 'Check label status' : 'Submit to Australia Post & create labels'}</button>}
+          {created.length > 0 && needsCarrierAction && <button type="button" disabled={submitting} onClick={submitToCarrier} style={{ ...primaryButtonStyle, opacity: submitting ? .55 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}><Send size={15} />{submitting ? 'Submitting...' : labelsPending ? 'Check label status' : 'Submit to Australia Post & create labels'}</button>}
+          {created.length > 0 && submissionResults.length === created.length && submissionResults.every(result => result.status === 'label_ready') && <button type="button" disabled={dispatching} onClick={markDispatched} style={{ ...primaryButtonStyle, opacity: dispatching ? .55 : 1, cursor: dispatching ? 'not-allowed' : 'pointer' }}><PackageCheck size={15} />{dispatching ? 'Updating orders...' : 'Mark dispatched'}</button>}
         </div>}
       </div>
     </div>
@@ -312,7 +372,7 @@ function ParcelNumberField({ label, value, step = '1', onChange }: { label: stri
 
 function buildPackingPlan(order: SalesOrderDetail, presets: PackingPreset[]) {
   const remainingQuantity = (order.items ?? []).reduce((sum, item) => sum + Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)), 0);
-  const eligibility = getShippingOrderEligibility({ status: order.status as any, soType: order.so_type, isPosLedger: order.is_pos_ledger, remainingQuantity });
+  const eligibility = getShippingOrderEligibility({ status: order.status as any, soType: order.so_type, channelDeliveryType: order.channel_delivery_type, isPosLedger: order.is_pos_ledger, remainingQuantity });
   const hasAddress = Boolean(order.delivery_address && order.delivery_suburb && order.delivery_state && order.delivery_postcode);
   const units: PackableUnit[] = [];
   for (const item of order.items ?? []) {
@@ -358,6 +418,17 @@ function remainingAllocations(order: SalesOrderDetail, quantityMultiplier = 1): 
     soItemId: Number(item.id),
     quantity: Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)) * quantityMultiplier,
   }));
+}
+
+function formatChannelShippingMethod(order: SalesOrderSummary): string {
+  const method = String(order.channel_shipping_method ?? '').trim();
+  if (!method) return '';
+  if (order.channel_delivery_type === 'pickup' && !/pickup|collect/i.test(method)) return `Pickup in store at ${method}`;
+  return method;
+}
+
+function shippingStatusLabel(status: string): string {
+  return ({ draft: 'Prepared', carrier_created: 'Postage created', label_submitting: 'Creating labels', label_pending: 'Label processing', label_unknown: 'Label needs review', label_ready: 'Label ready', failed: 'Needs attention' } as Record<string, string>)[status] ?? status.replaceAll('_', ' ');
 }
 
 function validEditableParcels(order: SalesOrderDetail, parcels: EditableParcel[] | undefined): boolean {

@@ -343,6 +343,7 @@ export interface ImsSO {
   fulfilled_date?: string; notes?: string; subtotal: number;
   delivery_address?: string; delivery_address2?: string; delivery_suburb?: string;
   delivery_city?: string; delivery_state?: string; delivery_postcode?: string; delivery_country?: string;
+  channel_shipping_method?: string | null; channel_delivery_type?: string | null;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   shopify_order_id?: string; cin7_order_id?: string;
   price_tier?: 'retail' | 'wholesale';

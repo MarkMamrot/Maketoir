@@ -26,6 +26,7 @@ export type ShippingOrderEligibilityInput = {
   status: SOStatus;
   soType?: string | null;
   salesChannel?: string | null;
+  channelDeliveryType?: string | null;
   isPosLedger?: boolean;
   remainingQuantity: number;
 };

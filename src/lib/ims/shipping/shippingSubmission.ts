@@ -8,6 +8,7 @@ type ShipmentRow = {
   id: number;
   so_id: number;
   so_number: string;
+  channel_order_number: string | null;
   carrier_account_id: number;
   provider: string;
   status: string;
@@ -72,12 +73,27 @@ export async function submitShippingDraftsAndCreateLabels(input: {
   }
   if (shipmentIds.length > 50) throw new Error('Submit no more than 50 shipments at once.');
 
-  const results: ShippingSubmissionResult[] = [];
-  for (const shipmentId of shipmentIds) results.push(await submitOneShipment(input.businessId, shipmentId));
-  return results;
+  const shipments: ShipmentRow[] = [];
+  for (const shipmentId of shipmentIds) shipments.push(await submitOneShipment(input.businessId, shipmentId));
+  const labels = await ensureBatchLabels(input.businessId, shipments);
+  return Promise.all(shipments.map(async shipment => {
+    const label = labels.get(shipment.id);
+    const chargedRows = await imsQuery<{ charged_cost: number | null }>(
+      'SELECT charged_cost FROM ims_shipping_shipments WHERE business_id = ? AND id = ? LIMIT 1',
+      [input.businessId, shipment.id],
+    );
+    return {
+      shipmentId: shipment.id,
+      soId: Number(shipment.so_id),
+      status: label?.status === 'AVAILABLE' ? 'label_ready' : 'label_pending',
+      providerShipmentId: text(shipment.provider_shipment_id),
+      labelUrl: label?.url ?? null,
+      chargedCost: chargedRows[0]?.charged_cost == null ? null : Number(chargedRows[0].charged_cost),
+    };
+  }));
 }
 
-async function submitOneShipment(businessId: string, shipmentId: number): Promise<ShippingSubmissionResult> {
+async function submitOneShipment(businessId: string, shipmentId: number): Promise<ShipmentRow> {
   let shipment = await getShipment(businessId, shipmentId);
   if (!shipment) throw new Error(`Prepared shipment ${shipmentId} was not found.`);
   if (shipment.provider !== 'auspost_eparcel') throw new Error('Carrier submission is not supported for this shipment.');
@@ -137,81 +153,109 @@ async function submitOneShipment(businessId: string, shipmentId: number): Promis
     }
   }
 
-  const providerShipmentId = text(shipment.provider_shipment_id);
-  if (!providerShipmentId) throw new Error(`${shipment.so_number}: Australia Post shipment ID is unavailable.`);
-  const label = await ensureLabel(businessId, shipment, providerShipmentId, client);
-  const chargedRows = await imsQuery<{ charged_cost: number | null }>(
-    'SELECT charged_cost FROM ims_shipping_shipments WHERE business_id = ? AND id = ? LIMIT 1',
-    [businessId, shipmentId],
-  );
-  return {
-    shipmentId,
-    soId: Number(shipment.so_id),
-    status: label.status === 'AVAILABLE' ? 'label_ready' : 'label_pending',
-    providerShipmentId,
-    labelUrl: label.url ?? null,
-    chargedCost: chargedRows[0]?.charged_cost == null ? null : Number(chargedRows[0].charged_cost),
-  };
+  if (!text(shipment.provider_shipment_id)) throw new Error(`${shipment.so_number}: Australia Post shipment ID is unavailable.`);
+  return shipment;
 }
 
-async function ensureLabel(
+async function ensureBatchLabels(
   businessId: string,
-  shipment: ShipmentRow,
-  providerShipmentId: string,
-  client: AusPostEparcelClient,
-): Promise<{ requestId: string; status: string; url?: string }> {
-  const existing = (await imsQuery<{
-    provider_request_id: string | null; status: string; label_url: string | null; label_url_expires_at: string | Date | null;
-  }>(
-    `SELECT provider_request_id, status, label_url, label_url_expires_at FROM ims_shipping_labels
-      WHERE business_id = ? AND shipment_id = ? ORDER BY id DESC LIMIT 1`,
-    [businessId, shipment.id],
-  ))[0];
-  if (existing?.provider_request_id) {
-    const expiresAt = existing.label_url_expires_at ? new Date(existing.label_url_expires_at).getTime() : null;
-    if (existing.status === 'available' && existing.label_url && (!expiresAt || expiresAt > Date.now())) {
-      return { requestId: existing.provider_request_id, status: 'AVAILABLE', url: existing.label_url };
-    }
-    if (existing.status !== 'error') {
-      const response = await client.getLabel(existing.provider_request_id) as AusPostLabelResponse;
-      return persistLabelResponse(businessId, shipment.id, existing.provider_request_id, response);
-    }
-  }
-  if (shipment.status === 'label_submitting' || shipment.status === 'label_unknown') {
-    throw new Error(`${shipment.so_number}: label request outcome is unknown. Review it before retrying.`);
-  }
+  shipments: ShipmentRow[],
+): Promise<Map<number, { requestId: string; status: string; url?: string }>> {
+  const accountIds = new Set(shipments.map(shipment => Number(shipment.carrier_account_id)));
+  if (accountIds.size !== 1) throw new Error('A label batch must use one Australia Post carrier account.');
+  const credentials = await ShippingSettingsRepository.getAccountCredentials(businessId, [...accountIds][0]);
+  if (!credentials) throw new Error('Carrier account credentials are incomplete.');
+  const client = new AusPostEparcelClient(credentials);
+  const results = new Map<number, { requestId: string; status: string; url?: string }>();
+  const unlabelled: ShipmentRow[] = [];
+  const polledRequests = new Map<string, AusPostLabelResponse>();
 
-  const claimed = await imsExecute(
-    `UPDATE ims_shipping_shipments SET status = 'label_submitting', safe_error = NULL
-      WHERE business_id = ? AND id = ? AND provider_shipment_id = ? AND status IN ('carrier_created', 'failed')`,
-    [businessId, shipment.id, providerShipmentId],
-  );
-  if (!claimed.affectedRows) throw new Error(`${shipment.so_number}: a label request is already in progress.`);
+  for (const shipment of shipments) {
+    const existing = (await imsQuery<{
+      provider_request_id: string | null; status: string; label_url: string | null; label_url_expires_at: string | Date | null;
+  }>(
+      `SELECT provider_request_id, status, label_url, label_url_expires_at FROM ims_shipping_labels
+        WHERE business_id = ? AND shipment_id = ? ORDER BY id DESC LIMIT 1`,
+      [businessId, shipment.id],
+    ))[0];
+    if (existing?.provider_request_id) {
+      const expiresAt = existing.label_url_expires_at ? new Date(existing.label_url_expires_at).getTime() : null;
+      if (existing.status === 'available' && existing.label_url && (!expiresAt || expiresAt > Date.now())) {
+        results.set(shipment.id, { requestId: existing.provider_request_id, status: 'AVAILABLE', url: existing.label_url });
+        continue;
+      }
+      if (existing.status !== 'error') {
+        let response = polledRequests.get(existing.provider_request_id);
+        if (!response) {
+          response = await client.getLabel(existing.provider_request_id) as AusPostLabelResponse;
+          polledRequests.set(existing.provider_request_id, response);
+        }
+        results.set(shipment.id, await persistLabelResponse(businessId, shipment.id, existing.provider_request_id, response));
+        continue;
+      }
+    }
+    if (shipment.status === 'label_submitting' || shipment.status === 'label_unknown') {
+      throw new Error(`${shipment.so_number}: label request outcome is unknown. Review it before retrying.`);
+    }
+    unlabelled.push(shipment);
+  }
+  if (!unlabelled.length) return results;
+
+  const claimedShipments: ShipmentRow[] = [];
   try {
-    const preference = getAusPostLabelPreference(shipment.service_name ?? '');
+    for (const shipment of unlabelled) {
+      const claimed = await imsExecute(
+        `UPDATE ims_shipping_shipments SET status = 'label_submitting', safe_error = NULL
+          WHERE business_id = ? AND id = ? AND provider_shipment_id = ? AND status IN ('carrier_created', 'failed')`,
+        [businessId, shipment.id, shipment.provider_shipment_id],
+      );
+      if (!claimed.affectedRows) {
+        for (const claimedShipment of claimedShipments) {
+          await imsExecute(
+            `UPDATE ims_shipping_shipments SET status = 'carrier_created'
+              WHERE business_id = ? AND id = ? AND status = 'label_submitting'`,
+            [businessId, claimedShipment.id],
+          );
+        }
+        throw new Error(`${shipment.so_number}: a label request is already in progress.`);
+      }
+      claimedShipments.push(shipment);
+    }
+    const preferences = [...new Map(unlabelled.map(shipment => {
+      const preference = getAusPostLabelPreference(shipment.service_name ?? '');
+      return [`${preference.group}:${preference.layout}`, preference];
+    })).values()];
     const response = await client.createLabels({
       wait_for_label_url: true,
       unlabelled_articles_only: false,
-      preferences: [{ type: 'PRINT', format: 'PDF', groups: [{ ...preference, branded: true, left_offset: 0, top_offset: 0 }] }],
-      shipments: [{ shipment_id: providerShipmentId }],
+      preferences: [{ type: 'PRINT', format: 'PDF', groups: preferences.map(preference => ({ ...preference, branded: true, left_offset: 0, top_offset: 0 })) }],
+      shipments: unlabelled.map(shipment => ({ shipment_id: text(shipment.provider_shipment_id) })),
     }) as AusPostLabelResponse;
-    const responseLabel = response.labels?.[0];
-    const requestId = text(responseLabel?.request_id);
-    if (!requestId) throw new Error('Australia Post did not return a label request ID. Label outcome requires review.');
-    await imsExecute(
-      `INSERT INTO ims_shipping_labels
-         (business_id, shipment_id, provider_request_id, format, layout, status)
-       VALUES (?, ?, ?, 'PDF', ?, 'pending')`,
-      [businessId, shipment.id, requestId, preference.layout],
-    );
-    return persistLabelResponse(businessId, shipment.id, requestId, response);
+    for (const shipment of unlabelled) {
+      const providerShipmentId = text(shipment.provider_shipment_id);
+      const responseLabel = response.labels?.find(label => label.shipment_ids?.map(text).includes(providerShipmentId))
+        ?? (response.labels?.length === 1 ? response.labels[0] : undefined);
+      const requestId = text(responseLabel?.request_id);
+      if (!requestId) throw new Error('Australia Post did not return a label request ID. Label outcome requires review.');
+      const preference = getAusPostLabelPreference(shipment.service_name ?? '');
+      await imsExecute(
+        `INSERT INTO ims_shipping_labels
+           (business_id, shipment_id, provider_request_id, format, layout, status)
+         VALUES (?, ?, ?, 'PDF', ?, 'pending')`,
+        [businessId, shipment.id, requestId, preference.layout],
+      );
+      results.set(shipment.id, await persistLabelResponse(businessId, shipment.id, requestId, response));
+    }
+    return results;
   } catch (error) {
     const safeError = safeCarrierError(error);
     const rejected = error instanceof AusPostApiError && error.status >= 400 && error.status < 500;
-    await imsExecute(
-      `UPDATE ims_shipping_shipments SET status = ?, safe_error = ? WHERE business_id = ? AND id = ?`,
-      [rejected ? 'carrier_created' : 'label_unknown', safeError, businessId, shipment.id],
-    );
+    for (const shipment of unlabelled) {
+      await imsExecute(
+        `UPDATE ims_shipping_shipments SET status = ?, safe_error = ? WHERE business_id = ? AND id = ?`,
+        [rejected ? 'carrier_created' : 'label_unknown', safeError, businessId, shipment.id],
+      );
+    }
     throw error;
   }
 }
@@ -276,7 +320,9 @@ async function persistLabelResponse(
 
 async function getShipment(businessId: string, shipmentId: number): Promise<ShipmentRow | null> {
   return (await imsQuery<ShipmentRow>(
-    `SELECT shipment.id, shipment.so_id, sales_order.so_number, shipment.carrier_account_id,
+    `SELECT shipment.id, shipment.so_id, sales_order.so_number,
+            COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channel_order_number,
+            shipment.carrier_account_id,
             shipment.provider, shipment.status, shipment.provider_shipment_id,
             shipment.provider_reference, shipment.service_code, shipment.service_name, shipment.quoted_cost,
             shipment.sender_json, shipment.recipient_json
@@ -301,6 +347,7 @@ export function buildAusPostDomesticShipment(shipment: ShipmentRow, parcels: Par
   return {
     shipment_reference: shipment.provider_reference.slice(0, 50),
     customer_reference_1: shipment.so_number.slice(0, 50),
+    ...(shipment.channel_order_number ? { customer_reference_2: shipment.channel_order_number.slice(0, 50) } : {}),
     contains_s8_goods: false,
     from: carrierAddressPayload(sender),
     to: carrierAddressPayload(recipient),

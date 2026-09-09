@@ -6,6 +6,7 @@ const shipment = {
   id: 91,
   so_id: 12,
   so_number: 'ONL-20260908-528728',
+  channel_order_number: '#47908',
   carrier_account_id: 1,
   provider: 'auspost_eparcel',
   status: 'draft',
@@ -25,6 +26,7 @@ describe('Australia Post shipment submission', () => {
     }])).toEqual({
       shipment_reference: 'ONL-20260908-528728-operation',
       customer_reference_1: 'ONL-20260908-528728',
+      customer_reference_2: '#47908',
       contains_s8_goods: false,
       from: { name: 'Warehouse', lines: ['1 Main St'], suburb: 'Sydney', state: 'NSW', postcode: '2000' },
       to: { name: 'Buyer', lines: ['2 High St'], suburb: 'Melbourne', state: 'VIC', postcode: '3000', email: 'buyer@example.com' },

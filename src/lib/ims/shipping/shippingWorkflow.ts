@@ -28,6 +28,7 @@ const SHIPMENT_TRANSITIONS: Record<ShippingShipmentStatus, readonly ShippingShip
 
 export function getShippingOrderEligibility(input: ShippingOrderEligibilityInput): ShippingOrderEligibility {
   if (input.isPosLedger) return { eligible: false, reason: 'POS sales cannot be shipped from Sales Orders.' };
+  if (input.channelDeliveryType === 'pickup') return { eligible: false, reason: 'Pickup orders do not require carrier shipping.' };
   if (input.status === 'draft') return { eligible: false, reason: 'Confirm this order before shipping.' };
   if (input.status === 'cancelled') return { eligible: false, reason: 'Cancelled orders cannot be shipped.' };
   if (input.status === 'fulfilled') return { eligible: false, reason: 'This order is already fulfilled.' };

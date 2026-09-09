@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShopifyOrderDeliveryAddress } from '../shopifyOrderAddress';
+import { parseShopifyOrderDeliveryAddress, parseShopifyOrderDeliveryMethod } from '../shopifyOrderAddress';
 
 describe('parseShopifyOrderDeliveryAddress', () => {
   it('maps the Shopify shipping address to IMS delivery fields', () => {
@@ -43,6 +43,36 @@ describe('parseShopifyOrderDeliveryAddress', () => {
       delivery_state: null,
       delivery_postcode: null,
       delivery_country: null,
+    });
+  });
+
+  it('preserves the Shopify method and identifies addressless pickup orders', () => {
+    expect(parseShopifyOrderDeliveryMethod({
+      shipping_address: null,
+      shipping_lines: [{ title: 'Monsterthreads Head Office', code: 'pickup' }],
+    })).toEqual({
+      channel_shipping_method: 'Monsterthreads Head Office',
+      channel_delivery_type: 'pickup',
+    });
+  });
+
+  it('identifies a method with a shipping address as delivery', () => {
+    expect(parseShopifyOrderDeliveryMethod({
+      shipping_address: { address1: '12 Market Street' },
+      shipping_lines: [{ title: 'Standard Shipping' }],
+    })).toEqual({
+      channel_shipping_method: 'Standard Shipping',
+      channel_delivery_type: 'delivery',
+    });
+  });
+
+  it('does not infer pickup from every addressless shipping method', () => {
+    expect(parseShopifyOrderDeliveryMethod({
+      shipping_address: null,
+      shipping_lines: [{ title: 'Standard Shipping' }],
+    })).toEqual({
+      channel_shipping_method: 'Standard Shipping',
+      channel_delivery_type: 'unknown',
     });
   });
 });

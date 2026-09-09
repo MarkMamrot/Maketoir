@@ -8,6 +8,11 @@ export type ShopifyOrderDeliveryAddress = {
   delivery_country: string | null;
 };
 
+export type ShopifyOrderDeliveryMethod = {
+  channel_shipping_method: string | null;
+  channel_delivery_type: 'delivery' | 'pickup' | 'unknown';
+};
+
 function text(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -29,5 +34,21 @@ export function parseShopifyOrderDeliveryAddress(order: unknown): ShopifyOrderDe
     delivery_state: text(address.province_code) ?? text(address.province),
     delivery_postcode: text(address.zip),
     delivery_country: text(address.country_code) ?? text(address.country),
+  };
+}
+
+export function parseShopifyOrderDeliveryMethod(order: unknown): ShopifyOrderDeliveryMethod {
+  const source = order && typeof order === 'object' ? order as Record<string, unknown> : {};
+  const shippingAddress = source.shipping_address && typeof source.shipping_address === 'object'
+    ? source.shipping_address as Record<string, unknown>
+    : null;
+  const shippingLines = Array.isArray(source.shipping_lines) ? source.shipping_lines : [];
+  const firstLine = shippingLines.find(line => line && typeof line === 'object') as Record<string, unknown> | undefined;
+  const method = text(firstLine?.title) ?? text(firstLine?.code);
+  const hasShippingAddress = Boolean(text(shippingAddress?.address1));
+  const isPickup = Boolean(method && /pickup|pick[ -]?up|collect|head office|store location/i.test(method));
+  return {
+    channel_shipping_method: method,
+    channel_delivery_type: hasShippingAddress ? 'delivery' : isPickup ? 'pickup' : 'unknown',
   };
 }

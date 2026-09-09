@@ -13632,6 +13632,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     { id: 'customer_name', label: 'Customer', width: 190, group: 'Order', required: true, render: order => order.customer_name || '—' },
     { id: 'channel_order_number', label: 'Channel Order #', width: 145, group: 'Order', render: order => getChannelOrderNumber(order) || '—' },
     { id: 'sales_channel', label: 'Channel', width: 105, group: 'Order', render: order => order.sales_channel || (order.shopify_order_name ? 'Shopify' : order.so_type || 'B2B') },
+    { id: 'channel_shipping_method', label: 'Shipping Method', width: 210, group: 'Delivery', render: order => order.channel_delivery_type === 'pickup' && order.channel_shipping_method && !/pickup|collect/i.test(order.channel_shipping_method) ? `Pickup in store at ${order.channel_shipping_method}` : order.channel_shipping_method || '—' },
     { id: 'location_name', label: 'Location', width: 145, group: 'Order', render: order => order.location_name || '—' },
     { id: 'status', label: 'Status', width: 120, group: 'Order', render: order => <StatusBadge status={order.status} orderKind="sales_order" /> },
     { id: 'customer_po_number', label: 'Customer PO #', width: 135, group: 'Order', render: order => order.customer_po_number || '—' },
@@ -14346,6 +14347,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const visibleSOs = sos;
   const selectedSOs = visibleSOs.filter((so: any) => selectedSoIds.has(Number(so.id)));
   const selectableSOs = visibleSOs.filter((so: any) => !so.is_pos_ledger
+    && so.channel_delivery_type !== 'pickup'
     && ['confirmed', 'partially_fulfilled'].includes(String(so.status))
     && ['b2b', 'online', 'shopify'].includes(String(so.so_type || 'b2b').toLowerCase())
     && Number(so.remaining_quantity ?? 0) > 0);
@@ -14399,6 +14401,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
+        {!isAdvisor && <button type="button" onClick={() => { setSelectedSoIds(new Set()); setShipOrdersOpen(true); }} style={{ ...btnStyle('secondary'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Shipping Workspace</button>}
         {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
         <OrderDisplayFieldsMenu fields={soDisplayFields} selectedIds={selectedSoFieldIds} onChange={setSelectedSoFieldIds} />
         {!isAdvisor && <button data-testid="so-new" onClick={openNew} style={btnStyle('action')}>+ New SO</button>}

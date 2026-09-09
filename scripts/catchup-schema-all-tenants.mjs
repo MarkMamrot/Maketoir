@@ -466,7 +466,7 @@ const TABLE_DDLS = [
     status VARCHAR(30) NOT NULL DEFAULT 'pending', label_url VARCHAR(2000) NULL, label_url_expires_at DATETIME NULL,
     safe_error VARCHAR(500) NULL, requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     available_at DATETIME NULL, last_printed_at DATETIME NULL, print_count INT NOT NULL DEFAULT 0,
-    UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id),
+    UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id, shipment_id),
     INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
     CONSTRAINT fk_shipping_label_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
@@ -1353,6 +1353,8 @@ const COLUMNS = [
   ['ims_sales_orders', 'delivery_state',      'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'delivery_postcode',   'VARCHAR(30) NULL'],
   ['ims_sales_orders', 'delivery_country',    'VARCHAR(100) NULL'],
+  ['ims_sales_orders', 'channel_shipping_method', 'VARCHAR(255) NULL AFTER delivery_country'],
+  ['ims_sales_orders', 'channel_delivery_type', 'VARCHAR(20) NULL AFTER channel_shipping_method'],
   ['ims_sales_orders', 'freight',             'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'discount',            'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'currency_code',       "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
@@ -1671,6 +1673,18 @@ async function ensureNativeCheckoutIndex(schema) {
   await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders ADD UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id)`);
 }
 
+async function ensureShippingLabelRequestIndex(schema) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_shipping_labels' AND INDEX_NAME = 'uq_shipping_label_request'
+      ORDER BY SEQ_IN_INDEX`, [schema],
+  );
+  const columns = rows.map(row => row.COLUMN_NAME).join(',');
+  if (columns === 'business_id,provider_request_id,shipment_id') return;
+  if (rows.length) await conn.query(`ALTER TABLE \`${schema}\`.ims_shipping_labels DROP INDEX uq_shipping_label_request`);
+  await conn.query(`ALTER TABLE \`${schema}\`.ims_shipping_labels ADD UNIQUE INDEX uq_shipping_label_request (business_id, provider_request_id, shipment_id)`);
+}
+
 async function assertUniqueGiftCardTransactionIdentities(schema) {
   for (const column of ['idempotency_key', 'shopify_transaction_id']) {
     const [rows] = await conn.query(
@@ -1762,6 +1776,7 @@ async function migrateSchema(schema, businessId) {
   await ensureShopifyLineItemId(schema, 'ims_sales_order_items', true);
   await ensureShopifyLineItemId(schema, 'ims_so_shipment_items', false);
   await ensureNativeCheckoutIndex(schema);
+  await ensureShippingLabelRequestIndex(schema);
 
   try {
     await conn.query(

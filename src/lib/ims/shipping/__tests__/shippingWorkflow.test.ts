@@ -19,6 +19,10 @@ describe('shipping workflow', () => {
       eligible: false,
       reason: 'POS sales cannot be shipped from Sales Orders.',
     });
+    expect(getShippingOrderEligibility({ status: 'confirmed', soType: 'online', channelDeliveryType: 'pickup', remainingQuantity: 1 })).toEqual({
+      eligible: false,
+      reason: 'Pickup orders do not require carrier shipping.',
+    });
     expect(getShippingOrderEligibility({ status: 'draft', soType: 'b2b', remainingQuantity: 1 }).eligible).toBe(false);
     expect(getShippingOrderEligibility({ status: 'fulfilled', soType: 'online', remainingQuantity: 1 }).eligible).toBe(false);
     expect(getShippingOrderEligibility({ status: 'confirmed', soType: 'online', remainingQuantity: 0 })).toEqual({
