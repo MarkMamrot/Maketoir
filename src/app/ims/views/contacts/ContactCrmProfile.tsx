@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { isRetailCrmType } from '@/lib/ims/contactCrmAccess';
 import type { ContactCrmActivityCategory, ContactCrmTimelineEntry } from '@/lib/ims/contactCrmTimeline';
 import { SBDatePicker, type SBDateRange } from '../reports/reportFilterHelpers';
+import { ContactLoyaltyRewardsSection } from './ContactLoyaltyRewardsSection';
 import { ContactCrmTaskEditor, type ContactCrmTaskEditPayload } from './ContactCrmTaskEditor';
 
 type ProfileData = {
@@ -364,6 +365,8 @@ export function ContactCrmProfile({
           </div>
         ))}
       </section>
+
+      {isRetailCustomer && <ContactLoyaltyRewardsSection contactId={contactId} />}
 
       <nav aria-label="Customer profile sections" style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--sv-etch)' }}>
         {(['activity', 'tasks', 'details'] as const).map(item => (
