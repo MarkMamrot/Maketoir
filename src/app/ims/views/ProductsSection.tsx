@@ -14,6 +14,7 @@ interface ProductsSectionProps {
   isAdvisor: boolean;
   businessId: string;
   hasForesight: boolean;
+  buildsEnabled: boolean;
   setView: (v: ImsView) => void;
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
@@ -31,6 +32,7 @@ export function ProductsSection({
   isAdvisor,
   businessId,
   hasForesight,
+  buildsEnabled,
   setView,
   setPendingOpenPO,
   setPendingOpenSO,
@@ -53,7 +55,7 @@ export function ProductsSection({
           onNavigateToSO={(id: number) => { setView('sales-orders'); setPendingOpenSO(id); }}
         />
       )}
-      {view === 'builds' && <ProductBuildsView isAdvisor={isAdvisor} />}
+      {view === 'builds' && buildsEnabled && <ProductBuildsView isAdvisor={isAdvisor} />}
       {view === 'stock' && <StockView />}
       {view === 'brands' && <BrandsView />}
       {view === 'gift-cards' && <GiftCardsView />}

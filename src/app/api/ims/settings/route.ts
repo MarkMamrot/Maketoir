@@ -28,7 +28,9 @@ import {
 import { applyProductSettingDefaults, validateProductSetting } from '@/lib/ims/productSettings';
 import { applyTaxSettingDefaults } from '@/lib/ims/taxSettings';
 import {
+  BUILDS_ENABLED_SETTING_KEY,
   BUILD_FROM_SALE_SETTING_KEY,
+  DEFAULT_BUILDS_ENABLED_SETTING,
   DEFAULT_BUILD_FROM_SALE_SETTING,
   validateBuildFromSaleSetting,
 } from '@/lib/ims/builds/buildFromSalePolicy';
@@ -77,6 +79,7 @@ export async function GET() {
     settings[SALES_DOCUMENT_SETTING_KEYS.showLogo] ??= '1';
     settings[SELLS_WHOLESALE_SETTING_KEY] ??= 'yes';
     settings.business_requires_pos ??= 'yes';
+    settings[BUILDS_ENABLED_SETTING_KEY] ??= DEFAULT_BUILDS_ENABLED_SETTING;
     settings[BUILD_FROM_SALE_SETTING_KEY] ??= DEFAULT_BUILD_FROM_SALE_SETTING;
     applyProductSettingDefaults(settings);
     applyTaxSettingDefaults(settings);

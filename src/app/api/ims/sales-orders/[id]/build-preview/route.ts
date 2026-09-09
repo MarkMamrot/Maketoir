@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { isBuildFromSaleEnabled, planBuildFromSaleShortfalls } from '@/lib/ims/builds/buildFromSalePolicy';
+import { planBuildFromSaleShortfalls, resolveBuildFromSalePolicy } from '@/lib/ims/builds/buildFromSalePolicy';
 import { previewProductBuildBatch } from '@/lib/ims/builds/buildService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -16,14 +16,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const orders = await imsQuery<any>('SELECT id, status, location_id, sales_channel, so_type FROM ims_sales_orders WHERE business_id = ? AND id = ? LIMIT 1', [session.businessId, soId]);
     const order = orders[0];
     if (!order) return NextResponse.json({ error: 'Sales order not found.' }, { status: 404 });
-    const settingKey = `build_from_sale_location:${Number(order.location_id)}`;
-    const settingRows = await imsQuery<{ key: string; value: string }>('SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN (?, ?)', [session.businessId, 'build_from_sale_enabled', settingKey]);
-    const settings = new Map(settingRows.map(row => [row.key, row.value]));
-    if (!isBuildFromSaleEnabled(settings.get('build_from_sale_enabled'), settings.get(settingKey))) return NextResponse.json({ success: true, data: { eligible: false, reason: 'policy_disabled' } });
+    const policy = await resolveBuildFromSalePolicy(session.businessId, Number(order.location_id));
+    if (!policy.enabled) return NextResponse.json({ success: true, data: { eligible: false, reason: 'policy_disabled' } });
     const items = await imsQuery<any>(`SELECT item.id, item.variant_id, item.qty_ordered, item.qty_fulfilled, product.name AS product_name, variant.sku, recipe_version.revision
       FROM ims_sales_order_items item
       JOIN ims_product_variants variant ON variant.variant_id = item.variant_id AND variant.business_id = item.business_id
-      JOIN ims_products product ON product.product_id = variant.product_id AND product.business_id = item.business_id AND product.is_stock_item = 1
+      JOIN ims_products product ON product.product_id = variant.product_id AND product.business_id = item.business_id AND product.is_stock_item = 1 AND product.uses_builds = 1
       JOIN ims_product_build_recipes recipe ON recipe.output_variant_id = item.variant_id AND recipe.business_id = item.business_id AND recipe.is_enabled = 1
       JOIN ims_product_build_recipe_versions recipe_version ON recipe_version.id = recipe.active_version_id AND recipe_version.business_id = recipe.business_id
       WHERE item.business_id = ? AND item.so_id = ? ORDER BY item.id`, [session.businessId, soId]);

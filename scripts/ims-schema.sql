@@ -707,6 +707,7 @@ CREATE TABLE IF NOT EXISTS ims_products (
   bin                   VARCHAR(100),
   allow_indent_wholesale TINYINT(1) NOT NULL DEFAULT 0,
   is_stock_item         TINYINT(1) NOT NULL DEFAULT 1,
+  uses_builds           TINYINT(1) NOT NULL DEFAULT 0,
   is_active             TINYINT(1) NOT NULL DEFAULT 1,
   shopify_product_id    VARCHAR(100),
   created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,

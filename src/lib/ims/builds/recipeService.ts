@@ -1,6 +1,7 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { assertBuildsEnabledOnConnection } from './buildFromSalePolicy';
 import {
   assertAcyclicBuildRecipes,
   positiveBuildQuantity,
@@ -216,8 +217,8 @@ async function assertStockVariants(
 ): Promise<void> {
   const ids = [input.outputVariantId, ...componentIds];
   const [rows] = await connection.execute<RowDataPacket[]>(
-    `SELECT v.variant_id, v.product_id, v.is_active AS variant_active,
-            p.is_active AS product_active, p.is_stock_item
+        `SELECT v.variant_id, v.product_id, v.is_active AS variant_active,
+          p.is_active AS product_active, p.is_stock_item, p.uses_builds
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = v.business_id
       WHERE v.business_id = ? AND v.variant_id IN (${ids.map(() => '?').join(',')})`,
@@ -233,6 +234,9 @@ async function assertStockVariants(
   }
   if (String(byId.get(input.outputVariantId)?.product_id) !== input.productId) {
     throw new ProductBuildValidationError('The output variant does not belong to this product.');
+  }
+  if (!Number(byId.get(input.outputVariantId)?.uses_builds)) {
+    throw new ProductBuildValidationError('Enable Builds for this product before saving a recipe.');
   }
 }
 
@@ -282,6 +286,7 @@ export async function saveProductBuildRecipe(input: SaveProductBuildRecipeInput)
   const connection = await getIMSPool().getConnection();
   try {
     await connection.beginTransaction();
+    await assertBuildsEnabledOnConnection(connection, input.businessId);
     await assertStockVariants(connection, input, normalized.components.map(component => component.variantId));
     const [existingRows] = await connection.execute<RowDataPacket[]>(
       `SELECT r.id, r.active_version_id, rv.revision

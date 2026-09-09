@@ -21,6 +21,7 @@ interface MainSectionsProps {
   xeroAccountingEnabled: boolean;
   shopifyEnabled: boolean;
   nativeShopEnabled: boolean;
+  buildsEnabled: boolean;
   isAdvisor: boolean;
   advisorMappingEnabled: boolean;
   businessId: string;
@@ -102,6 +103,7 @@ export function MainSections(props: MainSectionsProps) {
     xeroAccountingEnabled,
     shopifyEnabled,
     nativeShopEnabled,
+    buildsEnabled,
     isAdvisor,
     advisorMappingEnabled,
     businessId,
@@ -232,6 +234,7 @@ export function MainSections(props: MainSectionsProps) {
         isAdvisor={isAdvisor}
         businessId={businessId}
         hasForesight={hasForesight}
+        buildsEnabled={buildsEnabled}
         setView={setView}
         setPendingOpenPO={setPendingOpenPO}
         setPendingOpenSO={setPendingOpenSO}

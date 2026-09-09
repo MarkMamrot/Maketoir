@@ -1,8 +1,15 @@
 import { buildQuantity, ProductBuildValidationError } from './domain';
 import { imsQuery } from '@/services/IMSMySQLService';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 export const BUILD_FROM_SALE_SETTING_KEY = 'build_from_sale_enabled';
 export const DEFAULT_BUILD_FROM_SALE_SETTING = 'no';
+export const BUILDS_ENABLED_SETTING_KEY = 'builds_enabled';
+export const DEFAULT_BUILDS_ENABLED_SETTING = 'no';
+
+export function isBuildsEnabled(value: unknown): boolean {
+  return value === 'yes';
+}
 
 export function buildFromSaleLocationSettingKey(locationId: number): string {
   if (!Number.isInteger(locationId) || locationId <= 0) throw new ProductBuildValidationError('A valid location is required.');
@@ -50,6 +57,10 @@ export function calculateBuildFromSaleShortfall(requestedQuantity: number, usabl
 
 export function validateBuildFromSaleSetting(key: string, value: unknown): string | null {
   const normalized = String(value ?? '').trim().toLowerCase();
+  if (key === BUILDS_ENABLED_SETTING_KEY) {
+    if (normalized !== 'yes' && normalized !== 'no') throw new ProductBuildValidationError('Use Builds must be yes or no.');
+    return normalized;
+  }
   if (key === BUILD_FROM_SALE_SETTING_KEY) {
     if (normalized !== 'yes' && normalized !== 'no') throw new ProductBuildValidationError('Build from sale must be yes or no.');
     return normalized;
@@ -66,13 +77,35 @@ export function validateBuildFromSaleSetting(key: string, value: unknown): strin
 export async function resolveBuildFromSalePolicy(businessId: string, locationId: number): Promise<BuildFromSalePolicy> {
   const locationKey = buildFromSaleLocationSettingKey(locationId);
   const rows = await imsQuery<{ key: string; value: string }>(
-    'SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN (?, ?)',
-    [businessId, BUILD_FROM_SALE_SETTING_KEY, locationKey],
+    'SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN (?, ?, ?)',
+    [businessId, BUILDS_ENABLED_SETTING_KEY, BUILD_FROM_SALE_SETTING_KEY, locationKey],
   );
   const settings = new Map(rows.map(row => [String(row.key), String(row.value ?? '')]));
   const businessValue = settings.get(BUILD_FROM_SALE_SETTING_KEY) === 'yes' ? 'yes' : DEFAULT_BUILD_FROM_SALE_SETTING;
   const locationValue = parseBuildFromSaleOverride(settings.get(locationKey));
-  return { businessValue, locationValue, enabled: isBuildFromSaleEnabled(businessValue, locationValue) };
+  return {
+    businessValue,
+    locationValue,
+    enabled: isBuildsEnabled(settings.get(BUILDS_ENABLED_SETTING_KEY)) && isBuildFromSaleEnabled(businessValue, locationValue),
+  };
+}
+
+export async function isBuildsEnabledForBusiness(businessId: string): Promise<boolean> {
+  const rows = await imsQuery<{ value: string }>(
+    'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
+    [businessId, BUILDS_ENABLED_SETTING_KEY],
+  );
+  return isBuildsEnabled(rows[0]?.value ?? DEFAULT_BUILDS_ENABLED_SETTING);
+}
+
+export async function assertBuildsEnabledOnConnection(connection: PoolConnection, businessId: string): Promise<void> {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
+    [businessId, BUILDS_ENABLED_SETTING_KEY],
+  );
+  if (!isBuildsEnabled(rows[0]?.value ?? DEFAULT_BUILDS_ENABLED_SETTING)) {
+    throw new ProductBuildValidationError('Product builds are not enabled for this business.');
+  }
 }
 
 export function planBuildFromSaleShortfalls(

@@ -1277,6 +1277,7 @@ const COLUMNS = [
   ['ims_so_fulfilment_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_po_receive_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
+  ['ims_products', 'uses_builds', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_stock_item'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
   ['ims_cs_settings', 'retention_mode', "ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all' AFTER lookback_days"],
   ['ims_cs_settings', 'unread_first', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER lookback_days'],

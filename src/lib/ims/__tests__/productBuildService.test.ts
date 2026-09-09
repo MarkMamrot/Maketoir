@@ -38,12 +38,13 @@ describe('product build services', () => {
 
   it('previews component availability as on hand less committed', async () => {
     mocks.execute
+      .mockResolvedValueOnce([[{ value: 'yes' }], []])
       .mockResolvedValueOnce([[{ id: 7 }], []])
       .mockResolvedValueOnce([[
         { recipe_id: 3, version_id: 9, output_variant_id: 'kit', revision: 2, base_output_quantity: 1, overhead_per_output: 1, component_variant_id: 'part-a', quantity_per_output: 2, sort_order: 0 },
       ], []])
       .mockResolvedValueOnce([[
-        { variant_id: 'kit', product_id: 'p-kit', sku: 'KIT', product_name: 'Kit', is_active: 1, product_active: 1, is_stock_item: 1, avg_cost: 3, cost_aud: 3 },
+        { variant_id: 'kit', product_id: 'p-kit', sku: 'KIT', product_name: 'Kit', is_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 1, avg_cost: 3, cost_aud: 3 },
         { variant_id: 'part-a', product_id: 'p-a', sku: 'PART', product_name: 'Part', is_active: 1, product_active: 1, is_stock_item: 1, avg_cost: 4, cost_aud: 4 },
       ], []])
       .mockResolvedValueOnce([[
@@ -67,12 +68,13 @@ describe('product build services', () => {
 
   it('keeps component quantities per output when recipe metadata has a larger base quantity', async () => {
     mocks.execute
+      .mockResolvedValueOnce([[{ value: 'yes' }], []])
       .mockResolvedValueOnce([[{ id: 7 }], []])
       .mockResolvedValueOnce([[
         { recipe_id: 3, version_id: 9, output_variant_id: 'kit', revision: 2, base_output_quantity: 5, overhead_per_output: 0, component_variant_id: 'part-a', quantity_per_output: 2, sort_order: 0 },
       ], []])
       .mockResolvedValueOnce([[
-        { variant_id: 'kit', product_id: 'p-kit', sku: 'KIT', product_name: 'Kit', is_active: 1, product_active: 1, is_stock_item: 1, avg_cost: 3, cost_aud: 3 },
+        { variant_id: 'kit', product_id: 'p-kit', sku: 'KIT', product_name: 'Kit', is_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 1, avg_cost: 3, cost_aud: 3 },
         { variant_id: 'part-a', product_id: 'p-a', sku: 'PART', product_name: 'Part', is_active: 1, product_active: 1, is_stock_item: 1, avg_cost: 4, cost_aud: 4 },
       ], []])
       .mockResolvedValueOnce([[
@@ -87,6 +89,35 @@ describe('product build services', () => {
     });
 
     expect(result.components[0]).toEqual(expect.objectContaining({ required: 6 }));
+  });
+
+  it('rejects previews when Builds is disabled for the business', async () => {
+    mocks.execute.mockResolvedValueOnce([[{ value: 'no' }], []]);
+
+    await expect(previewProductBuildBatch({
+      businessId: 'business-1',
+      locationId: 7,
+      builds: [{ outputVariantId: 'kit', quantity: 1 }],
+    })).rejects.toThrow('Product builds are not enabled for this business.');
+  });
+
+  it('rejects previews when the output product has not opted into Builds', async () => {
+    mocks.execute
+      .mockResolvedValueOnce([[{ value: 'yes' }], []])
+      .mockResolvedValueOnce([[{ id: 7 }], []])
+      .mockResolvedValueOnce([[
+        { recipe_id: 3, version_id: 9, output_variant_id: 'kit', revision: 2, base_output_quantity: 1, overhead_per_output: 0, component_variant_id: 'part-a', quantity_per_output: 1, sort_order: 0 },
+      ], []])
+      .mockResolvedValueOnce([[
+        { variant_id: 'kit', product_id: 'p-kit', sku: 'KIT', product_name: 'Kit', is_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 0, avg_cost: 3, cost_aud: 3 },
+        { variant_id: 'part-a', product_id: 'p-a', sku: 'PART', product_name: 'Part', is_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 0, avg_cost: 4, cost_aud: 4 },
+      ], []]);
+
+    await expect(previewProductBuildBatch({
+      businessId: 'business-1',
+      locationId: 7,
+      builds: [{ outputVariantId: 'kit', quantity: 1 }],
+    })).rejects.toThrow('Variant kit belongs to a product that is not enabled for builds.');
   });
 
   it('embeds validated pagination integers instead of binding LIMIT parameters', async () => {
@@ -115,8 +146,9 @@ describe('product build services', () => {
 
   it('saves a recipe by appending a version and advancing the active pointer', async () => {
     mocks.execute
+      .mockResolvedValueOnce([[{ value: 'yes' }], []])
       .mockResolvedValueOnce([[
-        { variant_id: 'kit', product_id: 'product-1', variant_active: 1, product_active: 1, is_stock_item: 1 },
+        { variant_id: 'kit', product_id: 'product-1', variant_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 1 },
         { variant_id: 'part-a', product_id: 'product-2', variant_active: 1, product_active: 1, is_stock_item: 1 },
       ], []])
       .mockResolvedValueOnce([[{ id: 4, active_version_id: 8, revision: 2 }], []])

@@ -5,6 +5,7 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 import { computeAverageCostAfterReversal, computeWeightedAverageCost } from '../avgCostMath';
 import { refreshVariantCache } from '../cacheHelper';
 import { recomputeBuildRequirementsSafely } from './buildRequirementService';
+import { assertBuildsEnabledOnConnection } from './buildFromSalePolicy';
 import {
   aggregateBuildComponentDemand,
   calculateBuildUnitCost,
@@ -71,6 +72,7 @@ interface VariantRow extends RowDataPacket {
   is_active: number;
   product_active: number;
   is_stock_item: number;
+  uses_builds: number;
   avg_cost: number;
   cost_aud: number;
 }
@@ -185,7 +187,7 @@ async function loadVariants(
 ): Promise<Map<string, VariantRow>> {
   const [rows] = await connection.execute<VariantRow[]>(
     `SELECT v.variant_id, v.product_id, v.sku, v.is_active,
-            p.name AS product_name, p.is_active AS product_active, p.is_stock_item,
+            p.name AS product_name, p.is_active AS product_active, p.is_stock_item, p.uses_builds,
             COALESCE(v.avg_cost, v.cost_aud, 0) AS avg_cost, COALESCE(v.cost_aud, 0) AS cost_aud
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = v.business_id
@@ -202,6 +204,14 @@ async function loadVariants(
     }
   }
   return variants;
+}
+
+function assertOutputVariantsUseBuilds(variants: Map<string, VariantRow>, outputIds: string[]): void {
+  for (const id of outputIds) {
+    if (!Number(variants.get(id)?.uses_builds)) {
+      throw new ProductBuildValidationError(`Variant ${id} belongs to a product that is not enabled for builds.`);
+    }
+  }
 }
 
 async function ensureAndLoadStock(
@@ -255,12 +265,14 @@ export async function previewProductBuildBatch(input: Omit<ProductBuildBatchInpu
   const normalized = normalizeBatchInput({ ...input, operationKey: '__preview__' });
   const connection = await getIMSPool().getConnection();
   try {
+    await assertBuildsEnabledOnConnection(connection, normalized.businessId);
     await assertLocation(connection, normalized.businessId, normalized.locationId);
     const outputIds = normalized.builds.map(build => build.outputVariantId);
     const recipes = await loadActiveRecipes(connection, normalized.businessId, outputIds);
     const preliminaryDemand = aggregateBuildComponentDemand(normalized.builds, recipes);
     const allIds = [...new Set([...outputIds, ...preliminaryDemand.keys()])].sort();
     const variants = await loadVariants(connection, normalized.businessId, allIds);
+    assertOutputVariantsUseBuilds(variants, outputIds);
     const costedRecipes = withCurrentCosts(recipes, variants);
     const demand = aggregateBuildComponentDemand(normalized.builds, costedRecipes);
     const stocks = await ensureAndLoadStock(connection, normalized.businessId, normalized.locationId, allIds, false);
@@ -330,6 +342,7 @@ export async function completeProductBuildInTransaction(
   rawInput: ProductBuildBatchInput,
 ): Promise<{ batchId: number; buildNumber: string; itemIds: number[]; touchedVariantIds: string[]; replayed: boolean; shopifyQueued: boolean }> {
   const input = normalizeBatchInput(rawInput);
+  await assertBuildsEnabledOnConnection(connection, input.businessId);
   const requestHash = batchHash(input);
   const [existingRows] = await connection.execute<RowDataPacket[]>(
     `SELECT id, build_number, request_hash FROM ims_product_build_batches
@@ -357,6 +370,7 @@ export async function completeProductBuildInTransaction(
   const demand = aggregateBuildComponentDemand(input.builds, recipes);
   const allIds = [...new Set([...outputIds, ...demand.keys()])].sort();
   const variants = await loadVariants(connection, input.businessId, allIds, true);
+  assertOutputVariantsUseBuilds(variants, outputIds);
   const costedRecipes = withCurrentCosts(recipes, variants);
   const aggregatedDemand = aggregateBuildComponentDemand(input.builds, costedRecipes);
   const stocks = await ensureAndLoadStock(connection, input.businessId, input.locationId, allIds, true);
@@ -661,6 +675,7 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
   let touchedVariantIds: string[] = [];
   try {
     await connection.beginTransaction();
+    await assertBuildsEnabledOnConnection(connection, input.businessId);
     const [existing] = await connection.execute<RowDataPacket[]>(
       `SELECT * FROM ims_product_build_reversals
         WHERE business_id = ? AND operation_key = ? FOR UPDATE`,

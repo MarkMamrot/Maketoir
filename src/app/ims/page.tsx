@@ -593,6 +593,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
   const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
+  const showBuilds = sidebarSettings.builds_enabled === 'yes';
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
   const showLocationDaybooks = sidebarSettings.business_requires_pos !== 'no' || capabilities.hasPosLocations;
   const showXero = capabilities.xeroAccountingEnabled;
@@ -700,6 +701,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
         const visibleChildren = 'children' in item
           ? (item as any).children.filter((child: any) => {
             if (child.id === 'location-daybooks') return showLocationDaybooks;
+            if (child.id === 'builds') return showBuilds;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
             if (child.id === 'xero') return showXero;
             if (child.id === 'sales-channels') return showShopify || showNativeShop;
@@ -3338,7 +3340,7 @@ interface OptionSet { name: string; values: string; }
 interface OpeningStockValue { quantity: string; minQty: string; reorderQty: string }
 interface PendingProductSave { productId: string; requestToken: string }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, is_stock_item: 1, base_sku: '' };
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, is_stock_item: 1, uses_builds: 0, base_sku: '' };
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -5916,6 +5918,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   useTableArrowScroll(openingStockScrollRef);
   const { settings: productSettings } = useImsSettings();
   const productFeatures = parseProductSettings(productSettings);
+  const buildsEnabled = productSettings.builds_enabled === 'yes';
   const showCategories = productFeatures.showCategories;
   const showZoneBin    = productSettings.use_zones_bins  !== 'no';
   const showFxCosts    = productSettings.use_foreign_currencies !== 'no';
@@ -7385,6 +7388,17 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <span style={{ position: 'absolute', top: 3, left: Number(form.is_stock_item ?? 1) === 1 ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
             </button>
           </div>
+          {buildsEnabled && Number(form.is_stock_item ?? 1) === 1 && (
+            <div style={{ marginBottom: 20, padding: '12px 14px', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Use Builds</div>
+                <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>Allow this product to be produced from component products using a saved recipe.</div>
+              </div>
+              <button type="button" role="switch" aria-checked={Number(form.uses_builds ?? 0) === 1} onClick={() => setForm((previous: any) => ({ ...previous, uses_builds: Number(previous.uses_builds ?? 0) === 1 ? 0 : 1 }))} title={`${Number(form.uses_builds ?? 0) === 1 ? 'Disable' : 'Enable'} builds for this product`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: Number(form.uses_builds ?? 0) === 1 ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+                <span style={{ position: 'absolute', top: 3, left: Number(form.uses_builds ?? 0) === 1 ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
+              </button>
+            </div>
+          )}
           {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && variantRows.some(row => !row._delete) && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
@@ -7430,7 +7444,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           )}
 
-          {modal.edit?.product_id && Number(form.is_stock_item ?? 1) === 1 && (
+          {buildsEnabled && modal.edit?.product_id && Number(form.is_stock_item ?? 1) === 1 && Number(form.uses_builds ?? 0) === 1 && (
             <BuildRecipeEditor
               productId={modal.edit.product_id}
               outputVariants={variantRows.filter(row => !row._delete)}
@@ -22053,6 +22067,7 @@ export default function ImsPage() {
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
   const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
   const { settings: pageSettings, capabilities: pageCapabilities, loaded: settingsLoaded } = useImsSettings();
+  const buildsEnabled = pageSettings.builds_enabled === 'yes';
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
   const [poMonthsInput, setPoMonthsInput] = useState(60);
   const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
@@ -22208,6 +22223,12 @@ export default function ImsPage() {
     window.history.replaceState(window.history.state, '', '#dashboard');
     setViewSafe('dashboard');
   }, [hasRestoredInitialHash, pageCapabilities.nativeShopEnabled, pageCapabilities.shopifyEnabled, settingsLoaded, setViewSafe, view]);
+
+  useEffect(() => {
+    if (!hasRestoredInitialHash || !settingsLoaded || buildsEnabled || view !== 'builds') return;
+    window.history.replaceState(window.history.state, '', '#products');
+    setViewSafe('products');
+  }, [buildsEnabled, hasRestoredInitialHash, settingsLoaded, setViewSafe, view]);
 
   useEffect(() => {
     if (pageSettings.connect_accounting_software !== 'yes') return;
@@ -22595,6 +22616,7 @@ export default function ImsPage() {
               xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
               shopifyEnabled={pageCapabilities.shopifyEnabled}
               nativeShopEnabled={pageCapabilities.nativeShopEnabled}
+              buildsEnabled={buildsEnabled}
               isAdvisor={isAdvisor}
               advisorMappingEnabled={advisorXeroMappingEnabled}
               businessId={user?.businessId ?? ''}
@@ -26230,7 +26252,7 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
       </p>
 
       {/* Default Warehouse */}
-      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
+      {settings.builds_enabled === 'yes' && <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
         <label style={{ ...labelStyle, fontSize: 13, textTransform: 'none' as const, letterSpacing: 0, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
           Default Warehouse Location
         </label>
@@ -26264,7 +26286,7 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
             Currently: <strong style={{ color: 'var(--sv-text-main)' }}>{locs.find(l => String(l.id) === current)?.name ?? current}</strong>
           </p>
         )}
-      </div>
+      </div>}
 
       <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 5 }}>Build from sale by location</div>
@@ -26522,6 +26544,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       sells_wholesale:          'yes',
       connect_accounting_software: 'no',
       accounting_software:      'xero',
+      builds_enabled:           'no',
       build_from_sale_enabled:   'no',
       ...settings,
     });
@@ -27185,7 +27208,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
               <section style={{ marginBottom: 22 }}>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Inventory</h4>
-                <OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="When finished stock is short and recipe components are available, offer staff a reviewed Build & Sell, Build & Confirm, or Build & Fulfil action. Online marketplaces continue advertising actual finished stock only." />
+                <OperationToggle setting="builds_enabled" label="Use Builds" description="Enable product recipes, build history, reversals, and optional build-from-sale workflows." />
+                {taxDraft.builds_enabled === 'yes' && <OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="When finished stock is short and recipe components are available, offer staff a reviewed Build & Sell, Build & Confirm, or Build & Fulfil action. Online marketplaces continue advertising actual finished stock only." />}
               </section>
 
               <section>
