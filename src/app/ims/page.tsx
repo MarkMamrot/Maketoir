@@ -24567,12 +24567,11 @@ function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
   function updatePos() {
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
-      setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: Math.max(rect.width, 360) });
+      setDropPos({ top: rect.bottom, left: rect.left, width: Math.max(rect.width, 360) });
     }
   }
 
   const search = React.useCallback((q: string) => {
-    if (!q.trim()) { setMatches([]); setOpen(false); return; }
     setSearching(true);
     fetch(`/api/ims/stocktakes/${stocktakeId}/items?q=${encodeURIComponent(q)}&location_id=${locationId}`)
       .then(r => r.json())
@@ -24607,7 +24606,7 @@ function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
         type="text"
         value={query}
         placeholder="Search variant…"
-        onFocus={() => { updatePos(); if (matches.length) setOpen(true); }}
+        onFocus={() => { updatePos(); search(query); }}
         onChange={handleChange}
         style={{ ...inputStyle, fontSize: 12, width: '100%', marginBottom: 0 }}
       />
@@ -24676,6 +24675,8 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [detailItems, setDetailItems]   = useState<any[]>([]);
   const [barcodeText, setBarcodeText]   = useState('');
   const [barcodeResults, setBarcodeResults] = useState<any[] | null>(null);
+  const [barcodeProcessing, setBarcodeProcessing] = useState(false);
+  const [uncommittedStocktakeId, setUncommittedStocktakeId] = useState<number | null>(null);
   const [applying, setApplying]         = useState(false);
   const [savingDraft, setSavingDraft]   = useState(false);
   const [xeroSyncing, setXeroSyncing]   = useState(false);
@@ -24745,6 +24746,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Failed');
+      setUncommittedStocktakeId(Number(j.id));
       load();
       setCreateModal(false);
       openDetail(j);
@@ -24791,7 +24793,19 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const changeStatus = async (stocktake: any, status: string) => {
     const id = Number(stocktake.id);
     const labels: Record<string, string> = { in_progress: 'start count', cancelled: 'cancel' };
-    if (!confirm(`${labels[status] || status} this stocktake?`)) return;
+    const discardUncommitted = status === 'cancelled' && uncommittedStocktakeId === id;
+    if (!confirm(discardUncommitted
+      ? 'Discard this stocktake? It has not been saved and no record will remain.'
+      : `${labels[status] || status} this stocktake?`)) return;
+    if (discardUncommitted) {
+      const response = await fetch(`/api/ims/stocktakes/${id}?discard_uncommitted=1`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to discard stocktake');
+      setUncommittedStocktakeId(null);
+      setDetailModal({ open: false, st: null });
+      load();
+      return;
+    }
     const action = status === 'in_progress' ? 'start' : 'cancel';
     const operationKey = await buildInventoryDocumentOperationKey('stocktake', id, action, stocktake.updated_at, {});
     const response = await fetch(`/api/ims/stocktakes/${id}`, {
@@ -24831,6 +24845,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
         });
       }
       load();
+      setUncommittedStocktakeId(null);
       setDetailModal({ open: false, st: null });
     } catch (e: any) { alert(`Save failed: ${e.message}`); }
     finally { setSavingDraft(false); }
@@ -24893,6 +24908,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
         xeroMsg = `\n\n⚠ Xero sync error: ${xe.message}.`;
       } finally { setXeroSyncing(false); }
       alert(`Stocktake complete. Applied ${d.applied} items, ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.${xeroMsg}`);
+      setUncommittedStocktakeId(null);
       load();
       const r2 = await fetch(`/api/ims/stocktakes/${id}`);
       const d2 = await r2.json();
@@ -24954,35 +24970,83 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     finally { setApplying(false); }
   };
 
-  // Barcode paste processing
-  const processBarcodes = () => {
+  // Barcode/SKU scan processing
+  const processBarcodes = async () => {
     const tokens = barcodeText.split(/[\n,\t]+/).map(t => t.trim()).filter(Boolean);
     const counts: Record<string, number> = {};
     for (const t of tokens) counts[t] = (counts[t] || 0) + 1;
-    const results: any[] = [];
-    for (const [code, qty] of Object.entries(counts)) {
-      const match = detailItems.find((i: any) => i.barcode === code || i.sku === code);
-      results.push({ code, qty, matched: !!match, item: match ?? null });
+    setBarcodeProcessing(true);
+    try {
+      const results: any[] = [];
+      for (const [code, qty] of Object.entries(counts)) {
+        const normalizedCode = code.toLowerCase();
+        const item = detailItems.find((candidate: any) =>
+          String(candidate.barcode ?? '').toLowerCase() === normalizedCode
+          || String(candidate.sku ?? '').toLowerCase() === normalizedCode
+        );
+        if (item) {
+          results.push({ code, qty, matched: true, item, variant: null });
+          continue;
+        }
+        const response = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items?q=${encodeURIComponent(code)}&location_id=${detailModal.st.location_id}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Failed to find ${code}`);
+        const variant = (data.matches ?? []).find((candidate: any) =>
+          String(candidate.barcode ?? '').toLowerCase() === normalizedCode
+          || String(candidate.sku ?? '').toLowerCase() === normalizedCode
+        );
+        results.push({ code, qty, matched: !!variant, item: null, variant: variant ?? null });
+      }
+      setBarcodeResults(results);
+    } catch (error: any) {
+      alert(error.message || 'Failed to process scanned codes');
+    } finally {
+      setBarcodeProcessing(false);
     }
-    setBarcodeResults(results);
   };
 
   const applyBarcodeResults = async () => {
     if (!barcodeResults) return;
-    const updates = barcodeResults.filter(r => r.matched).map(r => ({ item_id: r.item.id, counted_qty: r.qty }));
+    setBarcodeProcessing(true);
+    const updates: { item_id: number; counted_qty: number }[] = [];
+    try {
+      for (const result of barcodeResults.filter(result => result.matched)) {
+        let item = result.item;
+        if (!item && result.variant) {
+          const response = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/items`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variant_id: result.variant.variant_id, location_id: detailModal.st.location_id }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || `Failed to add ${result.code}`);
+          item = data.item;
+        }
+        updates.push({ item_id: item.id, counted_qty: result.qty });
+      }
     if (!updates.length) { alert('No matched items to apply.'); return; }
-    await fetch(`/api/ims/stocktakes/${detailModal.st.id}`, {
+    const updateResponse = await fetch(`/api/ims/stocktakes/${detailModal.st.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'bulk_update_items', items: updates }),
     });
+    if (!updateResponse.ok) {
+      const error = await updateResponse.json();
+      throw new Error(error.error || 'Failed to apply scanned counts');
+    }
     // Refresh detail
     const res = await fetch(`/api/ims/stocktakes/${detailModal.st.id}`);
     const d   = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed to refresh stocktake');
     setDetailItems((d.items || []).map((i: any) => ({ ...i, counted_input: i.counted_qty !== null ? String(i.counted_qty) : '' })));
     alert(`Applied counts for ${updates.length} variants.`);
     setBarcodeResults(null);
     setBarcodeText('');
+    } catch (error: any) {
+      alert(error.message || 'Failed to apply scanned counts');
+    } finally {
+      setBarcodeProcessing(false);
+    }
   };
 
   // Filter + sort + paginate
@@ -25289,7 +25353,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               {(['manual', 'barcode'] as const).map(tab => (
                 <button key={tab} onClick={() => setDetailTab(tab)} style={{ padding: '8px 18px', background: 'none', border: 'none', borderBottom: detailTab === tab ? '2px solid var(--sv-action)' : '2px solid transparent', color: detailTab === tab ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: detailTab === tab ? 700 : 400, fontSize: 14 }}>
-                  {tab === 'manual' ? 'Manual Count' : 'Barcode Paste'}
+                  {tab === 'manual' ? 'Manual Count' : 'Barcode/SKU Scan'}
                 </button>
               ))}
             </div>
@@ -25397,7 +25461,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                 placeholder="Scan or paste barcodes here…"
               />
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                <button type="button" onClick={processBarcodes} style={btnStyle('action', 'sm')}>Process</button>
+                <button type="button" onClick={processBarcodes} disabled={barcodeProcessing || !barcodeText.trim()} style={btnStyle('action', 'sm')}>{barcodeProcessing ? 'Processing…' : 'Process'}</button>
                 <button type="button" onClick={() => { setBarcodeText(''); setBarcodeResults(null); }} style={btnStyle('secondary', 'sm')}>Clear</button>
               </div>
               {barcodeResults && (
@@ -25426,8 +25490,8 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                       </tbody>
                     </table>
                   </div>
-                  <button type="button" onClick={applyBarcodeResults} style={btnStyle('action', 'sm')} disabled={!barcodeResults.some(r => r.matched)}>
-                    Apply Matched Counts to Stocktake
+                  <button type="button" onClick={applyBarcodeResults} style={btnStyle('action', 'sm')} disabled={barcodeProcessing || !barcodeResults.some(r => r.matched)}>
+                    {barcodeProcessing ? 'Applying…' : 'Apply Matched Counts to Stocktake'}
                   </button>
                 </div>
               )}

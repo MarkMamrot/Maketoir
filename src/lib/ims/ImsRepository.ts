@@ -3973,6 +3973,14 @@ export const ImsStocktakeRepo = {
 
   async addItem(stocktakeId: number, variantId: string, locationId: number, businessId: string): Promise<any> {
     await ensureStocktakeTenantTables();
+    const stocktakes = await imsQuery<{ location_id: number; status: string }>(
+      `SELECT location_id, status FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
+      [stocktakeId, businessId],
+    );
+    const stocktake = stocktakes[0];
+    if (!stocktake) throw new Error('Stocktake not found');
+    if (stocktake.status !== 'draft' && stocktake.status !== 'in_progress') throw new Error('Stocktake is not editable');
+    if (Number(locationId) !== Number(stocktake.location_id)) throw new Error('Stocktake location does not match');
     // Check not already present
     const existing = await imsQuery<{ id: number }>(
       `SELECT i.id FROM ims_stocktake_items i
@@ -4007,6 +4015,13 @@ export const ImsStocktakeRepo = {
 
   async searchVariants(query: string, stocktakeId: number, locationId: number, businessId: string): Promise<any[]> {
     await ensureStocktakeTenantTables();
+    const stocktakes = await imsQuery<{ location_id: number }>(
+      `SELECT location_id FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
+      [stocktakeId, businessId],
+    );
+    const stocktake = stocktakes[0];
+    if (!stocktake) throw new Error('Stocktake not found');
+    if (Number(locationId) !== Number(stocktake.location_id)) throw new Error('Stocktake location does not match');
     const like = `%${query}%`;
     return imsQuery<any>(
       `SELECT v.variant_id, v.sku, v.barcode,
@@ -4108,11 +4123,31 @@ export const ImsStocktakeRepo = {
     }
   },
 
-  async delete(id: number, businessId: string): Promise<void> {
+  async delete(id: number, businessId: string, allowUncommitted = false): Promise<void> {
     await ensureStocktakeTenantTables();
-    const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
-    if (rows[0]?.status !== 'draft') throw new Error('Only Draft stocktakes can be deleted');
+    const rows = await imsQuery<{ status: string; counted_count: number }>(
+      `SELECT st.status, SUM(i.counted_qty IS NOT NULL) AS counted_count
+       FROM ims_stocktakes st
+       LEFT JOIN ims_stocktake_items i ON i.stocktake_id = st.id
+       WHERE st.id = ? AND st.business_id = ?
+       GROUP BY st.id`,
+      [id, businessId],
+    );
+    const stocktake = rows[0];
+    const canDiscardUncommitted = allowUncommitted
+      && stocktake?.status === 'in_progress'
+      && Number(stocktake.counted_count ?? 0) === 0;
+    if (stocktake?.status !== 'draft' && !canDiscardUncommitted) {
+      throw new Error('Only Draft or newly started unsaved stocktakes can be deleted');
+    }
     await imsExecute(`DELETE FROM ims_stocktake_items WHERE stocktake_id = ?`, [id]);
+    if (canDiscardUncommitted) {
+      await imsExecute(
+        `DELETE FROM ims_inventory_document_operations
+         WHERE business_id = ? AND document_kind = 'stocktake' AND document_id = ?`,
+        [businessId, id],
+      );
+    }
     await imsExecute(`DELETE FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
   },
 

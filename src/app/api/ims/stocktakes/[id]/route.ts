@@ -106,10 +106,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const id = parseInt(params.id, 10);
   try {
-    await ImsStocktakeRepo.delete(id, session.businessId);
+    const allowUncommitted = _req.nextUrl.searchParams.get('discard_uncommitted') === '1';
+    await ImsStocktakeRepo.delete(id, session.businessId, allowUncommitted);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    const conflict = e?.message === 'Only Draft stocktakes can be deleted';
+    const conflict = e?.message === 'Only Draft or newly started unsaved stocktakes can be deleted';
     if (!conflict) {
       await reportRuntimeIssue({
         businessId: session.businessId, source: 'ims_stocktakes', operation: 'delete_draft',

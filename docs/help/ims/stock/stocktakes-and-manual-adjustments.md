@@ -8,7 +8,7 @@ Use a stocktake for a controlled physical count and a manual quantity adjustment
 ## Main operations
 
 - Create a filtered or blank stocktake for one location.
-- Enter counts manually or from scanned barcode lists.
+- Enter counts manually or with Barcode/SKU Scan.
 - Decide whether uncounted items stay unchanged or count as zero.
 - Complete the count and review quantity and value differences.
 - Reverse a mistaken supported stocktake without deleting later movements.
@@ -44,11 +44,12 @@ Use **Products > Builds** to assemble or dismantle recipe-backed stock. Build co
 
 1. Open **Stocktakes** and choose **New Stocktake**.
 2. Choose the location and reference. Use **Pre-populate from filters** for a defined range, or **Blank** to add items manually.
-3. Review the number of included variants, then start the stocktake.
-4. Count physical units and enter each quantity. You can save and continue later.
-5. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.
-6. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.
-7. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.
+3. Review the number of included variants, then start the stocktake. Cancelling before the first **Save & Close** discards the new stocktake without leaving a record.
+4. Count physical units and enter each quantity. You can search or browse the product and variant list to add an omitted item, then save and continue later.
+5. For scanner entry, open **Barcode/SKU Scan**, scan or paste one barcode or SKU per line, process the list, then apply the matched counts. A matched variant is added to the stocktake when it was not already included.
+6. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.
+7. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.
+8. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.
 
 When opening quantities are entered while creating a tracked product, Solvantis creates and completes a separate stocktake for each location. The opening quantity is the counted quantity; Min Qty and Reorder Qty are saved with that location's stock settings. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
 

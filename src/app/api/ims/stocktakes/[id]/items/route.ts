@@ -12,7 +12,6 @@ export async function GET(req: NextRequest, { params }: Params) {
     const id         = parseInt(params.id, 10);
     const q          = req.nextUrl.searchParams.get('q') ?? '';
     const locationId = parseInt(req.nextUrl.searchParams.get('location_id') ?? '0', 10);
-    if (!q.trim()) return NextResponse.json({ matches: [] });
     const matches = await ImsStocktakeRepo.searchVariants(q.trim(), id, locationId, session.businessId);
     return NextResponse.json({ matches });
   } catch (e: any) {
@@ -25,6 +24,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await getImportSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
     const id = parseInt(params.id, 10);
     const { variant_id, location_id } = await req.json();
     if (!variant_id) return NextResponse.json({ error: 'variant_id required' }, { status: 400 });
