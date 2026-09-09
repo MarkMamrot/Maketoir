@@ -275,7 +275,7 @@ async function persistCarrierShipment(
     [text(created.shipment_id), numberOrNull(summary.total_cost), numberOrNull(summary.total_cost_ex_gst),
       numberOrNull(summary.total_gst), businessId, shipment.id],
   );
-  const parcelByReference = new Map(parcels.map(parcel => [parcelReference(shipment.id, parcel.parcel_number), parcel]));
+  const parcelByReference = new Map(parcels.map(parcel => [parcelReference(shipment, parcel.parcel_number), parcel]));
   for (const item of created.items ?? []) {
     const parcel = parcelByReference.get(text(item.item_reference));
     if (!parcel) continue;
@@ -352,7 +352,7 @@ export function buildAusPostDomesticShipment(shipment: ShipmentRow, parcels: Par
     from: carrierAddressPayload(sender),
     to: carrierAddressPayload(recipient),
     items: parcels.map(parcel => ({
-      item_reference: parcelReference(shipment.id, parcel.parcel_number),
+      item_reference: parcelReference(shipment, parcel.parcel_number),
       product_id: shipment.service_code,
       length: millimetresToCentimetres(parcel.length_mm),
       width: millimetresToCentimetres(parcel.width_mm),
@@ -387,8 +387,9 @@ function parseAddress(value: string | CarrierAddress): CarrierAddress {
   return typeof value === 'string' ? JSON.parse(value) as CarrierAddress : value;
 }
 
-function parcelReference(shipmentId: number, parcelNumber: number): string {
-  return `S${shipmentId}-P${parcelNumber}`;
+function parcelReference(shipment: Pick<ShipmentRow, 'id' | 'so_number' | 'channel_order_number'>, parcelNumber: number): string {
+  const references = [shipment.so_number, shipment.channel_order_number].filter(Boolean).join(' ');
+  return `${references || `S${shipment.id}`} P${parcelNumber}`.slice(0, 50);
 }
 
 function millimetresToCentimetres(value: number): number {

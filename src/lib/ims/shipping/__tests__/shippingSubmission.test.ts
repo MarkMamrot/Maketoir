@@ -31,7 +31,7 @@ describe('Australia Post shipment submission', () => {
       from: { name: 'Warehouse', lines: ['1 Main St'], suburb: 'Sydney', state: 'NSW', postcode: '2000' },
       to: { name: 'Buyer', lines: ['2 High St'], suburb: 'Melbourne', state: 'VIC', postcode: '3000', email: 'buyer@example.com' },
       items: [{
-        item_reference: 'S91-P1', product_id: 'T28', length: 20.5, width: 15, height: 9.9,
+        item_reference: 'ONL-20260908-528728 #47908 P1', product_id: 'T28', length: 20.5, width: 15, height: 9.9,
         weight: 1.25, authority_to_leave: false, allow_partial_delivery: true,
       }],
     });
