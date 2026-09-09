@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canDeleteShippingDraft,
   canTransitionShippingShipment,
   getAusPostLabelBatchLimit,
   getShippingOrderEligibility,
@@ -37,6 +38,15 @@ describe('shipping workflow', () => {
     expect(canTransitionShippingShipment('complete', 'manifested')).toBe(true);
     expect(canTransitionShippingShipment('manifested', 'voided')).toBe(false);
     expect(canTransitionShippingShipment('ims_fulfilled', 'voided')).toBe(false);
+  });
+
+  it('only deletes local drafts that have not reached a carrier', () => {
+    expect(canDeleteShippingDraft('draft', null)).toBe(true);
+    expect(canDeleteShippingDraft('quoting', null)).toBe(true);
+    expect(canDeleteShippingDraft('failed', null)).toBe(true);
+    expect(canDeleteShippingDraft('failed', 'carrier-123')).toBe(false);
+    expect(canDeleteShippingDraft('carrier_created', null)).toBe(false);
+    expect(canDeleteShippingDraft('label_ready', 'carrier-123')).toBe(false);
   });
 
   it('accepts fractional line allocations and rejects over-allocation or invalid parcels', () => {

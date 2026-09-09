@@ -49,6 +49,10 @@ export function canTransitionShippingShipment(
   return from === to || SHIPMENT_TRANSITIONS[from].includes(to);
 }
 
+export function canDeleteShippingDraft(status: string, providerShipmentId: string | null): boolean {
+  return !providerShipmentId && ['draft', 'quoting', 'failed'].includes(status);
+}
+
 export function validateShippingParcels(
   lines: ShippingOrderLine[],
   parcels: ShippingParcelDraft[],

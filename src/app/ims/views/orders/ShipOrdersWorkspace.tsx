@@ -4,7 +4,7 @@ import { Download, PackageCheck, Plus, RefreshCw, Send, Trash2, X } from 'lucide
 import { useEffect, useRef, useState } from 'react';
 
 import { suggestParcels, type PackableUnit, type PackingPreset } from '@/lib/ims/shipping/packingSuggestions';
-import { getShippingOrderEligibility } from '@/lib/ims/shipping/shippingWorkflow';
+import { canDeleteShippingDraft, getShippingOrderEligibility } from '@/lib/ims/shipping/shippingWorkflow';
 
 type SalesOrderSummary = {
   id: number;
@@ -71,6 +71,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMessage, setDispatchMessage] = useState('');
   const [created, setCreated] = useState<Array<{ soId: number; shipmentId: number }>>([]);
@@ -255,6 +256,24 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
     })));
     setError('');
   };
+  const deleteSavedShipments = async () => {
+    const selected = visibleSavedShipments.filter(shipment => savedSelection.has(shipment.shipmentId));
+    if (!selected.length || selected.some(shipment => !canDeleteShippingDraft(shipment.status, shipment.providerShipmentId))) return;
+    if (!window.confirm(`Delete ${selected.length} selected shipment draft${selected.length === 1 ? '' : 's'}? The orders will become available to prepare again.`)) return;
+    setDeleting(true); setError('');
+    try {
+      const response = await fetch('/api/ims/shipping/drafts', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipmentIds: selected.map(shipment => shipment.shipmentId) }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to delete shipment drafts.');
+      const deleted = new Set<number>(result.data?.deletedShipmentIds ?? []);
+      setSavedShipments(current => current.filter(shipment => !deleted.has(shipment.shipmentId)));
+      setSavedSelection(new Set());
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete shipment drafts.'); }
+    finally { setDeleting(false); }
+  };
   const markDispatched = async () => {
     if (!window.confirm('Mark these labelled shipments as dispatched? This updates stock and Sales Order fulfillment, then syncs the connected channel.')) return;
     setDispatching(true); setError(''); setDispatchMessage('');
@@ -289,7 +308,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
         {loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Checking order lines and delivery addresses...</div>}
         {error && <div role="alert" style={{ color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
         {dispatchMessage && <div role="status" style={{ marginBottom: 12, color: 'var(--sv-green)', fontSize: 13 }}>{dispatchMessage}</div>}
-        {!loading && !created.length && visibleSavedShipments.length > 0 && <section style={{ marginBottom: 18 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}><div><strong style={{ fontSize: 13 }}>Saved shipments</strong><div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>Prepared shipments remain here when you close this workspace.</div></div><button type="button" disabled={!savedSelection.size} onClick={openSavedShipments} style={{ ...secondaryButtonStyle, opacity: savedSelection.size ? 1 : .55 }}>Open selected</button></div><div style={{ borderTop: '1px solid var(--sv-etch)' }}>{visibleSavedShipments.map(shipment => <label key={shipment.shipmentId} style={{ display: 'grid', gridTemplateColumns: '24px minmax(150px,.8fr) minmax(160px,1fr) minmax(150px,1fr) auto', gap: 10, alignItems: 'center', padding: '10px 4px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}><input type="checkbox" checked={savedSelection.has(shipment.shipmentId)} onChange={event => setSavedSelection(current => { const next = new Set(current); if (event.target.checked) next.add(shipment.shipmentId); else next.delete(shipment.shipmentId); return next; })} /><span><strong>{shipment.soNumber}</strong>{shipment.channelOrderNumber && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{shipment.channelOrderNumber}</span>}</span><span>{shipment.customerName || 'No customer name'}</span><span>{shipment.serviceName || 'Service not selected'}{shipment.quotedCost != null && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{formatAud(shipment.quotedCost)} quoted</span>}</span><span style={{ color: shipment.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{shippingStatusLabel(shipment.status)}</span></label>)}</div></section>}
+        {!loading && !created.length && visibleSavedShipments.length > 0 && <section style={{ marginBottom: 18 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}><div><strong style={{ fontSize: 13 }}>Saved shipments</strong><div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>Prepared shipments remain here when you close this workspace.</div></div><div style={{ display: 'flex', gap: 8 }}><button type="button" disabled={!savedSelection.size || deleting} onClick={openSavedShipments} style={{ ...secondaryButtonStyle, opacity: savedSelection.size && !deleting ? 1 : .55 }}>Open selected</button><button type="button" disabled={!savedSelection.size || deleting || visibleSavedShipments.filter(shipment => savedSelection.has(shipment.shipmentId)).some(shipment => !canDeleteShippingDraft(shipment.status, shipment.providerShipmentId))} onClick={deleteSavedShipments} title="Only drafts not submitted to a carrier can be deleted" style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--sv-red)', opacity: savedSelection.size && !deleting && !visibleSavedShipments.filter(shipment => savedSelection.has(shipment.shipmentId)).some(shipment => !canDeleteShippingDraft(shipment.status, shipment.providerShipmentId)) ? 1 : .55 }}><Trash2 size={14} />{deleting ? 'Deleting...' : 'Delete selected'}</button></div></div><div style={{ borderTop: '1px solid var(--sv-etch)' }}>{visibleSavedShipments.map(shipment => <label key={shipment.shipmentId} style={{ display: 'grid', gridTemplateColumns: '24px minmax(150px,.8fr) minmax(160px,1fr) minmax(150px,1fr) auto', gap: 10, alignItems: 'center', padding: '10px 4px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}><input type="checkbox" checked={savedSelection.has(shipment.shipmentId)} onChange={event => setSavedSelection(current => { const next = new Set(current); if (event.target.checked) next.add(shipment.shipmentId); else next.delete(shipment.shipmentId); return next; })} /><span><strong>{shipment.soNumber}</strong>{shipment.channelOrderNumber && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{shipment.channelOrderNumber}</span>}</span><span>{shipment.customerName || 'No customer name'}</span><span>{shipment.serviceName || 'Service not selected'}{shipment.quotedCost != null && <span style={{ display: 'block', color: 'var(--sv-text-dim)' }}>{formatAud(shipment.quotedCost)} quoted</span>}</span><span style={{ color: shipment.status === 'label_ready' ? 'var(--sv-green)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{shippingStatusLabel(shipment.status)}</span></label>)}</div></section>}
         {!loading && !created.length && <div style={{ marginBottom: 14 }}><label style={{ display: 'block', width: 'min(360px,100%)' }}><span style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Carrier account</span><select value={carrierAccountId} onChange={event => { setCarrierAccountId(event.target.value); setError(''); setQuotesByOrder({}); setSelectedServiceByOrder({}); }} style={selectStyle}><option value="">Choose an account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}{account.verifiedAt ? '' : ' (not verified)'}</option>)}</select></label>{selectedAccount?.dispatchAddressMissingFields.length ? <div role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--sv-red)' }}>Dispatch location <strong>{selectedAccount.dispatchLocationName || 'not selected'}</strong> is missing {selectedAccount.dispatchAddressMissingFields.join(', ')}. <button type="button" onClick={() => { onClose(); window.location.hash = 'locations'; }} style={linkButtonStyle}>Update location</button></div> : null}</div>}
         {!loading && !created.length && plans.map(({ order, remainingQuantity, eligibility, hasAddress, ready, suggestion }) => {
           const orderParcels = parcelsByOrder[order.id] ?? [];

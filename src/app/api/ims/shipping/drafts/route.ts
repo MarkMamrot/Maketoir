@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
 import { createShippingDrafts } from '@/lib/ims/shipping/shippingDrafts';
+import { canDeleteShippingDraft } from '@/lib/ims/shipping/shippingWorkflow';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 export async function GET() {
   const session = await getImsSession();
@@ -80,5 +81,47 @@ export async function POST(request: Request) {
       });
     }
     return NextResponse.json({ success: false, error: message }, { status: validation ? 400 : 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
+  try {
+    const body = await request.json();
+    const shipmentIds = [...new Set((Array.isArray(body?.shipmentIds) ? body.shipmentIds : [])
+      .map(Number)
+      .filter((id: number) => Number.isInteger(id) && id > 0))];
+    if (!shipmentIds.length) return NextResponse.json({ error: 'Choose at least one shipment draft.' }, { status: 400 });
+    if (shipmentIds.length > 100) return NextResponse.json({ error: 'Delete no more than 100 shipment drafts at once.' }, { status: 400 });
+
+    const placeholders = shipmentIds.map(() => '?').join(',');
+    const rows = await imsQuery<{ id: number; status: string; provider_shipment_id: string | null }>(
+      `SELECT id, status, provider_shipment_id
+         FROM ims_shipping_shipments
+        WHERE business_id = ? AND id IN (${placeholders})`,
+      [session.businessId, ...shipmentIds],
+    );
+    if (rows.length !== shipmentIds.length || rows.some(row => !canDeleteShippingDraft(row.status, row.provider_shipment_id))) {
+      return NextResponse.json({ error: 'Only local drafts that have not been submitted to a carrier can be deleted.' }, { status: 409 });
+    }
+
+    const result = await imsExecute(
+      `DELETE FROM ims_shipping_shipments
+        WHERE business_id = ? AND id IN (${placeholders})
+          AND provider_shipment_id IS NULL AND status IN ('draft', 'quoting', 'failed')`,
+      [session.businessId, ...shipmentIds],
+    );
+    if (result.affectedRows !== shipmentIds.length) {
+      return NextResponse.json({ error: 'One or more drafts changed while deleting. Refresh the workspace and try again.' }, { status: 409 });
+    }
+    return NextResponse.json({ success: true, data: { deletedShipmentIds: shipmentIds } });
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId: session.businessId, source: 'ims_shipping', operation: 'delete_drafts',
+      title: 'Shipping drafts could not be deleted', error,
+    });
+    return NextResponse.json({ success: false, error: 'Unable to delete shipment drafts.' }, { status: 500 });
   }
 }
