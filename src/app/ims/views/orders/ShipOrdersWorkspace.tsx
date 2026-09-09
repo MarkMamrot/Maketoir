@@ -1,7 +1,7 @@
 'use client';
 
 import { PackageCheck, Plus, RefreshCw, Trash2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { suggestParcels, type PackableUnit, type PackingPreset } from '@/lib/ims/shipping/packingSuggestions';
 import { getShippingOrderEligibility } from '@/lib/ims/shipping/shippingWorkflow';
@@ -38,6 +38,9 @@ type EditableParcel = {
 type ShippingRate = { serviceCode: string; serviceName: string; total: number; totalExGst: number; gst: number };
 
 export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSummary[]; onClose: () => void }) {
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const selectedOrderKey = orders.map(order => Number(order.id)).sort((left, right) => left - right).join(',');
   const [details, setDetails] = useState<SalesOrderDetail[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,8 +56,9 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
   useEffect(() => {
     let active = true;
     setLoading(true);
+    const selectedOrders = ordersRef.current;
     Promise.all([
-      Promise.all(orders.map(async order => {
+      Promise.all(selectedOrders.map(async order => {
       const response = await fetch(`/api/ims/sales-orders/${order.id}`);
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || `Unable to load ${order.so_number}.`);
@@ -78,7 +82,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to prepare these orders.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [orders]);
+  }, [selectedOrderKey]);
 
   const plans = details.map(order => ({ order, ...buildPackingPlan(order, presets) }));
   const canCreate = Boolean(carrierAccountId) && plans.length > 0 && plans.every(plan => plan.ready && validEditableParcels(plan.order, parcelsByOrder[plan.order.id]));
@@ -191,6 +195,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
         {!loading && !created.length && plans.map(({ order, remainingQuantity, eligibility, hasAddress, ready, suggestion }) => {
           const orderParcels = parcelsByOrder[order.id] ?? [];
           const rates = quotesByOrder[order.id] ?? [];
+          const parcelIssue = editableParcelIssue(order, orderParcels);
           return <div key={order.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--sv-etch)' }}><div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px,.7fr) minmax(170px,1fr) minmax(220px,1.3fr) auto', gap: 14, alignItems: 'center' }}>
             <div><strong style={{ fontSize: 13 }}>{order.so_number}</strong><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{remainingQuantity} unit{remainingQuantity === 1 ? '' : 's'} remaining</div></div>
             <div style={{ fontSize: 12 }}>{order.customer_name || 'No customer name'}</div>
@@ -217,6 +222,7 @@ export function ShipOrdersWorkspace({ orders, onClose }: { orders: SalesOrderSum
               </div>
             </div>)}
             <div><button type="button" onClick={() => addParcel(order)} style={{ ...secondaryButtonStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus size={14} />Add parcel</button></div>
+            {parcelIssue && <div role="status" style={{ fontSize: 11, color: 'var(--sv-red)' }}>{parcelIssue}</div>}
             {rates.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{rates.map(rate => <div key={rate.serviceCode} style={{ padding: '7px 9px', border: '1px solid var(--sv-etch)', borderRadius: 6, fontSize: 12 }}><strong>{rate.serviceName}</strong> · {formatAud(rate.total)} <span style={{ color: 'var(--sv-text-dim)' }}>incl. GST</span></div>)}</div>}
           </div>}</div>;
         })}
@@ -293,15 +299,29 @@ function remainingAllocations(order: SalesOrderDetail, quantityMultiplier = 1): 
 }
 
 function validEditableParcels(order: SalesOrderDetail, parcels: EditableParcel[] | undefined): boolean {
-  if (!parcels?.length || parcels.some(parcel => ![parcel.lengthMm, parcel.widthMm, parcel.heightMm, parcel.weightKg]
-    .every(value => Number.isFinite(Number(value)) && Number(value) > 0)
-    || !parcel.allocations.some(allocation => allocation.quantity > 0)
-    || parcel.allocations.some(allocation => !Number.isFinite(allocation.quantity) || allocation.quantity < 0))) return false;
-  return (order.items ?? []).every(item => {
+  return editableParcelIssue(order, parcels) === '';
+}
+
+function editableParcelIssue(order: SalesOrderDetail, parcels: EditableParcel[] | undefined): string {
+  if (!parcels?.length) return 'Add at least one parcel.';
+  const invalidParcelIndex = parcels.findIndex(parcel => ![parcel.lengthMm, parcel.widthMm, parcel.heightMm, parcel.weightKg]
+    .every(value => Number.isFinite(Number(value)) && Number(value) > 0));
+  if (invalidParcelIndex >= 0) return `Enter positive dimensions and packed weight for parcel ${invalidParcelIndex + 1}.`;
+  const emptyParcelIndex = parcels.findIndex(parcel => !parcel.allocations.some(allocation => allocation.quantity > 0));
+  if (emptyParcelIndex >= 0) return `Assign at least one item quantity to parcel ${emptyParcelIndex + 1}.`;
+  if (parcels.some(parcel => parcel.allocations.some(allocation => !Number.isFinite(allocation.quantity) || allocation.quantity < 0))) {
+    return 'Parcel item quantities cannot be negative.';
+  }
+  const incompleteItem = (order.items ?? []).find(item => {
     const remaining = Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled));
     const allocated = parcels.reduce((sum, parcel) => sum + (parcel.allocations.find(value => value.soItemId === Number(item.id))?.quantity ?? 0), 0);
-    return Math.abs(remaining - allocated) < 0.0001;
+    return Math.abs(remaining - allocated) >= 0.0001;
   });
+  if (incompleteItem) {
+    const remaining = Math.max(0, Number(incompleteItem.qty_ordered) - Number(incompleteItem.qty_fulfilled));
+    return `Assign exactly ${remaining} of ${incompleteItem.sku || incompleteItem.product_name || `item ${incompleteItem.id}`} across the parcels.`;
+  }
+  return '';
 }
 
 function formatAud(value: number): string {
