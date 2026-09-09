@@ -85,7 +85,8 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
             SET status = ?, ims_fulfilment_operation_key = ?, ims_fulfilled_at = NOW(),
                 completed_at = CASE WHEN ? = 'complete' THEN NOW() ELSE completed_at END, safe_error = NULL
           WHERE business_id = ? AND id = ?`,
-        [needsShopify ? 'channel_pending' : 'complete', operationKey, needsShopify ? 'channel_pending' : 'complete', input.businessId, row.id],
+        [needsShopify ? 'channel_pending' : 'complete', didFulfil ? operationKey : row.ims_fulfilment_operation_key,
+          needsShopify ? 'channel_pending' : 'complete', input.businessId, row.id],
       );
       if (needsShopify) {
         await connection.execute(
