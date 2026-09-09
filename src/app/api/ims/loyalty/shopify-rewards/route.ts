@@ -69,6 +69,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       loyalty: {
+        canAdjustPoints: ['Admin', 'SuperAdmin'].includes(String(session.tier ?? '')),
         enabled: settings.enabled,
         active,
         member,

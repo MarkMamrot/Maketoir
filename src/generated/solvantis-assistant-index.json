@@ -305,7 +305,7 @@
       ],
       "order": 40,
       "summary": "Maintain contact details and use CRM profiles without replacing source transactions.",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "owner": "customer",
       "filename": "docs/help/ims/contacts/crm.md"
     },
@@ -3658,8 +3658,8 @@
         "contact-profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
-      "content": "Contacts holds maintained customer, supplier, and lead details. CRM adds relationship work and a combined view of customer activity."
+      "lastReviewed": "2026-09-09",
+      "content": "Contacts holds maintained customer, supplier, and lead details. CRM adds relationship work and a combined view of customer activity.\n\nThe Contacts search checks names, companies, customer codes, and email addresses across all contact types. When the search box is empty, the contact-type selector controls which records are shown."
     },
     {
       "id": "ims-contacts-crm:2",
@@ -3677,7 +3677,7 @@
         "contact-profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "content": "- Search before creating a contact so one person or company is not duplicated.\n- Maintain names, contact details, company details, and contact type in Contacts.\n- Set independent customer and supplier early-payment defaults for eligible contacts.\n- Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.\n- Keep important information in the **Contact summary** pinned at the top of each CRM profile.\n- Open a customer profile to review activity and follow its source links.\n- Use CRM tasks, segments, and pipeline for follow-up and sales development."
     },
     {
@@ -3696,7 +3696,7 @@
         "contact-profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "content": "| Need | Use | What happens |\n|---|---|---|\n| Add or correct contact details | **Contacts** | The maintained contact record changes |\n| Review purchases, credits, loyalty, or follow-ups | **CRM > Contacts** | A combined profile and timeline opens |\n| Organise follow-up work | **CRM > Tasks** | Tasks can be assigned, completed, or cancelled |\n| Group customers from current data | **CRM > Segments** | Membership recalculates when viewed or refreshed |\n| Track a possible sale | **CRM > Pipeline** | The opportunity moves through open, won, or lost stages |\n\nWhen adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. After saving a lead or retail customer, Contacts switches to that contact type so the new record is visible. The form closes without saving only when you choose **Cancel** or press Escape.\n\nFor a B2B customer, choose a **Customer early-payment default** when new Sales Orders should normally offer that rule. For a supplier, choose a **Supplier early-payment default** for new Purchase Orders. A contact of type **Both** can hold each default independently. The default is copied to a new order when it is saved; changing the contact later does not rewrite existing orders."
     },
     {
@@ -3715,7 +3715,7 @@
         "contact-profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "content": "A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.\n\nAsk Solvantis can find an active customer by display name, company, or customer code, then check a bounded summary of that customer's sales, orders, credits, store credit, loyalty, and task counts. The live result does not include email, phone, address, free-text interactions, or staff names. Use the customer profile when those maintained details are needed.\n\nThe **Contact summary** is a pinned note for important information staff should know about the contact. Use **Edit** to record details such as contact preferences, accessibility requirements, or standing instructions, then select **Save**. Clearing and saving removes the note. Advisor accounts can read the summary but cannot change it.\n\nUse a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the contact summary into a running activity log.\n\n| Information | Where it comes from | Where to correct it |\n|---|---|---|\n| Name, company, email, phone, address, contact type | Contact record | **Contacts** |\n| POS purchase or return | Completed POS transaction | POS return or linked customer credit note workflow |\n| Customer order and fulfilment | Sales Order | The linked Sales Order |\n| Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |\n| Loyalty points | Loyalty activity | The supported loyalty or return workflow |\n| Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |\n| Important information about the contact | **Contact summary** | The customer profile |\n| Follow-up commitment | CRM task | The task queue or customer profile |\n| Potential sale and forecast value | CRM opportunity | The Pipeline |\n\n> **Note:** CRM summaries bring information together. Correct a sale, order, return, credit, or loyalty event at its source so every view stays consistent."
     },
     {
@@ -3734,7 +3734,7 @@
         "contact-profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| A customer appears twice | Separate contacts were created | Check both records and use the supported data-quality merge action if appropriate |\n| Profile activity looks incomplete | A category or date filter is active | Clear filters, then open the source workspace |\n| A balance cannot be typed over | It changes through transactions | Open the relevant credit, return, payment, or loyalty activity |\n| A supplier has no retail CRM history | CRM activity is limited to eligible customer and lead types | Confirm the contact type before changing it |"
     },
     {
@@ -3753,7 +3753,7 @@
         "contact-profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "content": "### Correct a customer's email\n\nOpen **Contacts**, search for the customer, edit the maintained email address, and save. Do not add a CRM interaction as a substitute for correcting the contact.\n\n### Investigate store credit\n\nOpen the customer profile and review the store-credit activity. Follow the linked credit note or payment source when available, then use that workflow for any correction rather than entering a replacement balance."
     },
     {

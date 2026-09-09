@@ -656,14 +656,14 @@
       ],
       "order": 40,
       "summary": "Maintain contact details and use CRM profiles without replacing source transactions.",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-09",
       "owner": "customer",
       "filename": "docs/help/ims/contacts/crm.md",
       "sections": [
         {
           "id": "ims-contacts-crm:1",
           "heading": "Contacts and CRM",
-          "content": "Contacts holds maintained customer, supplier, and lead details. CRM adds relationship work and a combined view of customer activity."
+          "content": "Contacts holds maintained customer, supplier, and lead details. CRM adds relationship work and a combined view of customer activity.\n\nThe Contacts search checks names, companies, customer codes, and email addresses across all contact types. When the search box is empty, the contact-type selector controls which records are shown."
         },
         {
           "id": "ims-contacts-crm:2",

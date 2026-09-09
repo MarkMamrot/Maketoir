@@ -1,9 +1,11 @@
 ---
-{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-08-25","owner":"customer"}
+{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-09-09","owner":"customer"}
 ---
 # Contacts and CRM
 
 Contacts holds maintained customer, supplier, and lead details. CRM adds relationship work and a combined view of customer activity.
+
+The Contacts search checks names, companies, customer codes, and email addresses across all contact types. When the search box is empty, the contact-type selector controls which records are shown.
 
 ## Main operations
 

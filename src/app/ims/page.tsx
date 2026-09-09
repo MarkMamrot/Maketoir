@@ -2242,8 +2242,9 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   const filterActive = priceTierFilter !== 'all' || activeFilter !== DEFAULT_STATUS_FILTER || storeCreditFilter !== 'all'
     || promoEmailFilter !== 'all' || promoSmsFilter !== 'all' || (isCrmMode && (crmTagFilter !== 'all'
     || crmFollowUpFilter !== 'all' || crmLastTouchFilter !== 'all'));
+  const hasTextFilter = filter.trim().length > 0;
   const filtered = contacts.filter(c =>
-    typeMatchFn(c) &&
+    (hasTextFilter || typeMatchFn(c)) &&
     (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase())) &&
     (priceTierFilter === 'all' || (priceTierFilter === 'wholesale' ? c.price_tier === 'wholesale' : (c.price_tier ?? 'retail') !== 'wholesale')) &&
     (activeFilter === 'all' || String(c.is_active) === activeFilter) &&
@@ -2293,7 +2294,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
         <ContactCrmAnalytics onOpenProfile={onOpenProfile} />
       ) : <>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <input placeholder="Search contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
+        <input placeholder="Search all contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
         <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}>
           {isCrmMode && <option value="crm_all">All Customers &amp; Leads</option>}
           {!isCrmMode && <option value="supplier">Suppliers + B2B Customers</option>}
