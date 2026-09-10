@@ -2073,7 +2073,7 @@
       },
       "order": 1,
       "summary": "Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.",
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "owner": "wholesale",
       "filename": "docs/help/wholesale/portal.md"
     },
@@ -5622,7 +5622,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "1. Open **Products > All Products** and search for the item.\n\tThe Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.\n4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.\n5. Add a description and set Active to **Yes** when the item should be available. Use the description toolbar for headings, font, size, emphasis, colour, alignment, lists, quotes and links. Use **HTML source** only when direct markup editing is needed.\n6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.\n7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n8. For a simple product, add one blank row and use the default variant.\n9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant.\n11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.\n13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.\n14. Choose **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.\n\nWhen **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.\n\nUnder **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.\n\nOpening quantity changes are set through a completed stocktake, so Stock History retains each actual adjustment. A new product left at the default zero does not create a zero-value stocktake. Minimum and reorder quantities can still be saved without changing stock. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.\n\nAuto SKU uses the format **ABC-YYMMDD-HHMMSS**. Changing the brand while Auto SKU is on refreshes the generated value. Typing in Product SKU turns Auto SKU off. Generated variant SKUs continue to use the Product SKU as their base."
+      "content": "1. Open **Products > All Products** and search for the item.\n\tThe Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.\n4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.\n5. Add a description and set Active to **Yes** when the item should be available. Use the description toolbar for headings, font, size, emphasis, colour, alignment, lists, quotes and links. Use **HTML source** only when direct markup editing is needed.\n6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.\n7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n8. For a simple product, add one blank row and use the default variant.\n9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant. **B2B Pack** is the number of individual units in one wholesale selling pack for that variant; leave it blank when the variant is sold individually.\n11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.\n13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.\n14. Choose **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.\n\nWhen **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.\n\nUnder **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.\n\nOpening quantity changes are set through a completed stocktake, so Stock History retains each actual adjustment. A new product left at the default zero does not create a zero-value stocktake. Minimum and reorder quantities can still be saved without changing stock. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.\n\nAuto SKU uses the format **ABC-YYMMDD-HHMMSS**. Changing the brand while Auto SKU is on refreshes the generated value. Typing in Product SKU turns Auto SKU off. Generated variant SKUs continue to use the Product SKU as their base."
     },
     {
       "id": "ims-product-setup-variants:6",
@@ -5679,7 +5679,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |\n| Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Weight and dimensions | Variant | Kilograms and millimetres used to suggest shipping packages |\n| Active | Product and variant | Inactive records should not be used for new work |"
+      "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |\n| Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| B2B Pack | Variant | Units in one wholesale selling pack; this does not represent a supplier purchasing carton |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Weight and dimensions | Variant | Kilograms and millimetres used to suggest shipping packages |\n| Active | Product and variant | Inactive records should not be used for new work |"
     },
     {
       "id": "ims-product-setup-variants:9",
@@ -12781,7 +12781,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "Use this overview to choose the wholesale guide for your account, order, or team task."
     },
     {
@@ -12800,7 +12800,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Apply, verify your email, wait for approval, or sign in | Getting Started and Account Approval |\n| Browse approved products, use saved lists, reorder, or understand stock and indent | Ordering, Saved Lists, and Stock Rules |\n| Switch buying location, edit addresses, or manage team access | Team, Locations, and Permissions |\n\n> **Important:** The supplier controls account approval, wholesale pricing, brand access, payment terms, and which products permit indent ordering. The portal applies those current settings whenever you load or submit an order."
     },
     {
@@ -12819,7 +12819,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "Home shows the signed-in company, active buying location, available-product count, open-order count, and shortcuts into the approved catalogue and recent activity. Check the buying location in the header before starting work.\n\nAll signed-in roles can browse their approved catalogue, prepare carts, save drafts, submit orders, use saved lists and favourites, and review orders available to their company and assigned buying locations. Owner and Admin roles also receive account-management controls."
     },
     {
@@ -12838,7 +12838,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "Use **Help** for the supplier's support email or existing account-manager contact. Contact the supplier when an application needs review, a commercial term is wrong, a brand or product is unavailable, or an order needs a change that the portal does not offer.\n\nAsk Solvantis can explain products and workflows using read-only information limited to the signed-in buyer, company, assigned location, approved catalogue, and owned orders. It cannot submit or alter an order."
     },
     {
@@ -12857,8 +12857,8 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
-      "content": "Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab. The portal starts as a customer-facing preview with the Layout Editor closed. Select **Edit layout** only when layout changes are needed.\n\n**Wholesale Applications** appears directly below **Preview Wholesale Portal** in the IMS Sales menu, keeping account review separate from the preview itself. Preview checkout remains a test workflow and does not create a confirmable live order.\n\nThe Layout Editor provides shared theme colours for primary highlights, secondary elements, accents, page background, surfaces, main text and muted text. Each page can inherit that shared theme or override individual colours. Open a colour control to use the colour spectrum, enter a hexadecimal value, or choose a saved Foresight brand swatch. Rich-text sections provide formatting for headings, font, size, emphasis, text colour, alignment, lists, quotes and links, with HTML source available when direct markup editing is needed. Save the draft, review each page preview, then publish to make changes visible to customers.\n\nIn **Settings > Wholesale Portal**, Product Card Style can show information below each image or use a larger image-led card that reveals product details over the lower half on hover or keyboard focus. Products with one variant show only the price; products with multiple variants show a starting price and option count."
+      "lastReviewed": "2026-09-10",
+      "content": "Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab. The portal starts as a customer-facing preview with the Layout Editor closed. Select **Edit layout** only when layout changes are needed.\n\n**Wholesale Applications** appears directly below **Preview Wholesale Portal** in the IMS Sales menu, keeping account review separate from the preview itself. Preview checkout remains a test workflow and does not create a confirmable live order.\n\nThe Layout Editor provides shared theme colours for primary highlights, secondary elements, accents, page background, surfaces, main text and muted text. Each page can inherit that shared theme or override individual colours. Open a colour control to use the colour spectrum, enter a hexadecimal value, or choose a saved Foresight brand swatch. Rich-text sections provide formatting for headings, font, size, emphasis, text colour, alignment, lists, quotes and links, with HTML source available when direct markup editing is needed. Save the draft, review each page preview, then publish to make changes visible to customers.\n\nIn **Settings > Wholesale Portal**, Product Card Style can show information below each image or use a larger image-led card that reveals product details over the lower half on hover or keyboard focus. Products with one variant show only the price; products with multiple variants show a starting price and option count.\n\nThe supplier can hide products that have no saved photos and hide tracked products when none of their wholesale variants has live available stock. The stock rule uses stock on hand less committed quantity and does not count incoming purchase stock or indent availability. Products with inventory tracking turned off remain visible because they do not require stock availability.\n\nWhen **Order Quantities** is set to **Whole packs**, each variant's **B2B Pack** value controls how many individual units one entered pack adds to the order. Stock and Sales Orders continue to record individual units. B2B Pack is a wholesale selling rule and is separate from any supplier purchasing-carton quantity."
     },
     {
       "id": "wholesale-portal:6",
@@ -12876,7 +12876,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "- [ ] Confirm the company and buying location in the portal header.\n- [ ] Review current price, pack rules, available quantity, and indent labels.\n- [ ] Read every adjustment message after loading a draft, saved list, or prior order.\n- [ ] Confirm the delivery address and payment terms before submission.\n- [ ] Use Orders to verify the submitted reference and status."
     },
     {
@@ -12895,7 +12895,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Expected products or brands are missing | They are not in the account's current approved catalogue | Clear filters, then contact the supplier if access should change |\n| Orders differ after changing location | Orders and drafts are tied to their buying location | Switch to the location shown on the order before editing its draft |\n| A repeat order has fewer lines or units | Current stock or catalogue rules changed | Review the adjustment message and cart before submitting |\n| Account controls are missing | The signed-in member is a Buyer | Ask an Owner or Admin to make the account change |"
     },
     {
@@ -12914,7 +12914,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "### Start an order for the correct shop\n\nMorgan is assigned to Sydney and Newcastle. The header shows Sydney, but the goods are for Newcastle. Morgan switches the buying location to Newcastle before opening Catalogue, then confirms the Newcastle shipping address in the cart before submission."
     },
     {
@@ -12933,7 +12933,7 @@
         "help"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-09",
+      "lastReviewed": "2026-09-10",
       "content": "Use the three related task guides for complete application, ordering, and account-management procedures."
     },
     {
