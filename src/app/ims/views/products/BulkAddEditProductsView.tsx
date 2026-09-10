@@ -15,6 +15,14 @@ import {
   type BulkVariantDraft,
   type ProductOptionSet,
 } from '@/lib/ims/bulkProductEditor';
+import {
+  matchBulkProductSupplierId,
+  prepareBulkProductPriceReview,
+  resolveBulkProductSourcePrices,
+  type BulkProductDocumentImport,
+  type BulkProductPriceReviewReason,
+  type BulkProductSourcePriceMapping,
+} from '@/lib/ims/bulkProductDocumentImport';
 import { parseProductSettings } from '@/lib/ims/productSettings';
 import {
   DEFAULT_BULK_PRODUCT_WORKSPACE,
@@ -107,23 +115,6 @@ interface BulkProductPreset {
   name: string;
   settings: BulkProductWorkspaceSettings;
   lastUsedAt: string | null;
-}
-
-interface BulkProductExtraction {
-  currency: string;
-  prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax' | 'unknown';
-  products: Array<{
-    product_name: string;
-    product_code: string;
-    barcode: string;
-    description: string;
-    brand: string;
-    product_type: string;
-    category: string;
-    tags: string;
-    unit_cost: number | null;
-    rrp: number | null;
-  }>;
 }
 
 const inputStyle = {
@@ -308,11 +299,12 @@ function blankProduct(): ProductDraft {
   };
 }
 
-function productFromExtraction(product: BulkProductExtraction['products'][number], currency: string): ProductDraft {
+function productFromExtraction(product: BulkProductDocumentImport['products'][number], currency: string, suppliers: LookupOption[]): ProductDraft {
   const draft = blankProduct();
   const normalizedCurrency = currency.toUpperCase();
   const sourceCost = product.unit_cost == null ? '' : String(product.unit_cost);
   const hasForeignCost = FOREIGN_CURRENCIES.includes(normalizedCurrency) && Boolean(sourceCost);
+  const supplierId = matchBulkProductSupplierId(product.supplier_name, suppliers);
   return {
     ...draft,
     name: product.product_name,
@@ -322,6 +314,7 @@ function productFromExtraction(product: BulkProductExtraction['products'][number
     brand: product.brand,
     tags: product.tags,
     category: product.category,
+    supplier_contact_id: supplierId,
     variants: [{
       ...draft.variants[0],
       sku: product.product_code,
@@ -473,6 +466,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
+  const [pendingExtraction, setPendingExtraction] = useState<BulkProductDocumentImport | null>(null);
+  const [sourcePriceMapping, setSourcePriceMapping] = useState<BulkProductSourcePriceMapping | ''>('');
+  const [priceReviewReason, setPriceReviewReason] = useState<BulkProductPriceReviewReason>('ambiguous_field');
+  const [importCurrency, setImportCurrency] = useState('UNKNOWN');
+  const [importTaxTreatment, setImportTaxTreatment] = useState<BulkProductDocumentImport['prices_include_tax']>('unknown');
   const [message, setMessage] = useState('');
   const [loadError, setLoadError] = useState('');
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
@@ -779,7 +777,12 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   useEffect(() => {
     if (!importOpen) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !importing) setImportOpen(false); };
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !importing) {
+        setImportOpen(false);
+        setPendingExtraction(null);
+      }
+    };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [importOpen, importing]);
@@ -813,8 +816,26 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       const response = await fetch('/api/ims/products/bulk-add-edit/extract', { method: 'POST', body: formData });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Product data could not be extracted.');
-      const extraction = result.extraction as BulkProductExtraction;
-      const drafts = extraction.products.map(product => productFromExtraction(product, extraction.currency));
+      const extraction = result.extraction as BulkProductDocumentImport;
+      const priceReview = prepareBulkProductPriceReview(extraction);
+      if (priceReview) {
+        setPendingExtraction(priceReview.extraction);
+        setSourcePriceMapping(priceReview.suggestedMapping);
+        setPriceReviewReason(priceReview.reason);
+        setImportCurrency(priceReview.extraction.currency.toUpperCase());
+        setImportTaxTreatment(priceReview.extraction.prices_include_tax);
+        return;
+      }
+      applyProductExtraction(extraction);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Product data could not be extracted.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const applyProductExtraction = (extraction: BulkProductDocumentImport) => {
+      const drafts = extraction.products.map(product => productFromExtraction(product, extraction.currency, suppliers));
       setNewProducts(current => [...drafts, ...current]);
       const normalizedCurrency = extraction.currency.toUpperCase();
       const currencyField = `foreign_cost_${normalizedCurrency}`;
@@ -822,14 +843,32 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         setSelectedFields(current => sanitizeBulkProductFieldSelection([...current, currencyField], availableFields));
       }
       setImportOpen(false);
+      setPendingExtraction(null);
       setImportFile(null);
       setImportText('');
       setMessage(`${drafts.length} product line${drafts.length === 1 ? '' : 's'} extracted. Review the new rows before saving.`);
-    } catch (error) {
-      setImportError(error instanceof Error ? error.message : 'Product data could not be extracted.');
-    } finally {
-      setImporting(false);
+  };
+
+  const confirmSourcePriceMapping = () => {
+    if (!pendingExtraction || !sourcePriceMapping) return;
+    if (sourcePriceMapping === 'cost' && importCurrency === 'UNKNOWN') {
+      setImportError('Choose the currency for the Cost column.');
+      return;
     }
+    if (sourcePriceMapping === 'cost' && importCurrency === 'AUD' && importTaxTreatment === 'unknown') {
+      setImportError('Confirm whether the AUD Cost values include GST.');
+      return;
+    }
+    if (sourcePriceMapping === 'rrp' && importCurrency !== 'AUD') {
+      setImportError('RRP can only be imported in AUD. Choose AUD or map this column to Cost.');
+      return;
+    }
+    applyProductExtraction(resolveBulkProductSourcePrices(
+      pendingExtraction,
+      sourcePriceMapping,
+      importCurrency,
+      importTaxTreatment,
+    ));
   };
 
   const generateVariants = (product: ProductDraft) => {
@@ -1132,17 +1171,29 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 10 }}><button type="button" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))} style={{ ...buttonStyle, opacity: page <= 1 ? .5 : 1 }}>Previous</button><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Page {page} of {Math.max(1, Math.ceil(total / 50))}</span><button type="button" disabled={page * 50 >= total} onClick={() => setPage(current => current + 1)} style={{ ...buttonStyle, opacity: page * 50 >= total ? .5 : 1 }}>Next</button></div>
 
-      {importOpen && <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !importing) setImportOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, .48)' }}>
+      {importOpen && <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !importing) { setImportOpen(false); setPendingExtraction(null); } }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, .48)' }}>
         <div role="dialog" aria-modal="true" aria-labelledby="bulk-import-title" style={{ width: 'min(680px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 24px 60px rgba(15,23,42,.24)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--sv-etch)' }}><div><h3 id="bulk-import-title" style={{ margin: 0, fontSize: 16, color: 'var(--sv-text-strong)' }}>Import Product Data</h3><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>AI creates editable new product rows without matching existing products.</div></div><button type="button" title="Close" aria-label="Close product import" disabled={importing} onClick={() => setImportOpen(false)} style={{ ...buttonStyle, padding: 5, opacity: importing ? .5 : 1 }}><X size={16} /></button></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--sv-etch)' }}><div><h3 id="bulk-import-title" style={{ margin: 0, fontSize: 16, color: 'var(--sv-text-strong)' }}>{pendingExtraction ? 'Confirm Price Column' : 'Import Product Data'}</h3><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>{pendingExtraction ? 'Confirm what the source price means before product rows are created.' : 'AI creates editable new product rows without matching existing products.'}</div></div><button type="button" title="Close" aria-label="Close product import" disabled={importing} onClick={() => { setImportOpen(false); setPendingExtraction(null); }} style={{ ...buttonStyle, padding: 5, opacity: importing ? .5 : 1 }}><X size={16} /></button></div>
           <div style={{ padding: 14 }}>
-            <input ref={importFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.tsv,.txt" hidden onChange={event => { const file = event.target.files?.[0] ?? null; setImportFile(file); if (file) setImportText(''); setImportError(''); event.target.value = ''; }} />
-            <button type="button" disabled={importing} onClick={() => importFileRef.current?.click()} style={{ ...buttonStyle, width: '100%', minHeight: 74, borderStyle: 'dashed', flexDirection: 'column' }}><FileUp size={22} /><span>{importFile ? importFile.name : 'Choose PDF, image, CSV, TSV, or TXT'}</span></button>
-            {importFile && <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 5 }}><button type="button" disabled={importing} onClick={() => setImportFile(null)} style={{ ...buttonStyle, padding: '4px 7px' }}><X size={13} /> Remove file</button></div>}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '12px 0', color: 'var(--sv-text-dim)', fontSize: 11 }}><span style={{ height: 1, flex: 1, background: 'var(--sv-etch)' }} /><span>OR PASTE PRODUCT DATA</span><span style={{ height: 1, flex: 1, background: 'var(--sv-etch)' }} /></div>
-            <textarea aria-label="Paste product data" disabled={importing || Boolean(importFile)} value={importText} onChange={event => { setImportText(event.target.value); setImportError(''); }} placeholder="Paste copied invoice lines, a PDF table, spreadsheet rows, or other product data here..." maxLength={200000} style={{ ...inputStyle, minHeight: 180, resize: 'vertical', opacity: importFile ? .5 : 1 }} />
-            {importError && <div role="alert" style={{ marginTop: 9, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--sv-danger, #b42318) 35%, var(--sv-etch))', background: 'color-mix(in srgb, var(--sv-danger, #b42318) 7%, transparent)', color: 'var(--sv-danger, #b42318)', fontSize: 12 }}>{importError}</div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, marginTop: 12 }}><button type="button" disabled={importing} onClick={() => setImportOpen(false)} style={buttonStyle}>Cancel</button><button type="button" disabled={importing || (!importFile && !importText.trim())} onClick={() => void importProductData()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: importing || (!importFile && !importText.trim()) ? .5 : 1 }}><Sparkles size={15} /> {importing ? 'Extracting products...' : 'Create Product Lines'}</button></div>
+            {pendingExtraction ? <>
+              <div style={{ marginBottom: 12, padding: '9px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>The column <strong>{pendingExtraction.source_price_column || 'Price'}</strong> contains values, but its heading does not identify them as buying cost or retail price.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                <label style={{ display: 'grid', gap: 4, color: 'var(--sv-text-dim)', fontSize: 11 }}><span>Use {pendingExtraction.source_price_column || 'Price'} as</span><select aria-label="Use source price as" value={sourcePriceMapping} onChange={event => { setSourcePriceMapping(event.target.value as BulkProductSourcePriceMapping); setImportError(''); }} style={inputStyle}><option value="">Choose a field...</option><option value="cost">Cost (GST Exc)</option><option value="rrp">RRP (GST Inc)</option><option value="ignore">Do not import this column</option></select></label>
+                {sourcePriceMapping !== 'ignore' && <label style={{ display: 'grid', gap: 4, color: 'var(--sv-text-dim)', fontSize: 11 }}><span>Currency</span><select aria-label="Source price currency" value={importCurrency} onChange={event => { setImportCurrency(event.target.value); setImportError(''); }} style={inputStyle}><option value="UNKNOWN">Choose currency...</option><option value="AUD">AUD</option>{FOREIGN_CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}</select></label>}
+                {sourcePriceMapping === 'cost' && importCurrency === 'AUD' && <label style={{ display: 'grid', gap: 4, color: 'var(--sv-text-dim)', fontSize: 11 }}><span>Source cost tax treatment</span><select aria-label="Source cost tax treatment" value={importTaxTreatment} onChange={event => { setImportTaxTreatment(event.target.value as BulkProductDocumentImport['prices_include_tax']); setImportError(''); }} style={inputStyle}><option value="unknown">Choose tax treatment...</option><option value="inc_tax">Includes GST</option><option value="ex_tax">Excludes GST</option><option value="no_tax">No GST applies</option></select></label>}
+              </div>
+              <div style={{ marginTop: 14, overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 6 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr><th style={{ padding: '7px 9px', background: 'var(--sv-bg-2)', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)' }}>Product</th><th style={{ padding: '7px 9px', background: 'var(--sv-bg-2)', textAlign: 'right', borderBottom: '1px solid var(--sv-etch)' }}>{pendingExtraction.source_price_column || 'Price'}</th></tr></thead><tbody>{pendingExtraction.products.filter(product => product.source_price != null).slice(0, 5).map((product, index) => <tr key={`${product.product_code}-${index}`}><td style={{ padding: '7px 9px', borderBottom: '1px solid var(--sv-etch)' }}>{product.product_name}</td><td style={{ padding: '7px 9px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{product.source_price}</td></tr>)}</tbody></table></div>
+              {importError && <div role="alert" style={{ marginTop: 9, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--sv-danger, #b42318) 35%, var(--sv-etch))', background: 'color-mix(in srgb, var(--sv-danger, #b42318) 7%, transparent)', color: 'var(--sv-danger, #b42318)', fontSize: 12 }}>{importError}</div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, marginTop: 12 }}><button type="button" onClick={() => { setPendingExtraction(null); setImportError(''); }} style={buttonStyle}>Back</button><button type="button" disabled={!sourcePriceMapping} onClick={confirmSourcePriceMapping} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: sourcePriceMapping ? 1 : .5 }}><Plus size={15} /> Create Product Lines</button></div>
+            </> : <>
+              <input ref={importFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.tsv,.txt" hidden onChange={event => { const file = event.target.files?.[0] ?? null; setImportFile(file); if (file) setImportText(''); setImportError(''); event.target.value = ''; }} />
+              <button type="button" disabled={importing} onClick={() => importFileRef.current?.click()} style={{ ...buttonStyle, width: '100%', minHeight: 74, borderStyle: 'dashed', flexDirection: 'column' }}><FileUp size={22} /><span>{importFile ? importFile.name : 'Choose PDF, image, CSV, TSV, or TXT'}</span></button>
+              {importFile && <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 5 }}><button type="button" disabled={importing} onClick={() => setImportFile(null)} style={{ ...buttonStyle, padding: '4px 7px' }}><X size={13} /> Remove file</button></div>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '12px 0', color: 'var(--sv-text-dim)', fontSize: 11 }}><span style={{ height: 1, flex: 1, background: 'var(--sv-etch)' }} /><span>OR PASTE PRODUCT DATA</span><span style={{ height: 1, flex: 1, background: 'var(--sv-etch)' }} /></div>
+              <textarea aria-label="Paste product data" disabled={importing || Boolean(importFile)} value={importText} onChange={event => { setImportText(event.target.value); setImportError(''); }} placeholder="Paste copied invoice lines, a PDF table, spreadsheet rows, or other product data here..." maxLength={200000} style={{ ...inputStyle, minHeight: 180, resize: 'vertical', opacity: importFile ? .5 : 1 }} />
+              {importError && <div role="alert" style={{ marginTop: 9, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--sv-danger, #b42318) 35%, var(--sv-etch))', background: 'color-mix(in srgb, var(--sv-danger, #b42318) 7%, transparent)', color: 'var(--sv-danger, #b42318)', fontSize: 12 }}>{importError}</div>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, marginTop: 12 }}><button type="button" disabled={importing} onClick={() => setImportOpen(false)} style={buttonStyle}>Cancel</button><button type="button" disabled={importing || (!importFile && !importText.trim())} onClick={() => void importProductData()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: importing || (!importFile && !importText.trim()) ? .5 : 1 }}><Sparkles size={15} /> {importing ? 'Extracting products...' : 'Create Product Lines'}</button></div>
+            </>}
           </div>
         </div>
       </div>}

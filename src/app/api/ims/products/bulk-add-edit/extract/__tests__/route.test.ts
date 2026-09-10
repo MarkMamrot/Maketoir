@@ -52,6 +52,26 @@ describe('/api/ims/products/bulk-add-edit/extract', () => {
     expect(mockGenerateContent).toHaveBeenCalledOnce();
   });
 
+  it('returns a generic price separately so the user can confirm its meaning', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: JSON.stringify({
+        currency: 'AUD',
+        prices_include_tax: 'unknown',
+        source_price_column: 'Price',
+        products: [{ product_name: 'Widget', product_code: 'A-1', source_price: 11 }],
+      }),
+    });
+
+    const response = await POST(pastedRequest('SKU\tProduct\tPrice\nA-1\tWidget\t11.00'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.extraction).toMatchObject({
+      source_price_column: 'Price',
+      products: [{ product_name: 'Widget', source_price: 11, unit_cost: null, rrp: null }],
+    });
+  });
+
   it('requires one source and does not call AI for invalid input', async () => {
     const response = await POST(pastedRequest(''));
 

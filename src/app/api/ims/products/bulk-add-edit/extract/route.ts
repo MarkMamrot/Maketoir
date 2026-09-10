@@ -71,6 +71,8 @@ Return ONLY valid JSON with this shape:
 {
   "currency": "AUD, USD, EUR, GBP, THB, CNY, JPY, or UNKNOWN",
   "prices_include_tax": "inc_tax, ex_tax, no_tax, or unknown",
+  "source_price_column": "the exact heading of a generic or ambiguous price column; blank if none",
+  "supplier_name": "supplier legal or trading name printed in the invoice header; blank if absent",
   "products": [{
     "line_type": "product",
     "product_name": "name or product description",
@@ -78,11 +80,13 @@ Return ONLY valid JSON with this shape:
     "barcode": "barcode, EAN, UPC, or GTIN; preserve leading zeroes; blank if absent",
     "description": "additional product description; blank if absent",
     "brand": "brand printed in the source; blank if absent",
+    "supplier_name": "line-specific supplier only when different from the invoice supplier; otherwise blank",
     "product_type": "product type printed in the source; blank if absent",
     "category": "category printed in the source; blank if absent",
     "tags": ["tags explicitly present in the source"],
     "unit_cost": 0.00,
     "rrp": 0.00,
+    "source_price": 0.00,
     "tax_rate": 0.1
   }]
 }
@@ -93,8 +97,11 @@ Rules:
 - Never invent a name, SKU, barcode, brand, product type, category, tag, cost, RRP, currency, or tax treatment.
 - Use null for missing numeric values and blank strings or empty arrays for missing text values.
 - unit_cost is the printed per-unit buying cost before any line discount. rrp is the printed recommended retail price or MSRP.
+- A generic heading such as Price, Unit Price, or Value is ambiguous unless the document clearly identifies it as buying cost or retail price. Put that amount in source_price, preserve its exact heading in source_price_column, and leave unit_cost and rrp null. Never discard it.
 - Determine whether costs include tax only from explicit headings or arithmetic evidence. Otherwise use unknown.
-- Preserve a brand or product type only when it is explicitly printed in the source.`;
+- Preserve a brand or product type only when it is explicitly printed in the source.
+- Extract the invoice supplier from its header, logo text, or seller details. Do not confuse the customer or delivery recipient with the supplier.
+- Extract a product brand from the product line, description, or a clearly labelled brand field. When the invoice clearly represents the supplier's own single brand, brand may be the supplier trading name. Do not apply the supplier as brand for a distributor or multi-brand wholesaler.`;
 
     const parts: Array<Record<string, unknown>> = [];
     if (file && !isTextFile) parts.push({ inlineData: { mimeType: file.type, data: Buffer.from(await file.arrayBuffer()).toString('base64') } });
