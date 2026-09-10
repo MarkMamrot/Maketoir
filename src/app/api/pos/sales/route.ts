@@ -13,6 +13,7 @@ import { allowsIncomingTransferSales, posLocationSettingsKey } from '@/lib/pos/l
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -278,10 +279,11 @@ export async function POST(req: Request) {
     console.error('POS sale create error:', err);
     const status = err instanceof LoyaltyReturnBlockedError ? err.status
       : err instanceof LoyaltyValidationError || err instanceof ProductBuildValidationError ? 400
-        : err instanceof ProductBuildConflictError ? 409 : 500;
+        : err instanceof ProductBuildConflictError || err instanceof FifoCostingConflict ? 409 : 500;
     return NextResponse.json({
       error: err.message || String(err),
-      ...(err instanceof ProductBuildConflictError ? { code: err.code, ...err.details } : {}),
+      ...(err instanceof ProductBuildConflictError ? { code: err.code, ...err.details }
+        : err instanceof FifoCostingConflict ? { code: err.code } : {}),
     }, { status });
   }
 }

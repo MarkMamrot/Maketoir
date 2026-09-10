@@ -7,6 +7,7 @@ import { verifyManagerPin } from '@/lib/pos/managerPin';
 import { LoyaltyEditBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 import { createNotification } from '@/lib/ims/createNotification';
 import { buildPosStockNotificationMessage } from '@/lib/ims/notificationPresentation';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -86,7 +87,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ success: true, stockWarnings, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale edit error:', err);
-    const status = err instanceof LoyaltyEditBlockedError ? err.status : err instanceof LoyaltyValidationError ? 400 : 500;
-    return NextResponse.json({ error: err.message || String(err) }, { status });
+    const status = err instanceof LoyaltyEditBlockedError ? err.status
+      : err instanceof LoyaltyValidationError ? 400
+        : err instanceof FifoCostingConflict ? err.status : 500;
+    return NextResponse.json({
+      error: err.message || String(err),
+      ...(err instanceof FifoCostingConflict ? { code: err.code } : {}),
+    }, { status });
   }
 }

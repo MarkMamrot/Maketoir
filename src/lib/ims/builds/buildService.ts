@@ -6,6 +6,7 @@ import { computeAverageCostAfterReversal, computeWeightedAverageCost } from '../
 import { refreshVariantCache } from '../cacheHelper';
 import { recomputeBuildRequirementsSafely } from './buildRequirementService';
 import { assertBuildsEnabledOnConnection } from './buildFromSalePolicy';
+import { consumeFifoCostLayers, createFifoCostLayer, FifoCostingConflict, lockInventoryCostState } from '../costing/fifoCostingService';
 import {
   aggregateBuildComponentDemand,
   calculateBuildUnitCost,
@@ -377,6 +378,8 @@ export async function completeProductBuildInTransaction(
     };
   }
 
+  const costingState = await lockInventoryCostState(connection, input.businessId);
+
   await assertLocation(connection, input.businessId, input.locationId);
   const outputIds = input.builds.map(build => build.outputVariantId);
   const recipes = await loadActiveRecipes(connection, input.businessId, outputIds, true);
@@ -438,12 +441,12 @@ export async function completeProductBuildInTransaction(
     const outputVariant = variants.get(build.outputVariantId)!;
     const quantity = Number(build.quantity);
     const overhead = build.overheadPerOutput ?? recipe.overheadPerOutput ?? 0;
-    const outputUnitCost = calculateBuildUnitCost(recipe, build.overheadPerOutput);
-    const componentCostPerOutput = outputUnitCost - Number(overhead);
-    const componentCostTotal = componentCostPerOutput * quantity;
+    let outputUnitCost = calculateBuildUnitCost(recipe, build.overheadPerOutput);
+    let componentCostPerOutput = outputUnitCost - Number(overhead);
+    let componentCostTotal = componentCostPerOutput * quantity;
     const oldOrganizationQty = Number(stocks.organizationQty.get(build.outputVariantId) ?? 0);
     const oldAverageCost = Number(outputVariant.avg_cost ?? 0);
-    const newAverageCost = computeWeightedAverageCost({
+    let newAverageCost = computeWeightedAverageCost({
       oldQtyOnHand: oldOrganizationQty,
       oldAvgCost: oldAverageCost,
       receivedQty: quantity,
@@ -471,6 +474,7 @@ export async function completeProductBuildInTransaction(
       );
     }
 
+    let actualComponentCostTotal = 0;
     for (const [index, component] of recipe.components.entries()) {
       const consumed = positiveBuildQuantity(quantity * component.quantityPerOutput, 'Component quantity');
       const stock = stocks.location.get(component.variantId)!;
@@ -482,7 +486,27 @@ export async function completeProductBuildInTransaction(
       );
       stock.qty_on_hand = after;
       stocks.organizationQty.set(component.variantId, Number(stocks.organizationQty.get(component.variantId) ?? 0) - consumed);
-      const componentCost = Number(component.averageCost ?? 0);
+      let componentCost = Number(component.averageCost ?? 0);
+      const [componentMovement] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO ims_stock_movements
+           (business_id, variant_id, location_id, movement_type, channel, reference_type,
+            reference_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'build_component_consumed', ?, 'product_build', ?, ?, ?, ?, ?, ?, ?)`,
+        [input.businessId, component.variantId, input.locationId, input.sourceChannel, itemId,
+          -consumed, after, componentCost, costingState.method, costingState.epochId, buildNumber],
+      );
+      if (costingState.method === 'fifo') {
+        const fifoConsumption = await consumeFifoCostLayers(connection, {
+          businessId: input.businessId,
+          state: costingState,
+          variantId: component.variantId,
+          locationId: input.locationId,
+          stockMovementId: Number(componentMovement.insertId),
+          quantity: consumed,
+        });
+        componentCost = fifoConsumption.unitCost;
+      }
+      actualComponentCostTotal += consumed * componentCost;
       await connection.execute(
         `INSERT INTO ims_product_build_item_components
            (business_id, build_item_id, component_variant_id, quantity_per_output,
@@ -491,13 +515,23 @@ export async function completeProductBuildInTransaction(
         [input.businessId, itemId, component.variantId, component.quantityPerOutput, consumed,
           componentCost, consumed * componentCost, index],
       );
+    }
+
+    if (costingState.method === 'fifo') {
+      componentCostTotal = actualComponentCostTotal;
+      componentCostPerOutput = componentCostTotal / quantity;
+      outputUnitCost = componentCostPerOutput + Number(overhead);
+      newAverageCost = computeWeightedAverageCost({
+        oldQtyOnHand: oldOrganizationQty,
+        oldAvgCost: oldAverageCost,
+        receivedQty: quantity,
+        receivedUnitCostAud: outputUnitCost,
+      });
       await connection.execute(
-        `INSERT INTO ims_stock_movements
-           (business_id, variant_id, location_id, movement_type, channel, reference_type,
-            reference_id, qty_change, qty_after_soh, unit_cost, notes)
-         VALUES (?, ?, ?, 'build_component_consumed', ?, 'product_build', ?, ?, ?, ?, ?)`,
-        [input.businessId, component.variantId, input.locationId, input.sourceChannel, itemId,
-          -consumed, after, componentCost, buildNumber],
+        `UPDATE ims_product_build_items
+            SET component_cost_total = ?, component_cost_per_output = ?, output_unit_cost = ?, output_avg_cost_after = ?
+          WHERE id = ? AND business_id = ?`,
+        [componentCostTotal, componentCostPerOutput, outputUnitCost, newAverageCost, itemId, input.businessId],
       );
     }
 
@@ -511,14 +545,30 @@ export async function completeProductBuildInTransaction(
     stocks.organizationQty.set(build.outputVariantId, oldOrganizationQty + quantity);
     outputVariant.avg_cost = newAverageCost;
     await setOrganizationAverageCost(connection, input.businessId, build.outputVariantId, newAverageCost);
-    await connection.execute(
+    const [outputMovement] = await connection.execute<ResultSetHeader>(
       `INSERT INTO ims_stock_movements
          (business_id, variant_id, location_id, movement_type, channel, reference_type,
-          reference_id, qty_change, qty_after_soh, unit_cost, notes)
-       VALUES (?, ?, ?, 'build_output_produced', ?, 'product_build', ?, ?, ?, ?, ?)`,
+          reference_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+       VALUES (?, ?, ?, 'build_output_produced', ?, 'product_build', ?, ?, ?, ?, ?, ?, ?)`,
       [input.businessId, build.outputVariantId, input.locationId, input.sourceChannel, itemId,
-        quantity, outputAfter, outputUnitCost, buildNumber],
+        quantity, outputAfter, outputUnitCost, costingState.method, costingState.epochId, buildNumber],
     );
+    if (costingState.method === 'fifo') {
+      await createFifoCostLayer(connection, {
+        businessId: input.businessId,
+        state: costingState,
+        variantId: build.outputVariantId,
+        locationId: input.locationId,
+        sourceType: 'product_build',
+        sourceMovementId: Number(outputMovement.insertId),
+        sourceReferenceType: 'product_build',
+        sourceReferenceId: itemId,
+        sourceLineId: itemId,
+        fifoDate: new Date(),
+        quantity,
+        unitCost: outputUnitCost,
+      });
+    }
   }
   const shopifyQueued = await queueShopifyVariants(connection, allIds);
   return { batchId, buildNumber, itemIds, touchedVariantIds: allIds, replayed: false, shopifyQueued };
@@ -569,7 +619,9 @@ export async function completeProductBuildBatch(input: ProductBuildBatchInput) {
     return result;
   } catch (error) {
     await connection.rollback();
-    if (!(error instanceof ProductBuildValidationError) && !(error instanceof ProductBuildConflictError)) {
+    if (!(error instanceof ProductBuildValidationError)
+      && !(error instanceof ProductBuildConflictError)
+      && !(error instanceof FifoCostingConflict)) {
       await reportUnexpected('complete', input, error, { locationId: input.locationId, operationKey: input.operationKey });
     }
     throw error;

@@ -7,6 +7,7 @@ import {
   fulfilSalesOrderPartialInTransaction,
   type CustomerFulfilmentResult,
 } from '../orderResolution/customerFulfilment';
+import { FifoCostingConflict } from '../costing/fifoCostingService';
 import { isBuildFromSaleEnabled, planBuildFromSaleShortfalls } from './buildFromSalePolicy';
 import { completeProductBuildInTransaction, ProductBuildConflictError } from './buildService';
 import { recomputeBuildRequirementsSafely } from './buildRequirementService';
@@ -179,7 +180,7 @@ export async function buildAndConfirmSalesOrder(input: {
     return { soId: input.soId, status: 'confirmed' as const, ...buildResult };
   } catch (error) {
     await connection.rollback();
-    if (!(error instanceof ProductBuildConflictError)) {
+    if (!(error instanceof ProductBuildConflictError) && !(error instanceof FifoCostingConflict)) {
       await reportRuntimeIssue({
         businessId: input.businessId, source: 'ims_sales_orders', operation: 'build_and_confirm',
         title: 'Build & Confirm failed', error, context: { soId: input.soId, operationKey: input.operationKey },

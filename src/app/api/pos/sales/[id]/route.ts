@@ -9,6 +9,7 @@ import { LoyaltyVoidBlockedError } from '@/lib/ims/LoyaltyRepository';
 import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
 import { createNotification } from '@/lib/ims/createNotification';
 import { buildPosStockNotificationMessage } from '@/lib/ims/notificationPresentation';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -102,6 +103,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     if (err instanceof LoyaltyVoidBlockedError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    if (err instanceof FifoCostingConflict) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }

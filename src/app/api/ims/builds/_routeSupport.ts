@@ -4,6 +4,7 @@ import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
 import { ProductBuildRecipeConflictError } from '@/lib/ims/builds/recipeService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 export function advisorReadOnly() {
   return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
@@ -15,6 +16,9 @@ export async function buildRouteError(
 ) {
   if (error instanceof ProductBuildValidationError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  if (error instanceof FifoCostingConflict) {
+    return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
   }
   if (error instanceof ProductBuildConflictError || error instanceof ProductBuildRecipeConflictError || error instanceof RangeError) {
     return NextResponse.json({

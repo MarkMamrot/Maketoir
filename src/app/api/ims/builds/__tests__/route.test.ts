@@ -21,6 +21,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeI
 
 import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
 import { GET, POST } from '../route';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 describe('product build routes', () => {
   beforeEach(() => {
@@ -52,6 +53,23 @@ describe('product build routes', () => {
     }));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'operationKey is required.' });
+    expect(mocks.reportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('returns an actionable FIFO shortage as a 409 without reporting a runtime issue', async () => {
+    mocks.session = { businessId: 'business-1', tier: 'Admin', userId: 1, name: 'Admin', email: 'admin@example.com' };
+    mocks.complete.mockRejectedValueOnce(new FifoCostingConflict('FIFO layers cover 5 units, but 6 are required. Reconcile the missing 1 units before retrying.'));
+
+    const response = await POST(new NextRequest('http://localhost/api/ims/builds', {
+      method: 'POST',
+      body: JSON.stringify({ locationId: 7, operationKey: 'build-1', builds: [{ outputVariantId: 'kit', quantity: 3 }] }),
+    }));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'FIFO layers cover 5 units, but 6 are required. Reconcile the missing 1 units before retrying.',
+      code: 'FIFO_COSTING_CONFLICT',
+    });
     expect(mocks.reportRuntimeIssue).not.toHaveBeenCalled();
   });
 });

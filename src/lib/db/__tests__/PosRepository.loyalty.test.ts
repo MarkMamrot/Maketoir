@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer, mockGetPosStockQtyChange } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer, mockGetPosStockQtyChange, mockLockInventoryCostState, mockConsumeFifoCostLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockReserveReward: vi.fn(),
@@ -10,6 +10,8 @@ const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosS
   mockUnwindGiftCards: vi.fn(),
   mockSyncConfiguredCustomer: vi.fn(),
   mockGetPosStockQtyChange: vi.fn(),
+  mockLockInventoryCostState: vi.fn(),
+  mockConsumeFifoCostLayers: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -34,6 +36,11 @@ vi.mock('@/lib/pos/giftCardSaleVoid', () => ({ unwindGiftCardTransactionsForSale
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
   ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mockSyncConfiguredCustomer },
+}));
+vi.mock('@/lib/ims/costing/fifoCostingService', () => ({
+  FifoCostingConflict: class FifoCostingConflict extends Error { code = 'FIFO_COSTING_CONFLICT'; status = 409; },
+  lockInventoryCostState: mockLockInventoryCostState,
+  consumeFifoCostLayers: mockConsumeFifoCostLayers,
 }));
 
 import { PosSalesRepo } from '@/lib/db/PosRepository';
@@ -118,6 +125,8 @@ describe('PosSalesRepo loyalty earning', () => {
     mockUnwindGiftCards.mockResolvedValue([]);
     mockSyncConfiguredCustomer.mockResolvedValue({ status: 'synced' });
     mockGetPosStockQtyChange.mockImplementation((quantity: number, saleType: string) => saleType === 'return' ? quantity : -quantity);
+    mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+    mockConsumeFifoCostLayers.mockResolvedValue({ allocatedValue: 20, unitCost: 20, allocationCount: 1, allocations: [] });
   });
 
   it('awards enrolled customer points before committing the sale', async () => {
@@ -139,6 +148,32 @@ describe('PosSalesRepo loyalty earning', () => {
     expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
     expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(result).toMatchObject({ saleId: 101, loyaltyPoints: 100, loyalty: { transactionId: 8 } });
+  });
+
+  it('applies FIFO stock and COGS atomically before committing the sale', async () => {
+    const data = saleData();
+    data.customer_id = null;
+    data.items[0].variant_id = 'variant-1';
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    const { saleConnection, stockConnection } = setupConnections([]);
+    saleConnection.execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('INSERT INTO pos_sales')) return [{ insertId: 101 }];
+      if (sql.includes('FROM ims_product_variants pv')) {
+        return [[{ stock_variant_id: 'variant-1', qty_on_hand: 5, qty_committed: 0, avg_cost: 20, is_stock_item: 1 }]];
+      }
+      if (sql.includes("'pos_sale', 'pos', 'pos_sale'")) return [{ affectedRows: 1, insertId: 501 }];
+      return [{ affectedRows: 1 }];
+    });
+
+    const result = await PosSalesRepo.complete(data);
+
+    expect(result.stockError).toBeUndefined();
+    expect(mockConsumeFifoCostLayers).toHaveBeenCalledWith(saleConnection, {
+      businessId: 'business-1', state: { method: 'fifo', epochId: 6, revision: 2 },
+      variantId: 'variant-1', locationId: 3, stockMovementId: 501, quantity: 1,
+    });
+    expect(saleConnection.commit).toHaveBeenCalledOnce();
+    expect(stockConnection.beginTransaction).not.toHaveBeenCalled();
   });
 
   it('allows an oversell while warning and marking received allocations at risk', async () => {
@@ -173,10 +208,10 @@ describe('PosSalesRepo loyalty earning', () => {
     expect(stockConnection.execute).toHaveBeenNthCalledWith(2, expect.stringContaining("promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk'"), ['business-1', 'variant-1', 3]);
     expect(stockConnection.execute).toHaveBeenNthCalledWith(3, expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'), [3, 'variant-1', 3]);
     expect(stockConnection.execute).toHaveBeenNthCalledWith(4, expect.stringContaining("'adjustment', 'pos', 'pos_sale'"),
-      ['business-1', 'variant-1', 3, 101, 1, 3, 20, expect.stringContaining('POS transaction exceeded recorded stock')]);
+      ['business-1', 'variant-1', 3, 101, 1, 3, 20, 'average_cost', null, expect.stringContaining('POS transaction exceeded recorded stock')]);
     expect(stockConnection.execute).toHaveBeenNthCalledWith(5, expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'), [0, 'variant-1', 3]);
     expect(stockConnection.execute).toHaveBeenNthCalledWith(6, expect.stringContaining("'pos_sale', 'pos', 'pos_sale'"),
-      ['business-1', 'variant-1', 3, 101, -3, 0, 20, null]);
+      ['business-1', 'variant-1', 3, 101, -3, 0, 20, 'average_cost', null, null]);
   });
 
   it('completes untracked product sales without changing inventory', async () => {
@@ -508,11 +543,11 @@ describe('PosSalesRepo loyalty earning', () => {
     })]);
     expect(stockConnection.execute.mock.calls[2]).toEqual([
       expect.stringContaining("'adjustment', 'pos', 'pos_sale'"),
-      ['business-1', 'variant-1', 3, 101, 2, 2, 20, expect.stringContaining('POS transaction exceeded recorded stock')],
+      ['business-1', 'variant-1', 3, 101, 2, 2, 20, 'average_cost', null, expect.stringContaining('POS transaction exceeded recorded stock')],
     ]);
     expect(stockConnection.execute.mock.calls[4]).toEqual([
       expect.stringContaining("'pos_sale', 'pos', 'pos_sale'"),
-      ['business-1', 'variant-1', 3, 101, -2, 0, 20, 'Adjusted via manager transaction edit'],
+      ['business-1', 'variant-1', 3, 101, -2, 0, 20, 'average_cost', null, 'Adjusted via manager transaction edit'],
     ]);
   });
 

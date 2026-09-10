@@ -7,6 +7,7 @@ import { InventoryDocumentRevisionConflict } from '@/lib/ims/creditNoteStatusCom
 import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
 import { settleNativeCreditNoteRefund } from '@/lib/onlineShop/onlineShopRefunds';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -61,7 +62,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
         reference: { type: 'credit_note', id: cnId },
       }).catch(() => {});
     }
-    const conflict = e instanceof InventoryDocumentLifecycleConflict || e instanceof InventoryDocumentOperationConflict || e instanceof InventoryDocumentRevisionConflict;
+    const conflict = e instanceof InventoryDocumentLifecycleConflict
+      || e instanceof InventoryDocumentOperationConflict
+      || e instanceof InventoryDocumentRevisionConflict
+      || e instanceof FifoCostingConflict;
     return NextResponse.json({ success: false, error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: conflict ? 409 : 500 });
   }
 }

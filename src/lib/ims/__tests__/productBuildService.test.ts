@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   release: vi.fn(),
   getConnection: vi.fn(),
   imsQuery: vi.fn(),
+  lockInventoryCostState: vi.fn(),
+  consumeFifoCostLayers: vi.fn(),
+  createFifoCostLayer: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -17,8 +20,13 @@ vi.mock('@/services/IMSMySQLService', () => ({
 
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: vi.fn() }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
+vi.mock('../costing/fifoCostingService', () => ({
+  lockInventoryCostState: mocks.lockInventoryCostState,
+  consumeFifoCostLayers: mocks.consumeFifoCostLayers,
+  createFifoCostLayer: mocks.createFifoCostLayer,
+}));
 
-import { listProductBuildBatches, previewProductBuildBatch } from '../builds/buildService';
+import { completeProductBuildInTransaction, listProductBuildBatches, previewProductBuildBatch } from '../builds/buildService';
 import { listBuildRequirements } from '../builds/buildRequirementService';
 import { saveProductBuildRecipe } from '../builds/recipeService';
 
@@ -34,6 +42,9 @@ describe('product build services', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getConnection.mockResolvedValue(connection);
+    mocks.lockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+    mocks.consumeFifoCostLayers.mockResolvedValue({ allocatedValue: 36, unitCost: 6, allocationCount: 1 });
+    mocks.createFifoCostLayer.mockResolvedValue(201);
   });
 
   it('previews component availability as on hand less committed', async () => {
@@ -90,6 +101,58 @@ describe('product build services', () => {
     });
 
     expect(result.components[0]).toEqual(expect.objectContaining({ required: 6 }));
+  });
+
+  it('costs FIFO build output from consumed component layers and creates an output layer', async () => {
+    mocks.lockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mocks.execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_settings')) return [[{ value: 'yes' }], []];
+      if (sql.includes('FROM ims_product_build_batches') && sql.includes('operation_key')) return [[], []];
+      if (sql.includes('SELECT id FROM ims_locations')) return [[{ id: 7 }], []];
+      if (sql.includes('FROM ims_product_build_recipes r')) {
+        return [[{
+          recipe_id: 3, version_id: 9, output_variant_id: 'kit', revision: 2,
+          base_output_quantity: 1, overhead_per_output: 1,
+          component_variant_id: 'part-a', quantity_per_output: 2, sort_order: 0,
+        }], []];
+      }
+      if (sql.includes('FROM ims_product_variants v')) {
+        return [[
+          { variant_id: 'kit', product_id: 'p-kit', sku: 'KIT', product_name: 'Kit', is_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 1, avg_cost: 3, cost_aud: 3 },
+          { variant_id: 'part-a', product_id: 'p-a', sku: 'PART', product_name: 'Part', is_active: 1, product_active: 1, is_stock_item: 1, uses_builds: 0, avg_cost: 4, cost_aud: 4 },
+        ], []];
+      }
+      if (sql.includes('SELECT variant_id, location_id, qty_on_hand')) {
+        return [[
+          { variant_id: 'kit', location_id: 7, qty_on_hand: 1, qty_committed: 0 },
+          { variant_id: 'part-a', location_id: 7, qty_on_hand: 10, qty_committed: 0 },
+        ], []];
+      }
+      if (sql.includes('INSERT IGNORE INTO ims_product_build_batches')) return [{ insertId: 12 }, []];
+      if (sql.includes('INSERT INTO ims_product_build_items')) return [{ insertId: 31 }, []];
+      if (sql.includes("'build_component_consumed'")) return [{ insertId: 101 }, []];
+      if (sql.includes("'build_output_produced'")) return [{ insertId: 102 }, []];
+      if (sql.includes('information_schema.TABLES')) return [[], []];
+      return [{ affectedRows: 1 }, []];
+    });
+
+    const result = await completeProductBuildInTransaction(connection as any, {
+      businessId: 'business-1', locationId: 7, operationKey: 'build-fifo-1',
+      builds: [{ outputVariantId: 'kit', quantity: 3, recipeRevision: 2 }],
+    });
+
+    expect(result).toMatchObject({ batchId: 12, itemIds: [31], replayed: false });
+    expect(mocks.consumeFifoCostLayers).toHaveBeenCalledWith(connection, expect.objectContaining({
+      variantId: 'part-a', stockMovementId: 101, quantity: 6,
+    }));
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET component_cost_total = ?'),
+      [36, 12, 13, 10.5, 31, 'business-1'],
+    );
+    expect(mocks.createFifoCostLayer).toHaveBeenCalledWith(connection, expect.objectContaining({
+      variantId: 'kit', sourceMovementId: 102, sourceReferenceId: 31,
+      quantity: 3, unitCost: 13,
+    }));
   });
 
   it('rejects previews when Builds is disabled for the business', async () => {

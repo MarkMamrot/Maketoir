@@ -38,7 +38,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from './avgCostMath';
-import { createFifoCostLayer, lockInventoryCostState, type InventoryCostState } from './costing/fifoCostingService';
+import { createFifoCostLayer, createFifoPosReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -3595,6 +3595,7 @@ export const ImsSORepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
 
       const [[so]] = await conn.execute<any[]>(
         `SELECT id, location_id, so_type, so_number, customer_id FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
@@ -3690,7 +3691,9 @@ export const ImsSORepo = {
           }
           const existingItems: ImsCNItem[] = cnItems.map(it => ({ ...it, id: 0, cn_id: existingCn.id, price_basis: 'custom' as const, line_total: Math.round(it.qty * it.unit_price * 100) / 100 }));
           const channel = so.so_type === 'online' ? 'online' : 'wholesale';
-          await restockCreditNoteItemsTx(conn, existingCn.id, so.location_id, existingItems, channel);
+          await restockCreditNoteItemsTx(conn, businessId, existingCn.id, so.location_id, existingItems, channel, {
+            costingState, source: 'shopify', returnDate: new Date(),
+          });
           const restocked = existingItems.reduce((s, it) => s + (Number(it.restock) ? Number(it.qty) : 0), 0);
           await conn.execute(
             `UPDATE ims_sales_orders SET refunded_amount = COALESCE(refunded_amount,0)+?, returned_at = CASE WHEN ?> 0 THEN NOW() ELSE returned_at END WHERE id = ?`,
@@ -3738,7 +3741,9 @@ export const ImsSORepo = {
 
       // Restock the returnable lines.
       const channel = so.so_type === 'online' ? 'online' : 'wholesale';
-      await restockCreditNoteItemsTx(conn, cnId, so.location_id, cnItemRows, channel);
+      await restockCreditNoteItemsTx(conn, businessId, cnId, so.location_id, cnItemRows, channel, {
+        costingState, source: 'shopify', returnDate: cnDate,
+      });
       const restocked = cnItemRows.reduce((s, it) => s + (Number(it.restock) ? Number(it.qty) : 0), 0);
 
       // Reflect the refund on the sales order.
@@ -4400,6 +4405,7 @@ async function _btMove(
   item: { variant_id: string; unit_cost: number },
   qty: number,
   businessId: string,
+  costingState: InventoryCostState,
 ): Promise<void> {
   if (!qty) return;
   const variantId = item.variant_id;
@@ -4419,11 +4425,11 @@ async function _btMove(
   const [[lose]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, loseLoc, businessId]);
   const loseNew = Number(lose?.qty_on_hand ?? 0) - mag;
   await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [loseNew, variantId, loseLoc, businessId]);
-  await conn.execute(
+  const [outboundMovement] = await conn.execute<any>(
     `INSERT INTO ims_stock_movements
-       (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-     VALUES (?,?,?,'transfer_out','branch_transfer',?,?,?,?)`,
-    [businessId, variantId, loseLoc, refId, -mag, loseNew, orgAvgCost]
+       (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
+     VALUES (?,?,?,'transfer_out','branch_transfer',?,?,?,?,?,?)`,
+    [businessId, variantId, loseLoc, refId, -mag, loseNew, orgAvgCost, costingState.method, costingState.epochId]
   );
 
   // ── Gaining location (stock arrives) ──
@@ -4431,12 +4437,26 @@ async function _btMove(
   const [[gain]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, gainLoc, businessId]);
   const gainNew = Number(gain?.qty_on_hand ?? 0) + mag;
   await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [gainNew, variantId, gainLoc, businessId]);
-  await conn.execute(
+  const [inboundMovement] = await conn.execute<any>(
     `INSERT INTO ims_stock_movements
-       (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-     VALUES (?,?,?,'transfer_in','branch_transfer',?,?,?,?)`,
-    [businessId, variantId, gainLoc, refId, mag, gainNew, orgAvgCost]
+       (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
+     VALUES (?,?,?,'transfer_in','branch_transfer',?,?,?,?,?,?)`,
+    [businessId, variantId, gainLoc, refId, mag, gainNew, orgAvgCost, costingState.method, costingState.epochId]
   );
+  if (costingState.method === 'fifo') {
+    await transferFifoCostLayers(conn, {
+      businessId,
+      state: costingState,
+      variantId,
+      sourceLocationId: Number(loseLoc),
+      destinationLocationId: Number(gainLoc),
+      outboundMovementId: Number(outboundMovement.insertId),
+      inboundMovementId: Number(inboundMovement.insertId),
+      transferId: refId,
+      transferItemId: Number((item as any).id) || null,
+      quantity: mag,
+    });
+  }
 }
 
 export const ImsBTRepo = {
@@ -4686,6 +4706,7 @@ export const ImsBTRepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
       const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [id, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
 
@@ -4751,7 +4772,7 @@ export const ImsBTRepo = {
              WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
             [Number(item.qty_sent), item.variant_id, bt.from_location_id, businessId]
           );
-          await _btMove(conn, bt, id, item, qty_rcvd, businessId);
+          await _btMove(conn, bt, id, item, qty_rcvd, businessId, costingState);
         }
         // Any item received short of qty_sent leaves the transfer 'partial'.
         if (anyShortfall) finalStatus = 'partial';
@@ -4767,7 +4788,7 @@ export const ImsBTRepo = {
           const current  = Number(item.qty_received ?? 0);
           const finalQty = Math.min(Math.max(0, Number(found.qty_received)), Number(item.qty_sent));
           const delta    = finalQty - current;
-          if (delta !== 0) await _btMove(conn, bt, id, item, delta, businessId);
+          if (delta !== 0) await _btMove(conn, bt, id, item, delta, businessId, costingState);
           await conn.execute(
             `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
             [finalQty, finalQty, item.id]
@@ -4807,6 +4828,7 @@ export const ImsBTRepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
       const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [transferId, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
       const [[item]] = await conn.execute<any[]>(
@@ -4817,7 +4839,7 @@ export const ImsBTRepo = {
       const finalQty = Math.min(target, Number(item.qty_sent));
       const current  = Number(item.qty_received ?? 0);
       const delta    = finalQty - current;
-      if (delta !== 0) await _btMove(conn, bt, transferId, item, delta, businessId);
+      if (delta !== 0) await _btMove(conn, bt, transferId, item, delta, businessId, costingState);
       await conn.execute(
         `UPDATE ims_branch_transfer_items SET qty_received = ?, line_value = ? * unit_cost WHERE id = ?`,
         [finalQty, finalQty, itemId]
@@ -4839,6 +4861,7 @@ export const ImsBTRepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
       const [[bt]] = await conn.execute<any[]>(
         `SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ? FOR UPDATE`,
         [transferId, businessId],
@@ -4882,7 +4905,7 @@ export const ImsBTRepo = {
 
       for (const item of items) {
         const receivedQty = Number(item.qty_received ?? 0);
-        if (receivedQty > 0) await _btMove(conn, bt, transferId, item, -receivedQty, businessId);
+        if (receivedQty > 0) await _btMove(conn, bt, transferId, item, -receivedQty, businessId, costingState);
         const qtySent = Number(item.qty_sent ?? 0);
         if (qtySent > 0) {
           await conn.execute(
@@ -4927,6 +4950,7 @@ export const ImsBTRepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
       const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [transferId, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
       const [[item]] = await conn.execute<any[]>(
@@ -4947,7 +4971,7 @@ export const ImsBTRepo = {
         }
       }
       // Return any already-received units to the source branch.
-      if (rcvd > 0) await _btMove(conn, bt, transferId, item, -rcvd, businessId);
+      if (rcvd > 0) await _btMove(conn, bt, transferId, item, -rcvd, businessId, costingState);
       await conn.execute(`DELETE FROM ims_branch_transfer_items WHERE id = ?`, [itemId]);
       await conn.execute(
         `UPDATE ims_branch_transfers
@@ -5578,6 +5602,12 @@ async function restockCreditNoteItemsTx(
   locationId: number,
   items: ImsCNItem[],
   channel: string | null,
+  costing: {
+    costingState: InventoryCostState;
+    source: ImsCN['source'];
+    posSaleId?: number | null;
+    returnDate: string | Date;
+  },
 ): Promise<void> {
   for (const item of items) {
     if (!item.variant_id) continue;
@@ -5606,12 +5636,31 @@ async function restockCreditNoteItemsTx(
       [item.variant_id, locationId],
     );
     const s = (rows as any[])[0];
-    await conn.execute(
+    const [movementResult] = await conn.execute<any>(
       `INSERT INTO ims_stock_movements
-         (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
-       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?)`,
-      [businessId, item.variant_id, locationId, channel, cnId, qty, s?.qty_on_hand ?? 0],
+         (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,cost_method_snapshot,cost_epoch_id)
+       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?,?,?)`,
+      [businessId, item.variant_id, locationId, channel, cnId, qty, s?.qty_on_hand ?? 0,
+        costing.costingState.method, costing.costingState.epochId],
     );
+    if (costing.costingState.method === 'fifo') {
+      if (costing.source !== 'pos' || !costing.posSaleId) {
+        throw new FifoCostingConflict(
+          `Cannot restock variant ${item.variant_id} under FIFO: this credit note is not linked to original POS sale allocations. Complete the original-allocation return mapping before retrying.`,
+        );
+      }
+      await createFifoPosReturnLayers(conn, {
+        businessId,
+        state: costing.costingState,
+        returnPosSaleId: Number(costing.posSaleId),
+        creditNoteId: cnId,
+        returnMovementId: Number(movementResult.insertId),
+        variantId: String(item.variant_id),
+        locationId,
+        quantity: qty,
+        returnDate: costing.returnDate,
+      });
+    }
   }
 }
 
@@ -5838,6 +5887,7 @@ export const ImsCNRepo = {
       assertAllowedInventoryDocumentAction(
         'customer_credit_note', cn.status, 'complete', { customerCreditNoteSource: cn.source },
       );
+      const costingState = await lockInventoryCostState(conn, businessId);
 
       const [itemRows] = await conn.execute(
         `SELECT * FROM ims_credit_note_items WHERE cn_id = ?`,
@@ -5906,7 +5956,12 @@ export const ImsCNRepo = {
         );
       }
 
-      await restockCreditNoteItemsTx(conn, businessId, cn.id, cn.location_id, items, channel);
+      await restockCreditNoteItemsTx(conn, businessId, cn.id, cn.location_id, items, channel, {
+        costingState,
+        source: cn.source,
+        posSaleId: cn.pos_sale_id,
+        returnDate: cn.cn_date,
+      });
       await conn.execute(
         `UPDATE ims_credit_notes
             SET status = 'complete', completed_at = NOW(), settlement_method = ?,

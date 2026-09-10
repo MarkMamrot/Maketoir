@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool } = vi.hoisted(() => ({ mockGetIMSPool: vi.fn() }));
+const { mockGetIMSPool, mockLockInventoryCostState, mockCreateFifoPosReturnLayers } = vi.hoisted(() => ({
+  mockGetIMSPool: vi.fn(),
+  mockLockInventoryCostState: vi.fn(),
+  mockCreateFifoPosReturnLayers: vi.fn(),
+}));
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: mockGetIMSPool,
@@ -10,6 +14,11 @@ vi.mock('@/services/IMSMySQLService', () => ({
 vi.mock('@/services/imsContext', () => ({ getCurrentImsDb: vi.fn() }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: vi.fn() }));
+vi.mock('../costing/fifoCostingService', () => ({
+  lockInventoryCostState: mockLockInventoryCostState,
+  createFifoPosReturnLayers: mockCreateFifoPosReturnLayers,
+  FifoCostingConflict: class FifoCostingConflict extends Error { code = 'FIFO_COSTING_CONFLICT'; status = 409; },
+}));
 
 import { ImsCNRepo } from '../ImsRepository';
 
@@ -18,6 +27,7 @@ function connectionFor(options: {
   sourceSoItemId?: number;
   fulfilledQty?: number;
   returnedQty?: number;
+  posReturn?: boolean;
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -27,12 +37,14 @@ function connectionFor(options: {
         business_id: 'biz-1',
         cn_number: 'CN-00012',
         status: 'draft',
-        source: 'shopify',
-        settlement_method: 'external',
+        source: options.posReturn ? 'pos' : 'shopify',
+        pos_sale_id: options.posReturn ? 30 : null,
+        settlement_method: options.posReturn ? 'refund' : 'external',
         location_id: 4,
         so_id: options.sourceSoItemId ? 9 : null,
         customer_id: null,
         total_amount: 10,
+        cn_date: '2026-09-10',
         updated_at: '2026-08-12T09:00:00.000Z',
       }]];
     }
@@ -54,7 +66,10 @@ function connectionFor(options: {
       return [[{ returned_qty: options.returnedQty ?? 0 }]];
     }
     if (normalized.includes('from ims_credit_note_items')) {
-      return [options.sourceSoItemId ? [{
+      return [options.posReturn ? [{
+        id: 31, cn_id: 12, source_so_item_id: null,
+        variant_id: 'v-1', qty: 2, unit_price: 5, restock: 1,
+      }] : options.sourceSoItemId ? [{
         id: 31, cn_id: 12, source_so_item_id: options.sourceSoItemId,
         variant_id: 'v-1', qty: 2, unit_price: 5, restock: 0,
       }] : []];
@@ -65,6 +80,9 @@ function connectionFor(options: {
     if (normalized.includes('select so_type from ims_sales_orders')) {
       return [[{ so_type: 'wholesale' }]];
     }
+    if (normalized.includes('from ims_product_variants pv')) return [[{ is_stock_item: 1 }]];
+    if (normalized.includes('select qty_on_hand from ims_stock')) return [[{ qty_on_hand: 7 }]];
+    if (normalized.includes('insert into ims_stock_movements')) return [{ affectedRows: 1, insertId: 501 }];
     return [{ affectedRows: 1 }];
   });
   const connection = {
@@ -79,7 +97,10 @@ function connectionFor(options: {
 }
 
 describe('ImsCNRepo.complete', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+  });
 
   const operationContext = {
     operationKey: 'customer_credit_note:12:complete:revision:r1:request:request-hash',
@@ -151,5 +172,26 @@ describe('ImsCNRepo.complete', () => {
       expect.stringContaining('store_credit_transactions'),
       expect.anything(),
     );
+  });
+
+  it('restores linked POS return layers while completing the credit note', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mockCreateFifoPosReturnLayers.mockResolvedValue({ allocatedValue: 20, unitCost: 10, layerCount: 1 });
+    const connection = connectionFor({ posReturn: true });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(mockCreateFifoPosReturnLayers).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 6, revision: 2 },
+      returnPosSaleId: 30,
+      creditNoteId: 12,
+      returnMovementId: 501,
+      variantId: 'v-1',
+      locationId: 4,
+      quantity: 2,
+      returnDate: '2026-09-10',
+    });
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });

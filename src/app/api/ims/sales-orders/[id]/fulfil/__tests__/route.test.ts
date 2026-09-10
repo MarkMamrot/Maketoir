@@ -23,6 +23,7 @@ vi.mock('@/lib/ims/builds/buildRequirementService', () => ({ recomputeBuildRequi
 
 import { POST } from '../route';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 function request(body: unknown): Request {
   return new Request('http://localhost/api/ims/sales-orders/42/fulfil', {
@@ -100,6 +101,21 @@ describe('POST sales order fulfilment', () => {
 
     expect(response.status).toBe(409);
     expect(body).toMatchObject({ code: 'STOCK_SHORTFALL', shortfalls: [{ itemId: 10 }] });
+    expect(mockReport).not.toHaveBeenCalled();
+  });
+
+  it('returns FIFO reconciliation conflicts without reporting an operational failure', async () => {
+    mockFulfil.mockRejectedValue(new FifoCostingConflict(
+      'Cannot complete this stock movement for variant variant-1: FIFO layers at this location cover 2 units, but 3 are required. Reconcile the missing 1 units before retrying.',
+    ));
+
+    const response = await POST(request({
+      operationKey: 'shipment-fifo-short', shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+    }), { params: { id: '42' } });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({ code: 'FIFO_COSTING_CONFLICT', error: expect.stringContaining('Reconcile the missing 1 units') });
     expect(mockReport).not.toHaveBeenCalled();
   });
 });

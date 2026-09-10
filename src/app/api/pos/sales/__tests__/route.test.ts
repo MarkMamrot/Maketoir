@@ -6,13 +6,14 @@ const mocks = vi.hoisted(() => ({
   imsExecute: vi.fn(),
   completeSale: vi.fn(),
   getCurrentRegisterSession: vi.fn(),
+  imsQuery: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({ cookies: () => ({ get: mocks.cookiesGet }) }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getSession }));
-vi.mock('@/services/IMSMySQLService', () => ({ imsExecute: mocks.imsExecute }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsExecute: mocks.imsExecute, imsQuery: mocks.imsQuery }));
 vi.mock('@/lib/db/PosRepository', () => ({
-  PosSalesRepo: { complete: mocks.completeSale },
+  PosSalesRepo: { complete: mocks.completeSale, findByLocalId: vi.fn() },
   PosRegisterSessionRepo: { getCurrent: mocks.getCurrentRegisterSession },
 }));
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: vi.fn() }));
@@ -27,6 +28,7 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
 }));
 
 import { POST } from '../route';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 describe('POST /api/pos/sales training mode', () => {
   beforeEach(() => {
@@ -34,6 +36,8 @@ describe('POST /api/pos/sales training mode', () => {
     mocks.cookiesGet.mockReturnValue({ value: JSON.stringify({ businessId: 'sage', location_id: 2, register_id: 3, pos_user_id: 4, full_name: 'Trainer' }) });
     mocks.getSession.mockResolvedValue({ businessId: 'sage' });
     mocks.imsExecute.mockResolvedValue({ insertId: 91 });
+    mocks.imsQuery.mockResolvedValue([]);
+    mocks.getCurrentRegisterSession.mockResolvedValue(null);
   });
 
   it('records an isolated audit snapshot without invoking the real sale repository', async () => {
@@ -98,5 +102,29 @@ describe('POST /api/pos/sales training mode', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.imsExecute).not.toHaveBeenCalled();
+  });
+
+  it('returns atomic FIFO stock shortages as actionable conflicts', async () => {
+    mocks.completeSale.mockRejectedValue(new FifoCostingConflict(
+      'Cannot complete this stock movement for variant variant-1: FIFO layers at this location cover 1 units, but 2 are required. Reconcile the missing 1 units before retrying.',
+    ));
+
+    const response = await POST(new Request('http://localhost/api/pos/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location_id: 2,
+        status: 'completed',
+        sale_type: 'sale',
+        items: [{ variant_id: 'variant-1', name: 'Product', qty: 2, unit_price: 10, line_total: 20 }],
+        payments: [{ payment_method: 'Cash', amount: 20 }],
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'FIFO_COSTING_CONFLICT',
+      error: expect.stringContaining('Reconcile the missing 1 units'),
+    });
   });
 });

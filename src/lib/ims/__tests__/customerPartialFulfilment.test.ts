@@ -9,6 +9,11 @@ const connection = {
   execute,
 };
 
+const { mockLockInventoryCostState, mockConsumeFifoCostLayers } = vi.hoisted(() => ({
+  mockLockInventoryCostState: vi.fn(),
+  mockConsumeFifoCostLayers: vi.fn(),
+}));
+
 let storedRequestHash = '';
 let firstItemIsStock = 1;
 let quantityOnHand = 20;
@@ -18,6 +23,11 @@ let allocationRows: Record<string, unknown>[] = [];
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
+}));
+
+vi.mock('../costing/fifoCostingService', () => ({
+  lockInventoryCostState: mockLockInventoryCostState,
+  consumeFifoCostLayers: mockConsumeFifoCostLayers,
 }));
 
 import { fulfilSalesOrderPartial } from '../orderResolution/customerFulfilment';
@@ -31,6 +41,8 @@ describe('fulfilSalesOrderPartial', () => {
     quantityIncoming = 0;
     branchTransferIncoming = 0;
     allocationRows = [];
+    mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+    mockConsumeFifoCostLayers.mockResolvedValue({ allocatedValue: 35, unitCost: 5, allocationCount: 2 });
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes('INSERT IGNORE INTO ims_so_fulfilment_operations')) {
         storedRequestHash = String(params?.[2] ?? '');
@@ -55,6 +67,7 @@ describe('fulfilSalesOrderPartial', () => {
       }
       if (sql.includes('FROM ims_branch_transfers bt')) return [[{ incoming_quantity: branchTransferIncoming }]];
       if (sql.includes('FROM ims_stock_allocations')) return [allocationRows];
+      if (sql.includes('INSERT INTO ims_stock_movements')) return [{ affectedRows: 1, insertId: 501 }];
       return [{ affectedRows: 1 }];
     });
   });
@@ -84,6 +97,46 @@ describe('fulfilSalesOrderPartial', () => {
     );
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('consumes FIFO layers and uses their composite cost for the fulfilled line', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+
+    await fulfilSalesOrderPartial({
+      businessId: 'biz-1',
+      soId: 42,
+      operationKey: 'shipment-42-fifo',
+      shipmentQuantities: [{ itemId: 10, quantity: 7 }],
+    });
+
+    expect(mockConsumeFifoCostLayers).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 6, revision: 2 },
+      variantId: 'variant-1',
+      locationId: 4,
+      stockMovementId: 501,
+      quantity: 7,
+    });
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_fulfilled = ?, unit_cost = ?'),
+      [7, 5, 10, 42],
+    );
+  });
+
+  it('rolls back a FIFO layer shortage even when negative stock was explicitly allowed', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mockConsumeFifoCostLayers.mockRejectedValue(Object.assign(
+      new Error('Reconcile the missing 1 units before retrying.'),
+      { code: 'FIFO_COSTING_CONFLICT' },
+    ));
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-fifo-short',
+      shipmentQuantities: [{ itemId: 10, quantity: 7 }], allowNegativeStock: true,
+    })).rejects.toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
   });
 
   it('leaves a fully shipped order in progress until completion is explicit', async () => {

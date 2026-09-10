@@ -3,6 +3,7 @@ import { BranchTransferEditConflict, BranchTransferUndoConflict, ImsBTRepo } fro
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
@@ -33,6 +34,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       } catch (error) {
         if (error instanceof BranchTransferUndoConflict) {
           return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: 409 });
+        }
+        if (error instanceof FifoCostingConflict) {
+          return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
         }
         await reportRuntimeIssue({
           businessId: session.businessId,
@@ -98,6 +102,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   } catch (e: any) {
     if (e instanceof BranchTransferEditConflict) {
       return NextResponse.json({ success: false, error: e.message }, { status: 409 });
+    }
+    if (e instanceof FifoCostingConflict) {
+      return NextResponse.json({ success: false, error: e.message, code: e.code }, { status: e.status });
     }
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

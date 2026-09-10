@@ -3,6 +3,7 @@ import type { PoolConnection } from 'mysql2/promise';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { StockShortfallError, type StockShortfall } from './stockShortfall';
 import { reconcileStockAllocationsForFulfilment } from '../stockAllocation/service';
+import { consumeFifoCostLayers, lockInventoryCostState } from '../costing/fifoCostingService';
 
 const QUANTITY_SCALE = 10_000;
 
@@ -89,6 +90,8 @@ export async function fulfilSalesOrderPartialInTransaction(
         : operation.response_json;
       return result as CustomerFulfilmentResult;
     }
+
+    const costingState = await lockInventoryCostState(conn, input.businessId);
 
     const [[so]] = await conn.execute<any[]>(
       `SELECT id, business_id, status, so_type, location_id, is_historical
@@ -202,11 +205,8 @@ export async function fulfilSalesOrderPartialInTransaction(
       }
       if (scaledQuantity(oldCommitted) < shipmentScaled) throw new Error(`Insufficient committed stock to ship item ${itemId}.`);
 
-      const shipmentCost = Number(stock?.avg_cost ?? 0);
+      let shipmentCost = Number(stock?.avg_cost ?? 0);
       const oldCost = Number(item.unit_cost ?? 0);
-      const weightedCost = newFulfilled > 0
-        ? ((oldFulfilled * oldCost) + (quantity * shipmentCost)) / newFulfilled
-        : shipmentCost;
       const newOnHand = oldOnHand - quantity;
 
       await conn.execute(
@@ -215,17 +215,11 @@ export async function fulfilSalesOrderPartialInTransaction(
           WHERE variant_id = ? AND location_id = ?`,
         [newOnHand, quantity, item.variant_id, so.location_id],
       );
-      await conn.execute(
-        `UPDATE ims_sales_order_items
-            SET qty_fulfilled = ?, unit_cost = ?
-          WHERE id = ? AND so_id = ?`,
-        [newFulfilled, weightedCost, itemId, input.soId],
-      );
-      await conn.execute(
+      const [movementResult] = await conn.execute<any>(
         `INSERT INTO ims_stock_movements
           (business_id, variant_id, location_id, movement_type, channel, reference_type,
-           reference_id, qty_change, qty_after_soh, unit_cost, notes)
-         VALUES (?, ?, ?, 'so_fulfilled', ?, 'sales_order', ?, ?, ?, ?, ?)`,
+           reference_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'so_fulfilled', ?, 'sales_order', ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.businessId,
           item.variant_id,
@@ -235,8 +229,30 @@ export async function fulfilSalesOrderPartialInTransaction(
           -quantity,
           newOnHand,
           shipmentCost,
+          costingState.method,
+          costingState.epochId,
           `Shipment ${operationKey}`,
         ],
+      );
+      if (costingState.method === 'fifo') {
+        const fifoConsumption = await consumeFifoCostLayers(conn, {
+          businessId: input.businessId,
+          state: costingState,
+          variantId: String(item.variant_id),
+          locationId: Number(so.location_id),
+          stockMovementId: Number(movementResult.insertId),
+          quantity,
+        });
+        shipmentCost = fifoConsumption.unitCost;
+      }
+      const weightedCost = newFulfilled > 0
+        ? ((oldFulfilled * oldCost) + (quantity * shipmentCost)) / newFulfilled
+        : shipmentCost;
+      await conn.execute(
+        `UPDATE ims_sales_order_items
+            SET qty_fulfilled = ?, unit_cost = ?
+          WHERE id = ? AND so_id = ?`,
+        [newFulfilled, weightedCost, itemId, input.soId],
       );
       item.qty_fulfilled = newFulfilled;
       fulfilledVariantIds.push(String(item.variant_id));

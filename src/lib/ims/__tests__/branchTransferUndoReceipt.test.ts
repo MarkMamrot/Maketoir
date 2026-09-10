@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockImsQuery, mockImsExecute } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockImsQuery, mockImsExecute, mockLockInventoryCostState, mockTransferFifoCostLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockImsQuery: vi.fn(),
   mockImsExecute: vi.fn(),
+  mockLockInventoryCostState: vi.fn(),
+  mockTransferFifoCostLayers: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -14,6 +16,11 @@ vi.mock('@/services/IMSMySQLService', () => ({
 vi.mock('@/services/imsContext', () => ({ getCurrentImsDb: vi.fn(() => 'tenant_test') }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: vi.fn() }));
+vi.mock('../costing/fifoCostingService', () => ({
+  lockInventoryCostState: mockLockInventoryCostState,
+  transferFifoCostLayers: mockTransferFifoCostLayers,
+  createFifoCostLayer: vi.fn(),
+}));
 
 import { BranchTransferUndoConflict, ImsBTRepo } from '../ImsRepository';
 
@@ -21,6 +28,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockImsQuery.mockResolvedValue([]);
   mockImsExecute.mockResolvedValue({ affectedRows: 0 });
+  mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+  mockTransferFifoCostLayers.mockResolvedValue({ allocatedValue: 48, unitCost: 12, layerCount: 1 });
 });
 
 function connectionFor(destinationQty: number, items = [
@@ -42,6 +51,8 @@ function connectionFor(destinationQty: number, items = [
     if (sql.includes('SELECT qty_on_hand FROM ims_stock WHERE variant_id=')) {
       return [[{ qty_on_hand: locationQty.get(Number(params[1])) ?? 0 }]];
     }
+    if (sql.includes("'transfer_out'")) return [{ affectedRows: 1, insertId: 101 }];
+    if (sql.includes("'transfer_in'")) return [{ affectedRows: 1, insertId: 102 }];
     return [{ affectedRows: 1 }];
   });
   const connection = {
@@ -113,6 +124,27 @@ describe('ImsBTRepo.undoReceipt', () => {
 
     expect(connection.rollback).toHaveBeenCalledOnce();
     expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('moves FIFO lineage back to the source when receipt is undone', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    const connection = connectionFor(9);
+
+    await ImsBTRepo.undoReceipt(42, 'biz-1');
+
+    expect(mockTransferFifoCostLayers).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 6, revision: 2 },
+      variantId: 'variant-1',
+      sourceLocationId: 2,
+      destinationLocationId: 1,
+      outboundMovementId: 101,
+      inboundMovementId: 102,
+      transferId: 42,
+      transferItemId: 8,
+      quantity: 4,
+    });
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });
 

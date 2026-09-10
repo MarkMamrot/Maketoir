@@ -5,6 +5,7 @@ import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { buildAndFulfilSalesOrder } from '@/lib/ims/builds/salesOrderBuildService';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -33,6 +34,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } catch (error) {
     if (error instanceof StockShortfallError) {
       return NextResponse.json({ error: error.message, code: error.code, shortfalls: error.shortfalls }, { status: 409 });
+    }
+    if (error instanceof FifoCostingConflict) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
     const status = error instanceof ProductBuildConflictError ? 409 : 500;
     return NextResponse.json({

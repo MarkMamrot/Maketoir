@@ -6,6 +6,7 @@ import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 function responseStatus(message: string): number {
   if (message.includes('not found')) return 404;
@@ -52,6 +53,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } catch (error: any) {
     if (error instanceof StockShortfallError) {
       return NextResponse.json({ error: error.message, code: error.code, shortfalls: error.shortfalls }, { status: 409 });
+    }
+    if (error instanceof FifoCostingConflict) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
     const message = String(error?.message ?? 'Sales order fulfilment failed.');
     const status = responseStatus(message);

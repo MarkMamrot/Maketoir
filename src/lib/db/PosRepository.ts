@@ -15,6 +15,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { planPosStockChange } from '@/lib/ims/posStockFloor';
 import { completeProductBuildInTransaction, ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { isBuildFromSaleEnabled, planBuildFromSaleShortfalls } from '@/lib/ims/builds/buildFromSalePolicy';
+import { consumeFifoCostLayers, FifoCostingConflict, lockInventoryCostState, type InventoryCostState } from '@/lib/ims/costing/fifoCostingService';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -44,6 +45,7 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
   minimumOnHand?: number;
   averageCost: number;
   hasStockRow: boolean;
+  costingState: InventoryCostState;
   movementNote?: string | null;
 }) {
   const plan = planPosStockChange(input.currentOnHand, input.requestedChange, input.minimumOnHand);
@@ -62,10 +64,11 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
     await connection.execute(
       `INSERT INTO ims_stock_movements
          (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id,
-          qty_change, qty_after_soh, unit_cost, notes)
-       VALUES (?, ?, ?, 'adjustment', 'pos', 'pos_sale', ?, ?, ?, ?, ?)`,
+         qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+       VALUES (?, ?, ?, 'adjustment', 'pos', 'pos_sale', ?, ?, ?, ?, ?, ?, ?)`,
       [input.businessId, input.variantId, input.locationId, input.saleId, plan.automaticAdjustmentQuantity,
-        plan.afterAdjustmentOnHand, input.averageCost, 'Automatic correction: POS transaction exceeded recorded stock on hand'],
+        plan.afterAdjustmentOnHand, input.averageCost, input.costingState.method, input.costingState.epochId,
+        'Automatic correction: POS transaction exceeded recorded stock on hand'],
     );
   }
 
@@ -81,18 +84,38 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
     );
   }
 
-  await connection.execute(
+  const movementExecution = await connection.execute<any>(
     `INSERT INTO ims_stock_movements
        (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id,
-        qty_change, qty_after_soh, unit_cost, notes)
-     VALUES (?, ?, ?, 'pos_sale', 'pos', 'pos_sale', ?, ?, ?, ?, ?)`,
+        qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+     VALUES (?, ?, ?, 'pos_sale', 'pos', 'pos_sale', ?, ?, ?, ?, ?, ?, ?)`,
     [input.businessId, input.variantId, input.locationId, input.saleId, plan.requestedChange,
-      plan.resultingOnHand, input.averageCost, input.movementNote ?? null],
+      plan.resultingOnHand, input.averageCost, input.costingState.method, input.costingState.epochId,
+      input.movementNote ?? null],
   );
+  const movementResult = Array.isArray(movementExecution) ? movementExecution[0] : movementExecution;
+  if (input.costingState.method === 'fifo') {
+    if (plan.requestedChange >= 0) {
+      throw new FifoCostingConflict('FIFO POS returns must be linked to the original completed sale so the original item cost can be restored.');
+    }
+    await consumeFifoCostLayers(connection, {
+      businessId: input.businessId,
+      state: input.costingState,
+      variantId: input.variantId,
+      locationId: input.locationId,
+      stockMovementId: Number(movementResult.insertId),
+      quantity: Math.abs(plan.requestedChange),
+    });
+  }
   return plan;
 }
 
-async function applyCompletedPosSaleStock(connection: any, data: any, saleId: number): Promise<PosStockWarning[]> {
+async function applyCompletedPosSaleStock(
+  connection: any,
+  data: any,
+  saleId: number,
+  costingState: InventoryCostState,
+): Promise<PosStockWarning[]> {
   const stockWarnings: PosStockWarning[] = [];
   for (const item of data.items) {
     if (!item.variant_id) continue;
@@ -162,6 +185,7 @@ async function applyCompletedPosSaleStock(connection: any, data: any, saleId: nu
       averageCost: avgCostAtTime,
       hasStockRow: Boolean(stockRows[0]?.stock_variant_id),
       minimumOnHand: -incomingTransferQuantity,
+      costingState,
     });
   }
   const incomingStockWarnings = stockWarnings.filter(warning => warning.reason === 'incoming_transfer_stock');
@@ -451,6 +475,9 @@ export const PosSalesRepo = {
 
       const now = localNow();
       const completedAt = ['completed', 'layby_complete', 'voided'].includes(data.status) ? now : null;
+      const costingState = (data.status === 'completed' || data.status === 'layby_complete')
+        ? await lockInventoryCostState(conn, data.business_id)
+        : null;
       let linkedReturnAllocation: { originalEligibleCents: number; cumulativeReturnedCents: number } | null = null;
 
       if (data.sale_type === 'return' && data.status === 'completed' && data.return_of_sale_id != null) {
@@ -769,7 +796,11 @@ export const PosSalesRepo = {
           actorId: data.cashier_id,
           actorName: data.cashier_name,
         });
-        atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId);
+        atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, costingState!);
+      }
+
+      if (atomicStockWarnings === null && costingState?.method === 'fifo') {
+        atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, costingState);
       }
 
       await conn.commit();
@@ -786,7 +817,8 @@ export const PosSalesRepo = {
         const stockConn = await pool.getConnection();
         try {
           await stockConn.beginTransaction();
-          stockWarnings = await applyCompletedPosSaleStock(stockConn, data, saleId);
+          const stockCostingState = await lockInventoryCostState(stockConn, data.business_id);
+          stockWarnings = await applyCompletedPosSaleStock(stockConn, data, saleId, stockCostingState);
           await stockConn.commit();
         } catch (stockErr: any) {
           await stockConn.rollback();
@@ -922,6 +954,10 @@ export const PosSalesRepo = {
     const stockWarnings: PosStockWarning[] = [];
     try {
       await stockConn.beginTransaction();
+      const costingState = await lockInventoryCostState(stockConn, sale.business_id);
+      if (costingState.method === 'fifo') {
+        throw new FifoCostingConflict('Completed FIFO POS sales cannot be voided until their original layer allocations can be restored safely. Use a linked POS return instead.');
+      }
       const [saleRows]: any = await stockConn.execute(
         `SELECT status FROM pos_sales WHERE id = ? LIMIT 1 FOR UPDATE`,
         [id],
@@ -965,6 +1001,7 @@ export const PosSalesRepo = {
           requestedChange: qtyChange,
           averageCost: avgCostAtTime,
           hasStockRow: Boolean(stockRows[0]?.stock_variant_id),
+          costingState,
           movementNote: 'Voided by manager PIN',
         });
         if (stockPlan.automaticAdjustmentQuantity > 0) {
@@ -1055,6 +1092,10 @@ export const PosSalesRepo = {
     let loyalty: LoyaltyMutationResult | null = null;
     try {
       await conn.beginTransaction();
+      const editCostingState = await lockInventoryCostState(conn, oldSale.business_id);
+      if (editCostingState.method === 'fifo') {
+        throw new FifoCostingConflict('Completed FIFO POS transactions cannot be edited because changing sold quantities would rewrite historical layer allocations. Void or return the affected items through an allocation-aware workflow.');
+      }
 
       const [lockedSaleRows] = await conn.execute<any[]>(
         `SELECT business_id, customer_id, status, sale_type, loyalty_earn_rate
@@ -1200,6 +1241,7 @@ export const PosSalesRepo = {
       const stockConn = await pool.getConnection();
       try {
         await stockConn.beginTransaction();
+        const stockCostingState = await lockInventoryCostState(stockConn, oldSale.business_id);
         for (const vid of variantIds) {
           const delta = (newMap.get(vid) ?? 0) - (oldMap.get(vid) ?? 0);
           if (!delta) continue;
@@ -1225,6 +1267,7 @@ export const PosSalesRepo = {
             requestedChange: delta,
             averageCost: avgCostAtTime,
             hasStockRow: Boolean(stockRows[0]?.stock_variant_id),
+            costingState: stockCostingState,
             movementNote: 'Adjusted via manager transaction edit',
           });
           if (stockPlan.automaticAdjustmentQuantity > 0) {
