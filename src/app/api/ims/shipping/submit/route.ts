@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to submit shipments to Australia Post.';
-    const validation = /choose|not found|no parcels|not supported|already|requires review|before submission|no more than|price changed|no longer available/i.test(message);
+    const validation = /choose|not found|no parcels|not supported|not enabled|already|requires review|before submission|no more than|price changed|no longer available/i.test(message);
     if (!validation) {
       await reportRuntimeIssue({
         businessId: session.businessId,

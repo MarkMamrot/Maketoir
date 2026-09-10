@@ -4,6 +4,7 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 import { isReservedShopifyFallbackSku } from '@/lib/shopifyFallbackVariant';
 import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
 import { applyStocktakeInTransaction } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { normalizeProductCustomsFields } from '@/lib/ims/productCustoms';
 
 export interface BulkProductLocationStockInput {
   locationId: unknown;
@@ -58,6 +59,10 @@ export interface BulkProductSaveProductInput {
   supplier_contact_id?: unknown;
   website_title?: unknown;
   allow_indent_wholesale?: unknown;
+  customs_description?: unknown;
+  hs_code?: unknown;
+  country_of_origin?: unknown;
+  is_dangerous_or_restricted?: unknown;
   variants: BulkProductSaveVariantInput[];
 }
 
@@ -112,7 +117,7 @@ interface IdentifierRow extends RowDataPacket {
 const PRODUCT_COLUMNS = [
   'name', 'base_sku', 'description', 'product_type', 'brand', 'tags', 'category', 'subcategory',
   'style_code', 'is_active', 'is_stock_item', 'is_online', 'supplier_contact_id', 'website_title',
-  'allow_indent_wholesale',
+  'allow_indent_wholesale', 'customs_description', 'hs_code', 'country_of_origin', 'is_dangerous_or_restricted',
 ] as const;
 
 const VARIANT_COLUMNS = [
@@ -126,6 +131,7 @@ const NUMERIC_VARIANT_FIELDS = new Set([
   'cost_aud', 'price_rrp', 'price_wholesale', 'price_rrp_sale', 'weight_kg', 'length_mm', 'width_mm', 'height_mm',
 ]);
 const BOOLEAN_PRODUCT_FIELDS = new Set(['is_active', 'is_stock_item', 'is_online', 'allow_indent_wholesale']);
+const CUSTOMS_PRODUCT_FIELDS = new Set(['customs_description', 'hs_code', 'country_of_origin', 'is_dangerous_or_restricted']);
 const DATE_FIELDS = new Set(['discount_start_date', 'discount_end_date']);
 
 function text(value: unknown): string {
@@ -291,6 +297,7 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
 
       const values: Record<string, unknown> = {};
       for (const field of PRODUCT_COLUMNS) {
+        if (CUSTOMS_PRODUCT_FIELDS.has(field)) continue;
         const value = product[field];
         if (field === 'name') values[field] = name;
         else if (field === 'base_sku') values[field] = baseSku;
@@ -298,6 +305,12 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
         else if (field === 'supplier_contact_id') values[field] = value === undefined || value === null || value === '' ? null : Number(value);
         else values[field] = nullableText(value);
       }
+      const customs = normalizeProductCustomsFields(product);
+      values.customs_description = customs.values.customs_description;
+      values.hs_code = customs.values.hs_code;
+      values.country_of_origin = customs.values.country_of_origin;
+      values.is_dangerous_or_restricted = customs.values.is_dangerous_or_restricted;
+      errors.push(...customs.errors.map(error => ({ clientId, field: error.field, message: error.message })));
       if (values.supplier_contact_id !== null && (!Number.isInteger(values.supplier_contact_id) || Number(values.supplier_contact_id) <= 0)) {
         errors.push({ clientId, field: 'supplier_contact_id', message: 'Default Supplier is invalid.' });
       }
@@ -402,16 +415,17 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
       for (const product of normalizedProducts) {
         const productId = product.productId ?? dependencies.newId();
         if (product.productId) {
-          const assignments = PRODUCT_COLUMNS.map(field => `${field} = ?`).join(', ');
+          const updateColumns = PRODUCT_COLUMNS.filter(field => product.values[field] !== undefined);
+          const assignments = updateColumns.map(field => `${field} = ?`).join(', ');
           await connection.execute(
             `UPDATE ims_products SET ${assignments} WHERE business_id = ? AND product_id = ?`,
-            [...PRODUCT_COLUMNS.map(field => product.values[field]), businessId, productId],
+            [...updateColumns.map(field => product.values[field]), businessId, productId],
           );
           updated += 1;
         } else {
           await connection.execute(
             `INSERT INTO ims_products (business_id, product_id, ${PRODUCT_COLUMNS.join(', ')}) VALUES (?, ?, ${PRODUCT_COLUMNS.map(() => '?').join(', ')})`,
-            [businessId, productId, ...PRODUCT_COLUMNS.map(field => product.values[field])],
+            [businessId, productId, ...PRODUCT_COLUMNS.map(field => field === 'is_dangerous_or_restricted' ? product.values[field] ?? 0 : product.values[field] ?? null)],
           );
           created += 1;
         }

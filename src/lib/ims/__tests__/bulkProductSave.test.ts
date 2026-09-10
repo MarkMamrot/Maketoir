@@ -75,7 +75,7 @@ describe('bulkProductSave', () => {
   });
 
   it('commits mixed creates and updates and returns client ID mappings', async () => {
-    const { connection, writes } = connectionWith([
+    const { connection, execute, writes } = connectionWith([
       [{ product_id: 'product-existing', base_sku: 'OLD' }],
       [{ variant_id: 'variant-existing', product_id: 'product-existing' }],
       [], [], [],
@@ -96,7 +96,16 @@ describe('bulkProductSave', () => {
           base_sku: 'HLS-EDIT',
           variants: [{ clientId: 'existing-variant-client', variantId: 'variant-existing', sku: 'HLS-EDIT-M' }],
         }),
-        product({ clientId: 'new-client', name: 'New Shirt', base_sku: 'NEW', variants: [{ clientId: 'new-variant-client', sku: 'NEW' }] }),
+        product({
+          clientId: 'new-client',
+          name: 'New Shirt',
+          base_sku: 'NEW',
+          customs_description: '  Cotton shirt  ',
+          hs_code: '610510',
+          country_of_origin: 'au',
+          is_dangerous_or_restricted: true,
+          variants: [{ clientId: 'new-variant-client', sku: 'NEW' }],
+        }),
       ],
     });
 
@@ -111,11 +120,28 @@ describe('bulkProductSave', () => {
     });
     expect(writes.filter(sql => sql.startsWith('UPDATE ims_products'))).toHaveLength(1);
     expect(writes.filter(sql => sql.startsWith('INSERT INTO ims_products'))).toHaveLength(1);
+    expect(writes.find(sql => sql.startsWith('UPDATE ims_products'))).not.toContain('customs_description');
+    expect(writes.find(sql => sql.startsWith('INSERT INTO ims_products'))).toContain('customs_description');
+    const productInsert = execute.mock.calls.find(([sql]) => String(sql).startsWith('INSERT INTO ims_products'));
+    expect(productInsert?.[1]).toEqual(expect.arrayContaining(['Cotton shirt', '610510', 'AU', 1]));
     expect(writes.filter(sql => sql.startsWith('UPDATE ims_product_variants'))).toHaveLength(1);
     expect(writes.find(sql => sql.startsWith('UPDATE ims_product_variants'))).not.toContain('cost_foreign = ?');
     expect(writes.filter(sql => sql.startsWith('INSERT INTO ims_product_variants'))).toHaveLength(1);
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid customs values before opening a transaction', async () => {
+    const getConnection = vi.fn();
+    const save = createBulkProductSaveService({ getConnection });
+
+    await expect(save('business-1', {
+      products: [product({ country_of_origin: 'Australia' })],
+    })).rejects.toMatchObject({
+      name: 'BulkProductValidationError',
+      errors: [expect.objectContaining({ clientId: 'product-client', field: 'country_of_origin' })],
+    } satisfies Partial<BulkProductValidationError>);
+    expect(getConnection).not.toHaveBeenCalled();
   });
 
   it('rejects a supplier that is not owned by the active business', async () => {

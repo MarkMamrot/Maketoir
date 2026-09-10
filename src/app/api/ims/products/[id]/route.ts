@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsProductsRepo, ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { isReservedShopifyFallbackSku, isShopifyFallbackProduct } from '@/lib/shopifyFallbackVariant';
+import { normalizeProductCustomsFields } from '@/lib/ims/productCustoms';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -38,6 +39,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       );
     }
     const { variants, ...productData } = body;
+    const customs = normalizeProductCustomsFields(productData);
+    if (customs.errors.length) {
+      return NextResponse.json({ success: false, error: customs.errors[0].message, errors: customs.errors }, { status: 400 });
+    }
     const productSku = typeof productData.base_sku === 'string' ? productData.base_sku.trim() : '';
     if (productSku) {
       const conflict = await ImsVariantsRepo.findIdentifierConflict(
@@ -80,7 +85,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
     }
-    await ImsProductsRepo.update(params.id, productData);
+    await ImsProductsRepo.update(params.id, { ...productData, ...customs.values });
     if (variants) {
       for (const v of variants) {
         if (v.variant_id) {

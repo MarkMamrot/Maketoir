@@ -24,6 +24,7 @@ import {
   type BulkProductSourcePriceMapping,
 } from '@/lib/ims/bulkProductDocumentImport';
 import { parseProductSettings } from '@/lib/ims/productSettings';
+import { getCountryOptions } from '@/lib/ims/countryOptions';
 import {
   DEFAULT_BULK_PRODUCT_WORKSPACE,
   sanitizeBulkProductWorkspace,
@@ -63,6 +64,10 @@ interface ProductDraft {
   supplier_contact_id: number | '';
   website_title: string;
   allow_indent_wholesale: number;
+  customs_description: string;
+  hs_code: string;
+  country_of_origin: string;
+  is_dangerous_or_restricted: number;
   optionSets: ProductOptionSet[];
   variants: VariantDraft[];
   [key: string]: unknown;
@@ -129,6 +134,7 @@ const buttonStyle = {
 };
 
 const FOREIGN_CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
+const COUNTRY_OPTIONS = getCountryOptions();
 const FILTER_FIELDS: Array<{ id: BulkProductFilterField; label: string; kind: 'boolean' | 'number' | 'text' }> = [
   { id: 'status', label: 'Status', kind: 'boolean' },
   { id: 'website', label: 'Website Product', kind: 'boolean' },
@@ -295,7 +301,8 @@ function blankProduct(): ProductDraft {
   return {
     clientId: newId('product'), name: '', base_sku: '', description: '', product_type: '', brand: '', tags: '', category: '',
     subcategory: '', style_code: '', is_active: 1, is_stock_item: 1, is_online: 1, supplier_contact_id: '', website_title: '',
-    allow_indent_wholesale: 0, optionSets: [{ name: '', values: '' }], variants: [blankVariant()],
+    allow_indent_wholesale: 0, customs_description: '', hs_code: '', country_of_origin: '', is_dangerous_or_restricted: 0,
+    optionSets: [{ name: '', values: '' }], variants: [blankVariant()],
   };
 }
 
@@ -352,7 +359,9 @@ function productFromApi(product: Record<string, any>): ProductDraft {
     subcategory: String(product.subcategory ?? ''), style_code: String(product.style_code ?? ''), is_active: Number(product.is_active ?? 1),
     is_stock_item: Number(product.is_stock_item ?? 1), is_online: Number(product.is_online ?? 1),
     supplier_contact_id: product.supplier_contact_id ? Number(product.supplier_contact_id) : '', website_title: String(product.website_title ?? ''),
-    allow_indent_wholesale: Number(product.allow_indent_wholesale ?? 0), optionSets: optionSetsFromVariants(apiVariants),
+    allow_indent_wholesale: Number(product.allow_indent_wholesale ?? 0), customs_description: String(product.customs_description ?? ''),
+    hs_code: String(product.hs_code ?? ''), country_of_origin: String(product.country_of_origin ?? ''),
+    is_dangerous_or_restricted: Number(product.is_dangerous_or_restricted ?? 0), optionSets: optionSetsFromVariants(apiVariants),
     variants: apiVariants.map((variant: Record<string, any>) => {
       let foreignCosts: Record<string, string> = {};
       let foreignCostsParseFailed = false;
@@ -986,6 +995,8 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       editor = <EditableChoicePicker value={String(value ?? '')} options={brands} onChange={update} allowCustom style={common.style} label={field.label} />;
     } else if (field.id === 'supplier_contact_id') {
       editor = <EditableChoicePicker value={String(value ?? '')} options={suppliers} onChange={update} allowCustom={false} style={common.style} label={field.label} />;
+    } else if (field.id === 'country_of_origin') {
+      editor = <EditableChoicePicker value={String(value ?? '')} options={COUNTRY_OPTIONS} onChange={update} allowCustom={false} style={common.style} label={field.label} />;
     } else if (field.editor === 'textarea') {
       editor = <textarea {...common} rows={2} style={{ ...common.style, resize: 'vertical' }} />;
     } else {

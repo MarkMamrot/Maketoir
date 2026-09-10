@@ -13,6 +13,7 @@ export async function GET() {
       `SELECT sales_order.id, sales_order.so_number, sales_order.status, sales_order.so_type,
               sales_order.sales_channel, sales_order.shopify_order_name, sales_order.native_checkout_id,
               sales_order.channel_shipping_method, sales_order.channel_delivery_type,
+              sales_order.delivery_country,
               contact.name AS customer_name,
               SUM(GREATEST(order_item.qty_ordered - COALESCE(order_item.qty_fulfilled, 0), 0)) AS remaining_quantity
          FROM ims_sales_orders sales_order
@@ -30,7 +31,8 @@ export async function GET() {
           )
         GROUP BY sales_order.id, sales_order.so_number, sales_order.status, sales_order.so_type,
                  sales_order.sales_channel, sales_order.shopify_order_name, sales_order.native_checkout_id,
-                 sales_order.channel_shipping_method, sales_order.channel_delivery_type, contact.name
+                 sales_order.channel_shipping_method, sales_order.channel_delivery_type,
+                 sales_order.delivery_country, contact.name
        HAVING remaining_quantity > 0
         ORDER BY sales_order.order_date, sales_order.id
         LIMIT 250`,

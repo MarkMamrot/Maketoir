@@ -76,6 +76,7 @@
     "facebook-nodejs-business-sdk": "^18.0.2",
     "google-ads-api": "^23.0.0",
     "googleapis": "^134.0.0",
+    "i18n-iso-countries": "^7.14.0",
     "jsbarcode": "^3.12.3",
     "jstat": "^1.9.6",
     "lucide-react": "^1.27.0",

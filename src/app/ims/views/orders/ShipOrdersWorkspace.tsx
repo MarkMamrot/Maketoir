@@ -21,7 +21,15 @@ import {
 import {
   canDeleteShippingDraft,
   getShippingOrderEligibility,
+  isAustralianShippingCountry,
 } from "@/lib/ims/shipping/shippingWorkflow";
+import {
+  buildNonSaleDeclaredValueInputs,
+  buildWorkspaceCustomsRows,
+  getWorkspaceCustomsBlockers,
+  type WorkspaceCustomsLine,
+} from "@/lib/ims/shipping/workspaceCustoms";
+import type { ShippingExportPurpose } from "@/lib/ims/shipping/customs";
 
 type SalesOrderSummary = {
   id: number;
@@ -37,6 +45,7 @@ type SalesOrderSummary = {
   so_type?: string | null;
   is_pos_ledger?: boolean;
   remaining_quantity?: number;
+  delivery_country?: string | null;
 };
 
 type SalesOrderDetail = SalesOrderSummary & {
@@ -44,12 +53,23 @@ type SalesOrderDetail = SalesOrderSummary & {
   delivery_suburb?: string | null;
   delivery_state?: string | null;
   delivery_postcode?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  tax_treatment?: "ex_tax" | "inc_tax" | "no_tax";
   items?: Array<{
     id: number;
     sku?: string | null;
     product_name?: string | null;
+    product_id?: string | null;
+    customs_description?: string | null;
+    hs_code?: string | null;
+    country_of_origin?: string | null;
+    is_dangerous_or_restricted?: number;
     qty_ordered: number;
     qty_fulfilled: number;
+    unit_price: number;
+    discount_pct: number;
+    tax_rate: number;
     weight_kg?: number | null;
     length_mm?: number | null;
     width_mm?: number | null;
@@ -104,6 +124,8 @@ type SavedShippingShipment = {
   quotedCost: number | null;
   chargedCost: number | null;
   providerShipmentId: string | null;
+  isInternational: boolean;
+  destinationCountry: string | null;
   labelStatus: string | null;
   labelUrl: string | null;
 };
@@ -192,6 +214,15 @@ export function ShipOrdersWorkspace({
   const [readyOrders, setReadyOrders] = useState<SalesOrderSummary[]>([]);
   const [readySelection, setReadySelection] = useState<Set<number>>(new Set());
   const [addingOrders, setAddingOrders] = useState(false);
+  const [exportPurposeByOrder, setExportPurposeByOrder] = useState<
+    Record<number, ShippingExportPurpose>
+  >({});
+  const [nonSaleValuesByOrder, setNonSaleValuesByOrder] = useState<
+    Record<number, Record<number, string>>
+  >({});
+  const [confirmedNonSaleOrders, setConfirmedNonSaleOrders] = useState<
+    Set<number>
+  >(new Set());
 
   useEffect(() => {
     let active = true;
@@ -295,25 +326,84 @@ export function ShipOrdersWorkspace({
     plans.every(
       (plan) =>
         plan.ready &&
-        validEditableParcels(plan.order, parcelsByOrder[plan.order.id]),
+        validEditableParcels(plan.order, parcelsByOrder[plan.order.id]) &&
+        customsBlockersForOrder(
+          plan.order,
+          parcelsByOrder[plan.order.id] ?? [],
+          exportPurposeByOrder[plan.order.id] ?? "sale",
+          nonSaleValuesByOrder[plan.order.id] ?? {},
+          confirmedNonSaleOrders.has(plan.order.id),
+        ).length === 0,
     );
-  const shipments = plans.map((plan) => ({
-    soId: plan.order.id,
-    parcels: (parcelsByOrder[plan.order.id] ?? []).map((parcel, index) => ({
-      parcelNumber: index + 1,
-      packagePresetId: parcel.packagePresetId
-        ? Number(parcel.packagePresetId)
-        : null,
-      packageType: parcel.packageType || "custom",
-      lengthMm: Number(parcel.lengthMm),
-      widthMm: Number(parcel.widthMm),
-      heightMm: Number(parcel.heightMm),
-      weightKg: Number(parcel.weightKg),
-      allocations: parcel.allocations.filter(
-        (allocation) => allocation.quantity > 0,
-      ),
-    })),
-  }));
+  const shipments = plans.map((plan) => {
+    const purpose = exportPurposeByOrder[plan.order.id] ?? "sale";
+    const orderParcels = parcelsByOrder[plan.order.id] ?? [];
+    const customsRows = customsRowsForOrder(
+      plan.order,
+      orderParcels,
+      purpose,
+      nonSaleValuesByOrder[plan.order.id] ?? {},
+    );
+    return {
+      soId: plan.order.id,
+      ...(isInternationalOrder(plan.order) ? {
+        exportPurpose: purpose,
+        nonSaleValues: purpose === "sale"
+          ? undefined
+          : buildNonSaleDeclaredValueInputs(customsRows),
+        nonSaleValuesConfirmed: purpose === "sale"
+          ? undefined
+          : confirmedNonSaleOrders.has(plan.order.id),
+      } : {}),
+      parcels: orderParcels.map((parcel, index) => ({
+        parcelNumber: index + 1,
+        packagePresetId: parcel.packagePresetId
+          ? Number(parcel.packagePresetId)
+          : null,
+        packageType: parcel.packageType || "custom",
+        lengthMm: Number(parcel.lengthMm),
+        widthMm: Number(parcel.widthMm),
+        heightMm: Number(parcel.heightMm),
+        weightKg: Number(parcel.weightKg),
+        allocations: parcel.allocations.filter(
+          (allocation) => allocation.quantity > 0,
+        ),
+      })),
+    };
+  });
+
+  const changeExportPurpose = (
+    order: SalesOrderDetail,
+    purpose: ShippingExportPurpose,
+  ) => {
+    setExportPurposeByOrder((current) => ({ ...current, [order.id]: purpose }));
+    setConfirmedNonSaleOrders((current) => {
+      const next = new Set(current);
+      next.delete(order.id);
+      return next;
+    });
+    if (purpose !== "sale") {
+      const saleRows = customsRowsForOrder(
+        order,
+        parcelsByOrder[order.id] ?? [],
+        "sale",
+        {},
+      );
+      setNonSaleValuesByOrder((current) => ({
+        ...current,
+        [order.id]: Object.fromEntries(
+          saleRows.map((row) => [
+            row.id,
+            current[order.id]?.[row.id] ??
+              (row.unitValue == null ? "" : row.unitValue.toFixed(2)),
+          ]),
+        ),
+      }));
+    }
+    setError("");
+    setQuotesByOrder({});
+    setSelectedServiceByOrder({});
+  };
 
   const updateParcel = (
     soId: number,
@@ -868,7 +958,7 @@ export function ShipOrdersWorkspace({
                           style={{
                             display: "grid",
                             gridTemplateColumns:
-                              "24px minmax(150px,.8fr) minmax(160px,1fr) minmax(150px,1fr) auto",
+                              "24px repeat(auto-fit,minmax(140px,1fr))",
                             gap: 10,
                             alignItems: "center",
                             padding: "10px 4px",
@@ -904,6 +994,9 @@ export function ShipOrdersWorkspace({
                           </span>
                           <span>
                             {order.customer_name || "No customer name"}
+                          </span>
+                          <span style={{ color: "var(--sv-text-dim)" }}>
+                            {destinationLabel(order.delivery_country)}
                           </span>
                           <span>
                             {formatChannelShippingMethod(order) || "Delivery"}
@@ -1033,7 +1126,7 @@ export function ShipOrdersWorkspace({
                               style={{
                                 display: "grid",
                                 gridTemplateColumns:
-                                  "minmax(150px,.8fr) minmax(160px,1fr) minmax(150px,1fr) auto",
+                                  "repeat(auto-fit,minmax(150px,1fr))",
                                 gap: 10,
                                 alignItems: "center",
                                 padding: "10px 12px 10px 44px",
@@ -1056,6 +1149,17 @@ export function ShipOrdersWorkspace({
                               </span>
                               <span>
                                 {shipment.customerName || "No customer name"}
+                                <span
+                                  style={{
+                                    display: "block",
+                                    color: "var(--sv-text-dim)",
+                                  }}
+                                >
+                                  {destinationLabel(
+                                    shipment.destinationCountry,
+                                    shipment.isInternational,
+                                  )}
+                                </span>
                               </span>
                               <span>
                                 {shipment.serviceName || "Service not selected"}
@@ -1167,6 +1271,22 @@ export function ShipOrdersWorkspace({
                       order,
                       orderParcels,
                     );
+                    const exportPurpose =
+                      exportPurposeByOrder[order.id] ?? "sale";
+                    const customsRows = customsRowsForOrder(
+                      order,
+                      orderParcels,
+                      exportPurpose,
+                      nonSaleValuesByOrder[order.id] ?? {},
+                    );
+                    const customsBlockers = customsBlockersForOrder(
+                      order,
+                      orderParcels,
+                      exportPurpose,
+                      nonSaleValuesByOrder[order.id] ?? {},
+                      confirmedNonSaleOrders.has(order.id),
+                    );
+                    const international = isInternationalOrder(order);
                     return (
                       <div
                         key={order.id}
@@ -1179,7 +1299,7 @@ export function ShipOrdersWorkspace({
                           style={{
                             display: "grid",
                             gridTemplateColumns:
-                              "minmax(130px,.7fr) minmax(170px,1fr) minmax(220px,1.3fr) auto",
+                              "repeat(auto-fit,minmax(160px,1fr))",
                             gap: 14,
                             alignItems: "center",
                           }}
@@ -1235,10 +1355,17 @@ export function ShipOrdersWorkspace({
                                   order.delivery_suburb,
                                   order.delivery_state,
                                   order.delivery_postcode,
+                                  order.delivery_country,
                                 ]
                                   .filter(Boolean)
                                   .join(", ")
                               : "Delivery address is incomplete"}
+                            <span style={{ display: "block", marginTop: 2 }}>
+                              {destinationLabel(
+                                order.delivery_country,
+                                international,
+                              )}
+                            </span>
                           </div>
                           <span
                             style={{
@@ -1449,6 +1576,179 @@ export function ShipOrdersWorkspace({
                                 {parcelIssue}
                               </div>
                             )}
+                            {international && (
+                              <section
+                                aria-label={`Customs declaration for ${order.so_number}`}
+                                style={{ marginTop: 8, minWidth: 0 }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "end",
+                                    justifyContent: "space-between",
+                                    gap: 12,
+                                    flexWrap: "wrap",
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  <div>
+                                    <strong style={{ fontSize: 13 }}>
+                                      Customs declaration
+                                    </strong>
+                                    <div style={{ fontSize: 11, color: "var(--sv-text-dim)" }}>
+                                      Values are declared in AUD and quantities follow the parcel allocations above.
+                                    </div>
+                                  </div>
+                                  <label style={{ ...fieldStyle, width: "min(220px,100%)" }}>
+                                    <span>Export purpose</span>
+                                    <select
+                                      value={exportPurpose}
+                                      onChange={(event) =>
+                                        changeExportPurpose(
+                                          order,
+                                          event.target.value as ShippingExportPurpose,
+                                        )
+                                      }
+                                      style={selectStyle}
+                                    >
+                                      <option value="sale">Sale</option>
+                                      <option value="gift">Gift</option>
+                                      <option value="sample">Sample</option>
+                                      <option value="return">Return</option>
+                                    </select>
+                                  </label>
+                                </div>
+                                <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+                                  <table
+                                    style={{
+                                      width: "100%",
+                                      minWidth: 760,
+                                      borderCollapse: "collapse",
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    <thead>
+                                      <tr style={{ color: "var(--sv-text-dim)", textAlign: "left" }}>
+                                        <th style={customsCellStyle}>Product / SKU</th>
+                                        <th style={customsCellStyle}>Description</th>
+                                        <th style={customsCellStyle}>HS code</th>
+                                        <th style={customsCellStyle}>Origin</th>
+                                        <th style={{ ...customsCellStyle, textAlign: "right" }}>Qty</th>
+                                        <th style={{ ...customsCellStyle, textAlign: "right" }}>Unit AUD</th>
+                                        <th style={{ ...customsCellStyle, textAlign: "right" }}>Total AUD</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {customsRows.map((row) => (
+                                        <tr key={row.id} style={{ borderTop: "1px solid var(--sv-etch)" }}>
+                                          <td style={customsCellStyle}>
+                                            <strong>{row.productName || row.sku}</strong>
+                                            <span style={{ display: "block", color: "var(--sv-text-dim)" }}>
+                                              {row.sku || `Line ${row.id}`}
+                                            </span>
+                                            {row.errors.length > 0 && row.productId && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  onClose();
+                                                  window.location.hash = `products/${encodeURIComponent(row.productId!)}`;
+                                                }}
+                                                style={linkButtonStyle}
+                                              >
+                                                Update product
+                                              </button>
+                                            )}
+                                          </td>
+                                          <td style={customsCellStyle}>{row.customsDescription || "Missing"}</td>
+                                          <td style={customsCellStyle}>{row.hsCode || "Missing"}</td>
+                                          <td style={customsCellStyle}>{row.countryOfOrigin || "Missing"}</td>
+                                          <td style={{ ...customsCellStyle, textAlign: "right" }}>{formatQuantity(row.quantity)}</td>
+                                          <td style={{ ...customsCellStyle, textAlign: "right" }}>
+                                            {exportPurpose === "sale" ? (
+                                              row.unitValue == null ? "Unavailable" : formatAud(row.unitValue)
+                                            ) : (
+                                              <input
+                                                type="number"
+                                                min="0.01"
+                                                step="0.01"
+                                                aria-label={`${row.sku || row.productName} declared unit value AUD`}
+                                                value={nonSaleValuesByOrder[order.id]?.[row.id] ?? ""}
+                                                onChange={(event) => {
+                                                  const value = event.target.value;
+                                                  setNonSaleValuesByOrder((current) => ({
+                                                    ...current,
+                                                    [order.id]: {
+                                                      ...(current[order.id] ?? {}),
+                                                      [row.id]: value,
+                                                    },
+                                                  }));
+                                                  setConfirmedNonSaleOrders((current) => {
+                                                    const next = new Set(current);
+                                                    next.delete(order.id);
+                                                    return next;
+                                                  });
+                                                  setQuotesByOrder({});
+                                                  setSelectedServiceByOrder({});
+                                                }}
+                                                style={{ ...selectStyle, width: 100, textAlign: "right" }}
+                                              />
+                                            )}
+                                          </td>
+                                          <td style={{ ...customsCellStyle, textAlign: "right", fontWeight: 700 }}>
+                                            {row.totalValue == null ? "-" : formatAud(row.totalValue)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                    <tfoot>
+                                      <tr style={{ borderTop: "1px solid var(--sv-etch)" }}>
+                                        <td colSpan={6} style={{ ...customsCellStyle, textAlign: "right", fontWeight: 700 }}>
+                                          Declaration total AUD
+                                        </td>
+                                        <td style={{ ...customsCellStyle, textAlign: "right", fontWeight: 700 }}>
+                                          {formatAud(customsRows.reduce((sum, row) => sum + Number(row.totalValue ?? 0), 0))}
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                                {exportPurpose !== "sale" && (
+                                  <label
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      gap: 8,
+                                      marginTop: 10,
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={confirmedNonSaleOrders.has(order.id)}
+                                      onChange={(event) => {
+                                        setConfirmedNonSaleOrders((current) => {
+                                          const next = new Set(current);
+                                          if (event.target.checked) next.add(order.id);
+                                          else next.delete(order.id);
+                                          return next;
+                                        });
+                                        setError("");
+                                        setQuotesByOrder({});
+                                        setSelectedServiceByOrder({});
+                                      }}
+                                    />
+                                    I confirm these non-sale declared values are complete and accurate.
+                                  </label>
+                                )}
+                                {customsBlockers.length > 0 && (
+                                  <div role="alert" style={{ marginTop: 8, color: "var(--sv-red)", fontSize: 11 }}>
+                                    {customsBlockers.map((message) => (
+                                      <div key={message}>{message}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </section>
+                            )}
                             {rates.length > 0 && (
                               <fieldset
                                 style={{ margin: 0, padding: 0, border: 0 }}
@@ -1616,6 +1916,7 @@ export function ShipOrdersWorkspace({
                           ),
                           selectedServiceByOrder,
                           savedShipments,
+                          details,
                           index,
                         )}
                       </a>
@@ -2310,6 +2611,10 @@ const tabButtonStyle = (active: boolean): React.CSSProperties => ({
   fontWeight: 700,
   cursor: "pointer",
 });
+const customsCellStyle: React.CSSProperties = {
+  padding: "7px 8px",
+  verticalAlign: "top",
+};
 
 function ParcelNumberField({
   label,
@@ -2350,12 +2655,7 @@ function buildPackingPlan(order: SalesOrderDetail, presets: PackingPreset[]) {
     isPosLedger: order.is_pos_ledger,
     remainingQuantity,
   });
-  const hasAddress = Boolean(
-    order.delivery_address &&
-    order.delivery_suburb &&
-    order.delivery_state &&
-    order.delivery_postcode,
-  );
+  const hasAddress = shippingAddressReady(order);
   const units: PackableUnit[] = [];
   for (const item of order.items ?? []) {
     let remaining = Math.max(
@@ -2499,6 +2799,7 @@ function shippingStatusLabel(status: string): string {
 }
 
 function manifestLabelButtonLabel(layout: string): string {
+  if (layout === "A4-1pp") return "Print International labels";
   if (layout === "A4-3pp") return "Print Express labels";
   if (layout === "A4-4pp") return "Print Parcel labels";
   return `Print ${layout} labels`;
@@ -2508,8 +2809,19 @@ function labelDownloadButtonLabel(
   results: ShippingSubmissionResult[],
   services: Record<number, ShippingRate>,
   savedShipments: SavedShippingShipment[],
+  orders: SalesOrderDetail[],
   index: number,
 ): string {
+  const persistedShipments = results.map((result) =>
+    savedShipments.find((shipment) => shipment.shipmentId === result.shipmentId),
+  );
+  if (results.length && results.every((result) => {
+    const persisted = persistedShipments.find(
+      (shipment) => shipment?.shipmentId === result.shipmentId,
+    );
+    const order = orders.find((item) => item.id === result.soId);
+    return persisted?.isInternational === true || Boolean(order && isInternationalOrder(order));
+  })) return "International labels";
   const serviceNames = results.map(
     (result) =>
       services[result.soId]?.serviceName ??
@@ -2525,6 +2837,85 @@ function labelDownloadButtonLabel(
     return "Express labels";
   if (serviceNames.some(Boolean)) return "Parcel labels";
   return `Label PDF${index ? ` ${index + 1}` : ""}`;
+}
+
+function isInternationalOrder(order: Pick<SalesOrderSummary, "delivery_country">): boolean {
+  const country = String(order.delivery_country ?? "").trim();
+  return Boolean(country) && !isAustralianShippingCountry(country);
+}
+
+function destinationLabel(country: string | null | undefined, international?: boolean): string {
+  const value = String(country ?? "").trim();
+  if (!value) return "Destination country missing";
+  let name = value;
+  if (/^[A-Za-z]{2}$/.test(value)) {
+    try {
+      name = new Intl.DisplayNames(["en-AU"], { type: "region" }).of(value.toUpperCase()) ?? value.toUpperCase();
+    } catch {
+      name = value.toUpperCase();
+    }
+  }
+  const isInternational = international ?? !isAustralianShippingCountry(value);
+  return `${name} · ${isInternational ? "International" : "Domestic"}`;
+}
+
+function customsRowsForOrder(
+  order: SalesOrderDetail,
+  parcels: EditableParcel[],
+  exportPurpose: ShippingExportPurpose,
+  nonSaleValues: Record<number, string>,
+) {
+  return buildWorkspaceCustomsRows({
+    lines: (order.items ?? []).map((item): WorkspaceCustomsLine => ({
+      id: Number(item.id),
+      productId: item.product_id ? String(item.product_id) : null,
+      sku: String(item.sku ?? ""),
+      productName: String(item.product_name ?? ""),
+      customsDescription: item.customs_description ?? null,
+      hsCode: item.hs_code ?? null,
+      countryOfOrigin: item.country_of_origin ?? null,
+      isDangerousOrRestricted: Boolean(item.is_dangerous_or_restricted),
+      weightKg: item.weight_kg == null ? null : Number(item.weight_kg),
+      unitPrice: Number(item.unit_price),
+      discountPct: Number(item.discount_pct ?? 0),
+      taxRate: Number(item.tax_rate ?? 0),
+    })),
+    allocations: parcels.flatMap((parcel) => parcel.allocations),
+    exportPurpose,
+    taxTreatment: order.tax_treatment ?? "ex_tax",
+    nonSaleValues,
+  });
+}
+
+function customsBlockersForOrder(
+  order: SalesOrderDetail,
+  parcels: EditableParcel[],
+  exportPurpose: ShippingExportPurpose,
+  nonSaleValues: Record<number, string>,
+  nonSaleValuesConfirmed: boolean,
+): string[] {
+  if (!isInternationalOrder(order)) return [];
+  return getWorkspaceCustomsBlockers({
+    rows: customsRowsForOrder(order, parcels, exportPurpose, nonSaleValues),
+    exportPurpose,
+    nonSaleValuesConfirmed,
+  });
+}
+
+function formatQuantity(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(4)));
+}
+
+function shippingAddressReady(order: SalesOrderDetail): boolean {
+  if (!order.delivery_address || !order.delivery_country) return false;
+  if (isInternationalOrder(order)) {
+    return Boolean(
+      order.customer_name && (order.customer_email || order.customer_phone),
+    );
+  }
+  return Boolean(
+    order.delivery_suburb && order.delivery_state && order.delivery_postcode,
+  );
 }
 
 function validEditableParcels(

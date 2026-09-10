@@ -4,6 +4,14 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { ImsLocationsRepo, ImsSORepo } from "@/lib/ims/ImsRepository";
 import { getIMSPool } from "@/services/IMSMySQLService";
 import {
+  buildCustomsSnapshot,
+  getInternationalRecipientErrors,
+  normalizeIsoAlpha2,
+  type CustomsSnapshot,
+  type NonSaleDeclaredValueInput,
+  type ShippingExportPurpose,
+} from "./customs";
+import {
   getShippingOrderEligibility,
   isAustralianShippingCountry,
   validateShippingParcels,
@@ -32,6 +40,9 @@ export type ShippingRequestInput = {
   carrierAccountId: number;
   shipments: Array<{
     soId: number;
+    exportPurpose?: ShippingExportPurpose;
+    nonSaleValues?: NonSaleDeclaredValueInput[];
+    nonSaleValuesConfirmed?: boolean;
     parcels: Array<
       ShippingParcelDraft & {
         packagePresetId?: number | null;
@@ -66,7 +77,10 @@ export type PreparedShippingRequest = {
       postcode: string;
       country: string;
       email: string;
+      phone: string;
     };
+    isInternational: boolean;
+    customs: Readonly<CustomsSnapshot> | null;
   }>;
 };
 
@@ -76,25 +90,6 @@ export async function createShippingDrafts(
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150)
     throw new Error("A valid operation key is required.");
-  for (const shipment of input.shipments) {
-    if (
-      !shipment.service?.serviceCode?.trim() ||
-      !shipment.service.serviceName?.trim()
-    ) {
-      throw new Error("Choose a quoted shipping service for every order.");
-    }
-    if (
-      ![
-        shipment.service.total,
-        shipment.service.totalExGst,
-        shipment.service.gst,
-      ].every((value) => Number.isFinite(value) && value >= 0)
-    ) {
-      throw new Error(
-        "The selected shipping price is invalid. Refresh prices and choose the service again.",
-      );
-    }
-  }
   const { account, entries: prepared } = await prepareShippingRequest(input);
   const servicesByOrder = new Map(
     input.shipments.map((shipment) => [shipment.soId, shipment.service]),
@@ -106,21 +101,32 @@ export async function createShippingDrafts(
     const result: Array<{ soId: number; shipmentId: number }> = [];
     for (const entry of prepared) {
       const service = servicesByOrder.get(entry.requested.soId);
-      if (!service)
+      if (!service?.serviceCode?.trim() || !service.serviceName?.trim())
         throw new Error(
           `${entry.order.so_number}: choose a quoted shipping service.`,
         );
+      if (
+        service &&
+        ![service.total, service.totalExGst, service.gst].every(
+          (value) => Number.isFinite(value) && value >= 0,
+        )
+      ) {
+        throw new Error(
+          "The selected shipping price is invalid. Refresh prices and choose the service again.",
+        );
+      }
       const shipmentOperationKey = `${operationKey}:${entry.order.id}`;
       const requestHash = createHash("sha256")
-        .update(JSON.stringify({ shipment: entry.requested, service }))
+        .update(JSON.stringify({ shipment: entry.requested, service, customs: entry.customs }))
         .digest("hex");
       const providerReference = `${entry.order.so_number}-${operationKey.slice(0, 24)}`;
       const [insert] = await connection.execute<ResultSetHeader>(
         `INSERT IGNORE INTO ims_shipping_shipments
            (business_id, operation_key, request_hash, so_id, carrier_account_id, dispatch_location_id,
             provider, status, provider_reference, service_code, service_name, quoted_cost,
-            quoted_cost_ex_gst, quoted_gst, sender_json, recipient_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+            quoted_cost_ex_gst, quoted_gst, sender_json, recipient_json, is_international,
+            export_purpose, declared_currency, customs_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.businessId,
           shipmentOperationKey,
@@ -130,13 +136,17 @@ export async function createShippingDrafts(
           entry.dispatchLocationId,
           account.provider,
           providerReference,
-          service.serviceCode.trim(),
-          service.serviceName.trim(),
-          service.total,
-          service.totalExGst,
-          service.gst,
+          service?.serviceCode.trim() ?? null,
+          service?.serviceName.trim() ?? null,
+          service?.total ?? null,
+          service?.totalExGst ?? null,
+          service?.gst ?? null,
           JSON.stringify(entry.sender),
           JSON.stringify(entry.recipient),
+          entry.isInternational ? 1 : 0,
+          entry.customs?.exportPurpose ?? null,
+          entry.customs?.declaredCurrency ?? null,
+          entry.customs ? JSON.stringify(entry.customs) : null,
         ],
       );
       let shipmentId = Number(insert.insertId);
@@ -280,14 +290,21 @@ export async function prepareShippingRequest(
       suburb: order.delivery_suburb || order.delivery_city || "",
       state: order.delivery_state || "",
       postcode: order.delivery_postcode || "",
-      country: order.delivery_country || "AU",
+      country: order.delivery_country || "",
       email: order.customer_email || "",
+      phone: order.customer_phone || "",
     };
-    if (!isAustralianShippingCountry(recipient.country)) {
+    if (!recipient.country.trim())
+      throw new Error(`${order.so_number}: destination country is required.`);
+    const isInternational = !isAustralianShippingCountry(recipient.country);
+    const destinationCountry = isInternational
+      ? normalizeIsoAlpha2(recipient.country)
+      : "AU";
+    if (!destinationCountry)
       throw new Error(
-        `${order.so_number}: international shipping is not yet supported. Customs details and HS codes are required.`,
+        `${order.so_number}: destination country must be an ISO alpha-2 country code.`,
       );
-    }
+    recipient.country = destinationCountry;
     const missingSenderFields = [
       !sender.lines.length ? "street address" : "",
       !sender.suburb ? "suburb/city" : "",
@@ -298,14 +315,57 @@ export async function prepareShippingRequest(
       throw new Error(
         `${order.so_number}: dispatch location ${location.name} is missing ${missingSenderFields.join(", ")}.`,
       );
-    if (
+    if (isInternational) {
+      const recipientErrors = getInternationalRecipientErrors({
+        ...recipient,
+        name: order.customer_name,
+      });
+      if (recipientErrors.length)
+        throw new Error(`${order.so_number}: ${recipientErrors.join(", ")}.`);
+    } else if (
       !recipient.lines.length ||
       !recipient.suburb ||
       !recipient.state ||
       !recipient.postcode
-    )
+    ) {
       throw new Error(`${order.so_number}: delivery address is incomplete.`);
-    entries.push({ requested, order, dispatchLocationId, sender, recipient });
+    }
+
+    let customs: Readonly<CustomsSnapshot> | null = null;
+    if (isInternational) {
+      const customsResult = buildCustomsSnapshot({
+        exportPurpose: requested.exportPurpose as ShippingExportPurpose,
+        lines: order.items.map((item) => ({
+          soItemId: Number(item.id),
+          productId: item.product_id ? String(item.product_id) : null,
+          sku: String(item.sku ?? item.code ?? ""),
+          description: item.customs_description ?? null,
+          hsCode: item.hs_code ?? null,
+          countryOfOrigin: item.country_of_origin ?? null,
+          isDangerousOrRestricted: Boolean(item.is_dangerous_or_restricted),
+          unitWeightKg: item.weight_kg == null ? null : Number(item.weight_kg),
+          unitPrice: Number(item.unit_price),
+          discountPct: Number(item.discount_pct ?? 0),
+          taxRate: Number(item.tax_rate ?? 0),
+          taxTreatment: order.tax_treatment ?? "ex_tax",
+        })),
+        parcels: requested.parcels,
+        nonSaleValues: requested.nonSaleValues,
+        nonSaleValuesConfirmed: requested.nonSaleValuesConfirmed,
+      });
+      if (!customsResult.ok)
+        throw new Error(`${order.so_number}: ${customsResult.errors.join(" ")}`);
+      customs = customsResult.snapshot;
+    }
+    entries.push({
+      requested,
+      order,
+      dispatchLocationId,
+      sender,
+      recipient,
+      isInternational,
+      customs,
+    });
   }
   return {
     account: {

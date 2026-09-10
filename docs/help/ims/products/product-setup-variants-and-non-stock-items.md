@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-10","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, maintain customs details, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-11","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -14,6 +14,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Optionally generate a Product SKU from the brand and current date and time.
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
 - Record weight and package dimensions for variants that may be shipped.
+- Record product-level customs details before preparing the item for international shipping.
 - Choose which optional product and variant fields appear under **Settings > Products**.
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
 - Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.
@@ -40,6 +41,7 @@ Use this guide to create a clean product record and give each sellable option it
 - [ ] Decide which choices create separate variants.
 - [ ] Prepare unique SKUs and barcodes.
 - [ ] Confirm retail and wholesale prices, supplier cost and tax treatment.
+- [ ] For goods that may ship internationally, confirm the customs description, HS code, country of origin and whether carrier restrictions apply.
 - [ ] Choose the default supplier and brand where known.
 
 Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The Cost field represents buying cost and should be entered on the appropriate tax-exclusive basis; do not enter the $110 selling price as cost.
@@ -52,15 +54,16 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.
 4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.
 5. Add a description and set Active to **Yes** when the item should be available. Use the description toolbar for headings, font, size, emphasis, colour, alignment, lists, quotes and links. Use **HTML source** only when direct markup editing is needed.
-6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.
-7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
-8. For a simple product, add one blank row and use the default variant.
-9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
-10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant. **B2B Pack** is the number of individual units in one wholesale selling pack for that variant; leave it blank when the variant is sold individually.
-11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
-12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
-13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.
-14. Choose **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.
+6. In **Customs & compliance**, enter a plain description of the goods, the HS tariff code and the two-letter country of origin. Turn on **Dangerous or restricted goods** when the item needs carrier restriction checks or special handling. Flagged items cannot use the standard international shipping workflow.
+7. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.
+8. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
+9. For a simple product, add one blank row and use the default variant.
+10. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
+11. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant. **B2B Pack** is the number of individual units in one wholesale selling pack for that variant; leave it blank when the variant is sold individually.
+12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
+13. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
+14. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.
+15. Choose **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.
 
 When **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.
 
@@ -84,7 +87,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 
 1. Open **Products > Bulk Add/Edit** and filter existing products when needed.
 2. Use **Add New Products** above the table to add one or more new product rows. New products begin with one default variant on the main row.
-3. Use **Display Fields** to show the product and variant columns needed for this task. Under **Currency costs**, choose each foreign currency that needs its own tax-exclusive Cost column. The selection is remembered in this browser for the active business.
+3. Use **Display Fields** to show the product and variant columns needed for this task. Customs Description, HS Code, Country of Origin and Dangerous / Restricted are regular product fields and do not require a separate setting. Under **Currency costs**, choose each foreign currency that needs its own tax-exclusive Cost column. The selection is remembered in this browser for the active business.
 4. Enter Product Name and Product SKU. **Auto Generate Product SKUs** fills only blank Product SKU cells, using each row's brand and the same format as New Product. A sole default variant uses the Product SKU as its hidden Variant SKU.
 5. Enter Barcode, **RRP $ (GST Inc)**, **Cost $ (GST Exc)** and any other selected variant values directly on the main row while the product has only its default variant.
 6. Select **Manage variants** on a product to open its variants popup. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Review or change generated Variant SKUs in the popup. Matching existing variants retain their saved identity and entered values.
@@ -113,6 +116,8 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | B2B Pack | Variant | Units in one wholesale selling pack; this does not represent a supplier purchasing carton |
 | Cost | Variant | Tax-exclusive buying cost used for purchasing reference |
 | Weight and dimensions | Variant | Kilograms and millimetres used to suggest shipping packages |
+| Customs description, HS code and country of origin | Product | Declaration details shared by every variant of the product |
+| Dangerous / Restricted | Product | Flags goods that need carrier checks or special handling and blocks the standard international workflow |
 | Active | Product and variant | Inactive records should not be used for new work |
 
 ## Non-stock decision guide
@@ -136,6 +141,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | A service is blocked by zero stock | Tracks Inventory is still on | Edit the product and turn Tracks Inventory off |
 | Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |
 | An order cannot be assigned to a package | A variant is missing weight or one or more dimensions | Enter its weight and length, width and height, then prepare the shipment again |
+| A customs field is rejected when saving | The description or HS code is too long, or country of origin is not a two-letter code | Correct the highlighted Bulk Add/Edit cell or the named field in the product form, then save again |
 
 ## Worked examples
 

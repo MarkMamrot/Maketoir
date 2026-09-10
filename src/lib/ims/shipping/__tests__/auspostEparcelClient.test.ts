@@ -60,6 +60,41 @@ describe('AusPostEparcelClient', () => {
     }));
   });
 
+  it('quotes international parcels with AU origin and an ISO destination country', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ items: [{ prices: [] }] }), { status: 200 }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+
+    await client.getRates({
+      from: { name: 'Sender', lines: ['1 Main St'], suburb: 'Melbourne', state: 'VIC', postcode: '3000', country: 'Australia' },
+      to: { name: 'Buyer', lines: ['2 Queen St'], suburb: 'Auckland', state: '', postcode: '1010', country: 'NZ' },
+      parcels: [{ reference: 'SO-2-P1', lengthMm: 200, widthMm: 150, heightMm: 100, weightKg: 1 }],
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://digitalapi.auspost.com.au/shipping/v1/prices/items',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          from: { postcode: '3000', suburb: 'Melbourne', country: 'AU' },
+          to: { postcode: '1010', suburb: 'Auckland', country: 'NZ' },
+          items: [{ item_reference: 'SO-2-P1', length: 20, width: 15, height: 10, weight: 1 }],
+        }),
+      }),
+    );
+  });
+
+  it('creates international shipments through the shared shipments endpoint', async () => {
+    const payload = { shipments: [] };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ shipments: [] }), { status: 201 }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+
+    await expect(client.createInternationalShipments(payload)).resolves.toEqual({ shipments: [] });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://digitalapi.auspost.com.au/shipping/v1/shipments',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) }),
+    );
+  });
+
   it('normalizes carrier errors without exposing credentials', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
       errors: [{ code: '41007', name: 'CONTRACT_SETUP_ERROR', message: 'Contract is not ready.' }],

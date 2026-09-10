@@ -15,6 +15,116 @@ export type AusPostEparcelCredentials = {
   accountNumber: string;
 };
 
+export type AusPostShipmentAddress = {
+  name: string;
+  business_name?: string;
+  lines: string[];
+  suburb?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+};
+
+export type AusPostDomesticShipment = {
+  shipment_reference: string;
+  customer_reference_1: string;
+  customer_reference_2?: string;
+  contains_s8_goods: false;
+  from: AusPostShipmentAddress;
+  to: AusPostShipmentAddress;
+  items: Array<{
+    item_reference: string;
+    product_id: string;
+    length: number;
+    width: number;
+    height: number;
+    weight: number;
+    authority_to_leave: false;
+    allow_partial_delivery: true;
+  }>;
+};
+
+export type AusPostInternationalShipment = {
+  shipment_reference: string;
+  customer_reference_1: string;
+  customer_reference_2?: string;
+  from: AusPostShipmentAddress;
+  to: AusPostShipmentAddress & { country: string };
+  items: Array<{
+    classification_type: 'SALE_OF_GOODS' | 'GIFT' | 'SAMPLE' | 'RETURN';
+    commercial_value: true;
+    landed_costs_payer: 'RECEIVER_PAYS';
+    item_contents: Array<{
+      country_of_origin: string;
+      description: string;
+      sku: string;
+      quantity: number;
+      tariff_code: string;
+      value: number;
+      weight: number;
+      item_contents_reference: string;
+    }>;
+    item_description: string;
+    item_reference: string;
+    length: number;
+    height: number;
+    width: number;
+    weight: number;
+    product_id: string;
+  }>;
+};
+
+export type AusPostCreateShipmentsRequest = {
+  shipments: Array<AusPostDomesticShipment | AusPostInternationalShipment>;
+};
+
+export type AusPostCreatedShipment = {
+  shipment_id?: string;
+  shipment_reference?: string;
+  items?: Array<{
+    item_id?: string;
+    item_reference?: string;
+    tracking_details?: { article_id?: string; consignment_id?: string };
+  }>;
+  shipment_summary?: {
+    total_cost?: number;
+    total_cost_ex_gst?: number;
+    total_gst?: number;
+  };
+};
+
+export type AusPostCreateShipmentsResponse = {
+  shipments?: AusPostCreatedShipment[];
+};
+
+export type AusPostLabelRequest = {
+  wait_for_label_url: boolean;
+  unlabelled_articles_only: boolean;
+  preferences: Array<{
+    type: 'PRINT';
+    format: 'PDF';
+    groups: Array<{
+      group: 'Parcel Post' | 'Express Post' | 'International';
+      layout: 'A4-4pp' | 'A4-3pp' | 'A4-1pp';
+      branded: boolean;
+      left_offset: number;
+      top_offset: number;
+    }>;
+  }>;
+  shipments: Array<{ shipment_id: string }>;
+};
+
+export type AusPostLabelResponse = {
+  labels?: Array<{
+    request_id?: string;
+    url?: string;
+    status?: string;
+    shipment_ids?: string[];
+  }>;
+};
+
 export class AusPostApiError extends Error {
   constructor(
     message: string,
@@ -26,11 +136,16 @@ export class AusPostApiError extends Error {
   }
 }
 
-export class AusPostEparcelClient implements ShippingCarrierAdapter, ShippingManifestCarrierAdapter {
+export class AusPostEparcelClient implements ShippingCarrierAdapter<
+  AusPostCreateShipmentsRequest,
+  AusPostCreateShipmentsResponse,
+  AusPostLabelRequest,
+  AusPostLabelResponse
+>, ShippingManifestCarrierAdapter {
   readonly provider = 'auspost_eparcel' as const;
   readonly capabilities: CarrierCapabilities = {
     domesticShipping: true,
-    internationalShipping: false,
+    internationalShipping: true,
     addressValidation: true,
     rates: true,
     labels: ['PDF', 'ZPL'],
@@ -51,7 +166,7 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter, ShippingMan
     const response = await this.request<{ items?: AusPostPriceItem[] }>('/prices/items', {
       method: 'POST',
       body: JSON.stringify({
-        from: toAusPostLocality(input.from),
+        from: { ...toAusPostLocality(input.from), country: 'AU' },
         to: toAusPostLocality(input.to),
         items: input.parcels.map(toAusPostParcel),
       }),
@@ -67,15 +182,19 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter, ShippingMan
     })));
   }
 
-  createDomesticShipments(input: unknown): Promise<unknown> {
+  createDomesticShipments(input: AusPostCreateShipmentsRequest): Promise<AusPostCreateShipmentsResponse> {
     return this.request('/shipments', { method: 'POST', body: JSON.stringify(input) });
   }
 
-  createLabels(input: unknown): Promise<unknown> {
+  createInternationalShipments(input: AusPostCreateShipmentsRequest): Promise<AusPostCreateShipmentsResponse> {
+    return this.request('/shipments', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  createLabels(input: AusPostLabelRequest): Promise<AusPostLabelResponse> {
     return this.request('/labels', { method: 'POST', body: JSON.stringify(input) });
   }
 
-  getLabel(requestId: string): Promise<unknown> {
+  getLabel(requestId: string): Promise<AusPostLabelResponse> {
     return this.request(`/labels/${encodeURIComponent(requestId)}`);
   }
 
@@ -177,8 +296,8 @@ type AusPostPriceItem = {
 
 function toAusPostLocality(address: CarrierAddress): Record<string, string> {
   return {
-    postcode: address.postcode,
-    suburb: address.suburb,
+    ...(address.postcode ? { postcode: address.postcode } : {}),
+    ...(address.suburb ? { suburb: address.suburb } : {}),
     country: normalizeAusPostCountry(address.country),
   };
 }

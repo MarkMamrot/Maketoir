@@ -2,8 +2,20 @@ import { imsExecute, imsQuery } from "@/services/IMSMySQLService";
 import {
   AusPostApiError,
   AusPostEparcelClient,
+  type AusPostCreatedShipment,
+  type AusPostCreateShipmentsResponse,
+  type AusPostInternationalShipment,
+  type AusPostLabelResponse,
+  type AusPostShipmentAddress,
 } from "./carriers/auspostEparcel/client";
 import type { CarrierAddress, CarrierRate } from "./carriers/types";
+import {
+  SHIPPING_EXPORT_PURPOSES,
+  normalizeHsCode,
+  normalizeIsoAlpha2,
+  type CustomsSnapshot,
+  type ShippingExportPurpose,
+} from "./customs";
 import { aggregateCarrierRates } from "./shippingQuotes";
 import { ShippingSettingsRepository } from "./shippingSettingsRepository";
 
@@ -22,6 +34,8 @@ type ShipmentRow = {
   quoted_cost: number | null;
   sender_json: string | CarrierAddress;
   recipient_json: string | CarrierAddress;
+  is_international: number;
+  customs_json: string | CustomsSnapshot | null;
 };
 
 type ParcelRow = {
@@ -31,34 +45,6 @@ type ParcelRow = {
   width_mm: number;
   height_mm: number;
   weight_kg: number;
-};
-
-type AusPostShipmentResponse = {
-  shipments?: AusPostCreatedShipment[];
-};
-
-type AusPostCreatedShipment = {
-  shipment_id?: string;
-  shipment_reference?: string;
-  items?: Array<{
-    item_id?: string;
-    item_reference?: string;
-    tracking_details?: { article_id?: string; consignment_id?: string };
-  }>;
-  shipment_summary?: {
-    total_cost?: number;
-    total_cost_ex_gst?: number;
-    total_gst?: number;
-  };
-};
-
-type AusPostLabelResponse = {
-  labels?: Array<{
-    request_id?: string;
-    url?: string;
-    status?: string;
-    shipment_ids?: string[];
-  }>;
 };
 
 export type ShippingSubmissionResult = {
@@ -175,9 +161,16 @@ async function submitOneShipment(
         );
     } else {
       try {
-        const response = (await client.createDomesticShipments({
-          shipments: [buildAusPostDomesticShipment(shipment, parcels)],
-        })) as AusPostShipmentResponse;
+        const request = {
+          shipments: [
+            Boolean(shipment.is_international)
+              ? buildAusPostInternationalShipment(shipment, parcels)
+              : buildAusPostDomesticShipment(shipment, parcels),
+          ],
+        };
+        const response: AusPostCreateShipmentsResponse = Boolean(shipment.is_international)
+          ? await client.createInternationalShipments(request)
+          : await client.createDomesticShipments(request);
         const created = response.shipments?.[0];
         const providerShipmentId = text(created?.shipment_id);
         if (!created || !providerShipmentId)
@@ -513,7 +506,8 @@ async function getShipment(
             shipment.carrier_account_id,
             shipment.provider, shipment.status, shipment.provider_shipment_id,
             shipment.provider_reference, shipment.service_code, shipment.service_name, shipment.quoted_cost,
-            shipment.sender_json, shipment.recipient_json
+            shipment.sender_json, shipment.recipient_json, shipment.is_international,
+            shipment.customs_json
        FROM ims_shipping_shipments shipment
        JOIN ims_sales_orders sales_order ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
       WHERE shipment.business_id = ? AND shipment.id = ? LIMIT 1`,
@@ -562,17 +556,90 @@ export function buildAusPostDomesticShipment(
   };
 }
 
-export function getAusPostLabelPreference(serviceName: string): {
-  group: "Parcel Post" | "Express Post";
-  layout: "A4-4pp" | "A4-3pp";
+const AUSPOST_CLASSIFICATION_TYPES: Record<ShippingExportPurpose, AusPostInternationalShipment["items"][number]["classification_type"]> = {
+  sale: "SALE_OF_GOODS",
+  gift: "GIFT",
+  sample: "SAMPLE",
+  return: "RETURN",
+};
+
+export function buildAusPostInternationalShipment(
+  shipment: ShipmentRow,
+  parcels: ParcelRow[],
+): AusPostInternationalShipment {
+  const serviceCode = text(shipment.service_code);
+  if (!serviceCode) throw new Error(`${shipment.so_number}: shipping service is required.`);
+  const sender = parseAddress(shipment.sender_json);
+  const recipient = parseAddress(shipment.recipient_json);
+  const destinationCountry = normalizeIsoAlpha2(recipient.country);
+  if (!destinationCountry || destinationCountry === "AU" || (!text(recipient.email) && !text(recipient.phone)))
+    throw new Error(`${shipment.so_number}: international recipient country and email or phone are required.`);
+  const customs = parseCustomsSnapshot(shipment.customs_json, shipment.so_number);
+  const parcelsByNumber = new Map(customs.parcels.map((parcel) => [parcel.parcelNumber, parcel]));
+  if (customs.parcels.length !== parcels.length || parcelsByNumber.size !== parcels.length)
+    throw new Error(`${shipment.so_number}: the saved customs declaration does not match its parcels.`);
+
+  return {
+    shipment_reference: shipment.provider_reference.slice(0, 50),
+    customer_reference_1: shipment.so_number.slice(0, 50),
+    ...(shipment.channel_order_number
+      ? { customer_reference_2: shipment.channel_order_number.slice(0, 50) }
+      : {}),
+    from: carrierAddressPayload(sender),
+    to: { ...carrierAddressPayload(recipient), country: destinationCountry },
+    items: parcels.map((parcel) => {
+      const snapshotParcel = parcelsByNumber.get(Number(parcel.parcel_number));
+      if (!snapshotParcel?.items.length)
+        throw new Error(`${shipment.so_number}: parcel ${parcel.parcel_number} has no customs contents.`);
+      const reference = parcelReference(shipment, parcel.parcel_number);
+      return {
+        classification_type: AUSPOST_CLASSIFICATION_TYPES[customs.exportPurpose],
+        commercial_value: true,
+        landed_costs_payer: "RECEIVER_PAYS",
+        item_contents: snapshotParcel.items.map((item, index) => {
+          if (item.isDangerousOrRestricted !== false)
+            throw new Error(`${shipment.so_number}: dangerous or restricted goods cannot be submitted.`);
+          if (!item.productId || !normalizeIsoAlpha2(item.countryOfOrigin) || !item.description || !item.sku || !normalizeHsCode(item.hsCode) ||
+              !Number.isFinite(item.quantity) || item.quantity <= 0 ||
+              !Number.isFinite(item.totalValue) || item.totalValue <= 0 ||
+              !Number.isFinite(item.weightKg) || item.weightKg <= 0) {
+            throw new Error(`${shipment.so_number}: parcel ${parcel.parcel_number} has incomplete customs contents.`);
+          }
+          return {
+            country_of_origin: item.countryOfOrigin,
+            description: item.description,
+            sku: item.sku,
+            quantity: item.quantity,
+            tariff_code: item.hsCode,
+            value: item.totalValue,
+            weight: item.weightKg,
+            item_contents_reference: `${reference}-C${index + 1}`.slice(0, 50),
+          };
+        }),
+        item_description: snapshotParcel.items.map((item) => item.description).join(", ").slice(0, 50),
+        item_reference: reference,
+        length: millimetresToCentimetres(parcel.length_mm),
+        height: millimetresToCentimetres(parcel.height_mm),
+        width: millimetresToCentimetres(parcel.width_mm),
+        weight: Number(parcel.weight_kg),
+        product_id: serviceCode,
+      };
+    }),
+  };
+}
+
+export function getAusPostLabelPreference(isInternational: boolean, serviceName: string): {
+  group: "Parcel Post" | "Express Post" | "International";
+  layout: "A4-4pp" | "A4-3pp" | "A4-1pp";
 } {
+  if (isInternational) return { group: "International", layout: "A4-1pp" };
   return /express/i.test(serviceName)
     ? { group: "Express Post", layout: "A4-3pp" }
     : { group: "Parcel Post", layout: "A4-4pp" };
 }
 
 export function groupShipmentsByLabelPreference<
-  T extends { service_name?: string | null },
+  T extends { service_name?: string | null; is_international: number },
 >(
   shipments: T[],
 ): Array<{
@@ -584,7 +651,7 @@ export function groupShipmentsByLabelPreference<
     { preference: ReturnType<typeof getAusPostLabelPreference>; shipments: T[] }
   >();
   for (const shipment of shipments) {
-    const preference = getAusPostLabelPreference(shipment.service_name ?? "");
+    const preference = getAusPostLabelPreference(Boolean(shipment.is_international), shipment.service_name ?? "");
     const key = `${preference.group}:${preference.layout}`;
     const group = groups.get(key) ?? { preference, shipments: [] };
     group.shipments.push(shipment);
@@ -593,17 +660,34 @@ export function groupShipmentsByLabelPreference<
   return [...groups.values()];
 }
 
-function carrierAddressPayload(address: CarrierAddress) {
+function carrierAddressPayload(address: CarrierAddress): AusPostShipmentAddress {
   return {
     name: address.name,
     ...(address.businessName ? { business_name: address.businessName } : {}),
     lines: address.lines,
-    suburb: address.suburb,
-    state: address.state,
-    postcode: address.postcode,
+    ...(address.suburb ? { suburb: address.suburb } : {}),
+    ...(address.state ? { state: address.state } : {}),
+    ...(address.postcode ? { postcode: address.postcode } : {}),
     ...(address.phone ? { phone: address.phone } : {}),
     ...(address.email ? { email: address.email } : {}),
   };
+}
+
+function parseCustomsSnapshot(value: ShipmentRow["customs_json"], soNumber: string): CustomsSnapshot {
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new Error(`${soNumber}: the saved customs declaration is invalid.`);
+    }
+  }
+  if (!parsed || typeof parsed !== "object")
+    throw new Error(`${soNumber}: a saved customs declaration is required.`);
+  const customs = parsed as CustomsSnapshot;
+  if (!SHIPPING_EXPORT_PURPOSES.includes(customs.exportPurpose) || customs.declaredCurrency !== "AUD" || customs.nonSaleValuesConfirmed !== true || !Array.isArray(customs.parcels))
+    throw new Error(`${soNumber}: the saved customs declaration is incomplete.`);
+  return customs;
 }
 
 function parseAddress(value: string | CarrierAddress): CarrierAddress {

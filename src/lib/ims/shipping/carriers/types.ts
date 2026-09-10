@@ -43,14 +43,20 @@ export type CarrierCapabilities = {
   voidBeforeManifest: boolean;
 };
 
-export interface ShippingCarrierAdapter {
+export interface ShippingCarrierAdapter<
+  ShipmentRequest = unknown,
+  ShipmentResponse = unknown,
+  LabelRequest = unknown,
+  LabelResponse = unknown,
+> {
   readonly provider: ShippingProvider;
   readonly capabilities: CarrierCapabilities;
   verifyAccount(): Promise<unknown>;
   getRates(input: { from: CarrierAddress; to: CarrierAddress; parcels: CarrierParcel[] }): Promise<CarrierRate[][]>;
-  createDomesticShipments(input: unknown): Promise<unknown>;
-  createLabels(input: unknown): Promise<unknown>;
-  getLabel(requestId: string): Promise<unknown>;
+  createDomesticShipments(input: ShipmentRequest): Promise<ShipmentResponse>;
+  createInternationalShipments(input: ShipmentRequest): Promise<ShipmentResponse>;
+  createLabels(input: LabelRequest): Promise<LabelResponse>;
+  getLabel(requestId: string): Promise<LabelResponse>;
 }
 
 export interface ShippingManifestCarrierAdapter {

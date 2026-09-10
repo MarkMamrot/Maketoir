@@ -1,3 +1,9 @@
+## 2026-09-10 - Australia Post international shipping
+
+- Shipping Workspace now supports Australia Post international preparation with product-owned customs descriptions, HS codes, ISO country of origin, restricted-goods blocking, parcel allocations, and immutable declaration snapshots. Sale declarations use allocated ex-tax merchandise value after discounts and exclude freight; gift, sample, and return declarations require explicit positive values and confirmation.
+- International shipments use receiver-pays/DAP semantics and branded `International` `A4-1pp` labels. Parcel Post, Express Post, and International label requests and historical reprints remain separate. DDP and the separately credentialed Australia Post v3 prohibitions/landed-cost APIs are not enabled.
+- Targeted all-tenant catch-up added four customs columns to `ims_products` and four declaration columns to `ims_shipping_shipments` in Monsterthreads, Sage, Solvantis, and Monsterthreads Sandbox. Both targeted migrations were rerun idempotently with zero pending additions.
+
 ## 2026-09-10 - Dormant FIFO schema deployment and supplier-return costing
 
 - Continue Receiving after a PO edit failed because newly integrated receipt paths locked `ims_inventory_cost_state` before the dormant FIFO schema had been deployed. The idempotent multi-tenant catch-up migration added `ims_stock_movements.cost_method_snapshot`, `cost_epoch_id`, and `idx_sm_cost_epoch`, and bootstrapped all four costing tables in Monsterthreads, Sage, Solvantis, and Monsterthreads Sandbox.

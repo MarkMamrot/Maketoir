@@ -19,6 +19,7 @@ import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
 import { optionCombinations } from '@/lib/ims/bulkProductEditor';
 import { generateProductSku } from '@/lib/ims/productSku';
+import { getCountryOptions } from '@/lib/ims/countryOptions';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
@@ -3344,7 +3345,12 @@ interface OptionSet { name: string; values: string; }
 interface OpeningStockValue { quantity: string; minQty: string; reorderQty: string }
 interface PendingProductSave { productId: string; requestToken: string }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, is_stock_item: 1, uses_builds: 0, base_sku: '' };
+const COUNTRY_OPTIONS = getCountryOptions();
+const BLANK_PRODUCT = {
+  name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1,
+  is_stock_item: 1, uses_builds: 0, base_sku: '', customs_description: '', hs_code: '', country_of_origin: '',
+  is_dangerous_or_restricted: 0,
+};
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -7194,6 +7200,38 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 />
               )}
             </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Customs &amp; compliance</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+          </div>
+          <div style={{ marginBottom: 8, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
+            Used when preparing international shipments. Enter a clear description of the goods, their tariff code and where they were made.
+          </div>
+          <Field label="Customs Description">
+            <input value={form.customs_description ?? ''} onChange={sf('customs_description')} maxLength={250} style={inputStyle} placeholder="e.g. Cotton knitted shirt" />
+          </Field>
+          <Row2>
+            <Field label="HS Code">
+              <input value={form.hs_code ?? ''} onChange={sf('hs_code')} maxLength={14} style={inputStyle} inputMode="numeric" placeholder="e.g. 610510" />
+            </Field>
+            <Field label="Country of Origin">
+              <input list="country-of-origin-list" value={form.country_of_origin ?? ''} onChange={event => setForm((previous: any) => ({ ...previous, country_of_origin: event.target.value.toUpperCase() }))} style={inputStyle} placeholder="Type a country or code" />
+              <datalist id="country-of-origin-list">
+                {COUNTRY_OPTIONS.map(country => <option key={country.id} value={country.id}>{country.name}</option>)}
+              </datalist>
+            </Field>
+          </Row2>
+          <div style={{ marginBottom: 20, padding: '12px 14px', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Dangerous or restricted goods</div>
+              <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>Turn this on when the item needs carrier restriction checks or special handling. Flagged items cannot use the standard international shipping workflow.</div>
+            </div>
+            <button type="button" role="switch" aria-checked={Number(form.is_dangerous_or_restricted ?? 0) === 1} onClick={() => setForm((previous: any) => ({ ...previous, is_dangerous_or_restricted: Number(previous.is_dangerous_or_restricted ?? 0) === 1 ? 0 : 1 }))} title={`${Number(form.is_dangerous_or_restricted ?? 0) === 1 ? 'Clear' : 'Mark'} dangerous or restricted goods`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: Number(form.is_dangerous_or_restricted ?? 0) === 1 ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+              <span style={{ position: 'absolute', top: 3, left: Number(form.is_dangerous_or_restricted ?? 0) === 1 ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
+            </button>
           </div>
 
           {/* ── Media ── */}

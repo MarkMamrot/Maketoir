@@ -24,6 +24,11 @@ export async function GET() {
       quoted_cost: number | null;
       charged_cost: number | null;
       provider_shipment_id: string | null;
+      is_international: number;
+      export_purpose: string | null;
+      declared_currency: string | null;
+      customs_json: unknown;
+      recipient_json: unknown;
       label_status: string | null;
       label_url: string | null;
       created_at: string | Date;
@@ -33,6 +38,8 @@ export async function GET() {
               COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channel_order_number,
               contact.name AS customer_name, shipment.status, shipment.service_code, shipment.service_name,
               shipment.quoted_cost, shipment.charged_cost, shipment.provider_shipment_id,
+              shipment.is_international, shipment.export_purpose, shipment.declared_currency,
+              shipment.customs_json, shipment.recipient_json,
               label.status AS label_status, label.label_url, shipment.created_at, shipment.updated_at
          FROM ims_shipping_shipments shipment
          JOIN ims_sales_orders sales_order
@@ -64,6 +71,11 @@ export async function GET() {
         quotedCost: row.quoted_cost == null ? null : Number(row.quoted_cost),
         chargedCost: row.charged_cost == null ? null : Number(row.charged_cost),
         providerShipmentId: row.provider_shipment_id,
+        isInternational: Boolean(row.is_international),
+        exportPurpose: row.export_purpose,
+        declaredCurrency: row.declared_currency,
+        customs: parseJsonValue(row.customs_json),
+        destinationCountry: getRecipientCountry(row.recipient_json),
         labelStatus: row.label_status,
         labelUrl: row.label_url,
         createdAt: row.created_at,
@@ -83,6 +95,22 @@ export async function GET() {
       { status: 500 },
     );
   }
+}
+
+function parseJsonValue(value: unknown): unknown {
+  if (typeof value !== "string") return value ?? null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function getRecipientCountry(value: unknown): string | null {
+  const recipient = parseJsonValue(value);
+  if (!recipient || typeof recipient !== "object") return null;
+  const country = String((recipient as { country?: unknown }).country ?? "").trim();
+  return country || null;
 }
 
 export async function POST(request: Request) {
@@ -107,7 +135,7 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error ? error.message : "Unable to prepare shipments.";
     const validation =
-      /required|choose|not found|incomplete|cannot|exceeds|remaining|already used/i.test(
+      /required|choose|not found|incomplete|cannot|exceeds|remaining|already used|valid|country|HS code|dangerous|restricted|confirm|declared value/i.test(
         message,
       );
     if (!validation) {

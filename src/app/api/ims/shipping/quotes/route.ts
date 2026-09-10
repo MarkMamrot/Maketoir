@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to quote shipments.';
-    const validation = /required|choose|not found|incomplete|cannot|exceeds|remaining|already used|not supported/i.test(message);
+    const validation = /required|choose|not found|incomplete|cannot|exceeds|remaining|already used|not supported|not enabled|valid|country|HS code|dangerous|restricted|confirm|declared value/i.test(message);
     if (!validation) {
       await reportRuntimeIssue({
         businessId: session.businessId,

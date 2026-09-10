@@ -141,6 +141,8 @@ export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
   product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
   style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
+  customs_description?: string | null; hs_code?: string | null; country_of_origin?: string | null;
+  is_dangerous_or_restricted?: number;
   allow_indent_wholesale?: number; is_stock_item?: number; uses_builds?: number;
   is_active: number; shopify_product_id?: string; website_title?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
@@ -358,7 +360,7 @@ export interface ImsSO {
   xero_invoice_id?: string | null; xero_invoice_number?: string | null;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
-  customer_name?: string; customer_email?: string; location_name?: string;
+  customer_name?: string; customer_email?: string; customer_phone?: string; location_name?: string;
   items?: ImsSOItem[]; payments?: ImsPayment[];
 }
 
@@ -370,6 +372,8 @@ export interface ImsSOItem {
   qty_fulfilled: number; unit_price: number; unit_cost?: number;
   discount_pct: number; tax_rate: number; line_total: number; notes?: string;
   sku?: string; product_name?: string; variant_label?: string;
+  product_id?: string | null; customs_description?: string | null; hs_code?: string | null;
+  country_of_origin?: string | null; is_dangerous_or_restricted?: number;
   weight_kg?: number | null; length_mm?: number | null; width_mm?: number | null; height_mm?: number | null;
   is_stock_item?: number;
 }
@@ -774,18 +778,20 @@ export const ImsProductsRepo = {
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id,website_title,allow_indent_wholesale,is_stock_item,uses_builds)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,customs_description,hs_code,country_of_origin,is_dangerous_or_restricted,is_online,supplier_contact_id,cin7_product_id,website_title,allow_indent_wholesale,is_stock_item,uses_builds)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
        data.tags ?? null, data.category ?? null, data.subcategory ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
-       data.style_code ?? null, data.base_sku ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null,
+       data.style_code ?? null, data.base_sku ?? null, data.customs_description ?? null, data.hs_code ?? null,
+       data.country_of_origin ?? null, data.is_dangerous_or_restricted ?? 0, data.is_online ?? 1,
+       data.supplier_contact_id ?? null, data.cin7_product_id ?? null,
       data.website_title ?? null, data.allow_indent_wholesale ?? 0, data.is_stock_item ?? 1, data.uses_builds ?? 0]
     );
     return product_id;
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id','website_title','allow_indent_wholesale','is_stock_item','uses_builds'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','customs_description','hs_code','country_of_origin','is_dangerous_or_restricted','is_online','supplier_contact_id','cin7_product_id','website_title','allow_indent_wholesale','is_stock_item','uses_builds'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -2874,6 +2880,7 @@ export const ImsSORepo = {
         `SELECT so.*,
                 c.name  AS customer_name,
                 c.email AS customer_email,
+          COALESCE(NULLIF(c.mobile, ''), c.phone) AS customer_phone,
                 l.name  AS location_name,
                 COALESCE(pay.amount_paid, 0) AS amount_paid,
                 COALESCE(pay.amount_paid_local, 0) AS amount_paid_local,
@@ -2901,6 +2908,7 @@ export const ImsSORepo = {
         `SELECT so.*,
                 c.name  AS customer_name,
                 c.email AS customer_email,
+          COALESCE(NULLIF(c.mobile, ''), c.phone) AS customer_phone,
                 l.name  AS location_name
          FROM ims_sales_orders so
          LEFT JOIN ims_contacts c ON c.id = so.customer_id
@@ -2915,6 +2923,8 @@ export const ImsSORepo = {
       `SELECT i.*,
               COALESCE(v.sku, i.code) AS sku,
               COALESCE(p.name, i.name, i.notes) AS product_name,
+              p.product_id, p.customs_description, p.hs_code, p.country_of_origin,
+              p.is_dangerous_or_restricted,
               CONCAT_WS(' / ',
                 NULLIF(v.option1_value,''),
                 NULLIF(v.option2_value,''),

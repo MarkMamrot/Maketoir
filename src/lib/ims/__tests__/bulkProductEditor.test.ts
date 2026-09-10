@@ -90,6 +90,12 @@ describe('bulkProductEditor', () => {
     expect(available.some(field => field.id === 'sku')).toBe(false);
     expect(available.find(field => field.id === 'price_rrp')?.label).toBe('RRP $ (GST Inc)');
     expect(available.find(field => field.id === 'cost_aud')?.label).toBe('Cost $ (GST Exc)');
+    expect(available.filter(field => ['customs_description', 'hs_code', 'country_of_origin', 'is_dangerous_or_restricted'].includes(field.id))).toEqual([
+      expect.objectContaining({ id: 'customs_description', owner: 'product', editor: 'textarea', fillDown: true }),
+      expect.objectContaining({ id: 'hs_code', owner: 'product', editor: 'text', fillDown: true }),
+      expect.objectContaining({ id: 'country_of_origin', owner: 'product', editor: 'select', fillDown: true }),
+      expect.objectContaining({ id: 'is_dangerous_or_restricted', owner: 'product', editor: 'boolean', fillDown: true }),
+    ]);
     expect(sanitizeBulkProductFieldSelection(['brand', 'category', 42], available)).toEqual([
       'name',
       'base_sku',

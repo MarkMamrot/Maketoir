@@ -374,6 +374,8 @@ const TABLE_DDLS = [
     quoted_cost DECIMAL(12,2) NULL, quoted_cost_ex_gst DECIMAL(12,2) NULL, quoted_gst DECIMAL(12,2) NULL,
     charged_cost DECIMAL(12,2) NULL, charged_cost_ex_gst DECIMAL(12,2) NULL, charged_gst DECIMAL(12,2) NULL,
     sender_json JSON NOT NULL, recipient_json JSON NOT NULL, options_json JSON NULL,
+    is_international TINYINT(1) NOT NULL DEFAULT 0, export_purpose VARCHAR(20) NULL,
+    declared_currency CHAR(3) NULL, customs_json JSON NULL,
     ims_fulfilment_operation_key VARCHAR(191) NULL, safe_error VARCHAR(500) NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1165,9 +1167,6 @@ const TABLE_DDLS = [
 
 const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
 const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA-Z0-9_]+)`?/)?.[1] ?? '';
-if (requestedTable && !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requestedTable)) {
-  throw new Error(`Requested table is not registered for bootstrap: ${requestedTable}`);
-}
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
@@ -1222,6 +1221,14 @@ const COLUMNS = [
   ['ims_so_fulfilment_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_po_receive_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
+  ['ims_products', 'customs_description', 'VARCHAR(250) NULL AFTER base_sku'],
+  ['ims_products', 'hs_code', 'VARCHAR(14) NULL AFTER customs_description'],
+  ['ims_products', 'country_of_origin', 'CHAR(2) NULL AFTER hs_code'],
+  ['ims_products', 'is_dangerous_or_restricted', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER country_of_origin'],
+  ['ims_shipping_shipments', 'is_international', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER options_json'],
+  ['ims_shipping_shipments', 'export_purpose', 'VARCHAR(20) NULL AFTER is_international'],
+  ['ims_shipping_shipments', 'declared_currency', 'CHAR(3) NULL AFTER export_purpose'],
+  ['ims_shipping_shipments', 'customs_json', 'JSON NULL AFTER declared_currency'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
   ['ims_cs_settings', 'retention_mode', "ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all' AFTER lookback_days"],
   ['ims_cs_settings', 'unread_first', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER lookback_days'],
@@ -1432,6 +1439,14 @@ const COLUMNS = [
   ['ims_sales_order_items', 'shopify_line_item_id', 'VARCHAR(100) NULL AFTER so_id'],
 ];
 
+if (
+  requestedTable &&
+  !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requestedTable) &&
+  !COLUMNS.some(([table]) => table === requestedTable)
+) {
+  throw new Error(`Requested table is not registered for bootstrap or additive columns: ${requestedTable}`);
+}
+
 const INDEXES = [
   ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],
   ['ims_brands', 'idx_ims_brand_business', 'INDEX `idx_ims_brand_business` (`business_id`)'],
@@ -1626,7 +1641,31 @@ async function migrateSchema(schema, businessId) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
   }
-  if (requestedTable) return;
+  if (requestedTable) {
+    const requestedColumns = COLUMNS.filter(([table]) => table === requestedTable);
+    const [columnRows] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, requestedTable],
+    );
+    const existingColumns = new Set(columnRows.map(row => row.COLUMN_NAME));
+    let added = 0;
+    for (const [, column, definition] of requestedColumns) {
+      if (existingColumns.has(column)) continue;
+      await conn.query(
+        `ALTER TABLE \`${schema}\`.\`${requestedTable}\` ADD COLUMN \`${column}\` ${definition}`,
+      );
+      existingColumns.add(column);
+      added++;
+    }
+    const missingColumns = requestedColumns
+      .map(([, column]) => column)
+      .filter(column => !existingColumns.has(column));
+    if (missingColumns.length) {
+      throw new Error(`${schema}.${requestedTable} is missing registered columns: ${missingColumns.join(', ')}`);
+    }
+    console.log(`  ${schema}.${requestedTable}: ${added} columns added, ${requestedColumns.length - added} already present`);
+    return;
+  }
 
   const [onlineShopTables] = await conn.query(
     `SELECT TABLE_NAME FROM information_schema.TABLES
