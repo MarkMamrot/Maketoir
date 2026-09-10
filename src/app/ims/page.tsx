@@ -14974,13 +14974,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           {viewModal.so.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.so.notes}</div>}
           {Array.isArray(viewModal.so.shipments) && viewModal.so.shipments.length > 0 && (
             <section style={{ marginBottom: 18, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', padding: '12px 0' }}>
-              <div style={{ ...labelStyle, marginBottom: 10 }}>SHOPIFY SHIPMENTS</div>
+              <div style={{ ...labelStyle, marginBottom: 10 }}>SHIPMENTS &amp; TRACKING</div>
               {viewModal.so.shipments.map((shipment: any) => (
                 <div key={shipment.id} style={{ padding: '8px 0', borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 65%, transparent)' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 13 }}>
                     <strong>{shipment.status || 'Fulfilled'}</strong>
                     <span style={{ color: 'var(--sv-text-dim)' }}>{shipment.fulfilled_at ? new Date(shipment.fulfilled_at).toLocaleString() : 'Date unavailable'}</span>
-                    <span style={{ color: 'var(--sv-text-dim)' }}>Shopify fulfilment #{shipment.shopify_fulfilment_id}</span>
+                    <span style={{ color: 'var(--sv-text-dim)' }}>{shipment.source === 'carrier' ? `${shipment.carrier_name || 'Carrier'} shipment ${shipment.provider_shipment_id || ''}` : `Shopify fulfilment #${shipment.shopify_fulfilment_id}`}</span>
                   </div>
                   {(shipment.tracking || []).map((tracking: any, index: number) => (
                     <div key={`${tracking.tracking_number || tracking.tracking_url}-${index}`} style={{ marginTop: 6, fontSize: 13 }}>
@@ -28414,7 +28414,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>Before you start — setup checklist</h3>
         <ul style={ul}>
-          <li>✅ Enter your Shopify Store URL and Access Token in <strong>Setup → Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_fulfillments</span>.</li>
+          <li>✅ Enter your Shopify Store URL and Access Token in <strong>Setup → Connections</strong>. The token needs scopes: <span style={code}>read_orders</span>, <span style={code}>read_products</span>, <span style={code}>write_inventory</span>, <span style={code}>read_merchant_managed_fulfillment_orders</span>, and <span style={code}>write_merchant_managed_fulfillment_orders</span>.</li>
           <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
           <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
             <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>

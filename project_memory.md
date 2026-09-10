@@ -1,3 +1,9 @@
+## 2026-09-10 - Shipping dispatch completion and Shopify fulfillment scopes
+
+- Monsterthreads orders #47911-#47913 exposed three shipping lifecycle gaps: Shipping Workspace did not request final Sales Order completion when every parcel allocation shipped, the Shopify Admin GraphQL 2025-10 fulfillment-order query used removed `LineItem.legacyResourceId`, and Sales Order detail showed only inbound Shopify shipment tracking rather than locally created carrier tracking.
+- Dispatch now finalizes fully shipped orders, maps Shopify `LineItem.id` GIDs to stored numeric line-item IDs, reconciles already-fulfilled orders without repeating stock movements, and exposes dispatched Australia Post parcel tracking under Sales Order **Shipments & Tracking** while suppressing duplicate canonical tracking.
+- The three affected Sales Orders were safely reconciled to `fulfilled`; all retain their manifested Australia Post shipments and article tracking. Shopify synchronization remains pending because Monsterthreads uses a legacy permanent token with no fulfillment-order scopes. Grant `read_merchant_managed_fulfillment_orders` and `write_merchant_managed_fulfillment_orders`, generate and save a new Admin API access token in **Setup > Connections**, then retry **Mark dispatched** for the pending shipments.
+
 ## 2026-09-09 - Multi-channel commerce foundation
 
 - Added the provider-agnostic sales-channel registry and authenticated read-only `/api/ims/channels` boundary. Existing Shopify and Native Shop runtime reads remain unchanged; Amazon is a recognized future provider but is not registered as operational.

@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildOutboundTracking, buildShopifyFulfilmentGroups, findMatchingShopifyFulfilmentId, formatShopifyFulfilmentError } from '../shippingDispatch';
+import { buildOutboundTracking, buildShopifyFulfilmentGroups, findMatchingShopifyFulfilmentId, formatShopifyFulfilmentError, shopifyNumericId } from '../shippingDispatch';
 
 describe('shipping dispatch Shopify mapping', () => {
   it('maps dispatched quantities to fulfillment-order lines', () => {
     expect(buildShopifyFulfilmentGroups(
       [{ shopify_line_item_id: '101', quantity: 2 }],
-      [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 2, lineItem: { legacyResourceId: '101' } }] } }],
+      [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 2, lineItem: { id: 'gid://shopify/LineItem/101' } }] } }],
     )).toEqual([{ fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/1', fulfillmentOrderLineItems: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', quantity: 2 }] }]);
   });
 
   it('treats zero remaining quantity as an already-completed retry', () => {
     expect(buildShopifyFulfilmentGroups(
       [{ shopify_line_item_id: '101', quantity: 2 }],
-      [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 0, lineItem: { legacyResourceId: '101' } }] } }],
+      [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 0, lineItem: { id: 'gid://shopify/LineItem/101' } }] } }],
     )).toEqual([]);
   });
 
@@ -38,9 +38,20 @@ describe('shipping dispatch Shopify mapping', () => {
   it('rejects a partial remainder and preserves Shopify error details', () => {
     expect(() => buildShopifyFulfilmentGroups(
       [{ shopify_line_item_id: '101', quantity: 2 }],
-      [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 1, lineItem: { legacyResourceId: '101' } }] } }],
+      [{ id: 'gid://shopify/FulfillmentOrder/1', lineItems: { nodes: [{ id: 'gid://shopify/FulfillmentOrderLineItem/2', remainingQuantity: 1, lineItem: { id: 'gid://shopify/LineItem/101' } }] } }],
     )).toThrow('enough fulfillable quantity');
     expect(formatShopifyFulfilmentError(403, { errors: [{ message: 'Access denied' }] })).toContain('Access denied');
+  });
+
+  it('explains how to repair missing Shopify fulfillment-order permissions', () => {
+    expect(formatShopifyFulfilmentError(200, {
+      errors: [{ message: "Access denied for fulfillmentOrders field." }],
+    })).toContain('write_merchant_managed_fulfillment_orders');
+  });
+
+  it('extracts the numeric Shopify line item ID from a GraphQL GID', () => {
+    expect(shopifyNumericId('gid://shopify/LineItem/16816143302872')).toBe('16816143302872');
+    expect(shopifyNumericId('16816143302872')).toBe('16816143302872');
   });
 
   it('builds unique carrier tracking numbers and URLs for the original channel', () => {

@@ -25,7 +25,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     const data = await ImsSORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     const shipments = await imsQuery<any>(
-      `SELECT id, shopify_fulfilment_id, status, fulfilled_at, shopify_updated_at
+      `SELECT id, shopify_fulfilment_id, status, fulfilled_at, shopify_updated_at, 'shopify' AS source
          FROM ims_so_shipments
         WHERE business_id = ? AND so_id = ?
         ORDER BY COALESCE(fulfilled_at, created_at), id`,
@@ -71,6 +71,63 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       for (const shipment of shipments) {
         shipment.items = shipmentItems.filter(item => Number(item.shipment_id) === Number(shipment.id));
         shipment.tracking = tracking.filter(item => Number(item.shipment_id) === Number(shipment.id));
+      }
+    }
+    const carrierShipments = await imsQuery<any>(
+      `SELECT id, provider, provider_shipment_id, status, ims_fulfilled_at AS fulfilled_at
+         FROM ims_shipping_shipments
+        WHERE business_id = ? AND so_id = ? AND ims_fulfilled_at IS NOT NULL
+        ORDER BY ims_fulfilled_at, id`,
+      [businessId, Number(params.id)],
+    );
+    if (carrierShipments.length > 0) {
+      const placeholders = carrierShipments.map(() => '?').join(',');
+      const carrierShipmentIds = carrierShipments.map(shipment => Number(shipment.id));
+      const [carrierItems, carrierTracking] = await Promise.all([
+        imsQuery<any>(
+          `SELECT parcel.shipment_id, item.so_item_id, SUM(item.quantity) AS quantity,
+                  order_item.shopify_line_item_id, variant.sku,
+                  COALESCE(product.name, order_item.notes) AS product_name,
+                  CONCAT_WS(' / ', NULLIF(variant.option1_value, ''), NULLIF(variant.option2_value, ''), NULLIF(variant.option3_value, '')) AS variant_label
+             FROM ims_shipping_parcels parcel
+             JOIN ims_shipping_parcel_items item ON item.parcel_id = parcel.id AND item.business_id = parcel.business_id
+             JOIN ims_sales_order_items order_item ON order_item.id = item.so_item_id AND order_item.so_id = ?
+             LEFT JOIN ims_product_variants variant ON variant.variant_id = order_item.variant_id
+             LEFT JOIN ims_products product ON product.product_id = variant.product_id
+            WHERE parcel.business_id = ? AND parcel.shipment_id IN (${placeholders})
+            GROUP BY parcel.shipment_id, item.so_item_id, order_item.shopify_line_item_id, variant.sku,
+                     product.name, order_item.notes, variant.option1_value, variant.option2_value, variant.option3_value
+            ORDER BY parcel.shipment_id, item.so_item_id`,
+          [Number(params.id), businessId, ...carrierShipmentIds],
+        ),
+        imsQuery<any>(
+          `SELECT shipment_id, 'Australia Post' AS company,
+                  COALESCE(NULLIF(article_id, ''), NULLIF(consignment_id, '')) AS tracking_number,
+                  tracking_url
+             FROM ims_shipping_parcels
+            WHERE business_id = ? AND shipment_id IN (${placeholders})
+              AND COALESCE(NULLIF(article_id, ''), NULLIF(consignment_id, '')) IS NOT NULL
+            ORDER BY shipment_id, parcel_number`,
+          [businessId, ...carrierShipmentIds],
+        ),
+      ]);
+      const canonicalTrackingNumbers = new Set(shipments.flatMap(shipment => (
+        shipment.tracking ?? []
+      )).map((tracking: any) => String(tracking.tracking_number || '').trim()).filter(Boolean));
+      for (const shipment of carrierShipments) {
+        const tracking = carrierTracking.filter(item => (
+          Number(item.shipment_id) === Number(shipment.id)
+          && !canonicalTrackingNumbers.has(String(item.tracking_number || '').trim())
+        ));
+        if (!tracking.length) continue;
+        shipments.push({
+          ...shipment,
+          id: `carrier-${shipment.id}`,
+          source: 'carrier',
+          carrier_name: shipment.provider === 'auspost_eparcel' ? 'Australia Post' : shipment.provider,
+          items: carrierItems.filter(item => Number(item.shipment_id) === Number(shipment.id)),
+          tracking,
+        });
       }
     }
     let activity_history: Awaited<ReturnType<typeof getOrderActivityHistory>> = [];

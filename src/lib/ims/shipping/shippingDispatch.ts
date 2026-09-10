@@ -25,6 +25,7 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
   let fulfilledVariantIds: string[] = [];
   let orderStatus = '';
   let didFulfil = false;
+  let didFinalize = false;
   try {
     await connection.beginTransaction();
     const [[shipment]] = await connection.execute<any[]>(
@@ -75,6 +76,7 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
           soId: row.so_id,
           operationKey,
           shipmentQuantities: allocations.map(allocation => ({ itemId: Number(allocation.item_id), quantity: Number(allocation.quantity) })),
+          finalizeWhenComplete: true,
         });
         fulfilledVariantIds = fulfilment.fulfilledVariantIds;
         orderStatus = fulfilment.status;
@@ -100,6 +102,24 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
       }
     } else {
       orderStatus = row.so_status;
+      if (orderStatus === 'partially_fulfilled') {
+        const [outstanding] = await connection.execute<any[]>(
+          `SELECT id FROM ims_sales_order_items
+            WHERE so_id = ? AND qty_fulfilled < qty_ordered
+            FOR UPDATE`,
+          [row.so_id],
+        );
+        if (outstanding.length === 0) {
+          await connection.execute(
+            `UPDATE ims_sales_orders
+                SET status = 'fulfilled', fulfilled_date = COALESCE(fulfilled_date, CURDATE())
+              WHERE id = ? AND business_id = ? AND status = 'partially_fulfilled'`,
+            [row.so_id, input.businessId],
+          );
+          orderStatus = 'fulfilled';
+          didFinalize = true;
+        }
+      }
     }
     await connection.commit();
   } catch (error) {
@@ -115,6 +135,7 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
     if (orderStatus === 'fulfilled') await triggerSOXeroSync(input.businessId, row.so_id, 'fulfilled');
     await recomputeBuildRequirementsSafely({ businessId: input.businessId, salesOrderId: row.so_id });
   }
+  if (didFinalize) await triggerSOXeroSync(input.businessId, row.so_id, 'fulfilled');
   if (row.sales_channel !== 'shopify' && !row.shopify_order_id) {
     return { shipmentId: row.id, soId: row.so_id, orderStatus, shipmentStatus: 'complete' };
   }
@@ -184,7 +205,7 @@ async function createShopifyFulfilment(businessId: string, shipmentId: number, s
     method: 'POST', cache: 'no-store',
     headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': credentials.token },
     body: JSON.stringify({
-      query: `query ShippingFulfillmentOrders($id: ID!) { order(id: $id) { fulfillmentOrders(first: 50) { nodes { id status lineItems(first: 250) { nodes { id remainingQuantity lineItem { legacyResourceId } } } } } } }`,
+      query: `query ShippingFulfillmentOrders($id: ID!) { order(id: $id) { fulfillmentOrders(first: 50) { nodes { id status lineItems(first: 250) { nodes { id remainingQuantity lineItem { id } } } } } } }`,
       variables: { id: `gid://shopify/Order/${shopifyOrderId}` },
     }),
   });
@@ -247,7 +268,7 @@ export function buildShopifyFulfilmentGroups(
   const seen = new Set<string>();
   const groups = fulfillmentOrders.flatMap((order: any) => {
     const items = (order?.lineItems?.nodes ?? []).flatMap((item: any) => {
-      const lineId = String(item?.lineItem?.legacyResourceId ?? '');
+      const lineId = shopifyNumericId(item?.lineItem?.id);
       if (!requested.has(lineId)) return [];
       seen.add(lineId);
       const quantity = Math.min(requested.get(lineId) ?? 0, Number(item?.remainingQuantity ?? 0));
@@ -266,6 +287,9 @@ export function buildShopifyFulfilmentGroups(
 
 export function formatShopifyFulfilmentError(status: number, payload: any, userErrors: any[] = []): string {
   const messages = [...(payload?.errors ?? []), ...userErrors].map(error => String(error?.message ?? '')).filter(Boolean);
+  if (messages.some(message => /access denied for fulfillmentOrders field/i.test(message))) {
+    return 'Shopify fulfillment permissions are missing. Grant read_merchant_managed_fulfillment_orders and write_merchant_managed_fulfillment_orders, then refresh the Shopify access token in Setup > Connections.';
+  }
   return `Shopify fulfillment failed${status ? ` (HTTP ${status})` : ''}${messages.length ? `: ${messages.join('; ')}` : '.'}`;
 }
 
@@ -308,4 +332,9 @@ export function findMatchingShopifyFulfilmentId(
     if ([...requested].every(([lineId, quantity]) => (quantities.get(lineId) ?? 0) >= quantity)) return fulfilmentId;
   }
   return null;
+}
+
+export function shopifyNumericId(value: unknown): string {
+  const id = String(value ?? '').trim();
+  return id.startsWith('gid://') ? id.slice(id.lastIndexOf('/') + 1) : id;
 }
