@@ -56,7 +56,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
 8. For a simple product, add one blank row and use the default variant.
 9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
-10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant.
+10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant. **B2B Pack** is the number of individual units in one wholesale selling pack for that variant; leave it blank when the variant is sold individually.
 11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
 13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.
@@ -110,6 +110,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | Size, colour, style | Variant | Describes the exact choice |
 | SKU and barcode | Variant | Keep each sellable row unique |
 | RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |
+| B2B Pack | Variant | Units in one wholesale selling pack; this does not represent a supplier purchasing carton |
 | Cost | Variant | Tax-exclusive buying cost used for purchasing reference |
 | Weight and dimensions | Variant | Kilograms and millimetres used to suggest shipping packages |
 | Active | Product and variant | Inactive records should not be used for new work |

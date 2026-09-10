@@ -14,6 +14,8 @@ import { NextResponse } from 'next/server';
 import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { parseWholesalePortalSettings, WHOLESALE_PORTAL_SETTING_KEYS } from '@/lib/wholesale/wholesalePortalSettings';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET(req: Request) {
   const { session, brandAccess, response } = await requireActiveWholesaleSession();
@@ -29,6 +31,12 @@ export async function GET(req: Request) {
     if (brandAccess.mode === 'none') {
       return NextResponse.json({ success: true, products: [], facets: { categories: [], productTypes: [] } });
     }
+    const visibilityKeys = [WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutPhotos, WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutStock];
+    const settingRows = await imsQuery<{ key: string; value: string }>(
+      `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` IN (?, ?)`,
+      [session.businessId, ...visibilityKeys],
+    );
+    const visibility = parseWholesalePortalSettings(Object.fromEntries(settingRows.map(row => [row.key, row.value])));
     // Build WHERE clauses
     const conditions: string[] = [
       'p.is_active = 1',
@@ -42,6 +50,22 @@ export async function GET(req: Request) {
        )`,
     ];
     const params: any[] = [session.businessId];
+
+    if (visibility.hideProductsWithoutPhotos) {
+      conditions.push('EXISTS (SELECT 1 FROM ims_product_images image WHERE image.product_id = p.product_id)');
+    }
+    if (visibility.hideProductsWithoutStock) {
+      conditions.push(`(COALESCE(p.is_stock_item, 1) = 0 OR EXISTS (
+        SELECT 1
+        FROM ims_product_variants stock_variant
+        JOIN ims_stock stock ON stock.variant_id = stock_variant.variant_id
+        WHERE stock_variant.product_id = p.product_id
+          AND stock_variant.is_active = 1
+          AND stock_variant.price_wholesale > 0
+        GROUP BY stock_variant.variant_id
+        HAVING SUM(stock.qty_on_hand) - SUM(COALESCE(stock.qty_committed, 0)) > 0
+      ))`);
+    }
 
     if (brandAccess.mode === 'selected') {
       conditions.push(`LOWER(TRIM(p.brand)) IN (${brandAccess.brands.map(() => '?').join(',')})`);
@@ -154,11 +178,24 @@ export async function GET(req: Request) {
     const facetBrandSql = brandAccess.mode === 'selected'
       ? ` AND LOWER(TRIM(ims_products.brand)) IN (${brandAccess.brands.map(() => '?').join(',')})`
       : '';
+    const facetPhotoSql = visibility.hideProductsWithoutPhotos
+      ? ' AND EXISTS (SELECT 1 FROM ims_product_images image WHERE image.product_id = ims_products.product_id)'
+      : '';
+    const facetStockSql = visibility.hideProductsWithoutStock
+      ? ` AND (COALESCE(ims_products.is_stock_item, 1) = 0 OR EXISTS (
+          SELECT 1 FROM ims_product_variants stock_variant
+          JOIN ims_stock stock ON stock.variant_id = stock_variant.variant_id
+          WHERE stock_variant.product_id = ims_products.product_id
+            AND stock_variant.is_active = 1 AND stock_variant.price_wholesale > 0
+          GROUP BY stock_variant.variant_id
+          HAVING SUM(stock.qty_on_hand) - SUM(COALESCE(stock.qty_committed, 0)) > 0
+        ))`
+      : '';
     const facetParams = [session.businessId, ...(brandAccess.mode === 'selected' ? brandAccess.brands.map(brand => brand.toLocaleLowerCase('en-AU')) : [])];
     const categories = await imsQuery<{ category: string; subcategory: string | null }>(
       `SELECT DISTINCT category, subcategory
        FROM ims_products
-      WHERE is_active = 1 AND business_id = ? AND category IS NOT NULL AND category != ''${facetBrandSql}
+      WHERE is_active = 1 AND business_id = ? AND category IS NOT NULL AND category != ''${facetBrandSql}${facetPhotoSql}${facetStockSql}
          AND EXISTS (
            SELECT 1 FROM ims_product_variants v2
            WHERE v2.product_id = ims_products.product_id
@@ -171,7 +208,7 @@ export async function GET(req: Request) {
     const productTypes = await imsQuery<{ product_type: string }>(
       `SELECT DISTINCT product_type
        FROM ims_products
-      WHERE is_active = 1 AND business_id = ? AND product_type IS NOT NULL AND product_type != ''${facetBrandSql}
+      WHERE is_active = 1 AND business_id = ? AND product_type IS NOT NULL AND product_type != ''${facetBrandSql}${facetPhotoSql}${facetStockSql}
          AND EXISTS (
            SELECT 1 FROM ims_product_variants v2
            WHERE v2.product_id = ims_products.product_id
@@ -189,9 +226,15 @@ export async function GET(req: Request) {
         productTypes: productTypes.map(r => r.product_type),
       },
     });
-  } catch (e: any) {
-    console.error('[wholesale/products]', e);
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId: session.businessId,
+      source: 'wholesale_portal',
+      operation: 'load_catalogue',
+      title: 'Wholesale catalogue could not be loaded',
+      error,
+    }).catch(() => {});
+    return NextResponse.json({ success: false, error: 'The wholesale catalogue could not be loaded.' }, { status: 500 });
   }
   });
 }

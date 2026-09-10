@@ -278,6 +278,9 @@ export default function WholesalePortalClient({
   const [quantityMode, setQuantityMode] = useState<WholesaleOrderQuantityMode>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.orderQuantityMode);
   const [orderView, setOrderView] = useState<WholesaleCatalogueOrderView>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.catalogueOrderView);
   const [cardDisplay, setCardDisplay] = useState<WholesaleProductCardDisplay>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productCardDisplay);
+  const [livePublishedLayout, setLivePublishedLayout] = useState(publishedLayout);
+
+  useEffect(() => setLivePublishedLayout(publishedLayout), [publishedLayout]);
 
   useEffect(() => {
     fetch('/api/wholesale/settings').then(r => r.json()).then(d => {
@@ -721,7 +724,7 @@ export default function WholesalePortalClient({
 
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
   const cartValue = cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
-  const effectiveLayout = layoutPreview ?? publishedLayout;
+  const effectiveLayout = layoutPreview ?? livePublishedLayout;
   const canvasView = layoutPreviewPage === 'home' ? 'home' : layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection' ? 'catalogue' : view;
   const samplePage = layoutPreviewPage === 'login' || layoutPreviewPage === 'product' || layoutPreviewPage === 'cart' ? layoutPreviewPage : null;
   const catalogueLayoutPage = layoutPreviewPage === 'collection' || (!layoutPreviewPage && activeFilter !== '__all') ? 'collection' : 'catalogue';
@@ -821,6 +824,11 @@ export default function WholesalePortalClient({
         onLogout={handleLogout}
         onLayoutPreviewChange={setLayoutPreview}
         onLayoutPageChange={handleLayoutPageChange}
+        onLayoutPublished={document => {
+          setLivePublishedLayout(document);
+          setLayoutPreview(document);
+          router.refresh();
+        }}
         layoutProducts={allProducts}
         layoutProductId={layoutSampleProduct?.product_id}
         onLayoutProductChange={setLayoutSampleProductId}

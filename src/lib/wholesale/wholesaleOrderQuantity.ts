@@ -1,5 +1,14 @@
 import type { WholesaleOrderQuantityMode } from './wholesalePortalSettings';
 
+export function parseWholesalePackSizeInput(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const packSize = Number(value);
+  if (!Number.isSafeInteger(packSize) || packSize < 1 || packSize > 100_000) {
+    throw new Error('Wholesale selling pack size must be a whole number from 1 to 100,000.');
+  }
+  return packSize;
+}
+
 export function wholesalePackSize(packSize: number | null | undefined): number {
   const value = Number(packSize);
   return Number.isInteger(value) && value > 1 ? value : 1;

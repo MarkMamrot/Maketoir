@@ -3335,6 +3335,7 @@ interface VariantRow {
   width_mm: string;
   height_mm: string;
   price_wholesale: string;
+  pack_size: string;
   is_active: number;
   foreignCosts: Record<string, string>; // e.g. { USD: '10.50', THB: '380' }
   _delete?: boolean;
@@ -3349,7 +3350,7 @@ const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
   option1_value: '', option2_value: '', option3_value: '',
   sku: '', barcode: '', cost_aud: '', price_rrp: '',
-  price_wholesale: '',
+  price_wholesale: '', pack_size: '',
   price_rrp_sale: '', discount_start_date: '', discount_end_date: '',
   weight_kg: '', length_mm: '', width_mm: '', height_mm: '', is_active: 1, foreignCosts: {},
 });
@@ -6098,6 +6099,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         cost_aud: v.cost_aud != null ? String(v.cost_aud) : '',
         price_rrp: v.price_rrp != null ? String(v.price_rrp) : '',
         price_wholesale: v.price_wholesale != null ? String(v.price_wholesale) : '',
+        pack_size: v.pack_size != null ? String(v.pack_size) : '',
         price_rrp_sale: v.price_rrp_sale != null ? String(v.price_rrp_sale) : '',
         discount_start_date: v.discount_start_date ? String(v.discount_start_date).slice(0, 10) : '',
         discount_end_date: v.discount_end_date ? String(v.discount_end_date).slice(0, 10) : '',
@@ -6210,6 +6212,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           cost_aud: row.cost_aud === '' ? null : Number(row.cost_aud),
           price_rrp: row.price_rrp === '' ? null : Number(row.price_rrp),
           price_wholesale: row.price_wholesale === '' ? null : Number(row.price_wholesale),
+          pack_size: row.pack_size === '' ? null : Number(row.pack_size),
           price_rrp_sale: row.price_rrp_sale === '' ? null : Number(row.price_rrp_sale),
           discount_start_date: row.discount_start_date || null,
           discount_end_date: row.discount_end_date || null,
@@ -7299,7 +7302,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','RRP $',...(productFeatures.showWholesalePrice ? ['Wholesale $'] : []),'Sale $','Sale From','Sale To','Copy','Cost $',...(productFeatures.showWeight ? ['Wt kg','L mm','W mm','H mm'] : []),
+                    {['Variant','SKU','Barcode','RRP $',...(productFeatures.showWholesalePrice ? ['Wholesale $'] : []),'B2B Pack','Sale $','Sale From','Sale To','Copy','Cost $',...(productFeatures.showWeight ? ['Wt kg','L mm','W mm','H mm'] : []),
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -7324,6 +7327,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp} onChange={e => updateRow(row._tempId, 'price_rrp', e.target.value)} style={cellInput} placeholder="0.00" /></td>
                         {productFeatures.showWholesalePrice && <td style={{ padding: '2px 4px', minWidth: 80 }}><input type="number" step="0.01" min="0" value={row.price_wholesale} onChange={e => updateRow(row._tempId, 'price_wholesale', e.target.value)} style={cellInput} /></td>}
+                        <td style={{ padding: '2px 4px', minWidth: 72 }}><input aria-label={`${label} wholesale selling pack size`} title="Units per wholesale selling pack" type="number" step="1" min="1" max="100000" value={row.pack_size} onChange={e => updateRow(row._tempId, 'pack_size', e.target.value)} style={cellInput} placeholder="1" /></td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp_sale} onChange={e => updateRow(row._tempId, 'price_rrp_sale', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
@@ -26438,6 +26442,8 @@ const WHOLESALE_SETTINGS_DEFAULTS: Record<string, string> = {
   wholesale_order_quantity_mode:  'individual',
   wholesale_catalogue_order_view: 'quick_order',
   wholesale_product_card_display: 'details',
+  wholesale_hide_products_without_photos: 'no',
+  wholesale_hide_products_without_stock: 'no',
 };
 
 function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
@@ -26534,6 +26540,11 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
             <option value="image_overlay">Large image with details on hover</option>
           </select>
           <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.45 }}>The image-led style reveals product details over the lower half of the image on hover or keyboard focus.</p>
+        </div>
+
+        <div style={{ display: 'grid', gap: 10, marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer' }}><input type="checkbox" checked={draft.wholesale_hide_products_without_photos === 'yes'} onChange={event => setDraft(previous => ({ ...previous, wholesale_hide_products_without_photos: event.target.checked ? 'yes' : 'no' }))} style={{ marginTop: 2 }} /><span><strong style={{ display: 'block', color: 'var(--sv-text-main)', fontSize: 12 }}>Hide products with no photos</strong><small style={{ display: 'block', marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.4 }}>Products need at least one saved product image to appear in the wholesale catalogue.</small></span></label>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer' }}><input type="checkbox" checked={draft.wholesale_hide_products_without_stock === 'yes'} onChange={event => setDraft(previous => ({ ...previous, wholesale_hide_products_without_stock: event.target.checked ? 'yes' : 'no' }))} style={{ marginTop: 2 }} /><span><strong style={{ display: 'block', color: 'var(--sv-text-main)', fontSize: 12 }}>Hide products with no stock available</strong><small style={{ display: 'block', marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.4 }}>Tracked products appear only when an eligible wholesale variant has live available stock. Incoming stock and indent availability are ignored.</small></span></label>
         </div>
       </div>
 

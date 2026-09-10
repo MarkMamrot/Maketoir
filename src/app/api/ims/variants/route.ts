@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { isReservedShopifyFallbackSku } from '@/lib/shopifyFallbackVariant';
+import { parseWholesalePackSizeInput } from '@/lib/wholesale/wholesaleOrderQuantity';
 
 export async function GET() {
   const session = await getImsSession(['marketoir_session', 'pos_session']);
@@ -21,6 +22,10 @@ export async function POST(req: Request) {
   const businessId = session.businessId as string;
   try {
     const body = await req.json();
+    if (body.pack_size !== undefined) {
+      try { body.pack_size = parseWholesalePackSizeInput(body.pack_size); }
+      catch (error) { return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Invalid wholesale selling pack size.' }, { status: 400 }); }
+    }
     if (isReservedShopifyFallbackSku(body?.sku)) {
       return NextResponse.json(
         { success: false, error: 'SHOPIFY-MISC is reserved for the Shopify system fallback variant.' },

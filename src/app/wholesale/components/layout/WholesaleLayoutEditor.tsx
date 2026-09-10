@@ -88,11 +88,13 @@ export function WholesaleLayoutEditor({
   onPageChange,
   onDocumentChange,
   onDirtyChange,
+  onPublished,
   products = [],
 }: {
   onPageChange?: (page: WholesaleLayoutPageId | null) => void;
   onDocumentChange?: (document: WholesaleLayoutDocument | null) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onPublished?: (document: WholesaleLayoutDocument) => void;
   products?: Array<{ product_id: string; name: string }>;
 }) {
   const [state, setState] = useState<WholesaleLayoutEditorState | null>(null);
@@ -295,7 +297,10 @@ export function WholesaleLayoutEditor({
       setState(body.state);
       setDocument(body.state.draft);
       setDirty(false);
-      if (action === 'publish') setPublishConfirmationOpen(false);
+      if (action === 'publish') {
+        setPublishConfirmationOpen(false);
+        onPublished?.(body.state.published);
+      }
       setMessage(action === 'publish' ? 'Published.' : action === 'reset_draft' ? 'Draft reset.' : 'Draft saved.');
       return true;
     } catch (operationError) {

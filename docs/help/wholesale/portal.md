@@ -1,5 +1,5 @@
 ---
-{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-09-09","owner":"wholesale"}
+{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-09-10","owner":"wholesale"}
 ---
 # Wholesale Portal
 
@@ -36,6 +36,10 @@ Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab.
 The Layout Editor provides shared theme colours for primary highlights, secondary elements, accents, page background, surfaces, main text and muted text. Each page can inherit that shared theme or override individual colours. Open a colour control to use the colour spectrum, enter a hexadecimal value, or choose a saved Foresight brand swatch. Rich-text sections provide formatting for headings, font, size, emphasis, text colour, alignment, lists, quotes and links, with HTML source available when direct markup editing is needed. Save the draft, review each page preview, then publish to make changes visible to customers.
 
 In **Settings > Wholesale Portal**, Product Card Style can show information below each image or use a larger image-led card that reveals product details over the lower half on hover or keyboard focus. Products with one variant show only the price; products with multiple variants show a starting price and option count.
+
+The supplier can hide products that have no saved photos and hide tracked products when none of their wholesale variants has live available stock. The stock rule uses stock on hand less committed quantity and does not count incoming purchase stock or indent availability. Products with inventory tracking turned off remain visible because they do not require stock availability.
+
+When **Order Quantities** is set to **Whole packs**, each variant's **B2B Pack** value controls how many individual units one entered pack adds to the order. Stock and Sales Orders continue to record individual units. B2B Pack is a wholesale selling rule and is separate from any supplier purchasing-carton quantity.
 
 ## Daily buying checklist
 

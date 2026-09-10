@@ -76,6 +76,27 @@ describe('POS variant lookups', () => {
     expect(mockCreate).toHaveBeenCalledWith({ sku: 'SKU-2' }, 'business-1');
   });
 
+  it('normalizes a wholesale selling pack size before creating a variant', async () => {
+    const request = new Request('http://localhost/api/ims/variants', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku: 'SKU-PACK', pack_size: '12' }),
+    });
+
+    expect((await createVariant(request)).status).toBe(200);
+    expect(mockCreate).toHaveBeenCalledWith({ sku: 'SKU-PACK', pack_size: 12 }, 'business-1');
+  });
+
+  it('rejects a fractional wholesale selling pack size', async () => {
+    const request = new Request('http://localhost/api/ims/variants', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku: 'SKU-PACK', pack_size: 2.5 }),
+    });
+
+    const response = await createVariant(request);
+    expect(response.status).toBe(400);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
   it('names the existing product when a variant SKU is already in use', async () => {
     mockFindIdentifierConflict.mockResolvedValue({
       product_id: 'product-1',

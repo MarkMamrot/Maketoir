@@ -4,6 +4,7 @@ import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/sho
 import { getImsSession } from '@/lib/auth/imsSession';
 import { isShopifyFallbackVariant } from '@/lib/shopifyFallbackVariant';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
+import { parseWholesalePackSizeInput } from '@/lib/wholesale/wholesaleOrderQuantity';
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -16,6 +17,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       );
     }
     const body = await req.json();
+    if (body.pack_size !== undefined) {
+      try { body.pack_size = parseWholesalePackSizeInput(body.pack_size); }
+      catch (error) { return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Invalid wholesale selling pack size.' }, { status: 400 }); }
+    }
     for (const [field, bodyKey, label] of [['variant_sku', 'sku', 'Variant SKU'], ['barcode', 'barcode', 'Barcode']] as const) {
       const value = typeof body?.[bodyKey] === 'string' ? body[bodyKey].trim() : '';
       if (!value) continue;

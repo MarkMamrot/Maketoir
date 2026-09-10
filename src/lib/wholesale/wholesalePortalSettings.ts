@@ -5,6 +5,8 @@ export const WHOLESALE_PORTAL_SETTING_KEYS = {
   orderQuantityMode: 'wholesale_order_quantity_mode',
   catalogueOrderView: 'wholesale_catalogue_order_view',
   productCardDisplay: 'wholesale_product_card_display',
+  hideProductsWithoutPhotos: 'wholesale_hide_products_without_photos',
+  hideProductsWithoutStock: 'wholesale_hide_products_without_stock',
 } as const;
 
 export type WholesaleStaffPreviewMode = 'read_only' | 'ims_draft_test';
@@ -21,6 +23,8 @@ export interface WholesalePortalSettings {
   orderQuantityMode: WholesaleOrderQuantityMode;
   catalogueOrderView: WholesaleCatalogueOrderView;
   productCardDisplay: WholesaleProductCardDisplay;
+  hideProductsWithoutPhotos: boolean;
+  hideProductsWithoutStock: boolean;
 }
 
 export const DEFAULT_WHOLESALE_PORTAL_SETTINGS: WholesalePortalSettings = {
@@ -30,6 +34,8 @@ export const DEFAULT_WHOLESALE_PORTAL_SETTINGS: WholesalePortalSettings = {
   orderQuantityMode: 'individual',
   catalogueOrderView: 'quick_order',
   productCardDisplay: 'details',
+  hideProductsWithoutPhotos: false,
+  hideProductsWithoutStock: false,
 };
 
 const VALID_VALUES: Record<string, readonly string[]> = {
@@ -39,6 +45,8 @@ const VALID_VALUES: Record<string, readonly string[]> = {
   [WHOLESALE_PORTAL_SETTING_KEYS.orderQuantityMode]: ['individual', 'pack'],
   [WHOLESALE_PORTAL_SETTING_KEYS.catalogueOrderView]: ['quick_order', 'storefront'],
   [WHOLESALE_PORTAL_SETTING_KEYS.productCardDisplay]: ['details', 'image_overlay'],
+  [WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutPhotos]: ['yes', 'no'],
+  [WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutStock]: ['yes', 'no'],
 };
 
 export function validateWholesalePortalSetting(key: string, rawValue: unknown): string | null {
@@ -73,6 +81,14 @@ export function parseWholesalePortalSettings(settings: Record<string, unknown>):
     WHOLESALE_PORTAL_SETTING_KEYS.productCardDisplay,
     settings[WHOLESALE_PORTAL_SETTING_KEYS.productCardDisplay],
   );
+  const hideProductsWithoutPhotos = validateWholesalePortalSetting(
+    WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutPhotos,
+    settings[WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutPhotos],
+  );
+  const hideProductsWithoutStock = validateWholesalePortalSetting(
+    WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutStock,
+    settings[WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutStock],
+  );
 
   return {
     staffPreviewMode: previewMode as WholesaleStaffPreviewMode || DEFAULT_WHOLESALE_PORTAL_SETTINGS.staffPreviewMode,
@@ -81,6 +97,8 @@ export function parseWholesalePortalSettings(settings: Record<string, unknown>):
     orderQuantityMode: orderQuantityMode as WholesaleOrderQuantityMode || DEFAULT_WHOLESALE_PORTAL_SETTINGS.orderQuantityMode,
     catalogueOrderView: catalogueOrderView as WholesaleCatalogueOrderView || DEFAULT_WHOLESALE_PORTAL_SETTINGS.catalogueOrderView,
     productCardDisplay: productCardDisplay as WholesaleProductCardDisplay || DEFAULT_WHOLESALE_PORTAL_SETTINGS.productCardDisplay,
+    hideProductsWithoutPhotos: hideProductsWithoutPhotos === 'yes',
+    hideProductsWithoutStock: hideProductsWithoutStock === 'yes',
   };
 }
 
@@ -91,6 +109,8 @@ export function applyWholesalePortalSettingDefaults(settings: Record<string, str
   settings[WHOLESALE_PORTAL_SETTING_KEYS.orderQuantityMode] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.orderQuantityMode;
   settings[WHOLESALE_PORTAL_SETTING_KEYS.catalogueOrderView] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.catalogueOrderView;
   settings[WHOLESALE_PORTAL_SETTING_KEYS.productCardDisplay] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.productCardDisplay;
+  settings[WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutPhotos] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.hideProductsWithoutPhotos ? 'yes' : 'no';
+  settings[WHOLESALE_PORTAL_SETTING_KEYS.hideProductsWithoutStock] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.hideProductsWithoutStock ? 'yes' : 'no';
 }
 
 export function isWholesalePreviewMutationAllowed(mode: WholesaleStaffPreviewMode, method: string, pathname: string): boolean {

@@ -72,6 +72,7 @@ export function WholesalePortalShell({
   children,
   onLayoutPreviewChange,
   onLayoutPageChange,
+  onLayoutPublished,
   layoutProducts,
   layoutProductId,
   onLayoutProductChange,
@@ -99,6 +100,7 @@ export function WholesalePortalShell({
   children: ReactNode;
   onLayoutPreviewChange?: (document: WholesaleLayoutDocument | null) => void;
   onLayoutPageChange?: (page: WholesaleLayoutPageId | null) => void;
+  onLayoutPublished?: (document: WholesaleLayoutDocument) => void;
   layoutProducts?: Array<{ product_id: string; name: string }>;
   layoutProductId?: string;
   onLayoutProductChange?: (productId: string) => void;
@@ -317,7 +319,7 @@ export function WholesalePortalShell({
       </header>
 
       <div className={`${styles.body} ${layoutEditorOpen ? styles.bodyEditor : ''}`}>
-        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={handleLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} products={layoutProducts} />}
+        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={handleLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} onPublished={onLayoutPublished} products={layoutProducts} />}
         <div className={layoutEditorOpen ? styles.canvasStage : styles.canvasStageLive} data-viewport={layoutEditorOpen ? layoutViewport : undefined}>
           <main ref={layoutCanvasRef} className={styles.content} aria-label={layoutEditorOpen ? `${layoutViewport === 'mobile' ? 'Mobile' : 'Desktop'} layout preview canvas` : undefined}>{children}</main>
         </div>

@@ -12,7 +12,7 @@ describe('wholesale portal settings', () => {
     expect(parseWholesalePortalSettings({
       wholesale_staff_preview_mode: 'full_access',
       wholesale_product_image_fit: 'stretch',
-    })).toEqual({ staffPreviewMode: 'read_only', productImageFit: 'cover', productImageRatio: 'landscape', orderQuantityMode: 'individual', catalogueOrderView: 'quick_order', productCardDisplay: 'details' });
+    })).toEqual({ staffPreviewMode: 'read_only', productImageFit: 'cover', productImageRatio: 'landscape', orderQuantityMode: 'individual', catalogueOrderView: 'quick_order', productCardDisplay: 'details', hideProductsWithoutPhotos: false, hideProductsWithoutStock: false });
   });
 
   it('parses every supported setting', () => {
@@ -23,7 +23,9 @@ describe('wholesale portal settings', () => {
       wholesale_order_quantity_mode: 'pack',
       wholesale_catalogue_order_view: 'storefront',
       wholesale_product_card_display: 'image_overlay',
-    })).toEqual({ staffPreviewMode: 'ims_draft_test', productImageFit: 'contain', productImageRatio: 'portrait', orderQuantityMode: 'pack', catalogueOrderView: 'storefront', productCardDisplay: 'image_overlay' });
+      wholesale_hide_products_without_photos: 'yes',
+      wholesale_hide_products_without_stock: 'yes',
+    })).toEqual({ staffPreviewMode: 'ims_draft_test', productImageFit: 'contain', productImageRatio: 'portrait', orderQuantityMode: 'pack', catalogueOrderView: 'storefront', productCardDisplay: 'image_overlay', hideProductsWithoutPhotos: true, hideProductsWithoutStock: true });
   });
 
   it('validates only known values and leaves unrelated settings alone', () => {
@@ -42,6 +44,8 @@ describe('wholesale portal settings', () => {
       wholesale_order_quantity_mode: 'individual',
       wholesale_catalogue_order_view: 'quick_order',
       wholesale_product_card_display: 'details',
+      wholesale_hide_products_without_photos: 'no',
+      wholesale_hide_products_without_stock: 'no',
     });
   });
 

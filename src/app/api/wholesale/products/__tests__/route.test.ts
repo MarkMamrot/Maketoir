@@ -21,6 +21,7 @@ describe('wholesale catalogue media', () => {
 
   it('returns all ordered images and keeps the first as image_url', async () => {
     mocks.imsQuery
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 1, product_id: 'product-1', name: 'Raincoat', allow_indent_wholesale: 0 }])
       .mockResolvedValueOnce([{ id: 2, variant_id: 'variant-1', product_id: 'product-1', sku: 'RAIN', price_wholesale: 20 }])
       .mockResolvedValueOnce([{ variant_id: 'variant-1', available: 5 }])
@@ -35,6 +36,23 @@ describe('wholesale catalogue media', () => {
     expect(body.products[0]).toEqual(expect.objectContaining({
       image_url: 'primary.jpg', images: ['primary.jpg', 'detail.jpg'],
     }));
-    expect(mocks.imsQuery.mock.calls[3][0]).toContain('ORDER BY product_id, is_primary DESC, sort_order ASC, id ASC');
+    expect(mocks.imsQuery.mock.calls[4][0]).toContain('ORDER BY product_id, is_primary DESC, sort_order ASC, id ASC');
+  });
+
+  it('filters photo-less and zero-stock tracked products when configured', async () => {
+    mocks.imsQuery
+      .mockResolvedValueOnce([
+        { key: 'wholesale_hide_products_without_photos', value: 'yes' },
+        { key: 'wholesale_hide_products_without_stock', value: 'yes' },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(new Request('http://localhost/api/wholesale/products'));
+
+    expect(response.status).toBe(200);
+    const productSql = mocks.imsQuery.mock.calls[1][0] as string;
+    expect(productSql).toContain('EXISTS (SELECT 1 FROM ims_product_images');
+    expect(productSql).toContain('SUM(stock.qty_on_hand) - SUM(COALESCE(stock.qty_committed, 0)) > 0');
+    expect(productSql).toContain('COALESCE(p.is_stock_item, 1) = 0');
   });
 });

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isValidWholesaleUnitQuantity, wholesaleEntryQuantityToUnits, wholesalePackSize, wholesaleUnitsToEntryQuantity } from '../wholesaleOrderQuantity';
+import { isValidWholesaleUnitQuantity, parseWholesalePackSizeInput, wholesaleEntryQuantityToUnits, wholesalePackSize, wholesaleUnitsToEntryQuantity } from '../wholesaleOrderQuantity';
 
 describe('wholesale order quantities', () => {
+  it('normalizes persisted wholesale selling pack sizes', () => {
+    expect(parseWholesalePackSizeInput('12')).toBe(12);
+    expect(parseWholesalePackSizeInput('')).toBeNull();
+    expect(() => parseWholesalePackSizeInput('1.5')).toThrow('whole number');
+    expect(() => parseWholesalePackSizeInput(0)).toThrow('whole number');
+  });
+
   it('converts entered packs to unit quantities', () => {
     expect(wholesaleEntryQuantityToUnits(3, 6, 'pack')).toBe(18);
     expect(wholesaleUnitsToEntryQuantity(18, 6, 'pack')).toBe(3);
