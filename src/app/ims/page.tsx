@@ -9531,6 +9531,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const isContinuingReceipt = isReceiving && modal.edit?.status === 'partially_received';
+  const isPartiallyReceived = modal.edit?.status === 'partially_received';
+  const receivedQuantityForLine = (item: any) => Number(modal.edit?.items?.find((stored: any) => Number(stored.id) === Number(item.id))?.qty_received ?? 0);
   const poSubtotal = taxTreatment === 'inc_tax'
     ? lineItems.reduce((s, i) => {
         const tot = lineTotal(i);
@@ -9678,7 +9680,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       if (modal.edit) {
         const editPayload = isContinuingReceipt
           ? buildPartialReceiptHeaderUpdate(form)
-          : { ...form, items, landed_costs };
+          : isPartiallyReceived
+            ? { ...buildPartialReceiptHeaderUpdate(form), items }
+            : { ...form, items, landed_costs };
         await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editPayload, operationKey: await buildOrderEditOperationKey('purchase_order', modal.edit.id, modal.edit.updated_at, editPayload), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
         // Also record any receiving deltas and let the batch transaction own final status.
         if (isReceiving) {
@@ -9906,7 +9910,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       actions.push({ label: 'Receive', value: 'receive' }, { label: 'Edit', value: 'edit' });
     }
     if (!isAdvisor && po.status === 'partially_received') {
-      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Resolve Outstanding', value: 'resolve' });
+      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Edit Details', value: 'edit' }, { label: 'Resolve Outstanding', value: 'resolve' });
       if (fullyReceived) actions.push({ label: 'Mark Complete', value: 'complete' });
     }
     if (!isAdvisor && po.status === 'backordered') {
@@ -10153,20 +10157,25 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 />
               </label>
             )}
+            {isPartiallyReceived && modal.editOnly && (
+              <div style={{ marginBottom: 14, padding: '9px 12px', border: '1px solid color-mix(in srgb, var(--sv-amber) 45%, var(--sv-etch))', borderRadius: 6, background: 'color-mix(in srgb, var(--sv-amber) 8%, transparent)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
+                Received stock and its valuation are protected. You can increase ordered quantities, add products, amend wholly unreceived lines, and update the outstanding-order details below.
+              </div>
+            )}
             <Row3>
               <Field label="Supplier">
-                <select data-testid="po-supplier" disabled={isContinuingReceipt} value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
+                <select data-testid="po-supplier" disabled={isPartiallyReceived} value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
                   <option value="">— None —</option>
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
-                <select data-testid="po-location" disabled={isContinuingReceipt} required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
+                <select data-testid="po-location" disabled={isPartiallyReceived} required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
                   <option value="">— Select —</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
-              <Field label="Order Date *"><input disabled={isContinuingReceipt} required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
+              <Field label="Order Date *"><input disabled={isPartiallyReceived} required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
             </Row3>
             <Row2>
               <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
@@ -10194,7 +10203,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             {modal.edit?.early_payment_discount_name && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Early-payment discount: {modal.edit.early_payment_discount_name} · cutoff {String(modal.edit.early_payment_discount_cutoff_date ?? '').slice(0, 10)}</div>}
             <Row2>
               <Field label="Supplier costs are…">
-                <select data-testid="po-tax-treatment" disabled={isContinuingReceipt} value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
+                <select data-testid="po-tax-treatment" disabled={isPartiallyReceived} value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
                   <option value="ex_tax">Ex-tax (tax is added on top)</option>
                   <option value="inc_tax">Inc-tax (tax already included)</option>
                   <option value="no_tax">No tax / Zero-rated</option>
@@ -10202,7 +10211,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </Field>
               {showFxCosts && (
                 <Field label="Currency">
-                  <select disabled={isContinuingReceipt} value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
+                  <select disabled={isPartiallyReceived} value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
                     {PO_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </Field>
@@ -10211,7 +10220,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             {showFxCosts && (form.currency_code ?? 'AUD') !== 'AUD' && (
               <Row2>
                 <Field label={`Exchange Rate (1 ${form.currency_code} = ? AUD)`}>
-                  <input disabled={isContinuingReceipt} type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
+                  <input disabled={isPartiallyReceived} type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
                   {form._rateHint && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 3 }}>{form._rateHint}</div>}
                 </Field>
               </Row2>
@@ -10230,12 +10239,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     max="100"
                     step="1"
                     value={poBulkDiscountPct}
-                    disabled={isContinuingReceipt}
+                    disabled={isPartiallyReceived}
                     onChange={e => setPoBulkDiscountPct(e.target.value)}
                     placeholder="Disc %"
                     style={{ ...inputStyle, width: 82, fontSize: 12, padding: '4px 8px' }}
                   />
-                  <button type="button" disabled={isContinuingReceipt} onClick={applyPoDiscountToAllLines} style={btnStyle('secondary', 'xs')}>Apply to All</button>
+                  <button type="button" disabled={isPartiallyReceived} onClick={applyPoDiscountToAllLines} style={btnStyle('secondary', 'xs')}>Apply to All</button>
                   {isReceiving && (
                     <button type="button" onClick={() => {
                       const all: Record<string, number> = {};
@@ -10249,7 +10258,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--sv-bg-1)' }}>
-                      {[''/* del */,'Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),...(isReceiving ? ['Received','Awaiting'] : []),'Line Total'].map((h, hi) => (
+                      {[''/* del */,'Variant','Qty',`Unit Cost${(form.currency_code ?? 'AUD') !== 'AUD' ? ` (${form.currency_code})` : ''}`,'Disc %',...(taxTreatment !== 'no_tax' ? ['Tax %'] : []),...((isReceiving || isPartiallyReceived) ? ['Received','Awaiting'] : []),'Line Total'].map((h, hi) => (
                         <th key={hi} style={{ padding: '6px 8px', textAlign: h === 'Line Total' ? 'right' : 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
@@ -10258,7 +10267,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     {lineItems.map((item, i) => (
                       <tr key={i} data-testid={`po-line-${i}`} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: '4px 2px', width: 30 }}>
-                          <button type="button" disabled={isContinuingReceipt} onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>
+                          <button type="button" disabled={isContinuingReceipt || (isPartiallyReceived && receivedQuantityForLine(item) > 0)} onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>
                         </td>
                         <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
@@ -10267,21 +10276,21 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                             onChange={vid => selectPOVariant(i, vid)}
                             sohByVariant={locationSoh}
                             testId={`po-line-${i}-variant`}
-                            disabled={isContinuingReceipt}
+                            disabled={isContinuingReceipt || (isPartiallyReceived && receivedQuantityForLine(item) > 0)}
                           />
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
-                          <input data-testid={`po-line-${i}-qty`} disabled={isContinuingReceipt} type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input data-testid={`po-line-${i}-qty`} disabled={isContinuingReceipt} type="number" min={Math.max(1, receivedQuantityForLine(item))} step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 100 }}>
-                          <input data-testid={`po-line-${i}-unit-cost`} disabled={isContinuingReceipt} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input data-testid={`po-line-${i}-unit-cost`} disabled={isContinuingReceipt || (isPartiallyReceived && receivedQuantityForLine(item) > 0)} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 70 }}>
-                          <input disabled={isContinuingReceipt} type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct ?? 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
+                          <input disabled={isContinuingReceipt || (isPartiallyReceived && receivedQuantityForLine(item) > 0)} type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct ?? 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
                         </td>
                         {taxTreatment !== 'no_tax' && (
                         <td style={{ padding: 4, width: 70 }}>
-                          <input disabled={isContinuingReceipt} type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" />
+                          <input disabled={isContinuingReceipt || (isPartiallyReceived && receivedQuantityForLine(item) > 0)} type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" />
                         </td>
                         )}
                         {isReceiving && (() => {
@@ -10294,6 +10303,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                             <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? '#fbbf24' : '#34d399', fontWeight: awaiting > 0 ? 600 : 400 }}>
                               {awaiting}
                             </td>
+                          </>);
+                        })()}
+                        {!isReceiving && isPartiallyReceived && (() => {
+                          const received = receivedQuantityForLine(item);
+                          const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
+                          return (<>
+                            <td style={{ padding: '4px 8px', width: 80, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{fmtQty(received)}</td>
+                            <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? 'var(--sv-amber)' : 'var(--sv-mint)', fontWeight: awaiting > 0 ? 600 : 400 }}>{fmtQty(awaiting)}</td>
                           </>);
                         })()}
                         <td style={{ padding: '4px 8px', width: 100, textAlign: 'right', color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
@@ -10313,11 +10330,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Freight (+)</span>
-                    <input disabled={isContinuingReceipt} type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input disabled={isPartiallyReceived} type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Discount (−)</span>
-                    <input disabled={isContinuingReceipt} type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input disabled={isPartiallyReceived} type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   {taxTreatment !== 'no_tax' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
@@ -10355,7 +10372,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost on receive</span>
-                    {!lcForm && <button type="button" disabled={isContinuingReceipt} onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
+                    {!lcForm && <button type="button" disabled={isPartiallyReceived} onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
                   </div>
                 </div>
                 {landedCosts.length > 0 && (
@@ -10374,7 +10391,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                           <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
                           <td style={{ padding: '4px 8px', fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(Number(c.amount))}</td>
                           <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                            <button type="button" disabled={isContinuingReceipt} onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                            <button type="button" disabled={isPartiallyReceived} onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
                         </tr>
                       ))}
@@ -10962,6 +10979,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   }
   if (!isAdvisor && po.status === 'partially_received') {
     btns.push(<button key="continue" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Continue Receiving</button>);
+    btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')} title="Amend outstanding quantities, add products, or update order details without changing received stock">Edit Details</button>);
     if (onResolve) btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('ghost', 'xs')}>Resolve Outstanding</button>);
     if ((po.items?.length ?? 0) > 0 && po.items.every((item: any) => Number(item.qty_received ?? 0) >= Number(item.qty_ordered))) {
       btns.push(<button key="complete" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>);

@@ -1601,11 +1601,11 @@ export const ImsPORepo = {
              FROM ims_purchase_order_items WHERE po_id = ? ORDER BY id FOR UPDATE`,
           [id],
         );
-        if (!['draft', 'confirmed'].includes(String(currentPo.status))) {
-          throw new OrderAmendmentConflict('Only Draft or untouched Confirmed purchase orders can be edited. Use Resolve Outstanding or the completed-order correction workflow instead.');
+        if (!['draft', 'confirmed', 'partially_received'].includes(String(currentPo.status))) {
+          throw new OrderAmendmentConflict('Only Draft, Confirmed, or In Progress purchase orders can be edited. Use the completed-order correction workflow instead.');
         }
-        if (existingItems.some(item => Number(item.qty_received ?? 0) > 0)) {
-          throw new OrderAmendmentConflict('Received quantities cannot be changed by a normal edit. Amend only the outstanding remainder.');
+        if (currentPo.status === 'partially_received' && locationChanged) {
+          throw new OrderAmendmentConflict('The receiving location cannot change after stock has been received.');
         }
         await assertNoActiveStockAllocations(conn, {
           businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
@@ -1644,6 +1644,32 @@ export const ImsPORepo = {
 
       if (items) {
         const reconciliation = reconcileOrderLines(existingItems, items);
+        if (currentPo.status === 'partially_received') {
+          for (const { existingId, line } of reconciliation.lines) {
+            if (existingId == null) continue;
+            const existing = existingItems.find(item => Number(item.id) === existingId);
+            if (!existing) continue;
+            if (Number(existing.qty_received ?? 0) > 0 && String(line.variant_id) !== String(existing.variant_id)) {
+              throw new OrderAmendmentConflict('A received purchase-order line cannot change product. Add a new line instead.');
+            }
+            if (Number(line.qty_ordered) + 0.00005 < Number(existing.qty_received ?? 0)) {
+              throw new OrderAmendmentConflict(`Ordered quantity cannot be less than the ${Number(existing.qty_received ?? 0)} already received.`);
+            }
+            if (Number(existing.qty_received ?? 0) > 0 && (
+              Math.abs(Number(line.unit_cost) - Number(existing.unit_cost)) > 0.00005
+              || Math.abs(Number(line.discount_pct ?? 0) - Number(existing.discount_pct ?? 0)) > 0.00005
+              || Math.abs(Number(line.tax_rate ?? 0) - Number(existing.tax_rate ?? 0)) > 0.00005
+            )) {
+              throw new OrderAmendmentConflict('Cost, discount, and tax cannot change after units on that line have been received. Add a new line for different pricing.');
+            }
+          }
+          for (const removedId of reconciliation.removedIds) {
+            const existing = existingItems.find(item => Number(item.id) === removedId);
+            if (Number(existing?.qty_received ?? 0) > 0) {
+              throw new OrderAmendmentConflict('A purchase-order line with received units cannot be removed. Reduce it no lower than the received quantity.');
+            }
+          }
+        }
         // Determine effective tax_treatment (new value if supplied, else from DB)
         let taxTreatment: string = data.tax_treatment ?? 'ex_tax';
         if (!data.tax_treatment) {
@@ -1712,7 +1738,7 @@ export const ImsPORepo = {
           );
         }
 
-        if (currentPo.status === 'confirmed') {
+        if (currentPo.status === 'confirmed' || currentPo.status === 'partially_received') {
           const newLocationId = Number(data.location_id ?? currentPo.location_id);
           const deltas = planStockRebalance(Number(currentPo.location_id), newLocationId, existingItems, items);
           for (const delta of deltas) {

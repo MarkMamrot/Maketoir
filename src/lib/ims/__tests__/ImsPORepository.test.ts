@@ -130,6 +130,55 @@ describe('ImsPORepo.update', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
+  it('allows an In Progress PO to increase a received line and adds only the incoming delta', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) return [[{ status: 'partially_received', location_id: 4, business_id: 'biz-1' }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[
+        { id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1 },
+      ]];
+      if (sql.includes('SELECT qty_on_hand')) return [[{ qty_on_hand: 3 }]];
+      if (sql.includes('SELECT tax_treatment')) return [[{ tax_treatment: 'ex_tax' }]];
+      if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.update(42, {}, [
+      { id: 10, variant_id: 'v-1', qty_ordered: 8, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 40, notes: null },
+      { variant_id: 'v-2', qty_ordered: 2, unit_cost: 7, discount_pct: 0, tax_rate: 0.1, line_total: 14, notes: null },
+    ]);
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_incoming = qty_incoming + VALUES(qty_incoming)'),
+      ['v-1', 4, 'biz-1', 3],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_incoming = qty_incoming + VALUES(qty_incoming)'),
+      ['v-2', 4, 'biz-1', 2],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects reducing an In Progress line below received quantity or changing its valuation', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) return [[{ status: 'partially_received', location_id: 4, business_id: 'biz-1' }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[
+        { id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1 },
+      ]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.update(42, {}, [
+      { id: 10, variant_id: 'v-1', qty_ordered: 2, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 10, notes: null },
+    ])).rejects.toThrow('cannot be less than the 3 already received');
+    await expect(ImsPORepo.update(42, {}, [
+      { id: 10, variant_id: 'v-1', qty_ordered: 5, unit_cost: 6, discount_pct: 0, tax_rate: 0.1, line_total: 30, notes: null },
+    ])).rejects.toThrow('Cost, discount, and tax cannot change');
+  });
+
   it('preserves existing PO line IDs and inserts only new lines', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) return [[{ status: 'draft', location_id: 4, business_id: 'biz-1' }]];

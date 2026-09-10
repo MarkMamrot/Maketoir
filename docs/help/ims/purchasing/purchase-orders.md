@@ -1,5 +1,5 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, with configurable list fields.","lastReviewed":"2026-09-09","owner":"inventory"}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, with configurable list fields.","lastReviewed":"2026-09-10","owner":"inventory"}
 ---
 # Purchase Orders
 
@@ -68,6 +68,10 @@ Open the PO number to review products, quantities, supplier invoice details, rec
 
 Use the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten.
 
+For a Partially Received order, choose **Edit Details** to increase an ordered quantity, add a product, amend a wholly unreceived line, or update expected date, notes, supplier invoice details, and payment terms. Received quantities remain unchanged. An existing received line cannot change product, cost, discount, or tax, cannot be removed, and cannot be reduced below the quantity already received. Supplier, receiving location, order date, currency, freight, and landed costs remain locked after the first receipt.
+
+If the PO has active incoming-stock allocations, release or reassign them before changing its lines. If it has a linked Xero bill, Solvantis checks the live Xero state before saving a financial amendment. Paid, credited, locked-period, or unverifiable bills cannot be amended this way.
+
 ## Costs and stock value
 
 The received cost can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received variant.
@@ -97,7 +101,7 @@ A replacement is a new Draft. It does not undo the original receipt or change th
 |---|---|---|
 | Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |
 | Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |
-| Direct editing is limited | Receipts or later records already exist | Use Resolve Outstanding, Undo Mistaken Receipt, Supplier Return / Credit or Replacement as appropriate |
+| Some fields are locked during Edit Details | Received stock or valuation already exists | Amend only outstanding quantities and unreceived lines; use Resolve Outstanding, Supplier Return / Credit or Replacement for completed activity |
 | Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |
 
 ## Worked examples
