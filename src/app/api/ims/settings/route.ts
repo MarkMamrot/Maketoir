@@ -34,6 +34,7 @@ import {
   DEFAULT_BUILD_FROM_SALE_SETTING,
   validateBuildFromSaleSetting,
 } from '@/lib/ims/builds/buildFromSalePolicy';
+import { INVENTORY_COST_METHOD_SETTING_KEY } from '@/lib/ims/costing/inventoryCostSwitch';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -125,6 +126,13 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : onlineChannels ? {} : body);
+
+    if (pairs[INVENTORY_COST_METHOD_SETTING_KEY] !== undefined) {
+      return NextResponse.json({
+        success: false,
+        error: 'Use the Inventory Costing switch workflow to change costing methods.',
+      }, { status: 400 });
+    }
 
     for (const [key, rawValue] of Object.entries(pairs)) {
       const result = validateSalesDocumentSetting(key, rawValue);

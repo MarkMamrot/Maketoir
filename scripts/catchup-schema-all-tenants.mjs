@@ -47,6 +47,13 @@ const DAYBOOK_TABLES = [
   'pos_daybook_content_events',
 ];
 
+const INVENTORY_COSTING_TABLES = [
+  'ims_inventory_cost_state',
+  'ims_inventory_cost_epochs',
+  'ims_fifo_cost_layers',
+  'ims_fifo_cost_allocations',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -63,6 +70,12 @@ const DAYBOOK_TABLE_DDLS = DAYBOOK_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const INVENTORY_COSTING_TABLE_DDLS = INVENTORY_COSTING_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -74,6 +87,7 @@ const conn = await mysql.createConnection({
 
 const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
+  ...INVENTORY_COSTING_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -1070,6 +1084,8 @@ if (requestedTable && !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requeste
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_stock_movements', 'cost_method_snapshot', "ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost' AFTER unit_cost"],
+  ['ims_stock_movements', 'cost_epoch_id', 'BIGINT NULL AFTER cost_method_snapshot'],
   ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
   ['pos_daybook_task_templates', 'created_by_staff_identity_id', 'BIGINT NULL AFTER created_by_name'],
   ['pos_daybook_task_templates', 'created_by_staff_name', 'VARCHAR(120) NULL AFTER created_by_staff_identity_id'],
@@ -1329,6 +1345,7 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
+  ['ims_stock_movements', 'idx_sm_cost_epoch', 'INDEX `idx_sm_cost_epoch` (`business_id`, `cost_epoch_id`, `id`)'],
   ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],
   ['ims_brands', 'idx_ims_brand_business', 'INDEX `idx_ims_brand_business` (`business_id`)'],
   ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],

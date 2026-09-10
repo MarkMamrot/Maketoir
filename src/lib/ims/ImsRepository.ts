@@ -38,6 +38,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from './avgCostMath';
+import { createFifoCostLayer, lockInventoryCostState, type InventoryCostState } from './costing/fifoCostingService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -1167,7 +1168,7 @@ async function reversePurchaseOrderReceiptTx(
   conn: any,
   po: any,
   items: ImsPOItem[],
-  options: { restoreIncoming?: boolean } = {},
+  options: { restoreIncoming?: boolean; costingState?: InventoryCostState } = {},
 ): Promise<void> {
   const grouped = new Map<string, number>();
   for (const item of items) {
@@ -1175,7 +1176,7 @@ async function reversePurchaseOrderReceiptTx(
     grouped.set(item.variant_id, (grouped.get(item.variant_id) ?? 0) + Math.max(0, Number(item.qty_received ?? 0)));
   }
 
-  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number }> = [];
+  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number; fifoLayerIds: number[] }> = [];
   for (const [variantId, receivedQty] of grouped) {
     if (receivedQty <= 0) continue;
     const [stockRows] = await conn.execute<any[]>(
@@ -1230,10 +1231,48 @@ async function reversePurchaseOrderReceiptTx(
       }]);
     }
     const receiptUnitCost = Number(receiptRow?.receipt_unit_cost ?? 0);
+    const fifoLayerIds: number[] = [];
+    if (options.costingState?.method === 'fifo') {
+      const [fifoRows] = await conn.execute<any[]>(
+        `SELECT layer.id, layer.original_quantity, layer.remaining_quantity,
+                (SELECT COUNT(*) FROM ims_fifo_cost_allocations allocation
+                  WHERE allocation.business_id = layer.business_id AND allocation.layer_id = layer.id) AS allocation_count,
+                (SELECT COUNT(*) FROM ims_fifo_cost_layers child
+                  WHERE child.business_id = layer.business_id AND child.parent_layer_id = layer.id) AS child_count
+           FROM ims_fifo_cost_layers layer
+          WHERE layer.business_id = ? AND layer.epoch_id = ? AND layer.variant_id = ? AND layer.location_id = ?
+            AND layer.source_type = 'po_receipt' AND layer.source_reference_type = 'purchase_order'
+            AND layer.source_reference_id = ?
+          ORDER BY layer.id
+          FOR UPDATE`,
+        [po.business_id, options.costingState.epochId, variantId, po.location_id, po.id],
+      );
+      const fifoOriginalQty = fifoRows.reduce((sum: number, row: any) => sum + Number(row.original_quantity), 0);
+      if (Math.abs(fifoOriginalQty - receivedQty) > 0.0001) {
+        throw new OrderCorrectionConflict([{
+          code: 'fifo_layer_missing',
+          message: `Cannot reverse PO receipt: FIFO source layers for variant ${variantId} cover ${fifoOriginalQty} units, but ${receivedQty} received units must be reversed. This receipt predates or does not reconcile with the active FIFO epoch.`,
+        }]);
+      }
+      const affectedRows = fifoRows.filter((row: any) => (
+        Math.abs(Number(row.original_quantity) - Number(row.remaining_quantity)) > 0.0001
+        || Number(row.allocation_count) > 0
+        || Number(row.child_count) > 0
+      ));
+      if (affectedRows.length > 0) {
+        const remainingQty = fifoRows.reduce((sum: number, row: any) => sum + Number(row.remaining_quantity), 0);
+        throw new OrderCorrectionConflict([{
+          code: 'fifo_layer_consumed',
+          message: `Cannot reverse PO receipt: ${receivedQty - remainingQty} units from variant ${variantId}'s FIFO receipt layers have been consumed or transferred. Reverse the dependent stock activity or use Supplier Return / Credit instead.`,
+        }]);
+      }
+      fifoLayerIds.push(...fifoRows.map((row: any) => Number(row.id)));
+    }
     plans.push({
       variantId,
       receivedQty,
       receiptUnitCost,
+      fifoLayerIds,
       newAvg: computeAverageCostAfterReversal({
         currentQtyOnHand: totalOrgQty,
         currentAvgCost: Number(variantRow?.avg_cost ?? 0),
@@ -1244,6 +1283,13 @@ async function reversePurchaseOrderReceiptTx(
   }
 
   for (const plan of plans) {
+    for (const layerId of plan.fifoLayerIds) {
+      await conn.execute(
+        `DELETE FROM ims_fifo_cost_layers
+          WHERE id = ? AND business_id = ? AND epoch_id = ?`,
+        [layerId, po.business_id, options.costingState?.epochId],
+      );
+    }
     await conn.execute(
       `UPDATE ims_stock
           SET qty_on_hand = qty_on_hand - ?,
@@ -1259,9 +1305,9 @@ async function reversePurchaseOrderReceiptTx(
     );
     await conn.execute(
       `INSERT INTO ims_stock_movements
-         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,notes)
-       VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?)`,
-      [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, 'PO receipt undone'],
+         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id,notes)
+       VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?,?,?)`,
+      [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, options.costingState?.method ?? 'average_cost', options.costingState?.epochId ?? null, 'PO receipt undone'],
     );
   }
   await conn.execute(`UPDATE ims_purchase_order_items SET qty_received = 0 WHERE po_id = ?`, [po.id]);
@@ -1886,6 +1932,12 @@ export const ImsPORepo = {
     try {
       await conn.beginTransaction();
 
+      const [[poTenant]] = await conn.execute<any[]>(
+        `SELECT business_id FROM ims_purchase_orders WHERE id = ?`, [id]
+      );
+      if (!poTenant) throw new Error('Purchase order not found');
+      const costingState = await lockInventoryCostState(conn, String(poTenant.business_id ?? ''));
+
       const [[po]] = await conn.execute<any[]>(
         `SELECT * FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
       );
@@ -2218,12 +2270,20 @@ export const ImsPORepo = {
             `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
             [item.id]
           );
-          await conn.execute(
+          const [movementResult] = await conn.execute<any>(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'po_received','purchase_order',?,?,?,?)`,
-            [item.variant_id, po.location_id, id, qty_rcvd, new_soh, true_cost_aud]
+               (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
+             VALUES (?,?,?,'po_received','purchase_order',?,?,?,?,?,?)`,
+            [po.business_id, item.variant_id, po.location_id, id, qty_rcvd, new_soh, true_cost_aud, costingState.method, costingState.epochId]
           );
+          if (costingState.method === 'fifo') {
+            await createFifoCostLayer(conn, {
+              businessId: String(po.business_id ?? ''), state: costingState, variantId: String(item.variant_id),
+              locationId: Number(po.location_id), sourceType: 'po_receipt', sourceMovementId: Number(movementResult.insertId),
+              sourceReferenceType: 'purchase_order', sourceReferenceId: id, sourceLineId: Number(item.id),
+              fifoDate: new Date(), quantity: qty_rcvd, unitCost: true_cost_aud,
+            });
+          }
         }
         await conn.execute(
           `UPDATE ims_purchase_orders SET received_date = CURDATE() WHERE id = ?`, [id]
@@ -2328,12 +2388,20 @@ export const ImsPORepo = {
             `UPDATE ims_purchase_order_items SET qty_received = qty_ordered WHERE id = ?`,
             [item.id]
           );
-          await conn.execute(
+          const [movementResult] = await conn.execute<any>(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'po_received','purchase_order',?,?,?,?)`,
-            [item.variant_id, po.location_id, id, remaining, new_soh, true_cost_aud]
+               (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
+             VALUES (?,?,?,'po_received','purchase_order',?,?,?,?,?,?)`,
+            [po.business_id, item.variant_id, po.location_id, id, remaining, new_soh, true_cost_aud, costingState.method, costingState.epochId]
           );
+          if (costingState.method === 'fifo') {
+            await createFifoCostLayer(conn, {
+              businessId: String(po.business_id ?? ''), state: costingState, variantId: String(item.variant_id),
+              locationId: Number(po.location_id), sourceType: 'po_receipt', sourceMovementId: Number(movementResult.insertId),
+              sourceReferenceType: 'purchase_order', sourceReferenceId: id, sourceLineId: Number(item.id),
+              fifoDate: new Date(), quantity: remaining, unitCost: true_cost_aud,
+            });
+          }
         }
         await conn.execute(
           `UPDATE ims_purchase_orders SET received_date = CURDATE() WHERE id = ?`, [id]
@@ -2410,6 +2478,7 @@ export const ImsPORepo = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
       const [[po]] = await conn.execute<any[]>(
         `SELECT * FROM ims_purchase_orders WHERE id = ? AND business_id = ? FOR UPDATE`,
         [id, businessId],
@@ -2466,6 +2535,7 @@ export const ImsPORepo = {
       const resultingStatus = po.status === 'partially_received' ? 'confirmed' : 'cancelled';
       await reversePurchaseOrderReceiptTx(conn, po, itemRows as ImsPOItem[], {
         restoreIncoming: resultingStatus === 'confirmed',
+        costingState,
       });
       await conn.execute(
         `UPDATE ims_purchase_orders SET status = ? WHERE id = ? AND business_id = ?`,

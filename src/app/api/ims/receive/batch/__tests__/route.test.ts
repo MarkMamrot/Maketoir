@@ -10,6 +10,8 @@ const {
   mockReportRuntimeIssue,
   mockAssignReceiptToStockAllocations,
   mockCreateNotification,
+  mockLockInventoryCostState,
+  mockCreateFifoCostLayer,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
@@ -18,6 +20,8 @@ const {
   mockReportRuntimeIssue: vi.fn(),
   mockAssignReceiptToStockAllocations: vi.fn(),
   mockCreateNotification: vi.fn(),
+  mockLockInventoryCostState: vi.fn(),
+  mockCreateFifoCostLayer: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -46,6 +50,11 @@ vi.mock('@/lib/ims/stockAllocation/service', () => ({
 
 vi.mock('@/lib/ims/createNotification', () => ({
   createNotification: mockCreateNotification,
+}));
+
+vi.mock('@/lib/ims/costing/fifoCostingService', () => ({
+  lockInventoryCostState: mockLockInventoryCostState,
+  createFifoCostLayer: mockCreateFifoCostLayer,
 }));
 
 import { POST } from '../route';
@@ -198,7 +207,7 @@ function buildFakeConnection(state: {
         qty_after_soh: Number(params[5]),
         unit_cost: Number(params[6]),
       });
-      return [{ affectedRows: 1 }];
+      return [{ affectedRows: 1, insertId: state.movements.length }];
     }
 
     if (s.includes('select id, variant_id, qty_ordered, qty_received from ims_purchase_order_items where po_id = ?')) {
@@ -265,9 +274,12 @@ describe('POST /api/ims/receive/batch', () => {
     mockRefreshVariantCache.mockResolvedValue(undefined);
     mockAssignReceiptToStockAllocations.mockResolvedValue([]);
     mockCreateNotification.mockResolvedValue(undefined);
+    mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+    mockCreateFifoCostLayer.mockResolvedValue(70);
   });
 
-  it('recalculates avg cost, clamps over-receive, and leaves a fully received PO in progress', async () => {
+  it('creates a FIFO receipt layer, recalculates the average cache, and clamps over-receive', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
     const state = {
       po: {
         id: 11,
@@ -328,6 +340,19 @@ describe('POST /api/ims/receive/batch', () => {
     expect(state.movements[0].business_id).toBe('biz-1');
     expect(state.movements[0].qty_change).toBe(2);
     expect(state.movements[0].unit_cost).toBeCloseTo(18, 8);
+    expect(mockCreateFifoCostLayer).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 6, revision: 2 },
+      variantId: 'v-1',
+      locationId: 4,
+      sourceType: 'po_receipt',
+      sourceMovementId: 1,
+      sourceReferenceType: 'purchase_order',
+      sourceReferenceId: 11,
+      sourceLineId: 101,
+      quantity: 2,
+      unitCost: 18,
+    }));
 
     expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });

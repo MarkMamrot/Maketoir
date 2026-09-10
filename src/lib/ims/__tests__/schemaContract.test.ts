@@ -83,6 +83,17 @@ describe('fresh IMS schema contract', () => {
     expect(missing).toEqual([]);
   });
 
+  it('registers every inventory costing table for tenant catch-up', () => {
+    for (const table of [
+      'ims_inventory_cost_state',
+      'ims_inventory_cost_epochs',
+      'ims_fifo_cost_layers',
+      'ims_fifo_cost_allocations',
+    ]) {
+      expect(catchupSource).toContain(`'${table}'`);
+    }
+  });
+
   it('does not define indexes or foreign keys on undeclared columns', () => {
     const tables = Array.from(schemaSql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-zA-Z0-9_]+)\s*\(/gi))
       .map(match => match[1]);

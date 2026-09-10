@@ -11,6 +11,8 @@ export type PurchaseOrderUndoBlocker =
   | 'has_child_workflow'
   | 'insufficient_stock'
   | 'incomplete_valuation_history'
+  | 'fifo_layer_missing'
+  | 'fifo_layer_consumed'
   | 'xero_unverifiable'
   | 'xero_locked_period'
   | 'xero_settled'

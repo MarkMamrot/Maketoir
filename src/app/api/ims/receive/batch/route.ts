@@ -20,6 +20,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from '@/lib/ims/avgCostMath';
+import { createFifoCostLayer, lockInventoryCostState } from '@/lib/ims/costing/fifoCostingService';
 
 interface ReceivedItem {
   variant_id: string;
@@ -156,6 +157,7 @@ export async function POST(req: Request) {
 
     try {
       await conn.beginTransaction();
+      const costingState = await lockInventoryCostState(conn, businessId);
 
       await conn.execute(
         `INSERT IGNORE INTO ims_po_receive_operations
@@ -387,12 +389,20 @@ export async function POST(req: Request) {
         );
 
         // Stock movement record
-        await conn.execute(
+        const [movementResult] = await conn.execute<any>(
           `INSERT INTO ims_stock_movements
-           (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
-           VALUES (?, ?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?)`,
-          [businessId, variant_id, location_id, po_id, appliedQty, newQty, receivedUnitCostAud]
+           (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id)
+           VALUES (?, ?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?, ?, ?)`,
+          [businessId, variant_id, location_id, po_id, appliedQty, newQty, receivedUnitCostAud, costingState.method, costingState.epochId]
         );
+        if (costingState.method === 'fifo') {
+          await createFifoCostLayer(conn, {
+            businessId, state: costingState, variantId: String(variant_id), locationId: Number(location_id),
+            sourceType: 'po_receipt', sourceMovementId: Number(movementResult.insertId),
+            sourceReferenceType: 'purchase_order', sourceReferenceId: Number(po_id), sourceLineId: Number(poItem.id),
+            fifoDate: new Date(), quantity: appliedQty, unitCost: receivedUnitCostAud,
+          });
+        }
 
         if (barcode_new) {
           await conn.execute(

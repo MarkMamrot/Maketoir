@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockImsQuery } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockImsQuery, mockLockInventoryCostState, mockCreateFifoCostLayer } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockImsQuery: vi.fn(),
+  mockLockInventoryCostState: vi.fn(),
+  mockCreateFifoCostLayer: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -13,10 +15,17 @@ vi.mock('@/services/IMSMySQLService', () => ({
 vi.mock('@/services/imsContext', () => ({ getCurrentImsDb: vi.fn() }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: vi.fn() }));
+vi.mock('../costing/fifoCostingService', () => ({
+  lockInventoryCostState: mockLockInventoryCostState,
+  createFifoCostLayer: mockCreateFifoCostLayer,
+}));
 
 import { ImsPORepo } from '../ImsRepository';
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+});
 
 describe('ImsPORepo.get', () => {
   it('starts independent accessory reads concurrently after loading the PO header', async () => {
@@ -507,7 +516,7 @@ describe('ImsPORepo.undoReceipt', () => {
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("'po_unapproved','purchase_order'"),
-      ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'PO receipt undone'],
+      ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'average_cost', null, 'PO receipt undone'],
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('SET status = ?'),
@@ -585,5 +594,70 @@ describe('ImsPORepo.undoReceipt', () => {
     expect(execute.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE ims_stock'))).toBe(false);
     expect(connection.commit).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('blocks FIFO receipt undo when a source layer has dependent consumption', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_purchase_orders')) {
+        return [[{ id: 42, status: 'complete', business_id: 'biz-1', location_id: 4, is_historical: 0, updated_at: new Date(revision) }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 90 }];
+      if (sql.includes('payment_count')) return [[{ payment_count: 0, supplier_credit_count: 0, shortfall_count: 0, backorder_count: 0, reserved_credit_count: 0 }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[{ id: 11, po_id: 42, variant_id: 'v-1', qty_ordered: 5, qty_received: 5 }]];
+      if (sql.includes('SELECT location_id, qty_on_hand')) return [[{ location_id: 4, qty_on_hand: 8, qty_committed: 0 }]];
+      if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 9 }]];
+      if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 5, receipt_unit_cost: 8 }]];
+      if (sql.includes('FROM ims_fifo_cost_layers layer')) {
+        return [[{ id: 70, original_quantity: 5, remaining_quantity: 3, allocation_count: 1, child_count: 0 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context))
+      .rejects.toThrow("2 units from variant v-1's FIFO receipt layers have been consumed or transferred");
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).startsWith('DELETE FROM ims_fifo_cost_layers'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE ims_stock'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('deletes intact FIFO receipt layers and stamps the reversal epoch', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_purchase_orders')) {
+        return [[{ id: 42, status: 'complete', business_id: 'biz-1', location_id: 4, is_historical: 0, updated_at: new Date(revision) }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 90 }];
+      if (sql.includes('payment_count')) return [[{ payment_count: 0, supplier_credit_count: 0, shortfall_count: 0, backorder_count: 0, reserved_credit_count: 0 }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[{ id: 11, po_id: 42, variant_id: 'v-1', qty_ordered: 5, qty_received: 5 }]];
+      if (sql.includes('SELECT location_id, qty_on_hand')) return [[{ location_id: 4, qty_on_hand: 5, qty_committed: 0 }]];
+      if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 8 }]];
+      if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 5, receipt_unit_cost: 8 }]];
+      if (sql.includes('FROM ims_fifo_cost_layers layer')) {
+        return [[{ id: 70, original_quantity: 5, remaining_quantity: 5, allocation_count: 0, child_count: 0 }]];
+      }
+      if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 0 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM ims_fifo_cost_layers'),
+      [70, 'biz-1', 6],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("'po_unapproved','purchase_order'"),
+      ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'fifo', 6, 'PO receipt undone'],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.rollback).not.toHaveBeenCalled();
   });
 });

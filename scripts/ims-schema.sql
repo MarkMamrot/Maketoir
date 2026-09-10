@@ -806,6 +806,82 @@ CREATE TABLE IF NOT EXISTS ims_stock (
   FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Inventory Costing ────────────────────────────────────────
+-- Costing method is tenant-wide and prospective. Every switch creates a new
+-- epoch so completed stock movements retain their original valuation basis.
+CREATE TABLE IF NOT EXISTS ims_inventory_cost_state (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  active_method     ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost',
+  active_epoch_id   BIGINT NULL,
+  revision          INT UNSIGNED NOT NULL DEFAULT 1,
+  last_switched_at  DATETIME(3) NULL,
+  last_switched_by  INT NULL,
+  last_switch_reason VARCHAR(500) NULL,
+  created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_inventory_cost_state_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_inventory_cost_epochs (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id        VARCHAR(100) NOT NULL,
+  method             ENUM('average_cost','fifo') NOT NULL,
+  status             ENUM('active','closed') NOT NULL DEFAULT 'active',
+  operation_key      VARCHAR(191) NOT NULL,
+  request_hash       CHAR(64) NOT NULL,
+  opening_quantity   DECIMAL(18,4) NOT NULL DEFAULT 0,
+  opening_value      DECIMAL(18,4) NOT NULL DEFAULT 0,
+  switch_reason      VARCHAR(500) NOT NULL,
+  actor_id           INT NULL,
+  actor_name         VARCHAR(255) NULL,
+  started_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  closed_at          DATETIME(3) NULL,
+  created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_inventory_cost_epoch_operation (business_id, operation_key),
+  INDEX idx_inventory_cost_epoch_active (business_id, status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_fifo_cost_layers (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  epoch_id            BIGINT NOT NULL,
+  variant_id          VARCHAR(36) NOT NULL,
+  location_id         INT NOT NULL,
+  source_type         VARCHAR(32) NOT NULL,
+  source_movement_id  INT NULL,
+  source_reference_type VARCHAR(32) NULL,
+  source_reference_id INT NULL,
+  source_line_id      INT NULL,
+  parent_layer_id     BIGINT NULL,
+  fifo_date           DATETIME(3) NOT NULL,
+  original_quantity   DECIMAL(18,4) NOT NULL,
+  remaining_quantity  DECIMAL(18,4) NOT NULL,
+  unit_cost           DECIMAL(18,6) NOT NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_fifo_layer_consume (business_id, epoch_id, variant_id, location_id, fifo_date, id),
+  INDEX idx_fifo_layer_source (business_id, source_reference_type, source_reference_id, source_line_id),
+  INDEX idx_fifo_layer_parent (business_id, parent_layer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_fifo_cost_allocations (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  epoch_id             BIGINT NOT NULL,
+  stock_movement_id    INT NOT NULL,
+  layer_id             BIGINT NOT NULL,
+  quantity             DECIMAL(18,4) NOT NULL,
+  unit_cost            DECIMAL(18,6) NOT NULL,
+  allocated_value      DECIMAL(18,6) NOT NULL,
+  allocation_type      VARCHAR(32) NOT NULL DEFAULT 'consume',
+  reversal_of_allocation_id BIGINT NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_fifo_allocation_movement_layer (business_id, stock_movement_id, layer_id, allocation_type),
+  INDEX idx_fifo_allocation_layer (business_id, layer_id, id),
+  INDEX idx_fifo_allocation_movement (business_id, stock_movement_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Purchase Orders ──────────────────────────────────────────
 -- draft     → approved (adds qty_incoming)
 -- approved  → received (moves to qty_on_hand, recalcs avg_cost)
@@ -1495,12 +1571,15 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   qty_change     DECIMAL(12,4) NOT NULL,
   qty_after_soh  DECIMAL(12,4) NOT NULL,
   unit_cost      DECIMAL(12,4),
+  cost_method_snapshot ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost',
+  cost_epoch_id  BIGINT NULL,
   notes          VARCHAR(500),
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_sm_variant  (variant_id),
   INDEX idx_business_id (business_id),
   INDEX idx_sm_location (location_id),
-  INDEX idx_sm_ref      (reference_type, reference_id)
+  INDEX idx_sm_ref      (reference_type, reference_id),
+  INDEX idx_sm_cost_epoch (business_id, cost_epoch_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Stocktakes ──────────────────────────────────────────────
