@@ -6,7 +6,6 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { normalizeBulkProductDocumentImport } from '@/lib/ims/bulkProductDocumentImport';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsQuery } from '@/services/IMSMySQLService';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -63,16 +62,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const [brandRows, productTypeRows] = await Promise.all([
-      imsQuery<{ name: string }>('SELECT name FROM ims_brands WHERE business_id = ? AND name IS NOT NULL AND name != \'\' ORDER BY name', [businessId]),
-      imsQuery<{ product_type: string }>('SELECT DISTINCT product_type FROM ims_products WHERE business_id = ? AND product_type IS NOT NULL AND product_type != \'\' ORDER BY product_type', [businessId]),
-    ]);
-    const allowedBrands = brandRows.map(row => row.name).filter(Boolean);
-    const allowedProductTypes = productTypeRows.map(row => row.product_type).filter(Boolean);
     const fileText = isTextFile && file ? await file.text() : '';
     if (fileText.length > MAX_PASTED_TEXT) return NextResponse.json({ success: false, error: 'Text file is too large (maximum 200,000 characters).' }, { status: 400 });
     const sourceText = pastedText || fileText;
-    const prompt = `Extract product catalogue data from the supplied document or pasted table. Each distinct supplied product line must become one object in products. This is for creating new products; do not match anything to an existing catalogue.
+    const prompt = `Extract product catalogue data from the supplied document or pasted table. Every visible supplied product line must become one object in products, including repeated lines. This is for creating new products; do not match anything to an existing catalogue.
 
 Return ONLY valid JSON with this shape:
 {
@@ -101,7 +94,7 @@ Rules:
 - Use null for missing numeric values and blank strings or empty arrays for missing text values.
 - unit_cost is the printed per-unit buying cost before any line discount. rrp is the printed recommended retail price or MSRP.
 - Determine whether costs include tax only from explicit headings or arithmetic evidence. Otherwise use unknown.
-- Use a known brand or product type only when the source clearly indicates it. Tenant brand choices: ${JSON.stringify(allowedBrands)}. Tenant product type choices: ${JSON.stringify(allowedProductTypes)}.`;
+- Preserve a brand or product type only when it is explicitly printed in the source.`;
 
     const parts: Array<Record<string, unknown>> = [];
     if (file && !isTextFile) parts.push({ inlineData: { mimeType: file.type, data: Buffer.from(await file.arrayBuffer()).toString('base64') } });

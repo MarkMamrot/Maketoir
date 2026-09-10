@@ -24,13 +24,13 @@ describe('bulk product document import', () => {
     })]);
   });
 
-  it('skips non-product lines and exact duplicate rows', () => {
+  it('skips non-product lines and keeps one row for every product line', () => {
     const row = { product_name: 'Widget', sku: 'W-1', cost: 5 };
     const result = normalizeBulkProductDocumentImport({
       products: [row, { ...row }, { line_type: 'freight', product_name: 'Shipping', cost: 10 }, { line_type: 'backorder', product_name: 'Later' }],
     });
 
-    expect(result.products).toHaveLength(1);
+    expect(result.products).toHaveLength(2);
     expect(result.products[0].product_code).toBe('W-1');
   });
 

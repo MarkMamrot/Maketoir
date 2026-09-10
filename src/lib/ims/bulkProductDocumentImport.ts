@@ -39,7 +39,6 @@ export function normalizeBulkProductDocumentImport(raw: unknown): BulkProductDoc
     : 'unknown';
   const rows = Array.isArray(source.products) ? source.products : Array.isArray(source.line_items) ? source.line_items : [];
   const products: BulkProductDocumentLine[] = [];
-  const seen = new Set<string>();
 
   for (const candidate of rows.slice(0, 500)) {
     if (!candidate || typeof candidate !== 'object') continue;
@@ -54,7 +53,7 @@ export function normalizeBulkProductDocumentImport(raw: unknown): BulkProductDoc
     const unitCost = sourceCost !== null && currency === 'AUD' && pricesIncludeTax !== 'unknown'
       ? invoiceUnitPriceToProductCost(sourceCost, pricesIncludeTax, Number(row.tax_rate ?? 0.1))
       : sourceCost;
-    const normalized = {
+    products.push({
       product_name: productName,
       product_code: productCode,
       barcode,
@@ -65,11 +64,7 @@ export function normalizeBulkProductDocumentImport(raw: unknown): BulkProductDoc
       tags: Array.isArray(row.tags) ? row.tags.map(value => text(value, 100)).filter(Boolean).join(', ') : text(row.tags, 1000),
       unit_cost: unitCost,
       rrp: money(row.rrp ?? row.retail_price ?? row.msrp),
-    };
-    const identity = JSON.stringify(normalized);
-    if (seen.has(identity)) continue;
-    seen.add(identity);
-    products.push(normalized);
+    });
   }
 
   return { currency, prices_include_tax: pricesIncludeTax, products };

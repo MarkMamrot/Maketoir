@@ -1,18 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetImsSession, mockGenerateContent, mockCreateTrackedGoogleGenAI, mockGetConnection, mockImsQuery, mockReportRuntimeIssue } = vi.hoisted(() => ({
+const { mockGetImsSession, mockGenerateContent, mockCreateTrackedGoogleGenAI, mockGetConnection, mockReportRuntimeIssue } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGenerateContent: vi.fn(),
   mockCreateTrackedGoogleGenAI: vi.fn(),
   mockGetConnection: vi.fn(),
-  mockImsQuery: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
 vi.mock('@/lib/ai/billing/googleGateway', () => ({ createTrackedGoogleGenAI: mockCreateTrackedGoogleGenAI }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockGetConnection } }));
-vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 
 import { POST } from '../route';
@@ -29,7 +27,6 @@ describe('/api/ims/products/bulk-add-edit/extract', () => {
     process.env.GEMINI_API_KEY = 'test-key';
     mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier: 'Admin' });
     mockGetConnection.mockResolvedValue({ ai_document_extraction_model: 'gemini-test' });
-    mockImsQuery.mockResolvedValueOnce([{ name: 'Known Brand' }]).mockResolvedValueOnce([{ product_type: 'Stock' }]);
     mockGenerateContent.mockResolvedValue({
       text: JSON.stringify({ currency: 'AUD', prices_include_tax: 'inc_tax', products: [{ product_name: 'Widget', product_code: 'A-1', barcode: '00123', unit_cost: 11, rrp: 24.95, tax_rate: 0.1 }] }),
     });
@@ -52,8 +49,7 @@ describe('/api/ims/products/bulk-add-edit/extract', () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ success: true, extraction: { currency: 'AUD', products: [{ product_name: 'Widget', product_code: 'A-1', barcode: '00123', unit_cost: 10 }] } });
     expect(mockCreateTrackedGoogleGenAI).toHaveBeenCalledWith('test-key', expect.objectContaining({ businessId: 'business-1', operation: 'extract_bulk_products' }));
-    expect(mockImsQuery).toHaveBeenCalledTimes(2);
-    expect(mockImsQuery.mock.calls.every(([sql]) => !String(sql).includes('ims_product_variants'))).toBe(true);
+    expect(mockGenerateContent).toHaveBeenCalledOnce();
   });
 
   it('requires one source and does not call AI for invalid input', async () => {
