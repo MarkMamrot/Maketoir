@@ -28,7 +28,7 @@ describe('/api/ims/products/bulk-add-edit/extract', () => {
     mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier: 'Admin' });
     mockGetConnection.mockResolvedValue({ ai_document_extraction_model: 'gemini-test' });
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({ currency: 'AUD', prices_include_tax: 'inc_tax', products: [{ product_name: 'Widget', product_code: 'A-1', barcode: '00123', unit_cost: 11, rrp: 24.95, tax_rate: 0.1 }] }),
+      text: JSON.stringify({ currency: 'AUD', prices_include_tax: 'inc_tax', supplier_name: 'Acme Supply', products: [{ product_name: 'Widget', product_code: 'A-1', barcode: '00123', brand: 'Acme', unit_cost: 11, rrp: 24.95, tax_rate: 0.1 }] }),
     });
     mockCreateTrackedGoogleGenAI.mockReturnValue({ models: { generateContent: mockGenerateContent } });
   });
@@ -47,7 +47,7 @@ describe('/api/ims/products/bulk-add-edit/extract', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toMatchObject({ success: true, extraction: { currency: 'AUD', products: [{ product_name: 'Widget', product_code: 'A-1', barcode: '00123', unit_cost: 10 }] } });
+    expect(body).toMatchObject({ success: true, extraction: { currency: 'AUD', supplier_name: 'Acme Supply', products: [{ product_name: 'Widget', product_code: 'A-1', barcode: '00123', brand: 'Acme', supplier_name: 'Acme Supply', unit_cost: 10 }] } });
     expect(mockCreateTrackedGoogleGenAI).toHaveBeenCalledWith('test-key', expect.objectContaining({ businessId: 'business-1', operation: 'extract_bulk_products' }));
     expect(mockGenerateContent).toHaveBeenCalledOnce();
   });

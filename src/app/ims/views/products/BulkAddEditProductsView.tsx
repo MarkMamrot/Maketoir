@@ -836,6 +836,9 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   const applyProductExtraction = (extraction: BulkProductDocumentImport) => {
       const drafts = extraction.products.map(product => productFromExtraction(product, extraction.currency, suppliers));
+    const unmatchedSuppliers = [...new Set(extraction.products
+      .filter(product => product.supplier_name && !matchBulkProductSupplierId(product.supplier_name, suppliers))
+      .map(product => product.supplier_name))];
       setNewProducts(current => [...drafts, ...current]);
       const normalizedCurrency = extraction.currency.toUpperCase();
       const currencyField = `foreign_cost_${normalizedCurrency}`;
@@ -846,7 +849,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       setPendingExtraction(null);
       setImportFile(null);
       setImportText('');
-      setMessage(`${drafts.length} product line${drafts.length === 1 ? '' : 's'} extracted. Review the new rows before saving.`);
+      setMessage(`${drafts.length} product line${drafts.length === 1 ? '' : 's'} extracted. Review the new rows before saving.${unmatchedSuppliers.length ? ` Supplier ${unmatchedSuppliers.join(', ')} was extracted but did not exactly match an existing supplier contact.` : ''}`);
   };
 
   const confirmSourcePriceMapping = () => {
@@ -1176,7 +1179,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--sv-etch)' }}><div><h3 id="bulk-import-title" style={{ margin: 0, fontSize: 16, color: 'var(--sv-text-strong)' }}>{pendingExtraction ? 'Confirm Price Column' : 'Import Product Data'}</h3><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>{pendingExtraction ? 'Confirm what the source price means before product rows are created.' : 'AI creates editable new product rows without matching existing products.'}</div></div><button type="button" title="Close" aria-label="Close product import" disabled={importing} onClick={() => { setImportOpen(false); setPendingExtraction(null); }} style={{ ...buttonStyle, padding: 5, opacity: importing ? .5 : 1 }}><X size={16} /></button></div>
           <div style={{ padding: 14 }}>
             {pendingExtraction ? <>
-              <div style={{ marginBottom: 12, padding: '9px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>The column <strong>{pendingExtraction.source_price_column || 'Price'}</strong> contains values, but its heading does not identify them as buying cost or retail price.</div>
+              <div style={{ marginBottom: 12, padding: '9px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>{priceReviewReason === 'ambiguous_field' ? <>The column <strong>{pendingExtraction.source_price_column || 'Price'}</strong> contains values, but its heading does not identify them as buying cost or retail price.</> : priceReviewReason === 'cost_currency' ? <>Cost values were found, but their currency could not be confirmed.</> : priceReviewReason === 'cost_tax' ? <>AUD Cost values were found, but the source does not confirm whether they include GST.</> : <>RRP values were found, but their currency could not be confirmed. Solvantis RRP is stored in AUD.</>}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                 <label style={{ display: 'grid', gap: 4, color: 'var(--sv-text-dim)', fontSize: 11 }}><span>Use {pendingExtraction.source_price_column || 'Price'} as</span><select aria-label="Use source price as" value={sourcePriceMapping} onChange={event => { setSourcePriceMapping(event.target.value as BulkProductSourcePriceMapping); setImportError(''); }} style={inputStyle}><option value="">Choose a field...</option><option value="cost">Cost (GST Exc)</option><option value="rrp">RRP (GST Inc)</option><option value="ignore">Do not import this column</option></select></label>
                 {sourcePriceMapping !== 'ignore' && <label style={{ display: 'grid', gap: 4, color: 'var(--sv-text-dim)', fontSize: 11 }}><span>Currency</span><select aria-label="Source price currency" value={importCurrency} onChange={event => { setImportCurrency(event.target.value); setImportError(''); }} style={inputStyle}><option value="UNKNOWN">Choose currency...</option><option value="AUD">AUD</option>{FOREIGN_CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}</select></label>}
