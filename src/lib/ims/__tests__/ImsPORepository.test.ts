@@ -423,7 +423,7 @@ describe('ImsPORepo.changeStatus lifecycle boundaries', () => {
   });
 });
 
-describe('ImsPORepo.undoCompletedReceipt', () => {
+describe('ImsPORepo.undoReceipt', () => {
   const context = { operationKey: 'undo-po-42', requestHash: 'd'.repeat(64), actorId: 7, actorName: 'Alex' };
   const revision = '2026-08-11T10:00:00.000Z';
 
@@ -441,7 +441,7 @@ describe('ImsPORepo.undoCompletedReceipt', () => {
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
     mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
 
-    await expect(ImsPORepo.undoCompletedReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: true });
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: true });
 
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('payment_count'))).toBe(false);
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_purchase_order_items'))).toBe(false);
@@ -467,7 +467,7 @@ describe('ImsPORepo.undoCompletedReceipt', () => {
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
     mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
 
-    await expect(ImsPORepo.undoCompletedReceipt(42, 'biz-1', revision, context))
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context))
       .rejects.toThrow('Purchase orders with recorded payments cannot have receipts undone.');
 
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_purchase_order_items'))).toBe(false);
@@ -499,7 +499,7 @@ describe('ImsPORepo.undoCompletedReceipt', () => {
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
     mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
 
-    await expect(ImsPORepo.undoCompletedReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
 
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("WHERE (business_id = ? OR business_id = '') AND reference_type = 'purchase_order'"),
@@ -507,13 +507,83 @@ describe('ImsPORepo.undoCompletedReceipt', () => {
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("'po_unapproved','purchase_order'"),
-      ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'Mistaken PO receipt undone'],
+      ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'PO receipt undone'],
     );
     expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining("SET status = 'cancelled'"),
-      [42, 'biz-1'],
+      expect.stringContaining('SET status = ?'),
+      ['cancelled', 42, 'biz-1'],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('returns an In Progress PO to Confirmed and restores received units to incoming', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_purchase_orders')) {
+        return [[{
+          id: 42, status: 'partially_received', business_id: 'biz-1', location_id: 4,
+          is_historical: 0, updated_at: new Date(revision),
+        }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 90 }];
+      if (sql.includes('payment_count')) {
+        return [[{ payment_count: 0, supplier_credit_count: 0, shortfall_count: 0, backorder_count: 0, reserved_credit_count: 0 }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) {
+        return [[{ id: 11, po_id: 42, variant_id: 'v-1', qty_ordered: 8, qty_received: 3 }]];
+      }
+      if (sql.includes('SELECT location_id, qty_on_hand')) return [[{ location_id: 4, qty_on_hand: 7 }]];
+      if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 9 }]];
+      if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 3, receipt_unit_cost: 8 }]];
+      if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 4 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_incoming = qty_incoming + ?'),
+      [3, 3, 'v-1', 4],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET status = ?'),
+      ['confirmed', 42, 'biz-1'],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects receipt reversal when it would consume committed stock', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_purchase_orders')) {
+        return [[{
+          id: 42, status: 'partially_received', business_id: 'biz-1', location_id: 4,
+          is_historical: 0, updated_at: new Date(revision),
+        }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 90 }];
+      if (sql.includes('payment_count')) {
+        return [[{ payment_count: 0, supplier_credit_count: 0, shortfall_count: 0, backorder_count: 0, reserved_credit_count: 0 }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) {
+        return [[{ id: 11, po_id: 42, variant_id: 'v-1', qty_ordered: 8, qty_received: 3 }]];
+      }
+      if (sql.includes('SELECT location_id, qty_on_hand, qty_committed')) {
+        return [[{ location_id: 4, qty_on_hand: 7, qty_committed: 6 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context))
+      .rejects.toThrow('variant v-1 has 7 units on hand at the receiving location, but 6 are committed, leaving 1 available. 3 uncommitted units are required');
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE ims_stock'))).toBe(false);
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalledOnce();
   });
 });

@@ -9769,17 +9769,20 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     } catch (e: any) { alert(e.message); }
   };
 
-  const undoMistakenReceipt = async (po: any) => {
+  const undoReceipt = async (po: any) => {
     if (!po.updated_at) {
       alert('Refresh this purchase order before undoing its receipt.');
       return;
     }
+    const isInProgressUndo = po.status === 'partially_received';
     if (!confirm(
       `Undo the receipt for PO ${po.po_number}?\n\n` +
       `Use this only when the receipt was entered by mistake and the goods never arrived. ` +
-      (xeroAccountingEnabled
-        ? `This removes the exact received stock, cancels the PO, and attempts to void the linked accounting bill.\n\n`
-        : `This removes the exact received stock and cancels the PO.\n\n`) +
+      (isInProgressUndo
+        ? `This removes all quantities recorded as received, restores the full order to incoming, and returns the PO to Confirmed. The linked accounting bill is unchanged.\n\n`
+        : xeroAccountingEnabled
+          ? `This removes the exact received stock, cancels the PO, and attempts to void the linked accounting bill.\n\n`
+          : `This removes the exact received stock and cancels the PO.\n\n`) +
       `For goods that genuinely arrived and are now going back, use Supplier Return / Credit instead.`,
     )) return;
     try {
@@ -9812,7 +9815,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
 
   const createPoReplacement = async (po: any) => {
     const correctionNotice = po.status === 'complete' && xeroAccountingEnabled
-      ? `\n\nThis does not undo the original receipt or alter its Xero bill. Use Undo Mistaken Receipt or Supplier Return / Credit separately when the original needs correction.`
+      ? `\n\nThis does not undo the original receipt or alter its Xero bill. Use Undo Receipt or Supplier Return / Credit separately when the original needs correction.`
       : '';
     if (!confirm(`Create a replacement Draft from PO ${po.po_number}?${correctionNotice}`)) return;
     try {
@@ -9910,14 +9913,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       actions.push({ label: 'Receive', value: 'receive' }, { label: 'Edit', value: 'edit' });
     }
     if (!isAdvisor && po.status === 'partially_received') {
-      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Edit Details', value: 'edit' }, { label: 'Resolve Outstanding', value: 'resolve' });
+      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Edit Details', value: 'edit' }, { label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Resolve Outstanding', value: 'resolve' });
       if (fullyReceived) actions.push({ label: 'Mark Complete', value: 'complete' });
     }
     if (!isAdvisor && po.status === 'backordered') {
       actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && po.status === 'complete') {
-      actions.push({ label: 'Undo Mistaken Receipt', value: 'undo-receipt' }, { label: 'Supplier Return / Credit', value: 'supplier-return' });
+      actions.push({ label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Supplier Return / Credit', value: 'supplier-return' });
     }
     if (!isAdvisor && ['complete', 'cancelled'].includes(po.status)) {
       actions.push({ label: 'Create Replacement Draft', value: 'replacement' });
@@ -9958,7 +9961,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         changeStatus(po, 'confirmed');
         break;
       case 'undo-receipt':
-        undoMistakenReceipt(po);
+        undoReceipt(po);
         break;
       case 'supplier-return':
         createSupplierReturn(po);
@@ -10294,11 +10297,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                         </td>
                         )}
                         {isReceiving && (() => {
+                          const storedReceived = receivedQuantityForLine(item);
                           const received = Number(receiveQtys[item.variant_id] ?? 0);
                           const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
                           return (<>
                             <td style={{ padding: 4, width: 80 }}>
-                              <input data-testid={`po-line-${i}-received`} type="number" min="0" max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.min(Number(e.target.value), Number(item.qty_ordered)) }))} style={{ ...inputStyle, fontSize: 12 }} />
+                              <input data-testid={`po-line-${i}-received`} type="number" min={storedReceived} max={Number(item.qty_ordered)} step="any" value={received} title={storedReceived > 0 ? `${fmtQty(storedReceived)} already received and cannot be reduced here` : undefined} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.max(storedReceived, Math.min(Number(e.target.value), Number(item.qty_ordered))) }))} style={{ ...inputStyle, fontSize: 12 }} />
                             </td>
                             <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? '#fbbf24' : '#34d399', fontWeight: awaiting > 0 ? 600 : 400 }}>
                               {awaiting}
@@ -10504,7 +10508,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} onReplacement={() => createPoReplacement(viewModal.po)} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} onReplacement={() => createPoReplacement(viewModal.po)} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -10980,6 +10984,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   if (!isAdvisor && po.status === 'partially_received') {
     btns.push(<button key="continue" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Continue Receiving</button>);
     btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')} title="Amend outstanding quantities, add products, or update order details without changing received stock">Edit Details</button>);
+    btns.push(<button key="undo-receipt" data-testid={`po-undo-receipt-${po.id}`} onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Remove all quantities recorded as received and return this PO to Confirmed">Undo Receipt</button>);
     if (onResolve) btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('ghost', 'xs')}>Resolve Outstanding</button>);
     if ((po.items?.length ?? 0) > 0 && po.items.every((item: any) => Number(item.qty_received ?? 0) >= Number(item.qty_ordered))) {
       btns.push(<button key="complete" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>);
@@ -10990,7 +10995,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
     btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && po.status === 'complete') {
-    btns.push(<button key="undo-receipt" data-testid={`po-undo-receipt-${po.id}`} onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Mistaken Receipt</button>);
+    btns.push(<button key="undo-receipt" data-testid={`po-undo-receipt-${po.id}`} onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Receipt</button>);
     btns.push(<button key="supplier-return" onClick={onSupplierReturn} style={btnStyle('ghost', 'xs')} title="Create a linked supplier credit for goods returned or a financial correction">Supplier Return / Credit</button>);
   }
   if (!isAdvisor && ['complete', 'cancelled'].includes(po.status)) {
@@ -28175,9 +28180,9 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>After stock has been received</h3>
-        <p style={p}>Normal Edit never rewrites received quantities, receipt costs, or stock movements. A partial PO can continue receiving or use <strong>Resolve Outstanding</strong>. For a Completed PO, use <strong>Undo Mistaken Receipt</strong> only when the receipt never physically happened and all stock and Xero checks permit an exact reversal. Genuine goods going back require a Supplier Return / Credit.</p>
+        <p style={p}>Normal Edit never rewrites received quantities, receipt costs, or stock movements. An In Progress PO can continue receiving, use <strong>Undo Receipt</strong>, or use <strong>Resolve Outstanding</strong>. Use <strong>Undo Receipt</strong> only when the recorded receipt never physically happened and all stock and Xero checks permit an exact reversal. Genuine goods going back require a Supplier Return / Credit.</p>
         <ul style={ul}>
-          <li><strong>Wrong red receipt that never happened</strong> — Undo Mistaken Receipt, then create a replacement Draft for the correct blue order.</li>
+          <li><strong>Wrong red receipt that never happened</strong> — Undo Receipt, then create a replacement Draft for the correct blue order.</li>
           <li><strong>Red goods genuinely arrived and are returned</strong> — Create a linked Supplier Return / Credit, then create a replacement Draft if blue goods are being ordered.</li>
           <li><strong>Replacement alone</strong> — Creates the next commercial Draft. It never reverses source stock, payments, or the Xero bill.</li>
         </ul>

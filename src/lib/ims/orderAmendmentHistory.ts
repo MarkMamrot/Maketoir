@@ -140,7 +140,7 @@ export async function getOrderActivityHistory(
       entryKey: `amendment:${row.id}`,
       activityType: isReceiptUndo ? 'receipt_undo' : 'amendment',
       ...(isReceiptUndo ? {
-        title: 'Mistaken receipt undone',
+        title: 'Receipt undone',
         summary: 'Received stock was reversed and the purchase order was cancelled',
         state: String(afterHeader?.status ?? 'cancelled'),
       } : {}),

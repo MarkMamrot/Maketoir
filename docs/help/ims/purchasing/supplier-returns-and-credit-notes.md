@@ -1,5 +1,5 @@
 ---
-{"id":"ims-supplier-returns-credit-notes","title":"Supplier Returns and Credit Notes","audiences":["ims"],"capability":"orders","screen":"Purchasing > Supplier Credit Notes","product":"ims","format":"task","parentId":"ims-supplier-work","contexts":["supplier-credit-notes"],"contextSections":{"supplier-credit-notes":"Step-by-step"},"relatedTopics":["ims-supplier-work","ims-purchase-orders","ims-po-receiving-resolution","ims-inventory-costing"],"order":13,"summary":"Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.","lastReviewed":"2026-08-27","owner":"inventory"}
+{"id":"ims-supplier-returns-credit-notes","title":"Supplier Returns and Credit Notes","audiences":["ims"],"capability":"orders","screen":"Purchasing > Supplier Credit Notes","product":"ims","format":"task","parentId":"ims-supplier-work","contexts":["supplier-credit-notes"],"contextSections":{"supplier-credit-notes":"Step-by-step"},"relatedTopics":["ims-supplier-work","ims-purchase-orders","ims-po-receiving-resolution","ims-inventory-costing"],"order":13,"summary":"Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.","lastReviewed":"2026-09-10","owner":"inventory"}
 ---
 # Supplier Returns and Credit Notes
 
@@ -21,7 +21,7 @@ Use a Supplier Credit Note when a supplier owes your business money, with or wit
 | Wrong colour sent back | Yes | On hand decreases | Credit recorded |
 | Supplier rebate | No | No stock change | Credit recorded |
 | Invoice overcharge correction | No | No stock change | Credit recorded |
-| Receipt entered but goods never arrived | No supplier credit note | Use Undo Mistaken Receipt if available | Original receipt correction |
+| Receipt entered but goods never arrived | No supplier credit note | Use Undo Receipt if available | Original receipt correction |
 
 > **Important:** **Return stock** means goods are leaving your business. Despite the field's older technical name, selecting it reduces stock; clearing it records a money-only credit.
 
@@ -55,7 +55,7 @@ Enter the tax rate as a percentage, such as **10** for 10%. With **Tax exclusive
 
 | Question | Yes | No |
 |---|---|---|
-| Did the goods physically arrive? | Continue | Consider Undo Mistaken Receipt instead |
+| Did the goods physically arrive? | Continue | Consider Undo Receipt instead |
 | Are goods now leaving your location? | Select Return stock | Clear Return stock |
 | Is the credit linked to a completed PO? | Start from that PO | Create a standalone Supplier Credit Note |
 | Has the Draft been checked against supplier evidence? | Complete | Leave as Draft |

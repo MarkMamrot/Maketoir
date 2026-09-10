@@ -177,7 +177,7 @@ describe('getOrderAmendmentHistory', () => {
       activityType: 'credit', title: 'Supplier Return / Credit linked',
       documentType: 'supplier_credit_note', documentId: 61, documentNumber: 'SCN-0061',
     }, {
-      activityType: 'receipt_undo', title: 'Mistaken receipt undone', state: 'cancelled',
+      activityType: 'receipt_undo', title: 'Receipt undone', state: 'cancelled',
     }]);
     expect(mockImsQuery).toHaveBeenLastCalledWith(
       expect.stringContaining('replacement_of_po_id'),

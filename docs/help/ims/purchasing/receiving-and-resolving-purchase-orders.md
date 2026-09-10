@@ -11,7 +11,7 @@ Use this guide to record a full or partial delivery once, then make a clear deci
 - Leave a partial PO open when the supplier will deliver soon.
 - Cancel an outstanding remainder when it will not arrive.
 - Move a remainder to a held backorder when it should be kept as separate future purchasing work.
-- Use Undo Mistaken Receipt only when the recorded delivery never happened.
+- Use Undo Receipt only when the recorded delivery never happened.
 
 ## At a glance
 
@@ -21,7 +21,7 @@ Use this guide to record a full or partial delivery once, then make a clear deci
 | Some arrived; balance is coming soon | Receive actual units and leave partial | Actual units added; balance remains outstanding |
 | Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |
 | Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |
-| Receipt was entered but no goods arrived | Undo Mistaken Receipt, if checks allow | Exact mistaken receipt is removed |
+| Receipt was entered but no goods arrived | Undo Receipt, if checks allow | Exact recorded receipt is removed |
 
 > **Important:** Enter the total received quantity shown for the line, including earlier receipts. Solvantis records only the increase from the quantity already received. Never repeat an earlier delivery to fix an accounting warning.
 
@@ -41,7 +41,7 @@ Supplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax
 1. Open **Purchasing > Purchase Orders** and find the Confirmed or Partially Received PO.
 2. Choose **Receive** or **Continue Receiving**.
 3. Compare each product and variant with the delivery.
-4. Enter the cumulative received quantity for each line.
+4. Enter the cumulative received quantity for each line. A quantity saved by an earlier receipt is the minimum and cannot be reduced through Continue Receiving.
 5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.
 	When continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.
    Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.
@@ -80,7 +80,7 @@ The earlier receipt is not repeated by any resolution choice. A held backorder s
 | Complete is blocked | Supplier invoice number is blank | Enter the invoice number and try again |
 | Stock is correct but Xero failed | Receipt completed before accounting sync | Repair or retry Xero; do not receive again |
 | Resolve Outstanding offers financial choices | Paid or accounting records need a separate settlement decision | Review the preview and use the supplier reference or evidence requested on screen |
-| Undo Mistaken Receipt is unavailable | Later stock or accounting activity prevents an exact reversal | Use Supplier Return / Credit for genuine returned goods, or review the blocking activity |
+| Undo Receipt is unavailable or reports committed stock | Later stock or accounting activity means the receiving location does not have enough uncommitted units for an exact reversal | Release the related sales order or transfer commitment and retry, or use Supplier Return / Credit for genuine returned goods |
 
 ## Worked examples
 

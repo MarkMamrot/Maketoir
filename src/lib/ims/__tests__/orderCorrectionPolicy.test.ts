@@ -22,6 +22,10 @@ describe('assessPurchaseOrderUndo', () => {
     expect(assessPurchaseOrderUndo(eligible)).toEqual({ allowed: true, blockers: [] });
   });
 
+  it('allows an In Progress PO receipt to be undone', () => {
+    expect(assessPurchaseOrderUndo({ ...eligible, status: 'partially_received' })).toEqual({ allowed: true, blockers: [] });
+  });
+
   it('reports lifecycle, dependency, stock, and valuation blockers together', () => {
     const assessment = assessPurchaseOrderUndo({
       ...eligible,

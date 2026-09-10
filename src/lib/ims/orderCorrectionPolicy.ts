@@ -40,7 +40,9 @@ export function assessPurchaseOrderUndo(context: PurchaseOrderUndoContext): Purc
   const blockers: PurchaseOrderUndoAssessment['blockers'] = [];
   const block = (code: PurchaseOrderUndoBlocker, message: string) => blockers.push({ code, message });
 
-  if (context.status !== 'complete') block('not_complete', 'Only a completed purchase order receipt can be undone.');
+  if (!['complete', 'partially_received'].includes(context.status)) {
+    block('not_complete', 'Only an In Progress or Complete purchase order receipt can be undone.');
+  }
   if (context.isHistorical) block('historical', 'Historical purchase orders cannot have receipts undone.');
   if (!context.expectedUpdatedAt || context.expectedUpdatedAt !== context.currentUpdatedAt) {
     block('stale_revision', 'The purchase order changed after it was loaded. Refresh and review it before retrying.');

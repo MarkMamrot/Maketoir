@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
-  ImsPORepo: { get: mocks.get, undoCompletedReceipt: mocks.undo },
+  ImsPORepo: { get: mocks.get, undoReceipt: mocks.undo },
 }));
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: mocks.refresh }));
 vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceEditState: mocks.xeroState }));
@@ -22,6 +22,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliationIssue: mocks.reconcile }));
 
 import { POST } from '../route';
+import { OrderCorrectionConflict } from '@/lib/ims/orderCorrectionPolicy';
 
 const params = { params: { id: '42' } };
 const revision = '2026-08-11T10:00:00.000Z';
@@ -111,6 +112,56 @@ describe('POST /api/ims/purchase-orders/[id]/undo-receipt', () => {
       actorName: 'Alex',
     });
     expect(mocks.refresh).toHaveBeenCalledWith(['v-1']);
+  });
+
+  it('allows an In Progress receipt undo without voiding its unchanged Xero bill', async () => {
+    mocks.get
+      .mockResolvedValueOnce({
+        id: 42,
+        status: 'partially_received',
+        is_historical: 0,
+        updated_at: revision,
+        xero_bill_id: 'xero-1',
+        items: [{ variant_id: 'v-1' }],
+      })
+      .mockResolvedValueOnce({
+        id: 42,
+        status: 'confirmed',
+        updated_at: '2026-08-11T10:01:00.000Z',
+        xero_bill_id: 'xero-1',
+        items: [{ variant_id: 'v-1' }],
+      });
+    mocks.xeroState.mockResolvedValue({
+      status: 'DRAFT', amountPaid: 0, amountCredited: 0, documentDate: '2026-08-11',
+      periodLockDate: null, endOfYearLockDate: null,
+    });
+
+    const response = await POST(request({ operationKey: 'undo-42', expectedUpdatedAt: revision }), params);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true, replayed: false });
+    expect(mocks.undo).toHaveBeenCalledOnce();
+    expect(mocks.xeroVoid).not.toHaveBeenCalled();
+    expect(mocks.refresh).toHaveBeenCalledWith(['v-1']);
+  });
+
+  it('returns the committed-stock failure reason to the client', async () => {
+    const message = 'Cannot reverse PO receipt: variant v-1 has 7 units on hand at the receiving location, but 6 are committed, leaving 1 available. 3 uncommitted units are required. Release the related sales order or transfer commitments and try again.';
+    mocks.undo.mockRejectedValue(new OrderCorrectionConflict([{
+      code: 'insufficient_stock',
+      message,
+    }]));
+
+    const response = await POST(request({ operationKey: 'undo-42', expectedUpdatedAt: revision }), params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: message,
+      code: 'order_correction_conflict',
+      blockers: [{ code: 'insufficient_stock', message }],
+    });
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it('preserves local success and records recovery evidence when Xero void fails', async () => {

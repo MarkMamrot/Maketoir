@@ -52,7 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }).catch(() => {});
       }
     }
-    if (po.status !== 'cancelled') {
+    if (!['cancelled', 'confirmed'].includes(po.status)) {
       const assessment = assessPurchaseOrderUndo({
         status: po.status,
         isHistorical: !!po.is_historical,
@@ -75,7 +75,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       poId,
       expectedUpdatedAt: normalizedRevision(expectedUpdatedAt),
     })).digest('hex');
-    const result = await ImsPORepo.undoCompletedReceipt(poId, businessId, expectedUpdatedAt, {
+    const result = await ImsPORepo.undoReceipt(poId, businessId, expectedUpdatedAt, {
       operationKey,
       requestHash,
       expectedUpdatedAt,
@@ -88,7 +88,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (variantIds.length) refreshVariantCache(variantIds).catch(() => {});
 
     let xeroWarning: string | null = null;
-    if (po.xero_bill_id) {
+    if (po.xero_bill_id && po.status === 'complete') {
       try {
         xeroWarning = await triggerPOXeroVoid(businessId, poId);
       } catch (error) {

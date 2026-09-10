@@ -1167,6 +1167,7 @@ async function reversePurchaseOrderReceiptTx(
   conn: any,
   po: any,
   items: ImsPOItem[],
+  options: { restoreIncoming?: boolean } = {},
 ): Promise<void> {
   const grouped = new Map<string, number>();
   for (const item of items) {
@@ -1178,14 +1179,23 @@ async function reversePurchaseOrderReceiptTx(
   for (const [variantId, receivedQty] of grouped) {
     if (receivedQty <= 0) continue;
     const [stockRows] = await conn.execute<any[]>(
-      `SELECT location_id, qty_on_hand FROM ims_stock WHERE variant_id = ? FOR UPDATE`,
+      `SELECT location_id, qty_on_hand, qty_committed FROM ims_stock WHERE variant_id = ? FOR UPDATE`,
       [variantId],
     );
-    const locationQty = Number(stockRows.find((row: any) => Number(row.location_id) === Number(po.location_id))?.qty_on_hand ?? 0);
+    const locationStock = stockRows.find((row: any) => Number(row.location_id) === Number(po.location_id));
+    const locationQty = Number(locationStock?.qty_on_hand ?? 0);
     if (locationQty + 0.0001 < receivedQty) {
       throw new OrderCorrectionConflict([{
         code: 'insufficient_stock',
         message: `Cannot reverse PO receipt: variant ${variantId} has ${locationQty} units at the receiving location, but ${receivedQty} received units must be reversed. Return or adjust the stock first.`,
+      }]);
+    }
+    const committedQty = Number(locationStock?.qty_committed ?? 0);
+    const availableQty = locationQty - committedQty;
+    if (availableQty + 0.0001 < receivedQty) {
+      throw new OrderCorrectionConflict([{
+        code: 'insufficient_stock',
+        message: `Cannot reverse PO receipt: variant ${variantId} has ${locationQty} units on hand at the receiving location, but ${committedQty} are committed, leaving ${availableQty} available. ${receivedQty} uncommitted units are required. Release the related sales order or transfer commitments and try again.`,
       }]);
     }
     const [[variantRow]] = await conn.execute<any[]>(
@@ -1235,8 +1245,11 @@ async function reversePurchaseOrderReceiptTx(
 
   for (const plan of plans) {
     await conn.execute(
-      `UPDATE ims_stock SET qty_on_hand = qty_on_hand - ? WHERE variant_id = ? AND location_id = ?`,
-      [plan.receivedQty, plan.variantId, po.location_id],
+      `UPDATE ims_stock
+          SET qty_on_hand = qty_on_hand - ?,
+              qty_incoming = qty_incoming + ?
+        WHERE variant_id = ? AND location_id = ?`,
+      [plan.receivedQty, options.restoreIncoming ? plan.receivedQty : 0, plan.variantId, po.location_id],
     );
     await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [plan.newAvg, plan.variantId]);
     await conn.execute(`UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`, [plan.newAvg, plan.variantId]);
@@ -1248,7 +1261,7 @@ async function reversePurchaseOrderReceiptTx(
       `INSERT INTO ims_stock_movements
          (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,notes)
        VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?)`,
-      [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, 'Mistaken PO receipt undone'],
+      [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, 'PO receipt undone'],
     );
   }
   await conn.execute(`UPDATE ims_purchase_order_items SET qty_received = 0 WHERE po_id = ?`, [po.id]);
@@ -2387,7 +2400,7 @@ export const ImsPORepo = {
     }
   },
 
-  async undoCompletedReceipt(
+  async undoReceipt(
     id: number,
     businessId: string,
     expectedUpdatedAt: string,
@@ -2450,16 +2463,19 @@ export const ImsPORepo = {
         `SELECT * FROM ims_purchase_order_items WHERE po_id = ? FOR UPDATE`,
         [id],
       );
-      await reversePurchaseOrderReceiptTx(conn, po, itemRows as ImsPOItem[]);
+      const resultingStatus = po.status === 'partially_received' ? 'confirmed' : 'cancelled';
+      await reversePurchaseOrderReceiptTx(conn, po, itemRows as ImsPOItem[], {
+        restoreIncoming: resultingStatus === 'confirmed',
+      });
       await conn.execute(
-        `UPDATE ims_purchase_orders SET status = 'cancelled' WHERE id = ? AND business_id = ?`,
-        [id, businessId],
+        `UPDATE ims_purchase_orders SET status = ? WHERE id = ? AND business_id = ?`,
+        [resultingStatus, id, businessId],
       );
       await completeOrderAmendment(
         conn,
         businessId,
         amendment.amendmentId,
-        { ...po, status: 'cancelled', correction: 'undo_mistaken_receipt' },
+        { ...po, status: resultingStatus, correction: 'undo_receipt' },
         [],
       );
       await conn.commit();

@@ -88,12 +88,14 @@ Choose the action that matches what happened:
 
 | Situation | Use | Do not use |
 |---|---|---|
-| The receipt was entered, but the goods never arrived | **Undo Mistaken Receipt**, when offered | Supplier Return / Credit |
-| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Mistaken Receipt |
+| The receipt was entered, but the goods never arrived | **Undo Receipt**, when offered | Supplier Return / Credit |
+| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Receipt |
 | You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |
 | Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |
 
 A replacement is a new Draft. It does not undo the original receipt or change the original accounting record.
+
+**Undo Receipt** is available for In Progress and Complete POs when the exact received stock and valuation can be reversed and no dependent payment, supplier credit, shortfall resolution, child workflow, or unsafe Xero state blocks it. The receiving location must still have enough uncommitted stock to remove every received unit. If stock has been sold, transferred, adjusted, or committed to a sales order or transfer, Solvantis blocks the undo and explains the quantity that is unavailable. Release any commitments first, or use **Supplier Return / Credit** when goods genuinely arrived and are being returned. For an In Progress PO, Undo Receipt clears all received quantities, restores them to incoming, and returns the PO to Confirmed without changing its linked Xero bill. For a Complete PO, it cancels the PO and attempts to void the linked Xero bill.
 
 ## Troubleshooting
 
@@ -102,6 +104,7 @@ A replacement is a new Draft. It does not undo the original receipt or change th
 | Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |
 | Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |
 | Some fields are locked during Edit Details | Received stock or valuation already exists | Amend only outstanding quantities and unreceived lines; use Resolve Outstanding, Supplier Return / Credit or Replacement for completed activity |
+| Undo Receipt says stock is committed | A sales order or transfer reserves some of the stock at the receiving location | Release or complete the related commitment, then retry; use Supplier Return / Credit if the goods genuinely arrived |
 | Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |
 
 ## Worked examples

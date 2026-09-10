@@ -805,7 +805,7 @@
       ],
       "order": 13,
       "summary": "Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.",
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/supplier-returns-and-credit-notes.md"
     },
@@ -6045,7 +6045,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "Choose the action that matches what happened:\n\n| Situation | Use | Do not use |\n|---|---|---|\n| The receipt was entered, but the goods never arrived | **Undo Mistaken Receipt**, when offered | Supplier Return / Credit |\n| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Mistaken Receipt |\n| You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |\n| Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |\n\nA replacement is a new Draft. It does not undo the original receipt or change the original accounting record."
+      "content": "Choose the action that matches what happened:\n\n| Situation | Use | Do not use |\n|---|---|---|\n| The receipt was entered, but the goods never arrived | **Undo Receipt**, when offered | Supplier Return / Credit |\n| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Receipt |\n| You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |\n| Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |\n\nA replacement is a new Draft. It does not undo the original receipt or change the original accounting record.\n\n**Undo Receipt** is available for In Progress and Complete POs when the exact received stock and valuation can be reversed and no dependent payment, supplier credit, shortfall resolution, child workflow, or unsafe Xero state blocks it. The receiving location must still have enough uncommitted stock to remove every received unit. If stock has been sold, transferred, adjusted, or committed to a sales order or transfer, Solvantis blocks the undo and explains the quantity that is unavailable. Release any commitments first, or use **Supplier Return / Credit** when goods genuinely arrived and are being returned. For an In Progress PO, Undo Receipt clears all received quantities, restores them to incoming, and returns the PO to Confirmed without changing its linked Xero bill. For a Complete PO, it cancels the PO and attempts to void the linked Xero bill."
     },
     {
       "id": "ims-purchase-orders:8",
@@ -6066,7 +6066,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |\n| Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |\n| Some fields are locked during Edit Details | Received stock or valuation already exists | Amend only outstanding quantities and unreceived lines; use Resolve Outstanding, Supplier Return / Credit or Replacement for completed activity |\n| Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |"
+      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |\n| Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |\n| Some fields are locked during Edit Details | Received stock or valuation already exists | Amend only outstanding quantities and unreceived lines; use Resolve Outstanding, Supplier Return / Credit or Replacement for completed activity |\n| Undo Receipt says stock is committed | A sales order or transfer reserves some of the stock at the receiving location | Release or complete the related commitment, then retry; use Supplier Return / Credit if the goods genuinely arrived |\n| Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |"
     },
     {
       "id": "ims-purchase-orders:9",
@@ -6127,7 +6127,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "- Receive the cumulative quantity physically delivered for each line.\n- Leave a partial PO open when the supplier will deliver soon.\n- Cancel an outstanding remainder when it will not arrive.\n- Move a remainder to a held backorder when it should be kept as separate future purchasing work.\n- Use Undo Mistaken Receipt only when the recorded delivery never happened."
+      "content": "- Receive the cumulative quantity physically delivered for each line.\n- Leave a partial PO open when the supplier will deliver soon.\n- Cancel an outstanding remainder when it will not arrive.\n- Move a remainder to a held backorder when it should be kept as separate future purchasing work.\n- Use Undo Receipt only when the recorded delivery never happened."
     },
     {
       "id": "ims-po-receiving-resolution:3",
@@ -6147,7 +6147,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "| Situation | Action | Stock result |\n|---|---|---|\n| Everything arrived | Receive all and complete | All entered units are added once |\n| Some arrived; balance is coming soon | Receive actual units and leave partial | Actual units added; balance remains outstanding |\n| Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |\n| Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |\n| Receipt was entered but no goods arrived | Undo Mistaken Receipt, if checks allow | Exact mistaken receipt is removed |\n\n> **Important:** Enter the total received quantity shown for the line, including earlier receipts. Solvantis records only the increase from the quantity already received. Never repeat an earlier delivery to fix an accounting warning."
+      "content": "| Situation | Action | Stock result |\n|---|---|---|\n| Everything arrived | Receive all and complete | All entered units are added once |\n| Some arrived; balance is coming soon | Receive actual units and leave partial | Actual units added; balance remains outstanding |\n| Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |\n| Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |\n| Receipt was entered but no goods arrived | Undo Receipt, if checks allow | Exact recorded receipt is removed |\n\n> **Important:** Enter the total received quantity shown for the line, including earlier receipts. Solvantis records only the increase from the quantity already received. Never repeat an earlier delivery to fix an accounting warning."
     },
     {
       "id": "ims-po-receiving-resolution:4",
@@ -6187,7 +6187,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "1. Open **Purchasing > Purchase Orders** and find the Confirmed or Partially Received PO.\n2. Choose **Receive** or **Continue Receiving**.\n3. Compare each product and variant with the delivery.\n4. Enter the cumulative received quantity for each line.\n5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.\n\tWhen continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.\n   Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.\n6. For a short delivery, save the actual receipt and keep the PO Partially Received unless the balance is being resolved now.\n7. To finish with a shortfall during receipt, choose the completion option that creates a held backorder only after reviewing the confirmation.\n8. Enter the supplier invoice number before marking the PO Complete.\n9. Reopen the PO and confirm received, outstanding, stock and Xero status separately."
+      "content": "1. Open **Purchasing > Purchase Orders** and find the Confirmed or Partially Received PO.\n2. Choose **Receive** or **Continue Receiving**.\n3. Compare each product and variant with the delivery.\n4. Enter the cumulative received quantity for each line. A quantity saved by an earlier receipt is the minimum and cannot be reduced through Continue Receiving.\n5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.\n\tWhen continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.\n   Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.\n6. For a short delivery, save the actual receipt and keep the PO Partially Received unless the balance is being resolved now.\n7. To finish with a shortfall during receipt, choose the completion option that creates a held backorder only after reviewing the confirmation.\n8. Enter the supplier invoice number before marking the PO Complete.\n9. Reopen the PO and confirm received, outstanding, stock and Xero status separately."
     },
     {
       "id": "ims-po-receiving-resolution:6",
@@ -6247,7 +6247,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-09-10",
-      "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| A line appears to include an earlier receipt | The field shows cumulative received quantity | Keep the earlier quantity and add only what arrived now |\n| Order and cost fields are locked during Continue Receiving | Earlier quantities have already been received and valued | Enter only the new cumulative received quantities; use Resolve Outstanding when the remaining order itself must change |\n| Complete is blocked | Supplier invoice number is blank | Enter the invoice number and try again |\n| Stock is correct but Xero failed | Receipt completed before accounting sync | Repair or retry Xero; do not receive again |\n| Resolve Outstanding offers financial choices | Paid or accounting records need a separate settlement decision | Review the preview and use the supplier reference or evidence requested on screen |\n| Undo Mistaken Receipt is unavailable | Later stock or accounting activity prevents an exact reversal | Use Supplier Return / Credit for genuine returned goods, or review the blocking activity |"
+      "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| A line appears to include an earlier receipt | The field shows cumulative received quantity | Keep the earlier quantity and add only what arrived now |\n| Order and cost fields are locked during Continue Receiving | Earlier quantities have already been received and valued | Enter only the new cumulative received quantities; use Resolve Outstanding when the remaining order itself must change |\n| Complete is blocked | Supplier invoice number is blank | Enter the invoice number and try again |\n| Stock is correct but Xero failed | Receipt completed before accounting sync | Repair or retry Xero; do not receive again |\n| Resolve Outstanding offers financial choices | Paid or accounting records need a separate settlement decision | Review the preview and use the supplier reference or evidence requested on screen |\n| Undo Receipt is unavailable or reports committed stock | Later stock or accounting activity means the receiving location does not have enough uncommitted units for an exact reversal | Release the related sales order or transfer commitment and retry, or use Supplier Return / Credit for genuine returned goods |"
     },
     {
       "id": "ims-po-receiving-resolution:9",
@@ -6284,7 +6284,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "Use a Supplier Credit Note when a supplier owes your business money, with or without physical goods leaving a location."
     },
     {
@@ -6302,7 +6302,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "- Start from a completed PO for a linked return when possible.\n- Keep **Return stock** selected for goods physically sent back to the supplier.\n- Clear **Return stock** for a rebate, overcharge or other money-only credit.\n- Save a Draft for review, then Complete it to apply the stock and supplier-credit result.\n- Review Xero and attachment status separately after completion."
     },
     {
@@ -6320,8 +6320,8 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
-      "content": "| Event | Return stock? | Stock result | Supplier value result |\n|---|---|---|---|\n| Damaged goods sent back | Yes | On hand decreases | Credit recorded |\n| Wrong colour sent back | Yes | On hand decreases | Credit recorded |\n| Supplier rebate | No | No stock change | Credit recorded |\n| Invoice overcharge correction | No | No stock change | Credit recorded |\n| Receipt entered but goods never arrived | No supplier credit note | Use Undo Mistaken Receipt if available | Original receipt correction |\n\n> **Important:** **Return stock** means goods are leaving your business. Despite the field's older technical name, selecting it reduces stock; clearing it records a money-only credit."
+      "lastReviewed": "2026-09-10",
+      "content": "| Event | Return stock? | Stock result | Supplier value result |\n|---|---|---|---|\n| Damaged goods sent back | Yes | On hand decreases | Credit recorded |\n| Wrong colour sent back | Yes | On hand decreases | Credit recorded |\n| Supplier rebate | No | No stock change | Credit recorded |\n| Invoice overcharge correction | No | No stock change | Credit recorded |\n| Receipt entered but goods never arrived | No supplier credit note | Use Undo Receipt if available | Original receipt correction |\n\n> **Important:** **Return stock** means goods are leaving your business. Despite the field's older technical name, selecting it reduces stock; clearing it records a money-only credit."
     },
     {
       "id": "ims-supplier-returns-credit-notes:4",
@@ -6338,7 +6338,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "- [ ] Confirm whether goods physically arrived and whether they are now leaving.\n- [ ] Open the completed PO and use **Supplier Return / Credit** when the credit relates to that receipt.\n- [ ] Confirm the supplier, location, variants and returnable quantities.\n- [ ] Obtain the supplier's credit reference or keep a clear evidence note.\n- [ ] Check currency, exchange rate, tax treatment and tax-exclusive unit cost.\n- [ ] Attach the supplier document when available.\n\nSupplier credit lines use positive quantities and values in the form, even if the supplier's PDF prints them as negatives. Solvantis converts entered negative values to positive credit-note values.\n\nEnter the tax rate as a percentage, such as **10** for 10%. With **Tax exclusive**, tax is added to the entered unit cost. With **Tax inclusive**, tax is extracted from the entered unit cost and the total stays unchanged. **No tax** ignores the line tax rate. Changing the treatment updates the subtotal, tax and credit value without rewriting the entered unit cost."
     },
     {
@@ -6356,7 +6356,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "1. For received goods, open the completed PO and choose **Supplier Return / Credit**. For a standalone rebate, open **Purchasing > Supplier Credit Notes** and select **New Supplier Credit Note**.\n2. Confirm the supplier, location, date and reference.\n3. Enter the supplier's credit reference when available.\n4. Review each product, quantity, tax-exclusive unit cost and tax rate.\n5. Keep **Return stock** selected only on lines for goods physically going back.\n6. Clear **Return stock** on money-only lines such as rebates and overcharge corrections.\n7. Review the displayed stock quantity to be removed and the total credit value.\n8. Select **Create Draft**, attach supporting files and review the Draft.\n9. Complete the credit note when the stock and money treatment are correct.\n10. Check Xero status. If it failed, retry the Xero sync without completing the credit again."
     },
     {
@@ -6374,8 +6374,8 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
-      "content": "| Question | Yes | No |\n|---|---|---|\n| Did the goods physically arrive? | Continue | Consider Undo Mistaken Receipt instead |\n| Are goods now leaving your location? | Select Return stock | Clear Return stock |\n| Is the credit linked to a completed PO? | Start from that PO | Create a standalone Supplier Credit Note |\n| Has the Draft been checked against supplier evidence? | Complete | Leave as Draft |\n| Did only Xero fail? | Retry Xero | Investigate the operational document first |"
+      "lastReviewed": "2026-09-10",
+      "content": "| Question | Yes | No |\n|---|---|---|\n| Did the goods physically arrive? | Continue | Consider Undo Receipt instead |\n| Are goods now leaving your location? | Select Return stock | Clear Return stock |\n| Is the credit linked to a completed PO? | Start from that PO | Create a standalone Supplier Credit Note |\n| Has the Draft been checked against supplier evidence? | Complete | Leave as Draft |\n| Did only Xero fail? | Retry Xero | Investigate the operational document first |"
     },
     {
       "id": "ims-supplier-returns-credit-notes:7",
@@ -6392,7 +6392,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "| Status or action | Meaning |\n|---|---|\n| Draft | Editable; no stock has been removed |\n| Complete | Selected return lines reduce stock and the supplier credit is recorded |\n| Cancelled | Retained for reference; no stock change is applied |\n| Reverse Mistaken Completion | Restores stock previously removed and records a correcting result |\n| Void in Xero | Voids the linked Xero credit when available; it is separate from the IMS stock correction |"
     },
     {
@@ -6410,7 +6410,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "| Detail | Amount |\n|---|---:|\n| Supplier unit price including 10% GST | $55.00 |\n| Tax-exclusive unit cost | $50.00 |\n| GST per unit | $5.00 |\n| Two units returned: credit before GST | $100.00 |\n| GST on credit | $10.00 |\n| Total supplier credit | $110.00 |\n\nStock value is reduced using the tax-exclusive cost basis. Selling prices remain tax-inclusive and do not determine the supplier credit."
     },
     {
@@ -6428,7 +6428,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "Map **Supplier Credit Notes (Non-stock lines)** to a Xero **Direct Costs** or **Expense** account. Use an account such as **Purchases**, or create a dedicated **Supplier Credits - Non-stock** account when you want these adjustments reported separately. Xero handles the reduction in Accounts Payable; this mapping controls the account used for the credit-note line.\n\nFor example, a supplier refunds $55 including $5 GST for freight, and no goods are returned. The credit reduces the mapped expense by $50, reduces GST by $5 and reduces Accounts Payable by $55. Stock quantity and inventory value do not change. Lines for physical goods returned to the supplier use the Inventory Asset mapping instead."
     },
     {
@@ -6446,7 +6446,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Remaining returnable quantity is lower than expected | Earlier linked returns already used part of the receipt | Review the PO and earlier supplier credit notes |\n| Stock would reduce for a rebate | Return stock is selected | Clear it before completing the Draft |\n| A zero quantity cannot be saved | Credit-note quantities must be non-zero | Remove the line or enter the actual positive quantity |\n| The credit is complete but Xero failed | The IMS result completed separately | Use Retry Xero Sync; do not complete another credit note |\n| Completion was genuinely entered by mistake | A reversing correction is needed | Use Reverse Mistaken Completion and provide the reason |"
     },
     {
@@ -6464,7 +6464,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-10",
       "content": "### Return damaged stock\n\nA Sydney store received 12 lamps at $50 each before GST. Two are damaged and go back. Staff start from the completed PO, enter quantity 2, keep **Return stock** selected and record the supplier's $110 tax-inclusive credit. Completion removes 2 lamps and records a $100 credit before GST plus $10 GST.\n\n### Record a freight overcharge\n\nA supplier gives a $44 credit for freight charged twice. No goods leave the store. Staff create a Supplier Credit Note, enter the agreed tax treatment and clear **Return stock**. Completion records the $44 supplier credit and leaves all product quantities unchanged."
     },
     {
