@@ -2621,6 +2621,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                     <option value="">No default</option>
                     {earlyPaymentRules.filter(rule => Number(rule.is_active) || Number(rule.id) === Number(f.customer_early_payment_discount_rule_id)).map(rule => <option key={rule.id} value={rule.id}>{rule.name}{rule.is_active ? '' : ' (inactive)'}</option>)}
                   </select>
+                  {earlyPaymentRules.filter(rule => Number(rule.is_active)).length === 0 && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--sv-text-dim)' }}>Create a rule in Settings → Payment Discounts, then return here to select it.</div>}
                 </Field>}
                 <Row2>
                   <Field label="Price Tier">
@@ -2684,6 +2685,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                     <option value="">No default</option>
                     {earlyPaymentRules.filter(rule => Number(rule.is_active) || Number(rule.id) === Number(f.supplier_early_payment_discount_rule_id)).map(rule => <option key={rule.id} value={rule.id}>{rule.name}{rule.is_active ? '' : ' (inactive)'}</option>)}
                   </select>
+                  {earlyPaymentRules.filter(rule => Number(rule.is_active)).length === 0 && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--sv-text-dim)' }}>Create a rule in Settings → Payment Discounts, then return here to select it.</div>}
                 </Field>
                 <Row2>
                   <Field label="Order Frequency (days)"><input type="number" min={1} value={f.order_frequency_days ?? 45} onChange={e => setForm(p => ({ ...p, order_frequency_days: Math.max(1, parseInt(e.target.value) || 45) }))} style={inputStyle} /></Field>
@@ -9437,6 +9439,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   // Effective default purchase tax rate (decimal), considering the selected supplier.
   const showFxCosts = settings.use_foreign_currencies !== 'no';
   const selectedSupplier = suppliers.find((s: any) => String(s.id) === String(form.supplier_id));
+  const selectedSupplierEarlyPaymentRule = poEarlyPaymentRules.find((rule: any) => Number(rule.id) === Number(selectedSupplier?.supplier_early_payment_discount_rule_id));
   const poDefaultTaxRate = (() => {
     if (selectedSupplier && !Number(selectedSupplier.charges_tax ?? 1)) return 0;
     if (selectedSupplier?.tax_rate != null && selectedSupplier.tax_rate !== '') return Number(selectedSupplier.tax_rate);
@@ -10177,10 +10180,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             {!modal.edit && <Row2>
               <Field label="Early-payment discount">
                 <select value={poEarlyPaymentChoice} onChange={e => setPoEarlyPaymentChoice(e.target.value)} style={inputStyle}>
-                  <option value="contact_default">Supplier default</option>
+                  <option value="contact_default">{selectedSupplierEarlyPaymentRule ? `Supplier default: ${selectedSupplierEarlyPaymentRule.name}` : 'Supplier default: none set'}</option>
                   <option value="none">No early-payment discount</option>
                   {poEarlyPaymentRules.map(rule => <option key={rule.id} value={rule.id}>Override: {rule.name}</option>)}
                 </select>
+                {poEarlyPaymentRules.length === 0 && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--sv-text-dim)' }}>Create rules in Settings → Payment Discounts. You can then select a rule here for this order only.</div>}
               </Field>
             </Row2>}
             {modal.edit?.early_payment_discount_name && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Early-payment discount: {modal.edit.early_payment_discount_name} · cutoff {String(modal.edit.early_payment_discount_cutoff_date ?? '').slice(0, 10)}</div>}
@@ -13792,6 +13796,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const soTaxTreatment = (form.tax_treatment ?? (soPriceTier === 'wholesale' ? 'ex_tax' : 'inc_tax')) as 'ex_tax' | 'inc_tax' | 'no_tax';
   const soTaxEnabled = soTaxTreatment !== 'no_tax';
   const salesTaxRate = soTaxEnabled ? Number(settings?.sales_tax_rate ?? 0) : 0;
+  const selectedCustomer = customers.find((customer: any) => String(customer.id) === String(form.customer_id));
+  const selectedCustomerEarlyPaymentRule = soEarlyPaymentRules.find((rule: any) => Number(rule.id) === Number(selectedCustomer?.customer_early_payment_discount_rule_id));
 
   const deriveSOPriceTier = (customerId: string | number | null | undefined) => {
     const customer = customers.find((c: any) => String(c.id) === String(customerId));
@@ -14667,10 +14673,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             {!modal.edit && <Row2>
               <Field label="Early-payment discount">
                 <select value={soEarlyPaymentChoice} onChange={e => setSoEarlyPaymentChoice(e.target.value)} style={inputStyle}>
-                  <option value="contact_default">Customer default</option>
+                  <option value="contact_default">{selectedCustomerEarlyPaymentRule ? `Customer default: ${selectedCustomerEarlyPaymentRule.name}` : 'Customer default: none set'}</option>
                   <option value="none">No early-payment discount</option>
                   {soEarlyPaymentRules.map(rule => <option key={rule.id} value={rule.id}>Override: {rule.name}</option>)}
                 </select>
+                {soEarlyPaymentRules.length === 0 && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--sv-text-dim)' }}>Create rules in Settings → Payment Discounts. You can then select a rule here for this order only.</div>}
               </Field>
             </Row2>}
             {modal.edit?.early_payment_discount_name && <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 12 }}>Early-payment discount: {modal.edit.early_payment_discount_name} · cutoff {String(modal.edit.early_payment_discount_cutoff_date ?? '').slice(0, 10)}</div>}
@@ -21834,7 +21841,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'shipping' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'payment-discounts' | 'shipping' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -26808,6 +26815,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'ai-account',      label: 'Account & AI Credits', icon: <WalletCards size={15} /> },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'payment-discounts', label: 'Payment Discounts', icon: '%' },
     { id: 'shipping',        label: 'Shipping',        icon: <Truck size={15} /> },
     { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
@@ -26850,6 +26858,14 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {active === 'ai-models' && <AiModelSettingsSection />}
         {active === 'ai-account' && <AccountAiCreditsSection />}
+
+        {active === 'payment-discounts' && (
+          <div style={{ padding: 32 }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payment Discount Settings</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Create the rules available as supplier, customer, Purchase Order, and Sales Order early-payment terms.</p>
+            <EarlyPaymentDiscountSettingsSection />
+          </div>
+        )}
 
         {active === 'products' && (
           <div style={{ padding: 32, maxWidth: 760 }}>

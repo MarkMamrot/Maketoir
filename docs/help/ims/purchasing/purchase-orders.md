@@ -43,7 +43,7 @@ Supplier unit costs are normally tax-exclusive. If a supplier charges 10% GST an
 
 Foreign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.
 
-For **Early-payment discount**, keep **Supplier default** to use the active rule configured on the supplier, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new PO. The supplier invoice date is the cutoff basis when supplied; otherwise the order date is used. Later changes to the supplier or rule do not rewrite the saved PO terms.
+Create early-payment rules under **Settings > Payment Discounts**. On a new PO, **Early-payment discount** shows the selected supplier's current default by name. Keep that default, choose any active rule as an order-only override, or choose **No early-payment discount**. An order-only rule can be selected even when the supplier has no default. Solvantis saves the rule details and cutoff date on the new PO. The supplier invoice date is the cutoff basis when supplied; otherwise the order date is used. Later changes to the supplier or rule do not rewrite the saved PO terms.
 
 When adding a payment to a PO with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.
 

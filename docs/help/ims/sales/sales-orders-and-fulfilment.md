@@ -73,7 +73,7 @@ Prepared shipments are not lost when the dialog closes. Open **Shipping Workspac
 17. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
 18. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
-For **Early-payment discount**, keep **Customer default** to use the active rule configured on the customer, choose an active rule as an order-only override, or choose **No early-payment discount**. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
+Create early-payment rules under **Settings > Payment Discounts**. On a new Sales Order, **Early-payment discount** shows the selected customer's current default by name. Keep that default, choose any active rule as an order-only override, or choose **No early-payment discount**. An order-only rule can be selected even when the customer has no default. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
 
 When adding a payment to a Sales Order with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.
 

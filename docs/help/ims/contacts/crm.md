@@ -29,7 +29,7 @@ The Contacts search checks names, companies, customer codes, and email addresses
 
 When adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. After saving a lead or retail customer, Contacts switches to that contact type so the new record is visible. The form closes without saving only when you choose **Cancel** or press Escape.
 
-For a B2B customer, choose a **Customer early-payment default** when new Sales Orders should normally offer that rule. For a supplier, choose a **Supplier early-payment default** for new Purchase Orders. A contact of type **Both** can hold each default independently. The default is copied to a new order when it is saved; changing the contact later does not rewrite existing orders.
+Create early-payment rules under **Settings > Payment Discounts** before assigning them to contacts. For a B2B customer, choose a **Customer early-payment default** when new Sales Orders should normally offer that rule. For a supplier, choose a **Supplier early-payment default** for new Purchase Orders. A contact of type **Both** can hold each default independently. The default is copied to a new order when it is saved; changing the contact later does not rewrite existing orders.
 
 ## Customer profiles
 
