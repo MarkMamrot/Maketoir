@@ -2882,9 +2882,9 @@ export const ImsSORepo = {
       const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
       await imsExecute(
         `INSERT INTO ims_sales_order_items
-           (so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [so_id, item.variant_id, item.qty_ordered, item.unit_price,
+           (business_id,so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [businessId ?? '', so_id, item.variant_id, item.qty_ordered, item.unit_price,
          item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null]
       );
     }
@@ -3060,10 +3060,10 @@ export const ImsSORepo = {
           if (existingId != null) {
             await conn.execute(
               `UPDATE ims_sales_order_items
-                  SET shopify_line_item_id = ?, variant_id = ?, qty_ordered = ?, unit_price = ?,
+                  SET business_id = ?, shopify_line_item_id = ?, variant_id = ?, qty_ordered = ?, unit_price = ?,
                       discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?
                 WHERE id = ? AND so_id = ?`,
-              [item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+              [preEdit.business_id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
                item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null, existingId, id],
             );
             amendmentLines.push({
@@ -3073,7 +3073,7 @@ export const ImsSORepo = {
           } else {
             amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
             newRows.push({
-              values: [id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+              values: [preEdit.business_id, id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
                 item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null],
               amendmentIndex: amendmentLines.length - 1,
             });
@@ -3088,8 +3088,8 @@ export const ImsSORepo = {
         for (const newItem of newRows) {
           const [insertResult] = await conn.execute<any>(
             `INSERT INTO ims_sales_order_items
-               (so_id,shopify_line_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
+               (business_id,so_id,shopify_line_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
             newItem.values,
           );
           amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);

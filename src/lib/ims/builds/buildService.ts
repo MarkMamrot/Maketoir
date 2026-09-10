@@ -11,6 +11,7 @@ import {
   calculateBuildUnitCost,
   calculateReversalComponents,
   hashProductBuildRequest,
+  planBuildableOutputQuantities,
   positiveBuildQuantity,
   ProductBuildValidationError,
   type BuildRecipe,
@@ -276,13 +277,23 @@ export async function previewProductBuildBatch(input: Omit<ProductBuildBatchInpu
     const costedRecipes = withCurrentCosts(recipes, variants);
     const demand = aggregateBuildComponentDemand(normalized.builds, costedRecipes);
     const stocks = await ensureAndLoadStock(connection, normalized.businessId, normalized.locationId, allIds, false);
+    const availableByComponent = new Map([...demand.keys()].map(variantId => {
+      const stock = stocks.location.get(variantId)!;
+      return [variantId, Math.max(0, Number(stock.qty_on_hand) - Number(stock.qty_committed))] as const;
+    }));
+    const outputAvailability = new Map(planBuildableOutputQuantities(
+      normalized.builds,
+      costedRecipes,
+      availableByComponent,
+    ).map(item => [item.outputVariantId, item]));
     const components = [...demand].map(([variantId, required]) => {
       const stock = stocks.location.get(variantId)!;
       const onHand = Number(stock.qty_on_hand);
       const committed = Number(stock.qty_committed);
       const available = onHand - committed;
       const averageCost = Number(variants.get(variantId)?.avg_cost ?? 0);
-      return { variantId, onHand, committed, available, required, after: available - required, averageCost, cost: required * averageCost };
+      const variant = variants.get(variantId);
+      return { variantId, sku: variant?.sku ?? null, productName: variant?.product_name ?? variantId, onHand, committed, available, required, after: available - required, averageCost, cost: required * averageCost };
     });
     return {
       locationId: normalized.locationId,
@@ -295,6 +306,8 @@ export async function previewProductBuildBatch(input: Omit<ProductBuildBatchInpu
           recipeRevision: recipe.revision,
           overheadPerOutput: build.overheadPerOutput ?? recipe.overheadPerOutput ?? 0,
           outputUnitCost: calculateBuildUnitCost(recipe, build.overheadPerOutput),
+          buildableQuantity: outputAvailability.get(build.outputVariantId)?.buildableQuantity ?? 0,
+          unavailableQuantity: outputAvailability.get(build.outputVariantId)?.unavailableQuantity ?? build.quantity,
         };
       }),
       components,

@@ -1829,6 +1829,20 @@ async function migrateSchema(schema, businessId) {
   }
 
   try {
+    const [result] = await conn.query(
+      `UPDATE \`${schema}\`.ims_sales_order_items item
+        JOIN \`${schema}\`.ims_sales_orders sales_order ON sales_order.id = item.so_id
+          SET item.business_id = sales_order.business_id
+        WHERE item.business_id = '' OR item.business_id <> sales_order.business_id`,
+    );
+    if (result.affectedRows > 0) {
+      console.log(`  backfilled ${result.affectedRows} sales-order line business IDs`);
+    }
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_sales_order_items business backfill: ${e.message}`);
+  }
+
+  try {
     await conn.query(
       `UPDATE \`${schema}\`.ims_shipping_manifests
           SET operation_key = CASE WHEN operation_key = '' THEN CONCAT('legacy-manifest:', id) ELSE operation_key END,

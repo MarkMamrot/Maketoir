@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-builds","title":"Product Builds","audiences":["ims"],"capability":"inventory","screen":"Products > Builds","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["builds","products","stock","sales-orders","pos"],"contextSections":{"builds":"Step-by-step","products":"Step-by-step","stock":"Step-by-step","sales-orders":"Step-by-step","pos":"Step-by-step"},"relatedTopics":["ims-product-setup-variants","ims-stocktakes-adjustments","ims-business-operations-pos-settings","ims-inventory-costing"],"order":17,"summary":"Create versioned recipes, build finished stock from available components, handle order shortfalls, and reverse completed builds safely.","lastReviewed":"2026-09-08","owner":"inventory"}
+{"id":"ims-product-builds","title":"Product Builds","audiences":["ims"],"capability":"inventory","screen":"Products > Builds","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["builds","products","stock","sales-orders","pos"],"contextSections":{"builds":"Step-by-step","products":"Step-by-step","stock":"Step-by-step","sales-orders":"Step-by-step","pos":"Step-by-step"},"relatedTopics":["ims-product-setup-variants","ims-stocktakes-adjustments","ims-business-operations-pos-settings","ims-inventory-costing"],"order":17,"summary":"Create versioned recipes, build finished stock from available components, handle order shortfalls, and reverse completed builds safely.","lastReviewed":"2026-09-10","owner":"inventory"}
 ---
 # Product Builds
 
@@ -65,6 +65,10 @@ Shared component demand is combined before confirmation. A variant cannot be bot
 Open **Build for Order** in the Builds workspace and select **Build item**. Review the live component and cost preview, then confirm. The task links to the completed build item. Building creates finished stock but does not fulfil the order; use the normal fulfilment action when the goods are ready to ship.
 
 For a draft staff-managed order, **Build & Confirm** may be offered when only finished stock is short. For a confirmed or partly fulfilled order, **Build & Fulfil** may be offered for the selected shipment. Both actions build only the current shortfall and complete both operations together.
+
+Draft orders may be saved when finished stock is short. After save, and whenever the order is viewed, **Build Product Availability** separates each build product's outstanding quantity into **Ready**, **Buildable**, and **Unavailable**. Buildable quantity is based on current Available component stock and is advisory until a build is completed.
+
+At confirmation, Solvantis checks finished Available stock and the components required for the full build shortfall. When the full shortfall is buildable, staff can choose **Build & Confirm**. When components are insufficient, confirmation names the shortage and requires acknowledgement; confirming keeps the quantity as open demand but does not create stock or permit unsupported fulfilment.
 
 Shopify, the Solvantis Online Store, and Wholesale advertise actual finished Available stock, not potential component capacity. Eligible later shortfalls appear as staff tasks.
 

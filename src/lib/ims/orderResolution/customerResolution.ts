@@ -93,8 +93,8 @@ export async function resolveCustomerOutstanding(input: {
       childSoId = Number(child.insertId);
       for (const item of childItems) {
         const line = item.qty_ordered * Number(item.unit_price) * (1-Number(item.discount_pct??0)/100);
-        const [created] = await conn.execute<any>(`INSERT INTO ims_sales_order_items (so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes) VALUES (?,?,?,?,?,?,?,?)`,
-          [childSoId,item.variant_id,item.qty_ordered,item.unit_price,item.discount_pct??0,item.tax_rate??0,line,item.notes??null]);
+        const [created] = await conn.execute<any>(`INSERT INTO ims_sales_order_items (business_id,so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes) VALUES (?,?,?,?,?,?,?,?,?)`,
+          [input.businessId,childSoId,item.variant_id,item.qty_ordered,item.unit_price,item.discount_pct??0,item.tax_rate??0,line,item.notes??null]);
         const sourceSnapshot = JSON.stringify({
           variantId: item.variant_id ?? null,
           sku: item.sku ?? null,

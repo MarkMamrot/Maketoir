@@ -6,6 +6,7 @@ import {
   calculateBuildUnitCost,
   calculateReversalComponents,
   hashProductBuildRequest,
+  planBuildableOutputQuantities,
   ProductBuildValidationError,
   validateBuildRecipe,
 } from '../builds/domain';
@@ -57,6 +58,20 @@ describe('product build domain', () => {
       { outputVariantId: 'gift-set', quantity: 1.5, recipeRevision: 3 },
       { outputVariantId: 'double-set', quantity: 3 },
     ], recipes))).toEqual({ mug: 3.9999, box: 1.5 });
+  });
+
+  it('allocates shared component capacity across build outputs without double counting', () => {
+    const recipes = new Map<string, typeof recipe>([
+      ['gift-set', recipe],
+      ['second-set', { ...recipe, outputVariantId: 'second-set' }],
+    ]);
+    expect(planBuildableOutputQuantities([
+      { outputVariantId: 'gift-set', quantity: 2 },
+      { outputVariantId: 'second-set', quantity: 2 },
+    ], recipes, new Map([['mug', 5], ['box', 3]]))).toEqual([
+      { outputVariantId: 'gift-set', requestedQuantity: 2, buildableQuantity: 2, unavailableQuantity: 0 },
+      { outputVariantId: 'second-set', requestedQuantity: 2, buildableQuantity: 0.5, unavailableQuantity: 1.5 },
+    ]);
   });
 
   it('rejects stale recipes and same-batch output/component chaining', () => {

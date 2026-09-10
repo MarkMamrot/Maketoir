@@ -129,6 +129,40 @@ export function aggregateBuildComponentDemand(
   return new Map([...demandScaled].map(([variantId, scaled]) => [variantId, scaled / QUANTITY_SCALE]));
 }
 
+export function planBuildableOutputQuantities(
+  requests: ReadonlyArray<BuildRequest>,
+  recipes: ReadonlyMap<string, BuildRecipe>,
+  availableByComponent: ReadonlyMap<string, number>,
+): Array<{ outputVariantId: string; requestedQuantity: number; buildableQuantity: number; unavailableQuantity: number }> {
+  const remaining = new Map([...availableByComponent].map(([variantId, available]) => [
+    variantId,
+    Math.max(0, buildQuantity(available, `Component ${variantId} available quantity`)),
+  ]));
+  return requests.map(request => {
+    const requestedQuantity = positiveBuildQuantity(request.quantity, `Output ${request.outputVariantId} quantity`);
+    const recipe = validateBuildRecipe(recipes.get(request.outputVariantId) as BuildRecipe);
+    let buildableQuantity = requestedQuantity;
+    for (const component of recipe.components) {
+      const available = remaining.get(component.variantId) ?? 0;
+      const capacity = Math.floor(((available / component.quantityPerOutput) * QUANTITY_SCALE) + 0.000001) / QUANTITY_SCALE;
+      buildableQuantity = Math.min(buildableQuantity, capacity);
+    }
+    buildableQuantity = buildQuantity(Math.max(0, buildableQuantity));
+    for (const component of recipe.components) {
+      remaining.set(component.variantId, buildQuantity(Math.max(
+        0,
+        (remaining.get(component.variantId) ?? 0) - (buildableQuantity * component.quantityPerOutput),
+      )));
+    }
+    return {
+      outputVariantId: request.outputVariantId,
+      requestedQuantity,
+      buildableQuantity,
+      unavailableQuantity: buildQuantity(requestedQuantity - buildableQuantity),
+    };
+  });
+}
+
 export function calculateBuildUnitCost(recipe: BuildRecipe, overheadOverride?: number): number {
   const valid = validateBuildRecipe(recipe);
   const overhead = overheadOverride == null ? Number(valid.overheadPerOutput ?? 0) : Number(overheadOverride);

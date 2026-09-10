@@ -183,9 +183,9 @@ export async function POST(req: Request) {
             .filter(Boolean).join(' ').slice(0, 500) || null;
           await imsExecute(
             `INSERT INTO ims_sales_order_items
-               (so_id, variant_id, qty_ordered, unit_price, discount_pct, tax_rate, line_total, notes)
-             VALUES (?,?,?,?,?,?,?,?)`,
-            [soId, variantId, qty, price, disc, rate, lineTotal, notes]
+               (business_id, so_id, variant_id, qty_ordered, unit_price, discount_pct, tax_rate, line_total, notes)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            [businessId, soId, variantId, qty, price, disc, rate, lineTotal, notes]
           );
         }
 

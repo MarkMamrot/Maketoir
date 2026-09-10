@@ -939,9 +939,9 @@ export async function POST(req: Request) {
               try {
                 await imsExecute(
                   `INSERT INTO ims_sales_order_items
-                     (so_id, variant_id, code, name, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [soInsertId, soItemVariantId, line.code || null, line.name || null,
+                     (business_id, so_id, variant_id, code, name, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [businessId, soInsertId, soItemVariantId, line.code || null, line.name || null,
                    qty, isHistorical ? qty : 0, unitPrice, lineDiscount, lineItemSoTaxRate, lineTotal, line.name || null],
                 );
               } catch { /* skip if variant not in catalog */ }

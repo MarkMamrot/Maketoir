@@ -62,7 +62,8 @@ describe('product build services', () => {
     expect(result.components).toEqual([expect.objectContaining({
       variantId: 'part-a', onHand: 10, committed: 5, available: 5, required: 6, after: -1,
     })]);
-    expect(result.builds[0]).toEqual(expect.objectContaining({ outputUnitCost: 9 }));
+    expect(result.builds[0]).toEqual(expect.objectContaining({ outputUnitCost: 9, buildableQuantity: 2.5, unavailableQuantity: 0.5 }));
+    expect(result.components[0]).toEqual(expect.objectContaining({ productName: 'Part', sku: 'PART' }));
     expect(mocks.release).toHaveBeenCalledOnce();
   });
 

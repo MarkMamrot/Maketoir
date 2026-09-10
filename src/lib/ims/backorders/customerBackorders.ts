@@ -191,9 +191,9 @@ export async function splitCustomerBackorder(input: {
     for (const backorderItem of backorderItems) {
       const [itemResult] = await conn.execute<any>(
         `INSERT INTO ims_sales_order_items
-          (so_id, variant_id, qty_ordered, unit_price, discount_pct, tax_rate, line_total, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [backorderSoId, backorderItem.variant_id, backorderItem.qty_ordered, backorderItem.unit_price,
+          (business_id, so_id, variant_id, qty_ordered, unit_price, discount_pct, tax_rate, line_total, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [input.businessId, backorderSoId, backorderItem.variant_id, backorderItem.qty_ordered, backorderItem.unit_price,
           backorderItem.discount_pct ?? 0, backorderItem.tax_rate ?? 0, backorderItem.line_total, backorderItem.notes ?? null],
       );
       await conn.execute(

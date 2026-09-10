@@ -13696,6 +13696,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
+  const [soBuildAvailability, setSoBuildAvailability] = useState<{ loading: boolean; data: any | null }>({ loading: false, data: null });
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
@@ -13980,6 +13981,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
       setViewModal({ open: true, so: d.data });
       setSoPayForm(null);
+      setSoBuildAvailability({ loading: true, data: null });
+      fetch(`/api/ims/sales-orders/${so.id}/build-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'confirm' }) })
+        .then(response => response.json().then(payload => ({ response, payload })))
+        .then(({ response, payload }) => setSoBuildAvailability({ loading: false, data: response.ok && payload.success ? payload.data : null }))
+        .catch(() => setSoBuildAvailability({ loading: false, data: null }));
     } catch (error: any) {
       alert(error?.message || 'Failed to open sales order.');
     }
@@ -14040,6 +14046,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const refreshSoView = async (id: number) => {
     const d = await apiFetch(`/api/ims/sales-orders/${id}`);
     if (d.data) setViewModal(prev => ({ ...prev, so: d.data }));
+    setSoBuildAvailability({ loading: true, data: null });
+    try {
+      const response = await fetch(`/api/ims/sales-orders/${id}/build-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'confirm' }) });
+      const payload = await response.json();
+      setSoBuildAvailability({ loading: false, data: response.ok && payload.success ? payload.data : null });
+    } catch {
+      setSoBuildAvailability({ loading: false, data: null });
+    }
   };
 
   const handleAddSoPayment = async () => {
@@ -14118,7 +14132,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     setSaving(true);
     try {
       let savedSoId: number | null = modal.edit?.id ?? null;
-      const resultingSoStatus = modal.edit?.status ?? 'draft';
       const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
         const updateBody = shippedEditLocked
@@ -14137,40 +14150,54 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       load();
       setModal({ open: false, edit: null });
       setSoBulkDiscountPct('');
-      if (savedSoId && ['confirmed', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
+      if (savedSoId) await openView({ id: savedSoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
 
   const changeStatus = async (so: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
+    let confirmationAcknowledged = false;
     if (status === 'confirmed') {
       try {
         const previewResponse = await fetch(`/api/ims/sales-orders/${so.id}/build-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'confirm' }) });
         const previewResult = await previewResponse.json();
+        if (!previewResponse.ok) throw new Error(previewResult.error || 'Build preview failed.');
         if (previewResponse.ok && previewResult.data?.eligible) {
           const offer = previewResult.data;
-          const outputs = offer.builds.map((item: any) => `${fmtQty(item.quantity)} ${offer.lines.find((line: any) => so.items?.find((candidate: any) => Number(candidate.id) === Number(line.itemId))?.variant_id === item.outputVariantId)?.productName || item.outputVariantId}`).join('\n');
-          const components = offer.preview.components.map((item: any) => `${fmtQty(item.required)} required, ${fmtQty(item.available)} available, ${fmtCurrency(item.cost)}`).join('\n');
+          const outputs = offer.builds.map((item: any) => `${fmtQty(item.quantity)} ${offer.lines.find((line: any) => line.variantId === item.outputVariantId)?.productName || item.outputVariantId}`).join('\n');
+          const components = offer.preview.components.map((item: any) => `${item.productName || item.variantId}: ${fmtQty(item.required)} required, ${fmtQty(item.available)} available, ${fmtCurrency(item.cost)}`).join('\n');
           if (confirm(`Finished stock is short, but this order can be built now:\n\n${outputs}\n\nComponents:\n${components}\n\nBuild and confirm this order atomically?`)) {
             await apiFetch(`/api/ims/sales-orders/${so.id}/build-confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operationKey: crypto.randomUUID(), builds: offer.builds.map((item: any) => ({ outputVariantId: item.outputVariantId, recipeRevision: item.recipeRevision })) }) });
             load();
-            if (viewModal.open && viewModal.so?.id === so.id) { const detail = await apiFetch(`/api/ims/sales-orders/${so.id}`); setViewModal({ open: true, so: detail.data }); }
+            if (viewModal.open && viewModal.so?.id === so.id) await refreshSoView(Number(so.id));
             return;
           }
+        } else if (previewResult.data?.preview && previewResult.data?.builds?.length) {
+          const offer = previewResult.data;
+          const outputs = offer.builds.map((item: any) => `${fmtQty(item.quantity)} ${offer.lines.find((line: any) => line.variantId === item.outputVariantId)?.productName || item.outputVariantId}`).join('\n');
+          const shortages = offer.preview.components
+            .filter((item: any) => Number(item.after) < -0.00005)
+            .map((item: any) => `${item.productName || item.variantId}: ${fmtQty(item.required)} required, ${fmtQty(item.available)} available`)
+            .join('\n');
+          confirmationAcknowledged = confirm(
+            `Finished stock is short and the full requirement cannot be built now:\n\n${outputs}`
+            + `${shortages ? `\n\nInsufficient components:\n${shortages}` : ''}`
+            + '\n\nConfirm this order anyway? The shortage will remain open for planning and cannot be fulfilled without stock, a build, or an authorised negative-stock override.',
+          );
+          if (!confirmationAcknowledged) return;
         }
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Build preview failed.');
         return;
       }
     }
-    if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
+    if (!confirmationAcknowledged && !confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: buildOrderStatusOperationKey('sales_order', Number(so.id), status, so.updated_at), expectedUpdatedAt: so.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.so?.id === so.id) {
-        const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-        setViewModal({ open: true, so: d.data });
+        await refreshSoView(Number(so.id));
       }
       if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
     } catch (e: any) { alert(e.message); }
@@ -14186,8 +14213,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     await load();
     if (viewModal.open && viewModal.so?.id) {
       try {
-        const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`);
-        setViewModal({ open: true, so: d.data });
+        await refreshSoView(Number(viewModal.so.id));
       } catch {}
     }
   };
@@ -14858,7 +14884,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
       {/* View SO detail modal */}
       {viewModal.open && viewModal.so && (
-        <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
+        <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); setSoBuildAvailability({ loading: false, data: null }); }} wide>
           {viewModal.so.is_staff_preview_test ? <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid #e5c66b', borderRadius: 5, background: '#fff3cd', color: '#533f03', fontSize: 12 }}><strong>Staff preview test Draft.</strong> Prepared by {viewModal.so.staff_preview_actor_name || 'an IMS administrator'}. It cannot be confirmed and should be deleted after inspection.</div> : null}
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onReplacement={() => createSoReplacement(viewModal.so)} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
@@ -15027,6 +15053,31 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </tfoot>
           </table>
 
+          {(soBuildAvailability.loading || soBuildAvailability.data?.availability?.length > 0) && (
+            <section style={{ marginTop: 16, padding: '12px 0', borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)' }}>
+              <div style={{ ...labelStyle, marginBottom: 9 }}>BUILD PRODUCT AVAILABILITY</div>
+              {soBuildAvailability.loading ? (
+                <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Checking finished stock and components…</div>
+              ) : (
+                <>
+                  {(soBuildAvailability.data.availability || []).map((item: any) => (
+                    <div key={item.outputVariantId} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) repeat(3, minmax(82px, auto))', gap: 12, alignItems: 'center', padding: '7px 0', borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 65%, transparent)', fontSize: 13 }}>
+                      <div><strong>{item.productName}</strong>{item.sku ? <div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>{item.sku}</div> : null}</div>
+                      <div><span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Ready</span><div style={{ fontWeight: 700 }}>{fmtQty(item.readyQuantity)}</div></div>
+                      <div><span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Buildable</span><div style={{ fontWeight: 700, color: Number(item.buildableQuantity) > 0 ? 'var(--sv-mint)' : 'var(--sv-text)' }}>{fmtQty(item.buildableQuantity)}</div></div>
+                      <div><span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Unavailable</span><div style={{ fontWeight: 700, color: Number(item.unavailableQuantity) > 0 ? 'var(--sv-amber)' : 'var(--sv-text)' }}>{fmtQty(item.unavailableQuantity)}</div></div>
+                    </div>
+                  ))}
+                  {(soBuildAvailability.data.preview?.components || []).some((component: any) => Number(component.after) < -0.00005) && (
+                    <div style={{ marginTop: 8, color: 'var(--sv-amber)', fontSize: 12 }}>
+                      Insufficient components: {(soBuildAvailability.data.preview.components || []).filter((component: any) => Number(component.after) < -0.00005).map((component: any) => `${component.productName}${component.sku ? ` (${component.sku})` : ''}: ${fmtQty(component.available)} available, ${fmtQty(component.required)} required`).join(' · ')}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
           {viewModal.so.so_type !== 'online' && (
             <StockAllocationPanel
               mode="sales_order"
@@ -15035,8 +15086,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               allocations={viewModal.so.stock_allocations || []}
               readOnly={isAdvisor}
               onChanged={async () => {
-                const detail = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`);
-                setViewModal({ open: true, so: detail.data });
+                await refreshSoView(Number(viewModal.so.id));
               }}
             />
           )}
