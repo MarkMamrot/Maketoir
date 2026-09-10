@@ -140,6 +140,7 @@ type ManifestSummaryRow = {
     soNumber: string;
     channelOrderNumber: string | null;
   }>;
+  labelLayouts: string[];
 };
 
 export function ShipOrdersWorkspace({
@@ -1609,11 +1610,14 @@ export function ShipOrdersWorkspace({
                         }}
                       >
                         <Download size={14} />
-                        {submissionResults.filter(
-                          (item) => item.labelUrl === result.labelUrl,
-                        ).length > 1
-                          ? `Batch PDF${index ? ` ${index + 1}` : ""}`
-                          : "PDF label"}
+                        {labelDownloadButtonLabel(
+                          submissionResults.filter(
+                            (item) => item.labelUrl === result.labelUrl,
+                          ),
+                          selectedServiceByOrder,
+                          savedShipments,
+                          index,
+                        )}
                       </a>
                     </div>
                   ))}
@@ -2151,21 +2155,24 @@ function ManifestsWorkspacePanel() {
                 <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {manifest.status === "complete" ? (
                     <>
-                      <a
-                        href={`/api/ims/shipping/manifests/${manifest.id}/labels`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          ...secondaryButtonStyle,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          textDecoration: "none",
-                        }}
-                      >
-                        <Download size={14} />
-                        Print labels
-                      </a>
+                      {manifest.labelLayouts.map((layout) => (
+                        <a
+                          key={layout}
+                          href={`/api/ims/shipping/manifests/${manifest.id}/labels?layout=${encodeURIComponent(layout)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            ...secondaryButtonStyle,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            textDecoration: "none",
+                          }}
+                        >
+                          <Download size={14} />
+                          {manifestLabelButtonLabel(layout)}
+                        </a>
+                      ))}
                       <a
                         href={`/api/ims/shipping/manifests/${manifest.id}/summary`}
                         target="_blank"
@@ -2489,6 +2496,35 @@ function shippingStatusLabel(status: string): string {
       } as Record<string, string>
     )[status] ?? status.replaceAll("_", " ")
   );
+}
+
+function manifestLabelButtonLabel(layout: string): string {
+  if (layout === "A4-3pp") return "Print Express labels";
+  if (layout === "A4-4pp") return "Print Parcel labels";
+  return `Print ${layout} labels`;
+}
+
+function labelDownloadButtonLabel(
+  results: ShippingSubmissionResult[],
+  services: Record<number, ShippingRate>,
+  savedShipments: SavedShippingShipment[],
+  index: number,
+): string {
+  const serviceNames = results.map(
+    (result) =>
+      services[result.soId]?.serviceName ??
+      savedShipments.find(
+        (shipment) => shipment.shipmentId === result.shipmentId,
+      )?.serviceName ??
+      "",
+  );
+  if (
+    serviceNames.length &&
+    serviceNames.every((name) => /express/i.test(name))
+  )
+    return "Express labels";
+  if (serviceNames.some(Boolean)) return "Parcel labels";
+  return `Label PDF${index ? ` ${index + 1}` : ""}`;
 }
 
 function validEditableParcels(

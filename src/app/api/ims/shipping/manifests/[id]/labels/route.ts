@@ -5,7 +5,7 @@ import { getShippingManifestLabelsPdf } from "@/lib/ims/shipping/shippingManifes
 import { reportRuntimeIssue } from "@/lib/runtimeIssues";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } },
 ) {
   const session = await getImsSession();
@@ -18,9 +18,11 @@ export async function GET(
       { status: 400 },
     );
   try {
+    const layout = new URL(request.url).searchParams.get("layout") ?? "";
     const result = await getShippingManifestLabelsPdf(
       session.businessId,
       manifestId,
+      layout,
     );
     return new NextResponse(result.bytes as unknown as BodyInit, {
       headers: {
@@ -40,7 +42,10 @@ export async function GET(
       operation: "download_manifest_labels",
       title: "Manifest labels could not be downloaded",
       error,
-      context: { manifestId },
+      context: {
+        manifestId,
+        layout: new URL(request.url).searchParams.get("layout"),
+      },
       reference: { type: "shipping_manifest", id: String(manifestId) },
     });
     return NextResponse.json(

@@ -42,6 +42,7 @@ export type ShippingManifestSummary = {
     soNumber: string;
     channelOrderNumber: string | null;
   }>;
+  labelLayouts: string[];
 };
 
 export async function listShippingManifestWorkspace(
@@ -91,7 +92,10 @@ export async function listShippingManifestWorkspace(
   const manifestOrders = manifestIds.length
     ? await imsQuery<any>(
         `SELECT shipment.manifest_id AS manifestId, shipment.id AS shipmentId, sales_order.so_number AS soNumber,
-            COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channelOrderNumber
+            COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channelOrderNumber,
+            (SELECT latest.layout FROM ims_shipping_labels latest
+              WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+              ORDER BY latest.id DESC LIMIT 1) AS labelLayout
        FROM ims_shipping_shipments shipment
        JOIN ims_sales_orders sales_order ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
       WHERE shipment.business_id = ? AND shipment.manifest_id IN (${manifestIds.map(() => "?").join(",")})
@@ -116,6 +120,14 @@ export async function listShippingManifestWorkspace(
           soNumber: order.soNumber,
           channelOrderNumber: order.channelOrderNumber,
         })),
+      labelLayouts: [
+        ...new Set<string>(
+          manifestOrders
+            .filter((order) => Number(order.manifestId) === Number(row.id))
+            .map((order) => String(order.labelLayout ?? "").trim())
+            .filter(Boolean),
+        ),
+      ],
     })),
   };
 }
@@ -329,6 +341,7 @@ export async function getShippingManifestSummaryPdf(
 export async function getShippingManifestLabelsPdf(
   businessId: string,
   manifestId: number,
+  layout: string,
 ): Promise<{
   bytes: Uint8Array;
   filename: string;
@@ -338,6 +351,8 @@ export async function getShippingManifestLabelsPdf(
     manifestId,
     "complete",
   );
+  const normalizedLayout = layout.trim();
+  if (!normalizedLayout) throw new Error("Choose a label layout to print.");
   const rows = await imsQuery<any>(
     `SELECT label.id, label.provider_request_id AS requestId, label.label_url AS labelUrl,
             label.label_url_expires_at AS expiresAt, shipment.id AS shipmentId
@@ -347,11 +362,12 @@ export async function getShippingManifestLabelsPdf(
           WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
           ORDER BY latest.id DESC LIMIT 1
        )
-      WHERE shipment.business_id = ? AND shipment.manifest_id = ?
+      WHERE shipment.business_id = ? AND shipment.manifest_id = ? AND label.layout = ?
       ORDER BY shipment.id`,
-    [businessId, manifestId],
+    [businessId, manifestId, normalizedLayout],
   );
-  if (!rows.length) throw new Error("No labels were found for this manifest.");
+  if (!rows.length)
+    throw new Error("No labels were found for this manifest and layout.");
   const credentials = await ShippingSettingsRepository.getAccountCredentials(
     businessId,
     manifest.carrierAccountId,
@@ -406,7 +422,7 @@ export async function getShippingManifestLabelsPdf(
   }
   return {
     bytes: await merged.save(),
-    filename: `labels-${manifest.providerOrderId || manifestId}.pdf`,
+    filename: `labels-${normalizedLayout}-${manifest.providerOrderId || manifestId}.pdf`,
   };
 }
 
@@ -544,6 +560,7 @@ async function getShippingManifest(
     shipmentCount: Number(row.shipmentCount),
     parcelCount: Number(row.parcelCount),
     orders: [],
+    labelLayouts: [],
   };
 }
 
