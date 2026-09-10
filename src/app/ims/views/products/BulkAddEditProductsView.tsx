@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, FileUp, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
+  bulkProductLocationFieldsForBranch,
   enabledBulkProductFields,
   populateBlankProductSkus,
   reconcileVariantMatrix,
@@ -456,6 +457,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [displayFieldsBranchId, setDisplayFieldsBranchId] = useState('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
@@ -908,6 +910,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const managedProduct = displayedProducts.find(product => product.clientId === manageVariantsProductId) ?? null;
   const currencyFields = availableFields.filter(field => field.currencyCode);
   const locationFields = availableFields.filter(field => field.locationId);
+  const filteredLocationFields = bulkProductLocationFieldsForBranch(locationFields, displayFieldsBranchId);
   const standardFields = availableFields.filter(field => !field.currencyCode && !field.locationId);
   const selectedCurrencyFields = currencyFields.filter(field => selectedFields.includes(field.id));
   const setFieldGroup = (fieldIds: string[], checked: boolean) => setSelectedFields(current => sanitizeBulkProductFieldSelection(
@@ -988,10 +991,13 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
             {expanded.has(product.clientId) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>}
         </td>
-        <td style={{ position: 'sticky', left: 44, zIndex: 2, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: '5px 8px', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', fontSize: 11, fontWeight: 650, color: 'var(--sv-text-dim)' }}>
+        <td style={{ position: 'sticky', left: 44, zIndex: 2, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: '5px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 11, fontWeight: 650, color: 'var(--sv-text-dim)' }}>
           {variant ? variantLabel(variant) : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}><span>{product.productId ? 'Existing product' : 'New product'}</span><button type="button" title="Manage variants" aria-label={`Manage variants for ${product.name || 'new product'}`} onClick={() => setManageVariantsProductId(product.clientId)} style={{ ...buttonStyle, padding: '4px 6px' }}><Settings2 size={14} /> Variants</button></div>}
         </td>
-        {fields.map(field => <td key={field.id} style={{ padding: 3, borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>{field.owner === 'product' && !variant ? renderEditor(product, undefined, field) : field.owner === 'variant' && (variant || defaultVariant) ? renderEditor(product, variant ?? defaultVariant, field) : null}</td>)}
+        {fields.map(field => {
+          const frozen = field.id === 'name';
+          return <td key={field.id} style={{ position: frozen ? 'sticky' : undefined, left: frozen ? 224 : undefined, zIndex: frozen ? 1 : undefined, background: frozen ? (variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)') : undefined, boxShadow: frozen ? '3px 0 5px rgba(15,23,42,.08)' : undefined, padding: 3, borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>{field.owner === 'product' && !variant ? renderEditor(product, undefined, field) : field.owner === 'variant' && (variant || defaultVariant) ? renderEditor(product, variant ?? defaultVariant, field) : null}</td>;
+        })}
       </tr>
     );
   };
@@ -1076,10 +1082,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
             </div>}
             {locationFields.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
               <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Branch Level Variables</div>
+              <select aria-label="Filter branch-level display fields" value={displayFieldsBranchId} onChange={event => setDisplayFieldsBranchId(event.target.value)} style={{ ...inputStyle, marginBottom: 5 }}><option value="all">All branches</option>{locations.map(location => <option key={location.id} value={String(location.id)}>{location.name}</option>)}</select>
               {([
-                ['SOH at every branch', locationFields.filter(field => field.locationField === 'quantity').map(field => field.id)],
-                ['Min Qty / Reorder Point', locationFields.filter(field => field.locationField === 'minQty' || field.locationField === 'reorderQty').map(field => field.id)],
-                ['Zones / Bins', locationFields.filter(field => field.locationField === 'zone' || field.locationField === 'bin').map(field => field.id)],
+                [displayFieldsBranchId === 'all' ? 'SOH at every branch' : 'SOH', filteredLocationFields.filter(field => field.locationField === 'quantity').map(field => field.id)],
+                ['Min Qty / Reorder Point', filteredLocationFields.filter(field => field.locationField === 'minQty' || field.locationField === 'reorderQty').map(field => field.id)],
+                ['Zones / Bins', filteredLocationFields.filter(field => field.locationField === 'zone' || field.locationField === 'bin').map(field => field.id)],
               ] as Array<[string, string[]]>).filter(([, fieldIds]) => fieldIds.length).map(([label, fieldIds]) => <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', fontSize: 12 }}><input type="checkbox" checked={fieldIds.every(id => selectedFields.includes(id))} onChange={event => setFieldGroup(fieldIds, event.target.checked)} />{label}</label>)}
             </div>}
           </div></>}
@@ -1104,10 +1111,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
       <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, minWidth: 0, background: 'var(--sv-bg-1)' }}>
         <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 10, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0' }}>
-          <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34, padding: 0 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}><button type="button" title="Expand all variants" aria-label="Expand all variants" disabled={!productsWithVariants.length} onClick={() => setExpanded(new Set(productsWithVariants.map(product => product.clientId)))} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: productsWithVariants.length ? 'pointer' : 'default', opacity: productsWithVariants.length ? 1 : .35 }}><ChevronsUpDown size={14} /></button><button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: expanded.size ? 'pointer' : 'default', opacity: expanded.size ? 1 : .35 }}><ChevronsDownUp size={14} /></button></div></th><th style={{ position: 'sticky', left: 44, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => {
+          <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34, padding: 0 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}><button type="button" title="Expand all variants" aria-label="Expand all variants" disabled={!productsWithVariants.length} onClick={() => setExpanded(new Set(productsWithVariants.map(product => product.clientId)))} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: productsWithVariants.length ? 'pointer' : 'default', opacity: productsWithVariants.length ? 1 : .35 }}><ChevronsUpDown size={14} /></button><button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: expanded.size ? 'pointer' : 'default', opacity: expanded.size ? 1 : .35 }}><ChevronsDownUp size={14} /></button></div></th><th style={{ position: 'sticky', left: 44, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => {
             const columnSortKey = fieldSortKey(field);
             const isActiveSort = columnSortKey === sortKey;
-            return <th key={field.id} aria-sort={isActiveSort ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined} style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: 0, fontSize: 11, color: 'var(--sv-text-dim)' }}>{columnSortKey ? <button type="button" aria-label={`Sort by ${field.label}${isActiveSort ? ` ${sortDirection === 'asc' ? 'descending' : 'ascending'}` : ''}`} onClick={() => toggleColumnSort(columnSortKey)} title={`Sort by ${field.label}`} style={{ width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, padding: '0 7px', border: 0, background: isActiveSort ? 'color-mix(in srgb, var(--sv-action) 8%, transparent)' : 'transparent', color: isActiveSort ? 'var(--sv-action)' : 'var(--sv-text-dim)', font: 'inherit', fontWeight: isActiveSort ? 750 : 650, cursor: 'pointer', textAlign: 'left' }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label}</span>{isActiveSort && (sortDirection === 'asc' ? <ArrowUp size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} /> : <ArrowDown size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} />)}</button> : <span style={{ display: 'flex', alignItems: 'center', height: 34, padding: '0 7px' }}>{field.label}</span>}</th>;
+            const frozen = field.id === 'name';
+            return <th key={field.id} aria-sort={isActiveSort ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined} style={{ position: frozen ? 'sticky' : undefined, left: frozen ? 224 : undefined, zIndex: frozen ? 10 : undefined, background: frozen ? 'var(--sv-bg-2)' : undefined, boxShadow: frozen ? '3px 0 5px rgba(15,23,42,.08)' : undefined, borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: 0, fontSize: 11, color: 'var(--sv-text-dim)' }}>{columnSortKey ? <button type="button" aria-label={`Sort by ${field.label}${isActiveSort ? ` ${sortDirection === 'asc' ? 'descending' : 'ascending'}` : ''}`} onClick={() => toggleColumnSort(columnSortKey)} title={`Sort by ${field.label}`} style={{ width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, padding: '0 7px', border: 0, background: isActiveSort ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'transparent', color: isActiveSort ? 'var(--sv-action)' : 'var(--sv-text-dim)', font: 'inherit', fontWeight: isActiveSort ? 750 : 650, cursor: 'pointer', textAlign: 'left' }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label}</span>{isActiveSort && (sortDirection === 'asc' ? <ArrowUp size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} /> : <ArrowDown size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} />)}</button> : <span style={{ display: 'flex', alignItems: 'center', height: 34, padding: '0 7px' }}>{field.label}</span>}</th>;
           })}</tr></thead></table>
         </div>
         <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bulk-add-edit-products-scroll" tabIndex={0} role="region" aria-label="Bulk Add/Edit Products table. Use Left and Right arrows to scroll columns and Up and Down arrows to scroll the page." onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0, borderRadius: '0 0 10px 10px' }}>

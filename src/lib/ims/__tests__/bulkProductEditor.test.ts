@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    bulkProductLocationFieldsForBranch,
   bulkFillTargets,
   enabledBulkProductFields,
   optionCombinations,
@@ -7,6 +8,17 @@ import {
   reconcileVariantMatrix,
   sanitizeBulkProductFieldSelection,
 } from '../bulkProductEditor';
+  it('scopes branch-level display fields without including another branch', () => {
+    const fields = [
+      { id: 'name', label: 'Name', owner: 'product', editor: 'text', width: 100 },
+      { id: 'location_7_soh', label: 'A SOH', owner: 'variant', editor: 'number', width: 100, locationId: 7, locationField: 'quantity' },
+      { id: 'location_8_soh', label: 'B SOH', owner: 'variant', editor: 'number', width: 100, locationId: 8, locationField: 'quantity' },
+    ] as const;
+
+    expect(bulkProductLocationFieldsForBranch([...fields], '7').map(field => field.id)).toEqual(['location_7_soh']);
+    expect(bulkProductLocationFieldsForBranch([...fields], 'all').map(field => field.id)).toEqual(['location_7_soh', 'location_8_soh']);
+  });
+
 import type { ProductSettings } from '../productSettings';
 
 const settings: ProductSettings = {

@@ -146,6 +146,16 @@ export function enabledBulkProductFields(
   return BULK_PRODUCT_FIELDS.filter(field => !['sku', 'cost_foreign'].includes(field.id) && (!field.enabled || field.enabled(settings, useForeignCurrencies)));
 }
 
+export function bulkProductLocationFieldsForBranch(
+  fields: BulkProductFieldDefinition[],
+  branchId: string,
+): BulkProductFieldDefinition[] {
+  const locationFields = fields.filter(field => field.locationId);
+  return branchId === 'all'
+    ? locationFields
+    : locationFields.filter(field => String(field.locationId) === branchId);
+}
+
 export function sanitizeBulkProductFieldSelection(
   selectedIds: unknown,
   availableFields: BulkProductFieldDefinition[],
