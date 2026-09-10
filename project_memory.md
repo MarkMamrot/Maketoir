@@ -1,58 +1,9 @@
-## 2026-09-10 - Shipping dispatch completion and Shopify fulfillment scopes
+## 2026-09-10 - Daybook task copy, sell guidance and wide layouts
 
-- Monsterthreads orders #47911-#47913 exposed three shipping lifecycle gaps: Shipping Workspace did not request final Sales Order completion when every parcel allocation shipped, the Shopify Admin GraphQL 2025-10 fulfillment-order query used removed `LineItem.legacyResourceId`, and Sales Order detail showed only inbound Shopify shipment tracking rather than locally created carrier tracking.
-- Dispatch now finalizes fully shipped orders, maps Shopify `LineItem.id` GIDs to stored numeric line-item IDs, reconciles already-fulfilled orders without repeating stock movements, and exposes dispatched Australia Post parcel tracking under Sales Order **Shipments & Tracking** while suppressing duplicate canonical tracking.
-- The three affected Sales Orders were safely reconciled to `fulfilled`; all retain their manifested Australia Post shipments and article tracking. Monsterthreads then granted `read_merchant_managed_fulfillment_orders` and `write_merchant_managed_fulfillment_orders`. Exact-scope retries completed shipments 5-7 and cleared their channel errors. Shopify readback verified orders #47911-#47913 as `FULFILLED`, each with its correct Australia Post article number and tracking URL.
-
-## 2026-09-09 - Multi-channel commerce foundation
-
-- Added the provider-agnostic sales-channel registry and authenticated read-only `/api/ims/channels` boundary. Existing Shopify and Native Shop runtime reads remain unchanged; Amazon is a recognized future provider but is not registered as operational.
-- Added **Integrations > Sales Channels** for businesses entitled to Shopify or Native Shop. It displays each instance's provider, external account identity, operating/readiness state, last synchronization, safe error, and supported operations without exposing credentials.
-- Admin and SuperAdmin users can rename business-owned instances and run an exact-instance Shopify readiness test. The test renews client-credential tokens within the selected encrypted envelope when required, verifies Shopify returns the expected permanent domain, persists only safe readiness state, and performs no commerce synchronization.
-- Pause/resume remains deliberately unavailable until every legacy provider route, webhook, and worker honors instance state; credential editing and product-selection writes also remain deferred.
-- Added the contextual Sales Channels Help topic and regenerated both private Help/Assistant indexes.
-- Applied and idempotently verified four main control-plane tables for channel instances, encrypted credential envelopes, webhook registrations, and business-level primary roles. No legacy capability or connection rows were changed.
-- Applied and idempotently verified six tenant tables for product selections, exact product/variant/customer mappings, encrypted inbound events, and retryable outbound jobs across Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox. The migration created schema only and no operational events or jobs.
-- Backfilled three legacy Shopify stores into channel instances with encrypted credential envelopes and primary customer-value roles. Exact-ID mappings verified as Monsterthreads 5,362 products / 6,919 variants / 5,364 selections, Sandbox 1 / 3 / 1, and Sage 1,050 / 4,655 / 1,050.
-- Monsterthreads has one duplicated legacy Shopify product ID shared by two product owners and one duplicated Shopify variant ID shared by two variant owners. The compatibility backfill deliberately maps neither ambiguous ID, retains the affected product selections as `mapping_conflict`, and leaves all legacy Shopify columns untouched for explicit repair later.
-
-## 2026-09-09 - Early-payment discounts tenant migration
-
-- Applied the additive early-payment discount schema through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
-- The first pass added 18 contact and PO/SO rule-snapshot columns per tenant and ensured the rule and application ledger tables and required indexes were present. Strict readback verified both tables, all required indexes, and every default/snapshot column in each tenant.
-- An immediate full rerun added zero columns and zero indexes and passed all early-payment schema checks for every tenant.
-- A read-only audit after rollout found zero discount rules and applications in every tenant, and zero payments, customer or supplier credit notes, or stock movements created during the 30-minute rollout window. The migration created schema only and did not seed configuration or financial records.
-
-## 2026-09-08 - Product Builds tenant migration
-
-- Applied the Product Builds schema through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
-- The first pass exposed legacy `utf8mb4_general_ci` product variant keys in Monsterthreads and Sandbox. The catch-up bootstrap now derives each tenant's `ims_product_variants.variant_id` character set and collation for Product Build tables instead of assuming the canonical `utf8mb4_0900_ai_ci` default.
-- A partially created batch table retained the newer collation and caused the Builds history join to fail immediately in Monsterthreads and Sandbox. Catch-up now also aligns every Product Build `business_id` to the tenant's location ownership collation, and strict verification covers both business and variant join keys alongside all eight tables and required movement/reference enum values.
-- After repair, the exact history and Build for Order list queries passed read-only in all four tenant schemas. An immediate full rerun added zero columns and zero indexes and passed all Product Build checks for every tenant.
-- The migration created no recipes, builds, reversals, requirements, stock movements, or other Product Build operational records.
-
-## 2026-09-08 - Shipping foundation tenant migration
-
-- Applied the additive IMS shipping foundation through `scripts/catchup-schema-all-tenants.mjs` to all four registered tenant schemas: Monsterthreads, Sage, Solvantis Pty Ltd, and Monsterthreads Sandbox.
-- The first run created the shipping account, package preset, manifest, shipment, parcel, parcel-item, label, and channel-job tables where absent and added variant length, width, and height columns to each tenant. The carrier account `base_url` column was included in the newly created table definition.
-- An immediate full rerun reported zero added columns and zero added indexes for every tenant while completing all schema verification checks. No carrier accounts, package presets, shipment records, labels, stock movements, order quantities, or other application data were created or changed.
-- Tenant-facing eParcel setup now uses Australia Post's fixed production Shipping API endpoint. The environment and custom URL controls were removed, saved account details remain populated in the editor, and the catch-up migration normalizes and verifies legacy eParcel endpoint flags without changing encrypted credentials.
-
-## 2026-09-06 - Exact Assistant tool permissions
-
-- Authenticated Ask Solvantis tools now use one typed operation manifest for model-visible declarations and execution authorization. The policy follows each verified IMS tier, POS register principal, or wholesale company/member/brand scope instead of relying on audience alone.
-- Advisor remains read-only across supported IMS catalogue, stock, order, contact, purchasing, and sales-report checks, but cannot use integration diagnostics or Intel & Automation Marketing tools. Admin, Standard User, and SuperAdmin integration/Foresight tools are advertised only while the corresponding Xero, Shopify, or Marketing capability is enabled.
-- The research loop and evidence boundary both accept only the same filtered tool-definition set; direct forged calls are denied before tool services run. Existing tool-local capability checks remain in place as defense in depth.
-- Successful tool evidence is recursively scrubbed at the final model boundary for credential fields, contact channels, addresses, free-text notes, payment references, and staff identity. Query-level result shaping remains the primary privacy control; this catches accidental sensitive fields introduced by later service changes.
-- Canonical Team Access and IMS workspace Help describe the permission behavior. Validation passed 35 focused Assistant tests, the full 504-file / 2,399-test suite with one intentional skip, Help compilation with 65 topics / 525 private chunks, and the production build.
-
-## 2026-09-05 - Grounded Assistant foundation and stock research
-
-- Authenticated Ask Solvantis retrieval now uses the current question plus lower-weight recent conversation context, supplies up to eight audience/capability-filtered Help sections, and preserves exact current-view ranking. Browser-session history retains up to 20 bounded role/content messages for eight hours in `sessionStorage`, can be cleared from the Assistant header, and does not persist citations, tool payloads, workflow tokens, or server-side transcripts.
-- Assistant prompt v4 and typed tool evidence distinguish successful, empty, invalid, forbidden, unavailable, operational-error, and row-cap-truncated results. Unexpected live-tool failures are recorded through Runtime Issues and returned as unavailable evidence so other research can still be synthesized.
-- IMS research added bounded inventory-position, stock-movement-history, allocation-exception, customer-lookup, and customer-activity tools. Stock evidence is business-owned, active-location aware, read-only, and row/date capped. Allocation evidence omits customer/supplier identity; customer lookup omits contact channels/addresses, and activity omits free-text interactions and staff names.
-- The Stock Availability route and Assistant now share one extracted tenant-scoped query and the existing classification helper. Its test fixture now uses a future relative incoming date instead of a stale fixed date, preserving the intended non-overdue assertion without changing runtime behavior.
-- Validation passed 13 Assistant tool tests, Help compilation with 65 authenticated topics / 524 Assistant chunks, the full 497-file / 2,369-test suite with one intentional skip, production build, touched-file diagnostics, and diff checks.
+- Daybook checklist titles are capped at 50 characters and instructions at 600 in both the editor and API. Instructions render as uncropped multiline text with stronger task-row hierarchy.
+- Product Guide now appears as an advisory popup when a guided variant is first added to a POS cart, showing category, shelf, box and guidance. Lookup is tenant/location scoped, prefers location-specific guidance over all-location guidance, and never blocks a sale on failure.
+- Comms, Requests, Store Needs, Discrepancies, Incidents, References and Product Guide now use the full Daybook canvas on wide screens. Store Supplies and Stock Requests form two category columns and collapse to one on narrower screens.
+- A guarded transaction migrated 132 active Monsterthreads task templates and 614 open snapshots across Newtown, QV and QVB to reviewed concise titles and instructions. Completed historical snapshots were left unchanged.
 
 ## 2026-09-03 - Website Content Studio stale model recovery
 

@@ -47,31 +47,6 @@ const DAYBOOK_TABLES = [
   'pos_daybook_content_events',
 ];
 
-const PRODUCT_BUILD_TABLES = [
-  'ims_product_build_recipes',
-  'ims_product_build_recipe_versions',
-  'ims_product_build_recipe_components',
-  'ims_product_build_batches',
-  'ims_product_build_items',
-  'ims_product_build_item_components',
-  'ims_product_build_reversals',
-  'ims_product_build_requirements',
-];
-
-const EARLY_PAYMENT_DISCOUNT_TABLES = [
-  'ims_early_payment_discount_rules',
-  'ims_early_payment_discount_applications',
-];
-
-const CHANNEL_TABLES = [
-  'ims_channel_product_selections',
-  'ims_channel_product_mappings',
-  'ims_channel_variant_mappings',
-  'ims_channel_customer_mappings',
-  'ims_channel_events',
-  'ims_channel_sync_jobs',
-];
-
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -88,27 +63,6 @@ const DAYBOOK_TABLE_DDLS = DAYBOOK_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
-const PRODUCT_BUILD_TABLE_DDLS = PRODUCT_BUILD_TABLES.map(table => {
-  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
-  const match = canonicalImsSchema.match(expression);
-  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
-  return match[0].replace(/;$/, '');
-});
-const EARLY_PAYMENT_DISCOUNT_TABLE_DDLS = EARLY_PAYMENT_DISCOUNT_TABLES.map(table => {
-  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
-  const match = canonicalImsSchema.match(expression);
-  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
-  return match[0].replace(/;$/, '');
-});
-const CHANNEL_TABLE_DDLS = CHANNEL_TABLES.map(table => {
-  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
-  const match = canonicalImsSchema.match(expression);
-  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
-  return match[0]
-    .replace(/^\s*CONSTRAINT (?:fk_channel_selection_product|fk_channel_mapping_product|fk_channel_mapping_variant|fk_channel_mapping_contact)\b[^\n]*,?\r?\n/gm, '')
-    .replace(/,\s*(\) ENGINE=)/, '\n$1')
-    .replace(/;$/, '');
-});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -120,9 +74,6 @@ const conn = await mysql.createConnection({
 
 const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
-  ...PRODUCT_BUILD_TABLE_DDLS,
-  ...EARLY_PAYMENT_DISCOUNT_TABLE_DDLS,
-  ...CHANNEL_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -379,113 +330,6 @@ const TABLE_DDLS = [
     company VARCHAR(255) NULL, tracking_number VARCHAR(255) NULL, tracking_url VARCHAR(2000) NULL,
     INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
     CONSTRAINT fk_so_shipment_tracking_shipment FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_carrier_accounts (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, provider VARCHAR(50) NOT NULL,
-    display_name VARCHAR(120) NOT NULL, environment VARCHAR(20) NOT NULL DEFAULT 'test', base_url VARCHAR(500) NULL,
-    account_number VARCHAR(100) NULL,
-    username_encrypted TEXT NULL, password_encrypted TEXT NULL, api_key_encrypted TEXT NULL,
-    dispatch_location_id INT NULL, merchant_location_id VARCHAR(100) NULL, capabilities_json JSON NULL,
-    verified_at DATETIME NULL, verification_error VARCHAR(500) NULL, is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_shipping_carrier_account_name (business_id, display_name),
-    INDEX idx_shipping_carrier_provider (business_id, provider, is_active),
-    INDEX idx_shipping_carrier_location (business_id, dispatch_location_id, is_active),
-    CONSTRAINT fk_shipping_carrier_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_package_presets (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, name VARCHAR(120) NOT NULL,
-    package_type VARCHAR(30) NOT NULL DEFAULT 'box', length_mm DECIMAL(10,2) NOT NULL,
-    width_mm DECIMAL(10,2) NOT NULL, height_mm DECIMAL(10,2) NOT NULL,
-    tare_weight_kg DECIMAL(8,4) NOT NULL DEFAULT 0, max_weight_kg DECIMAL(8,4) NULL,
-    allow_rotation TINYINT(1) NOT NULL DEFAULT 1, sort_priority INT NOT NULL DEFAULT 0,
-    is_active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_shipping_package_name (business_id, name),
-    INDEX idx_shipping_package_active (business_id, is_active, sort_priority, id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
-    request_hash CHAR(64) NOT NULL, carrier_account_id BIGINT NOT NULL, dispatch_location_id INT NULL,
-    provider VARCHAR(50) NOT NULL, provider_reference VARCHAR(50) NOT NULL, provider_order_id VARCHAR(150) NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'submitting', shipment_count INT NOT NULL DEFAULT 0,
-    parcel_count INT NOT NULL DEFAULT 0, summary_url VARCHAR(2000) NULL, summary_url_expires_at DATETIME NULL,
-    safe_error VARCHAR(500) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    submitted_at DATETIME NULL, completed_at DATETIME NULL,
-    UNIQUE KEY uq_shipping_manifest_operation (business_id, operation_key),
-    UNIQUE KEY uq_shipping_manifest_reference (business_id, provider, provider_reference),
-    UNIQUE KEY uq_shipping_manifest_provider (business_id, carrier_account_id, provider_order_id),
-    INDEX idx_shipping_manifest_status (business_id, status, created_at),
-    CONSTRAINT fk_shipping_manifest_account FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
-    CONSTRAINT fk_shipping_manifest_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
-    request_hash CHAR(64) NOT NULL, so_id INT NOT NULL, carrier_account_id BIGINT NOT NULL, manifest_id BIGINT NULL,
-    dispatch_location_id INT NULL, provider VARCHAR(50) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'draft',
-    provider_shipment_id VARCHAR(150) NULL, provider_reference VARCHAR(150) NOT NULL,
-    service_code VARCHAR(50) NULL, service_name VARCHAR(120) NULL,
-    quoted_cost DECIMAL(12,2) NULL, quoted_cost_ex_gst DECIMAL(12,2) NULL, quoted_gst DECIMAL(12,2) NULL,
-    charged_cost DECIMAL(12,2) NULL, charged_cost_ex_gst DECIMAL(12,2) NULL, charged_gst DECIMAL(12,2) NULL,
-    sender_json JSON NOT NULL, recipient_json JSON NOT NULL, options_json JSON NULL,
-    ims_fulfilment_operation_key VARCHAR(191) NULL, safe_error VARCHAR(500) NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    carrier_created_at DATETIME NULL, label_ready_at DATETIME NULL, ims_fulfilled_at DATETIME NULL,
-    completed_at DATETIME NULL, voided_at DATETIME NULL,
-    UNIQUE KEY uq_shipping_operation (business_id, operation_key),
-    UNIQUE KEY uq_shipping_provider_reference (business_id, provider, provider_reference),
-    UNIQUE KEY uq_shipping_provider_shipment (business_id, provider, provider_shipment_id),
-    INDEX idx_shipping_order (business_id, so_id, created_at), INDEX idx_shipping_status (business_id, status, updated_at),
-    INDEX idx_shipping_manifest (business_id, manifest_id, id),
-    CONSTRAINT fk_shipping_order FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id),
-    CONSTRAINT fk_shipping_account FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
-    CONSTRAINT fk_shipping_manifest FOREIGN KEY (manifest_id) REFERENCES ims_shipping_manifests(id) ON DELETE SET NULL,
-    CONSTRAINT fk_shipping_dispatch_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
-    package_preset_id BIGINT NULL, parcel_number INT NOT NULL, package_type VARCHAR(30) NOT NULL DEFAULT 'box',
-    length_mm DECIMAL(10,2) NOT NULL, width_mm DECIMAL(10,2) NOT NULL, height_mm DECIMAL(10,2) NOT NULL,
-    weight_kg DECIMAL(8,4) NOT NULL, provider_item_id VARCHAR(150) NULL, article_id VARCHAR(150) NULL,
-    consignment_id VARCHAR(150) NULL, tracking_url VARCHAR(2000) NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_shipping_parcel_number (business_id, shipment_id, parcel_number),
-    INDEX idx_shipping_parcel_tracking (business_id, article_id),
-    CONSTRAINT fk_shipping_parcel_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE,
-    CONSTRAINT fk_shipping_parcel_preset FOREIGN KEY (package_preset_id) REFERENCES ims_shipping_package_presets(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_parcel_items (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, parcel_id BIGINT NOT NULL,
-    so_item_id INT NOT NULL, quantity DECIMAL(12,4) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_shipping_parcel_item (business_id, parcel_id, so_item_id),
-    INDEX idx_shipping_parcel_item_order (business_id, so_item_id, parcel_id),
-    CONSTRAINT fk_shipping_parcel_item_parcel FOREIGN KEY (parcel_id) REFERENCES ims_shipping_parcels(id) ON DELETE CASCADE,
-    CONSTRAINT fk_shipping_parcel_item_order FOREIGN KEY (so_item_id) REFERENCES ims_sales_order_items(id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_labels (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
-    provider_request_id VARCHAR(150) NULL, format VARCHAR(20) NOT NULL, layout VARCHAR(50) NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'pending', label_url VARCHAR(2000) NULL, label_url_expires_at DATETIME NULL,
-    safe_error VARCHAR(500) NULL, requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    available_at DATETIME NULL, last_printed_at DATETIME NULL, print_count INT NOT NULL DEFAULT 0,
-    UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id, shipment_id),
-    INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
-    CONSTRAINT fk_shipping_label_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
-  `CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
-    sales_channel VARCHAR(50) NOT NULL, operation_key VARCHAR(191) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'pending',
-    attempt_count INT NOT NULL DEFAULT 0, next_attempt_at DATETIME NULL, external_fulfilment_id VARCHAR(150) NULL,
-    request_json JSON NOT NULL, response_json JSON NULL, safe_error VARCHAR(500) NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, completed_at DATETIME NULL,
-    UNIQUE KEY uq_shipping_channel_operation (business_id, operation_key),
-    INDEX idx_shipping_channel_queue (business_id, status, next_attempt_at, id),
-    INDEX idx_shipping_channel_external (business_id, sales_channel, external_fulfilment_id),
-    CONSTRAINT fk_shipping_channel_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
   `CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1227,17 +1071,6 @@ if (requestedTable && !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requeste
 // Column definitions: [table, column, definition]
 const COLUMNS = [
   ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
-  ['ims_shipping_carrier_accounts', 'base_url', 'VARCHAR(500) NULL AFTER environment'],
-  ['ims_shipping_manifests', 'operation_key', "VARCHAR(191) NOT NULL DEFAULT '' AFTER business_id"],
-  ['ims_shipping_manifests', 'request_hash', "CHAR(64) NOT NULL DEFAULT '' AFTER operation_key"],
-  ['ims_shipping_manifests', 'provider', "VARCHAR(50) NOT NULL DEFAULT 'auspost_eparcel' AFTER dispatch_location_id"],
-  ['ims_shipping_manifests', 'provider_reference', "VARCHAR(50) NOT NULL DEFAULT '' AFTER provider"],
-  ['ims_shipping_manifests', 'parcel_count', 'INT NOT NULL DEFAULT 0 AFTER shipment_count'],
-  ['ims_shipping_manifests', 'submitted_at', 'DATETIME NULL AFTER created_at'],
-  ['ims_shipping_shipments', 'manifested_at', 'DATETIME NULL AFTER ims_fulfilled_at'],
-  ['ims_product_variants', 'length_mm', 'DECIMAL(10,2) NULL AFTER weight_kg'],
-  ['ims_product_variants', 'width_mm', 'DECIMAL(10,2) NULL AFTER length_mm'],
-  ['ims_product_variants', 'height_mm', 'DECIMAL(10,2) NULL AFTER width_mm'],
   ['pos_daybook_task_templates', 'created_by_staff_identity_id', 'BIGINT NULL AFTER created_by_name'],
   ['pos_daybook_task_templates', 'created_by_staff_name', 'VARCHAR(120) NULL AFTER created_by_staff_identity_id'],
   ['pos_daybook_task_templates', 'created_by_staff_initials', 'VARCHAR(8) NULL AFTER created_by_staff_name'],
@@ -1263,10 +1096,6 @@ const COLUMNS = [
   ['ims_brands', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_brands', 'website_url', 'VARCHAR(500) NULL AFTER name'],
   ['ims_brands', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'],
-  ['ims_contacts', 'customer_early_payment_discount_rule_id', 'INT NULL AFTER wholesale_allowed_brands_json'],
-  ['ims_contacts', 'supplier_early_payment_discount_rule_id', 'INT NULL AFTER customer_early_payment_discount_rule_id'],
-  ['ims_early_payment_discount_applications', 'discount_taxable_net', 'DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER paid_by_cutoff'],
-  ['ims_early_payment_discount_applications', 'discount_tax_free', 'DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER discount_taxable_net'],
   ['ims_online_shop_checkouts', 'fulfilment_mode', "VARCHAR(32) NOT NULL DEFAULT 'single_location' AFTER status"],
   ['ims_online_shop_value_reservations', 'reward_id', 'INT NULL AFTER value_type'],
   ['ims_online_shop_value_reservations', 'loyalty_redemption_id', 'BIGINT NULL AFTER reward_id'],
@@ -1289,7 +1118,6 @@ const COLUMNS = [
   ['ims_so_fulfilment_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_po_receive_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
-  ['ims_products', 'uses_builds', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_stock_item'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
   ['ims_cs_settings', 'retention_mode', "ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all' AFTER lookback_days"],
   ['ims_cs_settings', 'unread_first', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER lookback_days'],
@@ -1317,14 +1145,6 @@ const COLUMNS = [
   ['ims_purchase_orders', 'supplier_invoice_number',  'VARCHAR(100) NULL'],
   ['ims_purchase_orders', 'supplier_invoice_date',    'DATE NULL'],
   ['ims_purchase_orders', 'payment_terms',            'VARCHAR(100) NULL'],
-  ['ims_purchase_orders', 'early_payment_discount_rule_id', 'INT NULL AFTER payment_terms'],
-  ['ims_purchase_orders', 'early_payment_discount_name', 'VARCHAR(120) NULL AFTER early_payment_discount_rule_id'],
-  ['ims_purchase_orders', 'early_payment_discount_basis_points', 'INT UNSIGNED NULL AFTER early_payment_discount_name'],
-  ['ims_purchase_orders', 'early_payment_discount_days', 'INT UNSIGNED NULL AFTER early_payment_discount_basis_points'],
-  ['ims_purchase_orders', 'early_payment_discount_base', 'VARCHAR(32) NULL AFTER early_payment_discount_days'],
-  ['ims_purchase_orders', 'early_payment_discount_date_basis', 'VARCHAR(40) NULL AFTER early_payment_discount_base'],
-  ['ims_purchase_orders', 'early_payment_discount_cutoff_date', 'DATE NULL AFTER early_payment_discount_date_basis'],
-  ['ims_purchase_orders', 'early_payment_discount_source', 'VARCHAR(32) NULL AFTER early_payment_discount_cutoff_date'],
   ['ims_purchase_orders', 'currency_code',            "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
   ['ims_purchase_orders', 'exchange_rate',            'DECIMAL(12,6) NOT NULL DEFAULT 1.000000'],
   ['ims_purchase_orders', 'cin7_contact_id',          'INT NULL'],
@@ -1351,14 +1171,6 @@ const COLUMNS = [
   ['ims_sales_orders', 'is_historical',       'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_sales_orders', 'replacement_of_so_id', 'INT NULL'],
   ['ims_sales_orders', 'payment_terms',       'VARCHAR(100) NULL'],
-  ['ims_sales_orders', 'early_payment_discount_rule_id', 'INT NULL AFTER payment_terms'],
-  ['ims_sales_orders', 'early_payment_discount_name', 'VARCHAR(120) NULL AFTER early_payment_discount_rule_id'],
-  ['ims_sales_orders', 'early_payment_discount_basis_points', 'INT UNSIGNED NULL AFTER early_payment_discount_name'],
-  ['ims_sales_orders', 'early_payment_discount_days', 'INT UNSIGNED NULL AFTER early_payment_discount_basis_points'],
-  ['ims_sales_orders', 'early_payment_discount_base', 'VARCHAR(32) NULL AFTER early_payment_discount_days'],
-  ['ims_sales_orders', 'early_payment_discount_date_basis', 'VARCHAR(40) NULL AFTER early_payment_discount_base'],
-  ['ims_sales_orders', 'early_payment_discount_cutoff_date', 'DATE NULL AFTER early_payment_discount_date_basis'],
-  ['ims_sales_orders', 'early_payment_discount_source', 'VARCHAR(32) NULL AFTER early_payment_discount_cutoff_date'],
   ['ims_sales_orders', 'delivery_address',    'VARCHAR(255) NULL'],
   ['ims_sales_orders', 'delivery_address2',   'VARCHAR(255) NULL'],
   ['ims_sales_orders', 'delivery_suburb',     'VARCHAR(100) NULL'],
@@ -1366,8 +1178,6 @@ const COLUMNS = [
   ['ims_sales_orders', 'delivery_state',      'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'delivery_postcode',   'VARCHAR(30) NULL'],
   ['ims_sales_orders', 'delivery_country',    'VARCHAR(100) NULL'],
-  ['ims_sales_orders', 'channel_shipping_method', 'VARCHAR(255) NULL AFTER delivery_country'],
-  ['ims_sales_orders', 'channel_delivery_type', 'VARCHAR(20) NULL AFTER channel_shipping_method'],
   ['ims_sales_orders', 'freight',             'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'discount',            'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'currency_code',       "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
@@ -1519,8 +1329,6 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
-  ['ims_shipping_manifests', 'uq_shipping_manifest_operation', 'UNIQUE INDEX `uq_shipping_manifest_operation` (`business_id`, `operation_key`)'],
-  ['ims_shipping_manifests', 'uq_shipping_manifest_reference', 'UNIQUE INDEX `uq_shipping_manifest_reference` (`business_id`, `provider`, `provider_reference`)'],
   ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],
   ['ims_brands', 'idx_ims_brand_business', 'INDEX `idx_ims_brand_business` (`business_id`)'],
   ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],
@@ -1688,18 +1496,6 @@ async function ensureNativeCheckoutIndex(schema) {
   await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders ADD UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id)`);
 }
 
-async function ensureShippingLabelRequestIndex(schema) {
-  const [rows] = await conn.query(
-    `SELECT COLUMN_NAME FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_shipping_labels' AND INDEX_NAME = 'uq_shipping_label_request'
-      ORDER BY SEQ_IN_INDEX`, [schema],
-  );
-  const columns = rows.map(row => row.COLUMN_NAME).join(',');
-  if (columns === 'business_id,provider_request_id,shipment_id') return;
-  if (rows.length) await conn.query(`ALTER TABLE \`${schema}\`.ims_shipping_labels DROP INDEX uq_shipping_label_request`);
-  await conn.query(`ALTER TABLE \`${schema}\`.ims_shipping_labels ADD UNIQUE INDEX uq_shipping_label_request (business_id, provider_request_id, shipment_id)`);
-}
-
 async function assertUniqueGiftCardTransactionIdentities(schema) {
   for (const column of ['idempotency_key', 'shopify_transaction_id']) {
     const [rows] = await conn.query(
@@ -1717,44 +1513,16 @@ async function assertUniqueGiftCardTransactionIdentities(schema) {
 }
 
 async function migrateSchema(schema, businessId) {
-  const [variantColumns] = await conn.query(
-    `SELECT CHARACTER_SET_NAME, COLLATION_NAME
-       FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_product_variants' AND COLUMN_NAME = 'variant_id'
-      LIMIT 1`,
-    [schema],
-  );
-  const variantCharacterSet = variantColumns[0]?.CHARACTER_SET_NAME;
-  const variantCollation = variantColumns[0]?.COLLATION_NAME;
-  if (!/^[a-zA-Z0-9_]+$/.test(variantCharacterSet ?? '') || !/^[a-zA-Z0-9_]+$/.test(variantCollation ?? '')) {
-    throw new Error(`${schema}.ims_product_variants.variant_id has no usable character set or collation`);
-  }
   const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
   for (const ddl of tableDdls) {
     try {
       await conn.query(`USE \`${schema}\``);
-      const tableName = tableNameFromDdl(ddl);
-      const schemaDdl = PRODUCT_BUILD_TABLES.includes(tableName)
-        ? ddl.replace(/DEFAULT CHARSET=utf8mb4$/, `DEFAULT CHARSET=${variantCharacterSet} COLLATE=${variantCollation}`)
-        : ddl;
-      await conn.query(schemaDdl);
+      await conn.query(ddl);
     } catch (e) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
   }
   if (requestedTable) return;
-
-  await conn.query(
-    `UPDATE \`${schema}\`.ims_shipping_carrier_accounts
-        SET environment = 'production', base_url = NULL
-      WHERE provider = 'auspost_eparcel' AND (environment <> 'production' OR base_url IS NOT NULL)`,
-  );
-  const [legacyEparcelAccounts] = await conn.query(
-    `SELECT id FROM \`${schema}\`.ims_shipping_carrier_accounts
-      WHERE provider = 'auspost_eparcel' AND (environment <> 'production' OR base_url IS NOT NULL)
-      LIMIT 1`,
-  );
-  if (legacyEparcelAccounts.length) throw new Error(`${schema} still has an eParcel account using legacy endpoint settings`);
 
   const [onlineShopTables] = await conn.query(
     `SELECT TABLE_NAME FROM information_schema.TABLES
@@ -1791,7 +1559,6 @@ async function migrateSchema(schema, businessId) {
   await ensureShopifyLineItemId(schema, 'ims_sales_order_items', true);
   await ensureShopifyLineItemId(schema, 'ims_so_shipment_items', false);
   await ensureNativeCheckoutIndex(schema);
-  await ensureShippingLabelRequestIndex(schema);
 
   try {
     await conn.query(
@@ -1826,31 +1593,6 @@ async function migrateSchema(schema, businessId) {
     } catch (e) {
       console.error(`  ✗ ${schema}.${table}.${col}: ${e.message}`);
     }
-  }
-
-  try {
-    const [result] = await conn.query(
-      `UPDATE \`${schema}\`.ims_sales_order_items item
-        JOIN \`${schema}\`.ims_sales_orders sales_order ON sales_order.id = item.so_id
-          SET item.business_id = sales_order.business_id
-        WHERE item.business_id = '' OR item.business_id <> sales_order.business_id`,
-    );
-    if (result.affectedRows > 0) {
-      console.log(`  backfilled ${result.affectedRows} sales-order line business IDs`);
-    }
-  } catch (e) {
-    console.error(`  ✗ ${schema}.ims_sales_order_items business backfill: ${e.message}`);
-  }
-
-  try {
-    await conn.query(
-      `UPDATE \`${schema}\`.ims_shipping_manifests
-          SET operation_key = CASE WHEN operation_key = '' THEN CONCAT('legacy-manifest:', id) ELSE operation_key END,
-              request_hash = CASE WHEN request_hash = '' THEN SHA2(CONCAT('legacy-manifest:', id), 256) ELSE request_hash END,
-              provider_reference = CASE WHEN provider_reference = '' THEN CONCAT('LEGACY-', id) ELSE provider_reference END`,
-    );
-  } catch (e) {
-    console.error(`  ✗ ${schema}.ims_shipping_manifests identity backfill: ${e.message}`);
   }
 
   if (businessId) {
@@ -1947,8 +1689,8 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'tax_treatment', ['ex_tax', 'inc_tax', 'no_tax']);
-    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted', 'build_component_consumed', 'build_output_produced', 'build_component_restored', 'build_output_reversed']);
-    await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note', 'product_build', 'product_build_reversal']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
     await ensureEnumValues(schema, 'ims_cs_drafts', 'compose_type', ['ai_reply', 'manual_reply', 'forward', 'new_message']);
     await ensureNullableColumn(schema, 'ims_cs_drafts', 'target_message_id', 'BIGINT NULL');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
@@ -1971,19 +1713,8 @@ async function migrateSchema(schema, businessId) {
       await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
     }
     await ensureColumnCollationMatches(schema, 'ims_online_shop_products', 'product_id', 'ims_products', 'product_id');
-    for (const table of CHANNEL_TABLES) {
-      await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
-    }
-    await ensureColumnCollationMatches(schema, 'ims_channel_product_selections', 'product_id', 'ims_products', 'product_id');
-    await ensureColumnCollationMatches(schema, 'ims_channel_product_mappings', 'product_id', 'ims_products', 'product_id');
-    await ensureColumnCollationMatches(schema, 'ims_channel_variant_mappings', 'variant_id', 'ims_product_variants', 'variant_id');
     await ensureColumnCollationMatches(schema, 'ims_stock_allocations', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_stock_allocation_operations', 'business_id', 'ims_products', 'business_id');
-    await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_rules', 'business_id', 'ims_contacts', 'business_id');
-    await ensureColumnCollationMatches(schema, 'ims_early_payment_discount_applications', 'business_id', 'ims_contacts', 'business_id');
-    for (const table of PRODUCT_BUILD_TABLES) {
-      await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_locations', 'business_id');
-    }
   } catch (e) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }
@@ -2185,41 +1916,6 @@ async function verifyOrderPaymentSchema(schema) {
   }
 }
 
-async function verifyEarlyPaymentDiscountSchema(schema) {
-  const requiredColumns = new Map([
-    ['ims_early_payment_discount_rules', ['business_id', 'name', 'discount_basis_points', 'discount_days', 'discount_base', 'date_basis', 'is_active']],
-    ['ims_early_payment_discount_applications', ['business_id', 'document_type', 'document_id', 'settlement_payment_id', 'operation_key', 'status', 'cutoff_date', 'paid_by_cutoff', 'discount_taxable_net', 'discount_tax_free', 'discount_net', 'discount_tax', 'discount_gross', 'currency_code', 'customer_credit_note_id', 'supplier_credit_note_id', 'xero_credit_note_id', 'xero_allocation_id', 'xero_status', 'xero_error']],
-    ['ims_contacts', ['customer_early_payment_discount_rule_id', 'supplier_early_payment_discount_rule_id']],
-    ['ims_purchase_orders', ['early_payment_discount_rule_id', 'early_payment_discount_name', 'early_payment_discount_basis_points', 'early_payment_discount_days', 'early_payment_discount_base', 'early_payment_discount_date_basis', 'early_payment_discount_cutoff_date', 'early_payment_discount_source']],
-    ['ims_sales_orders', ['early_payment_discount_rule_id', 'early_payment_discount_name', 'early_payment_discount_basis_points', 'early_payment_discount_days', 'early_payment_discount_base', 'early_payment_discount_date_basis', 'early_payment_discount_cutoff_date', 'early_payment_discount_source']],
-  ]);
-  for (const [table, columns] of requiredColumns) {
-    const [rows] = await conn.query(
-      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-      [schema, table],
-    );
-    const present = new Set(rows.map(row => row.COLUMN_NAME));
-    for (const column of columns) {
-      if (!present.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
-    }
-  }
-  const requiredIndexes = new Map([
-    ['ims_early_payment_discount_rules', ['PRIMARY', 'uq_early_payment_rule_name', 'idx_early_payment_rule_active']],
-    ['ims_early_payment_discount_applications', ['PRIMARY', 'uq_early_payment_application_operation', 'uq_early_payment_application_document', 'idx_early_payment_application_status']],
-  ]);
-  for (const [table, indexes] of requiredIndexes) {
-    const [rows] = await conn.query(
-      `SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-      [schema, table],
-    );
-    const present = new Set(rows.map(row => row.INDEX_NAME));
-    for (const index of indexes) {
-      if (!present.has(index)) throw new Error(`${schema}.${table} is missing index ${index}`);
-    }
-  }
-  console.log(`  verified ${schema} early-payment discount schema`);
-}
-
 async function verifySalesDocumentSchema(schema) {
   const [rows] = await conn.query(
     `SELECT COLUMN_TYPE, IS_NULLABLE
@@ -2351,97 +2047,6 @@ async function verifyWholesaleSavedListsSchema(schema) {
   console.log(`  verified ${schema} wholesale locations, saved lists, favourites, and team audit schema`);
 }
 
-async function verifyProductBuildSchema(schema) {
-  const [tables] = await conn.query(
-    `SELECT TABLE_NAME
-       FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
-    [schema, PRODUCT_BUILD_TABLES],
-  );
-  const presentTables = new Set(tables.map(row => row.TABLE_NAME));
-  const missingTables = PRODUCT_BUILD_TABLES.filter(table => !presentTables.has(table));
-  if (missingTables.length) throw new Error(`${schema} is missing Product Build tables: ${missingTables.join(', ')}`);
-
-  const [variantColumns] = await conn.query(
-    `SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
-       FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ?
-        AND ((TABLE_NAME = 'ims_product_variants' AND COLUMN_NAME = 'variant_id')
-          OR (TABLE_NAME IN ('ims_product_build_recipes', 'ims_product_build_recipe_components',
-                             'ims_product_build_items', 'ims_product_build_item_components',
-                             'ims_product_build_requirements')
-            AND COLUMN_NAME IN ('output_variant_id', 'component_variant_id')))`,
-    [schema],
-  );
-  const referenceCollation = variantColumns.find(row => row.TABLE_NAME === 'ims_product_variants')?.COLLATION_NAME;
-  const mismatchedColumns = variantColumns.filter(row => row.TABLE_NAME !== 'ims_product_variants' && row.COLLATION_NAME !== referenceCollation);
-  if (!referenceCollation || mismatchedColumns.length) {
-    throw new Error(`${schema} Product Build variant columns do not match ims_product_variants.variant_id`);
-  }
-
-  const [businessColumns] = await conn.query(
-    `SELECT TABLE_NAME, COLLATION_NAME
-       FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ? AND COLUMN_NAME = 'business_id'
-        AND TABLE_NAME IN ('ims_locations', ?)`,
-    [schema, PRODUCT_BUILD_TABLES],
-  );
-  const businessReferenceCollation = businessColumns.find(row => row.TABLE_NAME === 'ims_locations')?.COLLATION_NAME;
-  const mismatchedBusinessColumns = businessColumns.filter(row => row.TABLE_NAME !== 'ims_locations' && row.COLLATION_NAME !== businessReferenceCollation);
-  if (!businessReferenceCollation || businessColumns.length !== PRODUCT_BUILD_TABLES.length + 1 || mismatchedBusinessColumns.length) {
-    throw new Error(`${schema} Product Build business_id columns do not match ims_locations.business_id`);
-  }
-
-  const [movementColumns] = await conn.query(
-    `SELECT COLUMN_NAME, COLUMN_TYPE
-       FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_stock_movements'
-        AND COLUMN_NAME IN ('movement_type', 'reference_type')`,
-    [schema],
-  );
-  const movementType = String(movementColumns.find(row => row.COLUMN_NAME === 'movement_type')?.COLUMN_TYPE ?? '');
-  const referenceType = String(movementColumns.find(row => row.COLUMN_NAME === 'reference_type')?.COLUMN_TYPE ?? '');
-  for (const value of ['build_component_consumed', 'build_output_produced', 'build_component_restored', 'build_output_reversed']) {
-    if (!movementType.includes(`'${value}'`)) throw new Error(`${schema}.ims_stock_movements.movement_type is missing ${value}`);
-  }
-  for (const value of ['product_build', 'product_build_reversal']) {
-    if (!referenceType.includes(`'${value}'`)) throw new Error(`${schema}.ims_stock_movements.reference_type is missing ${value}`);
-  }
-  console.log(`  verified ${schema} Product Build schema`);
-}
-
-async function verifyChannelMappingSchema(schema) {
-  const [tables] = await conn.query(
-    `SELECT TABLE_NAME FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
-    [schema, CHANNEL_TABLES],
-  );
-  const presentTables = new Set(tables.map(row => row.TABLE_NAME));
-  for (const table of CHANNEL_TABLES) {
-    if (!presentTables.has(table)) throw new Error(`${schema} is missing ${table}`);
-  }
-  const requiredIndexes = {
-    ims_channel_product_selections: ['uq_channel_product_selection', 'idx_channel_product_selection_status'],
-    ims_channel_product_mappings: ['uq_channel_product_mapping', 'uq_channel_external_product'],
-    ims_channel_variant_mappings: ['uq_channel_variant_mapping', 'uq_channel_external_variant'],
-    ims_channel_customer_mappings: ['uq_channel_customer_mapping', 'uq_channel_external_customer'],
-    ims_channel_events: ['uq_channel_event', 'idx_channel_event_queue'],
-    ims_channel_sync_jobs: ['uq_channel_sync_job', 'idx_channel_sync_job_queue', 'idx_channel_sync_job_lease'],
-  };
-  const [indexes] = await conn.query(
-    `SELECT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
-    [schema, CHANNEL_TABLES],
-  );
-  const presentIndexes = new Set(indexes.map(row => `${row.TABLE_NAME}.${row.INDEX_NAME}`));
-  for (const [table, indexNames] of Object.entries(requiredIndexes)) {
-    for (const indexName of indexNames) {
-      if (!presentIndexes.has(`${table}.${indexName}`)) throw new Error(`${schema}.${table} is missing ${indexName}`);
-    }
-  }
-  console.log(`  verified ${schema} sales channel mapping schema`);
-}
-
 try {
   const schemas = new Set();
   const businessIdsBySchema = new Map();
@@ -2473,14 +2078,11 @@ try {
     await verifyInventoryDocumentOperationSchema(schema);
     await verifyInventoryDocumentCorrectionSchema(schema);
     await verifyOrderPaymentSchema(schema);
-    await verifyEarlyPaymentDiscountSchema(schema);
     await verifySalesDocumentSchema(schema);
     await verifyWholesaleAccessSchema(schema);
     await verifyWholesaleOrderOwnershipSchema(schema);
     await verifyWholesalePreviewTestSchema(schema);
     await verifyWholesaleSavedListsSchema(schema);
-    await verifyProductBuildSchema(schema);
-    await verifyChannelMappingSchema(schema);
   }
   console.log('Done.');
 } finally {

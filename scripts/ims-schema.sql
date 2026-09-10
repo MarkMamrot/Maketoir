@@ -51,8 +51,6 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   website_url         VARCHAR(500) DEFAULT NULL,
   price_tier          VARCHAR(20) DEFAULT 'retail',
   wholesale_allowed_brands_json JSON DEFAULT NULL,
-  customer_early_payment_discount_rule_id INT NULL,
-  supplier_early_payment_discount_rule_id INT NULL,
   -- Misc
   notes       TEXT,
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
@@ -64,23 +62,6 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_business_id (business_id),
   UNIQUE KEY idx_shopify_customer_id (business_id, shopify_customer_id),
   INDEX idx_customer_code (business_id, customer_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- ── Early-payment discount rules ───────────────────────────
-CREATE TABLE IF NOT EXISTS ims_early_payment_discount_rules (
-  id                    INT AUTO_INCREMENT PRIMARY KEY,
-  business_id           VARCHAR(100) NOT NULL DEFAULT '',
-  name                  VARCHAR(120) NOT NULL,
-  discount_basis_points INT UNSIGNED NOT NULL,
-  discount_days         INT UNSIGNED NOT NULL,
-  discount_base         VARCHAR(32) NOT NULL DEFAULT 'merchandise',
-  date_basis            VARCHAR(40) NOT NULL DEFAULT 'invoice_date_order_fallback',
-  is_active             TINYINT(1) NOT NULL DEFAULT 1,
-  created_by            INT NULL,
-  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_early_payment_rule_name (business_id, name),
-  INDEX idx_early_payment_rule_active (business_id, is_active, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Product brands ─────────────────────────────────────────
@@ -707,7 +688,6 @@ CREATE TABLE IF NOT EXISTS ims_products (
   bin                   VARCHAR(100),
   allow_indent_wholesale TINYINT(1) NOT NULL DEFAULT 0,
   is_stock_item         TINYINT(1) NOT NULL DEFAULT 1,
-  uses_builds           TINYINT(1) NOT NULL DEFAULT 0,
   is_active             TINYINT(1) NOT NULL DEFAULT 1,
   shopify_product_id    VARCHAR(100),
   created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -746,9 +726,6 @@ CREATE TABLE IF NOT EXISTS ims_product_variants (
   zone                VARCHAR(100) NULL,
   volume              TINYINT UNSIGNED NULL,
   weight_kg           DECIMAL(8,4),
-  length_mm           DECIMAL(10,2) NULL,
-  width_mm            DECIMAL(10,2) NULL,
-  height_mm           DECIMAL(10,2) NULL,
   shopify_variant_id  VARCHAR(100),
   shopify_inventory_item_id VARCHAR(100) NULL,
   is_active           TINYINT(1) NOT NULL DEFAULT 1,
@@ -789,121 +766,6 @@ CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_ssl_created (created_at),
   INDEX idx_ssl_biz_created (business_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- ── Sales Channel Mappings and Work Queues ─────────────────
-CREATE TABLE IF NOT EXISTS ims_channel_product_selections (
-  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
-  product_id          VARCHAR(36) NOT NULL,
-  desired_enabled     TINYINT(1) NOT NULL DEFAULT 0,
-  observed_enabled    TINYINT(1) NULL,
-  publication_status  VARCHAR(32) NOT NULL DEFAULT 'not_selected',
-  last_requested_at   DATETIME(3) NULL,
-  last_synced_at      DATETIME(3) NULL,
-  safe_error          VARCHAR(1000) NULL,
-  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_channel_product_selection (business_id, channel_instance_id, product_id),
-  INDEX idx_channel_product_selection_status (business_id, channel_instance_id, publication_status),
-  INDEX idx_channel_product_selection_product (business_id, product_id),
-  CONSTRAINT fk_channel_selection_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_channel_product_mappings (
-  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
-  product_id          VARCHAR(36) NOT NULL,
-  external_product_id VARCHAR(191) NOT NULL,
-  external_parent_id  VARCHAR(191) NULL,
-  external_status     VARCHAR(64) NULL,
-  metadata_json       JSON NULL,
-  last_synced_at      DATETIME(3) NULL,
-  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_channel_product_mapping (business_id, channel_instance_id, product_id),
-  UNIQUE KEY uq_channel_external_product (business_id, channel_instance_id, external_product_id),
-  INDEX idx_channel_product_mapping_product (business_id, product_id),
-  CONSTRAINT fk_channel_mapping_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_channel_variant_mappings (
-  id                         BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id                VARCHAR(100) NOT NULL,
-  channel_instance_id        CHAR(36) NOT NULL,
-  variant_id                 VARCHAR(36) NOT NULL,
-  external_variant_id        VARCHAR(191) NOT NULL,
-  external_inventory_item_id VARCHAR(191) NULL,
-  external_sku               VARCHAR(191) NULL,
-  external_asin              VARCHAR(32) NULL,
-  metadata_json              JSON NULL,
-  last_synced_at             DATETIME(3) NULL,
-  created_at                 DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at                 DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_channel_variant_mapping (business_id, channel_instance_id, variant_id),
-  UNIQUE KEY uq_channel_external_variant (business_id, channel_instance_id, external_variant_id),
-  INDEX idx_channel_variant_mapping_variant (business_id, variant_id),
-  INDEX idx_channel_variant_mapping_sku (business_id, channel_instance_id, external_sku),
-  CONSTRAINT fk_channel_mapping_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_channel_customer_mappings (
-  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
-  channel_instance_id  CHAR(36) NOT NULL,
-  contact_id           INT NOT NULL,
-  external_customer_id VARCHAR(191) NOT NULL,
-  last_synced_at       DATETIME(3) NULL,
-  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_channel_customer_mapping (business_id, channel_instance_id, contact_id),
-  UNIQUE KEY uq_channel_external_customer (business_id, channel_instance_id, external_customer_id),
-  INDEX idx_channel_customer_mapping_contact (business_id, contact_id),
-  CONSTRAINT fk_channel_mapping_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_channel_events (
-  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
-  channel_instance_id  CHAR(36) NOT NULL,
-  provider_event_id    VARCHAR(191) NOT NULL,
-  event_type           VARCHAR(128) NOT NULL,
-  payload_hash         CHAR(64) NOT NULL,
-  encrypted_payload    MEDIUMTEXT NOT NULL,
-  status               VARCHAR(32) NOT NULL DEFAULT 'pending',
-  attempts             INT UNSIGNED NOT NULL DEFAULT 0,
-  available_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  processed_at         DATETIME(3) NULL,
-  safe_error           VARCHAR(1000) NULL,
-  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_channel_event (business_id, channel_instance_id, provider_event_id, event_type),
-  INDEX idx_channel_event_queue (business_id, channel_instance_id, status, available_at, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_channel_sync_jobs (
-  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
-  channel_instance_id  CHAR(36) NOT NULL,
-  operation            VARCHAR(64) NOT NULL,
-  resource_type        VARCHAR(64) NOT NULL,
-  resource_id          VARCHAR(191) NOT NULL,
-  idempotency_key      VARCHAR(191) NOT NULL,
-  payload_json         JSON NULL,
-  status               VARCHAR(32) NOT NULL DEFAULT 'pending',
-  attempts             INT UNSIGNED NOT NULL DEFAULT 0,
-  available_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  lease_token          CHAR(36) NULL,
-  lease_expires_at     DATETIME(3) NULL,
-  completed_at         DATETIME(3) NULL,
-  safe_error           VARCHAR(1000) NULL,
-  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_channel_sync_job (business_id, channel_instance_id, idempotency_key),
-  INDEX idx_channel_sync_job_queue (business_id, channel_instance_id, status, available_at, id),
-  INDEX idx_channel_sync_job_lease (status, lease_expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Website Content Attempts ────────────────────────────────
@@ -963,14 +825,6 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   supplier_invoice_number VARCHAR(100),
   supplier_invoice_date DATE,
   payment_terms VARCHAR(100),
-  early_payment_discount_rule_id INT NULL,
-  early_payment_discount_name VARCHAR(120) NULL,
-  early_payment_discount_basis_points INT UNSIGNED NULL,
-  early_payment_discount_days INT UNSIGNED NULL,
-  early_payment_discount_base VARCHAR(32) NULL,
-  early_payment_discount_date_basis VARCHAR(40) NULL,
-  early_payment_discount_cutoff_date DATE NULL,
-  early_payment_discount_source VARCHAR(32) NULL,
   xero_bill_id VARCHAR(100) NULL,
   xero_synced_at DATETIME NULL,
   xero_sync_status ENUM('synced','queued','error') NULL,
@@ -1088,17 +942,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   delivery_state   VARCHAR(100) NULL,
   delivery_postcode VARCHAR(30) NULL,
   delivery_country VARCHAR(100) NULL,
-  channel_shipping_method VARCHAR(255) NULL,
-  channel_delivery_type VARCHAR(20) NULL,
   payment_terms    VARCHAR(100) NULL,
-  early_payment_discount_rule_id INT NULL,
-  early_payment_discount_name VARCHAR(120) NULL,
-  early_payment_discount_basis_points INT UNSIGNED NULL,
-  early_payment_discount_days INT UNSIGNED NULL,
-  early_payment_discount_base VARCHAR(32) NULL,
-  early_payment_discount_date_basis VARCHAR(40) NULL,
-  early_payment_discount_cutoff_date DATE NULL,
-  early_payment_discount_source VARCHAR(32) NULL,
   notes            TEXT,
   tax_treatment    ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
   freight          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -1182,38 +1026,6 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
   INDEX idx_sop_so (so_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ── Applied early-payment discounts ────────────────────────
-CREATE TABLE IF NOT EXISTS ims_early_payment_discount_applications (
-  id                         BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id                VARCHAR(100) NOT NULL DEFAULT '',
-  document_type              VARCHAR(20) NOT NULL,
-  document_id                INT NOT NULL,
-  settlement_payment_id      INT NULL,
-  operation_key              VARCHAR(191) NOT NULL,
-  status                     VARCHAR(32) NOT NULL DEFAULT 'pending',
-  cutoff_date                DATE NOT NULL,
-  paid_by_cutoff             DECIMAL(12,2) NOT NULL DEFAULT 0,
-  discount_taxable_net       DECIMAL(12,2) NOT NULL DEFAULT 0,
-  discount_tax_free          DECIMAL(12,2) NOT NULL DEFAULT 0,
-  discount_net               DECIMAL(12,2) NOT NULL DEFAULT 0,
-  discount_tax               DECIMAL(12,2) NOT NULL DEFAULT 0,
-  discount_gross             DECIMAL(12,2) NOT NULL DEFAULT 0,
-  currency_code              VARCHAR(10) NOT NULL DEFAULT 'AUD',
-  customer_credit_note_id    INT NULL,
-  supplier_credit_note_id    INT NULL,
-  xero_credit_note_id        VARCHAR(100) NULL,
-  xero_allocation_id         VARCHAR(100) NULL,
-  xero_status                VARCHAR(32) NULL,
-  xero_error                 VARCHAR(500) NULL,
-  applied_by                 INT NULL,
-  applied_at                 DATETIME NULL,
-  created_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_early_payment_application_operation (business_id, operation_key),
-  UNIQUE KEY uq_early_payment_application_document (business_id, document_type, document_id),
-  INDEX idx_early_payment_application_status (business_id, status, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id    VARCHAR(100) NOT NULL,
@@ -1264,201 +1076,6 @@ CREATE TABLE IF NOT EXISTS ims_so_shipment_tracking (
   tracking_url             VARCHAR(2000) NULL,
   INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
   FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_carrier_accounts (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  provider                 VARCHAR(50) NOT NULL,
-  display_name             VARCHAR(120) NOT NULL,
-  environment              VARCHAR(20) NOT NULL DEFAULT 'test',
-  base_url                 VARCHAR(500) NULL,
-  account_number           VARCHAR(100) NULL,
-  username_encrypted       TEXT NULL,
-  password_encrypted       TEXT NULL,
-  api_key_encrypted        TEXT NULL,
-  dispatch_location_id     INT NULL,
-  merchant_location_id     VARCHAR(100) NULL,
-  capabilities_json        JSON NULL,
-  verified_at              DATETIME NULL,
-  verification_error       VARCHAR(500) NULL,
-  is_active                TINYINT(1) NOT NULL DEFAULT 1,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shipping_carrier_account_name (business_id, display_name),
-  INDEX idx_shipping_carrier_provider (business_id, provider, is_active),
-  INDEX idx_shipping_carrier_location (business_id, dispatch_location_id, is_active),
-  FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_package_presets (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  name                     VARCHAR(120) NOT NULL,
-  package_type             VARCHAR(30) NOT NULL DEFAULT 'box',
-  length_mm                DECIMAL(10,2) NOT NULL,
-  width_mm                 DECIMAL(10,2) NOT NULL,
-  height_mm                DECIMAL(10,2) NOT NULL,
-  tare_weight_kg           DECIMAL(8,4) NOT NULL DEFAULT 0,
-  max_weight_kg            DECIMAL(8,4) NULL,
-  allow_rotation           TINYINT(1) NOT NULL DEFAULT 1,
-  sort_priority            INT NOT NULL DEFAULT 0,
-  is_active                TINYINT(1) NOT NULL DEFAULT 1,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shipping_package_name (business_id, name),
-  INDEX idx_shipping_package_active (business_id, is_active, sort_priority, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  operation_key            VARCHAR(191) NOT NULL,
-  request_hash             CHAR(64) NOT NULL,
-  carrier_account_id       BIGINT NOT NULL,
-  dispatch_location_id     INT NULL,
-  provider                 VARCHAR(50) NOT NULL,
-  provider_reference       VARCHAR(50) NOT NULL,
-  provider_order_id        VARCHAR(150) NULL,
-  status                   VARCHAR(30) NOT NULL DEFAULT 'submitting',
-  shipment_count           INT NOT NULL DEFAULT 0,
-  parcel_count             INT NOT NULL DEFAULT 0,
-  summary_url              VARCHAR(2000) NULL,
-  summary_url_expires_at   DATETIME NULL,
-  safe_error               VARCHAR(500) NULL,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  submitted_at             DATETIME NULL,
-  completed_at             DATETIME NULL,
-  UNIQUE KEY uq_shipping_manifest_operation (business_id, operation_key),
-  UNIQUE KEY uq_shipping_manifest_reference (business_id, provider, provider_reference),
-  UNIQUE KEY uq_shipping_manifest_provider (business_id, carrier_account_id, provider_order_id),
-  INDEX idx_shipping_manifest_status (business_id, status, created_at),
-  FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
-  FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  operation_key            VARCHAR(191) NOT NULL,
-  request_hash             CHAR(64) NOT NULL,
-  so_id                    INT NOT NULL,
-  carrier_account_id       BIGINT NOT NULL,
-  manifest_id              BIGINT NULL,
-  dispatch_location_id     INT NULL,
-  provider                 VARCHAR(50) NOT NULL,
-  status                   VARCHAR(30) NOT NULL DEFAULT 'draft',
-  provider_shipment_id     VARCHAR(150) NULL,
-  provider_reference       VARCHAR(150) NOT NULL,
-  service_code             VARCHAR(50) NULL,
-  service_name             VARCHAR(120) NULL,
-  quoted_cost              DECIMAL(12,2) NULL,
-  quoted_cost_ex_gst       DECIMAL(12,2) NULL,
-  quoted_gst               DECIMAL(12,2) NULL,
-  charged_cost             DECIMAL(12,2) NULL,
-  charged_cost_ex_gst      DECIMAL(12,2) NULL,
-  charged_gst              DECIMAL(12,2) NULL,
-  sender_json              JSON NOT NULL,
-  recipient_json           JSON NOT NULL,
-  options_json             JSON NULL,
-  ims_fulfilment_operation_key VARCHAR(191) NULL,
-  safe_error               VARCHAR(500) NULL,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  carrier_created_at       DATETIME NULL,
-  label_ready_at           DATETIME NULL,
-  ims_fulfilled_at         DATETIME NULL,
-  manifested_at            DATETIME NULL,
-  completed_at             DATETIME NULL,
-  voided_at                DATETIME NULL,
-  UNIQUE KEY uq_shipping_operation (business_id, operation_key),
-  UNIQUE KEY uq_shipping_provider_reference (business_id, provider, provider_reference),
-  UNIQUE KEY uq_shipping_provider_shipment (business_id, provider, provider_shipment_id),
-  INDEX idx_shipping_order (business_id, so_id, created_at),
-  INDEX idx_shipping_status (business_id, status, updated_at),
-  INDEX idx_shipping_manifest (business_id, manifest_id, id),
-  FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id),
-  FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
-  FOREIGN KEY (manifest_id) REFERENCES ims_shipping_manifests(id) ON DELETE SET NULL,
-  FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  shipment_id              BIGINT NOT NULL,
-  package_preset_id        BIGINT NULL,
-  parcel_number            INT NOT NULL,
-  package_type             VARCHAR(30) NOT NULL DEFAULT 'box',
-  length_mm                DECIMAL(10,2) NOT NULL,
-  width_mm                 DECIMAL(10,2) NOT NULL,
-  height_mm                DECIMAL(10,2) NOT NULL,
-  weight_kg                DECIMAL(8,4) NOT NULL,
-  provider_item_id         VARCHAR(150) NULL,
-  article_id               VARCHAR(150) NULL,
-  consignment_id           VARCHAR(150) NULL,
-  tracking_url             VARCHAR(2000) NULL,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shipping_parcel_number (business_id, shipment_id, parcel_number),
-  INDEX idx_shipping_parcel_tracking (business_id, article_id),
-  FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE,
-  FOREIGN KEY (package_preset_id) REFERENCES ims_shipping_package_presets(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_parcel_items (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  parcel_id                BIGINT NOT NULL,
-  so_item_id               INT NOT NULL,
-  quantity                 DECIMAL(12,4) NOT NULL,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shipping_parcel_item (business_id, parcel_id, so_item_id),
-  INDEX idx_shipping_parcel_item_order (business_id, so_item_id, parcel_id),
-  FOREIGN KEY (parcel_id) REFERENCES ims_shipping_parcels(id) ON DELETE CASCADE,
-  FOREIGN KEY (so_item_id) REFERENCES ims_sales_order_items(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_labels (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  shipment_id              BIGINT NOT NULL,
-  provider_request_id      VARCHAR(150) NULL,
-  format                   VARCHAR(20) NOT NULL,
-  layout                   VARCHAR(50) NOT NULL,
-  status                   VARCHAR(30) NOT NULL DEFAULT 'pending',
-  label_url                VARCHAR(2000) NULL,
-  label_url_expires_at     DATETIME NULL,
-  safe_error               VARCHAR(500) NULL,
-  requested_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  available_at             DATETIME NULL,
-  last_printed_at          DATETIME NULL,
-  print_count              INT NOT NULL DEFAULT 0,
-  UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id, shipment_id),
-  INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
-  FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (
-  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  shipment_id              BIGINT NOT NULL,
-  sales_channel            VARCHAR(50) NOT NULL,
-  operation_key            VARCHAR(191) NOT NULL,
-  status                   VARCHAR(30) NOT NULL DEFAULT 'pending',
-  attempt_count            INT NOT NULL DEFAULT 0,
-  next_attempt_at          DATETIME NULL,
-  external_fulfilment_id   VARCHAR(150) NULL,
-  request_json             JSON NOT NULL,
-  response_json            JSON NULL,
-  safe_error               VARCHAR(500) NULL,
-  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  completed_at             DATETIME NULL,
-  UNIQUE KEY uq_shipping_channel_operation (business_id, operation_key),
-  INDEX idx_shipping_channel_queue (business_id, status, next_attempt_at, id),
-  INDEX idx_shipping_channel_external (business_id, sales_channel, external_fulfilment_id),
-  FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
@@ -1870,12 +1487,10 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
     'so_confirmed','so_unconfirmed','so_fulfilled',
     'cn_returned','scn_returned','cn_return_reversed','scn_return_reversed',
     'adjustment','transfer_in','transfer_out',
-    'pos_sale','pos_return','stocktake','stocktake_reverted',
-    'build_component_consumed','build_output_produced',
-    'build_component_restored','build_output_reversed'
+    'pos_sale','pos_return','stocktake','stocktake_reverted'
   ) NOT NULL,
   channel        VARCHAR(20) NULL,
-  reference_type ENUM('purchase_order','sales_order','credit_note','supplier_credit_note','manual','pos_sale','stocktake','branch_transfer','product_build','product_build_reversal') NOT NULL,
+  reference_type ENUM('purchase_order','sales_order','credit_note','supplier_credit_note','manual','pos_sale','stocktake','branch_transfer') NOT NULL,
   reference_id   INT,
   qty_change     DECIMAL(12,4) NOT NULL,
   qty_after_soh  DECIMAL(12,4) NOT NULL,
@@ -1886,169 +1501,6 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   INDEX idx_business_id (business_id),
   INDEX idx_sm_location (location_id),
   INDEX idx_sm_ref      (reference_type, reference_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- ── Product Build Recipes ───────────────────────────────────
-CREATE TABLE IF NOT EXISTS ims_product_build_recipes (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  output_variant_id      VARCHAR(36) NOT NULL,
-  active_version_id      BIGINT NULL,
-  is_enabled             TINYINT(1) NOT NULL DEFAULT 1,
-  created_by             INT NULL,
-  created_by_name        VARCHAR(255) NULL,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_recipe_output (business_id, output_variant_id),
-  INDEX idx_build_recipe_active (business_id, is_enabled, output_variant_id),
-  FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_recipe_versions (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  recipe_id              BIGINT NOT NULL,
-  revision               INT NOT NULL,
-  base_output_quantity   DECIMAL(12,4) NOT NULL DEFAULT 1,
-  overhead_per_output    DECIMAL(15,4) NOT NULL DEFAULT 0,
-  notes                  TEXT NULL,
-  created_by             INT NULL,
-  created_by_name        VARCHAR(255) NULL,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_recipe_revision (business_id, recipe_id, revision),
-  INDEX idx_build_recipe_version (business_id, recipe_id, id),
-  FOREIGN KEY (recipe_id) REFERENCES ims_product_build_recipes(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_recipe_components (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  recipe_version_id      BIGINT NOT NULL,
-  component_variant_id   VARCHAR(36) NOT NULL,
-  quantity_per_output    DECIMAL(12,4) NOT NULL,
-  sort_order             INT NOT NULL DEFAULT 0,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_recipe_component (business_id, recipe_version_id, component_variant_id),
-  INDEX idx_build_component_variant (business_id, component_variant_id, recipe_version_id),
-  FOREIGN KEY (recipe_version_id) REFERENCES ims_product_build_recipe_versions(id) ON DELETE RESTRICT,
-  FOREIGN KEY (component_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_batches (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  build_number           VARCHAR(50) NOT NULL,
-  location_id            INT NOT NULL,
-  status                 ENUM('completed','partially_reversed','reversed') NOT NULL DEFAULT 'completed',
-  source_type            ENUM('manual','pos_sale','sales_order') NOT NULL DEFAULT 'manual',
-  source_id              VARCHAR(100) NULL,
-  source_channel         VARCHAR(50) NULL,
-  notes                  TEXT NULL,
-  operation_key          VARCHAR(191) NOT NULL,
-  request_hash           CHAR(64) NOT NULL,
-  actor_id               INT NULL,
-  actor_name             VARCHAR(255) NULL,
-  completed_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_batch_number (business_id, build_number),
-  UNIQUE KEY uq_build_batch_operation (business_id, operation_key),
-  INDEX idx_build_batch_history (business_id, completed_at, id),
-  INDEX idx_build_batch_location (business_id, location_id, completed_at),
-  INDEX idx_build_batch_source (business_id, source_type, source_id),
-  FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_items (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  batch_id               BIGINT NOT NULL,
-  output_variant_id      VARCHAR(36) NOT NULL,
-  recipe_id              BIGINT NOT NULL,
-  recipe_version_id      BIGINT NOT NULL,
-  recipe_revision        INT NOT NULL,
-  quantity_built         DECIMAL(12,4) NOT NULL,
-  quantity_reversed      DECIMAL(12,4) NOT NULL DEFAULT 0,
-  component_cost_total   DECIMAL(15,4) NOT NULL,
-  component_cost_per_output DECIMAL(15,4) NOT NULL,
-  overhead_per_output    DECIMAL(15,4) NOT NULL DEFAULT 0,
-  output_unit_cost       DECIMAL(15,4) NOT NULL,
-  output_avg_cost_before DECIMAL(15,4) NOT NULL,
-  output_avg_cost_after  DECIMAL(15,4) NOT NULL,
-  source_line_id         VARCHAR(100) NULL,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_batch_output (business_id, batch_id, output_variant_id),
-  INDEX idx_build_item_output (business_id, output_variant_id, created_at),
-  INDEX idx_build_item_recipe (business_id, recipe_version_id),
-  FOREIGN KEY (batch_id) REFERENCES ims_product_build_batches(id) ON DELETE RESTRICT,
-  FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT,
-  FOREIGN KEY (recipe_id) REFERENCES ims_product_build_recipes(id) ON DELETE RESTRICT,
-  FOREIGN KEY (recipe_version_id) REFERENCES ims_product_build_recipe_versions(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_item_components (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  build_item_id          BIGINT NOT NULL,
-  component_variant_id   VARCHAR(36) NOT NULL,
-  quantity_per_output    DECIMAL(12,4) NOT NULL,
-  quantity_consumed      DECIMAL(12,4) NOT NULL,
-  component_avg_cost     DECIMAL(15,4) NOT NULL,
-  component_cost_total   DECIMAL(15,4) NOT NULL,
-  sort_order             INT NOT NULL DEFAULT 0,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_item_component (business_id, build_item_id, component_variant_id),
-  INDEX idx_build_snapshot_variant (business_id, component_variant_id, build_item_id),
-  FOREIGN KEY (build_item_id) REFERENCES ims_product_build_items(id) ON DELETE RESTRICT,
-  FOREIGN KEY (component_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_reversals (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  reversal_number        VARCHAR(50) NOT NULL,
-  build_item_id          BIGINT NOT NULL,
-  quantity_reversed      DECIMAL(12,4) NOT NULL,
-  reason                 VARCHAR(500) NOT NULL,
-  operation_key          VARCHAR(191) NOT NULL,
-  request_hash           CHAR(64) NOT NULL,
-  output_avg_cost_before DECIMAL(15,4) NOT NULL,
-  output_avg_cost_after  DECIMAL(15,4) NOT NULL,
-  actor_id               INT NULL,
-  actor_name             VARCHAR(255) NULL,
-  reversed_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_reversal_number (business_id, reversal_number),
-  UNIQUE KEY uq_build_reversal_operation (business_id, operation_key),
-  INDEX idx_build_reversal_item (business_id, build_item_id, reversed_at),
-  FOREIGN KEY (build_item_id) REFERENCES ims_product_build_items(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_product_build_requirements (
-  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id            VARCHAR(100) NOT NULL,
-  sales_order_id         INT NOT NULL,
-  sales_order_item_id    INT NOT NULL,
-  location_id            INT NOT NULL,
-  output_variant_id      VARCHAR(36) NOT NULL,
-  source_channel         VARCHAR(50) NOT NULL,
-  detected_shortfall     DECIMAL(12,4) NOT NULL,
-  state                  ENUM('open','completed','dismissed','no_longer_needed') NOT NULL DEFAULT 'open',
-  linked_build_item_id   BIGINT NULL,
-  detected_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  resolved_at            DATETIME NULL,
-  resolved_by            INT NULL,
-  resolved_by_name       VARCHAR(255) NULL,
-  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_build_requirement_source (business_id, sales_order_item_id, location_id),
-  INDEX idx_build_requirement_queue (business_id, state, location_id, detected_at),
-  INDEX idx_build_requirement_order (business_id, sales_order_id, state),
-  FOREIGN KEY (sales_order_id) REFERENCES ims_sales_orders(id) ON DELETE RESTRICT,
-  FOREIGN KEY (sales_order_item_id) REFERENCES ims_sales_order_items(id) ON DELETE RESTRICT,
-  FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE RESTRICT,
-  FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE RESTRICT,
-  FOREIGN KEY (linked_build_item_id) REFERENCES ims_product_build_items(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Stocktakes ──────────────────────────────────────────────

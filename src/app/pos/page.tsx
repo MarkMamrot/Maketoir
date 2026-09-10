@@ -1479,6 +1479,7 @@ function PettyCashModal({ registerSessionId, onSaved, onCancel }: {
 // ─── Main POS Layout ──────────────────────────────────────────────────────────
 
 type MainScreen = 'pos' | 'daybook' | 'eod' | 'reports' | 'parked' | 'receive-transfers' | 'branch-transfer';
+type SaleProductGuide = { id: number; product_name: string; category: string | null; shelf_location: string | null; box_location: string | null; guidance: string | null };
 
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
@@ -1509,6 +1510,7 @@ function MainPos({
   });
   const [parkedSales, setParkedSales] = useState<ParkedSale[]>(() => loadParkedSales());
   const [showPayment, setShowPayment] = useState(false);
+  const [saleProductGuide, setSaleProductGuide] = useState<SaleProductGuide | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [orderDiscType, setOrderDiscType] = useState<'percent' | 'amount'>('percent');
@@ -1970,11 +1972,21 @@ function MainPos({
     return { ...base, total, tax_total, order_disc_amount, loyalty_eligible_before_reward, loyalty_reward_valid, loyalty_discount_amount };
   }, [cart, orderDiscType, orderDiscVal, selectedReward, isLayby, isOnline]);
 
+  async function loadSaleProductGuide(variantId: string) {
+    try {
+      const response = await fetch(`/api/pos/daybook?view=product-guide&variant_id=${encodeURIComponent(variantId)}`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const result = await response.json();
+      if (result.guide) setSaleProductGuide(result.guide);
+    } catch { /* A guide is advisory and must not block a sale. */ }
+  }
+
   function addToCart(product: CachedProduct) {
     if (linkedReturnSaleId != null) {
       setSaleSubmitError('Finish or clear the linked return before starting another sale.');
       return;
     }
+    if (!cart.some(item => item.variant_id === product.variant_id)) void loadSaleProductGuide(product.variant_id);
     setCart(prev => {
       const existing = prev.find(i => i.variant_id === product.variant_id);
       if (existing) {
@@ -3010,6 +3022,14 @@ function MainPos({
           </div>
         </div>
       </div>
+
+      {saleProductGuide && <div role="presentation" onClick={() => setSaleProductGuide(null)} style={{ position: 'fixed', inset: 0, zIndex: 120, display: 'grid', placeItems: 'center', padding: 18, background: 'rgba(8,18,17,.66)' }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="sale-product-guide-title" onClick={event => event.stopPropagation()} style={{ width: 'min(560px,100%)', maxHeight: '85vh', overflowY: 'auto', border: '1px solid var(--sv-etch)', borderTop: '5px solid var(--sv-action)', borderRadius: 8, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', boxShadow: '0 24px 70px rgba(0,0,0,.45)' }}>
+          <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, padding: '18px 20px 14px', borderBottom: '1px solid var(--sv-etch)' }}><div><span style={{ display: 'block', marginBottom: 5, color: 'var(--sv-action)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>{saleProductGuide.category || 'Product guide'}</span><h2 id="sale-product-guide-title" style={{ margin: 0, fontFamily: 'Georgia,serif', fontSize: 23, letterSpacing: 0 }}>{saleProductGuide.product_name}</h2></div><button type="button" onClick={() => setSaleProductGuide(null)} aria-label="Close product guide" style={{ flex: '0 0 auto', width: 36, height: 36, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 22 }}>×</button></header>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 12, padding: 20 }}><div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)' }}><small style={{ display: 'block', marginBottom: 4, color: 'var(--sv-text-dim)', fontWeight: 800 }}>SHELF</small><strong>{saleProductGuide.shelf_location || 'Not specified'}</strong></div><div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)' }}><small style={{ display: 'block', marginBottom: 4, color: 'var(--sv-text-dim)', fontWeight: 800 }}>BOX</small><strong>{saleProductGuide.box_location || 'Not specified'}</strong></div>{saleProductGuide.guidance && <div style={{ gridColumn: '1/-1', paddingTop: 4 }}><small style={{ display: 'block', marginBottom: 6, color: 'var(--sv-text-dim)', fontWeight: 800 }}>GUIDANCE</small><p style={{ margin: 0, fontSize: 15, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{saleProductGuide.guidance}</p></div>}</div>
+          <footer style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 20px', borderTop: '1px solid var(--sv-etch)' }}><button type="button" onClick={() => setSaleProductGuide(null)} style={{ minHeight: 40, padding: '8px 18px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Got it</button></footer>
+        </section>
+      </div>}
 
       {showPayment && (
         <PaymentModal

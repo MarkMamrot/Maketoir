@@ -11,6 +11,7 @@ import {
   getDaybookDateRange,
   normalizeDaybookColour,
   normalizeDaybookEditPolicy,
+  normalizeDaybookTaskCopy,
   normalizeStaffIdentity,
   parseDaybookDate,
   resolveDaybookLocationId,
@@ -198,6 +199,31 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const context = await resolveContext(Number(url.searchParams.get('location_id') ?? 0));
   if (!context) return error('An active POS location is required.', 401);
+  if (url.searchParams.get('view') === 'product-guide') {
+    const variantId = String(url.searchParams.get('variant_id') ?? '').trim();
+    if (!variantId) return error('A product variant is required.');
+    try {
+      const rows = await imsQuery<{
+        id: number;
+        product_name: string;
+        category: string | null;
+        shelf_location: string | null;
+        box_location: string | null;
+        guidance: string | null;
+      }>(
+        `SELECT id, product_name, category, shelf_location, box_location, guidance
+         FROM pos_daybook_product_guides
+         WHERE business_id = ? AND variant_id = ? AND status <> 'archived'
+           AND (location_id IS NULL OR location_id = ?)
+         ORDER BY (location_id = ?) DESC, id DESC LIMIT 1`,
+        [context.businessId, variantId, context.locationId, context.locationId],
+      );
+      return NextResponse.json({ guide: rows[0] ?? null });
+    } catch (caught) {
+      await reportRuntimeIssue({ businessId: context.businessId, source: 'pos/daybook', operation: 'load_sale_product_guide', title: 'POS sale product guide lookup failed', error: caught, context: { locationId: context.locationId, variantId } });
+      return error('Product guidance could not be loaded.', 500);
+    }
+  }
   if (url.searchParams.get('view') === 'products') {
     const search = String(url.searchParams.get('q') ?? '').trim().slice(0, 120);
     try {
@@ -822,9 +848,8 @@ export async function POST(request: Request) {
       })) return error('You do not have permission to edit this item.', 403);
       const recurrence = ['daily', 'weekly', 'once'].includes(String(body.recurrence)) ? String(body.recurrence) : 'daily';
       const phase = ['opening', 'during_day', 'closing'].includes(String(body.phase)) ? String(body.phase) : 'during_day';
-      const title = String(body.title ?? '').trim().slice(0, 255);
+      const { title, instructions } = normalizeDaybookTaskCopy(body.title, body.instructions);
       if (!title) return error('A task title is required.');
-      const instructions = String(body.instructions ?? '').trim() || null;
       await imsExecute(
         `UPDATE pos_daybook_task_templates SET phase = ?, title = ?, instructions = ?, recurrence = ?, weekday = ?, scheduled_date = ?
          WHERE id = ? AND business_id = ? AND location_id = ?`,
@@ -975,7 +1000,7 @@ export async function POST(request: Request) {
     if (action === 'create_task') {
       const recurrence = ['daily', 'weekly', 'once'].includes(String(body.recurrence)) ? String(body.recurrence) : 'daily';
       const phase = ['opening', 'during_day', 'closing'].includes(String(body.phase)) ? String(body.phase) : 'during_day';
-      const title = String(body.title ?? '').trim().slice(0, 255);
+      const { title, instructions } = normalizeDaybookTaskCopy(body.title, body.instructions);
       if (!title) return error('A task title is required.');
       await imsExecute(
         `INSERT INTO pos_daybook_task_templates
@@ -983,7 +1008,7 @@ export async function POST(request: Request) {
             sort_order, created_by_id, created_by_name, created_by_staff_identity_id, created_by_staff_name, created_by_staff_initials)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [context.businessId, context.locationId, phase, title,
-          String(body.instructions ?? '').trim() || null, recurrence, recurrence === 'weekly' ? Number(body.weekday) : null,
+          instructions, recurrence, recurrence === 'weekly' ? Number(body.weekday) : null,
           recurrence === 'once' ? parseDaybookDate(String(body.scheduled_date ?? '')) : null,
           Number(body.sort_order ?? 0), context.actorUserId, context.actorName, staff.id, staff.name, staff.initials],
       );

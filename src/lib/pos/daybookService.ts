@@ -52,6 +52,12 @@ export function normalizeStaffIdentity(identity: DaybookStaffIdentity): DaybookS
   return { id: identity.id ?? null, name, initials };
 }
 
+export function normalizeDaybookTaskCopy(titleValue: unknown, instructionsValue: unknown) {
+  const title = String(titleValue ?? '').trim().slice(0, 50);
+  const instructions = String(instructionsValue ?? '').trim().slice(0, 600) || null;
+  return { title, instructions };
+}
+
 export function parseDaybookDate(value: string): string | null {
   const cleaned = value.trim();
   if (!cleaned) return null;

@@ -15,6 +15,7 @@ import {
   canManageDaybookTask,
   normalizeDaybookColour,
   normalizeDaybookEditPolicy,
+  normalizeDaybookTaskCopy,
 } from '../daybookService';
 
 describe('Store Daybook rules', () => {
@@ -32,6 +33,15 @@ describe('Store Daybook rules', () => {
       name: 'Holly Green',
       initials: 'HG',
     });
+  });
+
+  it('caps checklist titles and instructions at their UI limits', () => {
+    expect(normalizeDaybookTaskCopy(`  ${'T'.repeat(60)}  `, `  ${'I'.repeat(700)}  `)).toEqual({
+      title: 'T'.repeat(50),
+      instructions: 'I'.repeat(600),
+    });
+    expect(normalizeDaybookTaskCopy('Count till', '   ')).toEqual({ title: 'Count till', instructions: null });
+    expect(normalizeDaybookTaskCopy('   ', 'Instructions')).toEqual({ title: '', instructions: 'Instructions' });
   });
 
   it('parses spreadsheet dates without accepting impossible dates', () => {

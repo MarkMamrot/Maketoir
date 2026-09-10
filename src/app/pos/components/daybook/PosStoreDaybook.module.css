@@ -82,14 +82,16 @@
 
 /* Wide operational canvas with dense task history and expandable collaboration details. */
 .main{width:100%;max-width:1920px;box-sizing:border-box}
-.contentSection{width:100%}
+.contentSection{width:100%;max-width:none}
 .recordList{max-width:none}
 .recordGroup{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:10px}
+.storeNeedGroups{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:18px}.storeNeedGroups .recordGroup{grid-template-columns:1fr}.storeNeedGroups .fullWidthGroup{grid-column:1/-1}
 .recordGroup>h3{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:10px 0 2px;padding-bottom:7px;border-bottom:2px solid #173735;font:700 18px/1.2 Georgia,serif;color:#173735}
 .recordGroup>h3 span{display:grid;place-items:center;min-width:24px;height:22px;border-radius:4px;background:#173735;color:#fff;font:800 11px/1 "Aptos","Segoe UI",sans-serif}
 .checklistSection{gap:12px}
 .checklistTable thead th{height:48px;padding:5px 4px}
 .checklistTable tbody th{padding:7px 9px 7px 12px}
+.checklistTable tbody th>div:first-child>strong{display:block;font-size:15px;line-height:1.35}.taskInstructions{display:block;margin-top:7px;padding-top:6px;border-top:1px dashed color-mix(in srgb,var(--schedule-accent) 34%,#d7d3c9);color:#475653;font-size:13px;font-weight:500;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.field>span{display:flex;align-items:center;justify-content:space-between;gap:10px}.field>span>small{color:#75807d;font-size:10px;font-weight:700}.feed{grid-template-columns:repeat(auto-fit,minmax(460px,1fr))}.guideGrid{grid-template-columns:repeat(auto-fit,minmax(500px,1fr))}
 .checklistTable td{padding:5px 3px}
 .checklistTable td button,.checklistTable td>div{min-height:38px}
 .checklistTable .scheduleHeading th{padding:4px 12px}
@@ -114,4 +116,4 @@
 .referenceSecret>span{display:grid;gap:2px;min-width:160px;margin-right:auto}.referenceSecret b{font-size:10px;color:#596663}.referenceSecret code{font-size:13px;overflow-wrap:anywhere}
 .referenceSecret button{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:5px 7px;border:1px solid #bfc8c5;border-radius:4px;background:#fff;color:#173735;font-size:11px;font-weight:700;cursor:pointer}
 .referenceSecret button:disabled{opacity:.45;cursor:not-allowed}
-@media(max-width:900px){.recordGroup{grid-template-columns:1fr}.main{padding-inline:14px}}
+@media(max-width:1100px){.storeNeedGroups{grid-template-columns:1fr}.storeNeedGroups .fullWidthGroup{grid-column:auto}.feed,.guideGrid{grid-template-columns:1fr}}@media(max-width:900px){.recordGroup{grid-template-columns:1fr}.main{padding-inline:14px}}

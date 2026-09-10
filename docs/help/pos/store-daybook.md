@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-09-01","owner":"retail"}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-09-10","owner":"retail"}
 ---
 # Store Daybook
 
@@ -56,7 +56,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
 
-Task rows and sign-off cells use a compact layout so more of the week fits on screen. Daybook also expands across large monitors while retaining horizontal scrolling on smaller screens.
+Task rows and sign-off cells use a compact layout so more of the week fits on screen. A task title is limited to 50 characters and its instructions to 600 characters. Instructions appear in full on separate wrapping lines beneath the title. Daybook and each of its sections expand across large monitors while retaining horizontal scrolling where a smaller screen needs it.
 
 ### Add comments and updates
 
@@ -87,7 +87,7 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 
 1. Open the relevant section: **Requests**, **Store needs**, **Discrepancies**, or **Incidents**.
 2. Select **Add new** at the top of the tab.
-3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited.
+3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited. On a wide screen, Store Supplies and Stock Requests appear beside each other so both queues can be reviewed together.
 4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
 5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
 
@@ -117,6 +117,8 @@ Managers use **Add new** in Today, Comms, References and Product guide to add da
 Reference desk groups entries into expandable categories such as Contacts, Logins, Troubleshooting and Guides. A manager selects **Add category**, enters the category name and saves it before adding entries. Empty categories remain visible, and the category picker also retains category names used by older References. Search opens matching categories. A reference can include ordinary information, a resource link and an optional encrypted secret. Secret values are masked until a Daybook staff member selects **Reveal**, can be copied while visible, and are never included in Reference search or Assistant knowledge.
 
 To add or edit a Product guide, search the active product list by product name, SKU or barcode and choose the matching variant. Daybook uses that catalogue product's primary photo automatically. A placeholder is shown when the product does not have a primary photo. The guide cannot be saved until a matching result is chosen.
+
+When a guided variant is first added to the current POS sale, a popup shows its Product guide category, shelf location, box location and guidance. Read the guidance, then select **Got it** to continue. Adding another quantity of the same variant to that cart does not reopen the popup; it can appear again when the variant is first added to a later sale.
 
 Some imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.
 
@@ -167,6 +169,7 @@ The Store Daybook option is a normal link to `/pos?screen=daybook`, so staff can
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
 | Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |
 | A Product guide cannot be saved | No active catalogue product has been selected | Search by product name, SKU or barcode and select a result before saving |
+| Product guidance does not appear during a sale | The exact variant has no active Product guide for this store or all stores | Open Product guide in Daybook and link an active entry to the exact catalogue variant |
 
 ## Worked examples
 
