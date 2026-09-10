@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, FileUp, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
   enabledBulkProductFields,
@@ -106,6 +106,23 @@ interface BulkProductPreset {
   name: string;
   settings: BulkProductWorkspaceSettings;
   lastUsedAt: string | null;
+}
+
+interface BulkProductExtraction {
+  currency: string;
+  prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax' | 'unknown';
+  products: Array<{
+    product_name: string;
+    product_code: string;
+    barcode: string;
+    description: string;
+    brand: string;
+    product_type: string;
+    category: string;
+    tags: string;
+    unit_cost: number | null;
+    rrp: number | null;
+  }>;
 }
 
 const inputStyle = {
@@ -290,6 +307,32 @@ function blankProduct(): ProductDraft {
   };
 }
 
+function productFromExtraction(product: BulkProductExtraction['products'][number], currency: string): ProductDraft {
+  const draft = blankProduct();
+  const normalizedCurrency = currency.toUpperCase();
+  const sourceCost = product.unit_cost == null ? '' : String(product.unit_cost);
+  const hasForeignCost = FOREIGN_CURRENCIES.includes(normalizedCurrency) && Boolean(sourceCost);
+  return {
+    ...draft,
+    name: product.product_name,
+    base_sku: product.product_code,
+    description: product.description,
+    product_type: product.product_type,
+    brand: product.brand,
+    tags: product.tags,
+    category: product.category,
+    variants: [{
+      ...draft.variants[0],
+      sku: product.product_code,
+      barcode: product.barcode,
+      cost_aud: normalizedCurrency === 'AUD' ? sourceCost : '',
+      price_rrp: normalizedCurrency === 'AUD' && product.rrp != null ? String(product.rrp) : '',
+      foreignCosts: hasForeignCost ? { [normalizedCurrency]: sourceCost } : {},
+      foreignCostsEdited: hasForeignCost,
+    }],
+  };
+}
+
 function optionSetsFromVariants(variants: Record<string, unknown>[]): ProductOptionSet[] {
   if (variants.length === 1
     && ['', 'default'].includes(String(variants[0].option1_value ?? '').trim().toLowerCase())
@@ -423,6 +466,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
   const [message, setMessage] = useState('');
   const [loadError, setLoadError] = useState('');
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
@@ -437,6 +485,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [total, setTotal] = useState(0);
   const [fill, setFill] = useState<FillState | null>(null);
   const fillDragCandidateRef = useRef<FillDragCandidate | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   useTableArrowScroll(bodyScrollRef, 'window', { captureHorizontalFromControls: true });
@@ -726,9 +775,59 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     return () => window.removeEventListener('keydown', close);
   }, [fieldsOpen]);
 
+  useEffect(() => {
+    if (!importOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !importing) setImportOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [importOpen, importing]);
+
   const addProduct = () => {
     const product = blankProduct();
     setNewProducts(current => [product, ...current]);
+  };
+
+  const removeNewProduct = (clientId: string) => {
+    const removedProduct = newProducts.find(product => product.clientId === clientId);
+    setNewProducts(current => current.filter(product => product.clientId !== clientId));
+    setExpanded(current => { const next = new Set(current); next.delete(clientId); return next; });
+    setErrors(current => {
+      const next = { ...current };
+      delete next[clientId];
+      removedProduct?.variants.forEach(variant => delete next[variant.clientId]);
+      return next;
+    });
+    if (manageVariantsProductId === clientId) setManageVariantsProductId(null);
+  };
+
+  const importProductData = async () => {
+    if (!importFile && !importText.trim()) return;
+    setImporting(true);
+    setImportError('');
+    try {
+      const formData = new FormData();
+      if (importFile) formData.append('file', importFile);
+      else formData.append('text', importText.trim());
+      const response = await fetch('/api/ims/products/bulk-add-edit/extract', { method: 'POST', body: formData });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Product data could not be extracted.');
+      const extraction = result.extraction as BulkProductExtraction;
+      const drafts = extraction.products.map(product => productFromExtraction(product, extraction.currency));
+      setNewProducts(current => [...drafts, ...current]);
+      const normalizedCurrency = extraction.currency.toUpperCase();
+      const currencyField = `foreign_cost_${normalizedCurrency}`;
+      if (FOREIGN_CURRENCIES.includes(normalizedCurrency) && availableFields.some(field => field.id === currencyField)) {
+        setSelectedFields(current => sanitizeBulkProductFieldSelection([...current, currencyField], availableFields));
+      }
+      setImportOpen(false);
+      setImportFile(null);
+      setImportText('');
+      setMessage(`${drafts.length} product line${drafts.length === 1 ? '' : 's'} extracted. Review the new rows before saving.`);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Product data could not be extracted.');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const generateVariants = (product: ProductDraft) => {
@@ -884,7 +983,8 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     return (
       <tr key={variant?.clientId ?? product.clientId} style={{ background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)' }}>
         <td style={{ position: 'sticky', left: 0, zIndex: 3, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: 4, borderBottom: '1px solid var(--sv-etch)', textAlign: 'center' }}>
-          {!variant && hasGeneratedVariants(product) && <button type="button" aria-label={`${expanded.has(product.clientId) ? 'Collapse' : 'Expand'} ${product.name || 'new product'} variants`} onClick={() => setExpanded(current => { const next = new Set(current); next.has(product.clientId) ? next.delete(product.clientId) : next.add(product.clientId); return next; })} style={{ ...buttonStyle, padding: 4, border: 0 }}>
+          {!variant && !product.productId && <button type="button" title="Delete new product" aria-label={`Delete ${product.name || 'new product'}`} onClick={() => removeNewProduct(product.clientId)} style={{ ...buttonStyle, padding: 2, border: 0, color: 'var(--sv-danger, #b42318)' }}><X size={15} /></button>}
+          {!variant && hasGeneratedVariants(product) && <button type="button" aria-label={`${expanded.has(product.clientId) ? 'Collapse' : 'Expand'} ${product.name || 'new product'} variants`} onClick={() => setExpanded(current => { const next = new Set(current); next.has(product.clientId) ? next.delete(product.clientId) : next.add(product.clientId); return next; })} style={{ ...buttonStyle, padding: 2, border: 0 }}>
             {expanded.has(product.clientId) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>}
         </td>
@@ -918,6 +1018,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
           <button type="button" onClick={addProduct} style={buttonStyle}><Plus size={15} /> Add New Products</button>
+          <button type="button" onClick={() => { setImportOpen(true); setImportError(''); }} style={buttonStyle}><FileUp size={15} /> Import Product Data</button>
           <button type="button" onClick={() => {
             const generated = populateBlankProductSkus(displayedProducts.map(product => ({ clientId: product.clientId, brand: product.brand, baseSku: product.base_sku })));
             generated.forEach(row => { if (row.baseSku !== displayedProducts.find(product => product.clientId === row.clientId)?.base_sku) updateProductField(String(row.clientId), 'base_sku', row.baseSku ?? ''); });
@@ -1022,6 +1123,21 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 10 }}><button type="button" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))} style={{ ...buttonStyle, opacity: page <= 1 ? .5 : 1 }}>Previous</button><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Page {page} of {Math.max(1, Math.ceil(total / 50))}</span><button type="button" disabled={page * 50 >= total} onClick={() => setPage(current => current + 1)} style={{ ...buttonStyle, opacity: page * 50 >= total ? .5 : 1 }}>Next</button></div>
+
+      {importOpen && <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !importing) setImportOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, .48)' }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="bulk-import-title" style={{ width: 'min(680px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 24px 60px rgba(15,23,42,.24)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--sv-etch)' }}><div><h3 id="bulk-import-title" style={{ margin: 0, fontSize: 16, color: 'var(--sv-text-strong)' }}>Import Product Data</h3><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>AI creates editable new product rows without matching existing products.</div></div><button type="button" title="Close" aria-label="Close product import" disabled={importing} onClick={() => setImportOpen(false)} style={{ ...buttonStyle, padding: 5, opacity: importing ? .5 : 1 }}><X size={16} /></button></div>
+          <div style={{ padding: 14 }}>
+            <input ref={importFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.tsv,.txt" hidden onChange={event => { const file = event.target.files?.[0] ?? null; setImportFile(file); if (file) setImportText(''); setImportError(''); event.target.value = ''; }} />
+            <button type="button" disabled={importing} onClick={() => importFileRef.current?.click()} style={{ ...buttonStyle, width: '100%', minHeight: 74, borderStyle: 'dashed', flexDirection: 'column' }}><FileUp size={22} /><span>{importFile ? importFile.name : 'Choose PDF, image, CSV, TSV, or TXT'}</span></button>
+            {importFile && <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 5 }}><button type="button" disabled={importing} onClick={() => setImportFile(null)} style={{ ...buttonStyle, padding: '4px 7px' }}><X size={13} /> Remove file</button></div>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '12px 0', color: 'var(--sv-text-dim)', fontSize: 11 }}><span style={{ height: 1, flex: 1, background: 'var(--sv-etch)' }} /><span>OR PASTE PRODUCT DATA</span><span style={{ height: 1, flex: 1, background: 'var(--sv-etch)' }} /></div>
+            <textarea aria-label="Paste product data" disabled={importing || Boolean(importFile)} value={importText} onChange={event => { setImportText(event.target.value); setImportError(''); }} placeholder="Paste copied invoice lines, a PDF table, spreadsheet rows, or other product data here..." maxLength={200000} style={{ ...inputStyle, minHeight: 180, resize: 'vertical', opacity: importFile ? .5 : 1 }} />
+            {importError && <div role="alert" style={{ marginTop: 9, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--sv-danger, #b42318) 35%, var(--sv-etch))', background: 'color-mix(in srgb, var(--sv-danger, #b42318) 7%, transparent)', color: 'var(--sv-danger, #b42318)', fontSize: 12 }}>{importError}</div>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, marginTop: 12 }}><button type="button" disabled={importing} onClick={() => setImportOpen(false)} style={buttonStyle}>Cancel</button><button type="button" disabled={importing || (!importFile && !importText.trim())} onClick={() => void importProductData()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: importing || (!importFile && !importText.trim()) ? .5 : 1 }}><Sparkles size={15} /> {importing ? 'Extracting products...' : 'Create Product Lines'}</button></div>
+          </div>
+        </div>
+      </div>}
 
       {managedProduct && <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setManageVariantsProductId(null); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, .48)' }}>
         <div role="dialog" aria-modal="true" aria-labelledby="bulk-variants-title" style={{ width: 'min(720px, 100%)', maxHeight: 'min(720px, calc(100vh - 40px))', overflowY: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 24px 60px rgba(15,23,42,.24)' }}>

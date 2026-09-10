@@ -47,13 +47,6 @@ const DAYBOOK_TABLES = [
   'pos_daybook_content_events',
 ];
 
-const INVENTORY_COSTING_TABLES = [
-  'ims_inventory_cost_state',
-  'ims_inventory_cost_epochs',
-  'ims_fifo_cost_layers',
-  'ims_fifo_cost_allocations',
-];
-
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -70,12 +63,6 @@ const DAYBOOK_TABLE_DDLS = DAYBOOK_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
-const INVENTORY_COSTING_TABLE_DDLS = INVENTORY_COSTING_TABLES.map(table => {
-  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
-  const match = canonicalImsSchema.match(expression);
-  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
-  return match[0].replace(/;$/, '');
-});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -87,7 +74,6 @@ const conn = await mysql.createConnection({
 
 const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
-  ...INVENTORY_COSTING_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -344,6 +330,107 @@ const TABLE_DDLS = [
     company VARCHAR(255) NULL, tracking_number VARCHAR(255) NULL, tracking_url VARCHAR(2000) NULL,
     INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
     CONSTRAINT fk_so_shipment_tracking_shipment FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_carrier_accounts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, provider VARCHAR(50) NOT NULL,
+    display_name VARCHAR(120) NOT NULL, environment VARCHAR(20) NOT NULL DEFAULT 'test', account_number VARCHAR(100) NULL,
+    username_encrypted TEXT NULL, password_encrypted TEXT NULL, api_key_encrypted TEXT NULL,
+    dispatch_location_id INT NULL, merchant_location_id VARCHAR(100) NULL, capabilities_json JSON NULL,
+    verified_at DATETIME NULL, verification_error VARCHAR(500) NULL, is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_shipping_carrier_account_name (business_id, display_name),
+    INDEX idx_shipping_carrier_provider (business_id, provider, is_active),
+    INDEX idx_shipping_carrier_location (business_id, dispatch_location_id, is_active),
+    CONSTRAINT fk_shipping_carrier_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_package_presets (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, name VARCHAR(120) NOT NULL,
+    package_type VARCHAR(30) NOT NULL DEFAULT 'box', length_mm DECIMAL(10,2) NOT NULL,
+    width_mm DECIMAL(10,2) NOT NULL, height_mm DECIMAL(10,2) NOT NULL,
+    tare_weight_kg DECIMAL(8,4) NOT NULL DEFAULT 0, max_weight_kg DECIMAL(8,4) NULL,
+    allow_rotation TINYINT(1) NOT NULL DEFAULT 1, sort_priority INT NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_shipping_package_name (business_id, name),
+    INDEX idx_shipping_package_active (business_id, is_active, sort_priority, id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, carrier_account_id BIGINT NOT NULL,
+    dispatch_location_id INT NULL, provider_order_id VARCHAR(150) NULL, status VARCHAR(30) NOT NULL DEFAULT 'submitting',
+    shipment_count INT NOT NULL DEFAULT 0, summary_url VARCHAR(2000) NULL, summary_url_expires_at DATETIME NULL,
+    safe_error VARCHAR(500) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME NULL,
+    UNIQUE KEY uq_shipping_manifest_provider (business_id, carrier_account_id, provider_order_id),
+    INDEX idx_shipping_manifest_status (business_id, status, created_at),
+    CONSTRAINT fk_shipping_manifest_account FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
+    CONSTRAINT fk_shipping_manifest_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NOT NULL, so_id INT NOT NULL, carrier_account_id BIGINT NOT NULL, manifest_id BIGINT NULL,
+    dispatch_location_id INT NULL, provider VARCHAR(50) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    provider_shipment_id VARCHAR(150) NULL, provider_reference VARCHAR(150) NOT NULL,
+    service_code VARCHAR(50) NULL, service_name VARCHAR(120) NULL,
+    quoted_cost DECIMAL(12,2) NULL, quoted_cost_ex_gst DECIMAL(12,2) NULL, quoted_gst DECIMAL(12,2) NULL,
+    charged_cost DECIMAL(12,2) NULL, charged_cost_ex_gst DECIMAL(12,2) NULL, charged_gst DECIMAL(12,2) NULL,
+    sender_json JSON NOT NULL, recipient_json JSON NOT NULL, options_json JSON NULL,
+    ims_fulfilment_operation_key VARCHAR(191) NULL, safe_error VARCHAR(500) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    carrier_created_at DATETIME NULL, label_ready_at DATETIME NULL, ims_fulfilled_at DATETIME NULL,
+    completed_at DATETIME NULL, voided_at DATETIME NULL,
+    UNIQUE KEY uq_shipping_operation (business_id, operation_key),
+    UNIQUE KEY uq_shipping_provider_reference (business_id, provider, provider_reference),
+    UNIQUE KEY uq_shipping_provider_shipment (business_id, provider, provider_shipment_id),
+    INDEX idx_shipping_order (business_id, so_id, created_at), INDEX idx_shipping_status (business_id, status, updated_at),
+    INDEX idx_shipping_manifest (business_id, manifest_id, id),
+    CONSTRAINT fk_shipping_order FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id),
+    CONSTRAINT fk_shipping_account FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
+    CONSTRAINT fk_shipping_manifest FOREIGN KEY (manifest_id) REFERENCES ims_shipping_manifests(id) ON DELETE SET NULL,
+    CONSTRAINT fk_shipping_dispatch_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
+    package_preset_id BIGINT NULL, parcel_number INT NOT NULL, package_type VARCHAR(30) NOT NULL DEFAULT 'box',
+    length_mm DECIMAL(10,2) NOT NULL, width_mm DECIMAL(10,2) NOT NULL, height_mm DECIMAL(10,2) NOT NULL,
+    weight_kg DECIMAL(8,4) NOT NULL, provider_item_id VARCHAR(150) NULL, article_id VARCHAR(150) NULL,
+    consignment_id VARCHAR(150) NULL, tracking_url VARCHAR(2000) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_shipping_parcel_number (business_id, shipment_id, parcel_number),
+    INDEX idx_shipping_parcel_tracking (business_id, article_id),
+    CONSTRAINT fk_shipping_parcel_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE,
+    CONSTRAINT fk_shipping_parcel_preset FOREIGN KEY (package_preset_id) REFERENCES ims_shipping_package_presets(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_parcel_items (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, parcel_id BIGINT NOT NULL,
+    so_item_id INT NOT NULL, quantity DECIMAL(12,4) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_shipping_parcel_item (business_id, parcel_id, so_item_id),
+    INDEX idx_shipping_parcel_item_order (business_id, so_item_id, parcel_id),
+    CONSTRAINT fk_shipping_parcel_item_parcel FOREIGN KEY (parcel_id) REFERENCES ims_shipping_parcels(id) ON DELETE CASCADE,
+    CONSTRAINT fk_shipping_parcel_item_order FOREIGN KEY (so_item_id) REFERENCES ims_sales_order_items(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_labels (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
+    provider_request_id VARCHAR(150) NULL, format VARCHAR(20) NOT NULL, layout VARCHAR(50) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'pending', label_url VARCHAR(2000) NULL, label_url_expires_at DATETIME NULL,
+    safe_error VARCHAR(500) NULL, requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    available_at DATETIME NULL, last_printed_at DATETIME NULL, print_count INT NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id),
+    INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
+    CONSTRAINT fk_shipping_label_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
+    sales_channel VARCHAR(50) NOT NULL, operation_key VARCHAR(191) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    attempt_count INT NOT NULL DEFAULT 0, next_attempt_at DATETIME NULL, external_fulfilment_id VARCHAR(150) NULL,
+    request_json JSON NOT NULL, response_json JSON NULL, safe_error VARCHAR(500) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, completed_at DATETIME NULL,
+    UNIQUE KEY uq_shipping_channel_operation (business_id, operation_key),
+    INDEX idx_shipping_channel_queue (business_id, status, next_attempt_at, id),
+    INDEX idx_shipping_channel_external (business_id, sales_channel, external_fulfilment_id),
+    CONSTRAINT fk_shipping_channel_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
   `CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1084,9 +1171,10 @@ if (requestedTable && !TABLE_DDLS.some(ddl => tableNameFromDdl(ddl) === requeste
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
-  ['ims_stock_movements', 'cost_method_snapshot', "ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost' AFTER unit_cost"],
-  ['ims_stock_movements', 'cost_epoch_id', 'BIGINT NULL AFTER cost_method_snapshot'],
   ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
+  ['ims_product_variants', 'length_mm', 'DECIMAL(10,2) NULL AFTER weight_kg'],
+  ['ims_product_variants', 'width_mm', 'DECIMAL(10,2) NULL AFTER length_mm'],
+  ['ims_product_variants', 'height_mm', 'DECIMAL(10,2) NULL AFTER width_mm'],
   ['pos_daybook_task_templates', 'created_by_staff_identity_id', 'BIGINT NULL AFTER created_by_name'],
   ['pos_daybook_task_templates', 'created_by_staff_name', 'VARCHAR(120) NULL AFTER created_by_staff_identity_id'],
   ['pos_daybook_task_templates', 'created_by_staff_initials', 'VARCHAR(8) NULL AFTER created_by_staff_name'],
@@ -1345,7 +1433,6 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
-  ['ims_stock_movements', 'idx_sm_cost_epoch', 'INDEX `idx_sm_cost_epoch` (`business_id`, `cost_epoch_id`, `id`)'],
   ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],
   ['ims_brands', 'idx_ims_brand_business', 'INDEX `idx_ims_brand_business` (`business_id`)'],
   ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],
