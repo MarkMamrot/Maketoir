@@ -1,11 +1,18 @@
-import { createHash } from 'node:crypto';
+import { createHash } from "node:crypto";
+import { PDFDocument } from "pdf-lib";
 
-import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { getIMSPool, imsQuery } from '@/services/IMSMySQLService';
+import { reportRuntimeIssue } from "@/lib/runtimeIssues";
+import { getIMSPool, imsExecute, imsQuery } from "@/services/IMSMySQLService";
 
-import { AusPostApiError, AusPostEparcelClient } from './carriers/auspostEparcel/client';
-import { ShippingSettingsRepository } from './shippingSettingsRepository';
-import { type ManifestCandidate, validateManifestCandidates } from './shippingWorkflow';
+import {
+  AusPostApiError,
+  AusPostEparcelClient,
+} from "./carriers/auspostEparcel/client";
+import { ShippingSettingsRepository } from "./shippingSettingsRepository";
+import {
+  type ManifestCandidate,
+  validateManifestCandidates,
+} from "./shippingWorkflow";
 
 type ManifestShipmentRow = ManifestCandidate & {
   soNumber: string;
@@ -30,9 +37,16 @@ export type ShippingManifestSummary = {
   safeError: string | null;
   createdAt: string | Date;
   completedAt: string | Date | null;
+  orders: Array<{
+    shipmentId: number;
+    soNumber: string;
+    channelOrderNumber: string | null;
+  }>;
 };
 
-export async function listShippingManifestWorkspace(businessId: string): Promise<{
+export async function listShippingManifestWorkspace(
+  businessId: string,
+): Promise<{
   candidates: ManifestShipmentRow[];
   manifests: ShippingManifestSummary[];
 }> {
@@ -73,13 +87,35 @@ export async function listShippingManifestWorkspace(businessId: string): Promise
       ORDER BY manifest.created_at DESC, manifest.id DESC LIMIT 100`,
     [businessId],
   );
+  const manifestIds = manifests.map((row) => Number(row.id));
+  const manifestOrders = manifestIds.length
+    ? await imsQuery<any>(
+        `SELECT shipment.manifest_id AS manifestId, shipment.id AS shipmentId, sales_order.so_number AS soNumber,
+            COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channelOrderNumber
+       FROM ims_shipping_shipments shipment
+       JOIN ims_sales_orders sales_order ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
+      WHERE shipment.business_id = ? AND shipment.manifest_id IN (${manifestIds.map(() => "?").join(",")})
+      ORDER BY shipment.manifest_id, shipment.id`,
+        [businessId, ...manifestIds],
+      )
+    : [];
   return {
     candidates: candidates.map(normalizeCandidateRow),
-    manifests: manifests.map(row => ({
+    manifests: manifests.map((row) => ({
       ...row,
-      id: Number(row.id), carrierAccountId: Number(row.carrierAccountId),
-      dispatchLocationId: row.dispatchLocationId == null ? null : Number(row.dispatchLocationId),
-      shipmentCount: Number(row.shipmentCount), parcelCount: Number(row.parcelCount),
+      id: Number(row.id),
+      carrierAccountId: Number(row.carrierAccountId),
+      dispatchLocationId:
+        row.dispatchLocationId == null ? null : Number(row.dispatchLocationId),
+      shipmentCount: Number(row.shipmentCount),
+      parcelCount: Number(row.parcelCount),
+      orders: manifestOrders
+        .filter((order) => Number(order.manifestId) === Number(row.id))
+        .map((order) => ({
+          shipmentId: Number(order.shipmentId),
+          soNumber: order.soNumber,
+          channelOrderNumber: order.channelOrderNumber,
+        })),
     })),
   };
 }
@@ -91,10 +127,12 @@ export async function createShippingManifest(input: {
 }): Promise<ShippingManifestSummary> {
   const operationKey = input.operationKey.trim();
   const shipmentIds = normalizedIds(input.shipmentIds);
-  if (!operationKey || operationKey.length > 150) throw new Error('A valid operation key is required.');
-  if (!shipmentIds.length) throw new Error('Choose at least one dispatched shipment.');
+  if (!operationKey || operationKey.length > 150)
+    throw new Error("A valid operation key is required.");
+  if (!shipmentIds.length)
+    throw new Error("Choose at least one dispatched shipment.");
   const requestHash = manifestRequestHash(shipmentIds);
-  const providerReference = `SOL-${operationKey.replace(/[^A-Za-z0-9-]/g, '').slice(0, 46)}`;
+  const providerReference = `SOL-${operationKey.replace(/[^A-Za-z0-9-]/g, "").slice(0, 46)}`;
   const connection = await getIMSPool().getConnection();
   let manifestId = 0;
   let candidates: ManifestShipmentRow[] = [];
@@ -107,19 +145,35 @@ export async function createShippingManifest(input: {
     );
     const existing = existingRows[0];
     if (existing) {
-      if (existing.request_hash !== requestHash) throw new Error('This manifest operation key was already used for different shipments.');
+      if (existing.request_hash !== requestHash)
+        throw new Error(
+          "This manifest operation key was already used for different shipments.",
+        );
       const existingAction = manifestExistingOperationAction(existing.status);
-      if (existingAction === 'return') {
+      if (existingAction === "return") {
         await connection.commit();
         return getShippingManifest(input.businessId, Number(existing.id));
       }
-      if (existingAction === 'block') throw new Error('This manifest booking is already in progress. Refresh the workspace before taking another action.');
-      if (existingAction === 'reconcile') throw new Error('This manifest has an unknown carrier outcome and must be reconciled before continuing.');
+      if (existingAction === "block")
+        throw new Error(
+          "This manifest booking is already in progress. Refresh the workspace before taking another action.",
+        );
+      if (existingAction === "reconcile")
+        throw new Error(
+          "This manifest has an unknown carrier outcome and must be reconciled before continuing.",
+        );
       manifestId = Number(existing.id);
     }
 
-    candidates = await loadManifestCandidatesForUpdate(connection, input.businessId, shipmentIds, manifestId || null);
-    const errors = validateManifestCandidates(candidates.map(candidate => ({ ...candidate, manifestId: null })));
+    candidates = await loadManifestCandidatesForUpdate(
+      connection,
+      input.businessId,
+      shipmentIds,
+      manifestId || null,
+    );
+    const errors = validateManifestCandidates(
+      candidates.map((candidate) => ({ ...candidate, manifestId: null })),
+    );
     if (errors.length) throw new Error(errors[0]);
     const first = candidates[0];
     if (!manifestId) {
@@ -128,8 +182,17 @@ export async function createShippingManifest(input: {
            (business_id, operation_key, request_hash, carrier_account_id, dispatch_location_id,
             provider, provider_reference, status, shipment_count, parcel_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'submitting', ?, ?)`,
-        [input.businessId, operationKey, requestHash, first.carrierAccountId, first.dispatchLocationId,
-          first.provider, providerReference, candidates.length, totalParcels(candidates)],
+        [
+          input.businessId,
+          operationKey,
+          requestHash,
+          first.carrierAccountId,
+          first.dispatchLocationId,
+          first.provider,
+          providerReference,
+          candidates.length,
+          totalParcels(candidates),
+        ],
       );
       manifestId = Number(result.insertId);
     } else {
@@ -139,13 +202,16 @@ export async function createShippingManifest(input: {
         [input.businessId, manifestId],
       );
     }
-    const placeholders = shipmentIds.map(() => '?').join(',');
+    const placeholders = shipmentIds.map(() => "?").join(",");
     const [reserved] = await connection.execute<any>(
       `UPDATE ims_shipping_shipments SET manifest_id = ?
         WHERE business_id = ? AND id IN (${placeholders}) AND (manifest_id IS NULL OR manifest_id = ?)`,
       [manifestId, input.businessId, ...shipmentIds, manifestId],
     );
-    if (Number(reserved.affectedRows) !== shipmentIds.length) throw new Error('One or more shipments changed while creating the manifest.');
+    if (Number(reserved.affectedRows) !== shipmentIds.length)
+      throw new Error(
+        "One or more shipments changed while creating the manifest.",
+      );
     await connection.commit();
   } catch (error) {
     await connection.rollback();
@@ -155,29 +221,51 @@ export async function createShippingManifest(input: {
   }
 
   try {
-    if (candidates[0].provider !== 'auspost_eparcel') throw new Error('This carrier does not support manifests yet.');
-    const credentials = await ShippingSettingsRepository.getAccountCredentials(input.businessId, candidates[0].carrierAccountId);
-    if (!credentials) throw new Error('Carrier account credentials are incomplete.');
+    if (candidates[0].provider !== "auspost_eparcel")
+      throw new Error("This carrier does not support manifests yet.");
+    const credentials = await ShippingSettingsRepository.getAccountCredentials(
+      input.businessId,
+      candidates[0].carrierAccountId,
+    );
+    if (!credentials)
+      throw new Error("Carrier account credentials are incomplete.");
     const client = new AusPostEparcelClient(credentials);
     const response = await client.createOrderFromShipments({
       orderReference: providerReference,
-      shipmentIds: candidates.map(candidate => candidate.providerShipmentId!),
+      shipmentIds: candidates.map((candidate) => candidate.providerShipmentId!),
     });
     await finalizeManifest(input.businessId, manifestId, response.orderId);
     return getShippingManifest(input.businessId, manifestId);
   } catch (error) {
     const definitive = isDefinitiveManifestFailure(error);
-    const safeError = (error instanceof Error ? error.message : 'Carrier manifest creation failed.').slice(0, 500);
-    await markManifestFailure(input.businessId, manifestId, definitive ? 'failed' : 'submission_unknown', safeError, definitive);
+    const safeError = (
+      error instanceof Error
+        ? error.message
+        : "Carrier manifest creation failed."
+    ).slice(0, 500);
+    await markManifestFailure(
+      input.businessId,
+      manifestId,
+      definitive ? "failed" : "submission_unknown",
+      safeError,
+      definitive,
+    );
     if (!definitive) {
       await reportRuntimeIssue({
-        businessId: input.businessId, source: 'ims_shipping', operation: 'create_manifest',
-        title: 'Carrier manifest outcome requires review', error,
+        businessId: input.businessId,
+        source: "ims_shipping",
+        operation: "create_manifest",
+        title: "Carrier manifest outcome requires review",
+        error,
         context: { manifestId, shipmentCount: candidates.length },
-        reference: { type: 'shipping_manifest', id: String(manifestId) },
+        reference: { type: "shipping_manifest", id: String(manifestId) },
       });
     }
-    throw new Error(definitive ? safeError : 'The carrier manifest outcome is unknown. Check the carrier portal before reconciling it in Solvantis.');
+    throw new Error(
+      definitive
+        ? safeError
+        : "The carrier manifest outcome is unknown. Check the carrier portal before reconciling it in Solvantis.",
+    );
   }
 }
 
@@ -186,32 +274,160 @@ export async function reconcileShippingManifest(input: {
   manifestId: number;
   providerOrderId: string;
 }): Promise<ShippingManifestSummary> {
-  const manifest = await getManifestForCarrier(input.businessId, input.manifestId, 'submission_unknown');
-  const credentials = await ShippingSettingsRepository.getAccountCredentials(input.businessId, manifest.carrierAccountId);
-  if (!credentials) throw new Error('Carrier account credentials are incomplete.');
+  const manifest = await getManifestForCarrier(
+    input.businessId,
+    input.manifestId,
+    "submission_unknown",
+  );
+  const credentials = await ShippingSettingsRepository.getAccountCredentials(
+    input.businessId,
+    manifest.carrierAccountId,
+  );
+  if (!credentials)
+    throw new Error("Carrier account credentials are incomplete.");
   const client = new AusPostEparcelClient(credentials);
   const order = await client.getOrder(input.providerOrderId.trim());
   const expected = [...manifest.providerShipmentIds].sort();
   const actual = [...order.shipmentIds].sort();
-  if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error('The carrier order does not contain the expected shipments.');
+  if (JSON.stringify(expected) !== JSON.stringify(actual))
+    throw new Error(
+      "The carrier order does not contain the expected shipments.",
+    );
   await finalizeManifest(input.businessId, input.manifestId, order.orderId);
   return getShippingManifest(input.businessId, input.manifestId);
 }
 
-export async function getShippingManifestSummaryPdf(businessId: string, manifestId: number): Promise<{
+export async function getShippingManifestSummaryPdf(
+  businessId: string,
+  manifestId: number,
+): Promise<{
   bytes: Uint8Array;
   filename: string;
 }> {
-  const manifest = await getManifestForCarrier(businessId, manifestId, 'complete');
-  if (!manifest.providerOrderId) throw new Error('The carrier order ID is unavailable.');
-  const credentials = await ShippingSettingsRepository.getAccountCredentials(businessId, manifest.carrierAccountId);
-  if (!credentials) throw new Error('Carrier account credentials are incomplete.');
-  const bytes = await new AusPostEparcelClient(credentials).getOrderSummaryPdf(manifest.providerOrderId);
-  return { bytes, filename: `manifest-${manifest.providerOrderId.replace(/[^A-Za-z0-9_-]/g, '-')}.pdf` };
+  const manifest = await getManifestForCarrier(
+    businessId,
+    manifestId,
+    "complete",
+  );
+  if (!manifest.providerOrderId)
+    throw new Error("The carrier order ID is unavailable.");
+  const credentials = await ShippingSettingsRepository.getAccountCredentials(
+    businessId,
+    manifest.carrierAccountId,
+  );
+  if (!credentials)
+    throw new Error("Carrier account credentials are incomplete.");
+  const bytes = await new AusPostEparcelClient(credentials).getOrderSummaryPdf(
+    manifest.providerOrderId,
+  );
+  return {
+    bytes,
+    filename: `manifest-${manifest.providerOrderId.replace(/[^A-Za-z0-9_-]/g, "-")}.pdf`,
+  };
 }
 
-async function loadManifestCandidatesForUpdate(connection: any, businessId: string, shipmentIds: number[], manifestId: number | null): Promise<ManifestShipmentRow[]> {
-  const placeholders = shipmentIds.map(() => '?').join(',');
+export async function getShippingManifestLabelsPdf(
+  businessId: string,
+  manifestId: number,
+): Promise<{
+  bytes: Uint8Array;
+  filename: string;
+}> {
+  const manifest = await getManifestForCarrier(
+    businessId,
+    manifestId,
+    "complete",
+  );
+  const rows = await imsQuery<any>(
+    `SELECT label.id, label.provider_request_id AS requestId, label.label_url AS labelUrl,
+            label.label_url_expires_at AS expiresAt, shipment.id AS shipmentId
+       FROM ims_shipping_shipments shipment
+       JOIN ims_shipping_labels label ON label.id = (
+         SELECT latest.id FROM ims_shipping_labels latest
+          WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+          ORDER BY latest.id DESC LIMIT 1
+       )
+      WHERE shipment.business_id = ? AND shipment.manifest_id = ?
+      ORDER BY shipment.id`,
+    [businessId, manifestId],
+  );
+  if (!rows.length) throw new Error("No labels were found for this manifest.");
+  const credentials = await ShippingSettingsRepository.getAccountCredentials(
+    businessId,
+    manifest.carrierAccountId,
+  );
+  if (!credentials)
+    throw new Error("Carrier account credentials are incomplete.");
+  const client = new AusPostEparcelClient(credentials);
+  const urls: string[] = [];
+  const refreshed = new Map<string, { url: string; expiresAt: Date | null }>();
+  for (const row of rows) {
+    let url = String(row.labelUrl ?? "").trim();
+    const expired =
+      row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now();
+    if (!url || expired) {
+      const requestId = String(row.requestId ?? "").trim();
+      if (!requestId)
+        throw new Error("A carrier label request ID is unavailable.");
+      let value = refreshed.get(requestId);
+      if (!value) {
+        const response = (await client.getLabel(requestId)) as any;
+        const label =
+          response?.labels?.find(
+            (item: any) => String(item?.request_id ?? "") === requestId,
+          ) ?? response?.labels?.[0];
+        url = String(label?.url ?? "").trim();
+        if (String(label?.status ?? "").toUpperCase() !== "AVAILABLE" || !url)
+          throw new Error(
+            "Australia Post labels are not available for this manifest.",
+          );
+        value = { url, expiresAt: labelUrlExpiry(url) };
+        refreshed.set(requestId, value);
+      }
+      url = value.url;
+      await imsExecute(
+        `UPDATE ims_shipping_labels SET label_url = ?, label_url_expires_at = ?, status = 'available', available_at = COALESCE(available_at, NOW())
+          WHERE business_id = ? AND id = ?`,
+        [url, value.expiresAt, businessId, Number(row.id)],
+      );
+    }
+    if (!urls.includes(url)) urls.push(url);
+  }
+  const merged = await PDFDocument.create();
+  for (const url of urls) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok)
+      throw new Error(
+        `Australia Post label download failed with HTTP ${response.status}.`,
+      );
+    const source = await PDFDocument.load(await response.arrayBuffer());
+    const pages = await merged.copyPages(source, source.getPageIndices());
+    for (const page of pages) merged.addPage(page);
+  }
+  return {
+    bytes: await merged.save(),
+    filename: `labels-${manifest.providerOrderId || manifestId}.pdf`,
+  };
+}
+
+function labelUrlExpiry(url: string): Date | null {
+  try {
+    const seconds = Number(new URL(url).searchParams.get("Expires"));
+    return Number.isFinite(seconds) && seconds > 0
+      ? new Date(seconds * 1000)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadManifestCandidatesForUpdate(
+  connection: any,
+  businessId: string,
+  shipmentIds: number[],
+  manifestId: number | null,
+): Promise<ManifestShipmentRow[]> {
+  const placeholders = shipmentIds.map(() => "?").join(",");
   const [rows] = await connection.execute<any[]>(
     `SELECT shipment.id AS shipmentId, shipment.carrier_account_id AS carrierAccountId,
             shipment.dispatch_location_id AS dispatchLocationId, shipment.provider,
@@ -235,11 +451,18 @@ async function loadManifestCandidatesForUpdate(connection: any, businessId: stri
       FOR UPDATE`,
     [businessId, ...shipmentIds, manifestId],
   );
-  if (rows.length !== shipmentIds.length) throw new Error('One or more dispatched shipments were not found or are already manifested.');
+  if (rows.length !== shipmentIds.length)
+    throw new Error(
+      "One or more dispatched shipments were not found or are already manifested.",
+    );
   return rows.map(normalizeCandidateRow);
 }
 
-async function finalizeManifest(businessId: string, manifestId: number, providerOrderId: string): Promise<void> {
+async function finalizeManifest(
+  businessId: string,
+  manifestId: number,
+  providerOrderId: string,
+): Promise<void> {
   const connection = await getIMSPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -264,7 +487,13 @@ async function finalizeManifest(businessId: string, manifestId: number, provider
   }
 }
 
-async function markManifestFailure(businessId: string, manifestId: number, status: string, safeError: string, releaseShipments: boolean): Promise<void> {
+async function markManifestFailure(
+  businessId: string,
+  manifestId: number,
+  status: string,
+  safeError: string,
+  releaseShipments: boolean,
+): Promise<void> {
   const connection = await getIMSPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -287,7 +516,10 @@ async function markManifestFailure(businessId: string, manifestId: number, statu
   }
 }
 
-async function getShippingManifest(businessId: string, manifestId: number): Promise<ShippingManifestSummary> {
+async function getShippingManifest(
+  businessId: string,
+  manifestId: number,
+): Promise<ShippingManifestSummary> {
   const rows = await imsQuery<any>(
     `SELECT manifest.id, manifest.provider, manifest.provider_reference AS providerReference,
             manifest.provider_order_id AS providerOrderId, manifest.status,
@@ -301,17 +533,25 @@ async function getShippingManifest(businessId: string, manifestId: number): Prom
       WHERE manifest.business_id = ? AND manifest.id = ? LIMIT 1`,
     [businessId, manifestId],
   );
-  if (!rows[0]) throw new Error('Manifest was not found.');
+  if (!rows[0]) throw new Error("Manifest was not found.");
   const row = rows[0];
   return {
     ...row,
-    id: Number(row.id), carrierAccountId: Number(row.carrierAccountId),
-    dispatchLocationId: row.dispatchLocationId == null ? null : Number(row.dispatchLocationId),
-    shipmentCount: Number(row.shipmentCount), parcelCount: Number(row.parcelCount),
+    id: Number(row.id),
+    carrierAccountId: Number(row.carrierAccountId),
+    dispatchLocationId:
+      row.dispatchLocationId == null ? null : Number(row.dispatchLocationId),
+    shipmentCount: Number(row.shipmentCount),
+    parcelCount: Number(row.parcelCount),
+    orders: [],
   };
 }
 
-async function getManifestForCarrier(businessId: string, manifestId: number, requiredStatus: string): Promise<{
+async function getManifestForCarrier(
+  businessId: string,
+  manifestId: number,
+  requiredStatus: string,
+): Promise<{
   carrierAccountId: number;
   providerOrderId: string | null;
   providerShipmentIds: string[];
@@ -325,30 +565,42 @@ async function getManifestForCarrier(businessId: string, manifestId: number, req
       WHERE manifest.business_id = ? AND manifest.id = ? AND manifest.status = ?`,
     [businessId, manifestId, requiredStatus],
   );
-  if (!rows.length) throw new Error('Manifest was not found or is not ready for this action.');
+  if (!rows.length)
+    throw new Error("Manifest was not found or is not ready for this action.");
   return {
     carrierAccountId: Number(rows[0].carrierAccountId),
     providerOrderId: rows[0].providerOrderId,
-    providerShipmentIds: rows.map(row => String(row.providerShipmentId ?? '')).filter(Boolean),
+    providerShipmentIds: rows
+      .map((row) => String(row.providerShipmentId ?? ""))
+      .filter(Boolean),
   };
 }
 
 function normalizeCandidateRow(row: any): ManifestShipmentRow {
   return {
     ...row,
-    shipmentId: Number(row.shipmentId), carrierAccountId: Number(row.carrierAccountId),
-    dispatchLocationId: row.dispatchLocationId == null ? null : Number(row.dispatchLocationId),
+    shipmentId: Number(row.shipmentId),
+    carrierAccountId: Number(row.carrierAccountId),
+    dispatchLocationId:
+      row.dispatchLocationId == null ? null : Number(row.dispatchLocationId),
     manifestId: row.manifestId == null ? null : Number(row.manifestId),
-    parcelCount: Number(row.parcelCount), chargedCost: row.chargedCost == null ? null : Number(row.chargedCost),
+    parcelCount: Number(row.parcelCount),
+    chargedCost: row.chargedCost == null ? null : Number(row.chargedCost),
   };
 }
 
 function normalizedIds(ids: number[]): number[] {
-  return [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(id => Number.isInteger(id) && id > 0))].sort((left, right) => left - right);
+  return [
+    ...new Set(
+      (Array.isArray(ids) ? ids : [])
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ),
+  ].sort((left, right) => left - right);
 }
 
 function manifestRequestHash(shipmentIds: number[]): string {
-  return createHash('sha256').update(JSON.stringify(shipmentIds)).digest('hex');
+  return createHash("sha256").update(JSON.stringify(shipmentIds)).digest("hex");
 }
 
 function totalParcels(candidates: ManifestCandidate[]): number {
@@ -356,13 +608,25 @@ function totalParcels(candidates: ManifestCandidate[]): number {
 }
 
 export function isDefinitiveManifestFailure(error: unknown): boolean {
-  if (/does not support|credentials are incomplete/i.test(error instanceof Error ? error.message : '')) return true;
-  return error instanceof AusPostApiError && error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status);
+  if (
+    /does not support|credentials are incomplete/i.test(
+      error instanceof Error ? error.message : "",
+    )
+  )
+    return true;
+  return (
+    error instanceof AusPostApiError &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    ![408, 409, 429].includes(error.status)
+  );
 }
 
-export function manifestExistingOperationAction(status: string): 'return' | 'retry' | 'block' | 'reconcile' {
-  if (status === 'complete') return 'return';
-  if (status === 'submission_unknown') return 'reconcile';
-  if (status === 'submitting') return 'block';
-  return 'retry';
+export function manifestExistingOperationAction(
+  status: string,
+): "return" | "retry" | "block" | "reconcile" {
+  if (status === "complete") return "return";
+  if (status === "submission_unknown") return "reconcile";
+  if (status === "submitting") return "block";
+  return "retry";
 }
