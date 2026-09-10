@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-09","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-10","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -59,14 +59,14 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant.
 11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
-13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed. Zero is a valid value.
-14. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.
+13. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.
+14. Choose **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.
 
 When **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.
 
 Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.
 
-Opening quantities are set through a completed stocktake at each location, so Stock History retains the adjustment. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.
+Opening quantity changes are set through a completed stocktake, so Stock History retains each actual adjustment. A new product left at the default zero does not create a zero-value stocktake. Minimum and reorder quantities can still be saved without changing stock. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.
 
 Auto SKU uses the format **ABC-YYMMDD-HHMMSS**. Changing the brand while Auto SKU is on refreshes the generated value. Typing in Product SKU turns Auto SKU off. Generated variant SKUs continue to use the Product SKU as their base.
 

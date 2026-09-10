@@ -22,11 +22,15 @@ const input = {
   lines: [{ variantId: 'variant-1', locationId: 3, quantity: 4, minQty: 0, reorderQty: 0 }],
 };
 
-function arrangeOwnedEntities(existingStocktake: Array<{ id: number; status: string }> = []) {
+function arrangeOwnedEntities(
+  existingStocktake: Array<{ id: number; status: string }> = [],
+  currentStock: Array<{ variant_id: string; qty_on_hand: number }> = [],
+) {
   mocks.query.mockImplementation((sql: string) => {
     if (sql.includes('FROM ims_products')) return Promise.resolve([{ product_id: 'product-1', is_stock_item: 1 }]);
     if (sql.includes('FROM ims_product_variants')) return Promise.resolve([{ variant_id: 'variant-1' }]);
     if (sql.includes('FROM ims_locations')) return Promise.resolve([{ id: 3, name: 'Main Store' }]);
+    if (sql.includes('FROM ims_stock\n')) return Promise.resolve(currentStock);
     if (sql.includes('FROM ims_stocktakes')) return Promise.resolve(existingStocktake);
     throw new Error(`Unexpected query: ${sql}`);
   });
@@ -52,7 +56,7 @@ describe('applyProductOpeningStock', () => {
       businessId: 'business-1', stocktakeId: 31,
       context: expect.objectContaining({ operationKey: 'product-opening-start-request-token-123-3', requestHash: 'request-hash', actorId: 7 }),
     }));
-    expect(mocks.execute).toHaveBeenNthCalledWith(2, expect.stringContaining('min_qty = VALUES(min_qty)'),
+    expect(mocks.execute).toHaveBeenNthCalledWith(1, expect.stringContaining('min_qty = VALUES(min_qty)'),
       ['business-1', 'variant-1', 3, 0, 0]);
     expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({
       stocktakeId: 31, context: expect.objectContaining({ operationKey: 'product-opening-apply-request-token-123-3' }),
@@ -77,6 +81,62 @@ describe('applyProductOpeningStock', () => {
 
     expect(mocks.execute).not.toHaveBeenCalled();
     expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({ stocktakeId: 44 }));
+  });
+
+  it('does not create a stocktake when opening quantity already equals current stock', async () => {
+    arrangeOwnedEntities();
+
+    const result = await applyProductOpeningStock({
+      ...input,
+      lines: [{ ...input.lines[0], quantity: 0 }],
+    });
+
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.transition).not.toHaveBeenCalled();
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(mocks.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_stocktake_items'),
+      expect.anything(),
+    );
+    expect(result).toEqual({ productId: 'product-1', locations: [] });
+  });
+
+  it('does not create an adjustment when a nonzero opening quantity is already on hand', async () => {
+    arrangeOwnedEntities([], [{ variant_id: 'variant-1', qty_on_hand: 4 }]);
+
+    const result = await applyProductOpeningStock(input);
+
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.transition).not.toHaveBeenCalled();
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(result.locations).toEqual([]);
+  });
+
+  it('includes only changed variants when one location has mixed opening quantities', async () => {
+    const mixedInput = {
+      ...input,
+      lines: [
+        { ...input.lines[0], quantity: 0 },
+        { ...input.lines[0], variantId: 'variant-2', quantity: 2 },
+      ],
+    };
+    arrangeOwnedEntities();
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('FROM ims_products')) return Promise.resolve([{ product_id: 'product-1', is_stock_item: 1 }]);
+      if (sql.includes('FROM ims_product_variants')) return Promise.resolve([{ variant_id: 'variant-1' }, { variant_id: 'variant-2' }]);
+      if (sql.includes('FROM ims_locations')) return Promise.resolve([{ id: 3, name: 'Main Store' }]);
+      if (sql.includes('FROM ims_stock\n')) return Promise.resolve([]);
+      if (sql.includes('FROM ims_stocktakes')) return Promise.resolve([]);
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    await applyProductOpeningStock(mixedInput);
+
+    const stocktakeItemWrites = mocks.execute.mock.calls.filter(([sql]) =>
+      String(sql).includes('INSERT INTO ims_stocktake_items'),
+    );
+    expect(stocktakeItemWrites).toHaveLength(1);
+    expect(stocktakeItemWrites[0][1]).toEqual([31, 2, 3, 'business-1', 'product-1', 'variant-2']);
   });
 
   it('rejects variants that do not belong to the product before creating stocktakes', async () => {

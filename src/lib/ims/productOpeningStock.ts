@@ -83,6 +83,18 @@ export async function applyProductOpeningStock(input: ProductOpeningStockInput) 
     const locationLines = lines
       .filter(line => line.locationId === locationId)
       .sort((left, right) => left.variantId.localeCompare(right.variantId));
+    const currentStock = await imsQuery<{ variant_id: string; qty_on_hand: number }>(
+      `SELECT variant_id, qty_on_hand FROM ims_stock
+        WHERE business_id = ? AND location_id = ?
+          AND variant_id IN (${locationLines.map(() => '?').join(',')})`,
+      [input.businessId, locationId, ...locationLines.map(line => line.variantId)],
+    );
+    const currentQuantityByVariant = new Map(
+      currentStock.map(stock => [stock.variant_id, Number(stock.qty_on_hand)]),
+    );
+    const changedLines = locationLines.filter(line =>
+      line.quantity !== (currentQuantityByVariant.get(line.variantId) ?? 0),
+    );
     const requestHash = await hashInventoryDocumentRequest({ productId: input.productId, locationId, lines: locationLines });
     const reference = `PRODUCT-OPEN-${input.productId.slice(0, 12)}-${input.requestToken.slice(0, 24)}-${locationId}`.slice(0, 100);
     const existing = await imsQuery<{ id: number; status: string }>(
@@ -92,6 +104,17 @@ export async function applyProductOpeningStock(input: ProductOpeningStockInput) 
       [input.businessId, locationId, reference],
     );
     let stocktakeId = existing[0]?.id;
+    if (existing[0]?.status !== 'completed') {
+      for (const line of locationLines) {
+        await imsExecute(
+          `INSERT INTO ims_stock (business_id, variant_id, location_id, min_qty, reorder_qty)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE min_qty = VALUES(min_qty), reorder_qty = VALUES(reorder_qty)`,
+          [input.businessId, line.variantId, locationId, line.minQty, line.reorderQty],
+        );
+      }
+    }
+    if (!stocktakeId && changedLines.length === 0) continue;
     if (!stocktakeId) {
       stocktakeId = await ImsStocktakeRepo.create({
         reference,
@@ -114,7 +137,7 @@ export async function applyProductOpeningStock(input: ProductOpeningStockInput) 
     });
 
     if (existing[0]?.status !== 'completed') {
-      for (const line of locationLines) {
+      for (const line of changedLines) {
         await imsExecute(
           `INSERT INTO ims_stocktake_items (stocktake_id, variant_id, expected_qty, counted_qty, notes)
            SELECT ?, v.variant_id, COALESCE(s.qty_on_hand, 0), ?, 'Opening stock from product creation'
@@ -123,12 +146,6 @@ export async function applyProductOpeningStock(input: ProductOpeningStockInput) 
             WHERE v.business_id = ? AND v.product_id = ? AND v.variant_id = ?
            ON DUPLICATE KEY UPDATE counted_qty = VALUES(counted_qty), notes = VALUES(notes)`,
           [stocktakeId, line.quantity, locationId, input.businessId, input.productId, line.variantId],
-        );
-        await imsExecute(
-          `INSERT INTO ims_stock (business_id, variant_id, location_id, min_qty, reorder_qty)
-           VALUES (?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE min_qty = VALUES(min_qty), reorder_qty = VALUES(reorder_qty)`,
-          [input.businessId, line.variantId, locationId, line.minQty, line.reorderQty],
         );
       }
     }

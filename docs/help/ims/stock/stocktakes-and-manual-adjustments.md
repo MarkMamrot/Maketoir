@@ -51,7 +51,7 @@ Use **Products > Builds** to assemble or dismantle recipe-backed stock. Build co
 7. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.
 8. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.
 
-When opening quantities are entered while creating a tracked product, Solvantis creates and completes a separate stocktake for each location. The opening quantity is the counted quantity; Min Qty and Reorder Qty are saved with that location's stock settings. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
+When an opening quantity entered while creating a tracked product differs from stock already on hand, Solvantis creates and completes a stocktake for that location. Unchanged quantities, including the default zero for a new variant, do not create a stocktake or adjustment. Min Qty and Reorder Qty are saved with that location's stock settings without requiring a quantity change. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
 
 ### Make a manual adjustment
 

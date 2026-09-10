@@ -7403,7 +7403,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && variantRows.some(row => !row._delete) && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
-              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock for each variant and location{productFeatures.showReplenishmentQuantities ? ', with optional minimum and reorder quantities' : ''}. Saving records a completed stocktake at each location.</div>
+              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock for each variant and location{productFeatures.showReplenishmentQuantities ? ', with optional minimum and reorder quantities' : ''}. Saving records a completed stocktake only where the opening quantity changes stock.</div>
               {productLocations.length === 0 ? (
                 <div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>Add an active location before entering opening stock.</div>
               ) : (
