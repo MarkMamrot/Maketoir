@@ -14,6 +14,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { POST } from '../route';
 import { SupplierReturnConflict } from '@/lib/ims/ImsRepository';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 const params = { params: { id: '52' } };
 const completionRequest = () => new Request('http://localhost', {
@@ -45,6 +46,19 @@ describe('POST /api/ims/supplier-credit-notes/[id]/complete', () => {
       success: false,
       error: 'Only 2 units remain returnable.',
       code: 'supplier_return_conflict',
+    });
+    expect(mocks.xero).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 when FIFO layers cannot cover the supplier return', async () => {
+    mocks.complete.mockRejectedValue(new FifoCostingConflict('FIFO layers are short by 1 unit.'));
+
+    const response = await POST(completionRequest(), params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      code: 'FIFO_COSTING_CONFLICT',
     });
     expect(mocks.xero).not.toHaveBeenCalled();
   });

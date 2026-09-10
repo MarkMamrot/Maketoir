@@ -6,6 +6,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { InventoryDocumentRevisionConflict } from '@/lib/ims/creditNoteStatusCommands';
 import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -44,7 +45,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       },
     });
   } catch (e: any) {
-    const conflict = e instanceof SupplierReturnConflict || e instanceof InventoryDocumentLifecycleConflict || e instanceof InventoryDocumentOperationConflict || e instanceof InventoryDocumentRevisionConflict;
+    const conflict = e instanceof SupplierReturnConflict || e instanceof FifoCostingConflict || e instanceof InventoryDocumentLifecycleConflict || e instanceof InventoryDocumentOperationConflict || e instanceof InventoryDocumentRevisionConflict;
     return NextResponse.json({ success: false, error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: conflict ? 409 : 500 });
   }
 }

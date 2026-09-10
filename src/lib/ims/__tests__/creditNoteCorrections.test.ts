@@ -26,6 +26,7 @@ function connectionFor(kind: 'customer' | 'supplier', options: {
   operationState?: 'complete' | 'processing';
   contactCredit?: number;
   stockOnHand?: number;
+  costingMethod?: 'average_cost' | 'fifo';
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -69,6 +70,13 @@ function connectionFor(kind: 'customer' | 'supplier', options: {
     }
     if (normalized.startsWith('insert into ims_inventory_document_operations')) {
       return [{ insertId: 81, affectedRows: 1 }];
+    }
+    if (normalized.includes('select active_method, active_epoch_id, revision')) {
+      return [[{
+        active_method: options.costingMethod ?? 'average_cost',
+        active_epoch_id: options.costingMethod === 'fifo' ? 12 : null,
+        revision: 1,
+      }]];
     }
     if (normalized.includes('from store_credit_transactions')) return [[{ id: 44, amount: 25 }]];
     if (normalized.includes('select store_credit from ims_contacts')) {
@@ -184,5 +192,17 @@ describe('credit-note correction transactions', () => {
       expect.arrayContaining(['reversed', 81, 'biz-1']),
     );
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('blocks FIFO supplier-return reversal before movement evidence or stock mutation', async () => {
+    const connection = connectionFor('supplier', { costingMethod: 'fifo' });
+
+    await expect(reverseSupplierCreditNote({
+      businessId: 'biz-1', documentId: 15, reason: 'Supplier return entered twice', context, xeroCorrectionRequired: false,
+    })).rejects.toThrow('exact consumed cost layers must be restored');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('FROM ims_stock_movements'), expect.anything());
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET'), expect.anything());
   });
 });

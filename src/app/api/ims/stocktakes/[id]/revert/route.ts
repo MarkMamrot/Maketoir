@@ -8,6 +8,7 @@ import { revertStocktake, StocktakeOperationConflict } from '@/lib/ims/stocktake
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { syncStocktakeReversalJournal } from '@/services/XeroSyncService';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getImportSession();
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ ...result, xeroWarning });
   } catch (error: any) {
     const conflict = error instanceof StocktakeOperationConflict
+      || error instanceof FifoCostingConflict
       || error instanceof InventoryDocumentLifecycleConflict
       || error instanceof InventoryDocumentOperationConflict
       || error instanceof InventoryDocumentRevisionConflict;

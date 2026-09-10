@@ -1,3 +1,10 @@
+## 2026-09-10 - Dormant FIFO schema deployment and supplier-return costing
+
+- Continue Receiving after a PO edit failed because newly integrated receipt paths locked `ims_inventory_cost_state` before the dormant FIFO schema had been deployed. The idempotent multi-tenant catch-up migration added `ims_stock_movements.cost_method_snapshot`, `cost_epoch_id`, and `idx_sm_cost_epoch`, and bootstrapped all four costing tables in Monsterthreads, Sage, Solvantis, and Monsterthreads Sandbox.
+- Direct information-schema readback verified four costing tables and both movement columns in every registered tenant. No tenant was switched to FIFO; costing-state tables remained empty so normal operations initialize as `average_cost`.
+- Supplier credit-note completion now consumes FIFO layers for physical returns and stamps the resulting composite movement cost. FIFO supplier-return reversal is blocked before stock mutation until exact consumed-layer restoration is implemented.
+- Focused PO receive/status/API tests and supplier-return completion/reversal/API tests passed. FIFO production activation remains disabled.
+
 ## 2026-09-10 - Daybook task copy, sell guidance and wide layouts
 
 - Daybook checklist titles are capped at 50 characters and instructions at 600 in both the editor and API. Instructions render as uncropped multiline text with stronger task-row hierarchy.

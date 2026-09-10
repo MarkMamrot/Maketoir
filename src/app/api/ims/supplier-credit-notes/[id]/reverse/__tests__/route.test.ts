@@ -7,6 +7,7 @@ vi.mock('@/lib/ims/ImsRepository', () => ({ ImsSupplierCNRepo: { get: mocks.get 
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { POST } from '../route';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 import { CreditNoteReversalConflict } from '@/lib/ims/creditNotes/creditNoteCorrections';
 
 const params = { params: { id: '23' } };
@@ -22,6 +23,16 @@ describe('POST /api/ims/supplier-credit-notes/[id]/reverse', () => {
     mocks.session.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin', userId: 8, email: 'sam@example.com' });
     mocks.execute.mockResolvedValue({ id: 23, status: 'reversed', replayed: false, xeroCorrectionStatus: 'error', xeroWarning: 'Retry Xero.' });
     mocks.get.mockResolvedValue({ id: 23, status: 'reversed' });
+  });
+
+  it('returns an expected FIFO reversal conflict without reporting a Runtime Issue', async () => {
+    mocks.execute.mockRejectedValue(new FifoCostingConflict('Exact FIFO reversal is unavailable.'));
+
+    const response = await POST(request({ operationKey: 'key', reason: 'Mistake' }), params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
+    expect(mocks.report).not.toHaveBeenCalled();
   });
 
   it('returns local success with a visible Xero warning', async () => {

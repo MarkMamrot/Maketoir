@@ -12,6 +12,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { POST } from '../route';
 import { StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 const params = { params: { id: '31' } };
 function request(body: unknown) {
@@ -48,6 +49,14 @@ describe('POST /api/ims/stocktakes/[id]/apply', () => {
     mocks.apply.mockRejectedValue(new StocktakeOperationConflict('Stock changed.'));
     const response = await POST(request({ operationKey: 'key' }) as any, params);
     expect(response.status).toBe(409);
+    expect(mocks.report).not.toHaveBeenCalled();
+  });
+
+  it('maps FIFO layer shortages to 409 without reporting a Runtime Issue', async () => {
+    mocks.apply.mockRejectedValue(new FifoCostingConflict('FIFO layers do not cover the counted decrease.'));
+    const response = await POST(request({ operationKey: 'key' }) as any, params);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
     expect(mocks.report).not.toHaveBeenCalled();
   });
 

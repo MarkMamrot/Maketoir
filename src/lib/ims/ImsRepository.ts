@@ -38,7 +38,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from './avgCostMath';
-import { createFifoCostLayer, createFifoPosReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
+import { consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -6302,6 +6302,7 @@ async function returnStockToSupplierTx(
   scnId: number,
   locationId: number,
   items: ImsSupplierCNItem[],
+  costingState: InventoryCostState,
 ): Promise<void> {
   for (const item of items) {
     if (!item.variant_id) continue;
@@ -6340,12 +6341,23 @@ async function returnStockToSupplierTx(
       `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
       [newSoh, item.variant_id, locationId],
     );
-    await conn.execute(
+    const [movementResult] = await conn.execute<any>(
       `INSERT INTO ims_stock_movements
-         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-       VALUES (?,?,?,'scn_returned','supplier_credit_note',?,?,?,?)`,
-      [businessId, item.variant_id, locationId, scnId, -qty, newSoh, unitCost],
+         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,
+          unit_cost,cost_method_snapshot,cost_epoch_id)
+       VALUES (?,?,?,'scn_returned','supplier_credit_note',?,?,?,?,?,?)`,
+      [businessId, item.variant_id, locationId, scnId, -qty, newSoh, unitCost, costingState.method, costingState.epochId],
     );
+    if (costingState.method === 'fifo') {
+      await consumeFifoCostLayers(conn, {
+        businessId,
+        state: costingState,
+        variantId: item.variant_id,
+        locationId,
+        stockMovementId: Number(movementResult.insertId),
+        quantity: qty,
+      });
+    }
   }
 }
 
@@ -6559,12 +6571,13 @@ export const ImsSupplierCNRepo = {
         return;
       }
       assertAllowedInventoryDocumentAction('supplier_credit_note', scn.status, 'complete');
+      const costingState = await lockInventoryCostState(conn, businessId);
       const [itemRows] = await conn.execute<any[]>(
         `SELECT * FROM ims_supplier_credit_note_items WHERE scn_id = ? FOR UPDATE`,
         [id],
       );
       await validateSupplierReturnCapsTx(conn, businessId, scn.po_id, itemRows as ImsSupplierCNItem[], id);
-      await returnStockToSupplierTx(conn, businessId, id, Number(scn.location_id), itemRows as ImsSupplierCNItem[]);
+      await returnStockToSupplierTx(conn, businessId, id, Number(scn.location_id), itemRows as ImsSupplierCNItem[], costingState);
       await conn.execute(
         `UPDATE ims_supplier_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ? AND business_id = ?`,
         [id, businessId],

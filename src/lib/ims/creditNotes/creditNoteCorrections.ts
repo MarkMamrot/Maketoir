@@ -8,6 +8,7 @@ import {
   completeInventoryDocumentOperation,
   type InventoryDocumentOperationContext,
 } from '../inventoryDocumentOperations';
+import { FifoCostingConflict, lockInventoryCostState } from '../costing/fifoCostingService';
 
 type CreditNoteKind = 'customer_credit_note' | 'supplier_credit_note';
 
@@ -247,6 +248,12 @@ export async function reverseSupplierCreditNote(input: ReversalInput): Promise<C
     }
     assertExpectedInventoryDocumentRevision(note.updated_at, input.context.expectedUpdatedAt);
     assertAllowedInventoryDocumentAction('supplier_credit_note', note.status, 'revert_mistaken_completion');
+    const costingState = await lockInventoryCostState(connection, input.businessId);
+    if (costingState.method === 'fifo') {
+      throw new FifoCostingConflict(
+        'This FIFO supplier return cannot be reversed automatically yet because its exact consumed cost layers must be restored. Create a reviewed corrective stocktake instead.',
+      );
+    }
 
     const movements = await lockMovementEvidence(connection, input.businessId, input.documentId, 'scn_returned', 'negative');
     for (const movement of movements) {

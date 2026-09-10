@@ -13,7 +13,7 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 
 import { ImsSupplierCNRepo } from '../ImsRepository';
 
-function connectionFor(options: { status?: string; onHand?: number; isStockItem?: number; sourcePoItemId?: number; sourceVariantId?: string; returnedQty?: number; operationState?: 'processing' | 'complete' } = {}) {
+function connectionFor(options: { status?: string; onHand?: number; isStockItem?: number; sourcePoItemId?: number; sourceVariantId?: string; returnedQty?: number; operationState?: 'processing' | 'complete'; costingMethod?: 'average_cost' | 'fifo' } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     if (normalized.includes('from ims_supplier_credit_notes') && normalized.includes('for update')) {
@@ -33,6 +33,13 @@ function connectionFor(options: { status?: string; onHand?: number; isStockItem?
     if (normalized.startsWith('insert into ims_inventory_document_operations')) {
       return [{ insertId: 81, affectedRows: 1 }];
     }
+    if (normalized.includes('select active_method, active_epoch_id, revision')) {
+      return [[{
+        active_method: options.costingMethod ?? 'average_cost',
+        active_epoch_id: options.costingMethod === 'fifo' ? 12 : null,
+        revision: 1,
+      }]];
+    }
     if (normalized.includes('from ims_supplier_credit_note_items') && normalized.includes('for update')) {
       return [[{ id: 11, scn_id: 7, variant_id: 'v-1', qty: 3, unit_cost: 5, restock: 1, source_po_item_id: options.sourcePoItemId }]];
     }
@@ -47,6 +54,10 @@ function connectionFor(options: { status?: string; onHand?: number; isStockItem?
     }
     if (normalized.includes('select s.qty_on_hand') && normalized.includes('for update')) {
       return [[{ qty_on_hand: options.onHand ?? 5, avg_cost: 4.5 }]];
+    }
+    if (normalized.startsWith('insert into ims_stock_movements')) return [{ insertId: 91, affectedRows: 1 }];
+    if (normalized.includes('from ims_fifo_cost_layers')) {
+      return [[{ id: 51, fifo_date: '2026-01-01', remaining_quantity: 3, unit_cost: 4.25 }]];
     }
     return [{ affectedRows: 1 }];
   });
@@ -87,10 +98,29 @@ describe('ImsSupplierCNRepo.complete', () => {
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining('(business_id,variant_id,location_id,movement_type'),
-      ['biz-1', 'v-1', 4, 7, -3, 2, 4.5],
+      ['biz-1', 'v-1', 4, 7, -3, 2, 4.5, 'average_cost', null],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('consumes FIFO layers and stamps the supplier-return movement with allocated cost', async () => {
+    const connection = connectionFor({ costingMethod: 'fifo' });
+
+    await ImsSupplierCNRepo.complete(7, 'biz-1');
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity - ?'),
+      [3, 51, 'biz-1', 12, 3],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_fifo_cost_allocations'),
+      ['biz-1', 12, 91, 51, 3, 4.25, 12.75],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("SET unit_cost = ?, cost_method_snapshot = 'fifo'"),
+      [4.25, 12, 91, 'biz-1'],
+    );
   });
 
   it('treats an already-complete supplier credit as a successful replay', async () => {

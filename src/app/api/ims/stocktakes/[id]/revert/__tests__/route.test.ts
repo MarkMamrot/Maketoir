@@ -15,6 +15,7 @@ vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
 
 import { POST } from '../route';
 import { StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 const params = { params: { id: '31' } };
 function request(body: unknown) {
@@ -79,5 +80,14 @@ describe('POST /api/ims/stocktakes/[id]/revert', () => {
     const response = await POST(request({ operationKey: 'key', reason: 'Mistake' }) as any, params);
     expect(response.status).toBe(409);
     expect(mocks.xero).not.toHaveBeenCalled();
+  });
+
+  it('maps blocked FIFO reversal to 409 without Xero or runtime issue noise', async () => {
+    mocks.revert.mockRejectedValue(new FifoCostingConflict('Exact FIFO reversal is unavailable.'));
+    const response = await POST(request({ operationKey: 'key', reason: 'Mistake' }) as any, params);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
+    expect(mocks.xero).not.toHaveBeenCalled();
+    expect(mocks.report).not.toHaveBeenCalled();
   });
 });

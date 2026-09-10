@@ -15,6 +15,8 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
   updatedAt?: string;
   xeroJournalId?: string | null;
   xeroStatus?: string | null;
+  costingMethod?: 'average_cost' | 'fifo';
+  countedQuantity?: number;
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -43,12 +45,19 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
       }] : []];
     }
     if (normalized.startsWith('insert into ims_inventory_document_operations')) return [{ insertId: 81, affectedRows: 1 }];
+    if (normalized.includes('select active_method, active_epoch_id, revision')) {
+      return [[{
+        active_method: options.costingMethod ?? 'average_cost',
+        active_epoch_id: options.costingMethod === 'fifo' ? 12 : null,
+        revision: 1,
+      }]];
+    }
     if (normalized.includes('from ims_stocktake_items') && normalized.includes('for update')) {
       return [[{
         id: 41,
         variant_id: 'v-1',
         expected_qty: 10,
-        counted_qty: 6,
+        counted_qty: options.countedQuantity ?? 6,
         soh_at_apply: mode === 'revert' ? 8 : null,
         applied_delta: mode === 'revert' ? -2 : null,
         unit_cost_at_apply: mode === 'revert' ? 5.5 : null,
@@ -58,6 +67,10 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
       return [[{ qty_on_hand: options.currentOnHand ?? (mode === 'apply' ? 8 : 9) }]];
     }
     if (normalized.includes('from ims_product_variants')) return [[{ unit_cost: 5.5 }]];
+    if (normalized.startsWith('insert into ims_stock_movements')) return [{ insertId: 91, affectedRows: 1 }];
+    if (normalized.includes('from ims_fifo_cost_layers')) {
+      return [[{ id: 51, fifo_date: '2026-01-01', remaining_quantity: 8, unit_cost: 4.25 }]];
+    }
     return [{ affectedRows: 1 }];
   });
   const connection = {
@@ -78,13 +91,44 @@ describe('stocktake operations', () => {
     expect(result).toMatchObject({ status: 'completed', applied: 1, variances: 1, countStartVariances: 1 });
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("VALUES (?, ?, ?, 'stocktake'"),
-      ['biz-1', 'v-1', 4, 31, -2, 6, 5.5],
+      ['biz-1', 'v-1', 4, 31, -2, 6, 5.5, 'average_cost', null],
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining('SET soh_at_apply = ?, applied_delta = ?, unit_cost_at_apply = ?'),
       [8, -2, 5.5, 41, 31],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('consumes FIFO layers for a negative stocktake variance and stamps actual cost', async () => {
+    const connection = connectionFor('apply', { costingMethod: 'fifo' });
+
+    await applyStocktake({ businessId: 'biz-1', stocktakeId: 31, context });
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity - ?'),
+      [2, 51, 'biz-1', 12, 2],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_fifo_cost_allocations'),
+      ['biz-1', 12, 91, 51, 2, 4.25, 8.5],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("SET unit_cost = ?, cost_method_snapshot = 'fifo'"),
+      [4.25, 12, 91, 'biz-1'],
+    );
+  });
+
+  it('creates a FIFO layer for a positive stocktake variance at the captured cost', async () => {
+    const connection = connectionFor('apply', { costingMethod: 'fifo', currentOnHand: 4, countedQuantity: 6 });
+
+    await applyStocktake({ businessId: 'biz-1', stocktakeId: 31, context });
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_fifo_cost_layers'),
+      ['biz-1', 12, 'v-1', 4, 'stocktake', 91, 'stocktake', 31, 41, null,
+        expect.any(Date), 2, 2, 5.5],
+    );
   });
 
   it('reverts by compensating exact applied delta after an intervening stock movement', async () => {
@@ -172,6 +216,17 @@ describe('stocktake operations', () => {
       .rejects.toThrow('predates exact apply snapshots');
 
     expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET'), expect.anything());
+  });
+
+  it('blocks FIFO reversal before reading items or mutating stock', async () => {
+    const connection = connectionFor('revert', { costingMethod: 'fifo' });
+
+    await expect(revertStocktake({ businessId: 'biz-1', stocktakeId: 31, reason: 'Mistake', context }))
+      .rejects.toThrow('exact cost-layer allocations must be preserved');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('FROM ims_stocktake_items'), expect.anything());
     expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET'), expect.anything());
   });
 });

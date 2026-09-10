@@ -7,6 +7,7 @@ import { InventoryDocumentRevisionConflict } from '@/lib/ims/creditNoteStatusCom
 import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getImportSession();
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json(result);
   } catch (e: any) {
     const conflict = e instanceof StocktakeOperationConflict
+      || e instanceof FifoCostingConflict
       || e instanceof InventoryDocumentLifecycleConflict
       || e instanceof InventoryDocumentOperationConflict
       || e instanceof InventoryDocumentRevisionConflict;
