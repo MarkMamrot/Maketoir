@@ -4,7 +4,7 @@ import { normalizeSalesDecision, runProspectSalesAssistant, SALES_MODEL, SALES_P
 describe('sales response normalization', () => {
   it('defaults to an approved model with complete commercial pricing', () => {
     expect(SALES_MODEL).toBe('gemini-3.5-flash-lite');
-    expect(SALES_PROMPT_VERSION).toBe('prospect-sales-v2');
+    expect(SALES_PROMPT_VERSION).toBe('prospect-sales-v3');
   });
 
   it('normalizes enums and nullable fields and keeps only retrieved source IDs', () => {
@@ -37,7 +37,7 @@ describe('route-like sales orchestration', () => {
         availability: 'confirmed',
       });
       expect(supplied.publicSources[0].summary).toMatch(/one loyalty program.*POS.*Shopify/i);
-      expect(systemInstruction).toMatch(/answer yes clearly/i);
+      expect(systemInstruction).toMatch(/answer clearly/i);
       return JSON.stringify({
         answer: 'Yes. Solvantis can run one loyalty program across its POS and a connected Shopify store.',
         fit: 'needs_discovery', intent: 'evaluating', sourceIds: ['prospect-shopify-loyalty'], offerContact: false,
@@ -65,7 +65,10 @@ describe('route-like sales orchestration', () => {
     });
     const result = await runProspectSalesAssistant({ sessionId: 'session', message: 'Can it work for two stores?' }, {
       repository,
-      retrieveKnowledge: () => [{ id: 'public-1', title: 'Retail', summary: 'Multi-location retail.', capabilities: ['locations'], product: 'prospect', score: 5 }],
+      retrieveKnowledge: () => [{
+        id: 'public-1', title: 'Retail', summary: 'Multi-location retail.', capabilities: ['locations'],
+        product: 'prospect', availability: 'qualified', score: 5,
+      }],
       generateJson,
       reportFailure: vi.fn(async () => null),
     });

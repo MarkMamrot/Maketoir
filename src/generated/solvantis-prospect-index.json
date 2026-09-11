@@ -2,6 +2,597 @@
   "version": 1,
   "sources": [
     {
+      "id": "public-capability:foresight-business-intelligence",
+      "title": "Business Intelligence and Inventory Analysis",
+      "summary": "Keep business information current and investigate performance or inventory signals before acting.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-content-service",
+      "title": "Brand Assets, Content, and Service",
+      "summary": "Choose and review reusable brand inputs before producing website content or customer replies.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-content-production-customer-service",
+      "title": "Content Production and Customer Service",
+      "summary": "Prepare product content and customer replies, then check every customer-facing detail before use.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-experiments-outcomes-learning",
+      "title": "Experiments, Outcomes, and Learning",
+      "summary": "Review an experiment design, record or perform its launch, and decide how its measured conclusion may be used.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-planning-workspace-lifecycle",
+      "title": "Planning Workspace Lifecycle",
+      "summary": "Create a planning thread, draft a checked plan, and submit the exact version for review.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-planning",
+      "title": "Planning and Review",
+      "summary": "Move current evidence through planning, review, implementation, and learning without confusing one stage for another.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-recommendations-creative-review-audits",
+      "title": "Recommendations, Creative Review, and Audits",
+      "summary": "Review evidence, decide on the exact recommendation or creative version, and record what happened next.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:foresight-workspaces",
+      "title": "Intel & Automation",
+      "summary": "Find the right Intel & Automation workspace and understand what each area can change.",
+      "capabilities": [
+        "foresight",
+        "navigation"
+      ],
+      "product": "foresight",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-contacts-crm",
+      "title": "Contacts and CRM",
+      "summary": "Maintain contact details and use CRM profiles without replacing source transactions.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-loyalty-customer-rewards",
+      "title": "Loyalty Program and Customer Rewards",
+      "summary": "Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-crm-workflows",
+      "title": "CRM Segments, Tasks, and Pipeline",
+      "summary": "Organise customer follow-up with live segments, assigned tasks, and sales opportunities.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-workspaces",
+      "title": "IMS Workspaces",
+      "summary": "Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-online-shop",
+      "title": "Online Shop",
+      "summary": "Configure, publish, fulfil, and support the native Solvantis consumer storefront.",
+      "capabilities": [
+        "ims",
+        "integrations",
+        "native_shop"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-sales-channels",
+      "title": "Sales Channels",
+      "summary": "Review each connected online storefront and its current operating state.",
+      "capabilities": [
+        "ims",
+        "integrations"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-shopify-sync",
+      "title": "Shopify Sync and Product Mapping",
+      "summary": "Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.",
+      "capabilities": [
+        "ims",
+        "integrations",
+        "shopify"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-xero-shopify",
+      "title": "Xero and Shopify",
+      "summary": "Choose the right setup, monitoring, and recovery guide for Xero or Shopify.",
+      "capabilities": [
+        "ims",
+        "integrations"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-xero-reconciliation",
+      "title": "Xero Sync and Reconciliation",
+      "summary": "Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.",
+      "capabilities": [
+        "ims",
+        "integrations"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-catalogue-stock",
+      "title": "Catalogue and Stock",
+      "summary": "Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-inventory-costing",
+      "title": "Inventory Costing and Stock Value",
+      "summary": "Understand average cost, stock value, margin, and the cost saved on past stock movements.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-product-builds",
+      "title": "Product Builds",
+      "summary": "Create versioned recipes, build finished stock from available components, handle order shortfalls, and reverse completed builds safely.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-product-setup-variants",
+      "title": "Product Setup, Variants, and Non-stock Items",
+      "summary": "Create a product, maintain customs details, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-stock-levels-adjustments",
+      "title": "Stock Levels and Adjustments",
+      "summary": "Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-purchase-orders",
+      "title": "Purchase Orders",
+      "summary": "Create, confirm, review and correct supplier purchase orders, with configurable list fields.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-po-receiving-resolution",
+      "title": "Receiving and Resolving Purchase Orders",
+      "summary": "Receive only goods that arrived and decide whether an outstanding supplier quantity stays open, closes, or moves to a held order.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-supplier-returns-credit-notes",
+      "title": "Supplier Returns and Credit Notes",
+      "summary": "Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-supplier-work",
+      "title": "Purchasing Planning and Supplier Work",
+      "summary": "Turn replenishment suggestions into reviewed purchase orders and choose the right supplier workflow when plans change.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-report-guide",
+      "title": "Choosing and Reading IMS Reports",
+      "summary": "Match a business question to the right report and compare dates, GST, cost, and stock consistently.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-operational-reports",
+      "title": "IMS Reports",
+      "summary": "Choose the IMS report that matches your sales, stock, margin, register, or banking question.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-customer-orders",
+      "title": "Customer Orders, Allocation, and Credits",
+      "summary": "Choose the right Sales workspace for orders, incoming-stock allocation, returns, credits, and source sales activity.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-customer-returns-refunds",
+      "title": "Customer Returns, Store Credit, and Refunds",
+      "summary": "Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-sales-orders-fulfilment",
+      "title": "Sales Orders and Fulfilment",
+      "summary": "Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-stock-allocation-backorders",
+      "title": "Stock Allocation and Customer Backorders",
+      "summary": "Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "summary": "View your Solvantis AI plan, available usage value, reservations, recent usage, and account status.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "summary": "Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-business-operations-pos-settings",
+      "title": "Business Operations and POS Settings",
+      "summary": "Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-shipping-settings",
+      "title": "Shipping Settings",
+      "summary": "Connect an Australia Post eParcel account and optionally define reusable package presets.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-branch-transfers",
+      "title": "Branch Transfers",
+      "summary": "Create, send, track, and receive stock moving between branches, including short and partial receipts.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-location-stock-operations",
+      "title": "Locations, Transfers, and Stocktakes",
+      "summary": "Choose the right location workflow for branch setup, transfers, physical counts, and quantity corrections.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-stocktakes-adjustments",
+      "title": "Stocktakes and Manual Adjustments",
+      "summary": "Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.",
+      "capabilities": [
+        "ims",
+        "inventory"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-branch-transfers",
+      "title": "POS Branch Transfers",
+      "summary": "Send stock from the active POS branch and receive it at the destination without duplicating movements.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-customers",
+      "title": "Customers at POS",
+      "summary": "Find, create, reactivate, link, or remove the correct customer from a POS sale.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-end-of-day-xero",
+      "title": "End of Day and Xero",
+      "summary": "Count and close a register, explain variances, and understand the separate Xero posting result.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "summary": "Sell a gift card, verify its code and balance, or redeem it as part or all of a POS payment.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-laybys",
+      "title": "Laybys at POS",
+      "summary": "Mark the current cart as a layby and save the currently supported fully allocated layby transaction.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "summary": "Check a linked customer's loyalty balance and apply an eligible reward to an ordinary online sale.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "summary": "Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-workspaces",
+      "title": "Point of Sale",
+      "summary": "Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-register-device-login",
+      "title": "Register, Device, and Login",
+      "summary": "Assign a POS device to a branch and register, sign in, and open the register with a counted float.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "summary": "Review location totals and transactions, reprint receipts, start returns, and perform permitted corrections.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-returns-exchanges-customer-credit",
+      "title": "Returns, Exchanges, and Customer Credit",
+      "summary": "Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-selling-payments-manager-approval",
+      "title": "Selling, Payments, and Manager Approval",
+      "summary": "Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-settings-terminals-offline-recovery",
+      "title": "Settings, Terminals, and Offline Recovery",
+      "summary": "Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-store-credit",
+      "title": "Store Credit at POS",
+      "summary": "Confirm a linked customer's available store credit and apply it safely to a POS sale.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-store-daybook",
+      "title": "Store Daybook",
+      "summary": "Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-team-communications",
+      "title": "Team Communications at POS",
+      "summary": "Read and send branch or Warehouse messages from POS, including supported screenshot attachments.",
+      "capabilities": [
+        "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
       "id": "prospect-integrations",
       "title": "Integration Approach",
       "summary": "Solvantis has native capabilities for Xero accounting, Shopify product, inventory, order, customer, return and loyalty flows, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.",
@@ -83,6 +674,46 @@
         "pos"
       ],
       "product": "prospect",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:wholesale-getting-started-account-approval",
+      "title": "Getting Started and Account Approval",
+      "summary": "Apply for wholesale access, verify your email, understand approval states, and sign in with an approved email code.",
+      "capabilities": [
+        "wholesale"
+      ],
+      "product": "wholesale",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:wholesale-ordering-saved-lists-stock-rules",
+      "title": "Ordering, Saved Lists, and Stock Rules",
+      "summary": "Order from the approved catalogue, reuse saved lists, and understand live stock, current prices, and indent quantities.",
+      "capabilities": [
+        "wholesale"
+      ],
+      "product": "wholesale",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:wholesale-portal",
+      "title": "Wholesale Portal",
+      "summary": "Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.",
+      "capabilities": [
+        "wholesale"
+      ],
+      "product": "wholesale",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:wholesale-team-locations-permissions",
+      "title": "Team, Locations, and Permissions",
+      "summary": "Switch assigned buying locations and understand what Owners, Admins, and Buyers can manage.",
+      "capabilities": [
+        "wholesale"
+      ],
+      "product": "wholesale",
       "availability": "confirmed"
     }
   ]

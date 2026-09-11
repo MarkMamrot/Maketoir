@@ -13,29 +13,49 @@ interface ProspectIndex {
 
 const MAX_RESULTS = 8;
 const MAX_EXTERNAL_OFFERINGS = 50;
-const unsafePublicKnowledgePatterns = [
+const stopWords = new Set([
+  'about', 'allow', 'and', 'are', 'can', 'could', 'does', 'for', 'from', 'have',
+  'how', 'into', 'our', 'system', 'that', 'the', 'this', 'what', 'with', 'work',
+  'would', 'you', 'your',
+]);
+const unsafePublicDataPatterns = [
   /\b(?:businessId|getImsSession|runImsForBusiness|imsQuery|imsExecute|AsyncLocalStorage)\b/i,
   /\b(?:tenant|schema|database|table|cookie|session token)\b/i,
   /\b(?:password|credential|secret|access token|api key|authorization header)\b/i,
   /(?:^|[\s(])(?:src|scripts|e2e)\/[A-Za-z0-9_./[\]-]+/i,
   /\/api\/[A-Za-z0-9_./[\]-]+/i,
   /\b(?:CREATE|ALTER|DROP)\s+TABLE\b|\bSELECT\s+.+\s+FROM\b|\bINSERT\s+INTO\b|\bDELETE\s+FROM\b/i,
+];
+const unsafePublicKnowledgePatterns = [
+  ...unsafePublicDataPatterns,
   /\b(?:click|navigate|open)\s+(?:the|to|in)\b/i,
   /\b(?:enter|paste|copy)\s+(?:your|the)\b/i,
   /\bstep\s+\d+\b/i,
 ];
 const aliases: Record<string, string[]> = {
   '3pl': ['logistics', 'integration'],
+  branches: ['branch'],
+  cards: ['card'],
   ecommerce: ['commerce', 'shopify', 'online'],
+  fulfil: ['fulfilment'],
+  fulfilled: ['fulfilment'],
   integrations: ['integration'],
   locations: ['location'],
+  partially: ['partial'],
   pos: ['point', 'sale'],
   prices: ['pricing'],
+  pricing: ['price', 'prices'],
+  receiving: ['receive'],
+  refunds: ['refund', 'returns', 'return'],
+  reports: ['report', 'analytics'],
+  returns: ['return', 'refund'],
   shop: ['commerce', 'online'],
+  transfers: ['transfer'],
 };
 
 function terms(value: string): string[] {
-  const raw = value.toLowerCase().match(/[a-z0-9]+/g)?.filter(term => term.length > 1) ?? [];
+  const raw = value.toLowerCase().match(/[a-z0-9]+/g)
+    ?.filter(term => term.length > 1 && !stopWords.has(term)) ?? [];
   return Array.from(new Set(raw.flatMap(term => [term, ...(aliases[term] ?? [])])));
 }
 
@@ -43,9 +63,16 @@ function cleanPublicText(value: string, maxLength: number): string {
   return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
+function normalizedPhrase(value: string): string {
+  return value.toLocaleLowerCase('en-AU').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 function isPublicSafe(source: ProspectKnowledgeSource): boolean {
   const value = `${source.id} ${source.title} ${source.summary} ${source.capabilities.join(' ')} ${source.product}`;
-  return !unsafePublicKnowledgePatterns.some(pattern => pattern.test(value));
+  const patterns = source.id.startsWith('public-capability:')
+    ? unsafePublicDataPatterns
+    : unsafePublicKnowledgePatterns;
+  return !patterns.some(pattern => pattern.test(value));
 }
 
 function externalOfferingSource(offering: PublicIntegrationOffering): ProspectKnowledgeSource | null {
@@ -87,14 +114,29 @@ export function retrieveProspectKnowledge(input: {
     .filter((source): source is ProspectKnowledgeSource => source !== null);
   const candidates = [...(prospectIndex as ProspectIndex).sources, ...externalSources].filter(isPublicSafe);
   const limit = Math.min(Math.max(input.limit ?? 4, 1), MAX_RESULTS);
+  const indexedTerms = candidates.map(source => ({
+    source,
+    title: new Set(terms(source.title)),
+    capabilities: new Set(terms(source.capabilities.join(' '))),
+    summary: new Set(terms(source.summary)),
+  }));
+  const documentFrequency = new Map<string, number>();
+  for (const candidate of indexedTerms) {
+    const searchable = new Set([...candidate.title, ...candidate.capabilities, ...candidate.summary]);
+    for (const term of searchable) documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+  }
 
-  return candidates
-    .map(source => {
-      const titleMatches = terms(source.title).filter(term => queryTerms.has(term)).length;
-      const capabilityMatches = terms(source.capabilities.join(' ')).filter(term => queryTerms.has(term)).length;
-      const summaryMatches = terms(source.summary).filter(term => queryTerms.has(term)).length;
-      const canonicalBoost = source.product === 'prospect' ? 2 : 0;
-      return { ...source, score: titleMatches * 6 + capabilityMatches * 4 + summaryMatches + canonicalBoost };
+  return indexedTerms
+    .map(({ source, title, capabilities, summary }) => {
+      let score = source.product === 'prospect' ? 2 : 0;
+      if (normalizedPhrase(input.query) === normalizedPhrase(source.title)) score += 100;
+      for (const term of queryTerms) {
+        const fieldWeight = title.has(term) ? 6 : capabilities.has(term) ? 4 : summary.has(term) ? 2 : 0;
+        if (!fieldWeight) continue;
+        const rarity = 1 + Math.log((candidates.length + 1) / ((documentFrequency.get(term) ?? 0) + 1));
+        score += fieldWeight * rarity;
+      }
+      return { ...source, score };
     })
     .filter(source => source.score > 0)
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))

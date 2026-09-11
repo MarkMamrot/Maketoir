@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Search, Truck, WalletCards, Wrench } from 'lucide-react';
+import { ArrowLeftRight, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Search, Truck, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -23,6 +23,7 @@ import { getCountryOptions } from '@/lib/ims/countryOptions';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
+import { audAmountFromPayment, canonicalExchangeRate, displayedExchangeRate, exchangeRateFromPaymentAmounts, type ExchangeRateDirection } from '@/lib/ims/foreignPaymentMath';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
@@ -9375,7 +9376,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const poCurrency = String(viewModal.po?.currency_code || 'AUD').toUpperCase();
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
-  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero'; applyDiscount: boolean; operationKey: string } | null>(null);
+  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; audAmount: string; rate: string; rateDirection: ExchangeRateDirection; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero'; applyDiscount: boolean; operationKey: string } | null>(null);
   const [poEarlyPaymentPreview, setPoEarlyPaymentPreview] = useState<any | null>(null);
   const [syncingPoPaymentId, setSyncingPoPaymentId] = useState<number | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
@@ -9650,7 +9651,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const handleAddPoPayment = async () => {
     if (!viewModal.po || !poPayForm || !poPayForm.date || !poPayForm.amount) return;
     const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
-    const rate = Number(poPayForm.rate || 1);
+    const rate = currency === 'AUD' ? 1 : canonicalExchangeRate(Number(poPayForm.rate), poPayForm.rateDirection);
     try {
       const result = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
         method: 'POST',
@@ -9662,6 +9663,38 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       await refreshPoView(viewModal.po.id);
     } catch (e: any) { alert(e.message); }
   };
+
+  const formatPaymentRate = (rate: number) => rate > 0
+    ? rate.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')
+    : '';
+
+  const updatePoPaymentAmount = (amount: string) => setPoPayForm(current => {
+    if (!current) return current;
+    const rate = canonicalExchangeRate(Number(current.rate), current.rateDirection);
+    const audAmount = audAmountFromPayment(Number(amount), rate);
+    return { ...current, amount, audAmount: audAmount > 0 ? audAmount.toFixed(2) : '' };
+  });
+
+  const updatePoPaymentAudAmount = (audAmount: string) => setPoPayForm(current => {
+    if (!current) return current;
+    const canonicalRate = exchangeRateFromPaymentAmounts(Number(current.amount), Number(audAmount));
+    const rate = displayedExchangeRate(canonicalRate, current.rateDirection);
+    return { ...current, audAmount, rate: formatPaymentRate(rate) };
+  });
+
+  const updatePoPaymentRate = (rate: string) => setPoPayForm(current => {
+    if (!current) return current;
+    const canonicalRate = canonicalExchangeRate(Number(rate), current.rateDirection);
+    const audAmount = audAmountFromPayment(Number(current.amount), canonicalRate);
+    return { ...current, rate, audAmount: audAmount > 0 ? audAmount.toFixed(2) : '' };
+  });
+
+  const flipPoPaymentRate = () => setPoPayForm(current => {
+    if (!current) return current;
+    const nextDirection: ExchangeRateDirection = current.rateDirection === 'foreign_to_aud' ? 'aud_to_foreign' : 'foreign_to_aud';
+    const canonicalRate = canonicalExchangeRate(Number(current.rate), current.rateDirection);
+    return { ...current, rateDirection: nextDirection, rate: formatPaymentRate(displayedExchangeRate(canonicalRate, nextDirection)) };
+  });
 
   const handleManualSyncPoPayment = async (payment: any) => {
     if (!viewModal.po || !payment?.payment_method_id) return;
@@ -10776,7 +10809,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!poPayForm && (
-                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setPoPayForm({ date: today(), amount: '', audAmount: '', rate: String(displayRate), rateDirection: 'foreign_to_aud', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -10838,16 +10871,22 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                       </div>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Amount ({currency})</div>
-                        <input type="number" min={0} step="0.01" value={poPayForm.amount} onChange={e => setPoPayForm(f => f ? { ...f, amount: e.target.value } : f)} style={{ width: 110, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="0.00" />
+                        <input type="number" min={0} step="0.01" value={poPayForm.amount} onChange={e => updatePoPaymentAmount(e.target.value)} style={{ width: 110, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="0.00" />
                       </div>
                       {isFx && (
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Rate (1 {currency} = ? AUD)</div>
-                          <input type="number" min={0} step="0.000001" value={poPayForm.rate} onChange={e => setPoPayForm(f => f ? { ...f, rate: e.target.value } : f)} style={{ width: 100, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} />
+                          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Amount (AUD)</div>
+                          <input type="number" min={0} step="0.01" value={poPayForm.audAmount} onChange={e => updatePoPaymentAudAmount(e.target.value)} style={{ width: 110, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="0.00" />
                         </div>
                       )}
-                      {isFx && poPayForm.amount && poPayForm.rate && (
-                        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', paddingBottom: 6 }}>≈ {fmtCurrency(Number(poPayForm.amount) * Number(poPayForm.rate))} AUD</div>
+                      {isFx && (
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Rate ({poPayForm.rateDirection === 'foreign_to_aud' ? `1 ${currency} = ? AUD` : `1 AUD = ? ${currency}`})</div>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <input type="number" min={0} step="0.000001" value={poPayForm.rate} onChange={e => updatePoPaymentRate(e.target.value)} style={{ width: 100, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} />
+                            <button type="button" onClick={flipPoPaymentRate} title={`Show rate as ${poPayForm.rateDirection === 'foreign_to_aud' ? `1 AUD = ? ${currency}` : `1 ${currency} = ? AUD`}`} aria-label="Flip exchange rate direction" style={{ ...btnStyle('ghost', 'sm'), width: 32, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><ArrowLeftRight size={14} /></button>
+                          </div>
+                        </div>
                       )}
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
@@ -10860,7 +10899,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={poPayForm.notes} onChange={e => setPoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
                       </div>
-                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date || (poPayForm.xeroIntent === 'post_to_xero' && !poPayForm.method) || (poPayForm.applyDiscount && !poEarlyPaymentPreview?.eligible)} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date || (isFx && (!poPayForm.audAmount || canonicalExchangeRate(Number(poPayForm.rate), poPayForm.rateDirection) <= 0)) || (poPayForm.xeroIntent === 'post_to_xero' && !poPayForm.method) || (poPayForm.applyDiscount && !poEarlyPaymentPreview?.eligible)} style={btnStyle('mint', 'sm')}>Save</button>
                       <button onClick={() => setPoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
                     </div>
                   </div>

@@ -1,8 +1,9 @@
-## 2026-09-11 - Public Assistant Shopify loyalty grounding
+## 2026-09-11 - Broad sales-safe public Assistant knowledge
 
-- The public prospect index now has a dedicated confirmed Shopify and loyalty source stating that one Solvantis loyalty program can span POS and a connected Shopify store. The validated public capability vocabulary includes loyalty, while separate third-party loyalty connectors remain qualified and subject to discovery.
-- Public knowledge sources carry `confirmed` or `qualified` availability. When the model cites a confirmed source, orchestration prevents it from downgrading that capability to `needs_discovery`; qualified and on-demand offerings retain their existing discovery, scope, timing, and quotation language.
-- The exact homepage question now returns a concrete native Shopify loyalty answer and **Looks like a strong fit** in live browser validation. The full suite passed 550 files / 2,665 tests with one intentional skip, the six-source public index compiled, and the production build passed.
+- The public prospect index now combines six purpose-written sales sources with field-whitelisted title, summary, product, capability, and availability projections for 59 IMS, POS, wholesale, and Intel & Automation Help topics. Article bodies, procedures, screens, paths, setup/security/runtime topics, private metadata, and authenticated tools remain excluded.
+- Retrieval removes conversational stop words, normalizes common retail word forms, weights distinctive terms by corpus rarity, and gives exact title matches deterministic priority. Tests require every projected operational source to remain discoverable and cover representative questions across all four product families.
+- Public sources carry `confirmed` or `qualified` availability. Cited confirmed capabilities cannot be downgraded to `needs_discovery`; qualified and on-demand offerings retain discovery, scope, timing, and quotation language. Prompt v3 restricts projected Help to concise sales outcomes and prohibits operational guidance, troubleshooting, security detail, or inferred article content.
+- Live homepage checks returned specific strong-fit answers for Shopify loyalty, POS offline operation, partial PO receiving, and wholesale saved lists. The full suite passed 550 files / 2,674 tests with one intentional skip, the 65-source public index compiled, and the production build passed.
 
 ## 2026-09-10 - Australia Post international shipping
 

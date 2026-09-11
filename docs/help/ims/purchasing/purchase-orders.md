@@ -47,6 +47,8 @@ Create early-payment rules under **Settings > Payment Discounts**. On a new PO, 
 
 When adding a payment to a PO with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.
 
+For a foreign-currency payment, enter the amount in the purchase-order currency and either the AUD amount paid or the exchange rate. Solvantis keeps the AUD amount and rate in step. Use the direction button beside the rate to switch between **1 foreign currency unit = AUD** and **1 AUD = foreign currency units**; changing the direction does not change the payment value.
+
 When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the supplier credit note** before saving. Solvantis records the payment, a stock-neutral supplier credit note, and the discount application together. The supplier credit reference remains blank unless the supplier actually issued one. An applied settlement payment and its credit note must be corrected together.
 
 > **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery.

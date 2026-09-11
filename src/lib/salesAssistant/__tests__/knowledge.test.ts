@@ -21,7 +21,7 @@ function offering(overrides: Partial<PublicIntegrationOffering> = {}): PublicInt
 
 describe('prospect knowledge projection', () => {
   it('contains only whitelisted public summary fields', () => {
-    expect(prospectIndex.sources.length).toBeGreaterThan(0);
+    expect(prospectIndex.sources.length).toBeGreaterThanOrEqual(60);
     for (const source of prospectIndex.sources) {
       expect(Object.keys(source).sort()).toEqual(['availability', 'capabilities', 'id', 'product', 'summary', 'title']);
     }
@@ -29,6 +29,11 @@ describe('prospect knowledge projection', () => {
     const serialized = JSON.stringify(prospectIndex);
     expect(serialized).not.toMatch(/Main operations|Worked examples|businessId|getImsSession|\/api\/|docs\/help|topicId|sectionId|contexts|filename/i);
     expect(serialized).not.toMatch(/click the|navigate to|enter your|paste the|step 1/i);
+    expect(prospectIndex.sources.some(source => source.id.startsWith('public-capability:ims-'))).toBe(true);
+    expect(prospectIndex.sources.some(source => source.id.startsWith('public-capability:pos-'))).toBe(true);
+    expect(prospectIndex.sources.some(source => source.id.startsWith('public-capability:wholesale-'))).toBe(true);
+    expect(prospectIndex.sources.some(source => source.id.startsWith('public-capability:foresight-'))).toBe(true);
+    expect(prospectIndex.sources.some(source => ['setup', 'shared'].includes(source.product))).toBe(false);
   });
 
   it('ranks relevant canonical sources and bounds result counts', () => {
@@ -46,6 +51,26 @@ describe('prospect knowledge projection', () => {
     });
     expect(results[0]?.summary).toMatch(/Yes.*one loyalty program.*POS.*Shopify/i);
     expect(results[0]?.capabilities).toContain('loyalty');
+  });
+
+  it.each([
+    ['Can POS work offline?', 'public-capability:pos-settings-terminals-offline-recovery'],
+    ['Can I partially receive purchase orders?', 'public-capability:ims-po-receiving-resolution'],
+    ['Do you support gift cards and store credit?', 'public-capability:pos-gift-cards'],
+    ['Can wholesale buyers save order lists?', 'public-capability:wholesale-ordering-saved-lists-stock-rules'],
+    ['Can AI help plan marketing and review recommendations?', 'public-capability:foresight-recommendations-creative-review-audits'],
+    ['Can I transfer stock between branches?', 'public-capability:ims-branch-transfers'],
+    ['Can you manage customer returns and refunds?', 'public-capability:ims-customer-returns-refunds'],
+    ['What sales and margin reports are available?', 'public-capability:ims-operational-reports'],
+  ])('ranks the owning capability for %s', (query, expectedId) => {
+    expect(retrieveProspectKnowledge({ query })[0]?.id).toBe(expectedId);
+  });
+
+  it('keeps every projected operational capability discoverable by its title', () => {
+    const capabilitySources = prospectIndex.sources.filter(source => source.id.startsWith('public-capability:'));
+    for (const source of capabilitySources) {
+      expect(retrieveProspectKnowledge({ query: source.title })[0]?.id, source.title).toBe(source.id);
+    }
   });
 
   it('accepts external public offerings without guaranteeing on-demand delivery', () => {

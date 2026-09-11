@@ -13,6 +13,7 @@ const validOperationCapabilities = new Set(['xero', 'shopify', 'native_shop']);
 const prospectAudience = 'prospect';
 const prospectProduct = 'prospect';
 const validProspectAvailability = new Set(['confirmed', 'qualified']);
+const publicSalesHelpProducts = new Set(['ims', 'pos', 'wholesale', 'foresight']);
 const validProspectCapabilities = new Set([
   'accounting',
   'analytics',
@@ -46,6 +47,12 @@ const unsafeProspectPatterns = [
   /\b(?:enter|paste|copy)\s+(?:your|the)\b/i,
   /\bstep\s+\d+\b/i,
   /(?:^|\s)#[A-Za-z0-9_-]+/,
+];
+const unsafeSalesProjectionPatterns = [
+  ...unsafeHelpPatterns,
+  /\b(?:businessId|getImsSession|runImsForBusiness|imsQuery|imsExecute|AsyncLocalStorage)\b/i,
+  /\b(?:tenant|schema|database|table|cookie|session token)\b/i,
+  /\b(?:password|credential|secret|access token|api key|authorization header)\b/i,
 ];
 
 function parseProspectDocument(filename, source) {
@@ -166,6 +173,29 @@ function parseDocument(filename, source, options = {}) {
   return { metadata, sections, source: match[2].trim() };
 }
 
+function publicSalesProjection(metadata, filename) {
+  if (!publicSalesHelpProducts.has(metadata.product)) return null;
+  const projection = {
+    id: `public-capability:${metadata.id}`,
+    title: String(metadata.title).trim(),
+    summary: String(metadata.summary).trim(),
+    capabilities: Array.from(new Set([
+      String(metadata.product).trim(),
+      String(metadata.capability).trim(),
+      ...(metadata.requiresCapabilities ?? []).map(value => String(value).trim()),
+    ].filter(Boolean))),
+    product: String(metadata.product).trim(),
+    availability: 'confirmed',
+  };
+  if (!projection.summary || projection.summary.length > 500) {
+    throw new Error(`${filename}: public sales projection requires a summary of at most 500 characters`);
+  }
+  const serialized = JSON.stringify(projection);
+  const unsafe = unsafeSalesProjectionPatterns.find(pattern => pattern.test(serialized));
+  if (unsafe) throw new Error(`${filename}: public sales projection contains forbidden content (${unsafe})`);
+  return projection;
+}
+
 async function markdownFiles(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const files = [];
@@ -197,6 +227,8 @@ for (const helpPath of await markdownFiles(helpDirectory)) {
   ids.add(parsed.metadata.id);
   documents.push({ ...parsed.metadata, filename: relativePath });
   chunks.push(...parsed.sections);
+  const salesProjection = publicSalesProjection(parsed.metadata, relativePath);
+  if (salesProjection) prospectSources.push(salesProjection);
   helpTopics.push({
     ...parsed.metadata,
     filename: relativePath,
