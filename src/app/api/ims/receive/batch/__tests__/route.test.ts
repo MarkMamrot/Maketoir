@@ -357,6 +357,35 @@ describe('POST /api/ims/receive/batch', () => {
     expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
+  it('receives non-stock lines without stock, allocation, movement, or costing effects', async () => {
+    const state = {
+      po: { id: 15, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0, supplier_invoice_number: 'INV-15' },
+      settings: [],
+      items: [{ id: 105, po_id: 15, variant_id: 'expense-1', qty_ordered: 2, qty_received: 0, unit_cost: 40, tax_rate: 0.1, is_stock_item: 0 }],
+      stockByVariant: new Map<string, Row>(),
+      landedRows: [],
+      paymentAgg: {},
+      movements: [] as Row[],
+      variantAvgById: new Map<string, number>(),
+    };
+    mockGetConnection.mockResolvedValue(buildFakeConnection(state));
+
+    const res = await POST(makeRequest({
+      po_id: 15,
+      location_id: 4,
+      received_items: [{ variant_id: 'expense-1', qty_received: 2 }],
+      mark_po_received: true,
+    }));
+
+    expect(res.status).toBe(200);
+    expect(state.items[0].qty_received).toBe(2);
+    expect(state.po.status).toBe('complete');
+    expect(state.stockByVariant.size).toBe(0);
+    expect(state.movements).toEqual([]);
+    expect(mockAssignReceiptToStockAllocations).not.toHaveBeenCalled();
+    expect(mockCreateFifoCostLayer).not.toHaveBeenCalled();
+  });
+
   it('replays a completed receive operation without applying stock twice', async () => {
     const state = {
       po: { id: 12, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0, supplier_invoice_number: 'INV-12' },

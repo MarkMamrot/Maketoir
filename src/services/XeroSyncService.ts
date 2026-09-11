@@ -38,6 +38,7 @@ import path from 'path';
 interface AccountMapping {
   inventory_asset?: string;
   inventory_in_transit?: string;
+  non_stock_purchases?: string;
   cogs?: string;
   sales_revenue?: string;
   freight?: string;
@@ -563,6 +564,7 @@ interface POForSync {
   discount?: number;
   total_amount: number;
   currency_code?: string;
+  exchange_rate?: number;
   tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   supplier_invoice_number?: string;
   supplier_invoice_date?: string;
@@ -576,8 +578,34 @@ interface POForSync {
     discount_pct: number;
     tax_rate: number;
     line_total: number;
+    is_stock_item?: number;
   }[];
-  payments?: { amount: number; payment_date: string }[];
+  payments?: { amount: number; amount_local?: number; payment_date: string }[];
+}
+
+export function calculatePOStockReceiptValueAud(
+  po: POForSync,
+  includeFreight: boolean,
+): number {
+  const taxTreatment = po.tax_treatment ?? 'ex_tax';
+  const exTaxLineValue = (item: NonNullable<POForSync['items']>[number]) => {
+    const lineTotal = Number(item.line_total ?? 0);
+    const taxRate = Number(item.tax_rate ?? 0);
+    return taxTreatment === 'inc_tax' && taxRate > 0 ? lineTotal / (1 + taxRate) : lineTotal;
+  };
+  const allSubtotal = (po.items ?? []).reduce((sum, item) => sum + exTaxLineValue(item), 0);
+  const stockSubtotal = (po.items ?? [])
+    .filter(item => Number(item.is_stock_item ?? 1) === 1)
+    .reduce((sum, item) => sum + exTaxLineValue(item), 0);
+  if (stockSubtotal <= 0) return 0;
+  const stockShare = allSubtotal > 0 ? stockSubtotal / allSubtotal : 0;
+  const documentValue = stockSubtotal
+    - Number(po.discount ?? 0) * stockShare
+    + (includeFreight ? Number(po.freight ?? 0) : 0);
+  const paidForeign = (po.payments ?? []).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+  const paidLocal = (po.payments ?? []).reduce((sum, payment) => sum + Number(payment.amount_local ?? 0), 0);
+  const exchangeRate = paidForeign > 0 && paidLocal > 0 ? paidLocal / paidForeign : Number(po.exchange_rate ?? 1);
+  return Math.max(0, Number((documentValue * exchangeRate).toFixed(2)));
 }
 
 function calcDueDateFromTerms(base: string, terms?: string): string {
@@ -629,14 +657,17 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
 
-  if (!accounts.inventory_asset) {
-    await logSync(businessId, 'po_bill', po.id, null, 'skipped', 'No inventory_asset account mapped');
+  const hasStockLines = (po.items ?? []).some(item => Number(item.is_stock_item ?? 1) === 1);
+  const hasNonStockLines = (po.items ?? []).some(item => Number(item.is_stock_item ?? 1) !== 1);
+  if ((hasStockLines && !accounts.inventory_asset) || (hasNonStockLines && !accounts.non_stock_purchases)) {
+    const missing = [hasStockLines && !accounts.inventory_asset ? 'inventory_asset' : null, hasNonStockLines && !accounts.non_stock_purchases ? 'non_stock_purchases' : null].filter(Boolean).join(' / ');
+    await logSync(businessId, 'po_bill', po.id, null, 'skipped', `No ${missing} account mapped`);
     return null;
   }
 
   // Determine line account: if PO has any payments, use "in transit"; otherwise "asset"
   const hasDeposits = (po.payments?.length ?? 0) > 0;
-  const lineAccountCode = hasDeposits
+  const stockAccountCode = hasDeposits
     ? (accounts.inventory_in_transit || accounts.inventory_asset)
     : accounts.inventory_asset;
 
@@ -645,6 +676,9 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
 
   const lineItems = (po.items ?? []).map(item => {
+        const lineAccountCode = Number(item.is_stock_item ?? 1) === 1
+          ? stockAccountCode
+          : accounts.non_stock_purchases;
     const quantity = Number(item.qty_ordered);
     const storedLineTotal = Number(item.line_total);
     const unitAmount = quantity > 0 && Number.isFinite(storedLineTotal)
@@ -662,7 +696,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
       Tracking: tracking,
     };
   });
-  appendPoSubtotalAdjustment(lineItems, po, lineAccountCode, tracking, taxTypes.exempt);
+  appendPoSubtotalAdjustment(lineItems, po, stockAccountCode || accounts.non_stock_purchases!, tracking, taxTypes.exempt);
 
   // Add freight as a separate line if present.
   // Capitalise → debit the same Inventory Asset account as stock (freight is part of stock value).
@@ -670,8 +704,8 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   if (po.freight && po.freight > 0) {
     const freightTreatment = await getFreightTreatment(businessId);
     const freightAccount = freightTreatment === 'capitalise'
-      ? lineAccountCode
-      : (accounts.freight || lineAccountCode);
+      ? (stockAccountCode || accounts.non_stock_purchases!)
+      : (accounts.freight || accounts.non_stock_purchases || stockAccountCode!);
     const freightTaxType = taxTreatment !== 'no_tax' && (po.items ?? []).some(item => Number(item.tax_rate) > 0)
       ? taxTypes.purchases
       : taxTypes.exempt;
@@ -737,8 +771,11 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
 
-  if (!accounts.inventory_asset) {
-    await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', 'No inventory_asset account mapped');
+  const hasStockLines = (po.items ?? []).some(item => Number(item.is_stock_item ?? 1) === 1);
+  const hasNonStockLines = (po.items ?? []).some(item => Number(item.is_stock_item ?? 1) !== 1);
+  if ((hasStockLines && !accounts.inventory_asset) || (hasNonStockLines && !accounts.non_stock_purchases)) {
+    const missing = [hasStockLines && !accounts.inventory_asset ? 'inventory_asset' : null, hasNonStockLines && !accounts.non_stock_purchases ? 'non_stock_purchases' : null].filter(Boolean).join(' / ');
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', `No ${missing} account mapped`);
     return false;
   }
 
@@ -759,7 +796,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   }
 
   const hasDeposits = (po.payments?.length ?? 0) > 0;
-  const lineAccountCode = hasDeposits
+  const stockAccountCode = hasDeposits
     ? (accounts.inventory_in_transit || accounts.inventory_asset)
     : accounts.inventory_asset;
 
@@ -767,6 +804,9 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
 
   const lineItems = (po.items ?? []).map(item => {
+        const lineAccountCode = Number(item.is_stock_item ?? 1) === 1
+          ? stockAccountCode
+          : accounts.non_stock_purchases;
     const quantity = Number(item.qty_ordered);
     const storedLineTotal = Number(item.line_total);
     const unitAmount = quantity > 0 && Number.isFinite(storedLineTotal)
@@ -784,13 +824,13 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
       Tracking: tracking,
     };
   });
-  appendPoSubtotalAdjustment(lineItems, po, lineAccountCode, tracking, taxTypes.exempt);
+  appendPoSubtotalAdjustment(lineItems, po, stockAccountCode || accounts.non_stock_purchases!, tracking, taxTypes.exempt);
 
   if (po.freight && po.freight > 0) {
     const freightTreatment = await getFreightTreatment(businessId);
     const freightAccount = freightTreatment === 'capitalise'
-      ? lineAccountCode
-      : (accounts.freight || lineAccountCode);
+      ? (stockAccountCode || accounts.non_stock_purchases!)
+      : (accounts.freight || accounts.non_stock_purchases || stockAccountCode!);
     const freightTaxType = taxTreatment !== 'no_tax' && (po.items ?? []).some(item => Number(item.tax_rate) > 0)
       ? taxTypes.purchases
       : taxTypes.exempt;
@@ -1197,7 +1237,7 @@ export async function syncPOReceivedJournal(
   poId: number,
   poNumber: string,
   xeroInvoiceId: string,
-  amount: number,
+  poOrAmount: POForSync | number,
   locationId: number,
 ): Promise<string | null> {
   const accounts = await getAccountMappings(businessId);
@@ -1209,6 +1249,10 @@ export async function syncPOReceivedJournal(
   }
 
   const tracking = getTrackingForLocation(trackingMappings, locationId);
+  const amount = typeof poOrAmount === 'number'
+    ? poOrAmount
+    : calculatePOStockReceiptValueAud(poOrAmount, await getFreightTreatment(businessId) === 'capitalise');
+  if (amount <= 0) return null;
 
   const journal = {
     Narration: `PO ${poNumber} received — transfer from In Transit to Inventory Asset`,

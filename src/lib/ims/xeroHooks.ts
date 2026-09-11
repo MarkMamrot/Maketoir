@@ -142,7 +142,7 @@ export async function triggerPOXeroSync(
   const approved = await approveBill(businessId, xeroInvoiceId, poId);
   if (approved) await allocateReservedSupplierCredit(businessId, poId);
   if (approved && policy.poReceiptJournalEnabled && newStatus === 'complete' && (po.payments?.length ?? 0) > 0) {
-    await syncPOReceivedJournal(businessId, poId, po.po_number, xeroInvoiceId, po.total_amount, po.location_id);
+    await syncPOReceivedJournal(businessId, poId, po.po_number, xeroInvoiceId, po as any, po.location_id);
   }
 }
 

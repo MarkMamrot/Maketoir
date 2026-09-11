@@ -205,6 +205,7 @@ export interface ImsPaymentMethod {
   xero_account_code: string;
   sort_order?: number;
   is_active: boolean;
+  is_stock_item?: number;
   created_at?: string;
 }
 
@@ -308,7 +309,7 @@ export interface ImsPO {
 export interface ImsPOItem {
   id: number; po_id: number; variant_id: string | null; qty_ordered: number;
   qty_received: number; unit_cost: number; discount_pct: number; landed_cost_per_unit?: number; tax_rate: number;
-  line_total: number; notes?: string;
+  line_total: number; notes?: string; is_stock_item?: number;
   sku?: string; barcode?: string; product_name?: string; brand?: string; variant_label?: string;
   price_rrp?: number; price_rrp_sale?: number;
   name_raw?: string; sku_raw?: string;
@@ -904,7 +905,7 @@ export const ImsVariantsRepo = {
     const where = businessId ? 'WHERE v.business_id = ?' : '';
     const params = businessId ? [businessId] : [];
     return imsQuery<ImsVariant>(
-      `SELECT v.*, p.name AS product_name, p.brand AS product_brand
+      `SELECT v.*, p.name AS product_name, p.brand AS product_brand, COALESCE(p.is_stock_item, 1) AS is_stock_item
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
        ${where}
@@ -1417,6 +1418,7 @@ export const ImsPORepo = {
                 v.price_rrp_sale                 AS price_rrp_sale,
                 COALESCE(p.name, i.name_raw)      AS product_name,
                 p.brand                          AS brand,
+                i.is_stock_item                  AS is_stock_item,
                 st.avg_cost                       AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
@@ -1440,6 +1442,7 @@ export const ImsPORepo = {
                 v.price_rrp_sale                 AS price_rrp_sale,
                 p.name                           AS product_name,
                 p.brand                          AS brand,
+                i.is_stock_item                  AS is_stock_item,
                 st.avg_cost                      AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
@@ -1602,16 +1605,27 @@ export const ImsPORepo = {
        freight, discount, subtotal, tax_amount, total_amount]
     );
     const po_id = res.insertId;
+    const variantIds = [...new Set(items.map(item => String(item.variant_id)).filter(Boolean))];
+    const stockFlagRows = variantIds.length > 0
+      ? await imsQuery<{ variant_id: string; is_stock_item: number }>(
+          `SELECT v.variant_id, COALESCE(p.is_stock_item, 1) AS is_stock_item
+             FROM ims_product_variants v
+             JOIN ims_products p ON p.product_id = v.product_id
+            WHERE v.variant_id IN (${variantIds.map(() => '?').join(',')})`,
+          variantIds,
+        )
+      : [];
+    const stockFlags = new Map(stockFlagRows.map(row => [String(row.variant_id), Number(row.is_stock_item) === 0 ? 0 : 1]));
     for (const item of items) {
       const discPct = Number(item.discount_pct ?? 0);
       const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
       const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
       await imsExecute(
         `INSERT INTO ims_purchase_order_items
-           (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
-         VALUES (?,?,?,?,?,?,?,?)`,
+           (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
         [po_id, item.variant_id, item.qty_ordered, item.unit_cost,
-         discPct, item.tax_rate ?? 0, line_total, item.notes ?? null]
+         discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, stockFlags.get(String(item.variant_id)) ?? 1]
       );
     }
     if (landedCosts && landedCosts.length) {
@@ -1709,6 +1723,25 @@ export const ImsPORepo = {
 
       if (items) {
         const reconciliation = reconcileOrderLines(existingItems, items);
+        const variantsToClassify = [...new Set(reconciliation.lines
+          .filter(({ existingId, line }) => existingId == null || String(existingItems.find(item => Number(item.id) === existingId)?.variant_id) !== String(line.variant_id))
+          .map(({ line }) => String(line.variant_id))
+          .filter(Boolean))];
+        const [stockFlagResult] = variantsToClassify.length > 0
+          ? await conn.execute<any[]>(
+              `SELECT v.variant_id, COALESCE(p.is_stock_item, 1) AS is_stock_item
+                 FROM ims_product_variants v
+                 JOIN ims_products p ON p.product_id = v.product_id
+                WHERE v.variant_id IN (${variantsToClassify.map(() => '?').join(',')})`,
+              variantsToClassify,
+            )
+          : [[]];
+        const stockFlags = new Map((Array.isArray(stockFlagResult) ? stockFlagResult : []).map((row: any) => [String(row.variant_id), Number(row.is_stock_item) === 0 ? 0 : 1]));
+        const effectiveItems = reconciliation.lines.map(({ existingId, line }) => {
+          const existing = existingItems.find(item => Number(item.id) === existingId);
+          const unchangedVariant = existing && String(existing.variant_id) === String(line.variant_id);
+          return { ...line, is_stock_item: unchangedVariant ? Number(existing.is_stock_item ?? 1) : (stockFlags.get(String(line.variant_id)) ?? 1) };
+        });
         if (currentPo.status === 'partially_received') {
           for (const { existingId, line } of reconciliation.lines) {
             if (existingId == null) continue;
@@ -1743,7 +1776,8 @@ export const ImsPORepo = {
         }
         let subtotal = 0, tax_amount = 0;
         const newItemRows: Array<{ values: unknown[]; amendmentIndex: number }> = [];
-        for (const { existingId, line: item } of reconciliation.lines) {
+        for (const [lineIndex, { existingId, line: item }] of reconciliation.lines.entries()) {
+          const isStockItem = Number(effectiveItems[lineIndex].is_stock_item ?? 1);
           const discPct = Number(item.discount_pct ?? 0);
           const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
           const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
@@ -1764,9 +1798,9 @@ export const ImsPORepo = {
           if (existingId != null) {
             await conn.execute(
               `UPDATE ims_purchase_order_items
-                  SET variant_id = ?, qty_ordered = ?, unit_cost = ?, discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?
+                  SET variant_id = ?, qty_ordered = ?, unit_cost = ?, discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?, is_stock_item = ?
                 WHERE id = ? AND po_id = ?`,
-              [item.variant_id, item.qty_ordered, item.unit_cost, discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, existingId, id],
+              [item.variant_id, item.qty_ordered, item.unit_cost, discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, isStockItem, existingId, id],
             );
             amendmentLines.push({
               sourceLineId: existingId, resultLineId: existingId, movedFloor: 0,
@@ -1776,7 +1810,7 @@ export const ImsPORepo = {
             amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
             newItemRows.push({
               values: [id, item.variant_id, item.qty_ordered, item.unit_cost,
-                discPct, item.tax_rate ?? 0, line_total, item.notes ?? null],
+                discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, isStockItem],
               amendmentIndex: amendmentLines.length - 1,
             });
           }
@@ -1790,8 +1824,8 @@ export const ImsPORepo = {
         for (const newItem of newItemRows) {
           const [insertResult] = await conn.execute<any>(
             `INSERT INTO ims_purchase_order_items
-               (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?,?)`,
+               (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
             newItem.values,
           );
           amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);
@@ -1805,7 +1839,7 @@ export const ImsPORepo = {
 
         if (currentPo.status === 'confirmed' || currentPo.status === 'partially_received') {
           const newLocationId = Number(data.location_id ?? currentPo.location_id);
-          const deltas = planStockRebalance(Number(currentPo.location_id), newLocationId, existingItems, items);
+          const deltas = planStockRebalance(Number(currentPo.location_id), newLocationId, existingItems, effectiveItems);
           for (const delta of deltas) {
             if (delta.quantityDelta > 0) {
               await conn.execute(
@@ -2127,6 +2161,7 @@ export const ImsPORepo = {
       // ── draft → confirmed ─────────────────────────────────────
       if (from === 'draft' && to === 'confirmed') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) !== 1) continue;
           await conn.execute(
             `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_incoming)
              VALUES (?, ?, ?, ?)
@@ -2149,6 +2184,7 @@ export const ImsPORepo = {
       // ── confirmed → draft (undo confirm) ──────────────────────
       if (from === 'confirmed' && to === 'draft') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) !== 1) continue;
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
              WHERE variant_id=? AND location_id=?`,
@@ -2187,8 +2223,9 @@ export const ImsPORepo = {
           }
         } catch {}
 
+        const stockItems = items.filter(item => Number(item.is_stock_item ?? 1) === 1);
         const landedPerUnit = computeLandedCostPerUnit(
-          items.map((item) => ({
+          stockItems.map((item) => ({
             key: String(item.id),
             qtyOrdered: Number(item.qty_ordered),
             unitCost: Number(item.unit_cost),
@@ -2215,6 +2252,13 @@ export const ImsPORepo = {
         }
 
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) !== 1) {
+            await conn.execute(
+              `UPDATE ims_purchase_order_items SET qty_received = qty_ordered, landed_cost_per_unit = 0 WHERE id = ?`,
+              [item.id],
+            );
+            continue;
+          }
           // Guard against double-receiving: only receive the outstanding quantity.
           // If items were already (partially) received via the device receive flow,
           // qty_received > 0 — never add the full qty_ordered again on top of it.

@@ -404,6 +404,48 @@ describe('PO bill sync', () => {
     expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('routes mixed PO lines to inventory and non-stock purchase accounts', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('FROM xero_account_mappings')) return Promise.resolve([
+        { role_key: 'inventory_asset', xero_account_code: '630' },
+        { role_key: 'non_stock_purchases', xero_account_code: '420' },
+      ]);
+      if (sql.includes('FROM xero_tracking_mappings')) return Promise.resolve([]);
+      if (sql.includes("SHOW COLUMNS FROM xero_sync_log LIKE 'xero_state'")) return Promise.resolve([{ Field: 'xero_state' }]);
+      return Promise.resolve([]);
+    });
+    const po = {
+      id: 4852,
+      po_number: 'PO-2026-0016',
+      supplier_name: 'Supplier',
+      location_id: 4,
+      order_date: '2026-07-27',
+      subtotal: 70,
+      tax_amount: 7,
+      total_amount: 77,
+      items: [
+        { variant_id: 'stock-1', product_name: 'Stock', qty_ordered: 1, unit_cost: 50, discount_pct: 0, tax_rate: 0.1, line_total: 50, is_stock_item: 1 },
+        { variant_id: 'expense-1', product_name: 'Supplies', qty_ordered: 1, unit_cost: 20, discount_pct: 0, tax_rate: 0.1, line_total: 20, is_stock_item: 0 },
+      ],
+    };
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-2', Status: 'DRAFT' }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-2', Status: 'DRAFT', AmountPaid: 0, AmountCredited: 0 }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-2', Status: 'DRAFT' }] });
+
+    await syncPOAsDraftBill('biz-1', po);
+    await updateXeroDraftBill('biz-1', po, 'bill-2');
+
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems).toEqual([
+      expect.objectContaining({ Description: 'Stock', AccountCode: '630' }),
+      expect.objectContaining({ Description: 'Supplies', AccountCode: '420' }),
+    ]);
+    expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems).toEqual([
+      expect.objectContaining({ Description: 'Stock', AccountCode: '630' }),
+      expect.objectContaining({ Description: 'Supplies', AccountCode: '420' }),
+    ]);
+  });
+
   it('derives four-decimal unit amount from the authoritative PO line total', async () => {
     const po = {
       id: 4853,

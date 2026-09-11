@@ -975,6 +975,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   tax_rate     DECIMAL(6,4) NOT NULL DEFAULT 0,
   line_total   DECIMAL(12,2) NOT NULL DEFAULT 0,
   notes        VARCHAR(500),
+  is_stock_item TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),

@@ -21,6 +21,16 @@ describe('order amendment planning', () => {
     ]);
   });
 
+  it('does not create incoming-stock deltas for non-stock lines', () => {
+    expect(planStockRebalance(4, 4, [
+      { variant_id: 'stock', qty_ordered: 2, is_stock_item: 1 },
+      { variant_id: 'expense', qty_ordered: 3, is_stock_item: 0 },
+    ], [
+      { variant_id: 'stock', qty_ordered: 4, is_stock_item: 1 },
+      { variant_id: 'expense', qty_ordered: 8, is_stock_item: 0 },
+    ])).toEqual([{ variantId: 'stock', locationId: 4, quantityDelta: 2 }]);
+  });
+
   it('preserves explicit IDs and matches legacy requests by variant', () => {
     expect(reconcileOrderLines([
       { id: 10, variant_id: 'v-1' },

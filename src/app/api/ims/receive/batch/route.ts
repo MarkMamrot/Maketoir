@@ -245,7 +245,7 @@ export async function POST(req: Request) {
       }
 
       const [poItemsRows] = await conn.execute<any[]>(
-        `SELECT id, variant_id, qty_ordered, qty_received, unit_cost, tax_rate
+        `SELECT id, variant_id, qty_ordered, qty_received, unit_cost, tax_rate, is_stock_item
          FROM ims_purchase_order_items
          WHERE po_id = ?
          FOR UPDATE`,
@@ -281,7 +281,7 @@ export async function POST(req: Request) {
 
       const taxTreatment = (poRow.tax_treatment ?? 'ex_tax') as TaxTreatment;
       const landedPerUnit = computeLandedCostPerUnit(
-        poLineItems.map((item) => ({
+        poLineItems.filter(item => Number(item.is_stock_item ?? 1) === 1).map((item) => ({
           key: String(item.id),
           qtyOrdered: Number(item.qty_ordered),
           unitCost: Number(item.unit_cost),
@@ -320,6 +320,15 @@ export async function POST(req: Request) {
           [appliedQty, po_id, variant_id]
         );
         poItem.qty_received = alreadyReceived + appliedQty;
+        if (barcode_new) {
+          await conn.execute(
+            `UPDATE ims_product_variants SET barcode = ? WHERE variant_id = ?`,
+            [barcode_new, variant_id]
+          );
+          variantUpdatesCount++;
+        }
+        if (Number(poItem.is_stock_item ?? 1) !== 1) continue;
+
         allocationReceipts.push(...await assignReceiptToStockAllocations(conn, {
           businessId,
           poItemId: Number(poItem.id),
@@ -404,13 +413,6 @@ export async function POST(req: Request) {
           });
         }
 
-        if (barcode_new) {
-          await conn.execute(
-            `UPDATE ims_product_variants SET barcode = ? WHERE variant_id = ?`,
-            [barcode_new, variant_id]
-          );
-          variantUpdatesCount++;
-        }
       }
 
       // ─── 2. Product metadata (zone, bin) ─────────────────────────────────
@@ -563,8 +565,8 @@ export async function POST(req: Request) {
             }
             const [backorderItemResult] = await conn.execute<any>(
               `INSERT INTO ims_purchase_order_items
-                 (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
-               VALUES (?,?,?,0,?,?,?,?,?)`,
+                 (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+               VALUES (?,?,?,0,?,?,?,?,?,?)`,
               [
                 backorderPoId,
                 sf.variant_id,
@@ -574,6 +576,7 @@ export async function POST(req: Request) {
                 origItem.tax_rate ?? 0,
                 lineTotal,
                 origItem.notes ?? null,
+                Number(origItem.is_stock_item ?? 1),
               ]
             );
             await conn.execute(

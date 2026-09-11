@@ -196,6 +196,7 @@ describe('ImsPORepo.update', () => {
       ]];
       if (sql.includes('SELECT tax_treatment')) return [[{ tax_treatment: 'ex_tax' }]];
       if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0 }]];
+      if (sql.includes('COALESCE(p.is_stock_item, 1) AS is_stock_item')) return [[{ variant_id: 'v-2', is_stock_item: 0 }]];
       if (sql.includes('INSERT INTO ims_purchase_order_items')) return [{ affectedRows: 1, insertId: 31 }];
       return [{ affectedRows: 1 }];
     });
@@ -215,12 +216,12 @@ describe('ImsPORepo.update', () => {
 
     const inserts = execute.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ims_purchase_order_items'));
     expect(inserts).toHaveLength(1);
-    expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?)');
-    expect(inserts[0][1]).toHaveLength(8);
-    expect(inserts[0][1]).toEqual([42, 'v-2', 12, 5.68, 10.0059, 0.1, 61.34, 'Second']);
+    expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?,?)');
+    expect(inserts[0][1]).toHaveLength(9);
+    expect(inserts[0][1]).toEqual([42, 'v-2', 12, 5.68, 10.0059, 0.1, 61.34, 'Second', 0]);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE ims_purchase_order_items'),
-      ['v-1', 2, 5, 0, 0.1, 10, null, 10, 42],
+      ['v-1', 2, 5, 0, 0.1, 10, null, 1, 10, 42],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
   });

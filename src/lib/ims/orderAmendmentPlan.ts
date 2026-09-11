@@ -17,6 +17,7 @@ export interface ReconciledOrderLine<T extends RequestedOrderLine> {
 export interface StockQuantityLine {
   variant_id: string | null;
   qty_ordered: number;
+  is_stock_item?: number;
 }
 
 export interface StockRebalanceDelta {
@@ -77,7 +78,7 @@ export function planStockRebalance(
   const quantities = new Map<string, { variantId: string; locationId: number; oldQty: number; newQty: number }>();
   const add = (locationId: number, lines: StockQuantityLine[], side: 'oldQty' | 'newQty') => {
     for (const line of lines) {
-      if (!line.variant_id) continue;
+      if (!line.variant_id || Number(line.is_stock_item ?? 1) !== 1) continue;
       const variantId = String(line.variant_id);
       const key = `${locationId}\u0000${variantId}`;
       const current = quantities.get(key) ?? { variantId, locationId, oldQty: 0, newQty: 0 };

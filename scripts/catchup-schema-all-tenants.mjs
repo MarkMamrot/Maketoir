@@ -1240,6 +1240,7 @@ const COLUMNS = [
   ['ims_purchase_order_payments', 'xero_payment_id', 'VARCHAR(100) NULL AFTER xero_post_status'],
   ['ims_purchase_order_payments', 'xero_post_error', 'VARCHAR(500) NULL AFTER xero_payment_id'],
   ['ims_purchase_order_payments', 'xero_posted_at', 'DATETIME NULL AFTER xero_post_error'],
+  ['ims_purchase_order_items', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER notes'],
   ['ims_sales_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_sales_order_payments', 'payment_method_id', 'INT NULL AFTER notes'],
   ['ims_sales_order_payments', 'xero_post_intent', "ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only' AFTER payment_method_id"],
