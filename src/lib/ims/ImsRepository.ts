@@ -1179,7 +1179,7 @@ async function reversePurchaseOrderReceiptTx(
 ): Promise<void> {
   const grouped = new Map<string, number>();
   for (const item of items) {
-    if (!item.variant_id) continue;
+    if (!item.variant_id || Number(item.is_stock_item ?? 1) !== 1) continue;
     grouped.set(item.variant_id, (grouped.get(item.variant_id) ?? 0) + Math.max(0, Number(item.qty_received ?? 0)));
   }
 
@@ -2360,7 +2360,7 @@ export const ImsPORepo = {
         } catch {}
 
         const landedPerUnit = computeLandedCostPerUnit(
-          items.map((item) => ({
+          items.filter(item => Number(item.is_stock_item ?? 1) === 1).map((item) => ({
             key: String(item.id),
             qtyOrdered: Number(item.qty_ordered),
             unitCost: Number(item.unit_cost),
@@ -2387,6 +2387,13 @@ export const ImsPORepo = {
         }
 
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) !== 1) {
+            await conn.execute(
+              `UPDATE ims_purchase_order_items SET qty_received = qty_ordered, landed_cost_per_unit = 0 WHERE id = ?`,
+              [item.id],
+            );
+            continue;
+          }
           const remaining = Number(item.qty_ordered) - Number(item.qty_received ?? 0);
           if (remaining <= 0) continue; // already fully received via device
 
@@ -2466,6 +2473,7 @@ export const ImsPORepo = {
       // ── any → cancelled ──────────────────────────────────────
       if (to === 'cancelled' && from === 'confirmed') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) !== 1) continue;
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
              WHERE variant_id=? AND location_id=?`,
@@ -2487,6 +2495,7 @@ export const ImsPORepo = {
       // ── backordered → cancelled (release retained incoming quantity) ─────
       if (to === 'cancelled' && from === 'backordered') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) !== 1) continue;
           await conn.execute(
             `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
              WHERE variant_id=? AND location_id=?`,
@@ -2632,7 +2641,7 @@ export const ImsPORepo = {
         return { id: Number(existing.id), replayed: true };
       }
       const [items] = await conn.execute<any[]>(
-        `SELECT variant_id, qty_ordered, unit_cost, discount_pct, tax_rate, line_total, notes
+        `SELECT variant_id, qty_ordered, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item
            FROM ims_purchase_order_items WHERE po_id = ? ORDER BY id FOR UPDATE`,
         [id],
       );
@@ -2658,10 +2667,10 @@ export const ImsPORepo = {
       for (const item of items) {
         await conn.execute(
           `INSERT INTO ims_purchase_order_items
-             (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+             (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
           [businessId, replacementId, item.variant_id, item.qty_ordered, item.unit_cost,
-           item.discount_pct ?? 0, item.tax_rate ?? 0, item.line_total, item.notes ?? null],
+           item.discount_pct ?? 0, item.tax_rate ?? 0, item.line_total, item.notes ?? null, Number(item.is_stock_item ?? 1)],
         );
       }
       for (const cost of landedCosts) {

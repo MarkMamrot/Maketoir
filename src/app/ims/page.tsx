@@ -9643,7 +9643,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       } catch {}
     }
     const tax_rate = lineItems[i]?.tax_rate ?? poDefaultTaxRate;
-    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate, line_total: undefined } : item));
+    setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate, is_stock_item: Number(v?.is_stock_item ?? 1), line_total: undefined } : item));
   };
 
   const handleCurrencyChange = async (cur: string) => {
@@ -10476,6 +10476,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                             testId={`po-line-${i}-variant`}
                             disabled={isContinuingReceipt || (isPartiallyReceived && receivedQuantityForLine(item) > 0)}
                           />
+                          {item.variant_id && (() => {
+                            const selectedVariant = variants.find((variant: any) => String(variant.variant_id) === String(item.variant_id));
+                            const tracksInventory = Number(item.is_stock_item ?? selectedVariant?.is_stock_item ?? 1) === 1;
+                            return <div style={{ marginTop: 3, fontSize: 10, fontWeight: 650, color: tracksInventory ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{tracksInventory ? 'Stock' : 'Non-stock expense'}</div>;
+                          })()}
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
                           <input data-testid={`po-line-${i}-qty`} disabled={isContinuingReceipt} type="number" min={Math.max(1, receivedQuantityForLine(item))} step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />

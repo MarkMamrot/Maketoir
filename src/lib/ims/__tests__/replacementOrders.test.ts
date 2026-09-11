@@ -40,7 +40,7 @@ describe('replacement order cloning', () => {
       if (sql.includes('replacement_of_po_id = ?')) return [[]];
       if (sql.includes('FROM ims_purchase_order_items')) return [[{
         id: 91, variant_id: 'v-1', qty_ordered: 3, qty_received: 3, unit_cost: 20,
-        discount_pct: 10, tax_rate: 0.1, line_total: 54, notes: 'Blue',
+        discount_pct: 10, tax_rate: 0.1, line_total: 54, notes: 'Blue', is_stock_item: 0,
       }]];
       if (sql.includes('FROM ims_po_landed_costs')) return [[{
         id: 7, label: 'Duty', reference: 'D-1', amount: 12, sort_order: 0,
@@ -65,7 +65,7 @@ describe('replacement order cloning', () => {
     const lineCall = execute.mock.calls.find(([sql]) => sql.includes('INSERT INTO ims_purchase_order_items'))!;
     expect(lineCall[0]).toContain('qty_received');
     expect(lineCall[0]).not.toContain('(id,');
-    expect(lineCall[1]).toEqual(['biz-1', 88, 'v-1', 3, 20, 10, 0.1, 54, 'Blue']);
+    expect(lineCall[1]).toEqual(['biz-1', 88, 'v-1', 3, 20, 10, 0.1, 54, 'Blue', 0]);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_po_landed_costs'),
       ['biz-1', 88, 'Duty', 'D-1', 12, 0],

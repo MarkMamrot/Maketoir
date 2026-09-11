@@ -248,7 +248,7 @@
     {
       "id": "public-capability:ims-purchase-orders",
       "title": "Purchase Orders",
-      "summary": "Create, confirm, review and correct supplier purchase orders, with configurable list fields.",
+      "summary": "Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.",
       "capabilities": [
         "ims",
         "orders"
@@ -259,7 +259,7 @@
     {
       "id": "public-capability:ims-po-receiving-resolution",
       "title": "Receiving and Resolving Purchase Orders",
-      "summary": "Receive only goods that arrived and decide whether an outstanding supplier quantity stays open, closes, or moves to a held order.",
+      "summary": "Receive stock and non-stock PO lines once, then resolve any outstanding supplier quantity.",
       "capabilities": [
         "ims",
         "orders"

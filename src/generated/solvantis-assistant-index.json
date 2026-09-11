@@ -742,8 +742,8 @@
         "ims-supplier-work"
       ],
       "order": 10,
-      "summary": "Create, confirm, review and correct supplier purchase orders, with configurable list fields.",
-      "lastReviewed": "2026-09-10",
+      "summary": "Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.",
+      "lastReviewed": "2026-09-11",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/purchase-orders.md"
     },
@@ -775,8 +775,8 @@
         "ims-inventory-costing"
       ],
       "order": 12,
-      "summary": "Receive only goods that arrived and decide whether an outstanding supplier quantity stays open, closes, or moves to a held order.",
-      "lastReviewed": "2026-09-10",
+      "summary": "Receive stock and non-stock PO lines once, then resolve any outstanding supplier quantity.",
+      "lastReviewed": "2026-09-11",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/receiving-and-resolving-purchase-orders.md"
     },
@@ -5918,7 +5918,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "A purchase order records what you intend to buy from a supplier and where it should arrive. Confirmation makes the quantity incoming; receiving records the physical delivery."
     },
     {
@@ -5939,7 +5939,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "| Action | Use it when | Stock effect |\n|---|---|---|\n| New Purchase Order | You are preparing a supplier order | None while Draft |\n| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |\n| Receive | Goods have physically arrived | Adds the entered quantity to on hand |\n| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |\n| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |\n| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |\n\nAdvisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.\n\nSelect **Display Fields** above the Purchase Orders list to choose which order, date and financial columns are visible. **PO #** and **Supplier** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.\n\nUse the supplier or order-number search and date-range picker for quick filtering. Open **Filters** to narrow the list by status or Product/SKU. Solvantis remembers the current filters, date range, and sort order for your next session in the same browser.\n\nUse **Presets** to return to a named combination of Purchase Order filters, date range, and sort order. The bookmark button saves the current workspace or deletes the selected preset. Presets belong to the signed-in user and are available when that user opens the business on another device.\n\nAsk Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.\n\nAn order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.\n\nAssistant shows outstanding value before tax in the PO currency and includes the recorded exchange rate for foreign-currency orders. It omits supplier contact channels, notes, invoice references, files, payment details and customer data."
     },
     {
@@ -5960,8 +5960,8 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
-      "content": "Advisor access is read-only, so an Advisor cannot create or edit a purchase order.\n\n1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.\n2. Choose the supplier and receiving location.\n3. Add the exact product variants and quantities.\n4. Check order and expected dates, supplier invoice details, early-payment discount, freight, currency, exchange rate, landed costs and notes.\n5. Check the supplier's tax treatment.\n6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.\n\nWhen you use **Upload Invoice**, each printed line subtotal is the source of truth. If the printed quantity, pre-discount unit price and line discount reconcile to that subtotal, Solvantis carries the discount into the PO and shows its amount in the PO detail and generated PO document, with the derived percentage retained for accounting. If those columns do not reconcile, Solvantis preserves the subtotal and uses its effective unit cost instead of applying an uncertain discount twice.\n\nSupplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.\n\nForeign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.\n\nCreate early-payment rules under **Settings > Payment Discounts**. On a new PO, **Early-payment discount** shows the selected supplier's current default by name. Keep that default, choose any active rule as an order-only override, or choose **No early-payment discount**. An order-only rule can be selected even when the supplier has no default. Solvantis saves the rule details and cutoff date on the new PO. The supplier invoice date is the cutoff basis when supplied; otherwise the order date is used. Later changes to the supplier or rule do not rewrite the saved PO terms.\n\nWhen adding a payment to a PO with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.\n\nFor a foreign-currency payment, enter the amount in the purchase-order currency and either the AUD amount paid or the exchange rate. Solvantis keeps the AUD amount and rate in step. Use the direction button beside the rate to switch between **1 foreign currency unit = AUD** and **1 AUD = foreign currency units**; changing the direction does not change the payment value.\n\nWhen the entered payment reaches the qualifying settlement, turn on **Apply discount and create the supplier credit note** before saving. Solvantis records the payment, a stock-neutral supplier credit note, and the discount application together. The supplier credit reference remains blank unless the supplier actually issued one. An applied settlement payment and its credit note must be corrected together.\n\n> **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery."
+      "lastReviewed": "2026-09-11",
+      "content": "Advisor access is read-only, so an Advisor cannot create or edit a purchase order.\n\n1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.\n2. Choose the supplier and receiving location.\n3. Add the exact product variants and quantities.\n4. Check order and expected dates, supplier invoice details, early-payment discount, freight, currency, exchange rate, landed costs and notes.\n5. Check the supplier's tax treatment.\n6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.\n\nEach line shows **Stock** or **Non-stock expense** from the product's **Tracks inventory** setting. Stock lines become incoming when confirmed and affect stock value when received. Non-stock expense lines remain part of the PO and supplier bill, but confirmation and receipt do not change incoming stock, on-hand quantity, allocations, average cost, stock movements, or FIFO layers.\n\nMap **Non-stock Purchases** under **Xero > Chart of Accounts** before syncing a PO that contains a non-stock expense line. Those lines post to that expense account. Stock lines continue to use Inventory Asset, or Inventory in Transit when the PO has a recorded payment.\n\nWhen you use **Upload Invoice**, each printed line subtotal is the source of truth. If the printed quantity, pre-discount unit price and line discount reconcile to that subtotal, Solvantis carries the discount into the PO and shows its amount in the PO detail and generated PO document, with the derived percentage retained for accounting. If those columns do not reconcile, Solvantis preserves the subtotal and uses its effective unit cost instead of applying an uncertain discount twice.\n\nSupplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.\n\nForeign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.\n\nCreate early-payment rules under **Settings > Payment Discounts**. On a new PO, **Early-payment discount** shows the selected supplier's current default by name. Keep that default, choose any active rule as an order-only override, or choose **No early-payment discount**. An order-only rule can be selected even when the supplier has no default. Solvantis saves the rule details and cutoff date on the new PO. The supplier invoice date is the cutoff basis when supplied; otherwise the order date is used. Later changes to the supplier or rule do not rewrite the saved PO terms.\n\nWhen adding a payment to a PO with saved early-payment terms, Solvantis previews the discount, qualifying settlement total, cutoff date, and amount still required. The preview includes earlier payments dated on or before the cutoff and the payment currently being entered. A payment after the cutoff does not qualify, and freight is not part of the discount base.\n\nFor a foreign-currency payment, enter the amount in the purchase-order currency and either the AUD amount paid or the exchange rate. Solvantis keeps the AUD amount and rate in step. Use the direction button beside the rate to switch between **1 foreign currency unit = AUD** and **1 AUD = foreign currency units**; changing the direction does not change the payment value.\n\nWhen the entered payment reaches the qualifying settlement, turn on **Apply discount and create the supplier credit note** before saving. Solvantis records the payment, a stock-neutral supplier credit note, and the discount application together. The supplier credit reference remains blank unless the supplier actually issued one. An applied settlement payment and its credit note must be corrected together.\n\n> **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery."
     },
     {
       "id": "ims-purchase-orders:4",
@@ -5981,7 +5981,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "| Status | What it means | Usual next action |\n|---|---|---|\n| Draft | The order is being prepared | Edit, confirm or delete |\n| Confirmed | The supplier order is active and quantity is incoming | Receive, edit, revert to Draft or cancel where offered |\n| Partially Received | Some goods arrived and some remain outstanding | Continue Receiving or Resolve Outstanding |\n| Backordered | Outstanding quantity was moved to a held child order | Release when it should become active, or cancel |\n| Complete | Receiving is finished | Review, return goods, correct a mistaken receipt or create a replacement draft |\n| Cancelled | The order is closed without further receiving | Review or create a replacement draft |"
     },
     {
@@ -6002,7 +6002,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, resolution choices, linked supplier credits and replacement orders.\n\nUse the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten.\n\nFor a Partially Received order, choose **Edit Details** to increase an ordered quantity, add a product, amend a wholly unreceived line, or update expected date, notes, supplier invoice details, and payment terms. Received quantities remain unchanged. An existing received line cannot change product, cost, discount, or tax, cannot be removed, and cannot be reduced below the quantity already received. Supplier, receiving location, order date, currency, freight, and landed costs remain locked after the first receipt.\n\nIf the PO has active incoming-stock allocations, release or reassign them before changing its lines. If it has a linked Xero bill, Solvantis checks the live Xero state before saving a financial amendment. Paid, credited, locked-period, or unverifiable bills cannot be amended this way."
     },
     {
@@ -6023,8 +6023,8 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
-      "content": "The received cost can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received variant.\n\n| Entered amount | Tax choice | Cost before other adjustments | GST |\n|---:|---|---:|---:|\n| $50.00 | Tax exclusive at 10% | $50.00 | $5.00 |\n| $55.00 | Tax inclusive at 10% | $50.00 | $5.00 |\n| $50.00 | No tax | $50.00 | $0.00 |"
+      "lastReviewed": "2026-09-11",
+      "content": "The received cost for stock lines can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received stock variant. Non-stock expense lines are excluded from landed-cost allocation and inventory value.\n\n| Entered amount | Tax choice | Cost before other adjustments | GST |\n|---:|---|---:|---:|\n| $50.00 | Tax exclusive at 10% | $50.00 | $5.00 |\n| $55.00 | Tax inclusive at 10% | $50.00 | $5.00 |\n| $50.00 | No tax | $50.00 | $0.00 |"
     },
     {
       "id": "ims-purchase-orders:7",
@@ -6044,7 +6044,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "Choose the action that matches what happened:\n\n| Situation | Use | Do not use |\n|---|---|---|\n| The receipt was entered, but the goods never arrived | **Undo Receipt**, when offered | Supplier Return / Credit |\n| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Receipt |\n| You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |\n| Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |\n\nA replacement is a new Draft. It does not undo the original receipt or change the original accounting record.\n\n**Undo Receipt** is available for In Progress and Complete POs when the exact received stock and valuation can be reversed and no dependent payment, supplier credit, shortfall resolution, child workflow, or unsafe Xero state blocks it. The receiving location must still have enough uncommitted stock to remove every received unit. If stock has been sold, transferred, adjusted, or committed to a sales order or transfer, Solvantis blocks the undo and explains the quantity that is unavailable. Release any commitments first, or use **Supplier Return / Credit** when goods genuinely arrived and are being returned. For an In Progress PO, Undo Receipt clears all received quantities, restores them to incoming, and returns the PO to Confirmed without changing its linked Xero bill. For a Complete PO, it cancels the PO and attempts to void the linked Xero bill."
     },
     {
@@ -6065,7 +6065,7 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |\n| Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |\n| Some fields are locked during Edit Details | Received stock or valuation already exists | Amend only outstanding quantities and unreceived lines; use Resolve Outstanding, Supplier Return / Credit or Replacement for completed activity |\n| Undo Receipt says stock is committed | A sales order or transfer reserves some of the stock at the receiving location | Release or complete the related commitment, then retry; use Supplier Return / Credit if the goods genuinely arrived |\n| Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |"
     },
     {
@@ -6086,8 +6086,8 @@
         "purchase-order-replacement"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
-      "content": "### Place a local supplier order\n\nA Brisbane store orders 20 water bottles at $15 each before GST. The PO subtotal is $300, GST is $30 and the supplier total is $330. Confirming makes 20 incoming. It does not add 20 to on hand until staff receive the delivery.\n\n### Replace a cancelled order\n\nA cancelled PO has the right products but the supplier has changed. Staff choose **Create Replacement Draft**, update the supplier and dates, review every line, then confirm the new order. The old PO stays cancelled for reference."
+      "lastReviewed": "2026-09-11",
+      "content": "### Place a local supplier order\n\nA Brisbane store orders 20 water bottles at $15 each before GST. The PO subtotal is $300, GST is $30 and the supplier total is $330. Confirming makes 20 incoming. It does not add 20 to on hand until staff receive the delivery.\n\n### Replace a cancelled order\n\nA cancelled PO has the right products but the supplier has changed. Staff choose **Create Replacement Draft**, update the supplier and dates, review every line, then confirm the new order. The old PO stays cancelled for reference.\n\n### Buy stock and shop supplies together\n\nA store orders $500 before tax of resale stock and $40 before tax of cleaning supplies whose product has **Tracks inventory** turned off. Confirming records only the resale products as incoming. Receiving completes both lines, adds only the resale products to on hand, and sends the cleaning supplies to the mapped Non-stock Purchases expense account in Xero."
     },
     {
       "id": "ims-po-receiving-resolution:1",
@@ -6106,7 +6106,7 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "Use this guide to record a full or partial delivery once, then make a clear decision about any quantity that did not arrive."
     },
     {
@@ -6126,7 +6126,7 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "- Receive the cumulative quantity physically delivered for each line.\n- Leave a partial PO open when the supplier will deliver soon.\n- Cancel an outstanding remainder when it will not arrive.\n- Move a remainder to a held backorder when it should be kept as separate future purchasing work.\n- Use Undo Receipt only when the recorded delivery never happened."
     },
     {
@@ -6146,8 +6146,8 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
-      "content": "| Situation | Action | Stock result |\n|---|---|---|\n| Everything arrived | Receive all and complete | All entered units are added once |\n| Some arrived; balance is coming soon | Receive actual units and leave partial | Actual units added; balance remains outstanding |\n| Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |\n| Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |\n| Receipt was entered but no goods arrived | Undo Receipt, if checks allow | Exact recorded receipt is removed |\n\n> **Important:** Enter the total received quantity shown for the line, including earlier receipts. Solvantis records only the increase from the quantity already received. Never repeat an earlier delivery to fix an accounting warning."
+      "lastReviewed": "2026-09-11",
+      "content": "| Situation | Action | Stock result |\n|---|---|---|\n| Everything arrived | Receive all and complete | All entered units are added once |\n| Some arrived; balance is coming soon | Receive actual units and leave partial | Actual units added; balance remains outstanding |\n| Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |\n| Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |\n| Receipt was entered but no goods arrived | Undo Receipt, if checks allow | Exact recorded receipt is removed |\n| A non-stock expense line is complete | Receive the supplied quantity | PO progress updates; stock and inventory value do not change |\n\n> **Important:** Enter the total received quantity shown for the line, including earlier receipts. Solvantis records only the increase from the quantity already received. Never repeat an earlier delivery to fix an accounting warning."
     },
     {
       "id": "ims-po-receiving-resolution:4",
@@ -6166,7 +6166,7 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "- [ ] Confirm the PO number, supplier and receiving location.\n- [ ] Count the physical delivery by variant.\n- [ ] Separate damaged or incorrect goods before confirming quantities.\n- [ ] Have the supplier invoice number when marking the PO Complete.\n- [ ] Check short-delivery warnings and protected customer demand.\n- [ ] Confirm tax treatment, supplier cost and currency before receipt.\n\nSupplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax-inclusive local cost at 10% GST, the cost basis is $30 and GST is $3."
     },
     {
@@ -6186,8 +6186,8 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
-      "content": "1. Open **Purchasing > Purchase Orders** and find the Confirmed or Partially Received PO.\n2. Choose **Receive** or **Continue Receiving**.\n3. Compare each product and variant with the delivery.\n4. Enter the cumulative received quantity for each line. A quantity saved by an earlier receipt is the minimum and cannot be reduced through Continue Receiving.\n5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.\n\tWhen continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.\n   Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.\n6. For a short delivery, save the actual receipt and keep the PO Partially Received unless the balance is being resolved now.\n7. To finish with a shortfall during receipt, choose the completion option that creates a held backorder only after reviewing the confirmation.\n8. Enter the supplier invoice number before marking the PO Complete.\n9. Reopen the PO and confirm received, outstanding, stock and Xero status separately."
+      "lastReviewed": "2026-09-11",
+      "content": "1. Open **Purchasing > Purchase Orders** and find the Confirmed or Partially Received PO.\n2. Choose **Receive** or **Continue Receiving**.\n3. Compare each product and variant with the delivery.\n4. Enter the cumulative received quantity for each line. A quantity saved by an earlier receipt is the minimum and cannot be reduced through Continue Receiving.\n\tA line marked **Non-stock expense** is still received for order-completion purposes, but it does not add incoming or on-hand stock and does not change inventory cost.\n5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.\n\tWhen continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.\n   Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.\n6. For a short delivery, save the actual receipt and keep the PO Partially Received unless the balance is being resolved now.\n7. To finish with a shortfall during receipt, choose the completion option that creates a held backorder only after reviewing the confirmation.\n8. Enter the supplier invoice number before marking the PO Complete.\n9. Reopen the PO and confirm received, outstanding, stock and Xero status separately."
     },
     {
       "id": "ims-po-receiving-resolution:6",
@@ -6206,7 +6206,7 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "| Choice | Use when | What happens to the remainder |\n|---|---|---|\n| Leave partially open | The supplier expects to deliver soon | Stays on the original PO |\n| Cancel outstanding remainder | The supplier will not deliver it | Original PO closes at the quantity actually received |\n| Create held backorder | The balance should remain as separate future work | Moves to a held child PO; release it when ready |\n\nThe earlier receipt is not repeated by any resolution choice. A held backorder starts inactive and does not add another stock movement."
     },
     {
@@ -6226,7 +6226,7 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "| From | Action | To |\n|---|---|---|\n| Confirmed | Receive less than ordered | Partially Received |\n| Partially Received | Continue Receiving final units | Complete |\n| Partially Received | Leave partially open | Partially Received |\n| Partially Received | Cancel remainder | Complete at actual received quantity |\n| Partially Received | Create held backorder | Source resolved; child Backordered |\n| Backordered child | Release | Confirmed |"
     },
     {
@@ -6246,7 +6246,7 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
+      "lastReviewed": "2026-09-11",
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| A line appears to include an earlier receipt | The field shows cumulative received quantity | Keep the earlier quantity and add only what arrived now |\n| Order and cost fields are locked during Continue Receiving | Earlier quantities have already been received and valued | Enter only the new cumulative received quantities; use Resolve Outstanding when the remaining order itself must change |\n| Complete is blocked | Supplier invoice number is blank | Enter the invoice number and try again |\n| Stock is correct but Xero failed | Receipt completed before accounting sync | Repair or retry Xero; do not receive again |\n| Resolve Outstanding offers financial choices | Paid or accounting records need a separate settlement decision | Review the preview and use the supplier reference or evidence requested on screen |\n| Undo Receipt is unavailable or reports committed stock | Later stock or accounting activity means the receiving location does not have enough uncommitted units for an exact reversal | Release the related sales order or transfer commitment and retry, or use Supplier Return / Credit for genuine returned goods |"
     },
     {
@@ -6266,8 +6266,8 @@
         "supplier-backorders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-09-10",
-      "content": "### Receive two deliveries\n\nA PO orders 10 kettles at $40 each before GST. Six arrive Monday. Staff enter 6 and the PO becomes Partially Received with 4 outstanding. Four arrive Friday; Continue Receiving shows the earlier 6, so staff enter a cumulative total of 10. Solvantis adds only the new 4 and completes the PO.\n\n### Move a cancelled shipment to a held order\n\nA supplier delivers 18 of 24 towels but cannot send the final 6 until next season. Staff receive 18, choose Resolve Outstanding, and create a held backorder for 6. The 18-unit receipt remains unchanged. The held PO can be released later and does not add stock until those 6 are actually received."
+      "lastReviewed": "2026-09-11",
+      "content": "### Receive two deliveries\n\nA PO orders 10 kettles at $40 each before GST. Six arrive Monday. Staff enter 6 and the PO becomes Partially Received with 4 outstanding. Four arrive Friday; Continue Receiving shows the earlier 6, so staff enter a cumulative total of 10. Solvantis adds only the new 4 and completes the PO.\n\n### Move a cancelled shipment to a held order\n\nA supplier delivers 18 of 24 towels but cannot send the final 6 until next season. Staff receive 18, choose Resolve Outstanding, and create a held backorder for 6. The 18-unit receipt remains unchanged. The held PO can be released later and does not add stock until those 6 are actually received.\n\n### Receive a non-stock supplier expense\n\nA PO includes two boxes of cleaning supplies marked **Non-stock expense**. Staff receive quantity 2 and complete the PO. The line is complete for supplier tracking and posts to the mapped Non-stock Purchases account, while incoming stock, on-hand quantity, stock movements and inventory value remain unchanged."
     },
     {
       "id": "ims-supplier-returns-credit-notes:1",

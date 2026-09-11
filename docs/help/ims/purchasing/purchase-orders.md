@@ -1,5 +1,5 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, with configurable list fields.","lastReviewed":"2026-09-10","owner":"inventory"}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-09-11","owner":"inventory"}
 ---
 # Purchase Orders
 
@@ -41,6 +41,10 @@ Advisor access is read-only, so an Advisor cannot create or edit a purchase orde
 5. Check the supplier's tax treatment.
 6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.
 
+Each line shows **Stock** or **Non-stock expense** from the product's **Tracks inventory** setting. Stock lines become incoming when confirmed and affect stock value when received. Non-stock expense lines remain part of the PO and supplier bill, but confirmation and receipt do not change incoming stock, on-hand quantity, allocations, average cost, stock movements, or FIFO layers.
+
+Map **Non-stock Purchases** under **Xero > Chart of Accounts** before syncing a PO that contains a non-stock expense line. Those lines post to that expense account. Stock lines continue to use Inventory Asset, or Inventory in Transit when the PO has a recorded payment.
+
 When you use **Upload Invoice**, each printed line subtotal is the source of truth. If the printed quantity, pre-discount unit price and line discount reconcile to that subtotal, Solvantis carries the discount into the PO and shows its amount in the PO detail and generated PO document, with the derived percentage retained for accounting. If those columns do not reconcile, Solvantis preserves the subtotal and uses its effective unit cost instead of applying an uncertain discount twice.
 
 Supplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.
@@ -80,7 +84,7 @@ If the PO has active incoming-stock allocations, release or reassign them before
 
 ## Costs and stock value
 
-The received cost can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received variant.
+The received cost for stock lines can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received stock variant. Non-stock expense lines are excluded from landed-cost allocation and inventory value.
 
 | Entered amount | Tax choice | Cost before other adjustments | GST |
 |---:|---|---:|---:|
@@ -122,3 +126,7 @@ A Brisbane store orders 20 water bottles at $15 each before GST. The PO subtotal
 ### Replace a cancelled order
 
 A cancelled PO has the right products but the supplier has changed. Staff choose **Create Replacement Draft**, update the supplier and dates, review every line, then confirm the new order. The old PO stays cancelled for reference.
+
+### Buy stock and shop supplies together
+
+A store orders $500 before tax of resale stock and $40 before tax of cleaning supplies whose product has **Tracks inventory** turned off. Confirming records only the resale products as incoming. Receiving completes both lines, adds only the resale products to on hand, and sends the cleaning supplies to the mapped Non-stock Purchases expense account in Xero.

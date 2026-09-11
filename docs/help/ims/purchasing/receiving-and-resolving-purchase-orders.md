@@ -1,5 +1,5 @@
 ---
-{"id":"ims-po-receiving-resolution","title":"Receiving and Resolving Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"task","parentId":"ims-purchase-orders","contexts":["purchase-order-receive","purchase-order-resolve","supplier-backorders"],"contextSections":{"purchase-order-receive":"Step-by-step","purchase-order-resolve":"Resolve a short delivery","supplier-backorders":"Resolve a short delivery"},"relatedTopics":["ims-purchase-orders","ims-supplier-work","ims-supplier-returns-credit-notes","ims-inventory-costing"],"order":12,"summary":"Receive only goods that arrived and decide whether an outstanding supplier quantity stays open, closes, or moves to a held order.","lastReviewed":"2026-09-10","owner":"inventory"}
+{"id":"ims-po-receiving-resolution","title":"Receiving and Resolving Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"task","parentId":"ims-purchase-orders","contexts":["purchase-order-receive","purchase-order-resolve","supplier-backorders"],"contextSections":{"purchase-order-receive":"Step-by-step","purchase-order-resolve":"Resolve a short delivery","supplier-backorders":"Resolve a short delivery"},"relatedTopics":["ims-purchase-orders","ims-supplier-work","ims-supplier-returns-credit-notes","ims-inventory-costing"],"order":12,"summary":"Receive stock and non-stock PO lines once, then resolve any outstanding supplier quantity.","lastReviewed":"2026-09-11","owner":"inventory"}
 ---
 # Receiving and Resolving Purchase Orders
 
@@ -22,6 +22,7 @@ Use this guide to record a full or partial delivery once, then make a clear deci
 | Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |
 | Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |
 | Receipt was entered but no goods arrived | Undo Receipt, if checks allow | Exact recorded receipt is removed |
+| A non-stock expense line is complete | Receive the supplied quantity | PO progress updates; stock and inventory value do not change |
 
 > **Important:** Enter the total received quantity shown for the line, including earlier receipts. Solvantis records only the increase from the quantity already received. Never repeat an earlier delivery to fix an accounting warning.
 
@@ -42,6 +43,7 @@ Supplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax
 2. Choose **Receive** or **Continue Receiving**.
 3. Compare each product and variant with the delivery.
 4. Enter the cumulative received quantity for each line. A quantity saved by an earlier receipt is the minimum and cannot be reduced through Continue Receiving.
+	A line marked **Non-stock expense** is still received for order-completion purposes, but it does not add incoming or on-hand stock and does not change inventory cost.
 5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.
 	When continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.
    Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.
@@ -91,3 +93,7 @@ A PO orders 10 kettles at $40 each before GST. Six arrive Monday. Staff enter 6 
 ### Move a cancelled shipment to a held order
 
 A supplier delivers 18 of 24 towels but cannot send the final 6 until next season. Staff receive 18, choose Resolve Outstanding, and create a held backorder for 6. The 18-unit receipt remains unchanged. The held PO can be released later and does not add stock until those 6 are actually received.
+
+### Receive a non-stock supplier expense
+
+A PO includes two boxes of cleaning supplies marked **Non-stock expense**. Staff receive quantity 2 and complete the PO. The line is complete for supplier tracking and posts to the mapped Non-stock Purchases account, while incoming stock, on-hand quantity, stock movements and inventory value remain unchanged.

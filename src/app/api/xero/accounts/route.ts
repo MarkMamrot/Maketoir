@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   if (denied) return denied;
 
   const validRoles = [
-    'inventory_asset', 'inventory_in_transit', 'cogs', 'sales_revenue',
+    'inventory_asset', 'inventory_in_transit', 'non_stock_purchases', 'cogs', 'sales_revenue',
     'credit_note', 'freight', 'stock_adjustment',
     'rounding',
     'cash_over_short',

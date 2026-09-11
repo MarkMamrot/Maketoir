@@ -15,7 +15,7 @@ vi.mock('@/lib/xero/accountingActionRepository', () => ({
   failXeroAccountingAction: mocks.fail,
 }));
 
-import { syncPOPayment, syncPOReceivedJournal, syncSOPayment } from '../XeroSyncService';
+import { calculatePOStockReceiptValueAud, syncPOPayment, syncPOReceivedJournal, syncSOPayment } from '../XeroSyncService';
 
 describe('Xero payment and receipt-journal actions', () => {
   beforeEach(() => {
@@ -86,5 +86,26 @@ describe('Xero payment and receipt-journal actions', () => {
     expect(mocks.claim).toHaveBeenCalledWith(expect.objectContaining({
       operationKey: 'po-received-journal:42:bill-1', actionType: 'po_received_journal',
     }));
+  });
+
+  it('limits a mixed prepaid PO journal to discounted stock value and capitalised freight in AUD', () => {
+    expect(calculatePOStockReceiptValueAud({
+      id: 42,
+      po_number: 'PO-42',
+      location_id: 4,
+      order_date: '2026-09-11',
+      subtotal: 150,
+      tax_amount: 15,
+      discount: 15,
+      freight: 20,
+      total_amount: 170,
+      tax_treatment: 'inc_tax',
+      exchange_rate: 1.4,
+      items: [
+        { variant_id: 'stock', qty_ordered: 1, unit_cost: 110, discount_pct: 0, tax_rate: 0.1, line_total: 110, is_stock_item: 1 },
+        { variant_id: 'expense', qty_ordered: 1, unit_cost: 55, discount_pct: 0, tax_rate: 0.1, line_total: 55, is_stock_item: 0 },
+      ],
+      payments: [{ amount: 200, amount_local: 300, payment_date: '2026-09-01' }],
+    }, true)).toBe(165);
   });
 });

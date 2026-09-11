@@ -696,10 +696,14 @@ export async function POST(req: Request) {
         }
 
         // -- Shared variant-by-SKU map for sales + PO line items -----------
-        const sharedVariantRows = await imsQuery<{ variant_id: string; sku: string }>(
-          'SELECT variant_id, sku FROM ims_product_variants WHERE sku IS NOT NULL',
+        const sharedVariantRows = await imsQuery<{ variant_id: string; sku: string; is_stock_item: number }>(
+          `SELECT v.variant_id, v.sku, COALESCE(p.is_stock_item, 1) AS is_stock_item
+             FROM ims_product_variants v
+             JOIN ims_products p ON p.product_id = v.product_id
+            WHERE v.sku IS NOT NULL`,
         );
         const variantBySku = new Map<string, string>(sharedVariantRows.map(r => [r.sku, r.variant_id]));
+        const stockFlagByVariant = new Map<string, number>(sharedVariantRows.map(r => [r.variant_id, Number(r.is_stock_item) === 0 ? 0 : 1]));
 
         // -- Step F: Sales from Cin7 /SalesOrders ---------------------------
         if (stepsRequested.includes('sales')) {
@@ -1118,10 +1122,10 @@ export async function POST(req: Request) {
               try {
                 await imsExecute(
                   `INSERT INTO ims_purchase_order_items
-                     (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                     (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [poInsertId, poItemVariantId, qty, poStatus === 'complete' ? qty : 0,
-                   unitCost, lineDiscount, lineItemTaxRate, lineTotal, line.name || null],
+                   unitCost, lineDiscount, lineItemTaxRate, lineTotal, line.name || null, stockFlagByVariant.get(String(poItemVariantId)) ?? 1],
                 );
               } catch { /* skip if variant not in catalog */ }
             }
