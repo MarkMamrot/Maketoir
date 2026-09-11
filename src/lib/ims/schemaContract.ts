@@ -41,6 +41,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_po_landed_costs',
   'ims_purchase_order_items',
   'ims_purchase_order_payments',
+  'ims_purchase_order_presets',
   'ims_sales_orders',
   'ims_sales_order_items',
   'ims_sales_order_payments',
@@ -232,6 +233,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'xero_post_error',
     'xero_posted_at',
   ],
+  ims_purchase_order_presets: ['business_id', 'user_key', 'name', 'settings_json', 'last_used_at'],
   ims_sales_order_payments: [
     'business_id',
     'payment_method_id',
@@ -294,6 +296,7 @@ export const IMS_SCHEMA_REQUIRED_INDEXES = {
   ],
   ims_stock_movements: ['idx_sm_cost_epoch', 'idx_sm_source_line'],
   ims_purchase_orders: ['uq_po_replacement_source'],
+  ims_purchase_order_presets: ['uq_purchase_order_preset_name', 'idx_purchase_order_preset_user'],
   ims_sales_orders: ['uq_so_replacement_source', 'idx_so_wholesale_account', 'idx_so_staff_preview', 'idx_so_online_channel', 'uq_so_native_checkout'],
   wholesale_draft_orders: ['idx_wholesale_draft_account', 'idx_wholesale_draft_preview'],
   ims_credit_notes: ['uq_business_cn'],

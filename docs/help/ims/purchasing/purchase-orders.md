@@ -20,6 +20,10 @@ Advisor access is read-only. Other actions can be unavailable when the order's s
 
 Select **Display Fields** above the Purchase Orders list to choose which order, date and financial columns are visible. **PO #** and **Supplier** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.
 
+Use the supplier or order-number search and date-range picker for quick filtering. Open **Filters** to narrow the list by status or Product/SKU. Solvantis remembers the current filters, date range, and sort order for your next session in the same browser.
+
+Use **Presets** to return to a named combination of Purchase Order filters, date range, and sort order. The bookmark button saves the current workspace or deletes the selected preset. Presets belong to the signed-in user and are available when that user opens the business on another device.
+
 Ask Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.
 
 An order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.

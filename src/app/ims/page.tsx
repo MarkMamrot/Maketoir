@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeftRight, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Search, Truck, WalletCards, Wrench } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -24,6 +24,7 @@ import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
 import { audAmountFromPayment, canonicalExchangeRate, displayedExchangeRate, exchangeRateFromPaymentAmounts, type ExchangeRateDirection } from '@/lib/ims/foreignPaymentMath';
+import { sanitizePurchaseOrderWorkspace, type PurchaseOrderWorkspaceSettings } from '@/lib/ims/purchaseOrderWorkspace';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
@@ -9365,6 +9366,13 @@ function getChannelOrderNumber(order: any): string {
   return String(order.channel_order_number ?? order.external_order_number ?? order.shopify_order_name ?? order.native_checkout_id ?? '').trim();
 }
 
+interface PurchaseOrderPreset {
+  id: string;
+  name: string;
+  settings: PurchaseOrderWorkspaceSettings;
+  lastUsedAt: string | null;
+}
+
 function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, onOpenActivityDocument, isAdvisor = false, businessId = '' }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; isAdvisor?: boolean; businessId?: string } = {}) {
   const poHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const poBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -9407,6 +9415,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [poPresetsOpen, setPoPresetsOpen] = useState(false);
+  const [poPresetName, setPoPresetName] = useState('');
+  const [poPresets, setPoPresets] = useState<PurchaseOrderPreset[]>([]);
+  const [activePoPresetId, setActivePoPresetId] = useState('');
+  const [poWorkspaceLoaded, setPoWorkspaceLoaded] = useState(false);
+  const [poPresetMessage, setPoPresetMessage] = useState('');
   const [poActionSelections, setPoActionSelections] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
@@ -9442,6 +9456,93 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     poDisplayFields,
     ['po_number', 'supplier_name', 'supplier_invoice_number', 'location_name', 'order_date', 'total_amount', 'status'],
   );
+  const poWorkspaceStorageKey = `solvantis:${businessId || 'unknown'}:purchase-orders:workspace:v1`;
+  const applyPoWorkspace = (value: unknown, presetId = '') => {
+    const workspace = sanitizePurchaseOrderWorkspace(value);
+    setStatusFilter(workspace.status);
+    setFilterSupplier(workspace.supplier);
+    setFilterProduct(workspace.product);
+    setDateRange(workspace.dateRange);
+    setSortCol(workspace.sortColumn);
+    setSortDir(workspace.sortDirection);
+    setActivePoPresetId(presetId);
+    setPage(1);
+  };
+  const currentPoWorkspace = (): PurchaseOrderWorkspaceSettings => sanitizePurchaseOrderWorkspace({
+    status: statusFilter,
+    supplier: filterSupplier,
+    product: filterProduct,
+    dateRange,
+    sortColumn: sortCol,
+    sortDirection: sortDir,
+  });
+  useEffect(() => {
+    let cancelled = false;
+    let stored: { settings?: unknown; activePresetId?: unknown } | null = null;
+    try { stored = JSON.parse(localStorage.getItem(poWorkspaceStorageKey) ?? 'null'); } catch { stored = null; }
+    fetch('/api/ims/purchase-orders/presets').then(async response => {
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Presets could not be loaded.');
+      if (cancelled) return;
+      const loadedPresets = (result.presets ?? []) as PurchaseOrderPreset[];
+      setPoPresets(loadedPresets);
+      if (stored) {
+        const storedPresetId = String(stored.activePresetId ?? '');
+        applyPoWorkspace(stored.settings ?? stored, loadedPresets.some(preset => preset.id === storedPresetId) ? storedPresetId : '');
+      } else {
+        const lastUsed = loadedPresets.find(preset => preset.id === String(result.lastUsedPresetId ?? ''));
+        if (lastUsed) applyPoWorkspace(lastUsed.settings, lastUsed.id);
+      }
+    }).catch(error => {
+      if (cancelled) return;
+      if (stored) applyPoWorkspace(stored.settings ?? stored, String(stored.activePresetId ?? ''));
+      setPoPresetMessage(error instanceof Error ? error.message : 'Presets could not be loaded.');
+    }).finally(() => { if (!cancelled) setPoWorkspaceLoaded(true); });
+    return () => { cancelled = true; };
+  }, [poWorkspaceStorageKey]);
+  useEffect(() => {
+    if (!poWorkspaceLoaded) return;
+    localStorage.setItem(poWorkspaceStorageKey, JSON.stringify({ settings: currentPoWorkspace(), activePresetId: activePoPresetId }));
+  }, [poWorkspaceLoaded, poWorkspaceStorageKey, statusFilter, filterSupplier, filterProduct, dateRange, sortCol, sortDir, activePoPresetId]);
+
+  const selectPoPreset = async (presetId: string) => {
+    const preset = poPresets.find(candidate => candidate.id === presetId);
+    if (!preset) { setActivePoPresetId(''); return; }
+    applyPoWorkspace(preset.settings, preset.id);
+    setPoPresetMessage('');
+    try {
+      await fetch('/api/ims/purchase-orders/presets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ presetId: preset.id }) });
+    } catch { /* The selected preset remains active locally. */ }
+  };
+
+  const savePoPreset = async () => {
+    const name = poPresetName.trim();
+    if (!name) return;
+    try {
+      const response = await fetch('/api/ims/purchase-orders/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, settings: currentPoWorkspace() }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Preset could not be saved.');
+      const saved = result.preset as PurchaseOrderPreset;
+      setPoPresets(current => [...current.filter(preset => preset.id !== saved.id && preset.name !== saved.name), saved].sort((left, right) => left.name.localeCompare(right.name)));
+      setActivePoPresetId(saved.id);
+      setPoPresetName('');
+      setPoPresetsOpen(false);
+      setPoPresetMessage(`Preset “${saved.name}” saved.`);
+    } catch (error) {
+      setPoPresetMessage(error instanceof Error ? error.message : 'Preset could not be saved.');
+    }
+  };
+
+  const deletePoPreset = async () => {
+    if (!activePoPresetId) return;
+    const response = await fetch(`/api/ims/purchase-orders/presets?id=${encodeURIComponent(activePoPresetId)}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!response.ok || !result.success) { setPoPresetMessage(result.error || 'Preset could not be deleted.'); return; }
+    setPoPresets(current => current.filter(preset => preset.id !== activePoPresetId));
+    setActivePoPresetId('');
+    setPoPresetsOpen(false);
+    setPoPresetMessage('Preset deleted.');
+  };
   useEffect(() => {
     if (!viewModal.po?.id || !poPayForm?.date) {
       setPoEarlyPaymentPreview(null);
@@ -10072,16 +10173,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <input
           list="po-supplier-filter-list"
-          placeholder="Filter by customer / order number…"
+          placeholder="Filter by supplier / order number…"
           value={filterSupplier}
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
-        />
-        <input
-          placeholder="Filter by product / SKU…"
-          value={filterProduct}
-          onChange={e => { setFilterProduct(e.target.value); setPage(1); }}
-          style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}
         />
         <SBDatePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
         <div style={{ position: 'relative' }}>
@@ -10099,6 +10194,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
               <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Product / SKU</label>
+                  <input
+                    placeholder="Product name, SKU or variant"
+                    value={filterProduct}
+                    onChange={e => { setFilterProduct(e.target.value); setPage(1); }}
+                    style={{ ...inputStyle, width: '100%' }}
+                  />
+                </div>
                 <div style={{ marginBottom: 4 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
                   <select
@@ -10116,6 +10220,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 </div>
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
                   <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilter ? statusFilter.replace(/_/g, ' ') : 'All'}</strong></div>
+                  <div>Product / SKU: <strong style={{ color: 'var(--sv-text-main)' }}>{filterProduct.trim() || 'All'}</strong></div>
                   <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
                 </div>
               </div>
@@ -10125,10 +10230,29 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         <datalist id="po-supplier-filter-list">
           {supplierOptions.map(s => <option key={s} value={s} />)}
         </datalist>
+        <select aria-label="Select Purchase Order preset" value={activePoPresetId} onChange={event => void selectPoPreset(event.target.value)} style={{ ...inputStyle, width: 150 }}>
+          <option value="">Presets...</option>
+          {poPresets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+        </select>
+        <div style={{ position: 'relative' }}>
+          <button type="button" title="Manage presets" aria-label="Manage Purchase Order presets" aria-expanded={poPresetsOpen} onClick={() => { setPoPresetsOpen(open => !open); setFiltersOpen(false); }} style={{ ...btnStyle('secondary', 'sm'), width: 34, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Bookmark size={14} /></button>
+          {poPresetsOpen && <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setPoPresetsOpen(false)} />
+            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 100, width: 290, padding: 12, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+              <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 750, color: 'var(--sv-text-main)' }}>Save current filters and sort</div>
+              <input aria-label="Purchase Order preset name" value={poPresetName} onChange={event => setPoPresetName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void savePoPreset(); }} maxLength={80} placeholder="Preset name" style={{ ...inputStyle, width: '100%' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, marginTop: 8 }}>
+                <button type="button" disabled={!activePoPresetId} onClick={() => void deletePoPreset()} style={{ ...btnStyle('secondary', 'sm'), opacity: activePoPresetId ? 1 : .5 }}><Trash2 size={14} /> Delete selected</button>
+                <button type="button" disabled={!poPresetName.trim()} onClick={() => void savePoPreset()} style={{ ...btnStyle('secondary', 'sm'), borderColor: 'var(--sv-action)', color: 'var(--sv-action)', opacity: poPresetName.trim() ? 1 : .5 }}><Save size={14} /> Save</button>
+              </div>
+            </div>
+          </>}
+        </div>
         {poFiltersActive && (
-          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setFilterProduct(''); setDateRange(DEFAULT_DATE_RANGE); setPage(1); setFiltersOpen(false); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setFilterProduct(''); setDateRange(DEFAULT_DATE_RANGE); setPage(1); setFiltersOpen(false); setActivePoPresetId(''); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
+      {poPresetMessage && <div role="status" style={{ margin: '-6px 0 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{poPresetMessage}</div>}
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
         <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
           <div ref={poHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
