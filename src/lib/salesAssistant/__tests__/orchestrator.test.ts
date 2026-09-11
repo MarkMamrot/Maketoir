@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeSalesDecision, runProspectSalesAssistant, SALES_MODEL } from '../orchestrator';
+import { normalizeSalesDecision, runProspectSalesAssistant, SALES_MODEL, SALES_PROMPT_VERSION } from '../orchestrator';
 
 describe('sales response normalization', () => {
   it('defaults to an approved model with complete commercial pricing', () => {
     expect(SALES_MODEL).toBe('gemini-3.5-flash-lite');
+    expect(SALES_PROMPT_VERSION).toBe('prospect-sales-v2');
   });
 
   it('normalizes enums and nullable fields and keeps only retrieved source IDs', () => {
@@ -22,6 +23,34 @@ describe('sales response normalization', () => {
 });
 
 describe('route-like sales orchestration', () => {
+  it('grounds Shopify loyalty answers in the confirmed native workflow', async () => {
+    const repository = {
+      prepareUserPrompt: vi.fn(async () => ({ conversationId: 'conversation-1', userMessageId: 'user-1' })),
+      listPublicEnabledIntegrations: vi.fn(async () => []),
+      appendAssistantMessage: vi.fn(async () => ({ messageId: 'assistant-1' })),
+    };
+    const generateJson = vi.fn(async ({ systemInstruction, context }: { systemInstruction: string; context: string }) => {
+      const supplied = JSON.parse(context);
+      expect(supplied.publicSources[0]).toMatchObject({
+        id: 'prospect-shopify-loyalty',
+        title: 'Shopify and Loyalty',
+        availability: 'confirmed',
+      });
+      expect(supplied.publicSources[0].summary).toMatch(/one loyalty program.*POS.*Shopify/i);
+      expect(systemInstruction).toMatch(/answer yes clearly/i);
+      return JSON.stringify({
+        answer: 'Yes. Solvantis can run one loyalty program across its POS and a connected Shopify store.',
+        fit: 'needs_discovery', intent: 'evaluating', sourceIds: ['prospect-shopify-loyalty'], offerContact: false,
+      });
+    });
+
+    const result = await runProspectSalesAssistant({
+      sessionId: 'session', message: 'Does your system allow loyalty integrated with Shopify?',
+    }, { repository, generateJson, reportFailure: vi.fn(async () => null) });
+
+    expect(result).toMatchObject({ fit: 'strong_fit', sourceIds: ['prospect-shopify-loyalty'] });
+  });
+
   it('commits the transcript before invoking the model and appends the normalized answer', async () => {
     const order: string[] = [];
     const repository = {

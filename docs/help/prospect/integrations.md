@@ -1,5 +1,5 @@
 ---
-{"id":"prospect-integrations","title":"Integration Approach","audiences":["prospect"],"product":"prospect","summary":"Solvantis has native capabilities for Xero accounting, Shopify commerce, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.","capabilityTags":["integrations","accounting","commerce","inventory","marketing","analytics"],"lastReviewed":"2026-08-24","owner":"integrations"}
+{"id":"prospect-integrations","title":"Integration Approach","audiences":["prospect"],"product":"prospect","summary":"Solvantis has native capabilities for Xero accounting, Shopify product, inventory, order, customer, return and loyalty flows, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.","capabilityTags":["integrations","accounting","commerce","inventory","loyalty","marketing","analytics"],"lastReviewed":"2026-09-11","owner":"integrations"}
 ---
 # Integration Approach
 

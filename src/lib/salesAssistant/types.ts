@@ -15,6 +15,7 @@ export interface ProspectKnowledgeSource {
   summary: string;
   capabilities: string[];
   product: string;
+  availability: 'confirmed' | 'qualified';
 }
 
 export interface ProspectAssistantDecision {

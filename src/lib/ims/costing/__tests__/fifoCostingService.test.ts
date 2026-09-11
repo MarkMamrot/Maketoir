@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   consumeFifoCostLayers,
   createFifoPosReturnLayers,
+  createFifoSalesOrderReturnLayers,
   createFifoCostLayer,
   FifoCostingConflict,
   lockInventoryCostState,
@@ -183,6 +184,48 @@ describe('FIFO costing service', () => {
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("cost_method_snapshot = 'fifo'"),
       [32 / 3, 4, 101, 'biz-1'],
+    );
+  });
+
+  it('restores linked sales-order returns after subtracting prior returned quantities', async () => {
+    let nextLayerId = 90;
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('FROM ims_sales_order_items soi')) {
+        return [[{ so_id: 20, variant_id: 'v-1', location_id: 3 }]];
+      }
+      if (sql.includes('FROM ims_fifo_cost_allocations allocation')) {
+        return [[
+          { layer_id: 1, sold_quantity: 2, unit_cost: 10, fifo_date: '2026-01-01' },
+          { layer_id: 2, sold_quantity: 3, unit_cost: 12, fifo_date: '2026-02-01' },
+        ]];
+      }
+      if (sql.includes('SELECT parent_layer_id')) {
+        return [[{ parent_layer_id: 1, restored_quantity: 1 }]];
+      }
+      if (sql.includes('INSERT INTO ims_fifo_cost_layers')) return [{ insertId: nextLayerId++ }];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(createFifoSalesOrderReturnLayers({ execute } as any, {
+      businessId: 'biz-1', state: { method: 'fifo', epochId: 4, revision: 2 },
+      sourceSalesOrderItemId: 201, creditNoteId: 40, creditNoteItemId: 401,
+      returnMovementId: 101, variantId: 'v-1', locationId: 5, quantity: 3,
+      returnDate: '2026-09-11',
+    })).resolves.toEqual({ allocatedValue: 34, unitCost: 34 / 3, layerCount: 2 });
+
+    const layerCalls = execute.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ims_fifo_cost_layers'));
+    expect(layerCalls).toHaveLength(2);
+    expect(layerCalls[0][1]).toEqual([
+      'biz-1', 4, 'v-1', 5, 'sales_order_return', 101, 'credit_note', 40, 401, 1,
+      expect.any(Date), 1, 1, 10,
+    ]);
+    expect(layerCalls[1][1]).toEqual([
+      'biz-1', 4, 'v-1', 5, 'sales_order_return', 101, 'credit_note', 40, 401, 2,
+      expect.any(Date), 2, 2, 12,
+    ]);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("cost_method_snapshot = 'fifo'"),
+      [34 / 3, 4, 101, 'biz-1'],
     );
   });
 });

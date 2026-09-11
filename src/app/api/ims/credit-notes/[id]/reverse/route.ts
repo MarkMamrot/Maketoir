@@ -8,6 +8,7 @@ import { executeCreditNoteReversalWorkflow } from '@/lib/ims/creditNotes/creditN
 import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -36,6 +37,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: true, data: await ImsCNRepo.get(documentId, businessId), result, xeroWarning: result.xeroWarning });
   } catch (error: any) {
     const conflict = error instanceof CreditNoteReversalConflict
+      || error instanceof FifoCostingConflict
       || error instanceof InventoryDocumentLifecycleConflict
       || error instanceof InventoryDocumentOperationConflict
       || error instanceof InventoryDocumentRevisionConflict;

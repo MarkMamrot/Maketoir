@@ -118,6 +118,10 @@ describe('fulfilSalesOrderPartial', () => {
       quantity: 7,
     });
     expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('reference_id, source_line_id, qty_change'),
+      ['biz-1', 'variant-1', 4, 'wholesale', 42, 10, -7, 13, 4.5, 'fifo', 6, 'Shipment shipment-42-fifo'],
+    );
+    expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('SET qty_fulfilled = ?, unit_cost = ?'),
       [7, 5, 10, 42],
     );

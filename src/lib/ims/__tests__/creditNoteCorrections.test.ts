@@ -175,6 +175,18 @@ describe('credit-note correction transactions', () => {
     expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
+  it('blocks FIFO customer-return reversal before credit or stock mutation', async () => {
+    const connection = connectionFor('customer', { costingMethod: 'fifo' });
+
+    await expect(reverseCustomerCreditNote({
+      businessId: 'biz-1', documentId: 12, reason: 'Entered twice', context, xeroCorrectionRequired: false,
+    })).rejects.toThrow('exact restored cost layers must be removed');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('store_credit_transactions'), expect.anything());
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('FROM ims_stock_movements'), expect.anything());
+  });
+
   it('restores supplier-return stock using the original movement cost', async () => {
     const connection = connectionFor('supplier');
 

@@ -23,7 +23,7 @@ describe('prospect knowledge projection', () => {
   it('contains only whitelisted public summary fields', () => {
     expect(prospectIndex.sources.length).toBeGreaterThan(0);
     for (const source of prospectIndex.sources) {
-      expect(Object.keys(source).sort()).toEqual(['capabilities', 'id', 'product', 'summary', 'title']);
+      expect(Object.keys(source).sort()).toEqual(['availability', 'capabilities', 'id', 'product', 'summary', 'title']);
     }
 
     const serialized = JSON.stringify(prospectIndex);
@@ -38,13 +38,25 @@ describe('prospect knowledge projection', () => {
     expect(retrieveProspectKnowledge({ query: '---' })).toEqual([]);
   });
 
+  it('answers Shopify loyalty questions from the specific native capability source', () => {
+    const results = retrieveProspectKnowledge({ query: 'does your system allow loyalty integrated with shopify?' });
+
+    expect(results[0]).toMatchObject({
+      id: 'prospect-shopify-loyalty', title: 'Shopify and Loyalty', availability: 'confirmed',
+    });
+    expect(results[0]?.summary).toMatch(/Yes.*one loyalty program.*POS.*Shopify/i);
+    expect(results[0]?.capabilities).toContain('loyalty');
+  });
+
   it('accepts external public offerings without guaranteeing on-demand delivery', () => {
     const results = retrieveProspectKnowledge({
       query: 'Sample 3PL logistics fulfilment',
       externalIntegrationOfferings: [offering()],
     });
 
-    expect(results[0]).toMatchObject({ id: 'public-integration:sample-3pl', product: 'integration' });
+    expect(results[0]).toMatchObject({
+      id: 'public-integration:sample-3pl', product: 'integration', availability: 'qualified',
+    });
     expect(results[0]?.summary).toMatch(/on-demand.*discovery.*quote.*not guaranteed/i);
     expect(results[0]).not.toHaveProperty('topicId');
     expect(results[0]).not.toHaveProperty('anchor');

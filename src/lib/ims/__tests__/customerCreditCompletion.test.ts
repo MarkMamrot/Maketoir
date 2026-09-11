@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockLockInventoryCostState, mockCreateFifoPosReturnLayers } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockLockInventoryCostState, mockCreateFifoPosReturnLayers, mockCreateFifoSalesOrderReturnLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockLockInventoryCostState: vi.fn(),
   mockCreateFifoPosReturnLayers: vi.fn(),
+  mockCreateFifoSalesOrderReturnLayers: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -17,6 +18,7 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 vi.mock('../costing/fifoCostingService', () => ({
   lockInventoryCostState: mockLockInventoryCostState,
   createFifoPosReturnLayers: mockCreateFifoPosReturnLayers,
+  createFifoSalesOrderReturnLayers: mockCreateFifoSalesOrderReturnLayers,
   FifoCostingConflict: class FifoCostingConflict extends Error { code = 'FIFO_COSTING_CONFLICT'; status = 409; },
 }));
 
@@ -28,6 +30,7 @@ function connectionFor(options: {
   fulfilledQty?: number;
   returnedQty?: number;
   posReturn?: boolean;
+  restockLinkedReturn?: boolean;
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -71,7 +74,7 @@ function connectionFor(options: {
         variant_id: 'v-1', qty: 2, unit_price: 5, restock: 1,
       }] : options.sourceSoItemId ? [{
         id: 31, cn_id: 12, source_so_item_id: options.sourceSoItemId,
-        variant_id: 'v-1', qty: 2, unit_price: 5, restock: 0,
+        variant_id: 'v-1', qty: 2, unit_price: 5, restock: options.restockLinkedReturn ? 1 : 0,
       }] : []];
     }
     if (normalized.includes('from ims_sales_order_items soi')) {
@@ -186,6 +189,28 @@ describe('ImsCNRepo.complete', () => {
       state: { method: 'fifo', epochId: 6, revision: 2 },
       returnPosSaleId: 30,
       creditNoteId: 12,
+      returnMovementId: 501,
+      variantId: 'v-1',
+      locationId: 4,
+      quantity: 2,
+      returnDate: '2026-09-10',
+    });
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('restores linked sales-order return layers while completing the credit note', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mockCreateFifoSalesOrderReturnLayers.mockResolvedValue({ allocatedValue: 20, unitCost: 10, layerCount: 1 });
+    const connection = connectionFor({ sourceSoItemId: 21, restockLinkedReturn: true });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(mockCreateFifoSalesOrderReturnLayers).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 6, revision: 2 },
+      sourceSalesOrderItemId: 21,
+      creditNoteId: 12,
+      creditNoteItemId: 31,
       returnMovementId: 501,
       variantId: 'v-1',
       locationId: 4,

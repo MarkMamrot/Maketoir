@@ -1,3 +1,9 @@
+## 2026-09-11 - Public Assistant Shopify loyalty grounding
+
+- The public prospect index now has a dedicated confirmed Shopify and loyalty source stating that one Solvantis loyalty program can span POS and a connected Shopify store. The validated public capability vocabulary includes loyalty, while separate third-party loyalty connectors remain qualified and subject to discovery.
+- Public knowledge sources carry `confirmed` or `qualified` availability. When the model cites a confirmed source, orchestration prevents it from downgrading that capability to `needs_discovery`; qualified and on-demand offerings retain their existing discovery, scope, timing, and quotation language.
+- The exact homepage question now returns a concrete native Shopify loyalty answer and **Looks like a strong fit** in live browser validation. The full suite passed 550 files / 2,665 tests with one intentional skip, the six-source public index compiled, and the production build passed.
+
 ## 2026-09-10 - Australia Post international shipping
 
 - Shipping Workspace now supports Australia Post international preparation with product-owned customs descriptions, HS codes, ISO country of origin, restricted-goods blocking, parcel allocations, and immutable declaration snapshots. Sale declarations use allocated ex-tax merchandise value after discounts and exclude freight; gift, sample, and return declarations require explicit positive values and confirmation.
@@ -10,6 +16,14 @@
 - Direct information-schema readback verified four costing tables and both movement columns in every registered tenant. No tenant was switched to FIFO; costing-state tables remained empty so normal operations initialize as `average_cost`.
 - Supplier credit-note completion now consumes FIFO layers for physical returns and stamps the resulting composite movement cost. FIFO supplier-return reversal is blocked before stock mutation until exact consumed-layer restoration is implemented.
 - Focused PO receive/status/API tests and supplier-return completion/reversal/API tests passed. FIFO production activation remains disabled.
+
+## 2026-09-10 - SO-linked FIFO customer returns
+
+- SO fulfilment movements now retain the exact sales-order item ID. Completed linked customer credit notes restore return-dated FIFO child layers from that line's original fulfilment allocations, subtracting quantities already restored by earlier partial returns and preserving the original costs at the selected return location.
+- FIFO customer credit-note reversal is blocked before store-credit or stock mutation until exact restored-layer unwind is implemented. Expected completion and reversal conflicts return HTTP 409 without Runtime Issue noise; Average Cost behavior is unchanged.
+- Restored the four dormant FIFO tables and movement costing fields to the canonical schema, catch-up migration, and schema contract after later schema edits had dropped their definitions while runtime integrations remained. The contract now verifies the costing tables, key columns, and indexes.
+- The idempotent catch-up added `ims_stock_movements.source_line_id` and `idx_sm_source_line` to Monsterthreads, Sage, Solvantis, and Monsterthreads Sandbox. Direct readback confirmed both objects in all four schemas; initialized tenants remained `average_cost` and no FIFO activation occurred.
+- The full Vitest suite passed 2,663 tests with one skipped, and the production build passed. FIFO production activation remains disabled.
 
 ## 2026-09-10 - Daybook task copy, sell guidance and wide layouts
 

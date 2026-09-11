@@ -8,6 +8,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { POST } from '../route';
 import { CreditNoteReversalConflict } from '@/lib/ims/creditNotes/creditNoteCorrections';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 const params = { params: { id: '17' } };
 function request(body: unknown) {
@@ -46,6 +47,15 @@ describe('POST /api/ims/credit-notes/[id]/reverse', () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ code: 'credit_note_reversal_conflict' });
+    expect(mocks.report).not.toHaveBeenCalled();
+  });
+
+  it('maps FIFO reversal blocks to 409 without reporting an operational issue', async () => {
+    mocks.execute.mockRejectedValue(new FifoCostingConflict('Exact FIFO reversal is unavailable.'));
+    const response = await POST(request({ operationKey: 'key', reason: 'Mistake' }), params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
     expect(mocks.report).not.toHaveBeenCalled();
   });
 

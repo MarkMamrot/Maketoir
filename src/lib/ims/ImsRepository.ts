@@ -38,7 +38,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from './avgCostMath';
-import { consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
+import { consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, createFifoSalesOrderReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -5654,22 +5654,36 @@ async function restockCreditNoteItemsTx(
         costing.costingState.method, costing.costingState.epochId],
     );
     if (costing.costingState.method === 'fifo') {
-      if (costing.source !== 'pos' || !costing.posSaleId) {
+      if (costing.source === 'pos' && costing.posSaleId) {
+        await createFifoPosReturnLayers(conn, {
+          businessId,
+          state: costing.costingState,
+          returnPosSaleId: Number(costing.posSaleId),
+          creditNoteId: cnId,
+          returnMovementId: Number(movementResult.insertId),
+          variantId: String(item.variant_id),
+          locationId,
+          quantity: qty,
+          returnDate: costing.returnDate,
+        });
+      } else if (item.source_so_item_id != null) {
+        await createFifoSalesOrderReturnLayers(conn, {
+          businessId,
+          state: costing.costingState,
+          sourceSalesOrderItemId: Number(item.source_so_item_id),
+          creditNoteId: cnId,
+          creditNoteItemId: Number(item.id),
+          returnMovementId: Number(movementResult.insertId),
+          variantId: String(item.variant_id),
+          locationId,
+          quantity: qty,
+          returnDate: costing.returnDate,
+        });
+      } else {
         throw new FifoCostingConflict(
-          `Cannot restock variant ${item.variant_id} under FIFO: this credit note is not linked to original POS sale allocations. Complete the original-allocation return mapping before retrying.`,
+          `Cannot restock variant ${item.variant_id} under FIFO: this credit-note line is not linked to an original POS or sales-order line. Correct the return link before retrying.`,
         );
       }
-      await createFifoPosReturnLayers(conn, {
-        businessId,
-        state: costing.costingState,
-        returnPosSaleId: Number(costing.posSaleId),
-        creditNoteId: cnId,
-        returnMovementId: Number(movementResult.insertId),
-        variantId: String(item.variant_id),
-        locationId,
-        quantity: qty,
-        returnDate: costing.returnDate,
-      });
     }
   }
 }

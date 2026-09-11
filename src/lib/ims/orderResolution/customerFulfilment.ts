@@ -218,14 +218,15 @@ export async function fulfilSalesOrderPartialInTransaction(
       const [movementResult] = await conn.execute<any>(
         `INSERT INTO ims_stock_movements
           (business_id, variant_id, location_id, movement_type, channel, reference_type,
-           reference_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
-         VALUES (?, ?, ?, 'so_fulfilled', ?, 'sales_order', ?, ?, ?, ?, ?, ?, ?)`,
+           reference_id, source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'so_fulfilled', ?, 'sales_order', ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.businessId,
           item.variant_id,
           so.location_id,
           so.so_type === 'online' ? 'online' : 'wholesale',
           input.soId,
+          itemId,
           -quantity,
           newOnHand,
           shipmentCost,

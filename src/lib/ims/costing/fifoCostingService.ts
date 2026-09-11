@@ -359,3 +359,100 @@ export async function createFifoPosReturnLayers(
   );
   return { allocatedValue: plan.allocatedValue, unitCost, layerCount: plan.allocations.length };
 }
+
+export async function createFifoSalesOrderReturnLayers(
+  conn: PoolConnection,
+  input: {
+    businessId: string;
+    state: InventoryCostState;
+    sourceSalesOrderItemId: number;
+    creditNoteId: number;
+    creditNoteItemId: number;
+    returnMovementId: number;
+    variantId: string;
+    locationId: number;
+    quantity: number;
+    returnDate: string | Date;
+  },
+): Promise<{ allocatedValue: number; unitCost: number; layerCount: number }> {
+  if (input.state.method !== 'fifo' || !input.state.epochId) {
+    throw new FifoCostingConflict('FIFO return layers can only be created while FIFO costing is active.');
+  }
+  const [[sourceLine]] = await conn.execute<any[]>(
+    `SELECT soi.so_id, soi.variant_id, so.location_id
+       FROM ims_sales_order_items soi
+       JOIN ims_sales_orders so ON so.id = soi.so_id
+      WHERE soi.id = ? AND so.business_id = ?
+      FOR UPDATE`,
+    [input.sourceSalesOrderItemId, input.businessId],
+  );
+  if (!sourceLine || String(sourceLine.variant_id) !== input.variantId) {
+    throw new FifoCostingConflict(
+      `Cannot restock variant ${input.variantId}: its linked sales-order line is missing or belongs to another variant. Correct the return link before retrying.`,
+    );
+  }
+  const [allocationRows] = await conn.execute<any[]>(
+    `SELECT allocation.layer_id, SUM(allocation.quantity) AS sold_quantity,
+            MAX(allocation.unit_cost) AS unit_cost, MIN(layer.fifo_date) AS fifo_date
+       FROM ims_fifo_cost_allocations allocation
+       JOIN ims_stock_movements movement
+         ON movement.id = allocation.stock_movement_id AND movement.business_id = allocation.business_id
+       JOIN ims_fifo_cost_layers layer
+         ON layer.id = allocation.layer_id AND layer.business_id = allocation.business_id
+      WHERE allocation.business_id = ? AND allocation.epoch_id = ?
+        AND movement.movement_type = 'so_fulfilled' AND movement.reference_type = 'sales_order'
+        AND movement.reference_id = ? AND movement.source_line_id = ?
+        AND movement.variant_id = ? AND movement.location_id = ?
+      GROUP BY allocation.layer_id
+      ORDER BY MIN(layer.fifo_date), allocation.layer_id
+      FOR UPDATE`,
+    [input.businessId, input.state.epochId, Number(sourceLine.so_id), input.sourceSalesOrderItemId,
+      input.variantId, Number(sourceLine.location_id)],
+  );
+  const [restoredRows] = allocationRows.length > 0 ? await conn.execute<any[]>(
+    `SELECT parent_layer_id, SUM(original_quantity) AS restored_quantity
+       FROM ims_fifo_cost_layers
+      WHERE business_id = ? AND epoch_id = ? AND source_type = 'sales_order_return'
+        AND parent_layer_id IN (${allocationRows.map(() => '?').join(',')})
+      GROUP BY parent_layer_id
+      FOR UPDATE`,
+    [input.businessId, input.state.epochId, ...allocationRows.map(row => Number(row.layer_id))],
+  ) : [[]];
+  const restoredByLayer = new Map(restoredRows.map(row => [Number(row.parent_layer_id), Number(row.restored_quantity)]));
+  const plan = planFifoConsumption(allocationRows.map(row => ({
+    layerId: Number(row.layer_id),
+    fifoDate: row.fifo_date,
+    remainingQuantity: Math.max(0, Number(row.sold_quantity) - Number(restoredByLayer.get(Number(row.layer_id)) ?? 0)),
+    unitCost: Number(row.unit_cost),
+  })), input.quantity);
+  if (plan.shortageQuantity > 0) {
+    throw new FifoCostingConflict(
+      `Cannot restock variant ${input.variantId}: original sales-order FIFO allocations have ${plan.allocatedQuantity} returnable units, but ${plan.requestedQuantity} are required. Reconcile the missing ${plan.shortageQuantity} units before retrying.`,
+    );
+  }
+  for (const allocation of plan.allocations) {
+    await createFifoCostLayer(conn, {
+      businessId: input.businessId,
+      state: input.state,
+      variantId: input.variantId,
+      locationId: input.locationId,
+      sourceType: 'sales_order_return',
+      sourceMovementId: input.returnMovementId,
+      sourceReferenceType: 'credit_note',
+      sourceReferenceId: input.creditNoteId,
+      sourceLineId: input.creditNoteItemId,
+      parentLayerId: allocation.layerId,
+      fifoDate: input.returnDate,
+      quantity: allocation.quantity,
+      unitCost: allocation.unitCost,
+    });
+  }
+  const unitCost = Number(plan.weightedUnitCost ?? 0);
+  await conn.execute(
+    `UPDATE ims_stock_movements
+        SET unit_cost = ?, cost_method_snapshot = 'fifo', cost_epoch_id = ?
+      WHERE id = ? AND business_id = ?`,
+    [unitCost, input.state.epochId, input.returnMovementId, input.businessId],
+  );
+  return { allocatedValue: plan.allocatedValue, unitCost, layerCount: plan.allocations.length };
+}

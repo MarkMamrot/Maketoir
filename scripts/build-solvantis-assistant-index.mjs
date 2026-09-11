@@ -12,6 +12,7 @@ const validAudiences = new Set(['ims', 'pos', 'wholesale']);
 const validOperationCapabilities = new Set(['xero', 'shopify', 'native_shop']);
 const prospectAudience = 'prospect';
 const prospectProduct = 'prospect';
+const validProspectAvailability = new Set(['confirmed', 'qualified']);
 const validProspectCapabilities = new Set([
   'accounting',
   'analytics',
@@ -20,6 +21,7 @@ const validProspectCapabilities = new Set([
   'implementation',
   'integrations',
   'inventory',
+  'loyalty',
   'marketing',
   'onboarding',
   'pos',
@@ -61,6 +63,9 @@ function parseProspectDocument(filename, source) {
     || metadata.capabilityTags.some(value => !validProspectCapabilities.has(value))) {
     throw new Error(`${filename}: invalid prospect capabilityTags`);
   }
+  if (metadata.availability != null && !validProspectAvailability.has(metadata.availability)) {
+    throw new Error(`${filename}: invalid prospect availability`);
+  }
   if (metadata.summary.length > 500) throw new Error(`${filename}: prospect summary exceeds 500 characters`);
   const unsafe = unsafeProspectPatterns.find(pattern => pattern.test(source));
   if (unsafe) throw new Error(`${filename}: contains forbidden prospect content (${unsafe})`);
@@ -73,6 +78,7 @@ function parseProspectDocument(filename, source) {
       summary: metadata.summary,
       capabilities: Array.from(new Set(metadata.capabilityTags)),
       product: metadata.product,
+      availability: metadata.availability ?? 'qualified',
     },
   };
 }

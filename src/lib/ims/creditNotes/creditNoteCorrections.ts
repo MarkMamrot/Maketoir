@@ -127,6 +127,12 @@ export async function reverseCustomerCreditNote(input: ReversalInput): Promise<C
       'revert_mistaken_completion',
       { customerCreditNoteSource: note.source },
     );
+    const costingState = await lockInventoryCostState(connection, input.businessId);
+    if (costingState.method === 'fifo') {
+      throw new FifoCostingConflict(
+        'This FIFO customer return cannot be reversed automatically yet because its exact restored cost layers must be removed. Create a reviewed corrective stocktake instead.',
+      );
+    }
     if (note.settlement_method !== 'store_credit' || !note.store_credit_transaction_id || !note.customer_id) {
       throw new CreditNoteReversalConflict('Only manual credit notes with a verifiable store-credit issue can be reversed automatically.');
     }

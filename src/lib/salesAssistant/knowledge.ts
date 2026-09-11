@@ -68,6 +68,7 @@ function externalOfferingSource(offering: PublicIntegrationOffering): ProspectKn
       ...offering.supportedWorkflows.slice(0, 12).map(value => cleanPublicText(value, 100)),
     ].filter(Boolean))),
     product: 'integration',
+    availability: offering.deliveryMode === 'native' ? 'confirmed' : 'qualified',
   };
   return isPublicSafe(source) ? source : null;
 }

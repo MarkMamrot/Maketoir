@@ -4,16 +4,18 @@
     {
       "id": "prospect-integrations",
       "title": "Integration Approach",
-      "summary": "Solvantis has native capabilities for Xero accounting, Shopify commerce, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.",
+      "summary": "Solvantis has native capabilities for Xero accounting, Shopify product, inventory, order, customer, return and loyalty flows, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.",
       "capabilities": [
         "integrations",
         "accounting",
         "commerce",
         "inventory",
+        "loyalty",
         "marketing",
         "analytics"
       ],
-      "product": "prospect"
+      "product": "prospect",
+      "availability": "qualified"
     },
     {
       "id": "prospect-onboarding-support",
@@ -24,7 +26,8 @@
         "implementation",
         "support"
       ],
-      "product": "prospect"
+      "product": "prospect",
+      "availability": "qualified"
     },
     {
       "id": "prospect-pricing-offer",
@@ -33,7 +36,8 @@
       "capabilities": [
         "pricing"
       ],
-      "product": "prospect"
+      "product": "prospect",
+      "availability": "qualified"
     },
     {
       "id": "prospect-product-fit",
@@ -48,7 +52,8 @@
         "commerce",
         "analytics"
       ],
-      "product": "prospect"
+      "product": "prospect",
+      "availability": "qualified"
     },
     {
       "id": "prospect-retail-use-cases",
@@ -63,7 +68,22 @@
         "commerce",
         "analytics"
       ],
-      "product": "prospect"
+      "product": "prospect",
+      "availability": "qualified"
+    },
+    {
+      "id": "prospect-shopify-loyalty",
+      "title": "Shopify and Loyalty",
+      "summary": "Yes. Solvantis can run one loyalty program across its POS and a connected Shopify store. Supported Shopify customer, order, return and loyalty flows keep eligible in-store and online activity in the same customer loyalty experience. The exact migration and launch setup is confirmed during onboarding; separate third-party loyalty platforms may require discovery.",
+      "capabilities": [
+        "commerce",
+        "crm",
+        "integrations",
+        "loyalty",
+        "pos"
+      ],
+      "product": "prospect",
+      "availability": "confirmed"
     }
   ]
 }
