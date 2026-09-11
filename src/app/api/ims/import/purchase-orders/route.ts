@@ -72,11 +72,15 @@ export async function POST() {
       return s.prices_include_tax ? 'inc_tax' : 'ex_tax';
     };
 
-    const variants = await imsQuery<{ variant_id: string; cin7_option_id: number; sku: string | null }>(
-      'SELECT variant_id, cin7_option_id, sku FROM ims_product_variants WHERE cin7_option_id IS NOT NULL',
+    const variants = await imsQuery<{ variant_id: string; cin7_option_id: number; sku: string | null; is_stock_item: number }>(
+      `SELECT v.variant_id, v.cin7_option_id, v.sku, COALESCE(p.is_stock_item, 1) AS is_stock_item
+         FROM ims_product_variants v
+         JOIN ims_products p ON p.product_id = v.product_id
+        WHERE v.cin7_option_id IS NOT NULL`,
     );
     const variantMap = new Map(variants.map(v => [v.cin7_option_id, v.variant_id]));
     const variantBySkuMap = new Map(variants.filter(v => v.sku).map(v => [v.sku!, v.variant_id]));
+    const stockFlagMap = new Map(variants.map(v => [v.variant_id, Number(v.is_stock_item) === 0 ? 0 : 1]));
 
     // Existing PO cin7_order_ids
     const existingPOs = await imsQuery<{ id: number; cin7_order_id: string }>(
@@ -191,9 +195,9 @@ export async function POST() {
           const skuRaw      = (line.code ?? null) as string | null;
           await imsExecute(
             `INSERT INTO ims_purchase_order_items
-               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-            [existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw],
+               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw, is_stock_item)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+            [existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw, stockFlagMap.get(String(variantId)) ?? 1],
           );
         }
         skipped++;
@@ -259,9 +263,9 @@ export async function POST() {
 
         await imsExecute(
           `INSERT INTO ims_purchase_order_items
-             (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-          [poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw],
+             (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw, is_stock_item)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          [poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw, stockFlagMap.get(String(variantId)) ?? 1],
         );
       }
 

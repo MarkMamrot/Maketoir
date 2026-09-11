@@ -2032,7 +2032,7 @@ export const ImsPORepo = {
       const reverseReceivedStock = async (options: { restoreIncoming: boolean; removeOutstandingIncoming: boolean }) => {
         const grouped = new Map<string, { receivedQty: number; outstandingQty: number }>();
         for (const item of items) {
-          if (!item.variant_id) continue;
+          if (!item.variant_id || Number(item.is_stock_item ?? 1) !== 1) continue;
           const receivedQty = Math.max(0, Number(item.qty_received ?? 0));
           const outstandingQty = Math.max(0, Number(item.qty_ordered) - receivedQty);
           const current = grouped.get(item.variant_id) ?? { receivedQty: 0, outstandingQty: 0 };

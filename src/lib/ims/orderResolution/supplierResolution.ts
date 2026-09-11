@@ -274,7 +274,7 @@ export async function resolveSupplierOutstanding(input: {
           Number(item.unit_cost) *
           (1 - Number(item.discount_pct ?? 0) / 100);
         const [created] = await conn.execute<any>(
-          `INSERT INTO ims_purchase_order_items (business_id,po_id,variant_id,qty_ordered,qty_received,unit_cost,tax_rate,line_total,notes) VALUES (?,?,?,?,0,?,?,?,?)`,
+          `INSERT INTO ims_purchase_order_items (business_id,po_id,variant_id,qty_ordered,qty_received,unit_cost,tax_rate,line_total,notes,is_stock_item) VALUES (?,?,?,?,0,?,?,?,?,?)`,
           [
             input.businessId,
             childPoId,
@@ -284,6 +284,7 @@ export async function resolveSupplierOutstanding(input: {
             item.tax_rate ?? 0,
             line,
             item.notes ?? null,
+            Number(item.is_stock_item ?? 1),
           ],
         );
         const sourceSnapshot = JSON.stringify({
@@ -321,6 +322,7 @@ export async function resolveSupplierOutstanding(input: {
       }
     } else {
       for (const item of outstanding) {
+        if (Number(item.is_stock_item ?? 1) !== 1) continue;
         const qty = Number(item.qty_ordered) - Number(item.qty_received ?? 0);
         await conn.execute(
           `UPDATE ims_stock SET qty_incoming=GREATEST(0,qty_incoming-?) WHERE variant_id=? AND location_id=?`,

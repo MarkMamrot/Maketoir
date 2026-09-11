@@ -56,8 +56,8 @@ export async function POST(req: Request) {
     const locs = await imsQuery<{ id: number; name: string }>(
       'SELECT id, name FROM ims_locations WHERE business_id = ?', [businessId]
     );
-    const vars = await imsQuery<{ variant_id: string; sku: string | null }>(
-      `SELECT pv.variant_id, pv.sku
+    const vars = await imsQuery<{ variant_id: string; sku: string | null; is_stock_item: number }>(
+      `SELECT pv.variant_id, pv.sku, COALESCE(p.is_stock_item, 1) AS is_stock_item
          FROM ims_product_variants pv
          JOIN ims_products p ON p.product_id = pv.product_id
         WHERE p.business_id = ?`, [businessId]
@@ -66,6 +66,7 @@ export async function POST(req: Request) {
     const supplierMap = new Map(suppliers.map(s => [s.name.trim().toLowerCase(), s]));
     const locMap      = new Map(locs.map(l => [l.name.trim().toLowerCase(), l.id]));
     const varMap      = new Map(vars.filter(v => v.sku).map(v => [v.sku!.trim().toLowerCase(), v.variant_id]));
+    const stockFlagMap = new Map(vars.map(v => [v.variant_id, Number(v.is_stock_item) === 0 ? 0 : 1]));
 
     // Check for duplicate PO numbers
     const providedNums = [...new Set(orders.map(o => o.po_number?.trim()).filter(Boolean) as string[])];
@@ -187,9 +188,9 @@ export async function POST(req: Request) {
             .filter(Boolean).join(' ').slice(0, 500) || null;
           await imsExecute(
             `INSERT INTO ims_purchase_order_items
-               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
-            [poId, variantId, qty, qtyRecv, cost, disc, rate, lineTotal, notes]
+               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [poId, variantId, qty, qtyRecv, cost, disc, rate, lineTotal, notes, stockFlagMap.get(String(variantId)) ?? 1]
           );
         }
 
