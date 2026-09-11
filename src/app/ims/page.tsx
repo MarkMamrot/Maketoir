@@ -9473,7 +9473,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
     fetch('/api/ims/product-types').then(r => r.json()).then(d => { if (d.success) setProductTypes(d.data); });
     fetch('/api/ims/brands').then(r => r.json()).then(d => { if (d.success) setPoBrands(d.data); });
-    fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
+    fetch('/api/ims/payment-methods?type=po').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
     fetch('/api/ims/early-payment-discount-rules').then(r => r.json()).then(d => { if (d.success) setPoEarlyPaymentRules((d.data ?? []).filter((rule: any) => Number(rule.is_active))); });
   }, []);
 
@@ -13890,7 +13890,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     fetch('/api/ims/contacts?type=b2b_customer&active=1').then(r => r.json()).then(d => { if (d.success) setCustomers(d.data); });
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
-    fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
+    fetch('/api/ims/payment-methods?type=so').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
     fetch('/api/ims/early-payment-discount-rules').then(r => r.json()).then(d => { if (d.success) setSoEarlyPaymentRules((d.data ?? []).filter((rule: any) => Number(rule.is_active))); });
   }, []);
 
