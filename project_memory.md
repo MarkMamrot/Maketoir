@@ -1,3 +1,11 @@
+## 2026-09-13 - FIFO production activation and user guidance
+
+- FIFO is now available as a tenant-wide alternative to Average Cost. Administrators change the method through **Settings > General > Inventory Costing**, which previews quantity and opening value, reports reconciliation blockers, and requires a reason plus exact typed confirmation before applying the switch.
+- Method changes remain prospective valuation epochs. Switching to FIFO creates location-owned opening layers for positive stock at current Average Cost; switching back derives each variant's Average Cost from its remaining FIFO layers. Historical movement costs and posted Xero journals are not recalculated.
+- Inventory Valuation uses the active method, while Dashboard and Xero COGS use costs captured on completed stock movements, including supported returns and corrections. Exact allocation-aware reversals are enabled for stocktakes, customer and supplier credit notes, product builds, and eligible POS sale or layby corrections.
+- Contextual Help now maps General Settings to the Inventory Costing guide and documents method-aware purchasing, builds, stocktakes, Stock Levels, valuation, reporting, and switching safeguards.
+- Validation passed with 2,715 tests and one skipped, 68 Help topics and 548 Assistant chunks, clean touched-file diagnostics, and a successful production build. No additional schema migration was required because the dormant FIFO schema had already been deployed to all registered tenant schemas.
+
 ## 2026-09-13 - FIFO backorder fulfilment and unsafe mutation guards
 
 - Customer backorder splits now use the same FIFO controls as normal SO fulfilment: the transaction locks costing state, stamps the exact SO line and valuation epoch on the movement, consumes location layers, and saves the allocation-derived line cost. FIFO layer shortages return an actionable HTTP 409 and never honor the Average Cost negative-stock override.
