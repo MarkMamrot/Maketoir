@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   reportRuntimeIssue: vi.fn(() => Promise.resolve(null)),
   resolveLoginMembership: vi.fn(),
   recordActiveBusiness: vi.fn(() => Promise.resolve()),
+  query: vi.fn(),
 }));
 
 vi.mock('@/lib/db/UsersRepository', () => ({
@@ -51,6 +52,7 @@ vi.mock('@/lib/auth/businessMemberships', () => ({
   resolveLoginMembership: mocks.resolveLoginMembership,
   recordActiveBusiness: mocks.recordActiveBusiness,
 }));
+vi.mock('@/services/MySQLService', () => ({ query: mocks.query }));
 
 import { POST } from '@/app/api/auth/login/route';
 
@@ -79,12 +81,16 @@ function loginRequest(body: Record<string, unknown>): Request {
 describe('POST /api/auth/login MFA gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.LIVE_E2E_CONFIRM;
+    delete process.env.LIVE_E2E_MFA_BYPASS_EMAIL;
+    delete process.env.LIVE_E2E_EXPECTED_BUSINESS_ID;
     mocks.getAuthRateLimit.mockResolvedValue({ locked: false, retryAfterSeconds: 0, failureCount: 0 });
     mocks.findByEmail.mockResolvedValue({ ...USER });
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.getMfaTrustCookie.mockReturnValue(null);
     mocks.rotateTrustedBrowser.mockResolvedValue(null);
     mocks.clearAuthRateLimit.mockResolvedValue(undefined);
+    mocks.query.mockResolvedValue([]);
     mocks.createPreauthSession.mockResolvedValue({
       token: 'preauth-token',
       expiresAt: new Date('2026-08-16T10:10:00.000Z'),
@@ -97,6 +103,41 @@ describe('POST /api/auth/login MFA gate', () => {
       isDefault: true,
       lastActiveAt: null,
     });
+  });
+
+  it('bypasses MFA only for the explicitly configured paused sandbox on localhost', async () => {
+    process.env.LIVE_E2E_CONFIRM = 'MONSTERTHREADS_LIVE_E2E';
+    process.env.LIVE_E2E_MFA_BYPASS_EMAIL = 'admin@example.com';
+    process.env.LIVE_E2E_EXPECTED_BUSINESS_ID = 'business-42';
+    mocks.query.mockResolvedValue([{ is_sandbox: 1, automation_paused: 1 }]);
+
+    const response = await POST(loginRequest({
+      email: 'admin@example.com',
+      password: 'correct-password',
+      destination: 'ims',
+    }));
+    const body = await response.json();
+
+    expect(body).toMatchObject({ success: true, nextRoute: '/ims' });
+    expect(mocks.setAdminSessionCookie).toHaveBeenCalledOnce();
+    expect(mocks.recordActiveBusiness).toHaveBeenCalledWith(42, 'business-42');
+    expect(mocks.createPreauthSession).not.toHaveBeenCalled();
+  });
+
+  it('does not bypass MFA when the configured business is not paused', async () => {
+    process.env.LIVE_E2E_CONFIRM = 'MONSTERTHREADS_LIVE_E2E';
+    process.env.LIVE_E2E_MFA_BYPASS_EMAIL = 'admin@example.com';
+    process.env.LIVE_E2E_EXPECTED_BUSINESS_ID = 'business-42';
+    mocks.query.mockResolvedValue([{ is_sandbox: 1, automation_paused: 0 }]);
+
+    const response = await POST(loginRequest({
+      email: 'admin@example.com',
+      password: 'correct-password',
+      destination: 'ims',
+    }));
+
+    expect(await response.json()).toMatchObject({ requiresMfa: true, purpose: 'enroll' });
+    expect(mocks.setAdminSessionCookie).not.toHaveBeenCalled();
   });
 
   it('creates enrollment pre-auth without issuing an admin session', async () => {

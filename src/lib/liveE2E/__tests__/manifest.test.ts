@@ -3,6 +3,32 @@ import { describe, expect, it } from 'vitest';
 import { appendLiveRunEvent, assertRunMayStart } from '../manifest';
 
 describe('live E2E manifest', () => {
+  it('records negative-stock reconciliation as a completed auditable run', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', {});
+    events = appendLiveRunEvent(events, 'fifo_negative_stock_reconciled', { stocktakeIds: [41, 42] });
+    events = appendLiveRunEvent(events, 'clean', { remainingNegativePositions: 0 });
+
+    expect(events.at(-1)).toMatchObject({ sequence: 4, state: 'clean' });
+  });
+
+  it('allows a blocked negative-stock reconciliation to finish after local repair', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'blocked', { stocktakeIds: [41] });
+    events = appendLiveRunEvent(events, 'fifo_negative_stock_reconciled', { stocktakeIds: [41] });
+    expect(appendLiveRunEvent(events, 'clean', {}).at(-1)?.state).toBe('clean');
+  });
+
+  it('records one-time FIFO activation as an irreversible clean run', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', { costingMethod: 'average_cost' });
+    events = appendLiveRunEvent(events, 'fifo_activated', { epochId: 42 });
+    events = appendLiveRunEvent(events, 'clean', { costingMethod: 'fifo' });
+
+    expect(events.at(-1)).toMatchObject({ sequence: 4, state: 'clean' });
+    expect(() => appendLiveRunEvent(events, 'preflight_passed', {})).toThrow('invalid manifest transition');
+  });
+
   it('supports the P9 stocktake lifecycle through clean compensation', () => {
     let events = appendLiveRunEvent([], 'initialized', {});
     events = appendLiveRunEvent(events, 'preflight_passed', {});

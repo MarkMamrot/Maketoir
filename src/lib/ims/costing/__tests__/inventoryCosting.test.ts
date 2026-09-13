@@ -59,6 +59,48 @@ describe('inventory costing', () => {
     expect(inventoryQuantitiesEqual(2, 2.0001)).toBe(false);
   });
 
+  it('rounds exact half increments to the next persisted quantity unit', () => {
+    expect(quantizeInventoryQuantity(1.23455)).toBe(1.2346);
+    expect(planFifoConsumption([
+      { layerId: 1, fifoDate: '2026-01-01', remainingQuantity: 1.23455, unitCost: 2 },
+    ], 1.23455)).toMatchObject({
+      requestedQuantity: 1.2346,
+      allocatedQuantity: 1.2346,
+      shortageQuantity: 0,
+    });
+  });
+
+  it('skips exhausted layers without disturbing FIFO order', () => {
+    const plan = planFifoConsumption([
+      { layerId: 1, fifoDate: '2026-01-01', remainingQuantity: 0, unitCost: 1 },
+      { layerId: 2, fifoDate: '2026-01-02', remainingQuantity: 0.5, unitCost: 2 },
+      { layerId: 3, fifoDate: '2026-01-03', remainingQuantity: 1, unitCost: 3 },
+    ], 1);
+
+    expect(plan.allocations).toEqual([
+      { layerId: 2, quantity: 0.5, unitCost: 2, allocatedValue: 1 },
+      { layerId: 3, quantity: 0.5, unitCost: 3, allocatedValue: 1.5 },
+    ]);
+    expect(plan.weightedUnitCost).toBe(2.5);
+  });
+
+  it('conserves weighted value across many fractional layers', () => {
+    const layers = Array.from({ length: 60 }, (_, index) => ({
+      layerId: index + 1,
+      fifoDate: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      remainingQuantity: 0.0001,
+      unitCost: 0.123456 + index / 1_000_000,
+    }));
+    const plan = planFifoConsumption(layers, 0.006);
+    const expectedValue = layers.reduce((sum, layer) => sum + 0.0001 * layer.unitCost, 0);
+
+    expect(plan.allocations).toHaveLength(60);
+    expect(plan.allocatedQuantity).toBe(0.006);
+    expect(plan.shortageQuantity).toBe(0);
+    expect(plan.allocatedValue).toBeCloseTo(expectedValue, 12);
+    expect(plan.weightedUnitCost).toBeCloseTo(expectedValue / 0.006, 10);
+  });
+
   it('does not allocate a request that rounds below one storage unit', () => {
     expect(() => planFifoConsumption([
       { layerId: 1, fifoDate: '2026-01-01', remainingQuantity: 1, unitCost: 8 },

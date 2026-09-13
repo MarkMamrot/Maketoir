@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 
 import { appendLiveRunEvent } from '../../../src/lib/liveE2E/manifest';
 import type { LiveE2EConfig } from '../../../src/lib/liveE2E/safety';
+import { verifyLiveFifoIntegrity } from './fifo-database';
 import { createManifest, readManifest } from './manifest-store';
 
 let activeConnection: mysql.Connection | null = null;
@@ -56,6 +57,18 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     }
 
     const schema = connection.escapeId(config.expectedImsSchema);
+    const [[costingState]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT active_method, revision, active_epoch_id
+         FROM ${schema}.ims_inventory_cost_state
+        WHERE business_id = ?
+        LIMIT 1`,
+      [config.expectedBusinessId],
+    );
+    const activeCostingMethod = String(costingState?.active_method ?? 'average_cost');
+    if (activeCostingMethod !== config.expectedCostingMethod) {
+      throw new Error(`Live E2E blocked: active costing method ${activeCostingMethod} does not match expected ${config.expectedCostingMethod}.`);
+    }
+
     const [[variant]] = await connection.query<mysql.RowDataPacket[]>(
       `SELECT v.variant_id, v.sku, v.is_active AS variant_active, v.shopify_variant_id,
               v.shopify_inventory_item_id, p.is_active AS product_active, p.is_online,
@@ -106,6 +119,9 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         LIMIT 1`,
       [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
     );
+    if (config.expectedCostingMethod === 'fifo' && config.action === 'p3' && Number(stock?.qty_on_hand ?? 0) < 1) {
+      throw new Error('Live E2E blocked: FIFO partial fulfilment requires at least one unit of layer-backed fixture stock.');
+    }
     const existingEvents = config.action === 'preflight' ? [] : await readManifest(config.runId);
     const currentState = existingEvents.at(-1)?.state;
     const checkpointedPoId = Number((existingEvents.findLast(event => event.state === 'p1_created')?.details as any)?.purchaseOrderId);
@@ -293,12 +309,21 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
     }
 
+    const fifoSnapshot = config.expectedCostingMethod === 'fifo'
+      ? await verifyLiveFifoIntegrity(config)
+      : null;
+
     const initialEvents = appendLiveRunEvent([], 'initialized', {
       runId: config.runId,
       businessId: config.expectedBusinessId,
       imsSchema: config.expectedImsSchema,
       shopifyShop: config.expectedShopifyShop,
       xeroTenantId: config.expectedXeroTenantId,
+      costing: {
+        method: activeCostingMethod,
+        revision: Number(costingState?.revision ?? 0),
+        activeEpochId: costingState?.active_epoch_id == null ? null : Number(costingState.active_epoch_id),
+      },
       fixture: {
         variantId: config.fixtureVariantId,
         sku: config.fixtureSku,
@@ -314,13 +339,16 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         qtyOnHand: Number(stock?.qty_on_hand ?? 0),
         qtyIncoming: Number(stock?.qty_incoming ?? 0),
         qtyCommitted: Number(stock?.qty_committed ?? 0),
+        fifo: fifoSnapshot,
       },
       maxDocumentTotal: config.maxDocumentTotal,
     });
     if (config.action === 'preflight') {
       await createManifest(config.runId, initialEvents[0]);
     } else {
-      const allowedStates = config.action === 'p1' ? ['preflight_passed', 'p1_created']
+      const allowedStates = config.action === 'fifo-reconcile-negative' ? ['preflight_passed', 'blocked']
+        : config.action === 'fifo-activate' ? ['preflight_passed']
+        : config.action === 'p1' ? ['preflight_passed', 'p1_created']
         : config.action === 'p1-repair' ? ['awaiting_operator']
         : config.action === 'p1-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p2' ? ['preflight_passed', 'p2_created', 'awaiting_operator']

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { loadLiveE2EConfig } from '../../src/lib/liveE2E/safety';
 import { loginToIms } from './support/auth';
+import { verifyLiveFifoIntegrity } from './support/fifo-database';
 import { appendManifestState, readManifest } from './support/manifest-store';
 import { verifyPurchaseOrderCompensation } from './support/database-preflight';
 
@@ -92,11 +93,13 @@ test('@p1-receive fully receives the existing isolated low-value PO', async ({ p
     }).toBe('complete');
 
     const detail = await (await page.request.get(`/api/ims/purchase-orders/${poId}`)).json();
+    const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
     await appendManifestState(config.runId, 'awaiting_operator', {
       scenario: 'P1',
       purchaseOrderId: poId,
       purchaseOrderNumber: detail?.data?.po_number ?? null,
       xeroBillId: detail?.data?.xero_bill_id ?? null,
+      fifo,
       operatorChecks: ['IMS PO is complete with quantity 1 received', 'Xero bill exists and matches the low-value PO'],
     });
   } catch (error) {
@@ -168,10 +171,12 @@ test('@p1-compensate undoes only the acknowledged mistaken receipt and verifies 
     expect(undo.success, undo.error).toBe(true);
     expect(undo.xeroWarning, 'Xero did not confirm automatic voiding').toBeUndefined();
     const verification = await verifyPurchaseOrderCompensation(config, poId);
+    const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
     await appendManifestState(config.runId, 'clean', {
       scenario: 'P1',
       purchaseOrderId: poId,
       ...verification,
+      fifo,
       permanentArtifacts: ['Cancelled IMS purchase order and immutable activity/stock history', 'Voided Xero bill and Xero audit history'],
     });
   } catch (error) {

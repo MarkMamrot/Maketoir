@@ -115,6 +115,9 @@ describe('stocktake operations', () => {
       expect.stringContaining("VALUES (?, ?, ?, 'stocktake'"),
       ['biz-1', 'v-1', 4, 31, 41, -2, 6, 5.5, 'average_cost', null],
     );
+    const movementInsert = connection.execute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO ims_stock_movements'));
+    expect(String(movementInsert?.[0]).match(/\?/g)).toHaveLength(10);
+    expect(movementInsert?.[1]).toHaveLength(10);
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining('SET soh_at_apply = ?, applied_delta = ?, unit_cost_at_apply = ?'),
       [8, -2, 5.5, 41, 31],

@@ -1,3 +1,12 @@
+## 2026-09-13 - FIFO live browser harness and blocked sandbox activation
+
+- Live Monsterthreads Playwright now requires an explicit expected costing method, records method/revision/epoch in preflight, and runs a read-only FIFO stock/layer/allocation/movement verifier for FIFO scenarios. Existing PO receipt/undo and partial SO fulfilment/return compensation flows record FIFO integrity snapshots; FIFO P3 requires positive layer-backed fixture stock.
+- A separate one-time `fifo-activate` action and manifest lifecycle exercise Inventory Costing through the UI, record the new epoch, verify opening layers, and never switch back automatically. Stable settings selectors, FIFO command aliases, expanded allocator boundaries, and two additional disposable-MySQL concurrency/idempotency cases were added.
+- Local E2E password login now has an environment-gated MFA bypass that still validates the password and works only for localhost, the exact confirmation/email/business settings, and a database-verified sandbox with automation paused. All other requests retain normal MFA enrollment/challenge behavior.
+- The dedicated `TEST` sandbox location was activated only after exact business/schema/name/code and no-POS/no-online guards passed. Browser preflight then passed against the fresh local production build.
+- The one-time FIFO activation did not run because preview correctly reported 73 negative stock rows and 219 positive stock rows without a valid positive Average Cost. No data was repaired, no epoch was created, and readback confirmed `average_cost`, no active epoch, revision 1, with the FIFO integrity audit balanced.
+- Validation: 2,741 tests passed with five environment-gated skips, focused FIFO/live tests passed, touched-file diagnostics and diff checks were clean, and the production build completed.
+
 ## 2026-09-13 - FIFO integrity audit and hardening
 
 - A reusable read-only all-tenant FIFO audit now verifies costing state, location-level stock/layer balances, layer bounds, zero-cost provenance, allocation ownership, and movement quantity/value coverage. All four registered tenant schemas were balanced before and after the schema change; no inventory data was repaired.

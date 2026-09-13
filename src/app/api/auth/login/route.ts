@@ -23,6 +23,30 @@ import {
   recordAuthFailure,
 } from '@/lib/auth/authRateLimit';
 import { resolveLoginMembership, recordActiveBusiness } from '@/lib/auth/businessMemberships';
+import { query } from '@/services/MySQLService';
+
+async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: string): Promise<boolean> {
+  let hostname = '';
+  try {
+    hostname = new URL(req.url).hostname;
+  } catch {
+    return false;
+  }
+  if (!['localhost', '127.0.0.1'].includes(hostname)
+    || process.env.LIVE_E2E_CONFIRM !== 'MONSTERTHREADS_LIVE_E2E'
+    || process.env.LIVE_E2E_MFA_BYPASS_EMAIL?.trim().toLowerCase() !== email.trim().toLowerCase()
+    || process.env.LIVE_E2E_EXPECTED_BUSINESS_ID?.trim() !== businessId) {
+    return false;
+  }
+  const rows = await query<{ is_sandbox: number; automation_paused: number }>(
+    `SELECT is_sandbox, automation_paused
+       FROM businesses
+      WHERE business_id = ? AND deleted_at IS NULL
+      LIMIT 1`,
+    [businessId],
+  );
+  return rows.length === 1 && Number(rows[0].is_sandbox) === 1 && Number(rows[0].automation_paused) === 1;
+}
 
 function getClientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -75,6 +99,19 @@ export async function POST(req: Request) {
     };
 
     clearAdminSessionCookie();
+    if (await mayBypassMfaForLiveE2E(req, user.email, membership.businessId)) {
+      setAdminSessionCookie(userData);
+      if (user.tier !== 'SuperAdmin') await recordActiveBusiness(user.id, membership.businessId);
+      await clearAuthRateLimit('password-login', rateLimitSubject);
+      refreshVariantCache().catch(err => console.error('Failed background cache refresh on login:', err));
+      primeImsDbMap().catch(() => {});
+      return NextResponse.json({
+        success: true,
+        message: 'Login successful.',
+        nextRoute: getLoginDestinationRoute(destination),
+        user: userData,
+      });
+    }
     const trustToken = user.mfa_enabled === 1 ? getMfaTrustCookie() : null;
     const rotatedTrust = trustToken
       ? await rotateTrustedBrowser(user.id, trustToken)

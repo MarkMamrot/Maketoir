@@ -1,12 +1,13 @@
 export const LIVE_CONFIRMATION = 'MONSTERTHREADS_LIVE_E2E';
 
-export type LiveE2EAction = 'preflight' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'p3-compensate' | 'p4' | 'p4-compensate' | 'p5' | 'p5-compensate' | 'p6' | 'p6-compensate' | 'p7' | 'p7-compensate' | 'p8' | 'p8-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
+export type LiveE2EAction = 'preflight' | 'fifo-reconcile-negative' | 'fifo-activate' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'p3-compensate' | 'p4' | 'p4-compensate' | 'p5' | 'p5-compensate' | 'p6' | 'p6-compensate' | 'p7' | 'p7-compensate' | 'p8' | 'p8-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
 
 export type LiveE2EConfig = {
   action: LiveE2EAction;
   baseUrl: string;
   expectedBusinessId: string;
   expectedImsSchema: string;
+  expectedCostingMethod: 'average_cost' | 'fifo';
   expectedShopifyShop: string;
   expectedXeroTenantId: string;
   adminEmail: string;
@@ -20,7 +21,7 @@ export type LiveE2EConfig = {
   maxDocumentTotal: number;
 };
 
-const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'p3-compensate', 'p4', 'p4-compensate', 'p5', 'p5-compensate', 'p6', 'p6-compensate', 'p7', 'p7-compensate', 'p8', 'p8-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
+const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'fifo-reconcile-negative', 'fifo-activate', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'p3-compensate', 'p4', 'p4-compensate', 'p5', 'p5-compensate', 'p6', 'p6-compensate', 'p7', 'p7-compensate', 'p8', 'p8-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key]?.trim();
@@ -55,12 +56,17 @@ export function loadLiveE2EConfig(env: NodeJS.ProcessEnv = process.env): LiveE2E
   }
   const maxDocumentTotal = positiveNumber(env, 'LIVE_E2E_MAX_DOCUMENT_TOTAL');
   if (maxDocumentTotal > 5) throw new Error('Live E2E blocked: document total cap cannot exceed AUD 5.00.');
+  const expectedCostingMethod = required(env, 'LIVE_E2E_EXPECTED_COSTING_METHOD');
+  if (expectedCostingMethod !== 'average_cost' && expectedCostingMethod !== 'fifo') {
+    throw new Error('Live E2E blocked: LIVE_E2E_EXPECTED_COSTING_METHOD must be average_cost or fifo.');
+  }
 
   return {
     action,
     baseUrl: parsedUrl.origin,
     expectedBusinessId: required(env, 'LIVE_E2E_EXPECTED_BUSINESS_ID'),
     expectedImsSchema: required(env, 'LIVE_E2E_EXPECTED_IMS_SCHEMA'),
+    expectedCostingMethod,
     expectedShopifyShop: required(env, 'LIVE_E2E_EXPECTED_SHOPIFY_SHOP'),
     expectedXeroTenantId: required(env, 'LIVE_E2E_EXPECTED_XERO_TENANT_ID'),
     adminEmail: required(env, 'LIVE_E2E_ADMIN_EMAIL'),

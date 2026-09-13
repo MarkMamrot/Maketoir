@@ -92,7 +92,7 @@ export function InventoryCostingSettings() {
     && !saving;
 
   return (
-    <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+    <div data-testid="inventory-costing-settings" style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0 }}>Inventory Costing</h3>
       <p style={{ margin: '0 0 16px', color: 'var(--sv-text-dim)', fontSize: 12.5, lineHeight: 1.55 }}>
         Choose how future stock movements are valued. Existing movement costs and posted Xero journals are preserved.
@@ -103,9 +103,9 @@ export function InventoryCostingSettings() {
       {preview && !loading && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
-            <div><div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Current method</div><strong style={{ color: 'var(--sv-text-strong)', fontSize: 14 }}>{methodLabel(preview.currentMethod)}</strong></div>
-            <div><div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Stock quantity</div><strong style={{ color: 'var(--sv-text-strong)', fontSize: 14 }}>{Number(preview.totalQuantity).toLocaleString()}</strong></div>
-            <div><div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Opening value</div><strong style={{ color: 'var(--sv-text-strong)', fontSize: 14 }}>{Number(preview.totalValue).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })}</strong></div>
+            <div><div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Current method</div><strong data-testid="inventory-costing-current-method" style={{ color: 'var(--sv-text-strong)', fontSize: 14 }}>{methodLabel(preview.currentMethod)}</strong></div>
+            <div><div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Stock quantity</div><strong data-testid="inventory-costing-total-quantity" style={{ color: 'var(--sv-text-strong)', fontSize: 14 }}>{Number(preview.totalQuantity).toLocaleString()}</strong></div>
+            <div><div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Opening value</div><strong data-testid="inventory-costing-total-value" style={{ color: 'var(--sv-text-strong)', fontSize: 14 }}>{Number(preview.totalValue).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })}</strong></div>
           </div>
 
           {preview.blockers.length > 0 && (
@@ -122,7 +122,7 @@ export function InventoryCostingSettings() {
             <label htmlFor="inventory-costing-confirmation" style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 5 }}>Type {requiredConfirmation} to confirm</label>
             <input id="inventory-costing-confirmation" value={confirmation} onChange={event => setConfirmation(event.target.value)} style={{ ...fieldStyle, maxWidth: 280, marginBottom: 12 }} />
             <div>
-              <button type="button" disabled={!canApply} onClick={applySwitch} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: canApply ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: canApply ? '#fff' : 'var(--sv-text-dim)', cursor: canApply ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700 }}>
+              <button data-testid="inventory-costing-switch" type="button" disabled={!canApply} onClick={applySwitch} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: canApply ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: canApply ? '#fff' : 'var(--sv-text-dim)', cursor: canApply ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700 }}>
                 {saving ? 'Switching...' : `Switch to ${methodLabel(preview.targetMethod)}`}
               </button>
             </div>

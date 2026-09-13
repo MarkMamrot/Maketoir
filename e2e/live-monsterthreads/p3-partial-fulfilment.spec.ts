@@ -4,6 +4,7 @@ import { loadLiveE2EConfig } from '../../src/lib/liveE2E/safety';
 import { loginToIms } from './support/auth';
 import { appendManifestState, readManifest } from './support/manifest-store';
 import { verifySalesOrderPartialCompensation, verifySalesOrderPartialFulfilment } from './support/database-preflight';
+import { verifyLiveFifoIntegrity } from './support/fifo-database';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -113,14 +114,18 @@ test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) 
 
     if (soStatus === 'fulfilled') {
       const verification = await verifySalesOrderPartialFulfilment(config, soId);
+      const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
       await appendManifestState(config.runId, 'awaiting_operator', {
         scenario: 'P3',
         salesOrderId: soId,
         ...verification,
+        fifo,
         operatorChecks: [
           'IMS source SO is fulfilled for the shipped unit and the remainder is parked on a backorder child',
           'Xero invoice is authorised for the shipped amount',
-          'Stock is now negative by the shipped unit because the fixture started at zero',
+          config.expectedCostingMethod === 'fifo'
+            ? 'FIFO stock and active layers both decreased by the shipped unit'
+            : 'Stock decreased by the shipped unit under Average Cost',
         ],
       });
       return;
@@ -162,14 +167,18 @@ test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) 
     expect(fulfilled.success, fulfilled.error).toBe(true);
 
     const verification = await verifySalesOrderPartialFulfilment(config, soId);
+    const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
     await appendManifestState(config.runId, 'awaiting_operator', {
       scenario: 'P3',
       salesOrderId: soId,
       ...verification,
+      fifo,
       operatorChecks: [
         'IMS source SO is fulfilled for the shipped unit and the remainder is parked on a backorder child',
         'Xero invoice is authorised for the shipped amount',
-        'Stock is now negative by the shipped unit because the fixture started at zero',
+        config.expectedCostingMethod === 'fifo'
+          ? 'FIFO stock and active layers both decreased by the shipped unit'
+          : 'Stock decreased by the shipped unit under Average Cost',
       ],
     });
   } catch (error) {
@@ -318,11 +327,13 @@ test('@p3-compensate resolves the partial fulfilment with return credit and clos
     }
 
     const verification = await verifySalesOrderPartialCompensation(config, soId);
+    const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
     await appendManifestState(config.runId, 'clean', {
       scenario: 'P3',
       salesOrderId: soId,
       expectedBackorderId,
       ...verification,
+      fifo,
       permanentArtifacts: [
         'Fulfilled source SO remains immutable for shipped quantity history',
         'Backorder child is cancelled and open fixture sales-order work is closed',

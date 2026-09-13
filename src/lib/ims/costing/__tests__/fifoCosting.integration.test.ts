@@ -43,11 +43,20 @@ async function seedPosition(connection: mysql.Connection) {
     );
   }
   await connection.execute(
+    `INSERT INTO ims_stock_movements
+      (id, business_id, variant_id, location_id, movement_type, reference_type,
+       reference_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id)
+     VALUES (103, ?, 'variant-2', 1, 'adjustment', 'manual', 103, -2, 0, NULL, 'fifo', 1)`,
+    [businessId],
+  );
+  await connection.execute(
     `INSERT INTO ims_fifo_cost_layers
       (id, business_id, epoch_id, variant_id, location_id, source_type, fifo_date,
        original_quantity, remaining_quantity, unit_cost)
-     VALUES (201, ?, 1, 'variant-1', 1, 'integration_opening', '2026-01-01', 5, 5, 10)`,
-    [businessId],
+     VALUES
+       (201, ?, 1, 'variant-1', 1, 'integration_opening', '2026-01-01', 5, 5, 10),
+       (202, ?, 1, 'variant-2', 1, 'integration_opening', '2026-01-01', 2, 2, 20)`,
+    [businessId, businessId],
   );
 }
 
@@ -151,4 +160,71 @@ describe.runIf(runIntegration)('FIFO costing MySQL integration', () => {
       await connection.end();
     }
   });
+
+  it('prevents a duplicate movement allocation without spending the layer twice', async () => {
+    const connection = await mysql.createConnection(serverConfig(databaseName));
+    try {
+      await connection.beginTransaction();
+      await consumeFifoCostLayers(connection as any, {
+        businessId, state, variantId: 'variant-1', locationId: 1,
+        stockMovementId: 101, quantity: 2,
+      });
+      await connection.commit();
+
+      await connection.beginTransaction();
+      await expect(consumeFifoCostLayers(connection as any, {
+        businessId, state, variantId: 'variant-1', locationId: 1,
+        stockMovementId: 101, quantity: 2,
+      })).rejects.toMatchObject({ code: 'ER_DUP_ENTRY' });
+      await connection.rollback();
+
+      const [[layer]] = await connection.query<mysql.RowDataPacket[]>(
+        'SELECT remaining_quantity FROM ims_fifo_cost_layers WHERE id = 201',
+      );
+      const [[allocation]] = await connection.query<mysql.RowDataPacket[]>(
+        'SELECT COUNT(*) AS count, SUM(quantity) AS quantity FROM ims_fifo_cost_allocations WHERE stock_movement_id = 101',
+      );
+      expect(Number(layer.remaining_quantity)).toBe(3);
+      expect(Number(allocation.count)).toBe(1);
+      expect(Number(allocation.quantity)).toBe(2);
+    } finally {
+      await connection.end();
+    }
+  });
+
+  it('allows independent variants to be consumed in concurrent transactions', async () => {
+    const firstConnection = await mysql.createConnection(serverConfig(databaseName));
+    const secondConnection = await mysql.createConnection(serverConfig(databaseName));
+    try {
+      await firstConnection.beginTransaction();
+      await secondConnection.beginTransaction();
+      const [first, second] = await Promise.all([
+        consumeFifoCostLayers(firstConnection as any, {
+          businessId, state, variantId: 'variant-1', locationId: 1,
+          stockMovementId: 101, quantity: 1,
+        }),
+        consumeFifoCostLayers(secondConnection as any, {
+          businessId, state, variantId: 'variant-2', locationId: 1,
+          stockMovementId: 103, quantity: 2,
+        }),
+      ]);
+      expect(first.allocatedValue).toBe(10);
+      expect(second.allocatedValue).toBe(40);
+      await firstConnection.commit();
+      await secondConnection.commit();
+
+      const verification = await mysql.createConnection(serverConfig(databaseName));
+      try {
+        const [layers] = await verification.query<mysql.RowDataPacket[]>(
+          'SELECT id, remaining_quantity FROM ims_fifo_cost_layers WHERE id IN (201, 202) ORDER BY id',
+        );
+        expect(layers.map(layer => Number(layer.remaining_quantity))).toEqual([4, 0]);
+      } finally {
+        await verification.end();
+      }
+    } finally {
+      await firstConnection.end();
+      await secondConnection.end();
+    }
+  }, 15_000);
 });

@@ -140,3 +140,43 @@ node scripts/cleanup-business-sandbox.mjs `
 ```
 
 Review the plan, then repeat with `--apply`. Cleanup refuses a tenant that is not both sandbox and automation-paused or whose schema is referenced by another active business.
+
+## 9. FIFO browser verification
+
+FIFO activation is a one-time, prospective accounting change. The activation run creates an immutable costing epoch and opening layers, and the sandbox must remain on FIFO afterward. Do not use the activation command as routine test setup and do not switch the sandbox back to Average Cost between runs.
+
+Before running Playwright:
+
+1. Confirm the target is `Monsterthreads DEV SANDBOX`, its IMS schema is `readyedu_MonsterthreadsSandboxIMS`, and automation remains paused.
+2. Confirm the configured Shopify shop and Xero tenant are the development/test identities.
+3. Use a dedicated active stock variant, isolated non-POS location, supplier, and customer. The fixture must have no unrelated open PO or SO work.
+4. Set `LIVE_E2E_EXPECTED_COSTING_METHOD=average_cost` only for the preflight and one-time activation run. Set it to `fifo` for every subsequent run.
+5. Never store credentials, tokens, tenant IDs, or fixture IDs in this runbook or a committed file.
+
+For local browser automation, `LIVE_E2E_MFA_BYPASS_EMAIL` may match the configured E2E admin email. The password is still verified. The login route bypasses MFA only when the request hostname is localhost, the exact live-E2E confirmation and expected business ID are configured, and the database confirms that business is both a sandbox and automation-paused. Missing or mismatched conditions retain the normal MFA enrollment/challenge flow.
+
+Run the read-only browser and database preflight first:
+
+```powershell
+$env:LIVE_E2E_ACTION = 'preflight'
+npm run e2e:live:preflight
+```
+
+After reviewing the preview and confirming there are no blockers, use a new run ID and explicitly invoke the irreversible activation scenario:
+
+```powershell
+$env:LIVE_E2E_ACTION = 'fifo-activate'
+npm run e2e:live:fifo:activate
+```
+
+The activation scenario verifies the UI preview, submits the switch once, records the epoch, and checks stock against opening layers before marking the manifest clean. A blocked activation manifest requires inspection; do not retry by creating another run ID until the resulting costing state and epoch are understood.
+
+After activation, set `LIVE_E2E_EXPECTED_COSTING_METHOD=fifo`. Run the integrity audit before and after each browser phase:
+
+```powershell
+node scripts/audit-fifo-integrity-all-tenants.mjs --schema=readyedu_MonsterthreadsSandboxIMS
+```
+
+The existing P1 purchase-order and P3 partial-fulfilment scenarios become FIFO-aware under that setting. They record FIFO integrity snapshots after stock mutation and compensation. P3 requires at least one unit of positive layer-backed fixture stock; fulfilling from zero stock is an Average Cost-only test assumption and is intentionally blocked under FIFO.
+
+Xero and Shopify scenarios retain their existing low-value cap, exact integration identity checks, operator acknowledgement, and compensating workflow. External voids, cancellations, and audit trails are permanent test artifacts even when local stock returns to baseline.

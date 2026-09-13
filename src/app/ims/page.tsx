@@ -22869,6 +22869,7 @@ export default function ImsPage() {
             </button>
           )}
           <button
+            data-testid="ims-settings-open"
             onClick={() => { if (!isAdvisor) { setSettingsSection(sectionFromView(view)); setSettingsOpen(true); } }}
             title={isAdvisor ? 'Settings not available for Advisor accounts' : 'Settings'}
             disabled={isAdvisor}

@@ -1,0 +1,220 @@
+variant_id,sku,product_name,location_id,location_name,qty_on_hand,current_variant_avg_cost,current_location_avg_cost,current_purchase_cost,latest_receipt_cost,latest_receipt_date,purchase_order_id,recommended_cost,recommendation_source,review_status
+ec7a7624-5e22-4408-950f-625025d8ef9a,Wrap01,$3.5 Gift Wrapping,1,Shop 1,893.0000,,,0.0000,,,,,unresolved,unresolved
+ec7a7624-5e22-4408-950f-625025d8ef9a,Wrap01,$3.5 Gift Wrapping,2,Shop 3,888.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+ec7a7624-5e22-4408-950f-625025d8ef9a,Wrap01,$3.5 Gift Wrapping,3,Shop 2,934.0000,,,0.0000,,,,,unresolved,unresolved
+f389a7d3-b42e-484f-afa3-edfd1afeb53c,TJ-3DM/AV,3D Mug Avocado,4,Warehouse Branch,2.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+955b7417-4024-4eff-9c8e-2e5f2247e985,KS46004,AUSTRALIAN ANIMALS - AGES 4-6,3,Shop 2,1.0000,,,5.8500,,,,5.85,current_purchase_cost,proposed
+afb71c43-64fb-4b14-8b86-28dbcf40cfe2,HJX047AU,Bag Charm - Cherries,2,Shop 3,1.0000,,0.0000,5.4300,,,,5.43,current_purchase_cost,proposed
+3f72aec4-14ef-43a5-9a6b-83dffa4bc1ab,HJX045AU,Bag Charm - Chili,2,Shop 3,1.0000,,0.0000,5.4300,,,,5.43,current_purchase_cost,proposed
+eea1c32d-375b-4b6d-9224-9f26c9a3a718,HJX050AU,Bag Charm - Cowboy Boot,2,Shop 3,1.0000,,0.0000,5.4300,,,,5.43,current_purchase_cost,proposed
+eea1c32d-375b-4b6d-9224-9f26c9a3a718,HJX050AU,Bag Charm - Cowboy Boot,4,Warehouse Branch,1.0000,,,5.4300,,,,5.43,current_purchase_cost,proposed
+f0df3ec4-1482-439a-a9fb-ec5f09d47b96,HJX051AU,Bag Charm - Dog,4,Warehouse Branch,4.0000,,,5.4300,,,,5.43,current_purchase_cost,proposed
+16e0cd7d-de2c-453b-a855-3b83dd8b19f0,HJX043AU,Bag Charm - Hot Sauce,4,Warehouse Branch,6.0000,,,5.4300,,,,5.43,current_purchase_cost,proposed
+ae147f66-6604-4f31-a112-ad9f32c58b6b,HJX054AU,Bag Charm - Lobster,2,Shop 3,2.0000,,0.0000,5.4300,,,,5.43,current_purchase_cost,proposed
+ae147f66-6604-4f31-a112-ad9f32c58b6b,HJX054AU,Bag Charm - Lobster,4,Warehouse Branch,9.0000,,,5.4300,,,,5.43,current_purchase_cost,proposed
+9de5fda1-793d-4b18-b532-90c421f6c7f8,HJX048AU,Bag Charm - Tomatoes,4,Warehouse Branch,1.0000,,,5.4300,,,,5.43,current_purchase_cost,proposed
+af08c591-bd90-4619-a6a9-c44a03e40df0,47C0120433,BAG CHARM EMU,1,Shop 1,2.0000,,0.0000,10.0000,,,,10,current_purchase_cost,proposed
+af08c591-bd90-4619-a6a9-c44a03e40df0,47C0120433,BAG CHARM EMU,4,Warehouse Branch,6.0000,,,10.0000,,,,10,current_purchase_cost,proposed
+8de69738-a8da-4cf9-b499-f3cbd7173b69,47C0120426,BAG CHARM KANGAROO,1,Shop 1,2.0000,,0.0000,10.0000,,,,10,current_purchase_cost,proposed
+8de69738-a8da-4cf9-b499-f3cbd7173b69,47C0120426,BAG CHARM KANGAROO,4,Warehouse Branch,4.0000,,,10.0000,,,,10,current_purchase_cost,proposed
+b97c03d8-255f-475f-8e4f-25072f1f6ecf,47C0124411,BAG CHARM KOALA,1,Shop 1,2.0000,,0.0000,10.0000,,,,10,current_purchase_cost,proposed
+b97c03d8-255f-475f-8e4f-25072f1f6ecf,47C0124411,BAG CHARM KOALA,4,Warehouse Branch,13.0000,,,10.0000,,,,10,current_purchase_cost,proposed
+e84b8b04-4dbc-4c21-982d-5d2ca79d1e24,47C0120419,BAG CHARM WOMBAT,1,Shop 1,1.0000,,0.0000,10.0000,,,,10,current_purchase_cost,proposed
+21c5365c-2fe1-42c2-ae97-b985519d3aaa,GEN495AU,BBQ Playing Cards,1,Shop 1,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+21c5365c-2fe1-42c2-ae97-b985519d3aaa,GEN495AU,BBQ Playing Cards,2,Shop 3,2.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+21c5365c-2fe1-42c2-ae97-b985519d3aaa,GEN495AU,BBQ Playing Cards,3,Shop 2,2.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+21c5365c-2fe1-42c2-ae97-b985519d3aaa,GEN495AU,BBQ Playing Cards,4,Warehouse Branch,4.0000,,,9.0700,,,,9.07,current_purchase_cost,proposed
+e63b7363-263e-4663-b987-be95843d132b,AW251006-ONS,Bush Blossom Terry Toiletry Pouch One Size,1,Shop 1,1.0000,,0.0000,22.2700,,,,22.27,current_purchase_cost,proposed
+eb56c570-7562-498d-8667-e11753603074,GEN952AU,Cactus - Bottle Opener,1,Shop 1,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+eb56c570-7562-498d-8667-e11753603074,GEN952AU,Cactus - Bottle Opener,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+eb56c570-7562-498d-8667-e11753603074,GEN952AU,Cactus - Bottle Opener,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+eb56c570-7562-498d-8667-e11753603074,GEN952AU,Cactus - Bottle Opener,4,Warehouse Branch,3.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+f5b51c90-1186-4c8a-9318-8ae1feddab84,6-0674,Claytopia - Unicorn World,2,Shop 3,1.0000,,,13.6400,,,,13.64,current_purchase_cost,proposed
+c4702a2d-b7b6-426f-b715-92092e06d9f9,GEN951AU,Cowboy Boot - Bottle Opener,1,Shop 1,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+c4702a2d-b7b6-426f-b715-92092e06d9f9,GEN951AU,Cowboy Boot - Bottle Opener,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+c4702a2d-b7b6-426f-b715-92092e06d9f9,GEN951AU,Cowboy Boot - Bottle Opener,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+c4702a2d-b7b6-426f-b715-92092e06d9f9,GEN951AU,Cowboy Boot - Bottle Opener,4,Warehouse Branch,1.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+46db6e34-4818-4157-97a1-0e830a9a50b3,GEN950AU,Dad Survival Kit,1,Shop 1,2.0000,,0.0000,13.6100,,,,13.61,current_purchase_cost,proposed
+46db6e34-4818-4157-97a1-0e830a9a50b3,GEN950AU,Dad Survival Kit,2,Shop 3,2.0000,,0.0000,13.6100,,,,13.61,current_purchase_cost,proposed
+46db6e34-4818-4157-97a1-0e830a9a50b3,GEN950AU,Dad Survival Kit,3,Shop 2,2.0000,,0.0000,13.6100,,,,13.61,current_purchase_cost,proposed
+46db6e34-4818-4157-97a1-0e830a9a50b3,GEN950AU,Dad Survival Kit,4,Warehouse Branch,4.0000,,,13.6100,,,,13.61,current_purchase_cost,proposed
+abaea0d3-c9b5-42b6-b31e-f3c49ed533cf,1060412,Demo Double Go Around Music BoxMerry-go-round,4,Warehouse Branch,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+a5431f46-8cef-49d1-aac8-4cee72978ce9,1033748,Demo Double Rotate Music BoxIce Cap,1,Shop 1,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+a5431f46-8cef-49d1-aac8-4cee72978ce9,1033748,Demo Double Rotate Music BoxIce Cap,2,Shop 3,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+a5431f46-8cef-49d1-aac8-4cee72978ce9,1033748,Demo Double Rotate Music BoxIce Cap,4,Warehouse Branch,4.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+59fc3b8e-5dec-4a09-88d2-9eecd193ed26,1033910,Demo Multi Rotate Music BoxForest,4,Warehouse Branch,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+e3f2ee30-5476-4da4-bb29-ee39d934d356,1033356,Demo Music Go RoundBumper Car,4,Warehouse Branch,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+c0984503-c926-44f4-84c7-8b509daa9985,1033240,Demo Music Round & Round Music BoxFormosan Black Bear,1,Shop 1,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+b8e92f91-e936-4148-ba48-225b6fc0af7c,1035705,Demo Seesaw Music Box (Mini)Three Little Pigs,4,Warehouse Branch,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+450f334f-1443-4ff3-a115-e64027af0b98,EH-104,EUGY 3D Paper Model : Tortoise,4,Warehouse Branch,5.0000,,,8.5000,,,,8.5,current_purchase_cost,proposed
+c27548f8-1860-4115-a840-c4acd2a42c6f,EH-120,EUGY 3D Paper Model: Capybara,2,Shop 3,1.0000,,0.0000,8.5000,,,,8.5,current_purchase_cost,proposed
+e441194f-33dc-4339-894b-e2923fa59d59,EH-020,Eugy 3D Paper Model: Orca,4,Warehouse Branch,8.0000,,,8.5000,,,,8.5,current_purchase_cost,proposed
+512f1312-60c9-4406-994c-15c7c1b08308,EH-102,Eugy 3D Paper Model: Stingray,4,Warehouse Branch,5.0000,,,8.5000,,,,8.5,current_purchase_cost,proposed
+4cd0b335-25a8-4c9f-8042-009d893d14cb,EH-066,EUGY: Blue Whale,2,Shop 3,2.0000,,0.0000,8.5000,,,,8.5,current_purchase_cost,proposed
+4cd0b335-25a8-4c9f-8042-009d893d14cb,EH-066,EUGY: Blue Whale,4,Warehouse Branch,1.0000,,,8.5000,,,,8.5,current_purchase_cost,proposed
+9d83672d-7867-4b3c-a6fc-620ab1e0b417,EH-087,EUGY: Cat - Pumpkin,2,Shop 3,2.0000,,0.0000,8.5000,,,,8.5,current_purchase_cost,proposed
+9d83672d-7867-4b3c-a6fc-620ab1e0b417,EH-087,EUGY: Cat - Pumpkin,4,Warehouse Branch,3.0000,,,8.5000,,,,8.5,current_purchase_cost,proposed
+b0a1ba8d-1c3e-41ac-b013-f4caecff51b9,GEN750AU,Fish Hip Flask,1,Shop 1,1.0000,,0.0000,18.1590,,,,18.159,current_purchase_cost,proposed
+b0a1ba8d-1c3e-41ac-b013-f4caecff51b9,GEN750AU,Fish Hip Flask,2,Shop 3,1.0000,,0.0000,18.1590,,,,18.159,current_purchase_cost,proposed
+b0a1ba8d-1c3e-41ac-b013-f4caecff51b9,GEN750AU,Fish Hip Flask,3,Shop 2,1.0000,,0.0000,18.1590,,,,18.159,current_purchase_cost,proposed
+b0a1ba8d-1c3e-41ac-b013-f4caecff51b9,GEN750AU,Fish Hip Flask,4,Warehouse Branch,2.0000,,,18.1590,,,,18.159,current_purchase_cost,proposed
+8eb6026f-786c-405c-b988-84c75a480c94,GEN939AU,Fish Pen Knife,1,Shop 1,1.0000,,0.0000,10.4300,,,,10.43,current_purchase_cost,proposed
+8eb6026f-786c-405c-b988-84c75a480c94,GEN939AU,Fish Pen Knife,3,Shop 2,1.0000,,0.0000,10.4300,,,,10.43,current_purchase_cost,proposed
+8eb6026f-786c-405c-b988-84c75a480c94,GEN939AU,Fish Pen Knife,4,Warehouse Branch,2.0000,,,10.4300,,,,10.43,current_purchase_cost,proposed
+2b9dcc57-7161-4063-abaa-224b013eff9c,GEN884AU,Fish shaped Waiter's Corkscrew,1,Shop 1,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+2b9dcc57-7161-4063-abaa-224b013eff9c,GEN884AU,Fish shaped Waiter's Corkscrew,3,Shop 2,2.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+47a32c26-bb31-4fed-bfe9-02cef3e1f796,KJB-ZOO,Fluffy Knit Baby Blanket / ZooCrew,1,Shop 1,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+47a32c26-bb31-4fed-bfe9-02cef3e1f796,KJB-ZOO,Fluffy Knit Baby Blanket / ZooCrew,2,Shop 3,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+47a32c26-bb31-4fed-bfe9-02cef3e1f796,KJB-ZOO,Fluffy Knit Baby Blanket / ZooCrew,4,Warehouse Branch,1.0000,,,44.5000,,,,44.5,current_purchase_cost,proposed
+003a0764-c1fc-4971-9c6b-e21e00672fdf,KJP-ZOO-1,Fluffy Knit Jumper / ZooCrew,1,Shop 1,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+003a0764-c1fc-4971-9c6b-e21e00672fdf,KJP-ZOO-1,Fluffy Knit Jumper / ZooCrew,2,Shop 3,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+2f4a4371-db66-478e-92c7-47576d649dbe,KJP-ZOO-2,Fluffy Knit Jumper / ZooCrew,1,Shop 1,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+2f4a4371-db66-478e-92c7-47576d649dbe,KJP-ZOO-2,Fluffy Knit Jumper / ZooCrew,2,Shop 3,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+2f4a4371-db66-478e-92c7-47576d649dbe,KJP-ZOO-2,Fluffy Knit Jumper / ZooCrew,4,Warehouse Branch,1.0000,,,44.5000,,,,44.5,current_purchase_cost,proposed
+c3812960-55ae-4daf-8bf4-3c6856307ae0,KJP-ZOO-3,Fluffy Knit Jumper / ZooCrew,1,Shop 1,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+c3812960-55ae-4daf-8bf4-3c6856307ae0,KJP-ZOO-3,Fluffy Knit Jumper / ZooCrew,2,Shop 3,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+c3812960-55ae-4daf-8bf4-3c6856307ae0,KJP-ZOO-3,Fluffy Knit Jumper / ZooCrew,4,Warehouse Branch,1.0000,,,44.5000,,,,44.5,current_purchase_cost,proposed
+d22d5e25-9931-4ec0-9342-c3c6d5f0d611,KJP-ZOO-4,Fluffy Knit Jumper / ZooCrew,1,Shop 1,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+d22d5e25-9931-4ec0-9342-c3c6d5f0d611,KJP-ZOO-4,Fluffy Knit Jumper / ZooCrew,2,Shop 3,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+d22d5e25-9931-4ec0-9342-c3c6d5f0d611,KJP-ZOO-4,Fluffy Knit Jumper / ZooCrew,4,Warehouse Branch,2.0000,,,44.5000,,,,44.5,current_purchase_cost,proposed
+2fb566cb-be09-42b5-a48a-a0f58efb30c8,KJP-ZOO-5,Fluffy Knit Jumper / ZooCrew,1,Shop 1,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+2fb566cb-be09-42b5-a48a-a0f58efb30c8,KJP-ZOO-5,Fluffy Knit Jumper / ZooCrew,2,Shop 3,1.0000,,0.0000,44.5000,,,,44.5,current_purchase_cost,proposed
+2fb566cb-be09-42b5-a48a-a0f58efb30c8,KJP-ZOO-5,Fluffy Knit Jumper / ZooCrew,4,Warehouse Branch,1.0000,,,44.5000,,,,44.5,current_purchase_cost,proposed
+ac41ccd9-8768-4ce8-881a-aa858fe06b90,EF-C-SP0497,Foil Card-Dam Good Dad,1,Shop 1,3.0000,,0.0000,3.8600,,,,3.86,current_purchase_cost,proposed
+ac41ccd9-8768-4ce8-881a-aa858fe06b90,EF-C-SP0497,Foil Card-Dam Good Dad,2,Shop 3,4.0000,,,3.8600,,,,3.86,current_purchase_cost,proposed
+ac41ccd9-8768-4ce8-881a-aa858fe06b90,EF-C-SP0497,Foil Card-Dam Good Dad,4,Warehouse Branch,6.0000,,,3.8600,,,,3.86,current_purchase_cost,proposed
+4e16c2ea-f694-40a2-834d-216a0baf26d4,CK-C-14407,Foil Card-Hedgehugs Birthday,1,Shop 1,3.0000,,0.0000,3.6300,,,,3.63,current_purchase_cost,proposed
+4e16c2ea-f694-40a2-834d-216a0baf26d4,CK-C-14407,Foil Card-Hedgehugs Birthday,2,Shop 3,4.0000,,,3.6300,,,,3.63,current_purchase_cost,proposed
+73709c43-7236-4d74-9d3c-e65f33e869a4,CK-C-5611,Foil Card-Hoppily Ever After,1,Shop 1,3.0000,,0.0000,3.6300,,,,3.63,current_purchase_cost,proposed
+73709c43-7236-4d74-9d3c-e65f33e869a4,CK-C-5611,Foil Card-Hoppily Ever After,2,Shop 3,2.0000,,,3.6300,,,,3.63,current_purchase_cost,proposed
+1cc02a84-a159-48b8-b494-85918b1aaa77,CK-C-14402,Foil Card-Purr-fect Birthday,1,Shop 1,3.0000,,0.0000,3.6300,,,,3.63,current_purchase_cost,proposed
+1cc02a84-a159-48b8-b494-85918b1aaa77,CK-C-14402,Foil Card-Purr-fect Birthday,2,Shop 3,2.0000,,,3.6300,,,,3.63,current_purchase_cost,proposed
+23d293c2-41b1-42bc-b180-a5b50b69d44c,CK-C-14408,Foil Card-Quacking Birthday,1,Shop 1,3.0000,,0.0000,3.6300,,,,3.63,current_purchase_cost,proposed
+23d293c2-41b1-42bc-b180-a5b50b69d44c,CK-C-14408,Foil Card-Quacking Birthday,2,Shop 3,2.0000,,,3.6300,,,,3.63,current_purchase_cost,proposed
+23d293c2-41b1-42bc-b180-a5b50b69d44c,CK-C-14408,Foil Card-Quacking Birthday,4,Warehouse Branch,2.0000,,,3.6300,,,,3.63,current_purchase_cost,proposed
+a0992c61-23b9-4858-81ab-f7ea40899538,OD-C-DSI10458,Foil Card-Spotty Cat Birthday,1,Shop 1,2.0000,,0.0000,3.6300,,,,3.63,current_purchase_cost,proposed
+a0992c61-23b9-4858-81ab-f7ea40899538,OD-C-DSI10458,Foil Card-Spotty Cat Birthday,2,Shop 3,3.0000,,,3.6300,,,,3.63,current_purchase_cost,proposed
+fae59732-6667-4f58-8517-60d7237002ea,JB86-1117AU,FSC Mix Credit JB86 Framed Floral - Iris,1,Shop 1,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+fae59732-6667-4f58-8517-60d7237002ea,JB86-1117AU,FSC Mix Credit JB86 Framed Floral - Iris,3,Shop 2,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+d8f21693-ffff-4e2c-8095-db4a3b96cdb6,JB86-1118AU,FSC Mix Credit JB86 Framed Floral - Magnolia,2,Shop 3,1.0000,0.0000,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+d8f21693-ffff-4e2c-8095-db4a3b96cdb6,JB86-1118AU,FSC Mix Credit JB86 Framed Floral - Magnolia,4,Warehouse Branch,3.0000,0.0000,,11.3400,,,,11.34,current_purchase_cost,proposed
+6db1efb5-4e43-49e7-ab6b-e1080eaf9632,JB86-1116AU,FSC Mix Credit JB86 Framed Floral - Poppy,4,Warehouse Branch,3.0000,0.0000,,11.3400,,,,11.34,current_purchase_cost,proposed
+a2be013e-c792-42bd-b021-e9d1c32bf74c,DRJ-1002AU,FSC Self Help Reading Journal - Page Turners Anonymous,1,Shop 1,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+a2be013e-c792-42bd-b021-e9d1c32bf74c,DRJ-1002AU,FSC Self Help Reading Journal - Page Turners Anonymous,2,Shop 3,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+a2be013e-c792-42bd-b021-e9d1c32bf74c,DRJ-1002AU,FSC Self Help Reading Journal - Page Turners Anonymous,3,Shop 2,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+f5d9fae1-d4e6-47b7-8cf9-0d8689fb594d,DRJ-1001AU,FSC Self Help Reading Journal - What Happens In Book Club,1,Shop 1,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+f5d9fae1-d4e6-47b7-8cf9-0d8689fb594d,DRJ-1001AU,FSC Self Help Reading Journal - What Happens In Book Club,2,Shop 3,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+f5d9fae1-d4e6-47b7-8cf9-0d8689fb594d,DRJ-1001AU,FSC Self Help Reading Journal - What Happens In Book Club,4,Warehouse Branch,3.0000,,,11.3400,,,,11.34,current_purchase_cost,proposed
+fce50c27-79cd-48e4-ae8f-c1d3ac0909c1,GEN751AU,Gin Stones,1,Shop 1,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+fce50c27-79cd-48e4-ae8f-c1d3ac0909c1,GEN751AU,Gin Stones,2,Shop 3,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+fce50c27-79cd-48e4-ae8f-c1d3ac0909c1,GEN751AU,Gin Stones,3,Shop 2,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+fce50c27-79cd-48e4-ae8f-c1d3ac0909c1,GEN751AU,Gin Stones,4,Warehouse Branch,2.0000,,,9.0700,,,,9.07,current_purchase_cost,proposed
+4d8aa8ab-5a6b-4be4-97a5-c41cded2360c,GEN953AU,Guitar - Bottle Opener,1,Shop 1,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4d8aa8ab-5a6b-4be4-97a5-c41cded2360c,GEN953AU,Guitar - Bottle Opener,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4d8aa8ab-5a6b-4be4-97a5-c41cded2360c,GEN953AU,Guitar - Bottle Opener,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4d8aa8ab-5a6b-4be4-97a5-c41cded2360c,GEN953AU,Guitar - Bottle Opener,4,Warehouse Branch,1.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+5aba8481-0571-430f-ab05-7f1c7089ce7f,RX-30305,Hair Clips - Bumblebee,2,Shop 3,1.0000,,0.0000,4.5000,,,,4.5,current_purchase_cost,proposed
+d50c7111-7a33-47bf-8374-ad72405d9935,SC-KDS2328702X00,Izipizi Sun Child (5-7Y) Collection D Cranberry,4,Warehouse Branch,4.0000,,,27.2500,,,,27.25,current_purchase_cost,proposed
+07970fe3-b524-4c92-b616-a0e5d777da8f,SC-KDS2328902X00,Izipizi Sun Child (5-7y) Sunglasses - Lavender Collection D,4,Warehouse Branch,3.0000,,,27.2500,,,,27.25,current_purchase_cost,proposed
+53634748-7d3f-4633-ab83-23c143e25ebb,SC-KDS2300202X00,Izipizi Sun Child Sunglasses (5-7y) Collection D - Tortoise,4,Warehouse Branch,6.0000,,,27.2500,,,,27.25,current_purchase_cost,proposed
+29de6950-4c9f-459a-9b6b-9f311b295bd2,SC-SUN0429301X00,Izipizi Sun Collection D Sunglasses - Midnight Blue,4,Warehouse Branch,3.0000,,,40.8900,,,,40.89,current_purchase_cost,proposed
+c5637038-dffb-4eca-b967-84d553409ac5,SC-SUN0529301X00,Izipizi Sun Collection E Sunglasses - Midnight Blue,4,Warehouse Branch,3.0000,,,40.8900,,,,40.89,current_purchase_cost,proposed
+b4c6dda4-5594-4aa2-b1b2-cb5e2c714273,SC-SUN4306901X00,Izipizi Sun Road Sunglasses - Light Tortoise,4,Warehouse Branch,1.0000,,,50.0000,,,,50,current_purchase_cost,proposed
+2b616792-ee65-4448-828c-b7054807d456,SC-SUN4300201X00,Izipizi Sun Road Sunglasses - Tortoise,4,Warehouse Branch,3.0000,,,50.0000,,,,50,current_purchase_cost,proposed
+1929689c-5960-48d2-91ac-dfe5fadcacd0,SC-KDS2328602X00,Izipizi: Sun Child (5-7y) Collection D - Macchiato,4,Warehouse Branch,2.0000,,,27.2500,,,,27.25,current_purchase_cost,proposed
+5b06b7f0-e110-459e-a47e-db21286977b1,LSS-ZOO-0 to 3 months,Long Sleeve Romper / Zoo Crew,1,Shop 1,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+5b06b7f0-e110-459e-a47e-db21286977b1,LSS-ZOO-0 to 3 months,Long Sleeve Romper / Zoo Crew,2,Shop 3,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+5b06b7f0-e110-459e-a47e-db21286977b1,LSS-ZOO-0 to 3 months,Long Sleeve Romper / Zoo Crew,4,Warehouse Branch,1.0000,,,22.0000,,,,22,current_purchase_cost,proposed
+38740559-3f2c-44a9-9972-b6d60fee35bb,LSS-ZOO-12 to 18 months,Long Sleeve Romper / Zoo Crew,1,Shop 1,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+38740559-3f2c-44a9-9972-b6d60fee35bb,LSS-ZOO-12 to 18 months,Long Sleeve Romper / Zoo Crew,2,Shop 3,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+38740559-3f2c-44a9-9972-b6d60fee35bb,LSS-ZOO-12 to 18 months,Long Sleeve Romper / Zoo Crew,4,Warehouse Branch,2.0000,,,22.0000,,,,22,current_purchase_cost,proposed
+34320746-038b-40ab-8b79-390225c7113a,LSS-ZOO-3 to 6 months,Long Sleeve Romper / Zoo Crew,1,Shop 1,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+34320746-038b-40ab-8b79-390225c7113a,LSS-ZOO-3 to 6 months,Long Sleeve Romper / Zoo Crew,2,Shop 3,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+34320746-038b-40ab-8b79-390225c7113a,LSS-ZOO-3 to 6 months,Long Sleeve Romper / Zoo Crew,4,Warehouse Branch,2.0000,,,22.0000,,,,22,current_purchase_cost,proposed
+60feaa91-6861-4d22-84a7-c4e58c57561e,LSS-ZOO-6 to 12 months,Long Sleeve Romper / Zoo Crew,1,Shop 1,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+60feaa91-6861-4d22-84a7-c4e58c57561e,LSS-ZOO-6 to 12 months,Long Sleeve Romper / Zoo Crew,2,Shop 3,1.0000,,0.0000,22.0000,,,,22,current_purchase_cost,proposed
+60feaa91-6861-4d22-84a7-c4e58c57561e,LSS-ZOO-6 to 12 months,Long Sleeve Romper / Zoo Crew,4,Warehouse Branch,1.0000,,,22.0000,,,,22,current_purchase_cost,proposed
+ed5cd8db-9dd8-49c0-8dc1-0499733d19a7,GEN826AU,Mini Tool Kit,1,Shop 1,1.0000,,0.0000,15.8900,,,,15.89,current_purchase_cost,proposed
+ed5cd8db-9dd8-49c0-8dc1-0499733d19a7,GEN826AU,Mini Tool Kit,2,Shop 3,1.0000,,0.0000,15.8900,,,,15.89,current_purchase_cost,proposed
+ed5cd8db-9dd8-49c0-8dc1-0499733d19a7,GEN826AU,Mini Tool Kit,3,Shop 2,1.0000,,0.0000,15.8900,,,,15.89,current_purchase_cost,proposed
+ed5cd8db-9dd8-49c0-8dc1-0499733d19a7,GEN826AU,Mini Tool Kit,4,Warehouse Branch,2.0000,,,15.8900,,,,15.89,current_purchase_cost,proposed
+5eb9d8c4-c0f3-44f1-827d-66748f779a70,c1863,Misc Test Product,3,Shop 2,975.0000,,,0.0000,,,,,unresolved,unresolved
+f597375f-8998-4c08-a072-2a51b2079305,HJX036AU,Mug Don't be Bitter,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+f597375f-8998-4c08-a072-2a51b2079305,HJX036AU,Mug Don't be Bitter,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+f597375f-8998-4c08-a072-2a51b2079305,HJX036AU,Mug Don't be Bitter,4,Warehouse Branch,4.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+4f8766f9-cb85-4b6e-878e-99cb4bd7c82e,HJX035AU,Mug Dramatic Exit,2,Shop 3,3.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4f8766f9-cb85-4b6e-878e-99cb4bd7c82e,HJX035AU,Mug Dramatic Exit,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4f8766f9-cb85-4b6e-878e-99cb4bd7c82e,HJX035AU,Mug Dramatic Exit,4,Warehouse Branch,3.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+1db11350-7a3f-4fdc-9f80-6036224f84b8,HJX031AU,Mug Feeling Vine,2,Shop 3,3.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+1db11350-7a3f-4fdc-9f80-6036224f84b8,HJX031AU,Mug Feeling Vine,3,Shop 2,3.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+1db11350-7a3f-4fdc-9f80-6036224f84b8,HJX031AU,Mug Feeling Vine,4,Warehouse Branch,3.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+199ca979-e4db-4758-adef-2eac78b226fc,HJX042AU,Mug Main Character Energy,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+199ca979-e4db-4758-adef-2eac78b226fc,HJX042AU,Mug Main Character Energy,3,Shop 2,1.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+2ab5e8a9-9303-4ade-88e2-1cc418b5e772,HJX032AU,Mug Meow,2,Shop 3,1.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+2ab5e8a9-9303-4ade-88e2-1cc418b5e772,HJX032AU,Mug Meow,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+2ab5e8a9-9303-4ade-88e2-1cc418b5e772,HJX032AU,Mug Meow,4,Warehouse Branch,2.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+c66af719-b6c4-4e6e-a4f7-3433b4c8abeb,HJX037AU,Mug No Riff Raff,2,Shop 3,3.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+c66af719-b6c4-4e6e-a4f7-3433b4c8abeb,HJX037AU,Mug No Riff Raff,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+c66af719-b6c4-4e6e-a4f7-3433b4c8abeb,HJX037AU,Mug No Riff Raff,4,Warehouse Branch,2.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+4977f5ff-70df-4054-8cfc-49529adc141b,HJX034AU,Mug Oui Oui Mon Cheri,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4977f5ff-70df-4054-8cfc-49529adc141b,HJX034AU,Mug Oui Oui Mon Cheri,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+4977f5ff-70df-4054-8cfc-49529adc141b,HJX034AU,Mug Oui Oui Mon Cheri,4,Warehouse Branch,4.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+114d70e0-ab24-43ff-8a82-0b813dc47042,HJX038AU,Mug Probably Late for Something,2,Shop 3,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+114d70e0-ab24-43ff-8a82-0b813dc47042,HJX038AU,Mug Probably Late for Something,3,Shop 2,3.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+114d70e0-ab24-43ff-8a82-0b813dc47042,HJX038AU,Mug Probably Late for Something,4,Warehouse Branch,8.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+d5eb26a9-7a71-4e1c-ad26-36eb797b386d,HJX033AU,Mug Sardines,2,Shop 3,3.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+d5eb26a9-7a71-4e1c-ad26-36eb797b386d,HJX033AU,Mug Sardines,3,Shop 2,2.0000,,0.0000,6.8000,,,,6.8,current_purchase_cost,proposed
+d5eb26a9-7a71-4e1c-ad26-36eb797b386d,HJX033AU,Mug Sardines,4,Warehouse Branch,9.0000,,,6.8000,,,,6.8,current_purchase_cost,proposed
+31ba8620-89c1-4a72-a9b0-f86424996976,82062717,"Nini Cup, Heart, Stoneware",1,Shop 1,1.0000,,0.0000,9.0500,,,,9.05,current_purchase_cost,proposed
+31ba8620-89c1-4a72-a9b0-f86424996976,82062717,"Nini Cup, Heart, Stoneware",2,Shop 3,4.0000,,0.0000,9.0500,,,,9.05,current_purchase_cost,proposed
+31ba8620-89c1-4a72-a9b0-f86424996976,82062717,"Nini Cup, Heart, Stoneware",3,Shop 2,3.0000,,0.0000,9.0500,,,,9.05,current_purchase_cost,proposed
+31ba8620-89c1-4a72-a9b0-f86424996976,82062717,"Nini Cup, Heart, Stoneware",4,Warehouse Branch,2.0000,,,9.0500,,,,9.05,current_purchase_cost,proposed
+f2a3877d-eadc-45ef-bcfa-50f088e76d3e,GEN291AU,Pocket Bicycle Multi-Tool,1,Shop 1,2.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+f2a3877d-eadc-45ef-bcfa-50f088e76d3e,GEN291AU,Pocket Bicycle Multi-Tool,2,Shop 3,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+f2a3877d-eadc-45ef-bcfa-50f088e76d3e,GEN291AU,Pocket Bicycle Multi-Tool,3,Shop 2,2.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+f2a3877d-eadc-45ef-bcfa-50f088e76d3e,GEN291AU,Pocket Bicycle Multi-Tool,4,Warehouse Branch,6.0000,,,9.0700,,,,9.07,current_purchase_cost,proposed
+4d998b57-a317-4c0d-bf4d-1c5dd4c0f4f1,GEN167AU,"Pocket Multi-Tool Pliers, Titanium",1,Shop 1,1.0000,,0.0000,10.4300,,,,10.43,current_purchase_cost,proposed
+4d998b57-a317-4c0d-bf4d-1c5dd4c0f4f1,GEN167AU,"Pocket Multi-Tool Pliers, Titanium",2,Shop 3,1.0000,,0.0000,10.4300,,,,10.43,current_purchase_cost,proposed
+4d998b57-a317-4c0d-bf4d-1c5dd4c0f4f1,GEN167AU,"Pocket Multi-Tool Pliers, Titanium",3,Shop 2,2.0000,,0.0000,10.4300,,,,10.43,current_purchase_cost,proposed
+4d998b57-a317-4c0d-bf4d-1c5dd4c0f4f1,GEN167AU,"Pocket Multi-Tool Pliers, Titanium",4,Warehouse Branch,2.0000,,,10.4300,,,,10.43,current_purchase_cost,proposed
+28e0bd1e-70d3-41ec-86f0-6dc2c89a0d52,DEC-2028AU,PU Printed Glasses Case - Check,2,Shop 3,1.0000,,0.0000,11.3400,,,,11.34,current_purchase_cost,proposed
+e2e2a0ae-4d12-4af0-95d9-a1f1e545e063,DBM-1023AU,PU Shaped Bookmarks - Iris,2,Shop 3,2.0000,,0.0000,4.5200,,,,4.52,current_purchase_cost,proposed
+fef49117-384e-4da2-bfc9-1846030817ab,DBM-1022AU,PU Shaped Bookmarks - Poppy,1,Shop 1,1.0000,,0.0000,4.5200,,,,4.52,current_purchase_cost,proposed
+fef49117-384e-4da2-bfc9-1846030817ab,DBM-1022AU,PU Shaped Bookmarks - Poppy,2,Shop 3,2.0000,,0.0000,4.5200,,,,4.52,current_purchase_cost,proposed
+fef49117-384e-4da2-bfc9-1846030817ab,DBM-1022AU,PU Shaped Bookmarks - Poppy,4,Warehouse Branch,2.0000,,,4.5200,,,,4.52,current_purchase_cost,proposed
+cd8c2b4f-d928-47a3-813b-144806809da4,GEN144AU,Rocking Whisky Glasses Set of 2,1,Shop 1,1.0000,,0.0000,13.6100,,,,13.61,current_purchase_cost,proposed
+cd8c2b4f-d928-47a3-813b-144806809da4,GEN144AU,Rocking Whisky Glasses Set of 2,2,Shop 3,1.0000,,0.0000,13.6100,,,,13.61,current_purchase_cost,proposed
+cd8c2b4f-d928-47a3-813b-144806809da4,GEN144AU,Rocking Whisky Glasses Set of 2,3,Shop 2,1.0000,,0.0000,13.6100,,,,13.61,current_purchase_cost,proposed
+cd8c2b4f-d928-47a3-813b-144806809da4,GEN144AU,Rocking Whisky Glasses Set of 2,4,Warehouse Branch,3.0000,,,13.6100,,,,13.61,current_purchase_cost,proposed
+fd253b28-c928-4b02-a506-a25c90d73dbd,GEN938AU,Shoe Shine Kit in a Tin,1,Shop 1,2.0000,,0.0000,15.8900,,,,15.89,current_purchase_cost,proposed
+fd253b28-c928-4b02-a506-a25c90d73dbd,GEN938AU,Shoe Shine Kit in a Tin,2,Shop 3,2.0000,,0.0000,15.8900,,,,15.89,current_purchase_cost,proposed
+fd253b28-c928-4b02-a506-a25c90d73dbd,GEN938AU,Shoe Shine Kit in a Tin,3,Shop 2,2.0000,,0.0000,15.8900,,,,15.89,current_purchase_cost,proposed
+fd253b28-c928-4b02-a506-a25c90d73dbd,GEN938AU,Shoe Shine Kit in a Tin,4,Warehouse Branch,2.0000,,,15.8900,,,,15.89,current_purchase_cost,proposed
+b4be4498-fdaf-449e-a641-ec57c0a7a588,cSB-W0000,Spunky Bruiser Womens,4,Warehouse Branch,1.0000,,0.0000,0.0000,,,,,unresolved,unresolved
+c1bb18e6-1bf9-4d1e-bca6-b9a7d144a091,TLSB-ZOC-0 to 3 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,1,Shop 1,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+c1bb18e6-1bf9-4d1e-bca6-b9a7d144a091,TLSB-ZOC-0 to 3 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,2,Shop 3,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+453d8acd-f222-4b02-8074-45b2c0d034d1,TLSB-ZOC-12 to 18 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,1,Shop 1,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+453d8acd-f222-4b02-8074-45b2c0d034d1,TLSB-ZOC-12 to 18 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,2,Shop 3,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+453d8acd-f222-4b02-8074-45b2c0d034d1,TLSB-ZOC-12 to 18 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,4,Warehouse Branch,2.0000,,,23.0000,,,,23,current_purchase_cost,proposed
+3aeaf957-358b-4ca5-b675-e7aa9accf73f,TLSB-ZOC-3 to 6 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,1,Shop 1,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+3aeaf957-358b-4ca5-b675-e7aa9accf73f,TLSB-ZOC-3 to 6 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,2,Shop 3,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+3aeaf957-358b-4ca5-b675-e7aa9accf73f,TLSB-ZOC-3 to 6 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,4,Warehouse Branch,2.0000,,,23.0000,,,,23,current_purchase_cost,proposed
+4fb5c080-7837-4eed-acfa-9b755ac6c747,TLSB-ZOC-6 to 12 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,1,Shop 1,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+4fb5c080-7837-4eed-acfa-9b755ac6c747,TLSB-ZOC-6 to 12 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,2,Shop 3,1.0000,,0.0000,23.0000,,,,23,current_purchase_cost,proposed
+4fb5c080-7837-4eed-acfa-9b755ac6c747,TLSB-ZOC-6 to 12 months,Terry Long Sleeve Bodysuit / Zoo Crew Cream,4,Warehouse Branch,2.0000,,,23.0000,,,,23,current_purchase_cost,proposed
+c57ccf2f-0652-4bf5-954a-c972bafcfc08,GEN851AU,Travel Backgammon,1,Shop 1,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+c57ccf2f-0652-4bf5-954a-c972bafcfc08,GEN851AU,Travel Backgammon,2,Shop 3,2.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+c57ccf2f-0652-4bf5-954a-c972bafcfc08,GEN851AU,Travel Backgammon,3,Shop 2,2.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+c57ccf2f-0652-4bf5-954a-c972bafcfc08,GEN851AU,Travel Backgammon,4,Warehouse Branch,5.0000,,,9.0700,,,,9.07,current_purchase_cost,proposed
+4fc7d7d9-7b03-4be6-b43e-056665f768ff,GEN493AU,Travel Size Sneaker Cleaning Kit,1,Shop 1,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+4fc7d7d9-7b03-4be6-b43e-056665f768ff,GEN493AU,Travel Size Sneaker Cleaning Kit,2,Shop 3,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+4fc7d7d9-7b03-4be6-b43e-056665f768ff,GEN493AU,Travel Size Sneaker Cleaning Kit,3,Shop 2,1.0000,,0.0000,9.0700,,,,9.07,current_purchase_cost,proposed
+4fc7d7d9-7b03-4be6-b43e-056665f768ff,GEN493AU,Travel Size Sneaker Cleaning Kit,4,Warehouse Branch,1.0000,,,9.0700,,,,9.07,current_purchase_cost,proposed
+8af959a5-2ab5-488b-8198-b4e83b3548b5,UB411111,Urban Products Chick Soft Toy - Beige 15cm,4,Warehouse Branch,2.0000,,,11.3500,,,,11.35,current_purchase_cost,proposed
+4477e5cd-537d-4a53-babf-50259de255a5,UB402024,Urban Products Curly Unicorn Soft Toy - Pink & Red 18cm,1,Shop 1,2.0000,,0.0000,9.3500,,,,9.35,current_purchase_cost,proposed
+4477e5cd-537d-4a53-babf-50259de255a5,UB402024,Urban Products Curly Unicorn Soft Toy - Pink & Red 18cm,3,Shop 2,1.0000,,0.0000,9.3500,,,,9.35,current_purchase_cost,proposed
+4477e5cd-537d-4a53-babf-50259de255a5,UB402024,Urban Products Curly Unicorn Soft Toy - Pink & Red 18cm,4,Warehouse Branch,1.0000,,,9.3500,,,,9.35,current_purchase_cost,proposed
+d3193199-0305-4b6d-8dc8-3ef7a6a6f6c9,UB408246,Urban Products Frog Rattle - Sage Green,4,Warehouse Branch,4.0000,,,12.1500,,,,12.15,current_purchase_cost,proposed
+90df0a92-dbb5-4488-aaf9-8d2f6897a85d,UA951842,Urban Products Pooch Scarf - Sage,4,Warehouse Branch,5.0000,,,12.1500,,,,12.15,current_purchase_cost,proposed
+0eef4c43-1012-4845-a85b-324510ab6a7f,UA951918,Urban Products Strawberry Scarf - Red 180cm,4,Warehouse Branch,1.0000,,,16.2000,,,,16.2,current_purchase_cost,proposed
+6007c862-08fc-4f09-b1d8-c408e870449c,cMT-WB0020,Water Bottle: Ants 300ml,1,Shop 1,2.0000,,0.0000,8.8300,,,,8.83,current_purchase_cost,proposed

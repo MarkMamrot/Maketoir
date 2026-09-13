@@ -215,7 +215,7 @@ export async function applyStocktakeInTransaction(
           `INSERT INTO ims_stock_movements
              (business_id, variant_id, location_id, movement_type, reference_type, reference_id,
               source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id)
-           VALUES (?, ?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?, ?, ?, ?)`,
           [input.businessId, item.variant_id, stocktake.location_id, input.stocktakeId, item.id, appliedDelta, counted, unitCost,
             costingState.method, costingState.epochId],
         );
