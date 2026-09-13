@@ -149,7 +149,7 @@ describe('stocktake operations', () => {
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_fifo_cost_layers'),
       ['biz-1', 12, 'v-1', 4, 'stocktake', 91, 'stocktake', 31, 41, null,
-        expect.any(Date), 2, 2, 5.5],
+        expect.any(Date), 2, 2, 5.5, null],
     );
   });
 

@@ -1,3 +1,14 @@
+## 2026-09-13 - FIFO integrity audit and hardening
+
+- A reusable read-only all-tenant FIFO audit now verifies costing state, location-level stock/layer balances, layer bounds, zero-cost provenance, allocation ownership, and movement quantity/value coverage. All four registered tenant schemas were balanced before and after the schema change; no inventory data was repaired.
+- Inventory Valuation now reconciles FIFO quantities by variant and location, so equal-and-opposite discrepancies at different locations cannot cancel after variant aggregation. Legacy identifier collation differences are normalized in reconciliation SQL.
+- FIFO quantity planning now shares the `DECIMAL(18,4)` boundary and has deterministic generated conservation coverage. Method activation also rejects positive costs that `DECIMAL(18,6)` would persist as zero.
+- Genuine zero-cost FIFO layers require a controlled immutable reason. Supplier no-charge receipts, zero-component builds, stocktake gains, returns, and transfers carry workflow-specific provenance. The nullable `ims_fifo_cost_layers.zero_cost_reason` column was added idempotently to all four tenant schemas with no backfill because the pre-migration audit found no historical zero-cost layers.
+- Xero COGS distinguishes approved zero-cost FIFO movements from unexplained zero costs. Approved zero cost remains visible and postable at $0; missing or unexplained zero cost still blocks posting.
+- CI now requires disposable-MySQL FIFO concurrency and rollback tests in addition to fresh-schema provisioning. Local tests skip these environment-gated cases to avoid creating schemas through production credentials.
+- Inventory Costing settings now has interaction coverage for loading, authorization errors, duplicate submission, successful reset, and stale revision conflicts; its visible labels are associated with their controls.
+- Validation: 2,731 tests passed and three environment-gated tests skipped locally; the production build passed; Help indexes contain 68 topics and 548 Assistant chunks; the final live read-only audit reported all four tenants balanced.
+
 ## 2026-09-13 - FIFO production activation and user guidance
 
 - FIFO is now available as a tenant-wide alternative to Average Cost. Administrators change the method through **Settings > General > Inventory Costing**, which previews quantity and opening value, reports reconciliation blockers, and requires a reason plus exact typed confirmation before applying the switch.

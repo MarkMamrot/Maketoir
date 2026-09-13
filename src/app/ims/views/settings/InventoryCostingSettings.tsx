@@ -117,10 +117,10 @@ export function InventoryCostingSettings() {
 
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--sv-etch)' }}>
             <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Switch to {methodLabel(preview.targetMethod)}</div>
-            <label style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 5 }}>Reason</label>
-            <textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 70, resize: 'vertical', marginBottom: 10 }} />
-            <label style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 5 }}>Type {requiredConfirmation} to confirm</label>
-            <input value={confirmation} onChange={event => setConfirmation(event.target.value)} style={{ ...fieldStyle, maxWidth: 280, marginBottom: 12 }} />
+            <label htmlFor="inventory-costing-reason" style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 5 }}>Reason</label>
+            <textarea id="inventory-costing-reason" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 70, resize: 'vertical', marginBottom: 10 }} />
+            <label htmlFor="inventory-costing-confirmation" style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 5 }}>Type {requiredConfirmation} to confirm</label>
+            <input id="inventory-costing-confirmation" value={confirmation} onChange={event => setConfirmation(event.target.value)} style={{ ...fieldStyle, maxWidth: 280, marginBottom: 12 }} />
             <div>
               <button type="button" disabled={!canApply} onClick={applySwitch} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: canApply ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: canApply ? '#fff' : 'var(--sv-text-dim)', cursor: canApply ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 700 }}>
                 {saving ? 'Switching...' : `Switch to ${methodLabel(preview.targetMethod)}`}
