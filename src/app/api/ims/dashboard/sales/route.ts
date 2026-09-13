@@ -196,16 +196,19 @@ export async function GET(req: Request) {
       imsQuery<CogsRow>(
         `SELECT 'pos' AS channel,
                 COALESCE(l.name, 'Unknown') AS location_name,
-                SUM(COALESCE(psi.qty, 0) * COALESCE(pv.avg_cost, pv.cost_aud, 0)) AS cogs
+                SUM(-COALESCE(sm.qty_change, 0) * COALESCE(sm.unit_cost, 0)) AS cogs
          FROM pos_sales ps
          JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
-         JOIN pos_sale_items psi ON psi.sale_id = ps.id
-         LEFT JOIN ims_product_variants pv ON pv.variant_id = psi.variant_id
+         LEFT JOIN ims_stock_movements sm
+           ON sm.business_id = ?
+          AND ((sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale' AND sm.reference_id = ps.id)
+            OR (sm.movement_type IN ('cn_returned', 'cn_return_reversed')
+              AND sm.reference_type = 'credit_note' AND sm.reference_id = ps.credit_note_id))
          WHERE ps.status = 'completed'
            AND ps.created_at >= ?
            ${posUpperClause}
          GROUP BY l.id, l.name`,
-        [biz, ...posDateParams],
+        [biz, biz, ...posDateParams],
       ),
       imsQuery<CogsRow>(
         `SELECT 'online' AS channel,
@@ -249,6 +252,14 @@ export async function GET(req: Request) {
     channelRows = buildChannelRowsWithGrossProfit(revenueRows, cogsRows);
   } catch (error) {
     console.error('[dashboard/sales] COGS aggregation failed; falling back to ex-tax revenue for GP bars.', error);
+    await reportRuntimeIssue({
+      businessId: biz,
+      source: 'ims_dashboard_sales',
+      operation: 'load_cogs',
+      title: 'Dashboard sales COGS aggregation failed',
+      error,
+      context: { days, yesterday },
+    }).catch(() => {});
   }
 
   let brandRows: BrandRow[] = [];

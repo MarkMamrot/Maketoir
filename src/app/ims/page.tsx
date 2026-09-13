@@ -13,6 +13,7 @@ import { DashboardProductInsights } from './components/DashboardProductInsights'
 import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { EarlyPaymentDiscountSettingsSection } from './views/settings/EarlyPaymentDiscountSettingsSection';
+import { InventoryCostingSettings } from './views/settings/InventoryCostingSettings';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
@@ -18223,6 +18224,8 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
+  const [costingMethod, setCostingMethod] = useState<'average_cost' | 'fifo'>('average_cost');
+  const [reconciliation, setReconciliation] = useState<{ status: 'balanced' | 'mismatch'; mismatched_sku_count: number } | null>(null);
 
   const load = useCallback(async (f: MultiFilter) => {
     setLoading(true); setError('');
@@ -18230,7 +18233,11 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
       const params = new URLSearchParams(multiFilterParams(f));
       const res = await fetch(`/api/ims/reports/inventory-valuation?${params}`);
       const d = await res.json();
-      if (d.success) setRows(d.data); else setError(d.error);
+      if (d.success) {
+        setRows(d.data);
+        setCostingMethod(d.costing_method === 'fifo' ? 'fifo' : 'average_cost');
+        setReconciliation(d.reconciliation ?? null);
+      } else setError(d.error);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, []);
 
@@ -18238,7 +18245,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
   const handleFilterChange = (f: MultiFilter) => { setFilters(f); load(f); };
 
   const downloadCsv = () => {
-    const headers = ['SKU', 'Product Name', 'Brand', 'Supplier', 'Cost', 'SOH', 'Total Value'];
+    const headers = ['SKU', 'Product Name', 'Brand', 'Supplier', costingMethod === 'fifo' ? 'FIFO Unit Cost' : 'Average Unit Cost', 'SOH', 'Total Value'];
     const lines = [headers.join(',')];
     for (const r of rows) {
       lines.push([
@@ -18271,7 +18278,9 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
         <div>
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13 }}>← Back to Reports</button>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--sv-text-strong)', margin: 0 }}>Inventory Valuation</h2>
-          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>Total value of all physical stock on hand.</div>
+          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>
+            {costingMethod === 'fifo' ? 'Value of remaining FIFO cost layers.' : 'Stock on hand valued at current weighted-average cost.'}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
@@ -18286,6 +18295,11 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
       </div>
       
       {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 16 }}>{error}</div>}
+      {costingMethod === 'fifo' && reconciliation?.status === 'mismatch' && (
+        <div style={{ color: 'var(--sv-coral)', marginBottom: 16 }}>
+          FIFO layer quantities do not match stock on hand for {reconciliation.mismatched_sku_count.toLocaleString()} SKU{reconciliation.mismatched_sku_count === 1 ? '' : 's'}. Resolve the discrepancy before relying on this valuation.
+        </div>
+      )}
       
       <div style={{ background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -18310,7 +18324,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
               <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SKU</th>
               <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Product Name</th>
               <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Brand</th>
-              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Unit Cost</th>
+              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{costingMethod === 'fifo' ? 'FIFO Unit Cost' : 'Average Unit Cost'}</th>
               <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SOH</th>
               <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Total Value</th>
             </tr>
@@ -23029,7 +23043,7 @@ export default function ImsPage() {
         onOpenChange={setHelpOpen}
         audience="ims"
         product="ims"
-        currentContext={view}
+        currentContext={settingsOpen ? `settings-${settingsSection}` : view}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"
         xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
@@ -27608,6 +27622,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 )}
               </section>
             </div>
+
+            <InventoryCostingSettings />
 
             {/* Tax Settings */}
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>

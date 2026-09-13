@@ -7,6 +7,7 @@ import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -18,6 +19,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const body = await req.json() as {
       operationKey?: string;
       fulfilQuantities?: Array<{ itemId: number; quantity: number }>;
+      allowNegativeStock?: boolean;
     };
     const existing = await ImsSORepo.get(soId, businessId);
     if (!existing) return NextResponse.json({ error: 'Sales order not found.' }, { status: 404 });
@@ -47,6 +49,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } catch (error: any) {
     if (error instanceof StockShortfallError) {
       return NextResponse.json({ success: false, error: error.message, code: error.code, shortfalls: error.shortfalls }, { status: 409 });
+    }
+    if (error instanceof FifoCostingConflict) {
+      return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
     }
     const message = String(error?.message ?? 'Customer backorder failed.');
     const isConflict = /cannot|only confirmed|payments|already linked|insufficient|required for every|at least one/i.test(message);

@@ -98,7 +98,7 @@ describe('ImsSupplierCNRepo.complete', () => {
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining('(business_id,variant_id,location_id,movement_type'),
-      ['biz-1', 'v-1', 4, 7, -3, 2, 4.5, 'average_cost', null],
+      ['biz-1', 'v-1', 4, 7, 11, -3, 2, 4.5, 'average_cost', null],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();

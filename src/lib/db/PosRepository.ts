@@ -15,7 +15,13 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { planPosStockChange } from '@/lib/ims/posStockFloor';
 import { completeProductBuildInTransaction, ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { isBuildFromSaleEnabled, planBuildFromSaleShortfalls } from '@/lib/ims/builds/buildFromSalePolicy';
-import { consumeFifoCostLayers, FifoCostingConflict, lockInventoryCostState, type InventoryCostState } from '@/lib/ims/costing/fifoCostingService';
+import {
+  consumeFifoCostLayers,
+  FifoCostingConflict,
+  lockInventoryCostState,
+  reverseFifoStockMovementLayers,
+  type InventoryCostState,
+} from '@/lib/ims/costing/fifoCostingService';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -202,6 +208,89 @@ async function applyCompletedPosSaleStock(
     );
   }
   return stockWarnings;
+}
+
+async function restoreFifoPosSaleStock(connection: any, input: {
+  businessId: string;
+  locationId: number;
+  saleId: number;
+  state: InventoryCostState;
+  variantId: string;
+  quantity: number;
+  currentOnHand: number;
+  note: string;
+}): Promise<number> {
+  const [movementRows]: any = await connection.execute(
+    `SELECT movement.id, movement.qty_change, movement.cost_method_snapshot, movement.cost_epoch_id,
+            COALESCE((SELECT SUM(original.quantity)
+                        FROM ims_fifo_cost_allocations original
+                       WHERE original.business_id = movement.business_id
+                         AND original.epoch_id = movement.cost_epoch_id
+                         AND original.stock_movement_id = movement.id
+                         AND original.allocation_type = 'consume'), 0)
+            - COALESCE((SELECT SUM(reversal.quantity)
+                          FROM ims_fifo_cost_allocations reversal
+                          JOIN ims_fifo_cost_allocations original
+                            ON original.id = reversal.reversal_of_allocation_id
+                           AND original.business_id = reversal.business_id
+                         WHERE original.stock_movement_id = movement.id
+                           AND reversal.business_id = movement.business_id
+                           AND reversal.epoch_id = movement.cost_epoch_id), 0) AS reversible_quantity
+       FROM ims_stock_movements movement
+      WHERE movement.business_id = ? AND movement.variant_id = ? AND movement.location_id = ?
+        AND movement.movement_type = 'pos_sale' AND movement.reference_type = 'pos_sale'
+        AND movement.reference_id = ? AND movement.qty_change < 0
+      ORDER BY movement.id DESC
+      FOR UPDATE`,
+    [input.businessId, input.variantId, input.locationId, input.saleId],
+  );
+  if (movementRows.some((movement: any) => (
+    movement.cost_method_snapshot !== 'fifo' || Number(movement.cost_epoch_id) !== input.state.epochId
+  ))) {
+    throw new FifoCostingConflict(
+      `POS sale ${input.saleId} contains stock movements from another costing method or FIFO epoch and cannot be changed automatically.`,
+    );
+  }
+  const reversibleQuantity = movementRows.reduce(
+    (sum: number, movement: any) => sum + Math.max(0, Number(movement.reversible_quantity)),
+    0,
+  );
+  if (reversibleQuantity + 0.0001 < input.quantity) {
+    throw new FifoCostingConflict(
+      `POS sale ${input.saleId} has ${reversibleQuantity} units of reversible FIFO history for variant ${input.variantId}, but ${input.quantity} are required.`,
+    );
+  }
+
+  let remaining = input.quantity;
+  let resultingOnHand = input.currentOnHand;
+  for (const movement of movementRows) {
+    const quantity = Math.min(remaining, Math.max(0, Number(movement.reversible_quantity)));
+    if (quantity <= 0.0001) continue;
+    resultingOnHand += quantity;
+    await connection.execute(
+      `UPDATE ims_stock SET qty_on_hand = ?
+        WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
+      [resultingOnHand, input.businessId, input.variantId, input.locationId],
+    );
+    const [reversalMovement]: any = await connection.execute(
+      `INSERT INTO ims_stock_movements
+         (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id,
+          qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+       VALUES (?, ?, ?, 'pos_sale', 'pos', 'pos_sale', ?, ?, ?, 0, 'fifo', ?, ?)`,
+      [input.businessId, input.variantId, input.locationId, input.saleId, quantity,
+        resultingOnHand, input.state.epochId, input.note],
+    );
+    await reverseFifoStockMovementLayers(connection, {
+      businessId: input.businessId,
+      state: input.state,
+      originalMovementId: Number(movement.id),
+      reversalMovementId: Number(reversalMovement.insertId),
+      expectedQuantity: quantity,
+    });
+    remaining -= quantity;
+    if (remaining <= 0.0001) break;
+  }
+  return resultingOnHand;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -955,9 +1044,6 @@ export const PosSalesRepo = {
     try {
       await stockConn.beginTransaction();
       const costingState = await lockInventoryCostState(stockConn, sale.business_id);
-      if (costingState.method === 'fifo') {
-        throw new FifoCostingConflict('Completed FIFO POS sales cannot be voided until their original layer allocations can be restored safely. Use a linked POS return instead.');
-      }
       const [saleRows]: any = await stockConn.execute(
         `SELECT status FROM pos_sales WHERE id = ? LIMIT 1 FOR UPDATE`,
         [id],
@@ -966,6 +1052,20 @@ export const PosSalesRepo = {
       if (!['completed', 'layby_complete'].includes(saleRows[0].status)) {
         throw new Error(`Sale can no longer be voided from status ${saleRows[0].status}.`);
       }
+      if (costingState.method === 'fifo') {
+        if (!['sale', 'layby'].includes(sale.sale_type)) {
+          throw new FifoCostingConflict('FIFO POS returns and exchanges must be reversed through their linked customer credit note.');
+        }
+        const [linkedReturns]: any = await stockConn.execute(
+          `SELECT id FROM pos_sales
+            WHERE business_id = ? AND return_of_sale_id = ? AND sale_type = 'return' AND status = 'completed'
+            LIMIT 1 FOR UPDATE`,
+          [sale.business_id, id],
+        );
+        if (linkedReturns[0]) {
+          throw new FifoCostingConflict('This FIFO sale has linked returns. Reverse those customer credit notes before voiding the sale.');
+        }
+      }
 
       const giftCardReversals = await unwindGiftCardTransactionsForSale(stockConn, id);
       const loyaltyReversals = await LoyaltyRepository.reversePosSale(stockConn, {
@@ -973,7 +1073,18 @@ export const PosSalesRepo = {
         saleId: id,
         actorId,
       });
-      for (const item of items) {
+      const stockItems = costingState.method === 'fifo'
+        ? [...items.reduce((byVariant, item) => {
+            if (!item.variant_id) return byVariant;
+            const existingItem = byVariant.get(item.variant_id);
+            byVariant.set(item.variant_id, {
+              ...item,
+              qty: Number(existingItem?.qty ?? 0) + Number(item.qty),
+            });
+            return byVariant;
+          }, new Map<string, any>()).values()]
+        : items;
+      for (const item of stockItems) {
         if (!item.variant_id) continue;
         // Opposite of the sign applied in complete(): a normal sale had
         // deducted -qty, so reversing adds +qty back; a return had added
@@ -992,6 +1103,19 @@ export const PosSalesRepo = {
         if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
         const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
         const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
+        if (costingState.method === 'fifo') {
+          await restoreFifoPosSaleStock(stockConn, {
+            businessId: sale.business_id,
+            locationId: sale.location_id,
+            saleId: id,
+            state: costingState,
+            variantId: item.variant_id,
+            quantity: Number(item.qty),
+            currentOnHand: currentSoh,
+            note: 'Voided by manager PIN',
+          });
+          continue;
+        }
         const stockPlan = await applyPosStockMovementWithFloor(stockConn, {
           businessId: sale.business_id,
           variantId: item.variant_id,
@@ -1031,7 +1155,9 @@ export const PosSalesRepo = {
       return { giftCardReversals, loyaltyReversals, stockWarnings };
     } catch (err) {
       await stockConn.rollback();
-      if (!(err instanceof LoyaltyValidationError) && !(err instanceof LoyaltyVoidBlockedError)) {
+      if (!(err instanceof LoyaltyValidationError)
+        && !(err instanceof LoyaltyVoidBlockedError)
+        && !(err instanceof FifoCostingConflict)) {
         await reportRuntimeIssue({
           businessId: sale.business_id,
           source: 'pos_loyalty',
@@ -1090,12 +1216,10 @@ export const PosSalesRepo = {
     const conn = await pool.getConnection();
     let loyaltyWriteAttempted = false;
     let loyalty: LoyaltyMutationResult | null = null;
+    let fifoStockHandled = false;
     try {
       await conn.beginTransaction();
       const editCostingState = await lockInventoryCostState(conn, oldSale.business_id);
-      if (editCostingState.method === 'fifo') {
-        throw new FifoCostingConflict('Completed FIFO POS transactions cannot be edited because changing sold quantities would rewrite historical layer allocations. Void or return the affected items through an allocation-aware workflow.');
-      }
 
       const [lockedSaleRows] = await conn.execute<any[]>(
         `SELECT business_id, customer_id, status, sale_type, loyalty_earn_rate
@@ -1117,6 +1241,50 @@ export const PosSalesRepo = {
       );
       if (linkedReturns[0]) {
         throw new LoyaltyEditBlockedError('This sale has linked returns and can no longer be edited. Void or correct the linked return first.');
+      }
+      if (editCostingState.method === 'fifo') {
+        if (!['completed', 'layby_complete'].includes(String(lockedSale.status))
+          || !['sale', 'layby'].includes(String(lockedSale.sale_type))
+          || !['sale', 'layby'].includes(data.sale_type)) {
+          throw new FifoCostingConflict('FIFO manager edits support completed sales and laybys only. Reverse linked returns through their customer credit note.');
+        }
+        const oldQuantityByVariant = new Map<string, number>();
+        for (const item of oldItems) {
+          if (!item.variant_id) continue;
+          oldQuantityByVariant.set(
+            item.variant_id,
+            Number(oldQuantityByVariant.get(item.variant_id) ?? 0) + Number(item.qty),
+          );
+        }
+        for (const [variantId, quantity] of oldQuantityByVariant) {
+          const [stockRows]: any = await conn.execute(
+            `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, COALESCE(p.is_stock_item, 1) AS is_stock_item
+               FROM ims_product_variants pv
+               JOIN ims_products p ON p.product_id = pv.product_id
+               LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
+              WHERE pv.variant_id = ? LIMIT 1
+              FOR UPDATE`,
+            [oldSale.location_id, variantId],
+          );
+          if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
+          await restoreFifoPosSaleStock(conn, {
+            businessId: oldSale.business_id,
+            locationId: oldSale.location_id,
+            saleId: id,
+            state: editCostingState,
+            variantId,
+            quantity,
+            currentOnHand: Number(stockRows[0]?.qty_on_hand ?? 0),
+            note: 'Reversed for manager transaction edit',
+          });
+        }
+        await applyCompletedPosSaleStock(conn, {
+          ...data,
+          business_id: oldSale.business_id,
+          location_id: oldSale.location_id,
+          status: lockedSale.status,
+        }, id, editCostingState);
+        fifoStockHandled = true;
       }
 
       let earnRate = Number(lockedSale.loyalty_earn_rate);
@@ -1203,7 +1371,10 @@ export const PosSalesRepo = {
       await conn.commit();
     } catch (err) {
       await conn.rollback();
-      if (loyaltyWriteAttempted && !(err instanceof LoyaltyValidationError) && !(err instanceof LoyaltyEditBlockedError)) {
+      if (loyaltyWriteAttempted
+        && !(err instanceof LoyaltyValidationError)
+        && !(err instanceof LoyaltyEditBlockedError)
+        && !(err instanceof FifoCostingConflict)) {
         await reportRuntimeIssue({
           businessId: oldSale.business_id,
           source: 'pos_loyalty',
@@ -1223,7 +1394,7 @@ export const PosSalesRepo = {
     // only when the sale had actually deducted/added stock in the first place.
     let stockError: string | undefined;
     const stockWarnings: PosStockWarning[] = [];
-    if (['completed', 'layby_complete'].includes(oldSale.status)) {
+    if (!fifoStockHandled && ['completed', 'layby_complete'].includes(oldSale.status)) {
       const netEffect = (saleType: string, qty: number) => (saleType === 'return' ? qty : -qty);
 
       const oldMap = new Map<string, number>();

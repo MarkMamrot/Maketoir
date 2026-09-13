@@ -38,7 +38,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from './avgCostMath';
-import { consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, createFifoSalesOrderReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
+import { assertFifoCatalogueDeletionAllowed, consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, createFifoSalesOrderReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -806,8 +806,32 @@ export const ImsProductsRepo = {
     await imsExecute(`UPDATE ims_products SET ${sets.join(', ')} WHERE product_id = ?`, vals);
   },
 
-  async delete(productId: string): Promise<void> {
-    await imsExecute(`DELETE FROM ims_products WHERE product_id = ?`, [productId]);
+  async delete(productId: string, businessId: string): Promise<void> {
+    const connection = await getIMSPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [variantRows] = await connection.execute<any[]>(
+        `SELECT variant_id
+           FROM ims_product_variants
+          WHERE product_id = ? AND business_id = ?`,
+        [productId, businessId],
+      );
+      await assertFifoCatalogueDeletionAllowed(connection, {
+        businessId,
+        variantIds: variantRows.map(row => String(row.variant_id)),
+        label: 'This product',
+      });
+      await connection.execute(
+        `DELETE FROM ims_products WHERE product_id = ? AND business_id = ?`,
+        [productId, businessId],
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   /** Returns { productId: primaryImageUrl } for products that have at least one image.
@@ -977,8 +1001,26 @@ export const ImsVariantsRepo = {
     await imsExecute(`UPDATE ims_product_variants SET ${sets.join(', ')} WHERE variant_id = ?`, vals);
   },
 
-  async delete(variantId: string): Promise<void> {
-    await imsExecute(`DELETE FROM ims_product_variants WHERE variant_id = ?`, [variantId]);
+  async delete(variantId: string, businessId: string): Promise<void> {
+    const connection = await getIMSPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      await assertFifoCatalogueDeletionAllowed(connection, {
+        businessId,
+        variantIds: [variantId],
+        label: 'This variant',
+      });
+      await connection.execute(
+        `DELETE FROM ims_product_variants WHERE variant_id = ? AND business_id = ?`,
+        [variantId, businessId],
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async findByBarcodeOrSku(query: string): Promise<ImsVariant | null> {
@@ -5701,9 +5743,10 @@ async function restockCreditNoteItemsTx(
     const s = (rows as any[])[0];
     const [movementResult] = await conn.execute<any>(
       `INSERT INTO ims_stock_movements
-         (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,cost_method_snapshot,cost_epoch_id)
-       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?,?,?)`,
-      [businessId, item.variant_id, locationId, channel, cnId, qty, s?.qty_on_hand ?? 0,
+         (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,source_line_id,
+          qty_change,qty_after_soh,cost_method_snapshot,cost_epoch_id)
+       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?,?,?,?)`,
+      [businessId, item.variant_id, locationId, channel, cnId, item.id, qty, s?.qty_on_hand ?? 0,
         costing.costingState.method, costing.costingState.epochId],
     );
     if (costing.costingState.method === 'fifo') {
@@ -6420,10 +6463,11 @@ async function returnStockToSupplierTx(
     );
     const [movementResult] = await conn.execute<any>(
       `INSERT INTO ims_stock_movements
-         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,
-          unit_cost,cost_method_snapshot,cost_epoch_id)
-       VALUES (?,?,?,'scn_returned','supplier_credit_note',?,?,?,?,?,?)`,
-      [businessId, item.variant_id, locationId, scnId, -qty, newSoh, unitCost, costingState.method, costingState.epochId],
+        (business_id,variant_id,location_id,movement_type,reference_type,reference_id,source_line_id,
+         qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
+       VALUES (?,?,?,'scn_returned','supplier_credit_note',?,?,?,?,?,?,?)`,
+      [businessId, item.variant_id, locationId, scnId, item.id, -qty, newSoh, unitCost,
+        costingState.method, costingState.epochId],
     );
     if (costingState.method === 'fifo') {
       await consumeFifoCostLayers(conn, {

@@ -102,7 +102,37 @@ describe('empty tenant report contracts', () => {
   it('returns an empty Inventory Valuation report', async () => {
     const response = await getInventoryValuation(request('/api/ims/reports/inventory-valuation'));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true, data: [] });
+    expect(await response.json()).toEqual({
+      success: true,
+      data: [],
+      costing_method: 'average_cost',
+      cost_epoch_id: null,
+      reconciliation: {
+        status: 'balanced', mismatched_sku_count: 0, stock_quantity: 0, valued_quantity: 0,
+      },
+    });
+  });
+
+  it('values FIFO inventory from remaining layers and reports quantity mismatches', async () => {
+    mocks.imsQuery
+      .mockResolvedValueOnce([{ active_method: 'fifo', active_epoch_id: 12 }])
+      .mockResolvedValueOnce([{
+        variant_id: 'v-1', sku: 'SKU-1', name: 'Product', brand: 'Brand', supplier_name: 'Supplier',
+        cost: '5', soh: '3', total_value: '10', layer_quantity: '2',
+      }]);
+
+    const response = await getInventoryValuation(request('/api/ims/reports/inventory-valuation'));
+    const body = await response.json();
+
+    expect(body).toMatchObject({
+      success: true,
+      costing_method: 'fifo',
+      cost_epoch_id: 12,
+      reconciliation: { status: 'mismatch', mismatched_sku_count: 1, stock_quantity: 3, valued_quantity: 2 },
+      data: [{ cost: 5, soh: 3, total_value: 10, layer_quantity: 2, reconciliation_delta: 1 }],
+    });
+    expect(mocks.imsQuery.mock.calls[1][0]).toContain('SUM(remaining_quantity * unit_cost) AS layer_value');
+    expect(mocks.imsQuery.mock.calls[1][1]).toEqual(['business-1', 'business-1', 12, 'business-1']);
   });
 
   it('returns an empty Product Margin report', async () => {

@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  assertFifoCatalogueDeletionAllowed,
   consumeFifoCostLayers,
   createFifoPosReturnLayers,
   createFifoSalesOrderReturnLayers,
   createFifoCostLayer,
   FifoCostingConflict,
   lockInventoryCostState,
+  reverseFifoStockMovementLayers,
   transferFifoCostLayers,
 } from '../fifoCostingService';
 
@@ -26,6 +28,48 @@ describe('FIFO costing service', () => {
     });
     expect(execute.mock.calls[0][0]).toContain('INSERT IGNORE INTO ims_inventory_cost_state');
     expect(execute.mock.calls[1][0]).toContain('FOR UPDATE');
+  });
+
+  it('blocks catalogue deletion while FIFO is active before checking history', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT active_method')) {
+        return [[{ active_method: 'fifo', active_epoch_id: 4, revision: 2 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(assertFifoCatalogueDeletionAllowed({ execute } as any, {
+      businessId: 'biz-1', variantIds: ['v-1'], label: 'This variant',
+    })).rejects.toMatchObject({ code: 'FIFO_COSTING_CONFLICT', message: expect.stringContaining('FIFO costing is active') });
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('ims_fifo_cost_layers'))).toBe(false);
+  });
+
+  it('blocks catalogue deletion when historical FIFO layers exist under Average Cost', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT active_method')) {
+        return [[{ active_method: 'average_cost', active_epoch_id: null, revision: 3 }]];
+      }
+      if (sql.includes('ims_fifo_cost_layers')) return [[{ has_fifo_history: 1 }]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(assertFifoCatalogueDeletionAllowed({ execute } as any, {
+      businessId: 'biz-1', variantIds: ['v-1'], label: 'This product',
+    })).rejects.toMatchObject({ code: 'FIFO_COSTING_CONFLICT', message: expect.stringContaining('FIFO cost history exists') });
+  });
+
+  it('allows Average Cost catalogue deletion when no FIFO history exists', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT active_method')) {
+        return [[{ active_method: 'average_cost', active_epoch_id: null, revision: 1 }]];
+      }
+      if (sql.includes('ims_fifo_cost_layers')) return [[{ has_fifo_history: 0 }]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(assertFifoCatalogueDeletionAllowed({ execute } as any, {
+      businessId: 'biz-1', variantIds: ['v-1'], label: 'This variant',
+    })).resolves.toBeUndefined();
   });
 
   it('creates an inbound layer only in an active FIFO epoch', async () => {
@@ -108,6 +152,111 @@ describe('FIFO costing service', () => {
     expect(error.message).toContain('cover 2 units, but 3 are required');
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO ims_fifo_cost_allocations'))).toBe(false);
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock_movements'))).toBe(false);
+  });
+
+  it('restores exact original FIFO consumption allocations during reversal', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT qty_change')) {
+        return [[{ qty_change: -3, cost_method_snapshot: 'fifo', cost_epoch_id: 4 }]];
+      }
+      if (sql.includes("allocation.allocation_type = 'consume'")) {
+        return [[
+          { id: 11, layer_id: 1, quantity: 2, unit_cost: 10, allocated_value: 20 },
+          { id: 12, layer_id: 2, quantity: 1, unit_cost: 12, allocated_value: 12 },
+        ]];
+      }
+      if (sql.includes('reversal_of_allocation_id IN')) return [[]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(reverseFifoStockMovementLayers({ execute } as any, {
+      businessId: 'biz-1', state: { method: 'fifo', epochId: 4, revision: 2 },
+      originalMovementId: 90, reversalMovementId: 91, expectedQuantity: 3,
+    })).resolves.toEqual({ allocatedValue: 32, unitCost: 32 / 3, allocationCount: 2 });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity + ?'),
+      [2, 1, 'biz-1', 4, 2],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("'restore'"),
+      ['biz-1', 4, 91, 1, 2, 10, 20, 11],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("cost_method_snapshot = 'fifo'"),
+      [32 / 3, 4, 91, 'biz-1'],
+    );
+  });
+
+  it('reverses an untouched inbound FIFO layer without deleting its history', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT qty_change')) {
+        return [[{ qty_change: 2, cost_method_snapshot: 'fifo', cost_epoch_id: 4 }]];
+      }
+      if (sql.includes('source_movement_id')) {
+        return [[{ id: 7, original_quantity: 2, remaining_quantity: 2, unit_cost: 5.5 }]];
+      }
+      if (sql.includes("allocation_type = 'reverse_inbound'")) return [[]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(reverseFifoStockMovementLayers({ execute } as any, {
+      businessId: 'biz-1', state: { method: 'fifo', epochId: 4, revision: 2 },
+      originalMovementId: 90, reversalMovementId: 91, expectedQuantity: 2,
+    })).resolves.toEqual({ allocatedValue: 11, unitCost: 5.5, allocationCount: 1 });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity - ?'),
+      [2, 7, 'biz-1', 4, 2],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("'reverse_inbound'"),
+      ['biz-1', 4, 91, 7, 2, 5.5, 11],
+    );
+  });
+
+  it('blocks inbound reversal after any of its FIFO layer was consumed', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT qty_change')) {
+        return [[{ qty_change: 2, cost_method_snapshot: 'fifo', cost_epoch_id: 4 }]];
+      }
+      if (sql.includes('source_movement_id')) {
+        return [[{ id: 7, original_quantity: 2, remaining_quantity: 1, unit_cost: 5.5 }]];
+      }
+      if (sql.includes("allocation_type = 'reverse_inbound'")) return [[]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(reverseFifoStockMovementLayers({ execute } as any, {
+      businessId: 'biz-1', state: { method: 'fifo', epochId: 4, revision: 2 },
+      originalMovementId: 90, reversalMovementId: 91, expectedQuantity: 2,
+    })).rejects.toThrow('already been used or moved');
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_fifo_cost_layers'))).toBe(false);
+  });
+
+  it('supports repeated partial reversal without treating prior reversal as stock consumption', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT qty_change')) {
+        return [[{ qty_change: 4, cost_method_snapshot: 'fifo', cost_epoch_id: 4 }]];
+      }
+      if (sql.includes('source_movement_id')) {
+        return [[{ id: 7, original_quantity: 4, remaining_quantity: 3, unit_cost: 5.5 }]];
+      }
+      if (sql.includes("allocation_type = 'reverse_inbound'")) {
+        return [[{ layer_id: 7, reversed_quantity: 1 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(reverseFifoStockMovementLayers({ execute } as any, {
+      businessId: 'biz-1', state: { method: 'fifo', epochId: 4, revision: 2 },
+      originalMovementId: 90, reversalMovementId: 92, expectedQuantity: 2,
+    })).resolves.toEqual({ allocatedValue: 11, unitCost: 5.5, allocationCount: 1 });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity - ?'),
+      [2, 7, 'biz-1', 4, 3],
+    );
   });
 
   it('transfers FIFO lineage into destination child layers', async () => {

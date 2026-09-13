@@ -8,6 +8,7 @@ import { enrichPosSaleItemsWithCosts } from '@/lib/ims/posSaleCosts.server';
 import { GiftCardVoidBlockedError } from '@/lib/pos/giftCardSaleVoid';
 import { LoyaltyVoidBlockedError } from '@/lib/ims/LoyaltyRepository';
 import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 // GET /api/ims/pos-sales/[id]
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -99,6 +100,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     if (err instanceof LoyaltyVoidBlockedError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    if (err instanceof FifoCostingConflict) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }

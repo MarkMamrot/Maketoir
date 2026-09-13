@@ -124,14 +124,14 @@ describe('assistant knowledge retrieval', () => {
     expect(results.some(result => result.title === 'Online Shop')).toBe(false);
   });
 
-  it('returns the organisation-wide weighted-average inventory cost method', () => {
+  it('returns the business-wide inventory costing methods', () => {
     const results = retrieveAssistantKnowledge({
       query: 'What kind of inventory cost system does Solvantis use?',
       audience: 'ims',
     });
     expect(results.some(result => result.title === 'Inventory Costing and Stock Value')).toBe(true);
-    expect(results.some(result => result.content.includes('one organisation-wide weighted-average cost for each variant'))).toBe(true);
-    expect(results.some(result => result.content.includes('not separate FIFO or LIFO cost layers'))).toBe(true);
+    expect(results.some(result => result.content.includes('Average Cost and first in, first out (FIFO)'))).toBe(true);
+    expect(results.some(result => result.content.includes('One method applies to the whole business at a time'))).toBe(true);
   });
 
   it('recognizes WAC and COGS inventory terminology', () => {
@@ -140,8 +140,9 @@ describe('assistant knowledge retrieval', () => {
       audience: 'ims',
     });
     const costing = results.find(result => result.title === 'Inventory Costing and Stock Value' && result.heading === 'Main operations');
-    expect(costing?.content).toContain('historical margin and cost of goods sold (COGS)');
-    expect(costing?.content).toContain("today's inventory valuation");
+    expect(costing?.content).toContain('Settings > General > Inventory Costing');
+    expect(costing?.content).toContain('What cost was attached to an earlier receipt, sale or return?');
+    expect(costing?.content).toContain('Inventory Valuation');
   });
 
   it('keeps wholesale account ownership guidance within wholesale results', () => {

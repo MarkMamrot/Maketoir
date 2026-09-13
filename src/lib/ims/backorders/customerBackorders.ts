@@ -2,6 +2,7 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 import { calculateBackorderSplit, nextBackorderNumber } from './domain';
 import { StockShortfallError } from '../orderResolution/stockShortfall';
 import { reconcileStockAllocationsForFulfilment, transferStockAllocationsToBackorderLine } from '../stockAllocation/service';
+import { consumeFifoCostLayers, lockInventoryCostState } from '../costing/fifoCostingService';
 
 type FulfilQuantity = { itemId: number; quantity: number };
 
@@ -93,6 +94,8 @@ export async function splitCustomerBackorder(input: {
         allocationFulfilments: [],
       };
     }
+
+    const costingState = await lockInventoryCostState(conn, input.businessId);
 
     if (so.status !== 'confirmed') throw new Error('Only confirmed sales orders can be partially fulfilled.');
     if (so.is_historical) throw new Error('Historical sales orders cannot be backordered.');
@@ -250,20 +253,34 @@ export async function splitCustomerBackorder(input: {
       const oldSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
       const avgCost = Number(stockRows[0]?.avg_cost ?? 0);
       const newSoh = oldSoh - Number(item.qty_ordered);
+      let fulfilmentCost = avgCost;
       await conn.execute(
         `UPDATE ims_stock SET qty_on_hand = ?, qty_committed = GREATEST(0, qty_committed - ?)
           WHERE variant_id = ? AND location_id = ?`,
         [newSoh, item.qty_ordered, item.variant_id, so.location_id],
       );
+      const [movementResult] = await conn.execute<any>(
+        `INSERT INTO ims_stock_movements
+          (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id,
+           source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'so_fulfilled', 'wholesale', 'sales_order', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [input.businessId, item.variant_id, so.location_id, input.soId, item.id, -Number(item.qty_ordered), newSoh,
+          fulfilmentCost, costingState.method, costingState.epochId, `Backorder split ${operationKey}`],
+      );
+      if (costingState.method === 'fifo') {
+        const fifoConsumption = await consumeFifoCostLayers(conn, {
+          businessId: input.businessId,
+          state: costingState,
+          variantId: String(item.variant_id),
+          locationId: Number(so.location_id),
+          stockMovementId: Number(movementResult.insertId),
+          quantity: Number(item.qty_ordered),
+        });
+        fulfilmentCost = fifoConsumption.unitCost;
+      }
       await conn.execute(
         `UPDATE ims_sales_order_items SET qty_fulfilled = qty_ordered, unit_cost = ? WHERE id = ?`,
-        [avgCost, item.id],
-      );
-      await conn.execute(
-        `INSERT INTO ims_stock_movements
-          (variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
-         VALUES (?, ?, 'so_fulfilled', 'wholesale', 'sales_order', ?, ?, ?, ?)`,
-        [item.variant_id, so.location_id, input.soId, -Number(item.qty_ordered), newSoh, avgCost],
+        [fulfilmentCost, item.id],
       );
     }
     await conn.execute(

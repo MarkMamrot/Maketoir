@@ -29,7 +29,7 @@ Reports are read-only views of operational information. Choose a report by the q
 
 ## Reading results
 
-Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Inventory Valuation answers a current-value question; historical margin answers what was recorded when the sale or stock movement happened.
+Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation answers a current-value question; historical margin answers what was recorded when the sale or stock movement happened.
 
 > **Tip:** When two totals differ, compare the same date meaning, date range, locations, statuses, transaction types, and GST treatment before looking for a data problem.
 
@@ -40,7 +40,7 @@ Sales reports commonly show selling amounts including GST. Margin and cost of go
 | No rows appear | Date range, search text, location, and status | Clear filters one at a time |
 | A summary differs from a detail report | Grouping and transaction coverage | Trace several source rows with matching filters |
 | Margin is blank or partial | Cost coverage | Review the recorded sale or movement cost |
-| Branch valuation differs | Stock quantity at each branch | Remember that current average cost is shared across locations |
+| Branch valuation differs | Stock quantity and active costing method | Average Cost is shared; FIFO values the layers remaining at each location |
 
 ## Worked examples
 
@@ -50,4 +50,4 @@ Open **Sales Detail**, choose the required branch and date range, and note the t
 
 ### Explain current stock value
 
-Open **Inventory Valuation**, select the location, and compare each quantity with its current average cost. Use Stock Levels and recent receipts when the present average needs explaining.
+Open **Inventory Valuation**, select the location, and compare each quantity with its value under the active method. Under Average Cost, review the current shared cost; under FIFO, review the remaining location layers and recent movements.

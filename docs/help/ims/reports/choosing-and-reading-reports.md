@@ -69,17 +69,17 @@ Do not assume every report uses fulfilment date or accounting-posting date. Use 
 | Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |
 | Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |
 | Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |
-| Current average cost | Current organisation-wide average for a variant | Today's inventory valuation |
+| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |
 | Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |
 
-| Cost question | Use current average cost? | Use historical attached cost? |
+| Cost question | Use current inventory cost? | Use historical attached cost? |
 |---|---:|---:|
 | What is stock on hand worth now? | Yes | No |
 | What did this sale cost when recorded? | No | Yes |
 | Why did today's receipt change valuation? | Yes | Review the receipt that changed it |
 | Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |
 
-> **Important:** A later receipt can change current average cost without rewriting the cost already attached to an earlier sale or stock movement.
+> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.
 
 ### Ask Assistant for a sales comparison
 
@@ -94,7 +94,7 @@ Attached COGS and gross profit are reported only for sales whose full sold quant
 | Two sales totals differ | Different source coverage, dates, locations, statuses, or GST treatment | Align each choice and compare source rows |
 | Gross profit is blank | No covered sale value or incomplete cost coverage | Inspect attached cost and the source movements |
 | COGS coverage is below 100% | Some sold quantity has no complete attached cost | Review the affected sales and movement history |
-| Current valuation changed but old margin did not | Average cost changed after the historical sale | Use current cost for valuation and historical cost for that sale |
+| Current valuation changed but old margin did not | Current Average Cost or remaining FIFO layers changed after the historical sale | Use current method valuation and historical attached cost for that sale |
 | Export differs from the screen you expected | Filters changed or export includes all selected pages or groups | Recheck active filters and totals before exporting |
 
 ## Worked examples
@@ -105,4 +105,4 @@ A sale amount of $110 including GST has a tax-exclusive value of $100. If its at
 
 ### Separate current and historical cost
 
-A jacket sale recorded an attached cost of $50. A later receipt moves the current average cost to $58. Inventory Valuation uses $58 for jackets still on hand; the earlier sale keeps its $50 historical cost for margin reporting.
+A jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.

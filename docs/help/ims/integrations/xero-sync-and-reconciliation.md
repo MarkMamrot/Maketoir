@@ -84,6 +84,7 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 | Many entries fail together | Connection expired or Xero unavailable | Reauthorize and retry affected entries |
 | One source is blocked | A required mapping or source condition is missing | Correct the named item and retry that entry |
 | COGS does not reconcile | Missing or incomplete historical cost coverage, or journal not posted | Review COGS Reconciliation and source movement cost |
+| COGS changes after a return or manager correction | The completed return or correction changed the period's captured movement cost | Review the revised period total and post the offered adjustment journal rather than repeating the source transaction |
 | Shopify payout will not post | Invoice, credit, clearing account, fee account, tax, currency, or total does not balance | Fix the named difference and replan |
 | Entry was dismissed | It was removed from the active queue, not synced | Find it in history and use the available manual retry if still required |
 

@@ -27,6 +27,7 @@ function connectionFor(kind: 'customer' | 'supplier', options: {
   contactCredit?: number;
   stockOnHand?: number;
   costingMethod?: 'average_cost' | 'fifo';
+  fifoLayerRemaining?: number;
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -89,11 +90,30 @@ function connectionFor(kind: 'customer' | 'supplier', options: {
         location_id: 4,
         qty_change: kind === 'customer' ? 3 : -3,
         unit_cost: 5.5,
+        source_line_id: kind === 'customer' ? 21 : 31,
+        cost_method_snapshot: options.costingMethod ?? 'average_cost',
+        cost_epoch_id: options.costingMethod === 'fifo' ? 12 : null,
       }]];
     }
     if (normalized.includes('select qty_on_hand') && normalized.includes('from ims_stock')) {
       return [[{ qty_on_hand: options.stockOnHand ?? 7 }]];
     }
+    if (normalized.startsWith('insert into ims_stock_movements')) return [{ insertId: 92, affectedRows: 1 }];
+    if (normalized.startsWith('select qty_change')) {
+      return [[{
+        qty_change: kind === 'customer' ? 3 : -3,
+        cost_method_snapshot: options.costingMethod ?? 'average_cost',
+        cost_epoch_id: options.costingMethod === 'fifo' ? 12 : null,
+      }]];
+    }
+    if (normalized.includes('source_movement_id')) {
+      return [[{ id: 71, original_quantity: 3, remaining_quantity: options.fifoLayerRemaining ?? 3, unit_cost: 5.5 }]];
+    }
+    if (normalized.includes("allocation.allocation_type = 'consume'")) {
+      return [[{ id: 61, layer_id: 51, quantity: 3, unit_cost: 4.25, allocated_value: 12.75 }]];
+    }
+    if (normalized.includes('reversal_of_allocation_id in')) return [[]];
+    if (normalized.includes("allocation_type = 'reverse_inbound'")) return [[]];
     return [{ affectedRows: 1 }];
   });
   const connection = {
@@ -120,7 +140,7 @@ describe('credit-note correction transactions', () => {
     expect(result).toMatchObject({ id: 12, status: 'reversed', replayed: false, xeroCorrectionStatus: 'queued' });
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("'cn_return_reversed'"),
-      ['biz-1', 'v-1', 4, 12, -3, 4, 5.5, 'Entered twice'],
+      ['biz-1', 'v-1', 4, 12, 21, -3, 4, 5.5, 'average_cost', null, 'Entered twice'],
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("VALUES (?, 'adjust'"),
@@ -175,16 +195,30 @@ describe('credit-note correction transactions', () => {
     expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
-  it('blocks FIFO customer-return reversal before credit or stock mutation', async () => {
+  it('reverses untouched FIFO customer-return layers before reversing store credit', async () => {
     const connection = connectionFor('customer', { costingMethod: 'fifo' });
+
+    const result = await reverseCustomerCreditNote({
+      businessId: 'biz-1', documentId: 12, reason: 'Entered twice', context, xeroCorrectionRequired: false,
+    });
+
+    expect(result).toMatchObject({ status: 'reversed' });
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity - ?'),
+      [3, 71, 'biz-1', 12, 3],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('blocks FIFO customer-return reversal after returned stock was consumed', async () => {
+    const connection = connectionFor('customer', { costingMethod: 'fifo', fifoLayerRemaining: 2 });
 
     await expect(reverseCustomerCreditNote({
       businessId: 'biz-1', documentId: 12, reason: 'Entered twice', context, xeroCorrectionRequired: false,
-    })).rejects.toThrow('exact restored cost layers must be removed');
+    })).rejects.toThrow('already been used or moved');
 
     expect(connection.rollback).toHaveBeenCalledOnce();
-    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('store_credit_transactions'), expect.anything());
-    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('FROM ims_stock_movements'), expect.anything());
+    expect(connection.commit).not.toHaveBeenCalled();
   });
 
   it('restores supplier-return stock using the original movement cost', async () => {
@@ -197,7 +231,7 @@ describe('credit-note correction transactions', () => {
     expect(result).toMatchObject({ id: 15, status: 'reversed', xeroCorrectionStatus: 'not_required' });
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("'scn_return_reversed'"),
-      ['biz-1', 'v-1', 4, 15, 3, 10, 5.5, 'Supplier return entered twice'],
+      ['biz-1', 'v-1', 4, 15, 31, 3, 10, 5.5, 'average_cost', null, 'Supplier return entered twice'],
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("SET state = 'complete'"),
@@ -206,15 +240,22 @@ describe('credit-note correction transactions', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
-  it('blocks FIFO supplier-return reversal before movement evidence or stock mutation', async () => {
+  it('restores exact FIFO allocations for supplier-return reversal', async () => {
     const connection = connectionFor('supplier', { costingMethod: 'fifo' });
 
-    await expect(reverseSupplierCreditNote({
+    const result = await reverseSupplierCreditNote({
       businessId: 'biz-1', documentId: 15, reason: 'Supplier return entered twice', context, xeroCorrectionRequired: false,
-    })).rejects.toThrow('exact consumed cost layers must be restored');
+    });
 
-    expect(connection.rollback).toHaveBeenCalledOnce();
-    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('FROM ims_stock_movements'), expect.anything());
-    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET'), expect.anything());
+    expect(result).toMatchObject({ status: 'reversed' });
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity + ?'),
+      [3, 51, 'biz-1', 12, 3],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("'restore'"),
+      ['biz-1', 12, 92, 51, 3, 4.25, 12.75, 61],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });

@@ -6,7 +6,13 @@ import { computeAverageCostAfterReversal, computeWeightedAverageCost } from '../
 import { refreshVariantCache } from '../cacheHelper';
 import { recomputeBuildRequirementsSafely } from './buildRequirementService';
 import { assertBuildsEnabledOnConnection } from './buildFromSalePolicy';
-import { consumeFifoCostLayers, createFifoCostLayer, FifoCostingConflict, lockInventoryCostState } from '../costing/fifoCostingService';
+import {
+  consumeFifoCostLayers,
+  createFifoCostLayer,
+  FifoCostingConflict,
+  lockInventoryCostState,
+  reverseFifoStockMovementLayers,
+} from '../costing/fifoCostingService';
 import {
   aggregateBuildComponentDemand,
   calculateBuildUnitCost,
@@ -753,6 +759,7 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
       await connection.commit();
       return { reversalId: Number(existing[0].id), reversalNumber: existing[0].reversal_number, replayed: true };
     }
+    const costingState = await lockInventoryCostState(connection, input.businessId);
     const [items] = await connection.execute<RowDataPacket[]>(
       `SELECT i.*, b.location_id, b.source_channel, b.status AS batch_status
          FROM ims_product_build_items i
@@ -776,6 +783,38 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
         quantityPerOutput: Number(component.quantity_per_output),
       })),
     );
+    const fifoMovements = new Map<string, RowDataPacket>();
+    if (costingState.method === 'fifo') {
+      const [movementRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT id, variant_id, movement_type, qty_change, cost_method_snapshot, cost_epoch_id
+           FROM ims_stock_movements
+          WHERE business_id = ? AND reference_type = 'product_build' AND reference_id = ?
+            AND movement_type IN ('build_component_consumed', 'build_output_produced')
+          ORDER BY id
+          FOR UPDATE`,
+        [input.businessId, input.buildItemId],
+      );
+      for (const movement of movementRows) {
+        const key = `${movement.movement_type}:${movement.variant_id}`;
+        if (fifoMovements.has(key)
+          || movement.cost_method_snapshot !== 'fifo'
+          || Number(movement.cost_epoch_id) !== costingState.epochId) {
+          throw new FifoCostingConflict(
+            'The original product build does not have unique FIFO movement history in the active valuation epoch. Complete a reviewed corrective stocktake instead.',
+          );
+        }
+        fifoMovements.set(key, movement);
+      }
+      const expectedKeys = [
+        `build_output_produced:${item.output_variant_id}`,
+        ...componentQuantities.map(component => `build_component_consumed:${component.variantId}`),
+      ];
+      if (expectedKeys.some(key => !fifoMovements.has(key)) || fifoMovements.size !== expectedKeys.length) {
+        throw new FifoCostingConflict(
+          'The original product build FIFO movement history is incomplete. Complete a reviewed corrective stocktake instead.',
+        );
+      }
+    }
     touchedVariantIds = [...new Set([String(item.output_variant_id), ...componentQuantities.map(component => component.variantId)])].sort();
     const variants = await loadVariants(connection, input.businessId, touchedVariantIds, true);
     const stocks = await ensureAndLoadStock(connection, input.businessId, Number(item.location_id), touchedVariantIds, true);
@@ -829,14 +868,24 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
       [outputAfter, input.businessId, item.output_variant_id, item.location_id],
     );
     await setOrganizationAverageCost(connection, input.businessId, String(item.output_variant_id), outputAverageAfter);
-    await connection.execute(
+    const [outputReversalMovement] = await connection.execute<ResultSetHeader>(
       `INSERT INTO ims_stock_movements
          (business_id, variant_id, location_id, movement_type, channel, reference_type,
-          reference_id, qty_change, qty_after_soh, unit_cost, notes)
-       VALUES (?, ?, ?, 'build_output_reversed', ?, 'product_build_reversal', ?, ?, ?, ?, ?)`,
+          reference_id, source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+       VALUES (?, ?, ?, 'build_output_reversed', ?, 'product_build_reversal', ?, ?, ?, ?, ?, ?, ?, ?)`,
       [input.businessId, item.output_variant_id, item.location_id, item.source_channel, reversalId,
-        -input.quantity, outputAfter, item.output_unit_cost, input.reason],
+        input.buildItemId, -input.quantity, outputAfter, item.output_unit_cost,
+        costingState.method, costingState.epochId, input.reason],
     );
+    if (costingState.method === 'fifo') {
+      await reverseFifoStockMovementLayers(connection, {
+        businessId: input.businessId,
+        state: costingState,
+        originalMovementId: Number(fifoMovements.get(`build_output_produced:${item.output_variant_id}`)!.id),
+        reversalMovementId: Number(outputReversalMovement.insertId),
+        expectedQuantity: input.quantity,
+      });
+    }
 
     for (const restored of componentQuantities) {
       const snapshot = componentRows.find(component => String(component.component_variant_id) === restored.variantId)!;
@@ -844,27 +893,38 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
       const variant = variants.get(restored.variantId)!;
       const oldOrganizationQty = Number(stocks.organizationQty.get(restored.variantId) ?? 0);
       const oldAverageCost = Number(variant.avg_cost ?? 0);
-      const capturedCost = Number(snapshot.component_avg_cost);
+      let capturedCost = Number(snapshot.component_avg_cost);
+      const componentAfter = Number(stock.qty_on_hand) + restored.quantity;
+      const [componentReversalMovement] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO ims_stock_movements
+           (business_id, variant_id, location_id, movement_type, channel, reference_type,
+            reference_id, source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'build_component_restored', ?, 'product_build_reversal', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [input.businessId, restored.variantId, item.location_id, item.source_channel, reversalId,
+          input.buildItemId, restored.quantity, componentAfter, capturedCost,
+          costingState.method, costingState.epochId, input.reason],
+      );
+      if (costingState.method === 'fifo') {
+        const fifoReversal = await reverseFifoStockMovementLayers(connection, {
+          businessId: input.businessId,
+          state: costingState,
+          originalMovementId: Number(fifoMovements.get(`build_component_consumed:${restored.variantId}`)!.id),
+          reversalMovementId: Number(componentReversalMovement.insertId),
+          expectedQuantity: restored.quantity,
+        });
+        capturedCost = fifoReversal.unitCost;
+      }
       const newAverageCost = computeWeightedAverageCost({
         oldQtyOnHand: oldOrganizationQty,
         oldAvgCost: oldAverageCost,
         receivedQty: restored.quantity,
         receivedUnitCostAud: capturedCost,
       });
-      const componentAfter = Number(stock.qty_on_hand) + restored.quantity;
       await connection.execute(
         `UPDATE ims_stock SET qty_on_hand = ? WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
         [componentAfter, input.businessId, restored.variantId, item.location_id],
       );
       await setOrganizationAverageCost(connection, input.businessId, restored.variantId, newAverageCost);
-      await connection.execute(
-        `INSERT INTO ims_stock_movements
-           (business_id, variant_id, location_id, movement_type, channel, reference_type,
-            reference_id, qty_change, qty_after_soh, unit_cost, notes)
-         VALUES (?, ?, ?, 'build_component_restored', ?, 'product_build_reversal', ?, ?, ?, ?, ?)`,
-        [input.businessId, restored.variantId, item.location_id, item.source_channel, reversalId,
-          restored.quantity, componentAfter, capturedCost, input.reason],
-      );
     }
     await connection.execute(
       `UPDATE ims_product_build_items SET quantity_reversed = quantity_reversed + ?
@@ -891,7 +951,10 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
     return { reversalId, reversalNumber, buildItemId: input.buildItemId, quantity: input.quantity, replayed: false, shopifyQueued };
   } catch (error) {
     await connection.rollback();
-    if (!(error instanceof ProductBuildValidationError) && !(error instanceof ProductBuildConflictError) && !(error instanceof RangeError)) {
+    if (!(error instanceof ProductBuildValidationError)
+      && !(error instanceof ProductBuildConflictError)
+      && !(error instanceof FifoCostingConflict)
+      && !(error instanceof RangeError)) {
       await reportUnexpected('reverse', input, error, { buildItemId: input.buildItemId, operationKey: input.operationKey });
     }
     throw error;

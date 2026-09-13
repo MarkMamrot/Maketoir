@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   lockInventoryCostState: vi.fn(),
   consumeFifoCostLayers: vi.fn(),
   createFifoCostLayer: vi.fn(),
+  reverseFifoStockMovementLayers: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -24,9 +25,14 @@ vi.mock('../costing/fifoCostingService', () => ({
   lockInventoryCostState: mocks.lockInventoryCostState,
   consumeFifoCostLayers: mocks.consumeFifoCostLayers,
   createFifoCostLayer: mocks.createFifoCostLayer,
+  reverseFifoStockMovementLayers: mocks.reverseFifoStockMovementLayers,
+  FifoCostingConflict: class FifoCostingConflict extends Error {
+    readonly code = 'FIFO_COSTING_CONFLICT';
+    readonly status = 409;
+  },
 }));
 
-import { completeProductBuildInTransaction, listProductBuildBatches, previewProductBuildBatch } from '../builds/buildService';
+import { completeProductBuildInTransaction, listProductBuildBatches, previewProductBuildBatch, reverseProductBuild } from '../builds/buildService';
 import { listBuildRequirements } from '../builds/buildRequirementService';
 import { saveProductBuildRecipe } from '../builds/recipeService';
 
@@ -45,6 +51,7 @@ describe('product build services', () => {
     mocks.lockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
     mocks.consumeFifoCostLayers.mockResolvedValue({ allocatedValue: 36, unitCost: 6, allocationCount: 1 });
     mocks.createFifoCostLayer.mockResolvedValue(201);
+    mocks.reverseFifoStockMovementLayers.mockResolvedValue({ allocatedValue: 13, unitCost: 13, allocationCount: 1 });
   });
 
   it('previews component availability as on hand less committed', async () => {
@@ -153,6 +160,58 @@ describe('product build services', () => {
       variantId: 'kit', sourceMovementId: 102, sourceReferenceId: 31,
       quantity: 3, unitCost: 13,
     }));
+  });
+
+  it('reverses FIFO build output and component movements through exact layer history', async () => {
+    mocks.lockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mocks.execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_settings')) return [[{ value: 'yes' }], []];
+      if (sql.includes('FROM ims_product_build_reversals')) return [[], []];
+      if (sql.includes('FROM ims_product_build_items i')) return [[{
+        id: 31, batch_id: 12, output_variant_id: 'kit', quantity_built: 3, quantity_reversed: 0,
+        output_unit_cost: 13, location_id: 7, source_channel: 'manual', batch_status: 'completed',
+      }], []];
+      if (sql.includes('FROM ims_product_build_item_components')) return [[{
+        component_variant_id: 'part-a', quantity_per_output: 2, component_avg_cost: 6,
+      }], []];
+      if (sql.includes('FROM ims_stock_movements')) return [[
+        { id: 101, variant_id: 'part-a', movement_type: 'build_component_consumed', qty_change: -6, cost_method_snapshot: 'fifo', cost_epoch_id: 6 },
+        { id: 102, variant_id: 'kit', movement_type: 'build_output_produced', qty_change: 3, cost_method_snapshot: 'fifo', cost_epoch_id: 6 },
+      ], []];
+      if (sql.includes('FROM ims_product_variants v')) return [[
+        { variant_id: 'kit', avg_cost: 13, is_active: 1, product_active: 1, is_stock_item: 1 },
+        { variant_id: 'part-a', avg_cost: 6, is_active: 1, product_active: 1, is_stock_item: 1 },
+      ], []];
+      if (sql.includes('SELECT variant_id, location_id, qty_on_hand')) return [[
+        { variant_id: 'kit', location_id: 7, qty_on_hand: 3, qty_committed: 0 },
+        { variant_id: 'part-a', location_id: 7, qty_on_hand: 4, qty_committed: 0 },
+      ], []];
+      if (sql.includes('INSERT IGNORE INTO ims_product_build_reversals')) return [{ insertId: 41 }, []];
+      if (sql.includes("'build_output_reversed'")) return [{ insertId: 103 }, []];
+      if (sql.includes("'build_component_restored'")) return [{ insertId: 104 }, []];
+      if (sql.includes('COUNT(*) AS remaining')) return [[{ remaining: 1, affected: 1 }], []];
+      if (sql.includes('information_schema.TABLES')) return [[], []];
+      return [{ affectedRows: 1 }, []];
+    });
+    mocks.reverseFifoStockMovementLayers
+      .mockResolvedValueOnce({ allocatedValue: 13, unitCost: 13, allocationCount: 1 })
+      .mockResolvedValueOnce({ allocatedValue: 12, unitCost: 6, allocationCount: 1 });
+
+    await expect(reverseProductBuild({
+      businessId: 'business-1',
+      buildItemId: 31,
+      quantity: 1,
+      reason: 'Built in error',
+      operationKey: 'reverse-fifo-1',
+    })).resolves.toMatchObject({ reversalId: 41, quantity: 1, replayed: false });
+
+    expect(mocks.reverseFifoStockMovementLayers).toHaveBeenNthCalledWith(1, connection, expect.objectContaining({
+      originalMovementId: 102, reversalMovementId: 103, expectedQuantity: 1,
+    }));
+    expect(mocks.reverseFifoStockMovementLayers).toHaveBeenNthCalledWith(2, connection, expect.objectContaining({
+      originalMovementId: 101, reversalMovementId: 104, expectedQuantity: 2,
+    }));
+    expect(mocks.commit).toHaveBeenCalledOnce();
   });
 
   it('rejects previews when Builds is disabled for the business', async () => {

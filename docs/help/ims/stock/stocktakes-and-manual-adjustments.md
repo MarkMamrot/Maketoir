@@ -86,7 +86,7 @@ A stocktake started when the snapshot showed 20 candles. During the count, a val
 
 ### Count a missing item as zero
 
-The current quantity is 7 scarves and staff confirm none are present. Enter 0, not a blank. Completion applies $0 - 7 = -7$. At an average cost of $12, the inventory variance value is $84.
+The current quantity is 7 scarves and staff confirm none are present. Enter 0, not a blank. Completion applies $0 - 7 = -7$. At a captured cost of $12 per unit under the active method, the inventory variance value is $84.
 
 ### Correct one damaged unit
 

@@ -41,7 +41,7 @@ Advisor access is read-only, so an Advisor cannot create or edit a purchase orde
 5. Check the supplier's tax treatment.
 6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.
 
-Each line shows **Stock** or **Non-stock expense** from the product's **Tracks inventory** setting. Stock lines become incoming when confirmed and affect stock value when received. Non-stock expense lines remain part of the PO and supplier bill, but confirmation and receipt do not change incoming stock, on-hand quantity, allocations, average cost, stock movements, or FIFO layers.
+Each line shows **Stock** or **Non-stock expense** from the product's **Tracks inventory** setting. Stock lines become incoming when confirmed and affect stock value when received. Non-stock expense lines remain part of the PO and supplier bill, but confirmation and receipt do not change incoming stock, on-hand quantity, allocations, Average Cost, stock movements, or FIFO layers.
 
 Map **Non-stock Purchases** under **Xero > Chart of Accounts** before syncing a PO that contains a non-stock expense line. Those lines post to that expense account. Stock lines continue to use Inventory Asset, or Inventory in Transit when the PO has a recorded payment.
 
@@ -84,7 +84,7 @@ If the PO has active incoming-stock allocations, release or reassign them before
 
 ## Costs and stock value
 
-The received cost for stock lines can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received stock variant. Non-stock expense lines are excluded from landed-cost allocation and inventory value.
+The received cost for stock lines can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Under Average Cost, completing a receipt updates the variant's current weighted average. Under FIFO, it creates a layer at the receiving location using the final received cost. Non-stock expense lines are excluded from landed-cost allocation and inventory value.
 
 | Entered amount | Tax choice | Cost before other adjustments | GST |
 |---:|---|---:|---:|

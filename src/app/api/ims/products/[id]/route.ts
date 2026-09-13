@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsProductsRepo, ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { isReservedShopifyFallbackSku, isShopifyFallbackProduct } from '@/lib/shopifyFallbackVariant';
 import { normalizeProductCustomsFields } from '@/lib/ims/productCustoms';
+import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -114,9 +115,12 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
         { status: 403 },
       );
     }
-    await ImsProductsRepo.delete(params.id);
+    await ImsProductsRepo.delete(params.id, businessId);
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: e.message, ...(e?.code ? { code: e.code } : {}) },
+      { status: e instanceof FifoCostingConflict ? e.status : 500 },
+    );
   }
 }

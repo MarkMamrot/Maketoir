@@ -13,6 +13,7 @@ import {
   createFifoCostLayer,
   FifoCostingConflict,
   lockInventoryCostState,
+  reverseFifoStockMovementLayers,
 } from '../costing/fifoCostingService';
 
 interface StocktakeOperationInput {
@@ -213,9 +214,9 @@ export async function applyStocktakeInTransaction(
         const [movementResult] = await connection.execute<any>(
           `INSERT INTO ims_stock_movements
              (business_id, variant_id, location_id, movement_type, reference_type, reference_id,
-              qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id)
-           VALUES (?, ?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?, ?, ?)`,
-          [input.businessId, item.variant_id, stocktake.location_id, input.stocktakeId, appliedDelta, counted, unitCost,
+              source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id)
+           VALUES (?, ?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.businessId, item.variant_id, stocktake.location_id, input.stocktakeId, item.id, appliedDelta, counted, unitCost,
             costingState.method, costingState.epochId],
         );
         const movementId = Number(movementResult.insertId);
@@ -321,11 +322,6 @@ export async function revertStocktake(
     assertExpectedInventoryDocumentRevision(stocktake.updated_at, input.context.expectedUpdatedAt);
     assertAllowedInventoryDocumentAction('stocktake', stocktake.status, 'revert_mistaken_completion');
     const costingState = await lockInventoryCostState(connection, input.businessId);
-    if (costingState.method === 'fifo') {
-      throw new FifoCostingConflict(
-        'This FIFO stocktake cannot be reversed automatically yet because its exact cost-layer allocations must be preserved. Complete a reviewed corrective stocktake instead.',
-      );
-    }
 
     const countedItems = (await lockItems(connection, input.stocktakeId)).filter(item => item.counted_qty !== null);
     if (countedItems.some(item => item.applied_delta === null)) {
@@ -347,19 +343,50 @@ export async function revertStocktake(
         );
       }
       if (Math.abs(appliedDelta) > 0.0001) {
+        const [[originalMovement]] = await connection.execute<any[]>(
+          `SELECT id, qty_change, cost_method_snapshot, cost_epoch_id
+             FROM ims_stock_movements
+            WHERE business_id = ? AND movement_type = 'stocktake' AND reference_type = 'stocktake'
+              AND reference_id = ? AND variant_id = ? AND location_id = ?
+              AND (source_line_id = ? OR source_line_id IS NULL)
+            ORDER BY source_line_id IS NULL, id DESC
+            LIMIT 1
+            FOR UPDATE`,
+          [input.businessId, input.stocktakeId, item.variant_id, stocktake.location_id, item.id],
+        );
+        const originalMethod = originalMovement?.cost_method_snapshot ?? 'average_cost';
+        if (costingState.method === 'fifo' || originalMethod === 'fifo') {
+          if (!originalMovement
+            || costingState.method !== 'fifo'
+            || originalMethod !== 'fifo'
+            || Number(originalMovement.cost_epoch_id) !== costingState.epochId) {
+            throw new FifoCostingConflict(
+              `Variant ${item.variant_id} was adjusted under a different costing method or FIFO epoch and cannot be reversed automatically. Complete a reviewed corrective stocktake instead.`,
+            );
+          }
+        }
         await connection.execute(
           `UPDATE ims_stock SET qty_on_hand = ?
             WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
           [resultingOnHand, input.businessId, item.variant_id, stocktake.location_id],
         );
-        await connection.execute(
+        const [reversalMovementResult] = await connection.execute<any>(
           `INSERT INTO ims_stock_movements
              (business_id, variant_id, location_id, movement_type, reference_type, reference_id,
-              qty_change, qty_after_soh, unit_cost, notes)
-           VALUES (?, ?, ?, 'stocktake_reverted', 'stocktake', ?, ?, ?, ?, ?)`,
-          [input.businessId, item.variant_id, stocktake.location_id, input.stocktakeId, -appliedDelta,
-            resultingOnHand, item.unit_cost_at_apply, reason],
+              source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+           VALUES (?, ?, ?, 'stocktake_reverted', 'stocktake', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.businessId, item.variant_id, stocktake.location_id, input.stocktakeId, item.id, -appliedDelta,
+            resultingOnHand, item.unit_cost_at_apply, costingState.method, costingState.epochId, reason],
         );
+        if (costingState.method === 'fifo') {
+          await reverseFifoStockMovementLayers(connection, {
+            businessId: input.businessId,
+            state: costingState,
+            originalMovementId: Number(originalMovement.id),
+            reversalMovementId: Number(reversalMovementResult.insertId),
+            expectedQuantity: Math.abs(appliedDelta),
+          });
+        }
         reverted++;
       }
     }

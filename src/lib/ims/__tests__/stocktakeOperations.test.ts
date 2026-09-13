@@ -17,6 +17,10 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
   xeroStatus?: string | null;
   costingMethod?: 'average_cost' | 'fifo';
   countedQuantity?: number;
+  appliedDelta?: number;
+  originalCostingMethod?: 'average_cost' | 'fifo';
+  originalEpochId?: number | null;
+  fifoLayerRemaining?: number;
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -59,7 +63,7 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
         expected_qty: 10,
         counted_qty: options.countedQuantity ?? 6,
         soh_at_apply: mode === 'revert' ? 8 : null,
-        applied_delta: mode === 'revert' ? -2 : null,
+        applied_delta: mode === 'revert' ? (options.appliedDelta ?? -2) : null,
         unit_cost_at_apply: mode === 'revert' ? 5.5 : null,
       }]];
     }
@@ -67,7 +71,25 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
       return [[{ qty_on_hand: options.currentOnHand ?? (mode === 'apply' ? 8 : 9) }]];
     }
     if (normalized.includes('from ims_product_variants')) return [[{ unit_cost: 5.5 }]];
+    if (normalized.includes('from ims_stock_movements')
+      && (normalized.includes("movement_type = 'stocktake'") || normalized.startsWith('select qty_change'))) {
+      const method = options.originalCostingMethod ?? options.costingMethod ?? 'average_cost';
+      return [[{
+        id: 90,
+        qty_change: options.appliedDelta ?? -2,
+        cost_method_snapshot: method,
+        cost_epoch_id: method === 'fifo' ? (options.originalEpochId ?? 12) : null,
+      }]];
+    }
     if (normalized.startsWith('insert into ims_stock_movements')) return [{ insertId: 91, affectedRows: 1 }];
+    if (normalized.includes("allocation.allocation_type = 'consume'")) {
+      return [[{ id: 61, layer_id: 51, quantity: 2, unit_cost: 4.25, allocated_value: 8.5 }]];
+    }
+    if (normalized.includes('reversal_of_allocation_id in')) return [[]];
+    if (normalized.includes("allocation_type = 'reverse_inbound'")) return [[]];
+    if (normalized.includes('source_movement_id')) {
+      return [[{ id: 52, original_quantity: 2, remaining_quantity: options.fifoLayerRemaining ?? 2, unit_cost: 5.5 }]];
+    }
     if (normalized.includes('from ims_fifo_cost_layers')) {
       return [[{ id: 51, fifo_date: '2026-01-01', remaining_quantity: 8, unit_cost: 4.25 }]];
     }
@@ -91,7 +113,7 @@ describe('stocktake operations', () => {
     expect(result).toMatchObject({ status: 'completed', applied: 1, variances: 1, countStartVariances: 1 });
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("VALUES (?, ?, ?, 'stocktake'"),
-      ['biz-1', 'v-1', 4, 31, -2, 6, 5.5, 'average_cost', null],
+      ['biz-1', 'v-1', 4, 31, 41, -2, 6, 5.5, 'average_cost', null],
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining('SET soh_at_apply = ?, applied_delta = ?, unit_cost_at_apply = ?'),
@@ -145,7 +167,7 @@ describe('stocktake operations', () => {
     );
     expect(connection.execute).toHaveBeenCalledWith(
       expect.stringContaining("'stocktake_reverted'"),
-      ['biz-1', 'v-1', 4, 31, 2, 11, 5.5, 'Count entered in error'],
+      ['biz-1', 'v-1', 4, 31, 41, 2, 11, 5.5, 'average_cost', null, 'Count entered in error'],
     );
     expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('DELETE FROM ims_stock_movements'), expect.anything());
   });
@@ -219,14 +241,60 @@ describe('stocktake operations', () => {
     expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET'), expect.anything());
   });
 
-  it('blocks FIFO reversal before reading items or mutating stock', async () => {
+  it('restores exact FIFO allocations for a negative stocktake variance', async () => {
     const connection = connectionFor('revert', { costingMethod: 'fifo' });
 
+    const result = await revertStocktake({ businessId: 'biz-1', stocktakeId: 31, reason: 'Mistake', context });
+
+    expect(result).toMatchObject({ status: 'reverted', reverted: 1 });
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity + ?'),
+      [2, 51, 'biz-1', 12, 2],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("'restore'"),
+      ['biz-1', 12, 91, 51, 2, 4.25, 8.5, 61],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('reverses an untouched FIFO layer from a positive stocktake variance', async () => {
+    const connection = connectionFor('revert', { costingMethod: 'fifo', appliedDelta: 2, currentOnHand: 5 });
+
+    const result = await revertStocktake({ businessId: 'biz-1', stocktakeId: 31, reason: 'Mistake', context });
+
+    expect(result).toMatchObject({ status: 'reverted', reverted: 1 });
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET remaining_quantity = remaining_quantity - ?'),
+      [2, 52, 'biz-1', 12, 2],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("'reverse_inbound'"),
+      ['biz-1', 12, 91, 52, 2, 5.5, 11],
+    );
+  });
+
+  it('blocks positive FIFO stocktake reversal after its layer was consumed', async () => {
+    const connection = connectionFor('revert', {
+      costingMethod: 'fifo', appliedDelta: 2, currentOnHand: 5, fifoLayerRemaining: 1,
+    });
+
     await expect(revertStocktake({ businessId: 'biz-1', stocktakeId: 31, reason: 'Mistake', context }))
-      .rejects.toThrow('exact cost-layer allocations must be preserved');
+      .rejects.toThrow('already been used or moved');
 
     expect(connection.rollback).toHaveBeenCalledOnce();
-    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('FROM ims_stocktake_items'), expect.anything());
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('blocks reversal when the original FIFO movement belongs to another epoch', async () => {
+    const connection = connectionFor('revert', {
+      costingMethod: 'fifo', originalCostingMethod: 'fifo', originalEpochId: 11,
+    });
+
+    await expect(revertStocktake({ businessId: 'biz-1', stocktakeId: 31, reason: 'Mistake', context }))
+      .rejects.toThrow('different costing method or FIFO epoch');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
     expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET'), expect.anything());
   });
 });

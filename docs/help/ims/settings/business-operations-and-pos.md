@@ -1,5 +1,5 @@
 ---
-{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds"],"contexts":["dashboard","locations","location-daybooks","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.","lastReviewed":"2026-09-08","owner":"setup"}
+{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","ims-inventory-costing","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds"],"contexts":["dashboard","locations","location-daybooks","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities and inventory costing, and manage each location's POS registers.","lastReviewed":"2026-09-14","owner":"setup"}
 ---
 # Business Operations and POS Settings
 
@@ -11,6 +11,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 - Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.
 - Enable Shopify, the native Solvantis Online Store, both channels, or neither channel.
 - Set the tax rates and document labels Solvantis uses for sales and purchases.
+- Review the business-wide inventory costing method and use the controlled switch workflow when accounting policy changes.
 - Add, rename, activate, or set the default float for POS registers without changing location details.
 - Set the business-wide POS product-view fallback used by locations without their own override.
 
@@ -20,6 +21,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 |---|---|---|
 | Complete the guided checklist | IMS onboarding | Core records and settings prepared in dependency order |
 | Choose operational capabilities | Settings > General | Relevant IMS workflows enabled |
+| Review or change inventory costing | Settings > General > Inventory Costing | Current method reviewed; an authorised prospective change recorded |
 | Manage tills by location | Settings > Point of Sale > Registers | Active registers available for POS device setup |
 | Set the POS catalogue fallback | Settings > Point of Sale > POS Display | Default view for locations that do not override it in POS Settings |
 
@@ -59,6 +61,8 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 Use each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.
 
 These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
+
+**Inventory Costing** is separate from **Save Settings** because changing accounting policy can establish a new valuation epoch. Administrators must review the current quantity, value, warnings, and blockers, enter a reason, and type the target method before applying it. The switch affects future movements only; completed movement costs and posted Xero journals are not recalculated. See **Inventory Costing and Stock Value** for Average Cost, FIFO, opening layers, and blocker resolution.
 
 **Use Builds** is off by default. When it is off, Builds navigation, product recipe controls, and build-from-sale settings are hidden. Existing recipes and history are retained. After enabling it, each tracked finished product must also enable **Use Builds** in its edit form before its recipe controls and build operations become available.
 

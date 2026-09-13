@@ -7,7 +7,7 @@ import { isInventoryCostMethod, type InventoryCostMethod } from './inventoryCost
 
 const QUANTITY_TOLERANCE = 0.0001;
 export const INVENTORY_COST_METHOD_SETTING_KEY = 'inventory_cost_method';
-export const FIFO_COSTING_ACTIVATION_READY = false;
+export const FIFO_COSTING_ACTIVATION_READY = true;
 
 type StockSnapshot = {
   variantId: string;

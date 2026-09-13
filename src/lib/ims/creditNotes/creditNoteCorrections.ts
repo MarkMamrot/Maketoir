@@ -8,7 +8,7 @@ import {
   completeInventoryDocumentOperation,
   type InventoryDocumentOperationContext,
 } from '../inventoryDocumentOperations';
-import { FifoCostingConflict, lockInventoryCostState } from '../costing/fifoCostingService';
+import { FifoCostingConflict, lockInventoryCostState, reverseFifoStockMovementLayers } from '../costing/fifoCostingService';
 
 type CreditNoteKind = 'customer_credit_note' | 'supplier_credit_note';
 
@@ -26,6 +26,9 @@ interface MovementEvidence extends RowDataPacket {
   location_id: number;
   qty_change: number;
   unit_cost: number | null;
+  source_line_id: number | null;
+  cost_method_snapshot: 'average_cost' | 'fifo';
+  cost_epoch_id: number | null;
 }
 
 export interface CreditNoteReversalResult {
@@ -59,7 +62,8 @@ async function lockMovementEvidence(
   expectedSign: 'positive' | 'negative',
 ): Promise<MovementEvidence[]> {
   const [rows] = await connection.execute<MovementEvidence[]>(
-    `SELECT id, variant_id, location_id, qty_change, unit_cost
+        `SELECT id, variant_id, location_id, qty_change, unit_cost, source_line_id,
+          cost_method_snapshot, cost_epoch_id
        FROM ims_stock_movements
       WHERE business_id = ? AND reference_id = ? AND movement_type = ?
       ORDER BY id
@@ -128,11 +132,6 @@ export async function reverseCustomerCreditNote(input: ReversalInput): Promise<C
       { customerCreditNoteSource: note.source },
     );
     const costingState = await lockInventoryCostState(connection, input.businessId);
-    if (costingState.method === 'fifo') {
-      throw new FifoCostingConflict(
-        'This FIFO customer return cannot be reversed automatically yet because its exact restored cost layers must be removed. Create a reviewed corrective stocktake instead.',
-      );
-    }
     if (note.settlement_method !== 'store_credit' || !note.store_credit_transaction_id || !note.customer_id) {
       throw new CreditNoteReversalConflict('Only manual credit notes with a verifiable store-credit issue can be reversed automatically.');
     }
@@ -161,6 +160,16 @@ export async function reverseCustomerCreditNote(input: ReversalInput): Promise<C
     const movements = await lockMovementEvidence(connection, input.businessId, input.documentId, 'cn_returned', 'positive');
     for (const movement of movements) {
       const quantity = Number(movement.qty_change);
+      const originalMethod = movement.cost_method_snapshot ?? 'average_cost';
+      if (costingState.method === 'fifo' || originalMethod === 'fifo') {
+        if (costingState.method !== 'fifo'
+          || originalMethod !== 'fifo'
+          || Number(movement.cost_epoch_id) !== costingState.epochId) {
+          throw new FifoCostingConflict(
+            `Variant ${movement.variant_id} was returned under a different costing method or FIFO epoch and cannot be reversed automatically. Complete a reviewed corrective stocktake instead.`,
+          );
+        }
+      }
       const onHand = await lockStock(connection, input.businessId, movement.variant_id, Number(movement.location_id));
       if (onHand + 0.0001 < quantity) {
         throw new CreditNoteReversalConflict(`Variant ${movement.variant_id} has ${onHand} on hand but ${quantity} must be removed to reverse this return.`);
@@ -170,14 +179,23 @@ export async function reverseCustomerCreditNote(input: ReversalInput): Promise<C
         `UPDATE ims_stock SET qty_on_hand = ? WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
         [resultingOnHand, input.businessId, movement.variant_id, movement.location_id],
       );
-      await connection.execute(
+      const [reversalMovementResult] = await connection.execute<any>(
         `INSERT INTO ims_stock_movements
            (business_id, variant_id, location_id, movement_type, reference_type, reference_id,
-            qty_change, qty_after_soh, unit_cost, notes)
-         VALUES (?, ?, ?, 'cn_return_reversed', 'credit_note', ?, ?, ?, ?, ?)`,
-        [input.businessId, movement.variant_id, movement.location_id, input.documentId, -quantity,
-          resultingOnHand, movement.unit_cost, reason],
+            source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'cn_return_reversed', 'credit_note', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [input.businessId, movement.variant_id, movement.location_id, input.documentId, movement.source_line_id,
+          -quantity, resultingOnHand, movement.unit_cost, costingState.method, costingState.epochId, reason],
       );
+      if (costingState.method === 'fifo') {
+        await reverseFifoStockMovementLayers(connection, {
+          businessId: input.businessId,
+          state: costingState,
+          originalMovementId: Number(movement.id),
+          reversalMovementId: Number(reversalMovementResult.insertId),
+          expectedQuantity: quantity,
+        });
+      }
     }
 
     const balanceAfter = Math.round((currentCredit - issuedCredit) * 100) / 100;
@@ -255,29 +273,43 @@ export async function reverseSupplierCreditNote(input: ReversalInput): Promise<C
     assertExpectedInventoryDocumentRevision(note.updated_at, input.context.expectedUpdatedAt);
     assertAllowedInventoryDocumentAction('supplier_credit_note', note.status, 'revert_mistaken_completion');
     const costingState = await lockInventoryCostState(connection, input.businessId);
-    if (costingState.method === 'fifo') {
-      throw new FifoCostingConflict(
-        'This FIFO supplier return cannot be reversed automatically yet because its exact consumed cost layers must be restored. Create a reviewed corrective stocktake instead.',
-      );
-    }
 
     const movements = await lockMovementEvidence(connection, input.businessId, input.documentId, 'scn_returned', 'negative');
     for (const movement of movements) {
       const quantity = -Number(movement.qty_change);
+      const originalMethod = movement.cost_method_snapshot ?? 'average_cost';
+      if (costingState.method === 'fifo' || originalMethod === 'fifo') {
+        if (costingState.method !== 'fifo'
+          || originalMethod !== 'fifo'
+          || Number(movement.cost_epoch_id) !== costingState.epochId) {
+          throw new FifoCostingConflict(
+            `Variant ${movement.variant_id} was returned under a different costing method or FIFO epoch and cannot be reversed automatically. Complete a reviewed corrective stocktake instead.`,
+          );
+        }
+      }
       const onHand = await lockStock(connection, input.businessId, movement.variant_id, Number(movement.location_id));
       const resultingOnHand = onHand + quantity;
       await connection.execute(
         `UPDATE ims_stock SET qty_on_hand = ? WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
         [resultingOnHand, input.businessId, movement.variant_id, movement.location_id],
       );
-      await connection.execute(
+      const [reversalMovementResult] = await connection.execute<any>(
         `INSERT INTO ims_stock_movements
            (business_id, variant_id, location_id, movement_type, reference_type, reference_id,
-            qty_change, qty_after_soh, unit_cost, notes)
-         VALUES (?, ?, ?, 'scn_return_reversed', 'supplier_credit_note', ?, ?, ?, ?, ?)`,
-        [input.businessId, movement.variant_id, movement.location_id, input.documentId, quantity,
-          resultingOnHand, movement.unit_cost, reason],
+            source_line_id, qty_change, qty_after_soh, unit_cost, cost_method_snapshot, cost_epoch_id, notes)
+         VALUES (?, ?, ?, 'scn_return_reversed', 'supplier_credit_note', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [input.businessId, movement.variant_id, movement.location_id, input.documentId, movement.source_line_id,
+          quantity, resultingOnHand, movement.unit_cost, costingState.method, costingState.epochId, reason],
       );
+      if (costingState.method === 'fifo') {
+        await reverseFifoStockMovementLayers(connection, {
+          businessId: input.businessId,
+          state: costingState,
+          originalMovementId: Number(movement.id),
+          reversalMovementId: Number(reversalMovementResult.insertId),
+          expectedQuantity: quantity,
+        });
+      }
     }
 
     const xeroCorrectionStatus = input.xeroCorrectionRequired ? 'queued' : 'not_required';

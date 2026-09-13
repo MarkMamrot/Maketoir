@@ -1,8 +1,20 @@
 import { imsQuery } from '@/services/IMSMySQLService';
+import { FifoCostingConflict } from '../costing/fifoCostingService';
 
 export const CIN7_BUILD_STOCK_GUARD_MESSAGE = 'Cin7 stock replacement is blocked because completed product builds exist. Reconcile differences with Stocktakes or audited stock adjustments so build history and stock on hand remain aligned.';
+export const CIN7_FIFO_STOCK_GUARD_MESSAGE = 'Cin7 stock replacement is blocked while FIFO costing is active because a quantity overwrite has no cost-layer history. Reconcile differences with a reviewed Stocktake instead.';
 
 export async function assertCin7StockOverwriteAllowed(businessId: string): Promise<void> {
+  const costingRows = await imsQuery<{ active_method: string }>(
+    `SELECT active_method
+       FROM ims_inventory_cost_state
+      WHERE business_id = ?
+      LIMIT 1`,
+    [businessId],
+  );
+  if (costingRows[0]?.active_method === 'fifo') {
+    throw new FifoCostingConflict(CIN7_FIFO_STOCK_GUARD_MESSAGE);
+  }
   const rows = await imsQuery<{ has_build_movements: number }>(
     `SELECT EXISTS(
        SELECT 1 FROM ims_stock_movements

@@ -165,13 +165,19 @@ export async function calculateCogsForPeriod(input: {
                 sm.unit_cost,
             CASE
               WHEN sm.movement_type = 'pos_sale' THEN 'pos'
+              WHEN cn.source = 'pos' THEN 'pos'
               WHEN so.so_type = 'online' THEN 'online'
+              WHEN cn.id IS NOT NULL AND cn.so_id IS NULL THEN 'returns'
               ELSE 'wholesale'
             END AS channel,
             CASE
               WHEN sm.movement_type = 'pos_sale' AND ps.id IS NULL THEN 'orphaned'
               WHEN sm.movement_type = 'so_fulfilled' AND so.id IS NULL THEN 'orphaned'
+              WHEN sm.movement_type IN ('cn_returned', 'cn_return_reversed') AND cn.id IS NULL THEN 'orphaned'
               WHEN sm.movement_type = 'pos_sale' AND COALESCE(ps.is_historical, 0) <> 0 THEN 'historical_import'
+              WHEN sm.movement_type IN ('cn_returned', 'cn_return_reversed')
+                   AND cn.source = 'pos' AND COALESCE(ps.is_historical, 0) <> 0
+                THEN 'historical_import'
               WHEN sm.movement_type = 'so_fulfilled'
                    AND (COALESCE(so.is_historical, 0) <> 0 OR so.cin7_order_id IS NOT NULL)
                 THEN 'historical_import'
@@ -184,17 +190,19 @@ export async function calculateCogsForPeriod(input: {
               ELSE 'ok'
             END AS cost_status
            FROM ims_stock_movements sm
+           LEFT JOIN ims_credit_notes cn
+             ON sm.movement_type IN ('cn_returned', 'cn_return_reversed')
+            AND sm.reference_type = 'credit_note'
+            AND cn.id = sm.reference_id
            LEFT JOIN pos_sales ps
-             ON sm.movement_type = 'pos_sale'
-            AND sm.reference_type = 'pos_sale'
-            AND ps.id = sm.reference_id
+             ON (sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale' AND ps.id = sm.reference_id)
+             OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id)
            LEFT JOIN ims_sales_orders so
-             ON sm.movement_type = 'so_fulfilled'
-            AND sm.reference_type = 'sales_order'
-            AND so.id = sm.reference_id
+             ON (sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
+             OR (cn.so_id IS NOT NULL AND so.id = cn.so_id)
            LEFT JOIN ims_product_variants pv ON pv.variant_id = sm.variant_id
            LEFT JOIN ims_products p ON p.product_id = pv.product_id
-          WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
+          WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled', 'cn_returned', 'cn_return_reversed')
             AND sm.created_at >= ?
             AND sm.created_at < ?
        ) classified

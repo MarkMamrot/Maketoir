@@ -194,6 +194,9 @@ export async function POST(req: Request) {
       };
 
       try {
+        if (syncType === 'full' && stepsRequested.includes('products')) {
+          await assertCin7StockOverwriteAllowed(businessId);
+        }
         await runMigrations();
 
         const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);

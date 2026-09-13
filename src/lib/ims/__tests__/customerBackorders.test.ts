@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const execute = vi.fn();
+const costing = vi.hoisted(() => ({
+  lock: vi.fn(),
+  consume: vi.fn(),
+}));
 const connection = {
   beginTransaction: vi.fn(),
   commit: vi.fn(),
@@ -12,6 +16,10 @@ const connection = {
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
 }));
+vi.mock('../costing/fifoCostingService', () => ({
+  lockInventoryCostState: costing.lock,
+  consumeFifoCostLayers: costing.consume,
+}));
 
 import { splitCustomerBackorder } from '../backorders/customerBackorders';
 
@@ -21,6 +29,8 @@ describe('splitCustomerBackorder', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    costing.lock.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+    costing.consume.mockResolvedValue({ unitCost: 0, allocatedValue: 0, allocationCount: 0, allocations: [] });
     quantityOnHand = 10;
     allocationRows = [];
     let insertedItemId = 200;
@@ -63,6 +73,7 @@ describe('splitCustomerBackorder', () => {
         return [{ affectedRows: row ? 1 : 0 }];
       }
       if (sql.includes('COALESCE(pv.avg_cost')) return [[{ qty_on_hand: quantityOnHand, avg_cost: 4.5 }]];
+      if (sql.includes('INSERT INTO ims_stock_movements')) return [{ insertId: 501 }];
       return [{ affectedRows: 1 }];
     });
   });
@@ -180,5 +191,37 @@ describe('splitCustomerBackorder', () => {
       [-1, 2, 'variant-1', 4],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('consumes FIFO layers against the attributed fulfilment movement', async () => {
+    costing.lock.mockResolvedValue({ method: 'fifo', epochId: 8, revision: 2 });
+    costing.consume.mockResolvedValue({
+      unitCost: 7.25,
+      allocatedValue: 14.5,
+      allocationCount: 2,
+      allocations: [],
+    });
+
+    await splitCustomerBackorder({
+      businessId: 'biz-1', soId: 42, operationKey: 'split-42-fifo',
+      fulfilQuantities: [{ itemId: 10, quantity: 2 }, { itemId: 11, quantity: 0 }],
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('source_line_id'),
+      ['biz-1', 'variant-1', 4, 42, 10, -2, 8, 4.5, 'fifo', 8, 'Backorder split split-42-fifo'],
+    );
+    expect(costing.consume).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 8, revision: 2 },
+      variantId: 'variant-1',
+      locationId: 4,
+      stockMovementId: 501,
+      quantity: 2,
+    });
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_fulfilled = qty_ordered, unit_cost = ?'),
+      [7.25, 10],
+    );
   });
 });

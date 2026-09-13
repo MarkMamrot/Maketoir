@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer, mockGetPosStockQtyChange, mockLockInventoryCostState, mockConsumeFifoCostLayers } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer, mockGetPosStockQtyChange, mockLockInventoryCostState, mockConsumeFifoCostLayers, mockReverseFifoStockMovementLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockReserveReward: vi.fn(),
@@ -12,6 +12,7 @@ const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosS
   mockGetPosStockQtyChange: vi.fn(),
   mockLockInventoryCostState: vi.fn(),
   mockConsumeFifoCostLayers: vi.fn(),
+  mockReverseFifoStockMovementLayers: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -41,6 +42,7 @@ vi.mock('@/lib/ims/costing/fifoCostingService', () => ({
   FifoCostingConflict: class FifoCostingConflict extends Error { code = 'FIFO_COSTING_CONFLICT'; status = 409; },
   lockInventoryCostState: mockLockInventoryCostState,
   consumeFifoCostLayers: mockConsumeFifoCostLayers,
+  reverseFifoStockMovementLayers: mockReverseFifoStockMovementLayers,
 }));
 
 import { PosSalesRepo } from '@/lib/db/PosRepository';
@@ -126,6 +128,7 @@ describe('PosSalesRepo loyalty earning', () => {
     mockSyncConfiguredCustomer.mockResolvedValue({ status: 'synced' });
     mockGetPosStockQtyChange.mockImplementation((quantity: number, saleType: string) => saleType === 'return' ? quantity : -quantity);
     mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+    mockReverseFifoStockMovementLayers.mockResolvedValue({ allocatedValue: 20, unitCost: 10, allocationCount: 1 });
     mockConsumeFifoCostLayers.mockResolvedValue({ allocatedValue: 20, unitCost: 20, allocationCount: 1, allocations: [] });
   });
 
@@ -585,5 +588,102 @@ describe('PosSalesRepo loyalty earning', () => {
     expect(mockReversePosSale.mock.invocationCallOrder[0]).toBeLessThan(stockConnection.commit.mock.invocationCallOrder[0]);
     expect(stockConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
     expect(stockConnection.execute.mock.calls[1][0]).toContain("status = 'voided'");
+  });
+
+  it('voids a FIFO sale by restoring its currently unreversed allocations', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    vi.spyOn(PosSalesRepo, 'get').mockResolvedValueOnce({
+      sale: { id: 101, business_id: 'business-1', status: 'completed', sale_type: 'sale', location_id: 3, customer_id: null },
+      items: [{ variant_id: 'variant-1', name: 'Product', qty: 2 }],
+      payments: [],
+    } as any);
+    const stockConnection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+      execute: vi.fn(async (sql: string) => {
+        if (sql.includes('SELECT status FROM pos_sales')) return [[{ status: 'completed' }]];
+        if (sql.includes('return_of_sale_id')) return [[]];
+        if (sql.includes('FROM ims_product_variants pv')) return [[{ stock_variant_id: 'variant-1', qty_on_hand: 4, avg_cost: 10, is_stock_item: 1 }]];
+        if (sql.includes('AS reversible_quantity')) return [[{ id: 81, qty_change: -2, cost_method_snapshot: 'fifo', cost_epoch_id: 6, reversible_quantity: 2 }]];
+        if (sql.includes('INSERT INTO ims_stock_movements')) return [{ insertId: 82 }];
+        return [{ affectedRows: 1 }];
+      }),
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn().mockResolvedValue(stockConnection) });
+
+    await expect(PosSalesRepo.voidWithReversal(101, 'manager-1')).resolves.toMatchObject({ stockWarnings: [] });
+
+    expect(mockReverseFifoStockMovementLayers).toHaveBeenCalledWith(stockConnection, expect.objectContaining({
+      originalMovementId: 81, reversalMovementId: 82, expectedQuantity: 2,
+    }));
+    expect(stockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'),
+      [6, 'business-1', 'variant-1', 3],
+    );
+    expect(stockConnection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('blocks a FIFO sale void while completed linked returns exist', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    vi.spyOn(PosSalesRepo, 'get').mockResolvedValueOnce({
+      sale: { id: 101, business_id: 'business-1', status: 'completed', sale_type: 'sale', location_id: 3, customer_id: null },
+      items: [{ variant_id: 'variant-1', name: 'Product', qty: 2 }], payments: [],
+    } as any);
+    const stockConnection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+      execute: vi.fn(async (sql: string) => {
+        if (sql.includes('SELECT status FROM pos_sales')) return [[{ status: 'completed' }]];
+        if (sql.includes('return_of_sale_id')) return [[{ id: 202 }]];
+        return [{ affectedRows: 1 }];
+      }),
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn().mockResolvedValue(stockConnection) });
+
+    await expect(PosSalesRepo.voidWithReversal(101, 'manager-1')).rejects.toThrow('linked returns');
+    expect(stockConnection.rollback).toHaveBeenCalledOnce();
+    expect(mockReverseFifoStockMovementLayers).not.toHaveBeenCalled();
+  });
+
+  it('atomically restores and reapplies FIFO stock during a manager edit', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mockGetPosStockQtyChange.mockImplementation((quantity: number) => -quantity);
+    mockConsumeFifoCostLayers.mockResolvedValue({ allocatedValue: 30, unitCost: 10, allocationCount: 1 });
+    vi.spyOn(PosSalesRepo, 'get').mockResolvedValueOnce({
+      sale: { id: 101, business_id: 'business-1', status: 'completed', sale_type: 'sale', location_id: 3, customer_id: null },
+      items: [{ variant_id: 'variant-1', name: 'Product', qty: 2 }], payments: [],
+    } as any);
+    let stockRead = 0;
+    const connection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+      execute: vi.fn(async (sql: string) => {
+        if (sql.includes('SELECT business_id, customer_id, status')) return [[{
+          business_id: 'business-1', customer_id: null, status: 'completed', sale_type: 'sale', loyalty_earn_rate: 1,
+        }]];
+        if (sql.includes('return_of_sale_id')) return [[]];
+        if (sql.includes('FROM ims_product_variants pv')) {
+          stockRead++;
+          return [[{ stock_variant_id: 'variant-1', qty_on_hand: stockRead === 1 ? 4 : 6, qty_committed: 0, avg_cost: 10, is_stock_item: 1 }]];
+        }
+        if (sql.includes('AS reversible_quantity')) return [[{ id: 81, qty_change: -2, cost_method_snapshot: 'fifo', cost_epoch_id: 6, reversible_quantity: 2 }]];
+        if (sql.includes('INSERT INTO ims_stock_movements')) return [{ insertId: stockRead === 1 ? 82 : 83 }];
+        return [{ affectedRows: 1 }];
+      }),
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn().mockResolvedValue(connection) });
+
+    await expect(PosSalesRepo.updateFull(101, {
+      sale_type: 'sale', subtotal: 300, discount_total: 0, tax_total: 300 / 11, total: 300,
+      items: [{ variant_id: 'variant-1', code: 'SKU-1', name: 'Product', qty: 3, unit_price: 100,
+        discount_type: 'none', discount_value: 0, discount_amount: 0, tax_rate: 10, line_total: 300 }],
+      payments: [{ payment_method: 'Card', amount: 300 }],
+    })).resolves.toMatchObject({ stockWarnings: [] });
+
+    expect(mockReverseFifoStockMovementLayers).toHaveBeenCalledWith(connection, expect.objectContaining({
+      originalMovementId: 81, reversalMovementId: 82, expectedQuantity: 2,
+    }));
+    expect(mockConsumeFifoCostLayers).toHaveBeenCalledWith(connection, expect.objectContaining({
+      stockMovementId: 83, quantity: 3,
+    }));
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(mockGetIMSPool().getConnection).toHaveBeenCalledOnce();
   });
 });

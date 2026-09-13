@@ -32,7 +32,7 @@ Use Product Builds to convert stocked components into finished products at one l
 - [ ] Edit each finished product that will be assembled and enable **Use Builds** on that product.
 - [ ] Create and save the finished product and every component as active tracked-stock variants.
 - [ ] Check that all components are held at the location where the build will occur.
-- [ ] Confirm component average costs and the tax-exclusive overhead per output.
+- [ ] Confirm component costs under the active costing method and the tax-exclusive overhead per output.
 - [ ] For sale-assisted builds, enable the business policy and review any location override.
 - [ ] Finish unrelated receipts, transfers, or stocktakes that could change component availability.
 
@@ -54,7 +54,7 @@ Each save creates a new revision. Completed builds keep the exact recipe, quanti
 1. Open **Products > Builds** and select **New Build**.
 2. Choose one location for the complete batch.
 3. Add each recipe-backed output and enter its quantity. Add an overhead override only when this build differs from the recipe default.
-4. Review the combined component table: On Hand, Committed, Available, Required, After, average cost, and value.
+4. Review the combined component table: On Hand, Committed, Available, Required, After, cost, and value.
 5. Check each resulting output unit cost, then select **Confirm atomic build**.
 6. Open the build detail to review captured components, costs, operator, source, and reversal history.
 
@@ -90,7 +90,7 @@ The reversal removes finished Available stock and restores components in their o
 
 ## Costing and connected channels
 
-Component value plus tax-exclusive overhead becomes the finished output cost. The finished variant's weighted average cost is updated for future sale cost of goods. Internal build conversion does not create a Xero journal.
+Component value under the active costing method plus tax-exclusive overhead becomes the finished output cost. Under Average Cost, this updates the finished variant's weighted average. Under FIFO, the build consumes component layers and creates a finished-stock layer at the captured output cost. Internal build conversion does not create a Xero journal.
 
 Build and reversal movements update actual stock and queue affected Shopify-linked variants for inventory refresh. They never increase marketplace availability before finished stock exists.
 
@@ -114,7 +114,7 @@ After completed build movements exist, raw Cin7 stock replacement is blocked bec
 
 ### Build several candle packs
 
-A recipe for one gift pack uses two candles at an average cost of $6 each, one box at $1.50, and $0.50 overhead. Building 10 requires 20 candles and 10 boxes. The output unit cost is $14.00 and the batch transfers $140.00 into finished inventory. If either component's Available stock is short, none of the batch is posted.
+A recipe for one gift pack consumes candles costing $6 each and a box costing $1.50, then adds $0.50 overhead. Building 10 requires 20 candles and 10 boxes. At those captured costs, the output unit cost is $14.00 and the batch transfers $140.00 into finished inventory. If either component's Available stock is short, none of the batch is posted.
 
 ### Reverse part of a build
 

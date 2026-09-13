@@ -48,6 +48,34 @@ export async function lockInventoryCostState(
   };
 }
 
+export async function assertFifoCatalogueDeletionAllowed(
+  conn: PoolConnection,
+  input: { businessId: string; variantIds: string[]; label: string },
+): Promise<void> {
+  const state = await lockInventoryCostState(conn, input.businessId);
+  if (state.method === 'fifo') {
+    throw new FifoCostingConflict(
+      `${input.label} cannot be permanently deleted while FIFO costing is active. Deactivate it instead so stock valuation history remains intact.`,
+    );
+  }
+  if (!input.variantIds.length) return;
+
+  const placeholders = input.variantIds.map(() => '?').join(',');
+  const [[row]] = await conn.execute<any[]>(
+    `SELECT EXISTS(
+       SELECT 1
+         FROM ims_fifo_cost_layers
+        WHERE business_id = ? AND variant_id IN (${placeholders})
+     ) AS has_fifo_history`,
+    [input.businessId, ...input.variantIds],
+  );
+  if (Number(row?.has_fifo_history ?? 0) === 1) {
+    throw new FifoCostingConflict(
+      `${input.label} cannot be permanently deleted because FIFO cost history exists. Deactivate it instead so the audit trail remains intact.`,
+    );
+  }
+}
+
 export async function createFifoCostLayer(
   conn: PoolConnection,
   input: {
@@ -188,6 +216,175 @@ export async function consumeFifoCostLayers(
       fifoDate: rows.find(row => Number(row.id) === allocation.layerId)!.fifo_date,
     })),
   };
+}
+
+export async function reverseFifoStockMovementLayers(
+  conn: PoolConnection,
+  input: {
+    businessId: string;
+    state: InventoryCostState;
+    originalMovementId: number;
+    reversalMovementId: number;
+    expectedQuantity: number;
+  },
+): Promise<{ allocatedValue: number; unitCost: number; allocationCount: number }> {
+  if (input.state.method !== 'fifo' || !input.state.epochId) {
+    throw new FifoCostingConflict('FIFO stock movements can only be reversed while their FIFO epoch is active.');
+  }
+  const [[movement]] = await conn.execute<any[]>(
+    `SELECT qty_change, cost_method_snapshot, cost_epoch_id
+       FROM ims_stock_movements
+      WHERE id = ? AND business_id = ?
+      FOR UPDATE`,
+    [input.originalMovementId, input.businessId],
+  );
+  const movementQuantity = Math.abs(Number(movement?.qty_change ?? 0));
+  if (!movement
+    || movement.cost_method_snapshot !== 'fifo'
+    || Number(movement.cost_epoch_id) !== input.state.epochId
+    || input.expectedQuantity <= 0
+    || input.expectedQuantity - movementQuantity > 0.0001) {
+    throw new FifoCostingConflict(
+      'The original FIFO movement does not match this reversal quantity or the active valuation epoch. Complete a reviewed corrective stocktake instead.',
+    );
+  }
+
+  let allocatedValue = 0;
+  let allocationCount = 0;
+  if (Number(movement.qty_change) < 0) {
+    const [allocations] = await conn.execute<any[]>(
+      `SELECT allocation.id, allocation.layer_id, allocation.quantity,
+              allocation.unit_cost, allocation.allocated_value
+         FROM ims_fifo_cost_allocations allocation
+        WHERE allocation.business_id = ? AND allocation.epoch_id = ?
+          AND allocation.stock_movement_id = ? AND allocation.allocation_type = 'consume'
+        ORDER BY allocation.id
+        FOR UPDATE`,
+      [input.businessId, input.state.epochId, input.originalMovementId],
+    );
+    const totalQuantity = allocations.reduce((sum, allocation) => sum + Number(allocation.quantity), 0);
+    if (!allocations.length || Math.abs(totalQuantity - movementQuantity) > 0.0001) {
+      throw new FifoCostingConflict('The original FIFO consumption allocations are incomplete and cannot be reversed automatically.');
+    }
+    const [priorReversals] = await conn.execute<any[]>(
+      `SELECT reversal_of_allocation_id, SUM(quantity) AS reversed_quantity
+         FROM ims_fifo_cost_allocations
+        WHERE business_id = ? AND epoch_id = ? AND reversal_of_allocation_id IN (${allocations.map(() => '?').join(',')})
+        GROUP BY reversal_of_allocation_id
+        FOR UPDATE`,
+      [input.businessId, input.state.epochId, ...allocations.map(allocation => Number(allocation.id))],
+    );
+    const reversedByAllocation = new Map(priorReversals.map(row => [
+      Number(row.reversal_of_allocation_id), Number(row.reversed_quantity),
+    ]));
+    const remainingQuantity = allocations.reduce((sum, allocation) => (
+      sum + Math.max(0, Number(allocation.quantity) - Number(reversedByAllocation.get(Number(allocation.id)) ?? 0))
+    ), 0);
+    if (remainingQuantity + 0.0001 < input.expectedQuantity) {
+      throw new FifoCostingConflict('The requested quantity exceeds the unreversed original FIFO allocations. Refresh the document before retrying.');
+    }
+    let quantityToRestore = input.expectedQuantity;
+    for (const allocation of allocations) {
+      const available = Math.max(0, Number(allocation.quantity) - Number(reversedByAllocation.get(Number(allocation.id)) ?? 0));
+      const quantity = Math.min(available, quantityToRestore);
+      if (quantity <= 0.0001) continue;
+      const unitCost = Number(allocation.unit_cost);
+      const value = quantity * unitCost;
+      const [updateResult] = await conn.execute<any>(
+        `UPDATE ims_fifo_cost_layers
+            SET remaining_quantity = remaining_quantity + ?
+          WHERE id = ? AND business_id = ? AND epoch_id = ?
+            AND remaining_quantity + ? <= original_quantity + 0.0001`,
+        [quantity, allocation.layer_id, input.businessId, input.state.epochId, quantity],
+      );
+      if (Number(updateResult.affectedRows) !== 1) {
+        throw new FifoCostingConflict('An original FIFO layer can no longer accept its reversed quantity. Reconcile its history before retrying.');
+      }
+      await conn.execute(
+        `INSERT INTO ims_fifo_cost_allocations
+          (business_id, epoch_id, stock_movement_id, layer_id, quantity, unit_cost,
+           allocated_value, allocation_type, reversal_of_allocation_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'restore', ?)`,
+        [input.businessId, input.state.epochId, input.reversalMovementId, allocation.layer_id,
+          quantity, unitCost, value, allocation.id],
+      );
+      allocatedValue += value;
+      allocationCount++;
+      quantityToRestore -= quantity;
+      if (quantityToRestore <= 0.0001) break;
+    }
+  } else {
+    const [layers] = await conn.execute<any[]>(
+      `SELECT id, original_quantity, remaining_quantity, unit_cost
+         FROM ims_fifo_cost_layers
+        WHERE business_id = ? AND epoch_id = ? AND source_movement_id = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [input.businessId, input.state.epochId, input.originalMovementId],
+    );
+    const totalQuantity = layers.reduce((sum, layer) => sum + Number(layer.original_quantity), 0);
+    const [priorReversals] = layers.length ? await conn.execute<any[]>(
+      `SELECT layer_id, SUM(quantity) AS reversed_quantity
+         FROM ims_fifo_cost_allocations
+        WHERE business_id = ? AND epoch_id = ? AND layer_id IN (${layers.map(() => '?').join(',')})
+          AND allocation_type = 'reverse_inbound'
+        GROUP BY layer_id
+        FOR UPDATE`,
+      [input.businessId, input.state.epochId, ...layers.map(layer => Number(layer.id))],
+    ) : [[]];
+    const reversedByLayer = new Map(priorReversals.map(row => [Number(row.layer_id), Number(row.reversed_quantity)]));
+    const allUnconsumed = layers.every(layer => {
+      const expectedRemaining = Number(layer.original_quantity) - Number(reversedByLayer.get(Number(layer.id)) ?? 0);
+      return Math.abs(Number(layer.remaining_quantity) - expectedRemaining) <= 0.0001;
+    });
+    const unreversedQuantity = layers.reduce((sum, layer) => (
+      sum + Math.max(0, Number(layer.original_quantity) - Number(reversedByLayer.get(Number(layer.id)) ?? 0))
+    ), 0);
+    if (!layers.length || Math.abs(totalQuantity - movementQuantity) > 0.0001 || !allUnconsumed
+      || unreversedQuantity + 0.0001 < input.expectedQuantity) {
+      throw new FifoCostingConflict(
+        'Stock created by the original FIFO movement has already been used or moved and cannot be reversed automatically.',
+      );
+    }
+    let quantityToReverse = input.expectedQuantity;
+    for (const layer of layers) {
+      const alreadyReversed = Number(reversedByLayer.get(Number(layer.id)) ?? 0);
+      const available = Math.max(0, Number(layer.original_quantity) - alreadyReversed);
+      const quantity = Math.min(available, quantityToReverse);
+      if (quantity <= 0.0001) continue;
+      const unitCost = Number(layer.unit_cost);
+      const value = quantity * unitCost;
+      const [updateResult] = await conn.execute<any>(
+        `UPDATE ims_fifo_cost_layers
+            SET remaining_quantity = remaining_quantity - ?
+          WHERE id = ? AND business_id = ? AND epoch_id = ?
+            AND ABS(remaining_quantity - ?) <= 0.0001`,
+        [quantity, layer.id, input.businessId, input.state.epochId, available],
+      );
+      if (Number(updateResult.affectedRows) !== 1) {
+        throw new FifoCostingConflict('FIFO stock changed while this reversal was being completed. Refresh and try again.');
+      }
+      await conn.execute(
+        `INSERT INTO ims_fifo_cost_allocations
+          (business_id, epoch_id, stock_movement_id, layer_id, quantity, unit_cost, allocated_value, allocation_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'reverse_inbound')`,
+        [input.businessId, input.state.epochId, input.reversalMovementId, layer.id, quantity, unitCost, value],
+      );
+      allocatedValue += value;
+      allocationCount++;
+      quantityToReverse -= quantity;
+      if (quantityToReverse <= 0.0001) break;
+    }
+  }
+
+  const unitCost = input.expectedQuantity > 0 ? allocatedValue / input.expectedQuantity : 0;
+  await conn.execute(
+    `UPDATE ims_stock_movements
+        SET unit_cost = ?, cost_method_snapshot = 'fifo', cost_epoch_id = ?
+      WHERE id = ? AND business_id = ?`,
+    [unitCost, input.state.epochId, input.reversalMovementId, input.businessId],
+  );
+  return { allocatedValue, unitCost, allocationCount };
 }
 
 export async function transferFifoCostLayers(

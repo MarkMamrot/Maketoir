@@ -1,3 +1,13 @@
+## 2026-09-13 - FIFO backorder fulfilment and unsafe mutation guards
+
+- Customer backorder splits now use the same FIFO controls as normal SO fulfilment: the transaction locks costing state, stamps the exact SO line and valuation epoch on the movement, consumes location layers, and saves the allocation-derived line cost. FIFO layer shortages return an actionable HTTP 409 and never honor the Average Cost negative-stock override.
+- Product build reversal now blocks before loading or mutating build stock while FIFO is active. Exact output-layer removal and component-allocation restoration remain required before FIFO reversal can be enabled.
+- Cin7 stock snapshot and stock sync replacement now block while FIFO is active because quantity overwrites have no cost-layer provenance. Full product replacement checks the guard before migrations or any stock/product deletion; the existing completed-build overwrite guard remains unchanged under Average Cost.
+- Product and variant hard deletion is now tenant-scoped and transactional. It is blocked while FIFO is active and remains blocked after switching to Average Cost when any FIFO layer history exists; deactivation preserves catalogue and valuation audit instead.
+- Shared FIFO reversal logic now restores exact original consumption allocations without rewriting them and reverses inbound layers only while their complete source quantity remains untouched. Reversal allocations preserve lineage and stamp the correcting movement with the original composite cost.
+- FIFO stocktake reversal now supports negative variances by restoring their exact consumed layers and positive variances by consuming the untouched stocktake source layer. Reversal is blocked when source stock was used or moved, provenance is incomplete, or the costing method/epoch changed.
+- The full Vitest suite passed 2,708 tests with one skipped, diagnostics were clean, and the production build passed. FIFO activation remains disabled. Remaining activation blockers include customer/supplier credit-note, product-build and POS reversal workflows, valuation reconciliation/reporting, and activation UI/Help.
+
 ## 2026-09-11 - Broad sales-safe public Assistant knowledge
 
 - The public prospect index now combines six purpose-written sales sources with field-whitelisted title, summary, product, capability, and availability projections for 59 IMS, POS, wholesale, and Intel & Automation Help topics. Article bodies, procedures, screens, paths, setup/security/runtime topics, private metadata, and authenticated tools remain excluded.

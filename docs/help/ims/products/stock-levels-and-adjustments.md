@@ -10,7 +10,7 @@ Use Stock Levels to explain a quantity before changing it, then use the operatio
 - Search by SKU, product, variant, barcode or location.
 - Filter by brand, supplier or **Low stock only**.
 - Compare on hand, available, incoming and committed quantities.
-- Review average cost and stock value without changing them.
+- Review the displayed cost and stock value without changing them.
 - Correct a physical count through Stocktakes, not through the read-only Stock Levels table.
 
 ## At a glance
@@ -23,8 +23,8 @@ Use Stock Levels to explain a quantity before changing it, then use the operatio
 | Incoming | Units expected from confirmed purchasing | 8 |
 | Min Qty | The low-stock comparison point | 4 |
 | Reorder Qty | The saved replenishment quantity | 10 |
-| Avg Cost | Current shared tax-exclusive cost per unit | $18.00 |
-| Stock Value | On Hand multiplied by Avg Cost | $216.00 |
+| Avg Cost | Current shared tax-exclusive cost per unit; retained as a reference while FIFO is active | $18.00 |
+| Stock Value | Current value under the active inventory costing method | $216.00 |
 
 > **Important:** Incoming stock is not on hand. Committed stock is still physically present but already promised. Do not add incoming to on hand or subtract committed with a manual count correction.
 
@@ -70,7 +70,7 @@ Products with **Tracks Inventory** off are not governed by on-hand, available, c
 | System on hand when applied | 14 | Existing record |
 | Physical count | 11 | Staff count |
 | Applied adjustment | -3 | `11 - 14` |
-| Average cost | $20.00 | Tax-exclusive unit cost |
+| Applied unit cost | $20.00 | Tax-exclusive movement cost |
 | Value of reduction | $60.00 | `3 × $20` |
 
 ## Troubleshooting
@@ -81,7 +81,7 @@ Products with **Tracks Inventory** off are not governed by on-hand, available, c
 | Incoming remains after a delivery | The PO may not have been received or fully resolved | Open the PO and check received and outstanding quantities |
 | Low stock includes a zero minimum | Zero means flag the item when it is out of stock | Review the row rather than assuming the filter is wrong |
 | A completed count is still wrong | A movement may have occurred after counting, or the wrong location was counted | Review Stock History and the stocktake's applied adjustment |
-| Two locations show the same average cost | Average cost is shared for the variant | Compare location quantities and values separately |
+| Two locations show the same Average Cost | Average Cost is shared for the variant, even when FIFO valuation uses location layers | Compare location quantities and Inventory Valuation values separately |
 
 ## Worked examples
 
@@ -91,4 +91,4 @@ Melbourne has 12 travel mugs on hand, 5 committed to customer orders and 8 incom
 
 ### Correct a shelf count
 
-Stock Levels shows 14 candles, but staff count 11 and find no missing sale, receipt, transfer or return. They create a focused Stocktake, enter 11 and complete it. The applied adjustment is -3. At an average cost of $20, stock value falls by $60 before any separate accounting posting.
+Stock Levels shows 14 candles, but staff count 11 and find no missing sale, receipt, transfer or return. They create a focused Stocktake, enter 11 and complete it. The applied adjustment is -3. If the captured cost is $20 per unit, stock value falls by $60 before any separate accounting posting.

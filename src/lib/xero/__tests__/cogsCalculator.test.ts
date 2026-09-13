@@ -75,6 +75,19 @@ describe('calculateCogsForPeriod', () => {
     expect(sql).not.toContain('so.business_id = sm.business_id');
     expect(params).toEqual(['2026-07-01', '2026-08-01']);
   });
+
+  it('includes customer return and reversal movements in period COGS classification', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ Field: 'is_stock_item' }]).mockResolvedValueOnce([]);
+
+    await calculateCogsForPeriod({
+      businessId: 'biz-1', startDate: '2026-07-01', endDateExclusive: '2026-08-01',
+    });
+
+    const sql = String(mockImsQuery.mock.calls[1][0]);
+    expect(sql).toContain("'cn_returned', 'cn_return_reversed'");
+    expect(sql).toContain("cn.source = 'pos'");
+    expect(sql).toContain("cn.so_id IS NULL THEN 'returns'");
+  });
 });
 
 describe('validateCogsDateRange', () => {
