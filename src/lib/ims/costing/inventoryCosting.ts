@@ -25,11 +25,26 @@ export type FifoAllocationPlan = {
   weightedUnitCost: number | null;
 };
 
-const QUANTITY_SCALE = 10_000;
+export const INVENTORY_QUANTITY_SCALE = 10_000;
+export const INVENTORY_QUANTITY_INCREMENT = 1 / INVENTORY_QUANTITY_SCALE;
+export const INVENTORY_QUANTITY_TOLERANCE = INVENTORY_QUANTITY_INCREMENT / 2;
+export const INVENTORY_UNIT_COST_SCALE = 1_000_000;
 
 function scaledQuantity(value: number, label: string): number {
   if (!Number.isFinite(value)) throw new Error(`${label} must be a finite number.`);
-  return Math.round(value * QUANTITY_SCALE);
+  return Math.round(value * INVENTORY_QUANTITY_SCALE);
+}
+
+export function quantizeInventoryQuantity(value: number, label = 'Quantity'): number {
+  return scaledQuantity(value, label) / INVENTORY_QUANTITY_SCALE;
+}
+
+export function inventoryQuantitiesEqual(left: number, right: number): boolean {
+  return Math.abs(left - right) < INVENTORY_QUANTITY_TOLERANCE;
+}
+
+export function isDatabaseZeroInventoryCost(value: number): boolean {
+  return Number.isFinite(value) && Math.round(value * INVENTORY_UNIT_COST_SCALE) === 0;
 }
 
 export function isInventoryCostMethod(value: unknown): value is InventoryCostMethod {
@@ -59,7 +74,7 @@ export function planFifoConsumption(
     if (remainingRequested === 0) break;
     const allocatedScaled = Math.min(remainingRequested, layer.remainingScaled);
     if (allocatedScaled === 0) continue;
-    const quantity = allocatedScaled / QUANTITY_SCALE;
+    const quantity = allocatedScaled / INVENTORY_QUANTITY_SCALE;
     allocations.push({
       layerId: layer.layerId,
       quantity,
@@ -70,13 +85,13 @@ export function planFifoConsumption(
   }
 
   const allocatedScaled = requestedScaled - remainingRequested;
-  const allocatedQuantity = allocatedScaled / QUANTITY_SCALE;
+  const allocatedQuantity = allocatedScaled / INVENTORY_QUANTITY_SCALE;
   const allocatedValue = allocations.reduce((sum, allocation) => sum + allocation.allocatedValue, 0);
   return {
     allocations,
-    requestedQuantity: requestedScaled / QUANTITY_SCALE,
+    requestedQuantity: requestedScaled / INVENTORY_QUANTITY_SCALE,
     allocatedQuantity,
-    shortageQuantity: remainingRequested / QUANTITY_SCALE,
+    shortageQuantity: remainingRequested / INVENTORY_QUANTITY_SCALE,
     allocatedValue,
     weightedUnitCost: allocatedScaled > 0 ? allocatedValue / allocatedQuantity : null,
   };

@@ -1,6 +1,7 @@
 import type { PoolConnection } from 'mysql2/promise';
 
 import {
+  isDatabaseZeroInventoryCost,
   isInventoryCostMethod,
   planFifoConsumption,
   type InventoryCostMethod,
@@ -11,6 +12,16 @@ export type InventoryCostState = {
   epochId: number | null;
   revision: number;
 };
+
+export const FIFO_ZERO_COST_REASONS = [
+  'supplier_no_charge',
+  'build_zero_component_cost',
+  'stocktake_zero_cost',
+  'return_of_zero_cost_stock',
+  'transfer_of_zero_cost_stock',
+] as const;
+
+export type FifoZeroCostReason = typeof FIFO_ZERO_COST_REASONS[number];
 
 export class FifoCostingConflict extends Error {
   readonly code = 'FIFO_COSTING_CONFLICT';
@@ -92,6 +103,7 @@ export async function createFifoCostLayer(
     fifoDate: string | Date;
     quantity: number;
     unitCost: number;
+    zeroCostReason?: FifoZeroCostReason | null;
   },
 ): Promise<number> {
   if (input.state.method !== 'fifo' || !input.state.epochId) {
@@ -103,6 +115,13 @@ export async function createFifoCostLayer(
   if (!Number.isFinite(input.unitCost) || input.unitCost < 0) {
     throw new Error('FIFO layer unit cost cannot be negative.');
   }
+  const roundsToZeroCost = isDatabaseZeroInventoryCost(input.unitCost);
+  if (roundsToZeroCost && !input.zeroCostReason) {
+    throw new Error('Zero-cost FIFO layers require an auditable reason.');
+  }
+  if (input.zeroCostReason && !FIFO_ZERO_COST_REASONS.includes(input.zeroCostReason)) {
+    throw new Error('FIFO layer zero-cost reason is invalid.');
+  }
   const fifoDate = new Date(input.fifoDate);
   if (!Number.isFinite(fifoDate.getTime())) throw new Error('FIFO layer date is invalid.');
 
@@ -110,8 +129,8 @@ export async function createFifoCostLayer(
     `INSERT INTO ims_fifo_cost_layers
       (business_id, epoch_id, variant_id, location_id, source_type, source_movement_id,
        source_reference_type, source_reference_id, source_line_id, parent_layer_id,
-       fifo_date, original_quantity, remaining_quantity, unit_cost)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       fifo_date, original_quantity, remaining_quantity, unit_cost, zero_cost_reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.businessId,
       input.state.epochId,
@@ -127,6 +146,7 @@ export async function createFifoCostLayer(
       input.quantity,
       input.quantity,
       input.unitCost,
+      input.zeroCostReason ?? null,
     ],
   );
   return Number(result.insertId);
@@ -425,6 +445,7 @@ export async function transferFifoCostLayers(
       fifoDate: allocation.fifoDate,
       quantity: allocation.quantity,
       unitCost: allocation.unitCost,
+      zeroCostReason: Math.round(allocation.unitCost * 1_000_000) === 0 ? 'transfer_of_zero_cost_stock' : null,
     });
   }
   await conn.execute(
@@ -538,6 +559,7 @@ export async function createFifoPosReturnLayers(
         fifoDate: input.returnDate,
         quantity,
         unitCost: allocation.unitCost,
+        zeroCostReason: Math.round(allocation.unitCost * 1_000_000) === 0 ? 'return_of_zero_cost_stock' : null,
       });
       allocationRemaining -= quantity;
       lineRemaining -= quantity;
@@ -642,6 +664,7 @@ export async function createFifoSalesOrderReturnLayers(
       fifoDate: input.returnDate,
       quantity: allocation.quantity,
       unitCost: allocation.unitCost,
+      zeroCostReason: Math.round(allocation.unitCost * 1_000_000) === 0 ? 'return_of_zero_cost_stock' : null,
     });
   }
   const unitCost = Number(plan.weightedUnitCost ?? 0);

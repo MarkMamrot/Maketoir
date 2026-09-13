@@ -410,6 +410,7 @@ export async function POST(req: Request) {
             sourceType: 'po_receipt', sourceMovementId: Number(movementResult.insertId),
             sourceReferenceType: 'purchase_order', sourceReferenceId: Number(po_id), sourceLineId: Number(poItem.id),
             fifoDate: new Date(), quantity: appliedQty, unitCost: receivedUnitCostAud,
+            zeroCostReason: Math.round(receivedUnitCostAud * 1_000_000) === 0 ? 'supplier_no_charge' : null,
           });
         }
 

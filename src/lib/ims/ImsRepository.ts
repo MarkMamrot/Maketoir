@@ -2374,6 +2374,7 @@ export const ImsPORepo = {
               locationId: Number(po.location_id), sourceType: 'po_receipt', sourceMovementId: Number(movementResult.insertId),
               sourceReferenceType: 'purchase_order', sourceReferenceId: id, sourceLineId: Number(item.id),
               fifoDate: new Date(), quantity: qty_rcvd, unitCost: true_cost_aud,
+              zeroCostReason: Math.round(true_cost_aud * 1_000_000) === 0 ? 'supplier_no_charge' : null,
             });
           }
         }
@@ -2499,6 +2500,7 @@ export const ImsPORepo = {
               locationId: Number(po.location_id), sourceType: 'po_receipt', sourceMovementId: Number(movementResult.insertId),
               sourceReferenceType: 'purchase_order', sourceReferenceId: id, sourceLineId: Number(item.id),
               fifoDate: new Date(), quantity: remaining, unitCost: true_cost_aud,
+              zeroCostReason: Math.round(true_cost_aud * 1_000_000) === 0 ? 'supplier_no_charge' : null,
             });
           }
         }

@@ -197,6 +197,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'original_quantity',
     'remaining_quantity',
     'unit_cost',
+    'zero_cost_reason',
   ],
   ims_fifo_cost_allocations: [
     'business_id',

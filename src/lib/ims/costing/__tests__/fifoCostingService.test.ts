@@ -92,7 +92,44 @@ describe('FIFO costing service', () => {
     expect(layerId).toBe(72);
     expect(execute).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO ims_fifo_cost_layers'), [
       'biz-1', 4, 'v-1', 3, 'po_receipt', 90, 'purchase_order', 12, 13, null,
-      expect.any(Date), 5, 5, 8.25,
+      expect.any(Date), 5, 5, 8.25, null,
+    ]);
+  });
+
+  it('requires explicit provenance when a layer cost rounds to zero', async () => {
+    const execute = vi.fn();
+    await expect(createFifoCostLayer({ execute } as any, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 4, revision: 2 },
+      variantId: 'v-1',
+      locationId: 3,
+      sourceType: 'po_receipt',
+      fifoDate: '2026-09-10T10:00:00Z',
+      quantity: 5,
+      unitCost: 0.0000004,
+    })).rejects.toThrow('Zero-cost FIFO layers require an auditable reason.');
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('stores an approved reason for a genuine zero-cost layer', async () => {
+    const execute = vi.fn(async () => [{ insertId: 73 }]);
+    await expect(createFifoCostLayer({ execute } as any, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 4, revision: 2 },
+      variantId: 'v-1',
+      locationId: 3,
+      sourceType: 'po_receipt',
+      sourceReferenceType: 'purchase_order',
+      sourceReferenceId: 12,
+      sourceLineId: 13,
+      fifoDate: '2026-09-10T10:00:00Z',
+      quantity: 5,
+      unitCost: 0,
+      zeroCostReason: 'supplier_no_charge',
+    })).resolves.toBe(73);
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining('zero_cost_reason'), [
+      'biz-1', 4, 'v-1', 3, 'po_receipt', null, 'purchase_order', 12, 13, null,
+      expect.any(Date), 5, 5, 0, 'supplier_no_charge',
     ]);
   });
 
@@ -282,11 +319,11 @@ describe('FIFO costing service', () => {
     expect(layerCalls).toHaveLength(2);
     expect(layerCalls[0][1]).toEqual([
       'biz-1', 4, 'v-1', 4, 'branch_transfer', 100, 'branch_transfer', 12, 13, 1,
-      expect.any(Date), 2, 2, 10,
+      expect.any(Date), 2, 2, 10, null,
     ]);
     expect(layerCalls[1][1]).toEqual([
       'biz-1', 4, 'v-1', 4, 'branch_transfer', 100, 'branch_transfer', 12, 13, 2,
-      expect.any(Date), 3, 3, 12,
+      expect.any(Date), 3, 3, 12, null,
     ]);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("cost_method_snapshot = 'fifo'"),
@@ -324,11 +361,11 @@ describe('FIFO costing service', () => {
     expect(layerCalls).toHaveLength(2);
     expect(layerCalls[0][1]).toEqual([
       'biz-1', 4, 'v-1', 3, 'pos_return', 101, 'pos_sale', 20, 201, 1,
-      expect.any(Date), 2, 2, 10,
+      expect.any(Date), 2, 2, 10, null,
     ]);
     expect(layerCalls[1][1]).toEqual([
       'biz-1', 4, 'v-1', 3, 'pos_return', 101, 'pos_sale', 20, 202, 2,
-      expect.any(Date), 1, 1, 12,
+      expect.any(Date), 1, 1, 12, null,
     ]);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("cost_method_snapshot = 'fifo'"),
@@ -366,11 +403,11 @@ describe('FIFO costing service', () => {
     expect(layerCalls).toHaveLength(2);
     expect(layerCalls[0][1]).toEqual([
       'biz-1', 4, 'v-1', 5, 'sales_order_return', 101, 'credit_note', 40, 401, 1,
-      expect.any(Date), 1, 1, 10,
+      expect.any(Date), 1, 1, 10, null,
     ]);
     expect(layerCalls[1][1]).toEqual([
       'biz-1', 4, 'v-1', 5, 'sales_order_return', 101, 'credit_note', 40, 401, 2,
-      expect.any(Date), 2, 2, 12,
+      expect.any(Date), 2, 2, 12, null,
     ]);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("cost_method_snapshot = 'fifo'"),

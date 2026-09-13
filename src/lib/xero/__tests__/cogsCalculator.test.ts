@@ -44,6 +44,19 @@ describe('summariseCogsRows', () => {
     expect(result.totalCOGS).toBe(-12.5);
     expect(result.blocked).toBe(false);
   });
+
+  it('allows explicitly reasoned zero-cost FIFO movements without hiding their audit count', () => {
+    const result = summariseCogsRows([
+      { location_id: 1, channel: 'pos', source_status: 'eligible', cost_status: 'intentional_zero', movement_count: 2, quantity: 3, cogs: 0 },
+    ], '2026-07-01', '2026-07-02');
+
+    expect(result).toMatchObject({
+      intentionalZeroCostMovementCount: 2,
+      intentionalZeroCostQuantity: 3,
+      zeroCostMovementCount: 0,
+      blocked: false,
+    });
+  });
 });
 
 describe('calculateCogsForPeriod', () => {
@@ -87,6 +100,8 @@ describe('calculateCogsForPeriod', () => {
     expect(sql).toContain("'cn_returned', 'cn_return_reversed'");
     expect(sql).toContain("cn.source = 'pos'");
     expect(sql).toContain("cn.so_id IS NULL THEN 'returns'");
+    expect(sql).toContain("THEN 'intentional_zero'");
+    expect(sql).toContain('zero_cost_reason IS NOT NULL');
   });
 });
 

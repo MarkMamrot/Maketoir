@@ -3,9 +3,13 @@ import type { PoolConnection } from 'mysql2/promise';
 
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { createFifoCostLayer, FifoCostingConflict, lockInventoryCostState } from './fifoCostingService';
-import { isInventoryCostMethod, type InventoryCostMethod } from './inventoryCosting';
+import {
+  INVENTORY_QUANTITY_TOLERANCE,
+  isDatabaseZeroInventoryCost,
+  isInventoryCostMethod,
+  type InventoryCostMethod,
+} from './inventoryCosting';
 
-const QUANTITY_TOLERANCE = 0.0001;
 export const INVENTORY_COST_METHOD_SETTING_KEY = 'inventory_cost_method';
 export const FIFO_COSTING_ACTIVATION_READY = true;
 
@@ -105,14 +109,17 @@ function buildPreview(
   fifoTotals?: Map<string, { quantity: number; value: number }>,
 ): InventoryCostSwitchPreview {
   const blockers: string[] = [];
-  const positive = stock.filter(row => row.quantity > QUANTITY_TOLERANCE);
-  const negative = stock.filter(row => row.quantity < -QUANTITY_TOLERANCE);
+  const positive = stock.filter(row => row.quantity > INVENTORY_QUANTITY_TOLERANCE);
+  const negative = stock.filter(row => row.quantity < -INVENTORY_QUANTITY_TOLERANCE);
   if (currentMethod === targetMethod) blockers.push(`Inventory costing is already set to ${targetMethod === 'fifo' ? 'FIFO' : 'Average Cost'}.`);
   if (negative.length > 0) blockers.push(`${negative.length} stock row(s) have negative on-hand quantity. Reconcile them before switching costing methods.`);
 
   let totalValue = 0;
   if (targetMethod === 'fifo') {
-    const missingCost = positive.filter(row => row.unitCost == null || !Number.isFinite(row.unitCost) || row.unitCost <= 0);
+    const missingCost = positive.filter(row => row.unitCost == null
+      || !Number.isFinite(row.unitCost)
+      || row.unitCost < 0
+      || isDatabaseZeroInventoryCost(row.unitCost));
     if (missingCost.length > 0) blockers.push(`${missingCost.length} positive stock row(s) have no valid positive average cost. Add or correct their costs before enabling FIFO.`);
     totalValue = positive.reduce((sum, row) => sum + row.quantity * Number(row.unitCost ?? 0), 0);
   } else {
@@ -121,7 +128,7 @@ function buildPreview(
       const key = `${row.variantId}\u0000${row.locationId}`;
       const layer = fifoTotals?.get(key) ?? { quantity: 0, value: 0 };
       unmatched.delete(key);
-      if (Math.abs(layer.quantity - row.quantity) > QUANTITY_TOLERANCE) {
+      if (Math.abs(layer.quantity - row.quantity) >= INVENTORY_QUANTITY_TOLERANCE) {
         blockers.push(`FIFO layers do not reconcile for variant ${row.variantId} at location ${row.locationId}: stock is ${row.quantity}, layers total ${layer.quantity}.`);
       }
       totalValue += layer.value;
@@ -246,7 +253,7 @@ export async function switchInventoryCostMethod(input: SwitchInventoryCostMethod
       const fifoState = { method: 'fifo' as const, epochId, revision: state.revision + 1 };
       const now = new Date();
       for (const row of stock) {
-        if (row.quantity <= QUANTITY_TOLERANCE) continue;
+        if (row.quantity <= INVENTORY_QUANTITY_TOLERANCE) continue;
         await createFifoCostLayer(conn, {
           businessId: input.businessId,
           state: fifoState,
@@ -271,7 +278,7 @@ export async function switchInventoryCostMethod(input: SwitchInventoryCostMethod
         variantTotals.set(row.variantId, total);
       }
       for (const [variantId, total] of variantTotals) {
-        const averageCost = total.quantity > QUANTITY_TOLERANCE ? total.value / total.quantity : 0;
+        const averageCost = total.quantity > INVENTORY_QUANTITY_TOLERANCE ? total.value / total.quantity : 0;
         await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [averageCost, variantId]);
         await conn.execute(`UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`, [averageCost, variantId]);
       }

@@ -573,6 +573,7 @@ export async function completeProductBuildInTransaction(
         fifoDate: new Date(),
         quantity,
         unitCost: outputUnitCost,
+        zeroCostReason: Math.round(outputUnitCost * 1_000_000) === 0 ? 'build_zero_component_cost' : null,
       });
     }
   }

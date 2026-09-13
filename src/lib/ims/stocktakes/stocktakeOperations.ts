@@ -235,6 +235,7 @@ export async function applyStocktakeInTransaction(
               fifoDate: new Date(),
               quantity: appliedDelta,
               unitCost,
+              zeroCostReason: Math.round(unitCost * 1_000_000) === 0 ? 'stocktake_zero_cost' : null,
             });
           } else {
             await consumeFifoCostLayers(connection, {

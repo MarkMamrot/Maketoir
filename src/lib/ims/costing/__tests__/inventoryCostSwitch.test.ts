@@ -60,6 +60,22 @@ describe('inventory cost method switching', () => {
     expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
+  it('blocks FIFO activation when a positive cost rounds to zero at database precision', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT active_method')) return [[{ active_method: 'average_cost', active_epoch_id: null, revision: 1 }]];
+      if (sql.includes('FROM ims_inventory_cost_epochs') && sql.includes('operation_key')) return [[]];
+      if (sql.includes('FROM ims_stock s')) {
+        return [[{ variant_id: 'v-1', location_id: 1, qty_on_hand: 2, unit_cost: 0.0000004 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), execute };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(switchInventoryCostMethod(baseInput)).rejects.toThrow('no valid positive average cost');
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO ims_inventory_cost_epochs'))).toBe(false);
+  });
+
   it('reconciles FIFO layers and derives organisation-wide average cost when switching back', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT active_method')) return [[{ active_method: 'fifo', active_epoch_id: 40, revision: 2 }]];

@@ -51,6 +51,17 @@ jobs:
           MYSQL_PASSWORD: test-password
           MYSQL_DATABASE: mysql
 
+      - name: Verify FIFO transactions and concurrency
+        run: npm test -- --run src/lib/ims/costing/__tests__/fifoCosting.integration.test.ts
+        env:
+          RUN_FIFO_MYSQL_INTEGRATION: '1'
+          MYSQL_HOST: 127.0.0.1
+          IMS_MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: '3306'
+          MYSQL_USER: root
+          MYSQL_PASSWORD: test-password
+          MYSQL_DATABASE: mysql
+
       - name: Build Next.js
         run: npm run build
         env:

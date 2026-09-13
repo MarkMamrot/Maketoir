@@ -106,7 +106,47 @@ export async function GET(req: Request) {
       layer_quantity: r.layer_quantity == null ? null : Number(r.layer_quantity),
       reconciliation_delta: r.layer_quantity == null ? 0 : Number(r.soh ?? 0) - Number(r.layer_quantity),
     }));
-    const mismatchedRows = data.filter(row => Math.abs(row.reconciliation_delta) > 0.0001);
+    const reconciliationPositions = costingMethod === 'fifo'
+      ? await imsQuery<{
+          variant_id: string;
+          location_id: number;
+          stock_quantity: number;
+          layer_quantity: number;
+        }>(`
+          SELECT position.variant_id, position.location_id,
+                 SUM(position.stock_quantity) AS stock_quantity,
+                 SUM(position.layer_quantity) AS layer_quantity
+            FROM (
+              SELECT BINARY s.variant_id AS variant_id, s.location_id,
+                     SUM(s.qty_on_hand) AS stock_quantity, 0 AS layer_quantity
+                FROM ims_stock s
+                JOIN ims_product_variants v ON v.variant_id = s.variant_id
+                JOIN ims_products p ON p.product_id = v.product_id
+               WHERE s.business_id = ? AND ${conds.join(' AND ')}
+               GROUP BY s.variant_id, s.location_id
+              UNION ALL
+              SELECT BINARY f.variant_id AS variant_id, f.location_id,
+                     0 AS stock_quantity, SUM(f.remaining_quantity) AS layer_quantity
+                FROM ims_fifo_cost_layers f
+                JOIN ims_product_variants v ON v.variant_id = f.variant_id
+                JOIN ims_products p ON p.product_id = v.product_id
+               WHERE f.business_id = ? AND f.epoch_id = ? AND ${conds.join(' AND ')}
+               GROUP BY f.variant_id, f.location_id
+            ) position
+           GROUP BY position.variant_id, position.location_id
+          HAVING ABS(SUM(position.stock_quantity) - SUM(position.layer_quantity)) > 0.0001
+           ORDER BY position.variant_id, position.location_id`,
+        [session.businessId, ...filterParams, session.businessId, costEpochId, ...filterParams],
+      )
+      : [];
+    const mismatches = reconciliationPositions.map(position => ({
+      variant_id: String(position.variant_id),
+      location_id: Number(position.location_id),
+      stock_quantity: Number(position.stock_quantity),
+      layer_quantity: Number(position.layer_quantity),
+      reconciliation_delta: Number(position.stock_quantity) - Number(position.layer_quantity),
+    }));
+    const mismatchedSkuCount = new Set(mismatches.map(row => row.variant_id)).size;
 
     return NextResponse.json({
       success: true,
@@ -114,10 +154,12 @@ export async function GET(req: Request) {
       costing_method: costingMethod,
       cost_epoch_id: costEpochId,
       reconciliation: {
-        status: mismatchedRows.length === 0 ? 'balanced' : 'mismatch',
-        mismatched_sku_count: mismatchedRows.length,
+        status: mismatches.length === 0 ? 'balanced' : 'mismatch',
+        mismatched_sku_count: mismatchedSkuCount,
+        mismatched_location_count: mismatches.length,
         stock_quantity: data.reduce((sum, row) => sum + row.soh, 0),
         valued_quantity: data.reduce((sum, row) => sum + (row.layer_quantity ?? row.soh), 0),
+        mismatches,
       },
     });
   } catch (e: any) {

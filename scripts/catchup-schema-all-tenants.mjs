@@ -1199,6 +1199,7 @@ const COLUMNS = [
   ['ims_stock_movements', 'cost_method_snapshot', "ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost' AFTER unit_cost"],
   ['ims_stock_movements', 'cost_epoch_id', 'BIGINT NULL AFTER cost_method_snapshot'],
   ['ims_stock_movements', 'source_line_id', 'BIGINT NULL AFTER reference_id'],
+  ['ims_fifo_cost_layers', 'zero_cost_reason', 'VARCHAR(64) NULL AFTER unit_cost'],
   ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
   ['ims_product_variants', 'length_mm', 'DECIMAL(10,2) NULL AFTER weight_kg'],
   ['ims_product_variants', 'width_mm', 'DECIMAL(10,2) NULL AFTER length_mm'],

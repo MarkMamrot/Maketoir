@@ -108,7 +108,8 @@ describe('empty tenant report contracts', () => {
       costing_method: 'average_cost',
       cost_epoch_id: null,
       reconciliation: {
-        status: 'balanced', mismatched_sku_count: 0, stock_quantity: 0, valued_quantity: 0,
+        status: 'balanced', mismatched_sku_count: 0, mismatched_location_count: 0,
+        stock_quantity: 0, valued_quantity: 0, mismatches: [],
       },
     });
   });
@@ -119,6 +120,9 @@ describe('empty tenant report contracts', () => {
       .mockResolvedValueOnce([{
         variant_id: 'v-1', sku: 'SKU-1', name: 'Product', brand: 'Brand', supplier_name: 'Supplier',
         cost: '5', soh: '3', total_value: '10', layer_quantity: '2',
+      }])
+      .mockResolvedValueOnce([{
+        variant_id: 'v-1', location_id: 7, stock_quantity: '3', layer_quantity: '2',
       }]);
 
     const response = await getInventoryValuation(request('/api/ims/reports/inventory-valuation'));
@@ -128,11 +132,44 @@ describe('empty tenant report contracts', () => {
       success: true,
       costing_method: 'fifo',
       cost_epoch_id: 12,
-      reconciliation: { status: 'mismatch', mismatched_sku_count: 1, stock_quantity: 3, valued_quantity: 2 },
+      reconciliation: {
+        status: 'mismatch', mismatched_sku_count: 1, mismatched_location_count: 1,
+        stock_quantity: 3, valued_quantity: 2,
+        mismatches: [{ variant_id: 'v-1', location_id: 7, stock_quantity: 3, layer_quantity: 2, reconciliation_delta: 1 }],
+      },
       data: [{ cost: 5, soh: 3, total_value: 10, layer_quantity: 2, reconciliation_delta: 1 }],
     });
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('SUM(remaining_quantity * unit_cost) AS layer_value');
     expect(mocks.imsQuery.mock.calls[1][1]).toEqual(['business-1', 'business-1', 12, 'business-1']);
+    expect(mocks.imsQuery.mock.calls[2][0]).toContain('GROUP BY position.variant_id, position.location_id');
+    expect(mocks.imsQuery.mock.calls[2][0]).toContain('BINARY s.variant_id AS variant_id');
+  });
+
+  it('reports offsetting FIFO discrepancies at separate locations', async () => {
+    mocks.imsQuery
+      .mockResolvedValueOnce([{ active_method: 'fifo', active_epoch_id: 12 }])
+      .mockResolvedValueOnce([{
+        variant_id: 'v-1', sku: 'SKU-1', name: 'Product', brand: 'Brand', supplier_name: 'Supplier',
+        cost: '5', soh: '4', total_value: '20', layer_quantity: '4',
+      }])
+      .mockResolvedValueOnce([
+        { variant_id: 'v-1', location_id: 7, stock_quantity: '3', layer_quantity: '2' },
+        { variant_id: 'v-1', location_id: 8, stock_quantity: '1', layer_quantity: '2' },
+      ]);
+
+    const response = await getInventoryValuation(request('/api/ims/reports/inventory-valuation'));
+    const body = await response.json();
+
+    expect(body.data[0].reconciliation_delta).toBe(0);
+    expect(body.reconciliation).toMatchObject({
+      status: 'mismatch',
+      mismatched_sku_count: 1,
+      mismatched_location_count: 2,
+      mismatches: [
+        { variant_id: 'v-1', location_id: 7, reconciliation_delta: 1 },
+        { variant_id: 'v-1', location_id: 8, reconciliation_delta: -1 },
+      ],
+    });
   });
 
   it('returns an empty Product Margin report', async () => {

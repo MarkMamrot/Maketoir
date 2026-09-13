@@ -876,6 +876,7 @@ CREATE TABLE IF NOT EXISTS ims_fifo_cost_layers (
   original_quantity DECIMAL(18,4) NOT NULL,
   remaining_quantity DECIMAL(18,4) NOT NULL,
   unit_cost DECIMAL(18,6) NOT NULL,
+  zero_cost_reason VARCHAR(64) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   INDEX idx_fifo_layer_consume (business_id, epoch_id, variant_id, location_id, fifo_date, id),

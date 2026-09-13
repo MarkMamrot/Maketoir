@@ -2,7 +2,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { roundCurrency } from './cogsPeriods';
 
 export type CogsSourceStatus = 'eligible' | 'historical_import' | 'orphaned' | 'non_stock';
-export type CogsCostStatus = 'ok' | 'missing' | 'zero';
+export type CogsCostStatus = 'ok' | 'missing' | 'zero' | 'intentional_zero';
 
 export interface CogsCalculationRow {
   location_id: number;
@@ -32,6 +32,8 @@ export interface CogsCalculation {
   missingCostQuantity: number;
   zeroCostMovementCount: number;
   zeroCostQuantity: number;
+  intentionalZeroCostMovementCount: number;
+  intentionalZeroCostQuantity: number;
   excludedHistoricalMovementCount: number;
   excludedHistoricalQuantity: number;
   orphanedMovementCount: number;
@@ -71,6 +73,8 @@ export function summariseCogsRows(
     missingCostQuantity: 0,
     zeroCostMovementCount: 0,
     zeroCostQuantity: 0,
+    intentionalZeroCostMovementCount: 0,
+    intentionalZeroCostQuantity: 0,
     excludedHistoricalMovementCount: 0,
     excludedHistoricalQuantity: 0,
     orphanedMovementCount: 0,
@@ -110,6 +114,9 @@ export function summariseCogsRows(
     } else if (row.cost_status === 'zero') {
       result.zeroCostMovementCount += movementCount;
       result.zeroCostQuantity += quantity;
+    } else if (row.cost_status === 'intentional_zero') {
+      result.intentionalZeroCostMovementCount += movementCount;
+      result.intentionalZeroCostQuantity += quantity;
     }
 
     result.totalCOGS += cogs;
@@ -186,6 +193,45 @@ export async function calculateCogsForPeriod(input: {
             END AS source_status,
             CASE
               WHEN sm.unit_cost IS NULL THEN 'missing'
+              WHEN sm.unit_cost <= 0
+                   AND sm.cost_method_snapshot = 'fifo'
+                   AND (
+                     EXISTS (
+                       SELECT 1
+                         FROM ims_fifo_cost_allocations zero_allocation
+                         JOIN ims_fifo_cost_layers zero_layer
+                           ON zero_layer.id = zero_allocation.layer_id
+                          AND BINARY zero_layer.business_id = BINARY zero_allocation.business_id
+                        WHERE BINARY zero_allocation.business_id = BINARY sm.business_id
+                          AND zero_allocation.stock_movement_id = sm.id
+                          AND zero_layer.zero_cost_reason IS NOT NULL
+                     )
+                     OR EXISTS (
+                       SELECT 1
+                         FROM ims_fifo_cost_layers zero_source_layer
+                        WHERE BINARY zero_source_layer.business_id = BINARY sm.business_id
+                          AND zero_source_layer.source_movement_id = sm.id
+                          AND zero_source_layer.zero_cost_reason IS NOT NULL
+                     )
+                   )
+                   AND NOT EXISTS (
+                     SELECT 1
+                       FROM ims_fifo_cost_allocations unexplained_allocation
+                       JOIN ims_fifo_cost_layers unexplained_layer
+                         ON unexplained_layer.id = unexplained_allocation.layer_id
+                        AND BINARY unexplained_layer.business_id = BINARY unexplained_allocation.business_id
+                      WHERE BINARY unexplained_allocation.business_id = BINARY sm.business_id
+                        AND unexplained_allocation.stock_movement_id = sm.id
+                        AND unexplained_layer.zero_cost_reason IS NULL
+                   )
+                   AND NOT EXISTS (
+                     SELECT 1
+                       FROM ims_fifo_cost_layers unexplained_source_layer
+                      WHERE BINARY unexplained_source_layer.business_id = BINARY sm.business_id
+                        AND unexplained_source_layer.source_movement_id = sm.id
+                        AND unexplained_source_layer.zero_cost_reason IS NULL
+                   )
+                THEN 'intentional_zero'
               WHEN sm.unit_cost <= 0 THEN 'zero'
               ELSE 'ok'
             END AS cost_status
