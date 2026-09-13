@@ -3,6 +3,8 @@
 ---
 # Product Builds
 
+Under FIFO, build output cost comes from the component layers actually consumed plus overhead. If every component and overhead amount is genuinely zero, the output layer remains at $0 with a zero-component-cost audit reason.
+
 Use Product Builds to convert stocked components into finished products at one location while preserving quantities, costs, recipe revisions, and operator history.
 
 ## Main operations

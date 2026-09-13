@@ -3,6 +3,8 @@
 ---
 # Stocktakes and Manual Adjustments
 
+Under FIFO, a positive stocktake variance creates a layer at the captured current cost. If that cost is genuinely $0, the layer records a stocktake zero-cost audit reason; unexplained zero-cost layers are not accepted.
+
 Use a stocktake for a controlled physical count and a manual quantity adjustment for one verified correction that is not already explained by another workflow.
 
 ## Main operations

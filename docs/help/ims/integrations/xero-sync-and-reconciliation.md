@@ -11,6 +11,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - Review Sync History for pending, successful, blocked, partial, or dismissed work.
 - Ask Assistant for a bounded local summary of queued documents and categorized recent failures.
 - Use COGS Reconciliation to investigate cost posting coverage.
+- **Approved zero cost** counts FIFO movements whose source layer has an explicit no-charge reason. They are valid $0 COGS; unexplained zero costs still block posting.
 - Review and post balanced Shopify payout plans when enabled.
 - Retry only the accounting action that remains unfinished.
 

@@ -20641,6 +20641,8 @@ type CogsReportData = {
     missingCostQuantity: number;
     zeroCostMovementCount: number;
     zeroCostQuantity: number;
+    intentionalZeroCostMovementCount: number;
+    intentionalZeroCostQuantity: number;
     excludedHistoricalMovementCount: number;
     excludedHistoricalQuantity: number;
     orphanedMovementCount: number;
@@ -21117,6 +21119,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
                 <div>Included: {cogsReport.quality.includedMovementCount} movements / {Number(cogsReport.quality.includedQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Missing cost: {cogsReport.quality.missingCostMovementCount} / {Number(cogsReport.quality.missingCostQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Zero cost: {cogsReport.quality.zeroCostMovementCount} / {Number(cogsReport.quality.zeroCostQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Approved zero cost: {cogsReport.quality.intentionalZeroCostMovementCount} / {Number(cogsReport.quality.intentionalZeroCostQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Excluded historical: {cogsReport.quality.excludedHistoricalMovementCount} / {Number(cogsReport.quality.excludedHistoricalQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Orphaned: {cogsReport.quality.orphanedMovementCount} / {Number(cogsReport.quality.orphanedQuantity).toLocaleString('en-AU')} qty</div>
               </div>

@@ -287,6 +287,8 @@ export async function GET(req: Request) {
         missingCostQuantity: calculation.missingCostQuantity,
         zeroCostMovementCount: calculation.zeroCostMovementCount,
         zeroCostQuantity: calculation.zeroCostQuantity,
+        intentionalZeroCostMovementCount: calculation.intentionalZeroCostMovementCount,
+        intentionalZeroCostQuantity: calculation.intentionalZeroCostQuantity,
         excludedHistoricalMovementCount: calculation.excludedHistoricalMovementCount,
         excludedHistoricalQuantity: calculation.excludedHistoricalQuantity,
         orphanedMovementCount: calculation.orphanedMovementCount,

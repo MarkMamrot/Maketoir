@@ -24,6 +24,7 @@ Check the active method under **Settings > General > Inventory Costing**. Only a
 | Average Cost | One current blended tax-exclusive AUD cost for a variant across the business |
 | FIFO | Location-specific receipt layers consumed oldest first |
 | FIFO layer | A dated quantity at its recorded tax-exclusive AUD unit cost |
+| Approved zero cost | Stock received at no cost with an immutable workflow reason recorded on its FIFO layer |
 | Stock value | Average Cost value or the value of remaining FIFO layers, according to the active method |
 | Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |
 | Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |
@@ -59,6 +60,8 @@ If there is no positive stock before the receipt, the final tax-exclusive AUD re
 ### FIFO
 
 Each receipt creates a layer at the receiving location using its final tax-exclusive AUD cost. A sale, fulfilment, supplier return, build, or negative adjustment consumes the oldest available layer first. Transfers preserve cost from the source location when creating layers at the destination.
+
+FIFO does not accept unexplained zero-cost stock. A genuine no-charge supplier receipt, zero-cost build output, stocktake gain, return, or transfer records a controlled reason on the layer. COGS Reconciliation shows these as **Approved zero cost**; they remain postable at $0, while missing or unexplained zero costs continue to block posting.
 
 For example, 10 units received at $20 followed by 5 at $26 are worth $330. Selling 12 consumes all 10 units from the $20 layer and 2 units from the $26 layer, so attached COGS is $252 and 3 units worth $78 remain.
 

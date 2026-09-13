@@ -3,6 +3,8 @@
 ---
 # Purchase Orders
 
+When FIFO is active, receiving a stock line creates a location-owned cost layer. A supplier line genuinely supplied at no charge is retained at $0 with a no-charge audit reason; check the supplier price, tax treatment, currency, freight, and landed costs before receiving.
+
 A purchase order records what you intend to buy from a supplier and where it should arrive. Confirmation makes the quantity incoming; receiving records the physical delivery.
 
 ## Main operations
