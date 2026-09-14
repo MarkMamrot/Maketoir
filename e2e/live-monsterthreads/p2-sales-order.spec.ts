@@ -8,7 +8,7 @@ import { verifySalesOrderAwaitingOperator, verifySalesOrderCompensation } from '
 test.describe.configure({ timeout: 120_000 });
 
 async function openSalesOrders(page: import('@playwright/test').Page): Promise<void> {
-  await page.getByTestId('ims-nav-__orders').click();
+  await page.getByTestId('ims-nav-__sales').click();
   await page.getByTestId('ims-nav-sales-orders').click();
 }
 

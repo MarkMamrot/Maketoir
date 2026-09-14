@@ -9,7 +9,7 @@ import { verifyPurchaseOrderCompensation } from './support/database-preflight';
 test.describe.configure({ timeout: 120_000 });
 
 async function openPurchaseOrders(page: import('@playwright/test').Page): Promise<void> {
-  await page.getByTestId('ims-nav-__orders').click();
+  await page.getByTestId('ims-nav-__purchasing').click();
   await page.getByTestId('ims-nav-purchase-orders').click();
 }
 

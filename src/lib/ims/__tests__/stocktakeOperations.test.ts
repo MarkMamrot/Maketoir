@@ -172,6 +172,9 @@ describe('stocktake operations', () => {
       expect.stringContaining("'stocktake_reverted'"),
       ['biz-1', 'v-1', 4, 31, 41, 2, 11, 5.5, 'average_cost', null, 'Count entered in error'],
     );
+    const reversalInsert = connection.execute.mock.calls.find(([sql]) => String(sql).includes("'stocktake_reverted'"));
+    expect(String(reversalInsert?.[0]).match(/\?/g)).toHaveLength(11);
+    expect(reversalInsert?.[1]).toHaveLength(11);
     expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('DELETE FROM ims_stock_movements'), expect.anything());
   });
 

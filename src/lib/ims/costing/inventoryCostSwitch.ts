@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import type { PoolConnection } from 'mysql2/promise';
 
 import { getIMSPool } from '@/services/IMSMySQLService';
-import { createFifoCostLayer, FifoCostingConflict, lockInventoryCostState } from './fifoCostingService';
+import { FifoCostingConflict, lockInventoryCostState } from './fifoCostingService';
 import {
   INVENTORY_QUANTITY_TOLERANCE,
   isDatabaseZeroInventoryCost,
@@ -12,6 +12,7 @@ import {
 
 export const INVENTORY_COST_METHOD_SETTING_KEY = 'inventory_cost_method';
 export const FIFO_COSTING_ACTIVATION_READY = true;
+const FIFO_OPENING_LAYER_BATCH_SIZE = 500;
 
 type StockSnapshot = {
   variantId: string;
@@ -250,22 +251,36 @@ export async function switchInventoryCostMethod(input: SwitchInventoryCostMethod
     const epochId = Number(epochResult.insertId);
 
     if (input.targetMethod === 'fifo') {
-      const fifoState = { method: 'fifo' as const, epochId, revision: state.revision + 1 };
       const now = new Date();
-      for (const row of stock) {
-        if (row.quantity <= INVENTORY_QUANTITY_TOLERANCE) continue;
-        await createFifoCostLayer(conn, {
-          businessId: input.businessId,
-          state: fifoState,
-          variantId: row.variantId,
-          locationId: row.locationId,
-          sourceType: 'method_switch_opening',
-          sourceReferenceType: 'cost_epoch',
-          sourceReferenceId: epochId,
-          fifoDate: now,
-          quantity: row.quantity,
-          unitCost: Number(row.unitCost),
-        });
+      const openingRows = stock.filter(row => row.quantity > INVENTORY_QUANTITY_TOLERANCE);
+      for (let offset = 0; offset < openingRows.length; offset += FIFO_OPENING_LAYER_BATCH_SIZE) {
+        const batch = openingRows.slice(offset, offset + FIFO_OPENING_LAYER_BATCH_SIZE);
+        const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+        const values = batch.flatMap(row => [
+          input.businessId,
+          epochId,
+          row.variantId,
+          row.locationId,
+          'method_switch_opening',
+          null,
+          'cost_epoch',
+          epochId,
+          null,
+          null,
+          now,
+          row.quantity,
+          row.quantity,
+          Number(row.unitCost),
+          null,
+        ]);
+        await conn.execute(
+          `INSERT INTO ims_fifo_cost_layers
+            (business_id, epoch_id, variant_id, location_id, source_type, source_movement_id,
+             source_reference_type, source_reference_id, source_line_id, parent_layer_id,
+             fifo_date, original_quantity, remaining_quantity, unit_cost, zero_cost_reason)
+           VALUES ${placeholders}`,
+          values,
+        );
       }
     } else {
       const variantTotals = new Map<string, { quantity: number; value: number }>();

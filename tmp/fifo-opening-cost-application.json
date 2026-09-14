@@ -1,0 +1,806 @@
+{
+  "mode": "applied",
+  "businessId": "biz_monsterthreads_sandbox",
+  "schemaName": "readyedu_MonsterthreadsSandboxIMS",
+  "missingStockRows": 219,
+  "variants": 99,
+  "sourcedVariants": 90,
+  "fallbackVariants": 9,
+  "fallbackCost": 0.01,
+  "updatedVariants": 99,
+  "updatedStockRows": 359,
+  "costs": [
+    {
+      "variantId": "003a0764-c1fc-4971-9c6b-e21e00672fdf",
+      "sku": "KJP-ZOO-1",
+      "productName": "Fluffy Knit Jumper / ZooCrew",
+      "cost": 44.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "07970fe3-b524-4c92-b616-a0e5d777da8f",
+      "sku": "SC-KDS2328902X00",
+      "productName": "Izipizi Sun Child (5-7y) Sunglasses - Lavender Collection D",
+      "cost": 27.25,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "0eef4c43-1012-4845-a85b-324510ab6a7f",
+      "sku": "UA951918",
+      "productName": "Urban Products Strawberry Scarf - Red 180cm",
+      "cost": 16.2,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "114d70e0-ab24-43ff-8a82-0b813dc47042",
+      "sku": "HJX038AU",
+      "productName": "Mug Probably Late for Something",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "16e0cd7d-de2c-453b-a855-3b83dd8b19f0",
+      "sku": "HJX043AU",
+      "productName": "Bag Charm - Hot Sauce",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "1929689c-5960-48d2-91ac-dfe5fadcacd0",
+      "sku": "SC-KDS2328602X00",
+      "productName": "Izipizi: Sun Child (5-7y) Collection D - Macchiato",
+      "cost": 27.25,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "199ca979-e4db-4758-adef-2eac78b226fc",
+      "sku": "HJX042AU",
+      "productName": "Mug Main Character Energy",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "1cc02a84-a159-48b8-b494-85918b1aaa77",
+      "sku": "CK-C-14402",
+      "productName": "Foil Card-Purr-fect Birthday",
+      "cost": 3.63,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "1db11350-7a3f-4fdc-9f80-6036224f84b8",
+      "sku": "HJX031AU",
+      "productName": "Mug Feeling Vine",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "21c5365c-2fe1-42c2-ae97-b985519d3aaa",
+      "sku": "GEN495AU",
+      "productName": "BBQ Playing Cards",
+      "cost": 9.07,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "23d293c2-41b1-42bc-b180-a5b50b69d44c",
+      "sku": "CK-C-14408",
+      "productName": "Foil Card-Quacking Birthday",
+      "cost": 3.63,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "28e0bd1e-70d3-41ec-86f0-6dc2c89a0d52",
+      "sku": "DEC-2028AU",
+      "productName": "PU Printed Glasses Case - Check",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "29de6950-4c9f-459a-9b6b-9f311b295bd2",
+      "sku": "SC-SUN0429301X00",
+      "productName": "Izipizi Sun Collection D Sunglasses - Midnight Blue",
+      "cost": 40.89,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "2ab5e8a9-9303-4ade-88e2-1cc418b5e772",
+      "sku": "HJX032AU",
+      "productName": "Mug Meow",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "2b616792-ee65-4448-828c-b7054807d456",
+      "sku": "SC-SUN4300201X00",
+      "productName": "Izipizi Sun Road Sunglasses - Tortoise",
+      "cost": 50,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "2b9dcc57-7161-4063-abaa-224b013eff9c",
+      "sku": "GEN884AU",
+      "productName": "Fish shaped Waiter's Corkscrew",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "2f4a4371-db66-478e-92c7-47576d649dbe",
+      "sku": "KJP-ZOO-2",
+      "productName": "Fluffy Knit Jumper / ZooCrew",
+      "cost": 44.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "2fb566cb-be09-42b5-a48a-a0f58efb30c8",
+      "sku": "KJP-ZOO-5",
+      "productName": "Fluffy Knit Jumper / ZooCrew",
+      "cost": 44.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "31ba8620-89c1-4a72-a9b0-f86424996976",
+      "sku": "82062717",
+      "productName": "Nini Cup, Heart, Stoneware",
+      "cost": 9.05,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "34320746-038b-40ab-8b79-390225c7113a",
+      "sku": "LSS-ZOO-3 to 6 months",
+      "productName": "Long Sleeve Romper / Zoo Crew",
+      "cost": 22,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "38740559-3f2c-44a9-9972-b6d60fee35bb",
+      "sku": "LSS-ZOO-12 to 18 months",
+      "productName": "Long Sleeve Romper / Zoo Crew",
+      "cost": 22,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "3aeaf957-358b-4ca5-b675-e7aa9accf73f",
+      "sku": "TLSB-ZOC-3 to 6 months",
+      "productName": "Terry Long Sleeve Bodysuit / Zoo Crew Cream",
+      "cost": 23,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "3f72aec4-14ef-43a5-9a6b-83dffa4bc1ab",
+      "sku": "HJX045AU",
+      "productName": "Bag Charm - Chili",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4477e5cd-537d-4a53-babf-50259de255a5",
+      "sku": "UB402024",
+      "productName": "Urban Products Curly Unicorn Soft Toy - Pink & Red 18cm",
+      "cost": 9.35,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "450f334f-1443-4ff3-a115-e64027af0b98",
+      "sku": "EH-104",
+      "productName": "EUGY 3D Paper Model : Tortoise",
+      "cost": 8.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "453d8acd-f222-4b02-8074-45b2c0d034d1",
+      "sku": "TLSB-ZOC-12 to 18 months",
+      "productName": "Terry Long Sleeve Bodysuit / Zoo Crew Cream",
+      "cost": 23,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "46db6e34-4818-4157-97a1-0e830a9a50b3",
+      "sku": "GEN950AU",
+      "productName": "Dad Survival Kit",
+      "cost": 13.61,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "47a32c26-bb31-4fed-bfe9-02cef3e1f796",
+      "sku": "KJB-ZOO",
+      "productName": "Fluffy Knit Baby Blanket / ZooCrew",
+      "cost": 44.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4977f5ff-70df-4054-8cfc-49529adc141b",
+      "sku": "HJX034AU",
+      "productName": "Mug Oui Oui Mon Cheri",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4cd0b335-25a8-4c9f-8042-009d893d14cb",
+      "sku": "EH-066",
+      "productName": "EUGY: Blue Whale",
+      "cost": 8.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4d8aa8ab-5a6b-4be4-97a5-c41cded2360c",
+      "sku": "GEN953AU",
+      "productName": "Guitar - Bottle Opener",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4d998b57-a317-4c0d-bf4d-1c5dd4c0f4f1",
+      "sku": "GEN167AU",
+      "productName": "Pocket Multi-Tool Pliers, Titanium",
+      "cost": 10.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4e16c2ea-f694-40a2-834d-216a0baf26d4",
+      "sku": "CK-C-14407",
+      "productName": "Foil Card-Hedgehugs Birthday",
+      "cost": 3.63,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4f8766f9-cb85-4b6e-878e-99cb4bd7c82e",
+      "sku": "HJX035AU",
+      "productName": "Mug Dramatic Exit",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4fb5c080-7837-4eed-acfa-9b755ac6c747",
+      "sku": "TLSB-ZOC-6 to 12 months",
+      "productName": "Terry Long Sleeve Bodysuit / Zoo Crew Cream",
+      "cost": 23,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "4fc7d7d9-7b03-4be6-b43e-056665f768ff",
+      "sku": "GEN493AU",
+      "productName": "Travel Size Sneaker Cleaning Kit",
+      "cost": 9.07,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "512f1312-60c9-4406-994c-15c7c1b08308",
+      "sku": "EH-102",
+      "productName": "Eugy 3D Paper Model: Stingray",
+      "cost": 8.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "53634748-7d3f-4633-ab83-23c143e25ebb",
+      "sku": "SC-KDS2300202X00",
+      "productName": "Izipizi Sun Child Sunglasses (5-7y) Collection D - Tortoise",
+      "cost": 27.25,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "59fc3b8e-5dec-4a09-88d2-9eecd193ed26",
+      "sku": "1033910",
+      "productName": "Demo Multi Rotate Music BoxForest",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "5aba8481-0571-430f-ab05-7f1c7089ce7f",
+      "sku": "RX-30305",
+      "productName": "Hair Clips - Bumblebee",
+      "cost": 4.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "5b06b7f0-e110-459e-a47e-db21286977b1",
+      "sku": "LSS-ZOO-0 to 3 months",
+      "productName": "Long Sleeve Romper / Zoo Crew",
+      "cost": 22,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "5eb9d8c4-c0f3-44f1-827d-66748f779a70",
+      "sku": "c1863",
+      "productName": "Misc Test Product",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "6007c862-08fc-4f09-b1d8-c408e870449c",
+      "sku": "cMT-WB0020",
+      "productName": "Water Bottle: Ants 300ml",
+      "cost": 8.83,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "60feaa91-6861-4d22-84a7-c4e58c57561e",
+      "sku": "LSS-ZOO-6 to 12 months",
+      "productName": "Long Sleeve Romper / Zoo Crew",
+      "cost": 22,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "6db1efb5-4e43-49e7-ab6b-e1080eaf9632",
+      "sku": "JB86-1116AU",
+      "productName": "FSC Mix Credit JB86 Framed Floral - Poppy",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "73709c43-7236-4d74-9d3c-e65f33e869a4",
+      "sku": "CK-C-5611",
+      "productName": "Foil Card-Hoppily Ever After",
+      "cost": 3.63,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "8af959a5-2ab5-488b-8198-b4e83b3548b5",
+      "sku": "UB411111",
+      "productName": "Urban Products Chick Soft Toy - Beige 15cm",
+      "cost": 11.35,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "8de69738-a8da-4cf9-b499-f3cbd7173b69",
+      "sku": "47C0120426",
+      "productName": "BAG CHARM KANGAROO",
+      "cost": 10,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "8eb6026f-786c-405c-b988-84c75a480c94",
+      "sku": "GEN939AU",
+      "productName": "Fish Pen Knife",
+      "cost": 10.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "90df0a92-dbb5-4488-aaf9-8d2f6897a85d",
+      "sku": "UA951842",
+      "productName": "Urban Products Pooch Scarf - Sage",
+      "cost": 12.15,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "955b7417-4024-4eff-9c8e-2e5f2247e985",
+      "sku": "KS46004",
+      "productName": "AUSTRALIAN ANIMALS - AGES 4-6",
+      "cost": 5.85,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "9d83672d-7867-4b3c-a6fc-620ab1e0b417",
+      "sku": "EH-087",
+      "productName": "EUGY: Cat - Pumpkin",
+      "cost": 8.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "9de5fda1-793d-4b18-b532-90c421f6c7f8",
+      "sku": "HJX048AU",
+      "productName": "Bag Charm - Tomatoes",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "a0992c61-23b9-4858-81ab-f7ea40899538",
+      "sku": "OD-C-DSI10458",
+      "productName": "Foil Card-Spotty Cat Birthday",
+      "cost": 3.63,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "a2be013e-c792-42bd-b021-e9d1c32bf74c",
+      "sku": "DRJ-1002AU",
+      "productName": "FSC Self Help Reading Journal - Page Turners Anonymous",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "a5431f46-8cef-49d1-aac8-4cee72978ce9",
+      "sku": "1033748",
+      "productName": "Demo Double Rotate Music BoxIce Cap",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "abaea0d3-c9b5-42b6-b31e-f3c49ed533cf",
+      "sku": "1060412",
+      "productName": "Demo Double Go Around Music BoxMerry-go-round",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "ac41ccd9-8768-4ce8-881a-aa858fe06b90",
+      "sku": "EF-C-SP0497",
+      "productName": "Foil Card-Dam Good Dad",
+      "cost": 3.86,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "ae147f66-6604-4f31-a112-ad9f32c58b6b",
+      "sku": "HJX054AU",
+      "productName": "Bag Charm - Lobster",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "af08c591-bd90-4619-a6a9-c44a03e40df0",
+      "sku": "47C0120433",
+      "productName": "BAG CHARM EMU",
+      "cost": 10,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "afb71c43-64fb-4b14-8b86-28dbcf40cfe2",
+      "sku": "HJX047AU",
+      "productName": "Bag Charm - Cherries",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "b0a1ba8d-1c3e-41ac-b013-f4caecff51b9",
+      "sku": "GEN750AU",
+      "productName": "Fish Hip Flask",
+      "cost": 18.159,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "b4be4498-fdaf-449e-a641-ec57c0a7a588",
+      "sku": "cSB-W0000",
+      "productName": "Spunky Bruiser Womens",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "b4c6dda4-5594-4aa2-b1b2-cb5e2c714273",
+      "sku": "SC-SUN4306901X00",
+      "productName": "Izipizi Sun Road Sunglasses - Light Tortoise",
+      "cost": 50,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "b8e92f91-e936-4148-ba48-225b6fc0af7c",
+      "sku": "1035705",
+      "productName": "Demo Seesaw Music Box (Mini)Three Little Pigs",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "b97c03d8-255f-475f-8e4f-25072f1f6ecf",
+      "sku": "47C0124411",
+      "productName": "BAG CHARM KOALA",
+      "cost": 10,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c0984503-c926-44f4-84c7-8b509daa9985",
+      "sku": "1033240",
+      "productName": "Demo Music Round & Round Music BoxFormosan Black Bear",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c1bb18e6-1bf9-4d1e-bca6-b9a7d144a091",
+      "sku": "TLSB-ZOC-0 to 3 months",
+      "productName": "Terry Long Sleeve Bodysuit / Zoo Crew Cream",
+      "cost": 23,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c27548f8-1860-4115-a840-c4acd2a42c6f",
+      "sku": "EH-120",
+      "productName": "EUGY 3D Paper Model: Capybara",
+      "cost": 8.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c3812960-55ae-4daf-8bf4-3c6856307ae0",
+      "sku": "KJP-ZOO-3",
+      "productName": "Fluffy Knit Jumper / ZooCrew",
+      "cost": 44.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c4702a2d-b7b6-426f-b715-92092e06d9f9",
+      "sku": "GEN951AU",
+      "productName": "Cowboy Boot - Bottle Opener",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c5637038-dffb-4eca-b967-84d553409ac5",
+      "sku": "SC-SUN0529301X00",
+      "productName": "Izipizi Sun Collection E Sunglasses - Midnight Blue",
+      "cost": 40.89,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c57ccf2f-0652-4bf5-954a-c972bafcfc08",
+      "sku": "GEN851AU",
+      "productName": "Travel Backgammon",
+      "cost": 9.07,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "c66af719-b6c4-4e6e-a4f7-3433b4c8abeb",
+      "sku": "HJX037AU",
+      "productName": "Mug No Riff Raff",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "cd8c2b4f-d928-47a3-813b-144806809da4",
+      "sku": "GEN144AU",
+      "productName": "Rocking Whisky Glasses Set of 2",
+      "cost": 13.61,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "d22d5e25-9931-4ec0-9342-c3c6d5f0d611",
+      "sku": "KJP-ZOO-4",
+      "productName": "Fluffy Knit Jumper / ZooCrew",
+      "cost": 44.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "d3193199-0305-4b6d-8dc8-3ef7a6a6f6c9",
+      "sku": "UB408246",
+      "productName": "Urban Products Frog Rattle - Sage Green",
+      "cost": 12.15,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "d50c7111-7a33-47bf-8374-ad72405d9935",
+      "sku": "SC-KDS2328702X00",
+      "productName": "Izipizi Sun Child (5-7Y) Collection D Cranberry",
+      "cost": 27.25,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "d5eb26a9-7a71-4e1c-ad26-36eb797b386d",
+      "sku": "HJX033AU",
+      "productName": "Mug Sardines",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "d8f21693-ffff-4e2c-8095-db4a3b96cdb6",
+      "sku": "JB86-1118AU",
+      "productName": "FSC Mix Credit JB86 Framed Floral - Magnolia",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "e2e2a0ae-4d12-4af0-95d9-a1f1e545e063",
+      "sku": "DBM-1023AU",
+      "productName": "PU Shaped Bookmarks - Iris",
+      "cost": 4.52,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "e3f2ee30-5476-4da4-bb29-ee39d934d356",
+      "sku": "1033356",
+      "productName": "Demo Music Go RoundBumper Car",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "e441194f-33dc-4339-894b-e2923fa59d59",
+      "sku": "EH-020",
+      "productName": "Eugy 3D Paper Model: Orca",
+      "cost": 8.5,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "e63b7363-263e-4663-b987-be95843d132b",
+      "sku": "AW251006-ONS",
+      "productName": "Bush Blossom Terry Toiletry Pouch One Size",
+      "cost": 22.27,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "e84b8b04-4dbc-4c21-982d-5d2ca79d1e24",
+      "sku": "47C0120419",
+      "productName": "BAG CHARM WOMBAT",
+      "cost": 10,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "eb56c570-7562-498d-8667-e11753603074",
+      "sku": "GEN952AU",
+      "productName": "Cactus - Bottle Opener",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "ec7a7624-5e22-4408-950f-625025d8ef9a",
+      "sku": "Wrap01",
+      "productName": "$3.5 Gift Wrapping",
+      "cost": 0.01,
+      "source": "sandbox_nominal_fallback",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "ed5cd8db-9dd8-49c0-8dc1-0499733d19a7",
+      "sku": "GEN826AU",
+      "productName": "Mini Tool Kit",
+      "cost": 15.89,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "eea1c32d-375b-4b6d-9224-9f26c9a3a718",
+      "sku": "HJX050AU",
+      "productName": "Bag Charm - Cowboy Boot",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "f0df3ec4-1482-439a-a9fb-ec5f09d47b96",
+      "sku": "HJX051AU",
+      "productName": "Bag Charm - Dog",
+      "cost": 5.43,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "f2a3877d-eadc-45ef-bcfa-50f088e76d3e",
+      "sku": "GEN291AU",
+      "productName": "Pocket Bicycle Multi-Tool",
+      "cost": 9.07,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "f389a7d3-b42e-484f-afa3-edfd1afeb53c",
+      "sku": "TJ-3DM/AV",
+      "productName": "3D Mug Avocado",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "f597375f-8998-4c08-a072-2a51b2079305",
+      "sku": "HJX036AU",
+      "productName": "Mug Don't be Bitter",
+      "cost": 6.8,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "f5b51c90-1186-4c8a-9318-8ae1feddab84",
+      "sku": "6-0674",
+      "productName": "Claytopia - Unicorn World",
+      "cost": 13.64,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "f5d9fae1-d4e6-47b7-8cf9-0d8689fb594d",
+      "sku": "DRJ-1001AU",
+      "productName": "FSC Self Help Reading Journal - What Happens In Book Club",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "fae59732-6667-4f58-8517-60d7237002ea",
+      "sku": "JB86-1117AU",
+      "productName": "FSC Mix Credit JB86 Framed Floral - Iris",
+      "cost": 11.34,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "fce50c27-79cd-48e4-ae8f-c1d3ac0909c1",
+      "sku": "GEN751AU",
+      "productName": "Gin Stones",
+      "cost": 9.07,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "fd253b28-c928-4b02-a506-a25c90d73dbd",
+      "sku": "GEN938AU",
+      "productName": "Shoe Shine Kit in a Tin",
+      "cost": 15.89,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    },
+    {
+      "variantId": "fef49117-384e-4da2-bfc9-1846030817ab",
+      "sku": "DBM-1022AU",
+      "productName": "PU Shaped Bookmarks - Poppy",
+      "cost": 4.52,
+      "source": "current_purchase_cost",
+      "purchaseOrderId": null
+    }
+  ]
+}

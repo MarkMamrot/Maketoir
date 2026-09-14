@@ -1,3 +1,11 @@
+## 2026-09-14 - Monsterthreads sandbox FIFO activation
+
+- The paused Monsterthreads development sandbox was prepared and permanently switched from Average Cost revision 1 to FIFO revision 2. Epoch 2 owns 8,520 opening layers with quantity 48,862.0000 and opening value AUD 406,518.1429; independent readback and the FIFO integrity audit reconciled exactly with no findings.
+- Before activation, 73 negative stock positions were corrected to zero through completed stocktakes 115-118. Opening costs were then applied only to `readyedu_MonsterthreadsSandboxIMS`: 90 variants used latest received PO or current purchase cost and nine unresolved demo/synthetic variants used an explicitly sandbox-only nominal AUD 0.01 fallback. The guarded application report is `tmp/fifo-opening-cost-application.json`.
+- Creating one opening layer per positive stock position sequentially was too slow for 8,520 positions and held broad stock locks long enough to block cache refreshes. FIFO activation now inserts opening layers in bounded 500-row batches inside the same transaction; the interrupted sequential attempt was explicitly killed and verified fully rolled back before retrying.
+- The live post-activation verifier now compares legacy business identifiers with binary semantics to avoid mixed `utf8mb4_general_ci` / `utf8mb4_0900_ai_ci` failures. Activation manifests can resume read-only verification after a post-commit verifier failure without resubmitting the costing switch.
+- Validation: the activation manifest finished clean, the tenant FIFO audit was balanced, the production build passed, and 2,745 tests passed with five environment-gated skips.
+
 ## 2026-09-13 - FIFO live browser harness and blocked sandbox activation
 
 - Live Monsterthreads Playwright now requires an explicit expected costing method, records method/revision/epoch in preflight, and runs a read-only FIFO stock/layer/allocation/movement verifier for FIFO scenarios. Existing PO receipt/undo and partial SO fulfilment/return compensation flows record FIFO integrity snapshots; FIFO P3 requires positive layer-backed fixture stock.

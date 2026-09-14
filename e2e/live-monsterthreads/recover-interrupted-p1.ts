@@ -32,7 +32,7 @@ async function main(): Promise<void> {
       throw new Error('Live E2E blocked: interrupted PO does not match the exact unreceived P1 artifact contract.');
     }
 
-    await page.getByTestId('ims-nav-__orders').click();
+    await page.getByTestId('ims-nav-__purchasing').click();
     await page.getByTestId('ims-nav-purchase-orders').click();
     await page.getByTestId(`po-open-${poId}`).click();
     page.once('dialog', dialog => dialog.accept());

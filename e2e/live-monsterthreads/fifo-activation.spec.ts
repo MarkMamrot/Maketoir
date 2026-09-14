@@ -5,11 +5,26 @@ import { loginToIms } from './support/auth';
 import { verifyLiveFifoIntegrity } from './support/fifo-database';
 import { appendManifestState, readManifest } from './support/manifest-store';
 
-test.describe.configure({ timeout: 120_000 });
+test.describe.configure({ timeout: 600_000 });
 
 test('@fifo-activate switches the sandbox to FIFO exactly once and verifies opening layers', async ({ page }) => {
   const config = loadLiveE2EConfig();
   const events = await readManifest(config.runId);
+  const recordedActivation = [...events].reverse().find(event => event.state === 'fifo_activated');
+  if (events.at(-1)?.state === 'blocked' && recordedActivation) {
+    expect(config.expectedCostingMethod).toBe('fifo');
+    const epochId = Number((recordedActivation.details as { epochId?: unknown } | null)?.epochId);
+    expect(epochId).toBeGreaterThan(0);
+    const snapshot = await verifyLiveFifoIntegrity(config);
+    expect(snapshot.activeEpochId).toBe(epochId);
+    await appendManifestState(config.runId, 'fifo_activated', { epochId, verificationResumed: true });
+    await appendManifestState(config.runId, 'clean', {
+      costingMethod: snapshot.method,
+      activeEpochId: snapshot.activeEpochId,
+      permanentArtifacts: ['FIFO costing epoch and opening cost layers'],
+    });
+    return;
+  }
   expect(config.expectedCostingMethod).toBe('average_cost');
   expect(events.at(-1)?.state).toBe('preflight_passed');
   await loginToIms(page, config);

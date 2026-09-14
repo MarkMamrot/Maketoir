@@ -15,7 +15,7 @@ async function openSalesOrders(page: import('@playwright/test').Page): Promise<v
   const heading = page.getByRole('heading', { name: 'Sales Orders' });
   if (await heading.isVisible().catch(() => false)) return;
 
-  const ordersNav = page.getByTestId('ims-nav-__orders');
+  const ordersNav = page.getByTestId('ims-nav-__sales');
   if (await ordersNav.isVisible().catch(() => false)) {
     await ordersNav.click();
   }

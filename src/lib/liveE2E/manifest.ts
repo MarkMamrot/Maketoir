@@ -49,7 +49,7 @@ const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   compensating: new Set(['clean', 'blocked']),
   verification_authorized: new Set(['verification_authorized', 'clean', 'blocked']),
   clean: new Set(),
-  blocked: new Set(['fifo_negative_stock_reconciled', 'compensation_retry_authorized', 'verification_authorized', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created']),
+  blocked: new Set(['fifo_negative_stock_reconciled', 'fifo_activated', 'compensation_retry_authorized', 'verification_authorized', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created']),
 };
 
 export function appendLiveRunEvent(

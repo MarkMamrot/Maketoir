@@ -347,7 +347,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       await createManifest(config.runId, initialEvents[0]);
     } else {
       const allowedStates = config.action === 'fifo-reconcile-negative' ? ['preflight_passed', 'blocked']
-        : config.action === 'fifo-activate' ? ['preflight_passed']
+        : config.action === 'fifo-activate' ? ['preflight_passed', 'blocked']
         : config.action === 'p1' ? ['preflight_passed', 'p1_created']
         : config.action === 'p1-repair' ? ['awaiting_operator']
         : config.action === 'p1-compensate' ? ['acknowledged', 'compensation_retry_authorized']
@@ -365,6 +365,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p7-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p8' ? ['preflight_passed', 'p8_created', 'blocked']
         : config.action === 'p8-compensate' ? ['acknowledged', 'compensation_retry_authorized']
+        : config.action === 'p9' ? ['preflight_passed', 'p9_created']
+        : config.action === 'p9-compensate' ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
         throw new Error(`Live E2E blocked: action ${config.action} requires manifest state ${allowedStates.join(' or ') || 'unsupported'}, found ${currentState ?? 'missing'}.`);

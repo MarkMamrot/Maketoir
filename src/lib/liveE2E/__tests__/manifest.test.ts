@@ -19,6 +19,15 @@ describe('live E2E manifest', () => {
     expect(appendLiveRunEvent(events, 'clean', {}).at(-1)?.state).toBe('clean');
   });
 
+  it('allows post-commit FIFO verification to recover from a blocked verifier', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', {});
+    events = appendLiveRunEvent(events, 'fifo_activated', { epochId: 2 });
+    events = appendLiveRunEvent(events, 'blocked', { phase: 'verification' });
+    events = appendLiveRunEvent(events, 'fifo_activated', { epochId: 2, verificationResumed: true });
+    expect(appendLiveRunEvent(events, 'clean', {}).at(-1)?.state).toBe('clean');
+  });
+
   it('records one-time FIFO activation as an irreversible clean run', () => {
     let events = appendLiveRunEvent([], 'initialized', {});
     events = appendLiveRunEvent(events, 'preflight_passed', { costingMethod: 'average_cost' });

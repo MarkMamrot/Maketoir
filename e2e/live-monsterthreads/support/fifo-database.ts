@@ -32,25 +32,25 @@ export async function verifyLiveFifoIntegrity(config: LiveE2EConfig): Promise<Fi
               COALESCE((
                 SELECT SUM(stock.qty_on_hand)
                   FROM ${schema}.ims_stock stock
-                 WHERE stock.business_id = state.business_id
+                 WHERE BINARY stock.business_id = BINARY state.business_id
                    AND stock.variant_id = ? AND stock.location_id = ?
               ), 0) AS stock_quantity,
               COALESCE((
                 SELECT SUM(layer.remaining_quantity)
                   FROM ${schema}.ims_fifo_cost_layers layer
-                 WHERE layer.business_id = state.business_id
+                 WHERE BINARY layer.business_id = BINARY state.business_id
                    AND layer.epoch_id = state.active_epoch_id
                    AND layer.variant_id = ? AND layer.location_id = ?
               ), 0) AS layer_quantity,
               (SELECT COUNT(*)
                  FROM ${schema}.ims_fifo_cost_layers layer
-                WHERE layer.business_id = state.business_id
+                WHERE BINARY layer.business_id = BINARY state.business_id
                   AND (layer.original_quantity <= 0 OR layer.remaining_quantity < 0
                     OR layer.remaining_quantity > layer.original_quantity + 0.0001 OR layer.unit_cost < 0)
               ) AS invalid_layer_count,
               (SELECT COUNT(*)
                  FROM ${schema}.ims_fifo_cost_layers layer
-                WHERE layer.business_id = state.business_id
+                WHERE BINARY layer.business_id = BINARY state.business_id
                   AND ROUND(layer.unit_cost, 6) = 0 AND layer.zero_cost_reason IS NULL
               ) AS unexplained_zero_cost_count,
               (SELECT COUNT(*)
@@ -59,7 +59,7 @@ export async function verifyLiveFifoIntegrity(config: LiveE2EConfig): Promise<Fi
                    ON layer.id = allocation.layer_id AND BINARY layer.business_id = BINARY allocation.business_id
                  LEFT JOIN ${schema}.ims_stock_movements movement
                    ON movement.id = allocation.stock_movement_id AND BINARY movement.business_id = BINARY allocation.business_id
-                WHERE allocation.business_id = state.business_id
+                WHERE BINARY allocation.business_id = BINARY state.business_id
                   AND (allocation.quantity <= 0 OR allocation.unit_cost < 0 OR allocation.allocated_value < 0
                     OR layer.id IS NULL OR movement.id IS NULL OR layer.epoch_id <> allocation.epoch_id
                     OR movement.cost_epoch_id <> allocation.epoch_id)
@@ -86,7 +86,7 @@ export async function verifyLiveFifoIntegrity(config: LiveE2EConfig): Promise<Fi
                    ON BINARY source_layer.business_id = BINARY movement.business_id
                   AND source_layer.epoch_id = movement.cost_epoch_id
                   AND source_layer.source_movement_id = movement.id
-                WHERE movement.business_id = state.business_id
+                WHERE BINARY movement.business_id = BINARY state.business_id
                   AND movement.cost_method_snapshot = 'fifo'
                   AND (movement.cost_epoch_id IS NULL
                     OR ABS(ABS(movement.qty_change) - COALESCE(allocation.allocated_quantity, source_layer.source_quantity, 0)) > 0.0001
@@ -96,7 +96,7 @@ export async function verifyLiveFifoIntegrity(config: LiveE2EConfig): Promise<Fi
                         - COALESCE(allocation.allocated_value, source_layer.source_value, 0)) > 0.01))
               ) AS movement_coverage_mismatch_count
          FROM ${schema}.ims_inventory_cost_state state
-        WHERE state.business_id = ?
+        WHERE BINARY state.business_id = BINARY ?
         LIMIT 1`,
       [config.fixtureVariantId, config.fixtureLocationId, config.fixtureVariantId, config.fixtureLocationId, config.expectedBusinessId],
     );
