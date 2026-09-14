@@ -75,7 +75,7 @@ test('@p8-create runs a backorder-heavy chain and checkpoints stressed stock inv
       await page.getByTestId('so-notes').fill(`LIVE E2E ${config.runId} P8 source backorder-heavy`);
       await page.getByTestId('so-tax-treatment').selectOption('no_tax');
       await page.getByTestId('so-line-0-variant').fill(config.fixtureSku);
-      await page.getByTestId(`so-line-0-variant-option-${config.fixtureVariantId}`).click();
+      await page.getByTestId(`so-line-0-variant-option-${config.fixtureVariantId}`).dispatchEvent('mousedown');
       await page.getByTestId('so-line-qty-0').fill('3');
       await page.getByTestId('so-line-price-0').fill('0.3');
 

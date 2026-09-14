@@ -75,7 +75,7 @@ test('@p7-create runs a long chain: draft -> confirm -> partial fulfil/backorder
       await page.getByTestId('so-notes').fill(`LIVE E2E ${config.runId} P7 source complex-chain`);
       await page.getByTestId('so-tax-treatment').selectOption('no_tax');
       await page.getByTestId('so-line-0-variant').fill(config.fixtureSku);
-      await page.getByTestId(`so-line-0-variant-option-${config.fixtureVariantId}`).click();
+      await page.getByTestId(`so-line-0-variant-option-${config.fixtureVariantId}`).dispatchEvent('mousedown');
       await page.getByTestId('so-line-qty-0').fill('3');
       await page.getByTestId('so-line-price-0').fill('0.3');
 

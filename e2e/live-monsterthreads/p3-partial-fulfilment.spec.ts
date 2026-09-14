@@ -63,7 +63,7 @@ test('@p3-create creates the isolated two-unit Draft SO for partial fulfilment',
     await page.getByTestId('so-notes').fill(`LIVE E2E ${config.runId} P3 - partial fulfilment/backorder`);
     await page.getByTestId('so-tax-treatment').selectOption('no_tax');
     await page.getByTestId('so-line-0-variant').fill(config.fixtureSku);
-    await page.getByTestId(`so-line-0-variant-option-${config.fixtureVariantId}`).click();
+    await page.getByTestId(`so-line-0-variant-option-${config.fixtureVariantId}`).dispatchEvent('mousedown');
     await page.getByTestId('so-line-qty-0').fill('2');
     await page.getByTestId('so-line-price-0').fill('0.5');
 

@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import { loadLiveE2EConfig } from '../../src/lib/liveE2E/safety';
 import { verifyPurchaseOrderCompensation } from './support/database-preflight';
+import { verifyLiveFifoIntegrity } from './support/fifo-database';
 import { appendManifestState, readManifest } from './support/manifest-store';
 
 async function main(): Promise<void> {
@@ -35,17 +36,21 @@ async function main(): Promise<void> {
       const events = await readManifest(config.runId);
       const blocked = events.at(-1);
       const previous = events.at(-2);
+      const blockedError = String((blocked?.details as any)?.error ?? '');
+      const supportedVerifierFailure = blockedError.includes('database preflight lock is not active')
+        || blockedError.startsWith('Live E2E blocked: FIFO integrity failed:');
       if (blocked?.state !== 'blocked'
         || previous?.state !== 'compensating'
         || (blocked.details as any)?.phase !== 'compensation'
-        || !String((blocked.details as any)?.error ?? '').includes('database preflight lock is not active')) {
+        || !supportedVerifierFailure) {
         throw new Error('Live E2E blocked: clean verification recovery requires the exact post-compensation verifier failure.');
       }
       const poId = Number((blocked.details as any)?.purchaseOrderId);
       const authorized = await appendManifestState(config.runId, 'verification_authorized', { operator, purchaseOrderId: poId });
       const verification = await verifyPurchaseOrderCompensation(config, poId);
+      const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
       const clean = await appendManifestState(config.runId, 'clean', {
-        scenario: 'P1', purchaseOrderId: poId, ...verification,
+        scenario: 'P1', purchaseOrderId: poId, ...verification, fifo,
         permanentArtifacts: ['Cancelled IMS purchase order and immutable activity/stock history', 'Voided Xero bill and Xero audit history'],
       });
       console.log(JSON.stringify({ authorized, clean }, null, 2));

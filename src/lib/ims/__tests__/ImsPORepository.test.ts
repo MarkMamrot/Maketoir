@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockImsQuery, mockLockInventoryCostState, mockCreateFifoCostLayer } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockImsQuery, mockLockInventoryCostState, mockCreateFifoCostLayer, mockReverseFifoStockMovementLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockImsQuery: vi.fn(),
   mockLockInventoryCostState: vi.fn(),
   mockCreateFifoCostLayer: vi.fn(),
+  mockReverseFifoStockMovementLayers: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -18,6 +19,7 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 vi.mock('../costing/fifoCostingService', () => ({
   lockInventoryCostState: mockLockInventoryCostState,
   createFifoCostLayer: mockCreateFifoCostLayer,
+  reverseFifoStockMovementLayers: mockReverseFifoStockMovementLayers,
 }));
 
 import { ImsPORepo } from '../ImsRepository';
@@ -626,8 +628,9 @@ describe('ImsPORepo.undoReceipt', () => {
     expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
-  it('deletes intact FIFO receipt layers and stamps the reversal epoch', async () => {
+  it('preserves intact FIFO receipt layers and records an allocation-aware reversal', async () => {
     mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mockReverseFifoStockMovementLayers.mockResolvedValue({ allocatedValue: 40, unitCost: 8, allocationCount: 1 });
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_purchase_orders')) {
         return [[{ id: 42, status: 'complete', business_id: 'biz-1', location_id: 4, is_historical: 0, updated_at: new Date(revision) }]];
@@ -640,9 +643,10 @@ describe('ImsPORepo.undoReceipt', () => {
       if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 8 }]];
       if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 5, receipt_unit_cost: 8 }]];
       if (sql.includes('FROM ims_fifo_cost_layers layer')) {
-        return [[{ id: 70, original_quantity: 5, remaining_quantity: 5, allocation_count: 0, child_count: 0 }]];
+        return [[{ id: 70, source_movement_id: 71, original_quantity: 5, remaining_quantity: 5, allocation_count: 0, child_count: 0 }]];
       }
       if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 0 }]];
+      if (sql.includes('INSERT INTO ims_stock_movements')) return [{ insertId: 72 }];
       return [{ affectedRows: 1 }];
     });
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
@@ -650,14 +654,18 @@ describe('ImsPORepo.undoReceipt', () => {
 
     await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
 
-    expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining('DELETE FROM ims_fifo_cost_layers'),
-      [70, 'biz-1', 6],
-    );
+    expect(execute.mock.calls.some(([sql]) => String(sql).startsWith('DELETE FROM ims_fifo_cost_layers'))).toBe(false);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("'po_unapproved','purchase_order'"),
       ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'fifo', 6, 'PO receipt undone'],
     );
+    expect(mockReverseFifoStockMovementLayers).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1',
+      state: { method: 'fifo', epochId: 6, revision: 2 },
+      originalMovementId: 71,
+      reversalMovementId: 72,
+      expectedQuantity: 5,
+    });
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
   });

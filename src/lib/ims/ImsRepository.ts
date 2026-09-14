@@ -38,7 +38,7 @@ import {
   normalizeExchangeRate,
   TaxTreatment,
 } from './avgCostMath';
-import { assertFifoCatalogueDeletionAllowed, consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, createFifoSalesOrderReturnLayers, FifoCostingConflict, lockInventoryCostState, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
+import { assertFifoCatalogueDeletionAllowed, consumeFifoCostLayers, createFifoCostLayer, createFifoPosReturnLayers, createFifoSalesOrderReturnLayers, FifoCostingConflict, lockInventoryCostState, reverseFifoStockMovementLayers, transferFifoCostLayers, type InventoryCostState } from './costing/fifoCostingService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration: avg_cost at variant level (business-wide weighted average)
@@ -1225,7 +1225,7 @@ async function reversePurchaseOrderReceiptTx(
     grouped.set(item.variant_id, (grouped.get(item.variant_id) ?? 0) + Math.max(0, Number(item.qty_received ?? 0)));
   }
 
-  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number; fifoLayerIds: number[] }> = [];
+  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number; fifoSourceMovementId: number | null }> = [];
   for (const [variantId, receivedQty] of grouped) {
     if (receivedQty <= 0) continue;
     const [stockRows] = await conn.execute<any[]>(
@@ -1280,10 +1280,10 @@ async function reversePurchaseOrderReceiptTx(
       }]);
     }
     const receiptUnitCost = Number(receiptRow?.receipt_unit_cost ?? 0);
-    const fifoLayerIds: number[] = [];
+    let fifoSourceMovementId: number | null = null;
     if (options.costingState?.method === 'fifo') {
       const [fifoRows] = await conn.execute<any[]>(
-        `SELECT layer.id, layer.original_quantity, layer.remaining_quantity,
+        `SELECT layer.id, layer.source_movement_id, layer.original_quantity, layer.remaining_quantity,
                 (SELECT COUNT(*) FROM ims_fifo_cost_allocations allocation
                   WHERE allocation.business_id = layer.business_id AND allocation.layer_id = layer.id) AS allocation_count,
                 (SELECT COUNT(*) FROM ims_fifo_cost_layers child
@@ -1315,13 +1315,20 @@ async function reversePurchaseOrderReceiptTx(
           message: `Cannot reverse PO receipt: ${receivedQty - remainingQty} units from variant ${variantId}'s FIFO receipt layers have been consumed or transferred. Reverse the dependent stock activity or use Supplier Return / Credit instead.`,
         }]);
       }
-      fifoLayerIds.push(...fifoRows.map((row: any) => Number(row.id)));
+      const sourceMovementIds = [...new Set(fifoRows.map((row: any) => Number(row.source_movement_id)).filter(Number.isInteger))];
+      if (sourceMovementIds.length !== 1) {
+        throw new OrderCorrectionConflict([{
+          code: 'fifo_layer_missing',
+          message: `Cannot reverse PO receipt: FIFO source layers for variant ${variantId} do not identify one receipt movement. Reconcile the receipt history before retrying.`,
+        }]);
+      }
+      fifoSourceMovementId = sourceMovementIds[0];
     }
     plans.push({
       variantId,
       receivedQty,
       receiptUnitCost,
-      fifoLayerIds,
+      fifoSourceMovementId,
       newAvg: computeAverageCostAfterReversal({
         currentQtyOnHand: totalOrgQty,
         currentAvgCost: Number(variantRow?.avg_cost ?? 0),
@@ -1332,13 +1339,6 @@ async function reversePurchaseOrderReceiptTx(
   }
 
   for (const plan of plans) {
-    for (const layerId of plan.fifoLayerIds) {
-      await conn.execute(
-        `DELETE FROM ims_fifo_cost_layers
-          WHERE id = ? AND business_id = ? AND epoch_id = ?`,
-        [layerId, po.business_id, options.costingState?.epochId],
-      );
-    }
     await conn.execute(
       `UPDATE ims_stock
           SET qty_on_hand = qty_on_hand - ?,
@@ -1352,12 +1352,21 @@ async function reversePurchaseOrderReceiptTx(
       `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
       [plan.variantId, po.location_id],
     );
-    await conn.execute(
+    const [movementResult] = await conn.execute<any>(
       `INSERT INTO ims_stock_movements
          (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id,notes)
        VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?,?,?)`,
       [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, options.costingState?.method ?? 'average_cost', options.costingState?.epochId ?? null, 'PO receipt undone'],
     );
+    if (options.costingState?.method === 'fifo' && plan.fifoSourceMovementId) {
+      await reverseFifoStockMovementLayers(conn, {
+        businessId: po.business_id,
+        state: options.costingState,
+        originalMovementId: plan.fifoSourceMovementId,
+        reversalMovementId: Number(movementResult.insertId),
+        expectedQuantity: plan.receivedQty,
+      });
+    }
   }
   await conn.execute(`UPDATE ims_purchase_order_items SET qty_received = 0 WHERE po_id = ?`, [po.id]);
   await conn.execute(`UPDATE ims_purchase_orders SET received_date = NULL WHERE id = ? AND business_id = ?`, [po.id, po.business_id]);
