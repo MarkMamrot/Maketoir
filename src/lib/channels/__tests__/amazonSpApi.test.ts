@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AMAZON_AU_MARKETPLACE_ID,
   buildAmazonAuthorizeUrl,
+  confirmAmazonShipment,
   exchangeAmazonAuthorizationCode,
   getAmazonMarketplaceParticipations,
   listAmazonFbmOrders,
@@ -119,6 +120,42 @@ describe('Amazon SP-API authorization', () => {
     expect(result).toMatchObject({ items: [{ OrderItemId: 'item-1' }], nextToken: 'next-items' });
     await expect(listAmazonOrderItems('access-token', '111/222', null, fetchImpl))
       .rejects.toThrow('unexpected order');
+  });
+
+  it('confirms one exact Amazon AU package using the documented Orders v0 contract', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(confirmAmazonShipment('access-token', '111/222', {
+      packageReferenceId: '123', carrierCode: 'Other', carrierName: 'Test Carrier',
+      shippingMethod: 'Express', trackingNumber: 'TRACK-1', shipDate: '2026-09-15T01:02:03.000Z',
+      orderItems: [{ orderItemId: 'item-1', quantity: 2 }],
+    }, fetchImpl)).resolves.toBeUndefined();
+    const url = new URL(fetchImpl.mock.calls[0][0]);
+    expect(url.pathname).toBe('/orders/v0/orders/111%2F222/shipmentConfirmation');
+    expect(fetchImpl.mock.calls[0][1].method).toBe('POST');
+    expect(fetchImpl.mock.calls[0][1].headers['x-amz-access-token']).toBe('access-token');
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
+      marketplaceId: AMAZON_AU_MARKETPLACE_ID,
+      packageDetail: {
+        packageReferenceId: '123', carrierCode: 'Other', carrierName: 'Test Carrier',
+        shippingMethod: 'Express', trackingNumber: 'TRACK-1', shipDate: '2026-09-15T01:02:03.000Z',
+        orderItems: [{ orderItemId: 'item-1', quantity: 2 }],
+      },
+    });
+  });
+
+  it('validates Amazon shipment identity and does not expose provider response details', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('{"message":"private provider detail"}', { status: 400 }));
+    const valid = {
+      packageReferenceId: '1', carrierCode: 'Australia Post', trackingNumber: 'TRACK-1',
+      shipDate: '2026-09-15T01:02:03Z', orderItems: [{ orderItemId: 'item-1', quantity: 1 }],
+    };
+    await expect(confirmAmazonShipment('access-token', '111', { ...valid, packageReferenceId: '0' }, fetchImpl))
+      .rejects.toThrow('positive numeric');
+    await expect(confirmAmazonShipment('access-token', '111', { ...valid, carrierCode: 'Other' }, fetchImpl))
+      .rejects.toThrow('carrier name');
+    await expect(confirmAmazonShipment('access-token', '111', valid, fetchImpl))
+      .rejects.toThrow('Amazon shipment confirmation failed with HTTP 400.');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('replaces seller-fulfilled inventory for one exact seller SKU', async () => {

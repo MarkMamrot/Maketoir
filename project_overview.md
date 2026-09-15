@@ -81,6 +81,7 @@ Production requires `SALES_ASSISTANT_HMAC_SECRET` (at least 32 characters), `GEM
 ### Amazon Sales Channels
 - Amazon Australia uses one channel instance per Seller Central account. Public SP-API OAuth verifies the seller ID and active AU marketplace participation before storing the encrypted refresh token.
 - Seller-fulfilled order ingestion is scoped by channel instance and requires a per-instance IMS dispatch location. Provider updates are idempotent through `(business_id, channel_instance_id, external_order_id)` and tenant channel events; stock commitment and observed shipment quantities use the existing sales-order lifecycle services.
+- Shipping Workspace dispatch fulfils stock locally before confirming each tracked parcel through Orders v0 `confirmShipment`. Durable per-parcel jobs retain the exact seller instance, Amazon order/item identities, package reference, quantities, carrier, tracking number, and ship date so provider retries cannot repeat stock movement.
 - OAuth-complete Amazon instances remain disabled in setup-pending state until listings, inventory, FBM orders, fulfilments, and returns are all operational. Authorization alone must never start synchronization.
 
 ### Customer Returns and Store Credit

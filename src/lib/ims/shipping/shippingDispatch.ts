@@ -1,4 +1,7 @@
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { getAmazonChannelAccess } from '@/lib/channels/amazonCredentials';
+import { confirmAmazonShipment, type AmazonShipmentConfirmation } from '@/lib/channels/amazonSpApi';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 import { fulfilSalesOrderPartialInTransaction } from '@/lib/ims/orderResolution/customerFulfilment';
 import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
@@ -8,7 +11,8 @@ import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 type DispatchRow = {
   id: number; so_id: number; status: string; ims_fulfilment_operation_key: string | null;
-  sales_channel: string | null; shopify_order_id: string | null; so_status: string;
+  sales_channel: string | null; channel_instance_id: string | null; external_order_id: string | null;
+  shopify_order_id: string | null; so_status: string;
 };
 
 export type ShippingDispatchResult = {
@@ -18,6 +22,59 @@ export type ShippingDispatchResult = {
   shipmentStatus: 'complete' | 'channel_pending';
   warning?: string;
 };
+
+export type AmazonShipmentParcelRow = {
+  parcelId: string;
+  provider: string;
+  carrierName: string;
+  serviceName: string | null;
+  articleId: string | null;
+  consignmentId: string | null;
+  externalOrderItemId: string | null;
+  quantity: number;
+};
+
+export function buildAmazonShipmentConfirmations(
+  rows: AmazonShipmentParcelRow[],
+  shipDate: string,
+): Array<{ parcelId: string; confirmation: AmazonShipmentConfirmation }> {
+  const packages = new Map<string, { rows: AmazonShipmentParcelRow[] }>();
+  for (const row of rows) {
+    const parcelId = String(row.parcelId ?? '').trim();
+    if (!/^[1-9]\d*$/.test(parcelId)) throw new Error('Amazon package reference ID must be a positive numeric value.');
+    const current = packages.get(parcelId) ?? { rows: [] };
+    current.rows.push(row);
+    packages.set(parcelId, current);
+  }
+  if (!packages.size) throw new Error('Amazon shipment has no parcels to confirm.');
+  return [...packages].map(([parcelId, entry]) => {
+    const first = entry.rows[0];
+    const trackingNumber = String(first.articleId || first.consignmentId || '').trim();
+    if (!trackingNumber) throw new Error('Carrier tracking numbers are not available for this Amazon shipment.');
+    const quantities = new Map<string, number>();
+    for (const row of entry.rows) {
+      const orderItemId = String(row.externalOrderItemId ?? '').trim();
+      const quantity = Number(row.quantity);
+      if (!orderItemId) throw new Error('A dispatched line is not mapped to an Amazon order item.');
+      if (!Number.isInteger(quantity) || quantity <= 0) throw new Error('Amazon shipment item quantity must be a positive integer.');
+      quantities.set(orderItemId, (quantities.get(orderItemId) ?? 0) + quantity);
+    }
+    const isAustraliaPost = first.provider === 'auspost_eparcel';
+    const carrierName = isAustraliaPost ? 'Australia Post' : String(first.carrierName || first.provider || '').trim();
+    return {
+      parcelId,
+      confirmation: {
+        packageReferenceId: parcelId,
+        carrierCode: isAustraliaPost ? 'Australia Post' : 'Other',
+        ...(carrierName ? { carrierName } : {}),
+        ...(first.serviceName ? { shippingMethod: first.serviceName } : {}),
+        trackingNumber,
+        shipDate,
+        orderItems: [...quantities].map(([orderItemId, quantity]) => ({ orderItemId, quantity })),
+      },
+    };
+  });
+}
 
 export async function dispatchShippingShipment(input: { businessId: string; shipmentId: number }): Promise<ShippingDispatchResult> {
   const connection = await getIMSPool().getConnection();
@@ -30,7 +87,8 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
     await connection.beginTransaction();
     const [[shipment]] = await connection.execute<any[]>(
       `SELECT shipping.id, shipping.so_id, shipping.status, shipping.ims_fulfilment_operation_key,
-              sales_order.sales_channel, sales_order.shopify_order_id, sales_order.status AS so_status
+              sales_order.sales_channel, sales_order.channel_instance_id, sales_order.external_order_id,
+              sales_order.shopify_order_id, sales_order.status AS so_status
          FROM ims_shipping_shipments shipping
          JOIN ims_sales_orders sales_order
            ON sales_order.id = shipping.so_id AND sales_order.business_id = shipping.business_id
@@ -59,6 +117,36 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
       );
       const operationKey = row.ims_fulfilment_operation_key || `shipping-dispatch:${row.id}`;
       const needsShopify = row.sales_channel === 'shopify' || Boolean(row.shopify_order_id);
+      const needsAmazon = row.sales_channel === 'amazon';
+      const needsChannel = needsShopify || needsAmazon;
+      let amazonPackages: Array<{ parcelId: string; confirmation: AmazonShipmentConfirmation }> = [];
+      if (needsAmazon) {
+        if (!row.channel_instance_id || !row.external_order_id) {
+          throw new Error('The Amazon seller instance or order ID is missing.');
+        }
+        const [packageRows] = await connection.execute<any[]>(
+          `SELECT CAST(parcel.id AS CHAR) AS parcelId, shipping.provider,
+                  carrier.display_name AS carrierName, shipping.service_name AS serviceName,
+                  parcel.article_id AS articleId, parcel.consignment_id AS consignmentId,
+                  order_item.external_order_item_id AS externalOrderItemId, parcel_item.quantity
+             FROM ims_shipping_parcels parcel
+             JOIN ims_shipping_shipments shipping
+               ON shipping.id = parcel.shipment_id AND shipping.business_id = parcel.business_id
+             JOIN ims_shipping_carrier_accounts carrier
+               ON carrier.id = shipping.carrier_account_id AND carrier.business_id = shipping.business_id
+             JOIN ims_shipping_parcel_items parcel_item
+               ON parcel_item.parcel_id = parcel.id AND parcel_item.business_id = parcel.business_id
+             JOIN ims_sales_order_items order_item
+               ON order_item.id = parcel_item.so_item_id AND order_item.business_id = parcel_item.business_id
+            WHERE parcel.business_id = ? AND parcel.shipment_id = ?
+            ORDER BY parcel.parcel_number, parcel_item.id`,
+          [input.businessId, row.id],
+        );
+        amazonPackages = buildAmazonShipmentConfirmations(packageRows.map(packageRow => ({
+          ...packageRow,
+          quantity: Number(packageRow.quantity),
+        })), new Date().toISOString());
+      }
       if (row.so_status === 'fulfilled' && needsShopify) {
         const [[existingShopifyFulfilment]] = await connection.execute<any[]>(
           `SELECT id FROM ims_so_shipments
@@ -87,8 +175,8 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
             SET status = ?, ims_fulfilment_operation_key = ?, ims_fulfilled_at = NOW(),
                 completed_at = CASE WHEN ? = 'complete' THEN NOW() ELSE completed_at END, safe_error = NULL
           WHERE business_id = ? AND id = ?`,
-        [needsShopify ? 'channel_pending' : 'complete', didFulfil ? operationKey : row.ims_fulfilment_operation_key,
-          needsShopify ? 'channel_pending' : 'complete', input.businessId, row.id],
+        [needsChannel ? 'channel_pending' : 'complete', didFulfil ? operationKey : row.ims_fulfilment_operation_key,
+          needsChannel ? 'channel_pending' : 'complete', input.businessId, row.id],
       );
       if (needsShopify) {
         await connection.execute(
@@ -99,6 +187,23 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
              next_attempt_at = NULL, safe_error = NULL`,
           [input.businessId, row.id, `shipping-channel:${row.id}`, JSON.stringify({ shipmentId: row.id, shopifyOrderId: row.shopify_order_id })],
         );
+      }
+      if (needsAmazon) {
+        for (const packageRequest of amazonPackages) {
+          await connection.execute(
+            `INSERT INTO ims_shipping_channel_jobs
+               (business_id, shipment_id, sales_channel, operation_key, status, request_json)
+             VALUES (?, ?, 'amazon', ?, 'pending', ?)
+             ON DUPLICATE KEY UPDATE shipment_id = VALUES(shipment_id),
+               status = IF(status = 'complete', status, 'pending'), next_attempt_at = NULL, safe_error = NULL`,
+            [input.businessId, row.id, `shipping-channel:${row.id}:amazon:${packageRequest.parcelId}`, JSON.stringify({
+              shipmentId: row.id,
+              channelInstanceId: row.channel_instance_id,
+              amazonOrderId: row.external_order_id,
+              confirmation: packageRequest.confirmation,
+            })],
+          );
+        }
       }
     } else {
       orderStatus = row.so_status;
@@ -136,44 +241,145 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
     await recomputeBuildRequirementsSafely({ businessId: input.businessId, salesOrderId: row.so_id });
   }
   if (didFinalize) await triggerSOXeroSync(input.businessId, row.so_id, 'fulfilled');
-  if (row.sales_channel !== 'shopify' && !row.shopify_order_id) {
+  const channel = row.sales_channel === 'amazon'
+    ? 'amazon'
+    : row.sales_channel === 'shopify' || row.shopify_order_id ? 'shopify' : null;
+  if (!channel) {
     return { shipmentId: row.id, soId: row.so_id, orderStatus, shipmentStatus: 'complete' };
   }
 
   try {
-    await createShopifyFulfilment(input.businessId, row.id, row.shopify_order_id);
+    if (channel === 'amazon') {
+      await confirmAmazonShipmentJobs(input.businessId, row.id);
+    } else {
+      await createShopifyFulfilment(input.businessId, row.id, row.shopify_order_id);
+    }
     await imsExecute(
       `UPDATE ims_shipping_shipments SET status = 'complete', completed_at = NOW(), safe_error = NULL
         WHERE business_id = ? AND id = ? AND status = 'channel_pending'`,
       [input.businessId, row.id],
     );
-    await imsExecute(
-      `UPDATE ims_shipping_channel_jobs SET status = 'complete', attempt_count = attempt_count + 1,
-          response_json = ?, safe_error = NULL, completed_at = NOW()
-        WHERE business_id = ? AND operation_key = ?`,
-      [JSON.stringify({ syncedAt: new Date().toISOString() }), input.businessId, `shipping-channel:${row.id}`],
-    );
+    if (channel === 'shopify') {
+      await imsExecute(
+        `UPDATE ims_shipping_channel_jobs SET status = 'complete', attempt_count = attempt_count + 1,
+            response_json = ?, safe_error = NULL, completed_at = NOW()
+          WHERE business_id = ? AND operation_key = ?`,
+        [JSON.stringify({ syncedAt: new Date().toISOString() }), input.businessId, `shipping-channel:${row.id}`],
+      );
+    }
     return { shipmentId: row.id, soId: row.so_id, orderStatus, shipmentStatus: 'complete' };
   } catch (error) {
-    const safeError = (error instanceof Error ? error.message : 'Shopify fulfillment sync failed.').slice(0, 500);
+    const safeError = (error instanceof Error ? error.message : `${channel === 'amazon' ? 'Amazon' : 'Shopify'} fulfillment sync failed.`).slice(0, 500);
     await imsExecute(
       `UPDATE ims_shipping_shipments SET status = 'channel_pending', safe_error = ? WHERE business_id = ? AND id = ?`,
       [safeError, input.businessId, row.id],
     );
-    await imsExecute(
-      `UPDATE ims_shipping_channel_jobs SET status = 'failed', attempt_count = attempt_count + 1,
-          next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE), safe_error = ?
-        WHERE business_id = ? AND operation_key = ?`,
-      [safeError, input.businessId, `shipping-channel:${row.id}`],
-    );
+    if (channel === 'shopify') {
+      await imsExecute(
+        `UPDATE ims_shipping_channel_jobs SET status = 'failed', attempt_count = attempt_count + 1,
+            next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE), safe_error = ?
+          WHERE business_id = ? AND operation_key = ?`,
+        [safeError, input.businessId, `shipping-channel:${row.id}`],
+      );
+    }
     await reportRuntimeIssue({
-      businessId: input.businessId, source: 'ims_shipping', operation: 'shopify_fulfilment',
-      title: 'Dispatched shipment could not sync fulfillment to Shopify', error,
-      context: { shipmentId: row.id, soId: row.so_id },
+      businessId: input.businessId, source: 'ims_shipping', operation: `${channel}_fulfilment`,
+      title: `Dispatched shipment could not sync fulfillment to ${channel === 'amazon' ? 'Amazon' : 'Shopify'}`, error,
+      context: { shipmentId: row.id, soId: row.so_id, channelInstanceId: row.channel_instance_id },
       reference: { type: 'sales_order', id: String(row.so_id) },
     });
     return { shipmentId: row.id, soId: row.so_id, orderStatus, shipmentStatus: 'channel_pending', warning: safeError };
   }
+}
+
+type AmazonShipmentJobRequest = {
+  channelInstanceId: string;
+  amazonOrderId: string;
+  confirmation: AmazonShipmentConfirmation;
+};
+
+export async function confirmAmazonShipmentJobs(businessId: string, shipmentId: number): Promise<void> {
+  const jobs = await imsQuery<{ id: number; request_json: AmazonShipmentJobRequest | string }>(
+    `SELECT id, request_json
+       FROM ims_shipping_channel_jobs
+      WHERE business_id = ? AND shipment_id = ? AND sales_channel = 'amazon' AND status <> 'complete'
+      ORDER BY id`,
+    [businessId, shipmentId],
+  );
+  if (!jobs.length) {
+    const completed = await imsQuery<{ id: number }>(
+      `SELECT id FROM ims_shipping_channel_jobs
+        WHERE business_id = ? AND shipment_id = ? AND sales_channel = 'amazon' AND status = 'complete' LIMIT 1`,
+      [businessId, shipmentId],
+    );
+    if (!completed.length) throw new Error('Amazon shipment confirmation jobs are missing.');
+    return;
+  }
+  const requests = jobs.map(job => ({
+    jobId: job.id,
+    request: (typeof job.request_json === 'string' ? JSON.parse(job.request_json) : job.request_json) as AmazonShipmentJobRequest,
+  }));
+  const channelInstanceId = String(requests[0]?.request.channelInstanceId ?? '').trim();
+  if (!channelInstanceId || requests.some(job => job.request.channelInstanceId !== channelInstanceId)) {
+    throw new Error('Amazon shipment confirmation seller identity is invalid.');
+  }
+  const access = await getAmazonChannelAccess(businessId, channelInstanceId);
+  if (!access) throw new Error('Amazon channel credentials are unavailable.');
+  for (const job of requests) {
+    try {
+      await confirmAmazonShipment(access.accessToken, job.request.amazonOrderId, job.request.confirmation);
+      await imsExecute(
+        `UPDATE ims_shipping_channel_jobs
+            SET status = 'complete', attempt_count = attempt_count + 1, response_json = ?,
+                safe_error = NULL, next_attempt_at = NULL, completed_at = NOW()
+          WHERE business_id = ? AND id = ? AND status <> 'complete'`,
+        [JSON.stringify({ syncedAt: new Date().toISOString() }), businessId, job.jobId],
+      );
+    } catch (error) {
+      const safeError = (error instanceof Error ? error.message : 'Amazon shipment confirmation failed.').slice(0, 500);
+      await imsExecute(
+        `UPDATE ims_shipping_channel_jobs
+            SET status = 'failed', attempt_count = attempt_count + 1,
+                next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE), safe_error = ?
+          WHERE business_id = ? AND id = ? AND status <> 'complete'`,
+        [safeError, businessId, job.jobId],
+      );
+      throw error;
+    }
+  }
+}
+
+export async function retryAmazonShipmentConfirmationsForChannel(input: {
+  businessId: string;
+  channelInstanceId: string;
+  limit?: number;
+}): Promise<{ attempted: number; completed: number; failed: number }> {
+  const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 20)));
+  return runImsForBusiness(input.businessId, async () => {
+    const shipments = await imsQuery<{ shipment_id: number }>(
+      `SELECT job.shipment_id
+         FROM ims_shipping_channel_jobs job
+         JOIN ims_shipping_shipments shipment
+           ON shipment.id = job.shipment_id AND shipment.business_id = job.business_id
+         JOIN ims_sales_orders sales_order
+           ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
+        WHERE job.business_id = ? AND job.sales_channel = 'amazon'
+          AND job.status IN ('pending', 'failed')
+          AND (job.next_attempt_at IS NULL OR job.next_attempt_at <= NOW())
+          AND sales_order.channel_instance_id = ?
+        GROUP BY job.shipment_id
+        ORDER BY MIN(job.id)
+        LIMIT ?`,
+      [input.businessId, input.channelInstanceId, limit],
+    );
+    const totals = { attempted: shipments.length, completed: 0, failed: 0 };
+    for (const shipment of shipments) {
+      const result = await dispatchShippingShipment({ businessId: input.businessId, shipmentId: Number(shipment.shipment_id) });
+      if (result.shipmentStatus === 'complete') totals.completed += 1;
+      else totals.failed += 1;
+    }
+    return totals;
+  });
 }
 
 async function createShopifyFulfilment(businessId: string, shipmentId: number, shopifyOrderId: string | null): Promise<void> {

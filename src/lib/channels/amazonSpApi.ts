@@ -196,6 +196,21 @@ export interface AmazonOrderItem {
   PromotionDiscountTax?: AmazonMoney;
 }
 
+export interface AmazonShipmentConfirmationItem {
+  orderItemId: string;
+  quantity: number;
+}
+
+export interface AmazonShipmentConfirmation {
+  packageReferenceId: string;
+  carrierCode: string;
+  carrierName?: string;
+  shippingMethod?: string;
+  trackingNumber: string;
+  shipDate: string;
+  orderItems: AmazonShipmentConfirmationItem[];
+}
+
 function amazonOrdersHeaders(accessToken: string) {
   return {
     'x-amz-access-token': accessToken,
@@ -252,6 +267,62 @@ export async function listAmazonOrderItems(
     items: Array.isArray(body?.payload?.OrderItems) ? body.payload.OrderItems : [],
     nextToken: String(body?.payload?.NextToken ?? '').trim() || null,
   };
+}
+
+export async function confirmAmazonShipment(
+  accessToken: string,
+  amazonOrderIdInput: string,
+  confirmation: AmazonShipmentConfirmation,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const amazonOrderId = amazonOrderIdInput.trim();
+  const packageReferenceId = String(confirmation.packageReferenceId ?? '').trim();
+  const carrierCode = String(confirmation.carrierCode ?? '').trim();
+  const carrierName = String(confirmation.carrierName ?? '').trim();
+  const shippingMethod = String(confirmation.shippingMethod ?? '').trim();
+  const trackingNumber = String(confirmation.trackingNumber ?? '').trim();
+  const shipDate = String(confirmation.shipDate ?? '').trim();
+  if (!amazonOrderId) throw new Error('Amazon order ID is required.');
+  if (!/^[1-9]\d*$/.test(packageReferenceId)) throw new Error('Amazon package reference ID must be a positive numeric value.');
+  if (!carrierCode) throw new Error('Amazon carrier code is required.');
+  if (carrierCode.toLowerCase() === 'other' && !carrierName) throw new Error('Amazon carrier name is required when the carrier code is Other.');
+  if (!trackingNumber) throw new Error('Amazon tracking number is required.');
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(shipDate) || !Number.isFinite(Date.parse(shipDate))) {
+    throw new Error('Amazon ship date must be a valid ISO 8601 timestamp.');
+  }
+  if (!Array.isArray(confirmation.orderItems) || confirmation.orderItems.length === 0) {
+    throw new Error('Amazon shipment confirmation requires at least one order item.');
+  }
+  const orderItems = confirmation.orderItems.map(item => {
+    const orderItemId = String(item?.orderItemId ?? '').trim();
+    const quantity = Number(item?.quantity);
+    if (!orderItemId) throw new Error('Amazon shipment order item ID is required.');
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new Error('Amazon shipment item quantity must be a positive integer.');
+    return { orderItemId, quantity };
+  });
+  const url = new URL(
+    `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/shipmentConfirmation`,
+    AMAZON_FAR_EAST_ENDPOINT,
+  );
+  const response = await fetchImpl(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...amazonOrdersHeaders(accessToken) },
+    body: JSON.stringify({
+      marketplaceId: AMAZON_AU_MARKETPLACE_ID,
+      packageDetail: {
+        packageReferenceId,
+        carrierCode,
+        ...(carrierName ? { carrierName } : {}),
+        ...(shippingMethod ? { shippingMethod } : {}),
+        trackingNumber,
+        shipDate,
+        orderItems,
+      },
+    }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (response.status !== 204) throw new Error(`Amazon shipment confirmation failed with HTTP ${response.status}.`);
 }
 
 export async function updateAmazonListingInventory(

@@ -18,6 +18,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Synchronize Amazon Australia listings and review the linked, unmatched, and conflicting SKU totals.
 - Enable inventory for selected one-to-one Amazon listing mappings and synchronize current online availability.
 - Choose a dispatch location for each Amazon seller account and synchronize seller-fulfilled orders.
+- Dispatch prepared Amazon orders with parcel tracking and monitor any channel confirmation retry.
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
@@ -54,6 +55,10 @@ Amazon orders use the standard Online Customer and are shown as paid through Ama
 
 An unshipped order becomes a confirmed IMS sales order and commits stock at the configured dispatch location. Quantities Amazon reports as shipped pass through the normal sales-order fulfilment process, including partial shipments. A cancellation releases remaining committed stock. Pending and Amazon-fulfilled orders are not imported.
 
+When staff mark a prepared Amazon shipment dispatched, Solvantis fulfils the assigned quantities locally and then confirms each tracked parcel to the exact Seller Central account that supplied the order. Each parcel sends its carrier, service, tracking number, dispatch time, and Amazon order-item quantities separately. Multiple parcels can therefore carry different tracking numbers.
+
+If Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again, and automatic retries start only after the Amazon channel completes final activation. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.
+
 Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
 
 > **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.
@@ -83,6 +88,7 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | Amazon orders cannot synchronize | Open **Order setup** and choose an active dispatch location for that seller account |
 | An Amazon order shows the fallback product | Link that seller SKU to one IMS variant, then review the imported order before fulfilment |
 | More Amazon order updates remain | Run **Sync orders** again; each pass is bounded so provider requests remain reliable |
+| An Amazon shipment shows Channel sync pending | Check parcel tracking and the exact seller connection, then choose **Mark dispatched** to retry the outstanding confirmation |
 
 ## Worked examples
 
