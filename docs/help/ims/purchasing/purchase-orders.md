@@ -82,7 +82,7 @@ Use the current status and available actions as your guide. A missing action usu
 
 For a Partially Received order, choose **Edit Details** to increase an ordered quantity, add a product, amend a wholly unreceived line, or update expected date, notes, supplier invoice details, and payment terms. Received quantities remain unchanged. An existing received line cannot change product, cost, discount, or tax, cannot be removed, and cannot be reduced below the quantity already received. Supplier, receiving location, order date, currency, freight, and landed costs remain locked after the first receipt.
 
-If the PO has active incoming-stock allocations, release or reassign them before changing its lines. If it has a linked Xero bill, Solvantis checks the live Xero state before saving a financial amendment. Paid, credited, locked-period, or unverifiable bills cannot be amended this way.
+If the PO has active incoming-stock allocations, release or reassign them before changing its lines. If it has a linked Xero bill, Solvantis checks the live Xero state before saving a financial amendment. An unpaid Draft bill can still be amended when its date falls in a Xero locked period because it has not been posted. Paid, credited, posted locked-period, or unverifiable bills cannot be amended this way.
 
 ## Costs and stock value
 

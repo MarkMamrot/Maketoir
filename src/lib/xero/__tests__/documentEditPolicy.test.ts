@@ -40,6 +40,12 @@ describe('assessXeroDocumentEdit', () => {
     expect(assessXeroDocumentEdit(false, null)).toEqual({ allowed: true, reason: 'local_only', message: null });
   });
 
+  it('allows an unpaid Draft document dated in a locked period', () => {
+    expect(assessXeroDocumentEdit(true, {
+      status: 'DRAFT', amountPaid: 0, amountCredited: 0, documentDate: '2026-05-15', periodLockDate: '2026-06-30',
+    })).toEqual({ allowed: true, reason: 'editable', message: null });
+  });
+
   it('blocks paid, credited, terminal, locked, and unverifiable documents', () => {
     expect(assessXeroDocumentEdit(true, null).reason).toBe('unverifiable');
     expect(assessXeroDocumentEdit(true, { status: 'AUTHORISED', amountPaid: 1, amountCredited: 0, documentDate: '2026-08-09' }).reason).toBe('settled');

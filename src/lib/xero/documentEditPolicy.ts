@@ -138,7 +138,7 @@ export function assessXeroDocumentEdit(
   }
 
   const lockDate = latestLockDate(state);
-  if (lockDate && state.documentDate && state.documentDate.slice(0, 10) <= lockDate) {
+  if (status !== 'DRAFT' && lockDate && state.documentDate && state.documentDate.slice(0, 10) <= lockDate) {
     return { allowed: false, reason: 'locked_period', message: `The linked Xero document is dated in a locked period ending ${lockDate}.` };
   }
   if (!['DRAFT', 'SUBMITTED', 'AUTHORISED'].includes(status)) {

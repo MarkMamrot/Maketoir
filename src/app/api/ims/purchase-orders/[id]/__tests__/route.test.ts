@@ -241,6 +241,19 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockTriggerPOXeroUpdate).toHaveBeenCalledWith('biz-1', 42);
   });
 
+  it('updates an unpaid Draft bill dated in a locked period', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceEditState.mockResolvedValue({
+      status: 'DRAFT', amountPaid: 0, amountCredited: 0, documentDate: '2026-05-15', periodLockDate: '2026-06-30',
+    });
+
+    const response = await PUT(putRequest({ supplier_id: 4 }), params);
+
+    expect(response.status).toBe(200);
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockTriggerPOXeroUpdate).toHaveBeenCalledWith('biz-1', 42);
+  });
+
   it('blocks a settled Xero-visible edit and directs the user to correction', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
     mockGetXeroInvoiceEditState.mockResolvedValue({
