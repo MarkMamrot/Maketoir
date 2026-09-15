@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(), getInstance: vi.fn(), markSynced: vi.fn(), access: vi.fn(),
+  session: vi.fn(), getInstance: vi.fn(), markSetup: vi.fn(), access: vi.fn(),
   list: vi.fn(), sync: vi.fn(), report: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
-  getForBusiness: mocks.getInstance, markSyncedForBusiness: mocks.markSynced,
+  getForBusiness: mocks.getInstance, markAmazonSetupOperationForBusiness: mocks.markSetup,
 } }));
 vi.mock('@/lib/channels/amazonCredentials', () => ({ getAmazonChannelAccess: mocks.access }));
 vi.mock('@/lib/channels/amazonSpApi', () => ({ listAmazonListings: mocks.list }));
@@ -53,13 +53,15 @@ describe('POST Amazon channel listings', () => {
     expect(mocks.sync).toHaveBeenCalledWith({
       businessId: 'business-1', channelInstanceId: 'instance-1', items: [{ sku: 'SKU-1' }],
     });
-    expect(mocks.markSynced).toHaveBeenCalledWith('business-1', 'instance-1');
+    expect(mocks.markSetup).toHaveBeenCalledWith({
+      businessId: 'business-1', channelInstanceId: 'instance-1', operation: 'listings',
+    });
   });
 
   it('does not stamp an intermediate page', async () => {
     mocks.list.mockResolvedValue({ items: [], nextToken: 'next' });
     await POST(request({ nextToken: 'current' }), context);
-    expect(mocks.markSynced).not.toHaveBeenCalled();
+    expect(mocks.markSetup).not.toHaveBeenCalled();
   });
 
   it('reports failures without returning provider details', async () => {

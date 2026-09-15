@@ -20,6 +20,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Choose a dispatch location for each Amazon seller account and synchronize seller-fulfilled orders.
 - Dispatch prepared Amazon orders with parcel tracking and monitor any channel confirmation retry.
 - Synchronize Amazon returns and externally settled refunds, then review any generated credit-note drafts.
+- Check Amazon activation readiness and resolve every reported blocker without activating the channel.
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
@@ -66,7 +67,20 @@ An Amazon return observation records the return request, quantity, reason, resol
 
 If an order has multiple unmatched RMAs or refunds, Solvantis reports the evidence as ambiguous and does not guess which records belong together. Review those cases before recording a linked correction.
 
-Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
+### Check Amazon activation readiness
+
+Choose **Check readiness** after completing the setup operations for one Amazon seller account. Solvantis rechecks that account's Amazon Australia authorization and reports each requirement separately:
+
+- An active IMS dispatch location is assigned.
+- A complete listing synchronization has succeeded, at least one listing was observed, and no listing mapping remains unmatched or conflicting.
+- Inventory is enabled for at least one linked listing and a complete inventory synchronization has succeeded.
+- Order, return-report, and released-refund synchronization cursors are established.
+- No Amazon inventory, report, or shipment-confirmation job is pending or failed.
+- No ambiguous refund match or unreviewed Amazon credit-note draft remains.
+
+A passing result records that the seller account is operationally ready. It does not activate the channel, enable automatic synchronization, or turn on any Amazon capability. A later setup change resets the result so administrators must run **Check readiness** again.
+
+Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final readiness check must still be completed before the channel can become active.
 
 > **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.
 
@@ -77,7 +91,7 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | Setup pending | The instance has not completed readiness checks | Complete the provider connection setup |
 | Needs attention | The latest readiness or runtime state contains an operational problem | Read the safe error summary and inspect the provider integration |
 
-> **Important:** The operating state is informational on this screen. Use the existing provider setup while connection and synchronization controls are being moved into Sales Channels.
+> **Important:** Passing Amazon readiness does not activate the channel. Activation remains a separate controlled rollout step.
 
 ## Troubleshooting
 
@@ -99,6 +113,7 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | An Amazon return is not yet observed | Amazon may still be preparing the seller return report; check the exact seller account and allow the next synchronization to poll it |
 | An Amazon return shows as ambiguous | More than one unmatched RMA or refund exists for the order; review the Amazon records before creating a linked correction |
 | An Amazon Draft did not add stock or customer credit | This is intentional; verify the externally settled amount and select Restock only for goods physically received before completing the draft |
+| Amazon readiness does not pass | Expand the readiness results and complete each failed item for that exact seller account; pending jobs and unreviewed Amazon drafts must be resolved first |
 
 ## Worked examples
 

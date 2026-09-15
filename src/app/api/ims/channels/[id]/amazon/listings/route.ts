@@ -29,7 +29,9 @@ export async function POST(request: Request, { params }: Context) {
       pageSize: Number(body?.pageSize), nextToken: typeof body?.nextToken === 'string' ? body.nextToken : null,
     });
     const result = await syncAmazonListingMappings({ businessId, channelInstanceId, items: page.items });
-    if (!page.nextToken) await SalesChannelInstanceRepository.markSyncedForBusiness(businessId, channelInstanceId);
+    if (!page.nextToken) await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
+      businessId, channelInstanceId, operation: 'listings',
+    });
     return NextResponse.json({ success: true, ...result, processed: page.items.length, nextToken: page.nextToken });
   } catch (error) {
     await reportRuntimeIssue({

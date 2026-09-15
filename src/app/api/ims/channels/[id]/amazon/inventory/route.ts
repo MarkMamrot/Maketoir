@@ -27,6 +27,9 @@ export async function POST(request: Request, { params }: Context) {
       channelInstanceId,
       limit: Math.max(1, Math.min(100, Math.floor(Number(body.limit) || 100))),
     });
+    if (result.failed === 0) await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
+      businessId, channelInstanceId, operation: 'inventory',
+    });
     return NextResponse.json({ success: true, queued, ...result });
   } catch (error) {
     await reportRuntimeIssue({

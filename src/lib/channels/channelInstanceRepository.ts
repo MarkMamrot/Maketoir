@@ -160,11 +160,53 @@ export const SalesChannelInstanceRepository = {
     await execute(
       `UPDATE sales_channel_instances
           SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.orderLocationId', CAST(? AS UNSIGNED)),
-              updated_at = CURRENT_TIMESTAMP(3)
+              readiness_status = 'not_tested', safe_error = NULL, updated_at = CURRENT_TIMESTAMP(3)
         WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
       [locationId, businessId, channelInstanceId],
     );
     return this.getForBusiness(businessId, channelInstanceId);
+  },
+
+  async invalidateAmazonReadinessForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+  }): Promise<void> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    if (!businessId || !channelInstanceId) return;
+    await execute(
+      `UPDATE sales_channel_instances
+          SET readiness_status = 'not_tested', safe_error = NULL, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
+      [businessId, channelInstanceId],
+    );
+  },
+
+  async markAmazonSetupOperationForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    operation: 'authorization' | 'listings' | 'inventory';
+    completedAt?: string;
+  }): Promise<void> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    const completedAt = (input.completedAt ?? new Date().toISOString()).trim();
+    const settingPath = {
+      authorization: '$.authorizationVerifiedAt',
+      listings: '$.listingsLastSyncedAt',
+      inventory: '$.inventoryLastSyncedAt',
+    }[input.operation];
+    if (!businessId || !channelInstanceId || !completedAt) {
+      throw new SalesChannelValidationError('A valid Amazon setup operation is required.');
+    }
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), ?, ?),
+              readiness_status = 'not_tested', safe_error = NULL,
+              last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
+      [settingPath, completedAt, businessId, channelInstanceId],
+    );
   },
 
   async setAmazonOrderSyncCursorForBusiness(input: {
@@ -211,6 +253,7 @@ export const SalesChannelInstanceRepository = {
     businessId: string;
     channelInstanceId: string;
     lastPostedAt: string;
+    ambiguousCount?: number;
   }): Promise<void> {
     const businessId = input.businessId.trim();
     const channelInstanceId = input.channelInstanceId.trim();
@@ -220,10 +263,13 @@ export const SalesChannelInstanceRepository = {
     }
     await execute(
       `UPDATE sales_channel_instances
-          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.refundsLastPostedAt', ?),
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()),
+                '$.refundsLastPostedAt', ?, '$.refundsAmbiguousCount', CAST(? AS UNSIGNED),
+                '$.refundsLastReconciledAt', ?),
               last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
         WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
-      [lastPostedAt, businessId, channelInstanceId],
+      [lastPostedAt, Math.max(0, Math.floor(Number(input.ambiguousCount ?? 0))), new Date().toISOString(),
+        businessId, channelInstanceId],
     );
   },
 

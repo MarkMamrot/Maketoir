@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, RefreshCw, RotateCcw, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ChannelCapabilities {
@@ -46,6 +46,13 @@ interface AmazonMapping {
   imsSku: string | null;
   selected: boolean;
   inventoryEnabled: boolean;
+}
+
+interface AmazonReadinessCheck {
+  key: string;
+  label: string;
+  passed: boolean;
+  detail: string;
 }
 
 const CAPABILITY_LABELS: Array<[keyof ChannelCapabilities, string]> = [
@@ -98,6 +105,8 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [inventorySyncingId, setInventorySyncingId] = useState<string | null>(null);
   const [orderSyncingId, setOrderSyncingId] = useState<string | null>(null);
   const [returnSyncingId, setReturnSyncingId] = useState<string | null>(null);
+  const [readinessCheckingId, setReadinessCheckingId] = useState<string | null>(null);
+  const [readinessChecks, setReadinessChecks] = useState<Record<string, AmazonReadinessCheck[]>>({});
   const [orderSettingsInstance, setOrderSettingsInstance] = useState<ChannelInstance | null>(null);
   const [orderLocations, setOrderLocations] = useState<OrderLocation[]>([]);
   const [orderLocationId, setOrderLocationId] = useState('');
@@ -322,6 +331,28 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     }
   };
 
+  const checkAmazonReadiness = async (instance: ChannelInstance) => {
+    setReadinessCheckingId(instance.channelInstanceId);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/readiness`, {
+        method: 'POST',
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon activation readiness could not be checked.');
+      const checks = Array.isArray(body.checks) ? body.checks : [];
+      setReadinessChecks(current => ({ ...current, [instance.channelInstanceId]: checks }));
+      setNotice(body.ready
+        ? `${instance.displayName} passed every activation-readiness check. The channel remains inactive.`
+        : `${instance.displayName} is not ready for activation. Review the checks below.`);
+      await load();
+    } catch (readinessError) {
+      setError(readinessError instanceof Error ? readinessError.message : 'Amazon activation readiness could not be checked.');
+    } finally {
+      setReadinessCheckingId(null);
+    }
+  };
+
   const openAmazonMappings = async (instance: ChannelInstance) => {
     setMappingInstance(instance);
     setMappings([]);
@@ -520,7 +551,25 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       <RotateCcw size={14} aria-hidden="true" /> {returnSyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync returns'}
                     </button>
                   )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button type="button" disabled={readinessCheckingId === instance.channelInstanceId} onClick={() => void checkAmazonReadiness(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid #a5b4fc', borderRadius: 4, color: '#3730a3', background: '#eef2ff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: readinessCheckingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
+                      <ShieldCheck size={14} aria-hidden="true" /> {readinessCheckingId === instance.channelInstanceId ? 'Checking...' : 'Check readiness'}
+                    </button>
+                  )}
                 </div>
+                {instance.provider === 'amazon' && readinessChecks[instance.channelInstanceId]?.length > 0 && (
+                  <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--sv-border)', paddingTop: 14 }}>
+                    <div style={{ color: 'var(--sv-text-strong)', fontSize: 12, fontWeight: 750, marginBottom: 8 }}>Activation readiness</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 7 }}>
+                      {readinessChecks[instance.channelInstanceId].map(check => (
+                        <div key={check.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, minWidth: 0, color: check.passed ? '#166534' : '#991b1b', fontSize: 11, lineHeight: 1.45 }}>
+                          {check.passed ? <CheckCircle2 size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />}
+                          <span><strong>{check.label}:</strong> {check.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
             );
           })}

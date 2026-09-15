@@ -48,6 +48,7 @@ export async function PATCH(request: Request, context: Context) {
     const updated = await setAmazonMappingControls({ ...auth, mappingIds,
       selected: booleanOrUndefined(body?.selected), inventoryEnabled: booleanOrUndefined(body?.inventoryEnabled),
       priceEnabled: booleanOrUndefined(body?.priceEnabled) });
+    if (updated > 0) await SalesChannelInstanceRepository.invalidateAmazonReadinessForBusiness(auth);
     return NextResponse.json({ success: true, updated });
   } catch (error) {
     await reportRuntimeIssue({ businessId: auth.businessId, source: 'ims.channels', operation: 'update_amazon_mappings',

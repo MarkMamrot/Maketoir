@@ -45,6 +45,7 @@ describe('syncAmazonRefundsForChannel', () => {
     expect(mocks.list.mock.calls[1][1].nextToken).toBe('next-1');
     expect(mocks.setCursor).toHaveBeenCalledWith({
       businessId: 'business-1', channelInstanceId: 'instance-1', lastPostedAt: '2026-09-16T00:00:00.000Z',
+      ambiguousCount: 0,
     });
     expect(mocks.setCursor.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.reconcile.mock.invocationCallOrder[0]);
   });

@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), getInstance: vi.fn(), setReadiness: vi.fn(), disabled: vi.fn(),
   credentials: vi.fn(), test: vi.fn(), report: vi.fn(), amazonAccess: vi.fn(),
-  amazonParticipations: vi.fn(), requireAmazonAu: vi.fn(),
+  amazonParticipations: vi.fn(), requireAmazonAu: vi.fn(), markSetup: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
   getForBusiness: mocks.getInstance, setReadinessForBusiness: mocks.setReadiness,
+  markAmazonSetupOperationForBusiness: mocks.markSetup,
 } }));
 vi.mock('@/lib/shopifyCapability', () => ({ shopifyDisabledResponse: mocks.disabled }));
 vi.mock('@/lib/shopifyCredentials', () => ({ getShopifyChannelAdminCredentials: mocks.credentials }));
@@ -77,6 +78,10 @@ describe('POST /api/ims/channels/[id]/test', () => {
     expect(mocks.amazonParticipations).toHaveBeenCalledWith('amazon-access');
     expect(mocks.requireAmazonAu).toHaveBeenCalledOnce();
     expect(mocks.credentials).not.toHaveBeenCalled();
+    expect(mocks.markSetup).toHaveBeenCalledWith({
+      businessId: 'business-1', channelInstanceId: 'instance-1', operation: 'authorization',
+    });
+    expect(mocks.setReadiness).not.toHaveBeenCalled();
   });
 
   it('stores a safe Amazon authorization failure', async () => {

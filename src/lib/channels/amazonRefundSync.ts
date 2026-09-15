@@ -53,6 +53,7 @@ export async function syncAmazonRefundsForChannel(input: {
       });
       await SalesChannelInstanceRepository.setAmazonRefundSyncCursorForBusiness({
         businessId: input.businessId, channelInstanceId: input.channelInstanceId, lastPostedAt: postedBefore,
+        ambiguousCount: reconciled.ambiguous,
       });
       return { ...totals, ...reconciled };
     });

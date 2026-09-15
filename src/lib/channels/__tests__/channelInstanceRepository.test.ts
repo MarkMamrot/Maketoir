@@ -129,6 +129,33 @@ describe('SalesChannelInstanceRepository', () => {
     ]);
   });
 
+  it('records dedicated Amazon setup evidence without marking the channel ready', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+
+    await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ', operation: 'listings',
+      completedAt: '2026-09-15T02:00:00.000Z',
+    });
+
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("readiness_status = 'not_tested'"), [
+      '$.listingsLastSyncedAt', '2026-09-15T02:00:00.000Z', 'business-1', 'instance-1',
+    ]);
+  });
+
+  it('persists the latest Amazon refund ambiguity count with its cursor', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+
+    await SalesChannelInstanceRepository.setAmazonRefundSyncCursorForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1',
+      lastPostedAt: '2026-09-15T03:00:00.000Z', ambiguousCount: 2,
+    });
+
+    expect(mockExecute.mock.calls[0][0]).toContain("'$.refundsAmbiguousCount'");
+    expect(mockExecute.mock.calls[0][1]).toEqual([
+      '2026-09-15T03:00:00.000Z', 2, expect.any(String), 'business-1', 'instance-1',
+    ]);
+  });
+
   it('records readiness without activating a disabled instance', async () => {
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);

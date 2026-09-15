@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(), getInstance: vi.fn(), enqueue: vi.fn(), process: vi.fn(), report: vi.fn(),
+  session: vi.fn(), getInstance: vi.fn(), markSetup: vi.fn(), enqueue: vi.fn(), process: vi.fn(), report: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
-  getForBusiness: mocks.getInstance,
+  getForBusiness: mocks.getInstance, markAmazonSetupOperationForBusiness: mocks.markSetup,
 } }));
 vi.mock('@/lib/channels/amazonInventorySync', () => ({
   enqueueAmazonInventoryJobs: mocks.enqueue,
@@ -46,6 +46,9 @@ describe('POST Amazon channel inventory', () => {
     expect(response.status).toBe(200);
     expect(mocks.enqueue).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'instance-1' });
     expect(mocks.process).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'instance-1', limit: 100 });
+    expect(mocks.markSetup).toHaveBeenCalledWith({
+      businessId: 'business-1', channelInstanceId: 'instance-1', operation: 'inventory',
+    });
     expect(await response.json()).toEqual({ success: true, queued: 3, processed: 3, pushed: 2, skipped: 1, failed: 0 });
   });
 

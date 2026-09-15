@@ -40,10 +40,13 @@ export async function POST(_: Request, { params }: Context) {
         const credentials = await getAmazonChannelAccess(businessId, channelInstanceId);
         if (!credentials) throw new Error('Amazon credentials are not configured.');
         requireActiveAmazonAustraliaParticipation(await getAmazonMarketplaceParticipations(credentials.accessToken));
+        await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
+          businessId, channelInstanceId, operation: 'authorization',
+        });
       }
-      const updated = await SalesChannelInstanceRepository.setReadinessForBusiness({
-        businessId, channelInstanceId, ready: true,
-      });
+      const updated = instance.provider === 'shopify'
+        ? await SalesChannelInstanceRepository.setReadinessForBusiness({ businessId, channelInstanceId, ready: true })
+        : await SalesChannelInstanceRepository.getForBusiness(businessId, channelInstanceId);
       return NextResponse.json({ success: true, instance: updated });
     } catch (error) {
       const safeError = instance.provider === 'shopify'

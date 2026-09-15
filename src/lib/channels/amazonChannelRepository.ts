@@ -70,7 +70,7 @@ export async function authorizeAmazonChannel(input: AuthorizeAmazonChannelInput)
       await connection.execute(
         `UPDATE sales_channel_instances
             SET display_name = ?, settings_json = ?,
-                readiness_status = 'ready', safe_error = NULL, updated_at = CURRENT_TIMESTAMP(3)
+                readiness_status = 'not_tested', safe_error = NULL, updated_at = CURRENT_TIMESTAMP(3)
           WHERE business_id = ? AND channel_instance_id = ?`,
         [value.displayName, JSON.stringify({ ...existingSettings, ...settings }), value.businessId, channelInstanceId],
       );
@@ -79,7 +79,7 @@ export async function authorizeAmazonChannel(input: AuthorizeAmazonChannelInput)
         `INSERT INTO sales_channel_instances
            (channel_instance_id, business_id, provider, display_name, external_account_key, singleton_key,
             is_enabled, runtime_status, readiness_status, settings_json)
-         VALUES (?, ?, 'amazon', ?, ?, NULL, 0, 'draft', 'ready', ?)`,
+          VALUES (?, ?, 'amazon', ?, ?, NULL, 0, 'draft', 'not_tested', ?)`,
         [channelInstanceId, value.businessId, value.displayName, value.sellerId, JSON.stringify(settings)],
       );
     }
