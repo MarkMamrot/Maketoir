@@ -75,6 +75,9 @@
   --sv-glow-action: 0 0 15px rgba(6, 182, 212, 0.15);
   --sv-glow-mint: 0 0 15px rgba(16, 185, 129, 0.12);
   --sv-glow-amber: 0 0 15px rgba(251, 191, 36, 0.1);
+  --sv-button-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 1px rgba(15, 23, 42, 0.14), 0 2px 0 rgba(15, 23, 42, 0.1);
+  --sv-button-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.36), 0 2px 3px rgba(15, 23, 42, 0.16), 0 3px 0 rgba(15, 23, 42, 0.1);
+  --sv-button-shadow-active: inset 0 1px 2px rgba(15, 23, 42, 0.18), 0 1px 0 rgba(15, 23, 42, 0.08);
   --sv-surface-shadow: 0 12px 28px rgba(15, 23, 42, 0.02);
   --sv-header-bg: linear-gradient(90deg, #0f172a 0%, #0b2040 45%, #0f172a 100%);
   --sv-topbar-text: #e2e8f0;
@@ -142,8 +145,25 @@ input[type=number] {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--sv-link) 22%, transparent);
   }
 
-  button {
-    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 180ms ease;
+  button:not(.sv-button-flat):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]) {
+    box-shadow: var(--sv-button-shadow) !important;
+    transform: translateY(0);
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  }
+
+  button:not(.sv-button-flat):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]):not(:disabled):hover {
+    box-shadow: var(--sv-button-shadow-hover) !important;
+    transform: translateY(-1px);
+  }
+
+  button:not(.sv-button-flat):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]):not(:disabled):active {
+    box-shadow: var(--sv-button-shadow-active) !important;
+    transform: translateY(1px);
+    transition-duration: 60ms;
+  }
+
+  button:disabled {
+    box-shadow: none !important;
   }
 
   th {
@@ -159,6 +179,12 @@ input[type=number] {
   pre,
   .font-mono {
     font-family: 'Roboto Mono', monospace;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition-duration: 0.01ms !important;
   }
 }
 
