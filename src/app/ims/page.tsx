@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, ExternalLink, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -576,6 +576,23 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', margin: '14px 0 6px' }}>
       {children}
+    </div>
+  );
+}
+
+function DetailSectionDivider({ label, summary, action, marginTop = 24 }: {
+  label: string;
+  summary?: React.ReactNode;
+  action?: React.ReactNode;
+  marginTop?: number;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `${marginTop}px 0 14px` }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{label}</span>
+      {summary && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{summary}</span>}
+      {action}
+      <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
     </div>
   );
 }
@@ -2031,7 +2048,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
         })();
       } catch (e) {
         setContacts([]);
-        setLoading(false);
+            {xeroAccountingEnabled && <DetailSectionDivider label="Xero" marginTop={12} summary="Xero integration enabled" />}
       }
     })();
   }, [isCrmMode]);
@@ -10742,6 +10759,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               >✉ Email</button>
             </div>
           </div>
+          <DetailSectionDivider label="Order summary" marginTop={4} />
           {(() => {
             const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
             const displayRate = normalizeDisplayFxRate(currency, viewModal.po.exchange_rate);
@@ -10773,6 +10791,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             );
           })()}
           {viewModal.po.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.po.notes}</div>}
+          <DetailSectionDivider label="Products and totals" />
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-1)' }}>
@@ -10832,25 +10851,16 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             </tfoot>
           </table>
 
-          <StockAllocationPanel
-            mode="purchase_order"
-            orderId={Number(viewModal.po.id)}
-            items={viewModal.po.items || []}
-            allocations={viewModal.po.stock_allocations || []}
-            readOnly={isAdvisor}
-            onChanged={() => refreshPoView(Number(viewModal.po.id))}
-          />
-
           {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
             const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received';
             return (
               <div style={{ marginTop: 20 }}>
+                <DetailSectionDivider label="Landed costs" summary={`${lcs.length} ${lcs.length === 1 ? 'cost' : 'costs'}`} marginTop={0} />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</div>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Separate invoices · not on PO total · added to average cost on receipt</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>separate invoices · not on PO total · added to avg. cost on receive</span>
                     {canEdit && !lcForm && (
                       <button onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>
                     )}
@@ -10939,8 +10949,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               : [];
             return (
               <div style={{ marginTop: 20 }}>
+                <DetailSectionDivider label="Payments" summary={`${(viewModal.po.payments || []).length} recorded · ${fmtFx(displayBalance, currency)} balance`} marginTop={0} />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Supplier payments recorded against this purchase order</div>
                   {!poPayForm && (
                     <button onClick={() => setPoPayForm({ date: today(), amount: '', audAmount: '', rate: String(displayRate), rateDirection: 'foreign_to_aud', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
@@ -11052,13 +11063,23 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </div>
             );
           })()}
+          <DetailSectionDivider label="Accounting" />
           <PoAccountingSection po={viewModal.po} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
-          <OrderActivityHistory entries={viewModal.po.activity_history ?? viewModal.po.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, po: null }); onOpenActivityDocument?.(entry); }} />
+
+          <StockAllocationPanel
+            mode="purchase_order"
+            orderId={Number(viewModal.po.id)}
+            items={viewModal.po.items || []}
+            allocations={viewModal.po.stock_allocations || []}
+            readOnly={isAdvisor}
+            onChanged={() => refreshPoView(Number(viewModal.po.id))}
+          />
 
           {/* ── Supplier Invoices / Attachments ── */}
           <div style={{ marginTop: 20 }}>
+            <DetailSectionDivider label="Documents" summary={`${poFiles.length} ${poFiles.length === 1 ? 'file' : 'files'}`} marginTop={0} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Invoices</div>
+              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Supplier invoices and supporting attachments</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {(viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received') && (
                   <button
@@ -11112,6 +11133,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </div>
             )}
           </div>
+          <OrderActivityHistory entries={viewModal.po.activity_history ?? viewModal.po.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, po: null }); onOpenActivityDocument?.(entry); }} />
         </Modal>
       )}
 
@@ -11247,8 +11269,8 @@ function OrderActivityHistory({ entries, onOpenDocument }: { entries?: any[]; on
     .join(' ');
 
   return (
-    <div style={{ marginTop: 20, borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Activity History</div>
+    <div style={{ marginTop: 20 }}>
+      <DetailSectionDivider label="Activity history" summary={`${entries.length} ${entries.length === 1 ? 'event' : 'events'}`} marginTop={0} />
       {entries.map(entry => {
         const isAmendment = !entry.activityType || entry.activityType === 'amendment';
         const statusChanged = String(entry.previousStatus) !== String(entry.resultingStatus);
@@ -11353,6 +11375,18 @@ function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: 
   const xeroId = po.xero_bill_id as string | null;
   const xeroAt = po.xero_synced_at ? new Date(po.xero_synced_at).toLocaleString() : null;
   const xeroDraftDeleted = po.status === 'cancelled' && xeroStatus === 'synced' && !xeroId;
+  const currency = (po.currency_code || 'AUD').toUpperCase();
+  const payments: any[] = po.payments || [];
+  const postedPayments = payments.filter((payment: any) => payment.xero_post_status === 'posted' && payment.xero_payment_id);
+  const xeroJournals: any[] = po.xero_accounting_links?.journals || [];
+  const xeroSupplierCredits: any[] = po.xero_accounting_links?.supplierCredits || [];
+  const relatedXeroRecordCount = postedPayments.length + xeroJournals.length + xeroSupplierCredits.length;
+  const xeroDate = (value: unknown) => {
+    if (typeof value !== 'string' || !value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
+  };
+  const xeroBillUrl = xeroId ? `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}` : null;
 
   // Fetch live Xero bill details (number + total) whenever a linked bill exists
   useEffect(() => {
@@ -11370,29 +11404,64 @@ function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: 
   const XeroBadge = () => (
     !xeroAccountingEnabled ? null :
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
-      ? <div style={{ display:'flex', flexDirection:'column', gap:4, padding:'5px 10px', background: xeroVoidResult === 'voided' || xeroDraftDeleted ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            {xeroVoidResult === 'voided' || xeroDraftDeleted
-              ? <span style={{ color:'#fbbf24', fontWeight:700 }}>{xeroDraftDeleted ? '✕ Xero draft deleted' : '✕ Removed from Xero'}</span>
-              : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
-            {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
-            {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
-            {xeroId && <a href={`https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--sv-mint)' }}>View Bill ↗</a>}
-            {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background:'none', border:'1px solid #f87171', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'complete' ? 'Void in Xero' : 'Delete from Xero'}</button>}
-            {xeroVoidResult === 'failed' && <span style={{ color:'#f87171' }}>{xeroVoidMsg}</span>}
+      ? <div style={{ border: '1px solid var(--sv-etch)', borderLeft: `3px solid ${xeroVoidResult === 'voided' || xeroDraftDeleted ? '#fbbf24' : '#34d399'}`, background: 'var(--sv-bg-1)', borderRadius: 6, fontSize: 11, marginBottom: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '10px 12px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <strong style={{ color: 'var(--sv-text-strong)', fontSize: 12 }}>Xero accounting</strong>
+                {xeroVoidResult === 'voided' || xeroDraftDeleted
+                  ? <span style={{ color: '#fbbf24', fontWeight: 700 }}>{xeroDraftDeleted ? 'Draft deleted' : 'Removed'}</span>
+                  : <span style={{ color: '#34d399', fontWeight: 700 }}>Synced</span>}
+                {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
+              </div>
+              {xeroId && <div style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10, marginTop: 3 }}>{xeroId}</div>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {xeroBillUrl && <a href={xeroBillUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--sv-mint)', fontWeight: 700 }}>View bill <ExternalLink size={12} /></a>}
+              {xeroId && xeroVoidResult !== 'voided' && <button onClick={doXeroVoid} disabled={xeroVoiding} style={{ background: 'none', border: '1px solid #f87171', borderRadius: 4, cursor: 'pointer', padding: '3px 8px', fontSize: 11, color: '#f87171' }}>{xeroVoiding ? 'Removing…' : po.status === 'complete' ? 'Void in Xero' : 'Delete from Xero'}</button>}
+            </div>
           </div>
           {xeroBillFetching && !xeroBillDetails && xeroVoidResult !== 'voided' && (
-            <span style={{ fontSize:10, color:'var(--sv-text-dim)' }}>Loading Xero details…</span>
+            <div style={{ padding: '0 12px 9px', fontSize: 10, color: 'var(--sv-text-dim)' }}>Loading Xero details…</div>
           )}
           {xeroBillDetails && xeroVoidResult !== 'voided' && (
-            <div style={{ display:'flex', gap:12, fontSize:10.5, color:'var(--sv-text-dim)' }}>
+            <div style={{ display: 'flex', gap: 18, padding: '0 12px 10px', fontSize: 10.5, color: 'var(--sv-text-dim)', flexWrap: 'wrap' }}>
               {xeroBillDetails.invoiceNumber && <span>Bill #: <strong style={{ color:'var(--sv-text-main)' }}>{xeroBillDetails.invoiceNumber}</strong></span>}
-              {xeroBillDetails.total !== null && <span>Xero Total: <strong style={{ color:'var(--sv-text-main)' }}>{fmtCurrency(xeroBillDetails.total)}</strong></span>}
+              {xeroBillDetails.total !== null && <span>Xero total: <strong style={{ color:'var(--sv-text-main)' }}>{fmtFx(xeroBillDetails.total, currency)}</strong></span>}
+              <span>Related records: <strong style={{ color: 'var(--sv-text-main)' }}>{relatedXeroRecordCount}</strong></span>
             </div>
           )}
           {xeroBillDetails && xeroBillDetails.total !== null && xeroVoidResult !== 'voided' && Math.abs(xeroBillDetails.total - Number(po.total_amount || 0)) > 0.01 && (
-            <div style={{ background:'rgba(251,191,36,.15)', border:'1px solid rgba(251,191,36,.6)', borderRadius:4, padding:'5px 8px', fontSize:11, color:'var(--sv-text-main)', lineHeight:1.5 }}>
-              ⚠ <strong>Total mismatch:</strong> IMS PO #{po.po_number} total is {fmtCurrency(Number(po.total_amount || 0))} but the linked Xero bill shows {fmtCurrency(xeroBillDetails.total)}. This can happen if the PO was edited after the Xero bill was approved. Please contact your bookkeeper with these details.
+            <div style={{ margin: '0 12px 10px', background:'rgba(251,191,36,.15)', border:'1px solid rgba(251,191,36,.6)', borderRadius:4, padding:'5px 8px', fontSize:11, color:'var(--sv-text-main)', lineHeight:1.5 }}>
+              <strong>Total mismatch:</strong> Solvantis shows {fmtFx(Number(po.total_amount || 0), currency)} but the linked Xero bill shows {fmtFx(xeroBillDetails.total, currency)}. Ask the bookkeeper to review the difference.
+            </div>
+          )}
+          {xeroVoidResult === 'failed' && <div style={{ margin: '0 12px 10px', color: '#f87171' }}>{xeroVoidMsg}</div>}
+          {xeroId && xeroVoidResult !== 'voided' && (
+            <div style={{ borderTop: '1px solid var(--sv-etch)', padding: '9px 12px' }}>
+              <div style={{ color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Related Xero records</div>
+              {relatedXeroRecordCount === 0
+                ? <div style={{ color: 'var(--sv-text-dim)' }}>No linked Xero payments, journals or supplier credits.</div>
+                : <div style={{ display: 'grid', gap: 6 }}>
+                    {postedPayments.map((payment: any) => (
+                      <div key={`payment:${payment.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <span><strong>Payment</strong> · {fmtFx(Number(payment.amount), payment.currency_code || currency)}{xeroDate(payment.payment_date) ? ` · ${xeroDate(payment.payment_date)}` : ''}</span>
+                        <a href={xeroBillUrl!} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--sv-mint)' }}>View on bill <ExternalLink size={11} /></a>
+                      </div>
+                    ))}
+                    {xeroJournals.map((journal: any) => (
+                      <div key={`${journal.type}:${journal.xeroId}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <span><strong>{journal.type === 'po_received_journal' ? 'Receipt journal' : 'Adjustment journal'}</strong>{xeroDate(journal.postedAt) ? ` · ${xeroDate(journal.postedAt)}` : ''}</span>
+                        <a href={`https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${journal.xeroId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--sv-mint)' }}>View journal <ExternalLink size={11} /></a>
+                      </div>
+                    ))}
+                    {xeroSupplierCredits.map((credit: any) => (
+                      <div key={`credit:${credit.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <span><strong>Supplier credit {credit.number}</strong> · {fmtFx(Number(credit.total), credit.currencyCode || currency)}{xeroDate(credit.syncedAt) ? ` · ${xeroDate(credit.syncedAt)}` : ''}</span>
+                        <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?CreditNoteID=${credit.xeroId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--sv-mint)' }}>View credit <ExternalLink size={11} /></a>
+                      </div>
+                    ))}
+                  </div>}
             </div>
           )}
         </div>
@@ -11407,12 +11476,10 @@ function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: 
             <span>○ Not yet synced to Xero</span>
           </div>
   );
-  const currency = (po.currency_code || 'AUD').toUpperCase();
   const isFx = currency !== 'AUD';
   const rate = Number(po.exchange_rate || 1);
   const items: any[] = po.items || [];
   const landedCosts: any[] = po.landed_costs || [];
-  const payments: any[] = po.payments || [];
   const hasDeposits = payments.length > 0;
   const freightTreatment = settings.freight_treatment === 'capitalise' ? 'capitalise' : 'expense';
   const freight = Number(po.freight || 0);
@@ -11498,7 +11565,7 @@ function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: 
 
   if (!open) {
     return (
-      <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
+      <div style={{ marginTop: 24 }}>
         <XeroBadge />
         <CostSummaryPills items={[
           { label: 'Received Qty', value: fmtQty(lineItems.reduce((s: number, i: any) => s + Number(i.qty_received || 0), 0)) },
@@ -11506,16 +11573,16 @@ function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: 
           { label: 'Landed Costs (AUD)', value: fmtCurrency(totalLanded), tone: totalLanded > 0 ? 'warn' : 'default' },
         ]} />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
+          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Show cost detail</span>
         </button>
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
+    <div style={{ marginTop: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Cost detail</span>
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
       <XeroBadge />
@@ -11717,7 +11784,7 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
 
   if (!open) {
     return (
-      <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 8 }}>
+      <div style={{ marginTop: 24 }}>
         <XeroBadge />
         <CostSummaryPills items={[
           { label: 'Revenue (ex tax)', value: fmtFx(revenueSubtotal, currency) },
@@ -11725,16 +11792,16 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
           { label: 'Gross Margin', value: grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—', tone: grossMarginPct !== null ? (grossMarginPct >= 0 ? 'good' : 'bad') : 'warn' },
         ]} />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Accounting</span>
+          <span>🧮</span> <span style={{ textDecoration: 'underline dotted' }}>Show margin detail</span>
         </button>
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: 24, borderTop: '1px dashed var(--sv-etch)', paddingTop: 12 }}>
+    <div style={{ marginTop: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Accounting</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>🧮 Margin detail</span>
         <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11 }}>hide ↑</button>
       </div>
       <XeroBadge />
@@ -12596,6 +12663,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
         <Modal title={`Credit Note ${viewModal.cn.cn_number}`} onClose={() => setViewModal({ open: false, cn: null })} wide>
           <div style={{ fontSize: 13 }}>
             {/* Details */}
+            <DetailSectionDivider label="Credit summary" marginTop={0} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 16 }}>
               {[
                 ['Date', viewModal.cn.cn_date?.slice(0, 10)],
@@ -12618,6 +12686,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
             )}
 
             {/* Items */}
+            <DetailSectionDivider label="Credited products and totals" summary={`${(viewModal.cn.items ?? []).length} ${(viewModal.cn.items ?? []).length === 1 ? 'line' : 'lines'}`} />
             <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
@@ -12673,6 +12742,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
               const cogsTotal = hasCost ? items.reduce((s: number, r: any) => s + (r.cogsReversal ?? 0), 0) : null;
               return (
                 <div style={{ marginBottom: 12 }}>
+                  <DetailSectionDivider label="Accounting" marginTop={12} />
                   <CostSummaryPills items={[
                     { label: 'Credit Value', value: fmtCurrency(credited) },
                     { label: 'COGS Reversal', value: cogsTotal != null ? fmtCurrency(cogsTotal) : '—', tone: cogsTotal != null ? 'good' : 'warn' },
@@ -13293,6 +13363,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} <StatusBadge status={viewModal.scn.status} /></h2>
               <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
+            <DetailSectionDivider label="Credit summary" marginTop={0} />
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
               <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
               <div><strong>Location:</strong> {viewModal.scn.location_name}</div>
@@ -13300,6 +13371,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               {viewModal.scn.supplier_credit_ref && <div><strong>Supplier Ref:</strong> {viewModal.scn.supplier_credit_ref}</div>}
               {viewModal.scn.reference && <div><strong>Reference:</strong> {viewModal.scn.reference}</div>}
             </div>
+            <DetailSectionDivider label="Credited products and totals" summary={`${(viewModal.scn.items ?? []).length} ${(viewModal.scn.items ?? []).length === 1 ? 'line' : 'lines'}`} />
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 12 }}>
               <thead><tr style={{ background: 'var(--sv-bg-2)' }}>{['Product','Qty','Unit Cost','Return stock','Line'].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--sv-text-dim)' }}>{h}</th>)}</tr></thead>
               <tbody>
@@ -13339,6 +13411,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               const stockOutValue = items.reduce((s: number, r: any) => s + (r.restock ? r.value : 0), 0);
               return (
                 <div style={{ marginBottom: 12 }}>
+                  <DetailSectionDivider label="Accounting" marginTop={12} />
                   <CostSummaryPills items={[
                     { label: 'Supplier Credit', value: money(viewModal.scn.total_amount) },
                     { label: 'Stock Value Removed', value: money(stockOutValue), tone: stockOutValue > 0 ? 'warn' : 'default' },
@@ -13373,8 +13446,9 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               );
             })()}
             <div style={{ marginBottom: 12 }}>
+              <DetailSectionDivider label="Documents" summary={`${scnFiles.length} ${scnFiles.length === 1 ? 'file' : 'files'}`} marginTop={12} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Files</div>
+                <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Supplier credit files and supporting attachments</div>
                 <label style={{ cursor: 'pointer' }}>
                   <span style={btnStyle('mint', 'xs') as any}>{scnFileUploading ? 'Uploading…' : '+ Upload'}</span>
                   <input
@@ -13473,6 +13547,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                 </div>
               )}
             </div>
+            <DetailSectionDivider label="Xero" marginTop={12} />
             {(() => {
               const scn = viewModal.scn;
               const xeroStatus = scn.xero_sync_status as string | null;
@@ -15192,6 +15267,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               ><Mail size={15} /> Email</button>}
             </div>
           </div>
+          <DetailSectionDivider label="Order summary" marginTop={4} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div><div style={labelStyle}>Customer</div><div>{viewModal.so.customer_name || '—'}</div></div>
             <div><div style={labelStyle}>Location</div><div>{viewModal.so.location_name}</div></div>
@@ -15218,8 +15294,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           </div>
           {viewModal.so.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.so.notes}</div>}
           {Array.isArray(viewModal.so.shipments) && viewModal.so.shipments.length > 0 && (
-            <section style={{ marginBottom: 18, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', padding: '12px 0' }}>
-              <div style={{ ...labelStyle, marginBottom: 10 }}>SHIPMENTS &amp; TRACKING</div>
+            <section style={{ marginBottom: 18 }}>
+              <DetailSectionDivider label="Shipments and tracking" summary={`${viewModal.so.shipments.length} ${viewModal.so.shipments.length === 1 ? 'shipment' : 'shipments'}`} />
               {viewModal.so.shipments.map((shipment: any) => (
                 <div key={shipment.id} style={{ padding: '8px 0', borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 65%, transparent)' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 13 }}>
@@ -15246,6 +15322,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               ))}
             </section>
           )}
+          <DetailSectionDivider label="Products and totals" />
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-1)' }}>
@@ -15327,19 +15404,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </section>
           )}
 
-          {viewModal.so.so_type !== 'online' && (
-            <StockAllocationPanel
-              mode="sales_order"
-              orderId={Number(viewModal.so.id)}
-              items={viewModal.so.items || []}
-              allocations={viewModal.so.stock_allocations || []}
-              readOnly={isAdvisor}
-              onChanged={async () => {
-                await refreshSoView(Number(viewModal.so.id));
-              }}
-            />
-          )}
-
           {/* ── Payments ── */}
           {(() => {
             const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
@@ -15348,8 +15412,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             const balance = Number(viewModal.so.balance ?? (Number(viewModal.so.total_amount) - amountPaid));
             return (
               <div style={{ marginTop: 20 }}>
+                <DetailSectionDivider label="Payments" summary={`${(viewModal.so.payments || []).length} recorded · ${fmtFx(balance, currency)} balance`} marginTop={0} />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
+                  <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Customer payments recorded against this sales order</div>
                   {!soPayForm && (
                     <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
@@ -15448,7 +15513,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               </div>
             );
           })()}
+          <DetailSectionDivider label="Accounting" />
           <SoAccountingSection so={viewModal.so} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
+          {viewModal.so.so_type !== 'online' && (
+            <StockAllocationPanel
+              mode="sales_order"
+              orderId={Number(viewModal.so.id)}
+              items={viewModal.so.items || []}
+              allocations={viewModal.so.stock_allocations || []}
+              readOnly={isAdvisor}
+              onChanged={async () => {
+                await refreshSoView(Number(viewModal.so.id));
+              }}
+            />
+          )}
           <OrderActivityHistory entries={viewModal.so.activity_history ?? viewModal.so.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, so: null }); onOpenActivityDocument?.(entry); }} />
         </Modal>
       )}

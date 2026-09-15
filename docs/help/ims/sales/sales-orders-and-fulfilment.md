@@ -80,6 +80,8 @@ When adding a payment to a Sales Order with saved early-payment terms, Solvantis
 
 When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the customer credit note** before saving. Solvantis records the payment, a stock-neutral customer credit note, and the discount application together. It does not issue store credit because the credit note settles the order balance. An applied settlement payment and its credit note must be corrected together.
 
+The Sales Order detail view separates the order summary, shipments, products and totals, payments, accounting, stock allocation, and activity with labelled dividers. **Stock allocation** appears below Accounting and is collapsed initially. Its header shows active links, allocated and ready quantities, unsourced demand, and at-risk promises; expand it to allocate incoming supply or manage an existing promise.
+
 > **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
 
 15. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.

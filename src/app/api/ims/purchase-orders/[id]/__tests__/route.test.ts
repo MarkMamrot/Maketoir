@@ -16,6 +16,7 @@ const {
   mockRecordXeroReconciliationIssue,
   mockGetOrderResolutionFinancialSummaries,
   mockGetOrderActivityHistory,
+  mockMainQuery,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGet: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockRecordXeroReconciliationIssue: vi.fn(),
   mockGetOrderResolutionFinancialSummaries: vi.fn(),
   mockGetOrderActivityHistory: vi.fn(),
+  mockMainQuery: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
@@ -44,6 +46,7 @@ vi.mock('@/lib/ims/ImsRepository', () => ({
   },
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
+vi.mock('@/services/MySQLService', () => ({ query: mockMainQuery }));
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: mockRefreshVariantCache }));
 vi.mock('@/lib/ims/xeroHooks', () => ({
   triggerPOXeroSync: mockTriggerPOXeroSync,
@@ -74,6 +77,7 @@ describe('/api/ims/purchase-orders/[id]', () => {
     vi.clearAllMocks();
     mockGetImsSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin', userId: 7, name: 'Alex' });
     mockImsQuery.mockResolvedValue([]);
+    mockMainQuery.mockResolvedValue([]);
     mockTriggerPOXeroVoid.mockResolvedValue(null);
     mockChangeStatus.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
@@ -131,6 +135,25 @@ describe('/api/ims/purchase-orders/[id]', () => {
       },
     });
     expect(mockGetOrderActivityHistory).toHaveBeenCalledWith('biz-1', 'purchase_order', 42);
+  });
+
+  it('includes tenant-scoped Xero journals and supplier credits in PO detail', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', items: [], payments: [] });
+    mockMainQuery.mockResolvedValue([{ action_type: 'po_received_journal', xero_id: 'journal-1', completed_at: '2026-09-14' }]);
+    mockImsQuery.mockImplementation(async (sql: string) => sql.includes('ims_supplier_credit_notes') ? [{
+      id: 8, scn_number: 'SCN-8', xero_credit_note_id: 'credit-1', total_amount: '25.50', currency_code: 'AUD', xero_synced_at: '2026-09-15',
+    }] : []);
+
+    const response = await GET(new Request('http://localhost'), params);
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.data.xero_accounting_links).toEqual({
+      journals: [{ type: 'po_received_journal', xeroId: 'journal-1', postedAt: '2026-09-14' }],
+      supplierCredits: [{ id: 8, number: 'SCN-8', xeroId: 'credit-1', total: 25.5, currencyCode: 'AUD', syncedAt: '2026-09-15' }],
+    });
+    expect(mockMainQuery).toHaveBeenCalledWith(expect.stringContaining('business_id = ?'), ['biz-1', '42']);
+    expect(mockImsQuery).toHaveBeenLastCalledWith(expect.stringContaining('business_id = ?'), ['biz-1', 42]);
   });
 
   it('only hard-deletes a draft PO for the authenticated business', async () => {

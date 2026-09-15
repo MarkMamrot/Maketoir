@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarClock, Link2, Link2Off, RefreshCw } from 'lucide-react';
+import { CalendarClock, ChevronDown, Link2, Link2Off, RefreshCw } from 'lucide-react';
 
 type Allocation = {
   id: number;
@@ -63,6 +63,7 @@ export function StockAllocationPanel({
 }) {
   const [demand, setDemand] = useState<DemandLine[]>([]);
   const [loading, setLoading] = useState(mode === 'sales_order');
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [drafts, setDrafts] = useState<Record<number, { poItemId: string; quantity: string; promisedDate: string; reason: string }>>({});
@@ -163,15 +164,32 @@ export function StockAllocationPanel({
   };
 
   const active = allocations.filter(allocation => allocation.state === 'active');
+  const allocatedQuantity = active.reduce((sum, allocation) => sum + Math.max(0, Number(allocation.qty_allocated) - Number(allocation.qty_fulfilled)), 0);
+  const readyQuantity = active.reduce((sum, allocation) => sum + Math.max(0, Number(allocation.qty_received_assigned) - Number(allocation.qty_fulfilled)), 0);
+  const unsourcedQuantity = mode === 'sales_order' ? demand.reduce((sum, line) => sum + Number(line.unsourced), 0) : 0;
+  const atRiskCount = active.filter(allocation => allocation.promise_status === 'at_risk').length;
+  const summary = [
+    `${active.length} active`,
+    `${qty(allocatedQuantity)} allocated`,
+    readyQuantity > 0 ? `${qty(readyQuantity)} ready` : '',
+    unsourcedQuantity > 0 ? `${qty(unsourcedQuantity)} unsourced` : '',
+    atRiskCount > 0 ? `${atRiskCount} at risk` : '',
+  ].filter(Boolean).join(' · ');
   const allocationsForItem = (itemId: number, key: 'so_item_id' | 'po_item_id') => active.filter(allocation => Number(allocation[key]) === Number(itemId));
 
   return (
-    <section style={{ marginTop: 20, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0' }}>
-        <Link2 size={16} aria-hidden="true" />
-        <strong style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Incoming stock allocation</strong>
-        <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{active.length} active</span>
-        {mode === 'sales_order' && <button type="button" onClick={loadDemand} disabled={loading} title="Refresh incoming stock" aria-label="Refresh incoming stock" style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 4 }}><RefreshCw size={15} /></button>}
+    <section style={{ marginTop: 24 }}>
+      <button type="button" onClick={() => setExpanded(current => !current)} aria-expanded={expanded} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '6px 10px', padding: '8px 0', border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}>
+        <div style={{ flex: '1 1 24px', height: 1, background: 'var(--sv-etch)' }} />
+        <Link2 size={14} aria-hidden="true" style={{ color: 'var(--sv-text-dim)' }} />
+        <strong style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Stock allocation</strong>
+        <span style={{ minWidth: 0, color: atRiskCount > 0 || unsourcedQuantity > 0 ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontSize: 11, textTransform: 'none', textAlign: 'center' }}>{loading ? 'Loading…' : summary}</span>
+        <ChevronDown size={15} aria-hidden="true" style={{ color: 'var(--sv-text-dim)', transform: expanded ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }} />
+        <div style={{ flex: '1 1 24px', height: 1, background: 'var(--sv-etch)' }} />
+      </button>
+      {expanded && <div style={{ paddingTop: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', minHeight: 24 }}>
+        {mode === 'sales_order' && <button type="button" onClick={loadDemand} disabled={loading} title="Refresh incoming stock" aria-label="Refresh incoming stock" style={{ border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 4 }}><RefreshCw size={15} /></button>}
       </div>
       {error && <div role="alert" style={{ marginBottom: 10, padding: '7px 9px', background: 'rgba(248,113,113,.1)', color: '#f87171', fontSize: 12 }}>{error}</div>}
       {mode === 'sales_order' && loading && <div style={{ padding: '0 0 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>Loading availability...</div>}
@@ -222,6 +240,7 @@ export function StockAllocationPanel({
           {linked.map(allocation => <div key={allocation.id} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 7, fontSize: 12 }}><span>{allocation.so_number}</span><span>{qty(allocation.qty_allocated)} allocated</span><span>{qty(Math.max(0, allocation.qty_received_assigned - allocation.qty_fulfilled))} ready</span>{allocation.qty_fulfilled > 0 && <span>{qty(allocation.qty_fulfilled)} shipped</span>}<span style={{ color: allocation.promise_status === 'at_risk' ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>{allocation.promise_status.replace('_', ' ')}</span>{!readOnly && <button type="button" onClick={() => release(allocation)} disabled={!!busy} style={{ ...smallButton, marginLeft: 'auto' }}><Link2Off size={13} /> Release</button>}</div>)}
         </div>;
       })}
+      </div>}
     </section>
   );
 }

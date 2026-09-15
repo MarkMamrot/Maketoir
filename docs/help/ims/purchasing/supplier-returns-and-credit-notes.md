@@ -13,6 +13,8 @@ Use a Supplier Credit Note when a supplier owes your business money, with or wit
 - Save a Draft for review, then Complete it to apply the stock and supplier-credit result.
 - Review Xero and attachment status separately after completion.
 
+The credit-note viewer separates the credit summary, credited products and totals, accounting, documents, Xero status, and activity with labelled dividers so the operational return and accounting evidence remain easy to scan.
+
 ## At a glance
 
 | Event | Return stock? | Stock result | Supplier value result |

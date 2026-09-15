@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'crypto';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { triggerPOXeroSync, triggerPOXeroVoid, triggerPOXeroUpdate } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -57,9 +58,45 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         reference: { type: 'purchase_order', id: params.id },
       }).catch(() => {});
     }
+    let xero_accounting_links: {
+      journals: Array<{ type: string; xeroId: string; postedAt: string | Date | null }>;
+      supplierCredits: Array<{ id: number; number: string; xeroId: string; total: number; currencyCode: string; syncedAt: string | Date | null }>;
+    } = { journals: [], supplierCredits: [] };
+    try {
+      const [journalRows, supplierCreditRows] = await Promise.all([
+        query<{ action_type: string; xero_id: string; completed_at: string | Date | null }>(
+          `SELECT action_type, xero_id, completed_at
+             FROM xero_accounting_actions
+            WHERE business_id = ? AND source_type = 'purchase_order' AND source_id = ?
+              AND action_type = 'po_received_journal' AND status = 'succeeded' AND xero_id IS NOT NULL
+            ORDER BY completed_at ASC, id ASC`,
+          [businessId, params.id],
+        ),
+        imsQuery<{ id: number; scn_number: string; xero_credit_note_id: string; total_amount: number; currency_code: string; xero_synced_at: string | Date | null }>(
+          `SELECT id, scn_number, xero_credit_note_id, total_amount, currency_code, xero_synced_at
+             FROM ims_supplier_credit_notes
+            WHERE business_id = ? AND po_id = ? AND xero_credit_note_id IS NOT NULL
+            ORDER BY xero_synced_at ASC, id ASC`,
+          [businessId, Number(params.id)],
+        ),
+      ]);
+      xero_accounting_links = {
+        journals: journalRows.map(row => ({ type: row.action_type, xeroId: row.xero_id, postedAt: row.completed_at })),
+        supplierCredits: supplierCreditRows.map(row => ({
+          id: Number(row.id), number: row.scn_number, xeroId: row.xero_credit_note_id,
+          total: Number(row.total_amount), currencyCode: row.currency_code, syncedAt: row.xero_synced_at,
+        })),
+      };
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId, source: 'ims_purchase_orders', operation: 'load_xero_accounting_links',
+        title: 'Purchase order Xero accounting links could not be loaded', error,
+        reference: { type: 'purchase_order', id: params.id },
+      }).catch(() => {});
+    }
     return NextResponse.json({
       success: true,
-      data: { ...data, resolution_financials, stock_allocations, activity_history, amendment_history: activity_history },
+      data: { ...data, resolution_financials, stock_allocations, xero_accounting_links, activity_history, amendment_history: activity_history },
       ...(resolutionFinancialsWarning ? { warning: resolutionFinancialsWarning } : {}),
     });
   } catch (e: any) {

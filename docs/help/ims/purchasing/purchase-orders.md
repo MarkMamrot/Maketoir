@@ -80,6 +80,10 @@ When a payment requested for Xero is not confirmed there, the PO keeps a visible
 
 Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, resolution choices, linked supplier credits and replacement orders.
 
+The detail view separates the order summary, products and totals, landed costs, payments, accounting, stock allocation, documents, and activity with labelled dividers. **Stock allocation** is collapsed initially; its header shows active links, allocated and ready quantities, and any at-risk demand. Expand it to inspect or release individual customer allocations.
+
+The **Xero accounting** summary shows the linked bill and any Xero records Solvantis created for that PO. Posted payments link back to the bill where they are applied, receipt journals open the related Xero manual journal, and synced supplier credits open the Xero credit note. A Solvantis-only or failed payment is not shown as a linked Xero record because Xero has not confirmed it; review its status in the Payments section instead.
+
 Use the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten.
 
 For a Partially Received order, choose **Edit Details** to increase an ordered quantity, add a product, amend a wholly unreceived line, or update expected date, notes, supplier invoice details, and payment terms. Received quantities remain unchanged. An existing received line cannot change product, cost, discount, or tax, cannot be removed, and cannot be reduced below the quantity already received. Supplier, receiving location, order date, currency, freight, and landed costs remain locked after the first receipt.

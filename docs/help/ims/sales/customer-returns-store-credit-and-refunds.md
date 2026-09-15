@@ -13,6 +13,8 @@ Use the credit note linked to the original sale to keep returned goods and custo
 - Mark goods as awaiting product when value should not be completed yet.
 - Reverse a mistaken completed manual credit note through its offered action.
 
+The credit-note viewer separates the credit summary, credited products and totals, accounting, Xero status, and activity with labelled dividers. Cost and COGS detail remains collapsed until needed.
+
 ## At a glance
 
 | Return source | Where staff start | Linked credit note | What adds stock back once | How customer value is returned | What must not be repeated |
