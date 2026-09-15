@@ -1316,7 +1316,9 @@ const COLUMNS = [
   ['ims_sales_orders', 'staff_preview_session_id', 'VARCHAR(64) NULL AFTER is_staff_preview_test'],
   ['ims_sales_orders', 'staff_preview_actor_user_id', 'INT NULL AFTER staff_preview_session_id'],
   ['ims_sales_orders', 'staff_preview_actor_name', 'VARCHAR(255) NULL AFTER staff_preview_actor_user_id'],
-  ['ims_sales_orders', 'sales_channel', "ENUM('shopify','native_shop') NULL AFTER so_type"],
+  ['ims_sales_orders', 'sales_channel', "ENUM('shopify','native_shop','amazon') NULL AFTER so_type"],
+  ['ims_sales_orders', 'channel_instance_id', 'CHAR(36) NULL AFTER sales_channel'],
+  ['ims_sales_orders', 'external_order_id', 'VARCHAR(100) NULL AFTER channel_instance_id'],
   ['ims_sales_orders', 'native_checkout_id', 'CHAR(36) NULL AFTER sales_channel'],
   ['ims_sales_orders', 'xero_invoice_id',     'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_invoice_number', 'VARCHAR(100) NULL'],
@@ -1482,6 +1484,7 @@ const COLUMNS = [
   ['ims_po_shortfall_resolutions', 'accounting_action', "ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none' AFTER currency_code"],
   ['ims_purchase_order_items', 'discount_pct', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER unit_cost'],
   ['ims_sales_order_items', 'shopify_line_item_id', 'VARCHAR(100) NULL AFTER so_id'],
+  ['ims_sales_order_items', 'external_order_item_id', 'VARCHAR(100) NULL AFTER shopify_line_item_id'],
 ];
 
 if (
@@ -1505,6 +1508,7 @@ const INDEXES = [
   ['wholesale_draft_orders', 'idx_wholesale_draft_account', 'INDEX `idx_wholesale_draft_account` (`business_id`, `wholesale_company_id`, `wholesale_location_id`, `wholesale_member_id`)'],
   ['ims_sales_orders', 'idx_so_staff_preview', 'INDEX `idx_so_staff_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_sales_orders', 'idx_so_online_channel', 'INDEX `idx_so_online_channel` (`business_id`, `sales_channel`, `order_date`, `id`)'],
+  ['ims_sales_orders', 'uq_so_channel_external_order', 'UNIQUE INDEX `uq_so_channel_external_order` (`business_id`, `channel_instance_id`, `external_order_id`)'],
   ['ims_sales_orders', 'uq_so_native_checkout', 'UNIQUE INDEX `uq_so_native_checkout` (`business_id`, `native_checkout_id`, `location_id`)'],
   ['wholesale_draft_orders', 'idx_wholesale_draft_preview', 'INDEX `idx_wholesale_draft_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
@@ -1525,6 +1529,7 @@ const INDEXES = [
   ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
   ['ims_supplier_credit_note_items', 'idx_scn_source_po_item', 'INDEX `idx_scn_source_po_item` (`source_po_item_id`)'],
   ['ims_sales_order_items', 'idx_soitem_shopify_li', 'INDEX `idx_soitem_shopify_li` (`shopify_line_item_id`)'],
+  ['ims_sales_order_items', 'idx_soitem_external', 'INDEX `idx_soitem_external` (`business_id`, `external_order_item_id`)'],
 ];
 
 async function ensureEnumValues(schema, table, column, requiredValues) {
@@ -1873,6 +1878,7 @@ async function migrateSchema(schema, businessId) {
     );
     await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'partially_fulfilled', 'backordered', 'fulfilled', 'cancelled']);
+    await ensureEnumValues(schema, 'ims_sales_orders', 'sales_channel', ['shopify', 'native_shop', 'amazon']);
     await ensureEnumValues(schema, 'loyalty_transactions', 'channel', ['pos', 'shopify', 'native_shop', 'manual', 'migration']);
     await ensureEnumValues(schema, 'gift_card_transactions', 'type', ['deactivate', 'reconcile']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);

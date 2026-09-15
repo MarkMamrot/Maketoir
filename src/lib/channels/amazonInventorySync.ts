@@ -7,6 +7,7 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 const OPERATION = 'inventory_update';
 const MAX_ATTEMPTS = 5;
+const STALE_LOCK_MINUTES = 10;
 
 interface InventoryJobRow {
   id: number;
@@ -65,6 +66,56 @@ export async function enqueueAmazonInventoryJobs(input: {
   return Number(result.affectedRows ?? 0);
 }
 
+export async function enqueueChangedAmazonInventoryJobs(input: {
+  businessId: string;
+  channelInstanceId: string;
+}): Promise<number> {
+  const cursorKey = `amazon_inventory_cursor:${input.channelInstanceId}`;
+  const cursorRows = await imsQuery<{ value: string }>(
+    `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = ? LIMIT 1`,
+    [input.businessId, cursorKey],
+  );
+  const cursor = Math.max(0, Math.floor(Number(cursorRows[0]?.value ?? 0)));
+  const watermarkRows = await imsQuery<{ watermark: number | string | null }>(
+    `SELECT MAX(id) AS watermark FROM ims_stock_movements WHERE business_id = ?`,
+    [input.businessId],
+  );
+  const watermark = Math.max(cursor, Math.floor(Number(watermarkRows[0]?.watermark ?? cursor)));
+  if (watermark === cursor) return 0;
+
+  const result = await imsExecute(
+    `INSERT INTO ims_sales_channel_jobs
+       (business_id, channel_instance_id, provider, operation, operation_key, payload_json)
+     SELECT mapping.business_id, mapping.channel_instance_id, 'amazon', ?,
+            CONCAT('amazon_inventory:', mapping.variant_id, ':', MAX(movement.id)),
+            JSON_OBJECT('variantId', mapping.variant_id, 'stockMovementId', MAX(movement.id))
+       FROM ims_stock_movements movement
+       JOIN ims_sales_channel_product_mappings mapping
+         ON mapping.business_id = movement.business_id AND mapping.variant_id = movement.variant_id
+       JOIN ims_sales_channel_product_selections selection
+         ON selection.business_id = mapping.business_id
+        AND selection.channel_instance_id = mapping.channel_instance_id
+        AND selection.variant_id = mapping.variant_id
+       JOIN ims_product_variants variant
+         ON variant.business_id = mapping.business_id AND variant.variant_id = mapping.variant_id
+       JOIN ims_products product
+         ON product.business_id = mapping.business_id AND product.product_id = variant.product_id
+      WHERE movement.business_id = ? AND movement.id > ? AND movement.id <= ?
+        AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+        AND selection.is_selected = 1 AND selection.inventory_enabled = 1
+        AND COALESCE(product.is_stock_item, 1) = 1
+      GROUP BY mapping.business_id, mapping.channel_instance_id, mapping.variant_id
+     ON DUPLICATE KEY UPDATE payload_json = VALUES(payload_json)`,
+    [OPERATION, input.businessId, cursor, watermark, input.channelInstanceId],
+  );
+  await imsExecute(
+    `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+    [input.businessId, cursorKey, String(watermark)],
+  );
+  return Number(result.affectedRows ?? 0);
+}
+
 async function loadInventoryTarget(input: {
   businessId: string;
   channelInstanceId: string;
@@ -107,6 +158,15 @@ export async function processAmazonInventoryJobs(input: {
   limit?: number;
 }): Promise<{ processed: number; pushed: number; skipped: number; failed: number }> {
   const result = { processed: 0, pushed: 0, skipped: 0, failed: 0 };
+  await imsExecute(
+    `UPDATE ims_sales_channel_jobs
+        SET status = 'pending', locked_at = NULL, available_at = CURRENT_TIMESTAMP(3),
+            safe_error = 'Recovered after an interrupted inventory worker.'
+      WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'
+        AND operation = ? AND status = 'processing'
+        AND locked_at < DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL ? MINUTE)`,
+    [input.businessId, input.channelInstanceId, OPERATION, STALE_LOCK_MINUTES],
+  );
   const jobs = await imsQuery<InventoryJobRow>(
     `SELECT id, operation_key, payload_json, attempts
        FROM ims_sales_channel_jobs
@@ -186,6 +246,18 @@ export async function syncAmazonInventoryForChannel(input: {
 }): Promise<{ queued: number; processed: number; pushed: number; skipped: number; failed: number }> {
   return runImsForBusiness(input.businessId, async () => {
     const queued = await enqueueAmazonInventoryJobs(input);
+    const processed = await processAmazonInventoryJobs(input);
+    return { queued, ...processed };
+  });
+}
+
+export async function syncChangedAmazonInventoryForChannel(input: {
+  businessId: string;
+  channelInstanceId: string;
+  limit?: number;
+}): Promise<{ queued: number; processed: number; pushed: number; skipped: number; failed: number }> {
+  return runImsForBusiness(input.businessId, async () => {
+    const queued = await enqueueChangedAmazonInventoryJobs(input);
     const processed = await processAmazonInventoryJobs(input);
     return { queued, ...processed };
   });

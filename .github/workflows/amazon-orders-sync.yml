@@ -1,0 +1,23 @@
+name: Amazon FBM Order Sync
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Import Amazon seller-fulfilled orders
+        run: |
+          BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/ims/channels/amazon/orders/cron")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
+          echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
+          [ "$RESPONSE" = "200" ] || exit 1

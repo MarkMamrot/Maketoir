@@ -146,6 +146,47 @@ export const SalesChannelInstanceRepository = {
     return this.getForBusiness(businessId, channelInstanceId);
   },
 
+  async setAmazonOrderLocationForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    locationId: number;
+  }): Promise<SalesChannelInstance | null> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    const locationId = Math.floor(Number(input.locationId));
+    if (!businessId || !channelInstanceId || !Number.isInteger(locationId) || locationId <= 0) {
+      throw new SalesChannelValidationError('A valid Amazon dispatch location is required.');
+    }
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.orderLocationId', CAST(? AS UNSIGNED)),
+              updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
+      [locationId, businessId, channelInstanceId],
+    );
+    return this.getForBusiness(businessId, channelInstanceId);
+  },
+
+  async setAmazonOrderSyncCursorForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    lastUpdatedAt: string;
+  }): Promise<void> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    const lastUpdatedAt = input.lastUpdatedAt.trim();
+    if (!businessId || !channelInstanceId || !lastUpdatedAt) {
+      throw new SalesChannelValidationError('A valid Amazon order cursor is required.');
+    }
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.ordersLastUpdatedAt', ?),
+              last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
+      [lastUpdatedAt, businessId, channelInstanceId],
+    );
+  },
+
   async setReadinessForBusiness(input: {
     businessId: string;
     channelInstanceId: string;

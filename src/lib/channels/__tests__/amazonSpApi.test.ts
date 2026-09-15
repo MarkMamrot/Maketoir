@@ -5,7 +5,9 @@ import {
   buildAmazonAuthorizeUrl,
   exchangeAmazonAuthorizationCode,
   getAmazonMarketplaceParticipations,
+  listAmazonFbmOrders,
   listAmazonListings,
+  listAmazonOrderItems,
   requireActiveAmazonAustraliaParticipation,
   updateAmazonListingInventory,
 } from '../amazonSpApi';
@@ -79,6 +81,44 @@ describe('Amazon SP-API authorization', () => {
   it('does not expose an Amazon listing error response', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('{"secret":"detail"}', { status: 403 }));
     await expect(listAmazonListings('access-token', 'A1SELLER99', {}, fetchImpl)).rejects.toThrow('HTTP 403');
+  });
+
+  it('lists paginated Australia seller-fulfilled order updates', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      payload: { Orders: [{ AmazonOrderId: '111-2222222-3333333', PurchaseDate: '2026-09-15T00:00:00Z',
+        LastUpdateDate: '2026-09-15T00:01:00Z', OrderStatus: 'Unshipped', FulfillmentChannel: 'MFN' }], NextToken: 'next' },
+    })));
+    const result = await listAmazonFbmOrders('access-token', {
+      lastUpdatedAfter: '2026-09-14T00:00:00Z', lastUpdatedBefore: '2026-09-15T00:00:00Z',
+      nextToken: 'current', pageSize: 500,
+    }, fetchImpl);
+    const url = new URL(fetchImpl.mock.calls[0][0]);
+    expect(url.pathname).toBe('/orders/v0/orders');
+    expect(url.searchParams.get('MarketplaceIds')).toBe(AMAZON_AU_MARKETPLACE_ID);
+    expect(url.searchParams.get('FulfillmentChannels')).toBe('MFN');
+    expect(url.searchParams.get('OrderStatuses')).not.toContain('Pending,');
+    expect(url.searchParams.get('LastUpdatedAfter')).toBe('2026-09-14T00:00:00Z');
+    expect(url.searchParams.get('NextToken')).toBe('current');
+    expect(url.searchParams.get('MaxResultsPerPage')).toBe('100');
+    expect(result.nextToken).toBe('next');
+  });
+
+  it('lists encoded Amazon order items and rejects a mismatched response', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ payload: {
+        AmazonOrderId: '111/222', OrderItems: [{ ASIN: 'B001', OrderItemId: 'item-1', QuantityOrdered: 2 }],
+        NextToken: 'next-items',
+      } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ payload: {
+        AmazonOrderId: 'different', OrderItems: [],
+      } })));
+    const result = await listAmazonOrderItems('access-token', '111/222', 'current-items', fetchImpl);
+    const url = new URL(fetchImpl.mock.calls[0][0]);
+    expect(url.pathname).toBe('/orders/v0/orders/111%2F222/orderItems');
+    expect(url.searchParams.get('NextToken')).toBe('current-items');
+    expect(result).toMatchObject({ items: [{ OrderItemId: 'item-1' }], nextToken: 'next-items' });
+    await expect(listAmazonOrderItems('access-token', '111/222', null, fetchImpl))
+      .rejects.toThrow('unexpected order');
   });
 
   it('replaces seller-fulfilled inventory for one exact seller SKU', async () => {

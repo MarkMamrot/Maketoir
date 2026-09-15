@@ -1,8 +1,8 @@
-name: Shopify Inventory Sync (drain queue)
+name: Sales Channel Inventory Sync
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # every 15 minutes — keeps Shopify stock current
+    - cron: '*/15 * * * *'
   workflow_dispatch:          # Manual trigger from GitHub Actions UI
 
 jobs:
@@ -17,6 +17,21 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"mode":"queue","limit":4000}' \
             "${{ secrets.APP_URL }}/api/ims/shopify/sync-inventory")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
+          echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
+          [ "$RESPONSE" = "200" ] || exit 1
+
+      - name: Drain IMS to Amazon inventory queue
+        if: always()
+        run: |
+          BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit":100}' \
+            "${{ secrets.APP_URL }}/api/ims/channels/amazon/inventory/cron")
           RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
           RESPONSE_BODY=$(echo "$BODY" | head -n -1)
           echo "HTTP status: $RESPONSE"

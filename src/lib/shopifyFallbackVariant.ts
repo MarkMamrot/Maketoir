@@ -191,3 +191,5 @@ export async function getOrCreateShopifyFallbackVariantId(businessId: string): P
     await releaseNamedLock(lockKey);
   }
 }
+
+export const getOrCreateOnlineFallbackVariantId = getOrCreateShopifyFallbackVariantId;

@@ -105,6 +105,30 @@ describe('SalesChannelInstanceRepository', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
+  it('sets an order location only on the exact business-owned Amazon instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([]);
+
+    await SalesChannelInstanceRepository.setAmazonOrderLocationForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ', locationId: 7.9,
+    });
+
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("provider = 'amazon'"), [
+      7, 'business-1', 'instance-1',
+    ]);
+  });
+
+  it('advances the Amazon order cursor only on the exact instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    await SalesChannelInstanceRepository.setAmazonOrderSyncCursorForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ',
+      lastUpdatedAt: '2026-09-15T01:00:00.000Z',
+    });
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("'$.ordersLastUpdatedAt'"), [
+      '2026-09-15T01:00:00.000Z', 'business-1', 'instance-1',
+    ]);
+  });
+
   it('records readiness without activating a disabled instance', async () => {
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);

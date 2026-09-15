@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, Pencil, Plus, PauseCircle, RefreshCw, Store, TestTube2, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, RefreshCw, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ChannelCapabilities {
@@ -26,7 +26,13 @@ interface ChannelInstance {
   readinessStatus: 'not_tested' | 'ready' | 'error';
   lastSyncAt: string | null;
   safeError: string | null;
+  settings: Record<string, unknown>;
   capabilities: ChannelCapabilities;
+}
+
+interface OrderLocation {
+  id: number;
+  name: string;
 }
 
 interface AmazonMapping {
@@ -90,6 +96,11 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [testingId, setTestingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [inventorySyncingId, setInventorySyncingId] = useState<string | null>(null);
+  const [orderSyncingId, setOrderSyncingId] = useState<string | null>(null);
+  const [orderSettingsInstance, setOrderSettingsInstance] = useState<ChannelInstance | null>(null);
+  const [orderLocations, setOrderLocations] = useState<OrderLocation[]>([]);
+  const [orderLocationId, setOrderLocationId] = useState('');
+  const [orderSettingsLoading, setOrderSettingsLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [amazonDialogOpen, setAmazonDialogOpen] = useState(false);
   const [amazonDisplayName, setAmazonDisplayName] = useState('Amazon Australia');
@@ -221,6 +232,71 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
       setError(syncError instanceof Error ? syncError.message : 'Amazon inventory could not be synchronized.');
     } finally {
       setInventorySyncingId(null);
+    }
+  };
+
+  const openAmazonOrderSettings = async (instance: ChannelInstance) => {
+    setOrderSettingsInstance(instance);
+    setOrderSettingsLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/orders/settings`);
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon order settings could not be loaded.');
+      setOrderLocations(Array.isArray(body.locations) ? body.locations : []);
+      setOrderLocationId(body.orderLocationId ? String(body.orderLocationId) : '');
+    } catch (settingsError) {
+      setOrderSettingsInstance(null);
+      setError(settingsError instanceof Error ? settingsError.message : 'Amazon order settings could not be loaded.');
+    } finally {
+      setOrderSettingsLoading(false);
+    }
+  };
+
+  const saveAmazonOrderSettings = async () => {
+    if (!orderSettingsInstance || !orderLocationId) return;
+    setOrderSettingsLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(orderSettingsInstance.channelInstanceId)}/amazon/orders/settings`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderLocationId: Number(orderLocationId) }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon order settings could not be saved.');
+      setInstances(current => current.map(instance => instance.channelInstanceId === orderSettingsInstance.channelInstanceId
+        ? { ...instance, settings: { ...instance.settings, orderLocationId: Number(orderLocationId) } }
+        : instance));
+      setNotice(`${orderSettingsInstance.displayName}: dispatch location saved.`);
+      setOrderSettingsInstance(null);
+    } catch (settingsError) {
+      setError(settingsError instanceof Error ? settingsError.message : 'Amazon order settings could not be saved.');
+    } finally {
+      setOrderSettingsLoading(false);
+    }
+  };
+
+  const syncAmazonOrders = async (instance: ChannelInstance) => {
+    if (!Number(instance.settings?.orderLocationId ?? 0)) {
+      await openAmazonOrderSettings(instance);
+      return;
+    }
+    setOrderSyncingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/orders`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 25 }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon orders could not be synchronized.');
+      const more = body.hasMore ? ' More updates remain; run Sync orders again.' : '';
+      setNotice(`${instance.displayName}: ${Number(body.imported ?? 0)} orders imported, ${Number(body.updated ?? 0)} updated, ${Number(body.skipped ?? 0)} unchanged.${more}`);
+      await load();
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : 'Amazon orders could not be synchronized.');
+    } finally {
+      setOrderSyncingId(null);
     }
   };
 
@@ -407,6 +483,16 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       <RefreshCw size={14} aria-hidden="true" /> {inventorySyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync inventory'}
                     </button>
                   )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button type="button" onClick={() => void openAmazonOrderSettings(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      <MapPin size={14} aria-hidden="true" /> Order setup
+                    </button>
+                  )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button type="button" disabled={orderSyncingId === instance.channelInstanceId} onClick={() => void syncAmazonOrders(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid #bae6fd', borderRadius: 4, color: '#075985', background: '#f0f9ff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: orderSyncingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
+                      <ShoppingBag size={14} aria-hidden="true" /> {orderSyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync orders'}
+                    </button>
+                  )}
                 </div>
               </section>
             );
@@ -483,6 +569,29 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {orderSettingsInstance && (
+        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !orderSettingsLoading) setOrderSettingsInstance(null); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>
+          <form role="dialog" aria-modal="true" aria-labelledby="amazon-order-settings-title" onSubmit={event => { event.preventDefault(); void saveAmazonOrderSettings(); }} style={{ width: 'min(440px, 100%)', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.24)', padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <h2 id="amazon-order-settings-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>{orderSettingsInstance.displayName} order setup</h2>
+                <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>Choose the IMS location that owns stock commitments and dispatch for this seller account.</p>
+              </div>
+              <button type="button" disabled={orderSettingsLoading} onClick={() => setOrderSettingsInstance(null)} title="Close" aria-label="Close Amazon order setup" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <label htmlFor="amazon-order-location" style={{ display: 'block', marginTop: 18, color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Dispatch location</label>
+            <select id="amazon-order-location" value={orderLocationId} disabled={orderSettingsLoading} onChange={event => setOrderLocationId(event.target.value)} style={{ width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, color: 'var(--sv-text-strong)', background: '#fff', fontSize: 13 }}>
+              <option value="">Choose a location</option>
+              {orderLocations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" disabled={orderSettingsLoading} onClick={() => setOrderSettingsInstance(null)} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+              <button type="submit" disabled={orderSettingsLoading || !orderLocationId} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750, cursor: orderSettingsLoading || !orderLocationId ? 'not-allowed' : 'pointer', opacity: orderSettingsLoading || !orderLocationId ? .55 : 1 }}>{orderSettingsLoading ? 'Saving...' : 'Save'}</button>
+            </div>
+          </form>
         </div>
       )}
     </div>

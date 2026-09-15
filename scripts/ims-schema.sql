@@ -1099,7 +1099,9 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   customer_po_number VARCHAR(100) NULL,
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
   so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
-  sales_channel    ENUM('shopify','native_shop') NULL,
+  sales_channel    ENUM('shopify','native_shop','amazon') NULL,
+  channel_instance_id CHAR(36) NULL,
+  external_order_id VARCHAR(100) NULL,
   native_checkout_id CHAR(36) NULL,
   location_id      INT NOT NULL,
   status           ENUM('draft','confirmed','partially_fulfilled','backordered','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
@@ -1144,6 +1146,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   INDEX idx_so_wholesale_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
   INDEX idx_so_staff_preview (business_id, is_staff_preview_test, staff_preview_session_id),
   INDEX idx_so_online_channel (business_id, sales_channel, order_date, id),
+  UNIQUE INDEX uq_so_channel_external_order (business_id, channel_instance_id, external_order_id),
   UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id),
   INDEX idx_so_backorder_queue (business_id, status, customer_id, created_at),
   UNIQUE INDEX uq_so_replacement_source (business_id, replacement_of_so_id),
@@ -1160,6 +1163,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   business_id   VARCHAR(100) NOT NULL DEFAULT '',
   so_id         INT NOT NULL,
   shopify_line_item_id BIGINT NULL,
+  external_order_item_id VARCHAR(100) NULL,
   variant_id    VARCHAR(36) NOT NULL,
   qty_ordered   DECIMAL(12,4) NOT NULL,
   qty_fulfilled DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -1173,7 +1177,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),
   INDEX idx_soi_so (so_id),
-  INDEX idx_soitem_shopify_li (shopify_line_item_id)
+  INDEX idx_soitem_shopify_li (shopify_line_item_id),
+  INDEX idx_soitem_external (business_id, external_order_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_sales_order_payments (

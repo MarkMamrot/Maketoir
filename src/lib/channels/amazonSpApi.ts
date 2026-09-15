@@ -144,6 +144,116 @@ export interface AmazonListingSubmission {
   issues: AmazonListingSubmissionIssue[];
 }
 
+export interface AmazonMoney {
+  CurrencyCode?: string;
+  Amount?: string;
+}
+
+export interface AmazonOrderAddress {
+  Name?: string;
+  CompanyName?: string;
+  AddressLine1?: string;
+  AddressLine2?: string;
+  AddressLine3?: string;
+  City?: string;
+  StateOrRegion?: string;
+  PostalCode?: string;
+  CountryCode?: string;
+  Phone?: string;
+}
+
+export interface AmazonOrder {
+  AmazonOrderId: string;
+  PurchaseDate: string;
+  LastUpdateDate: string;
+  OrderStatus: 'PendingAvailability' | 'Pending' | 'Unshipped' | 'PartiallyShipped' | 'Shipped' | 'InvoiceUnconfirmed' | 'Canceled' | 'Unfulfillable' | string;
+  FulfillmentChannel?: 'MFN' | 'AFN' | string;
+  MarketplaceId?: string;
+  OrderTotal?: AmazonMoney;
+  PaymentMethod?: string;
+  PaymentMethodDetails?: string[];
+  ShipmentServiceLevelCategory?: string;
+  NumberOfItemsShipped?: number;
+  NumberOfItemsUnshipped?: number;
+  ShippingAddress?: AmazonOrderAddress;
+  BuyerInfo?: { BuyerName?: string; BuyerEmail?: string; PurchaseOrderNumber?: string };
+}
+
+export interface AmazonOrderItem {
+  ASIN: string;
+  OrderItemId: string;
+  SellerSKU?: string;
+  Title?: string;
+  QuantityOrdered: number;
+  QuantityShipped?: number;
+  ItemPrice?: AmazonMoney;
+  ItemTax?: AmazonMoney;
+  ShippingPrice?: AmazonMoney;
+  ShippingTax?: AmazonMoney;
+  ShippingDiscount?: AmazonMoney;
+  ShippingDiscountTax?: AmazonMoney;
+  PromotionDiscount?: AmazonMoney;
+  PromotionDiscountTax?: AmazonMoney;
+}
+
+function amazonOrdersHeaders(accessToken: string) {
+  return {
+    'x-amz-access-token': accessToken,
+    'x-amz-date': new Date().toISOString().replace(/[:-]|\.\d{3}/g, ''),
+    'user-agent': 'Solvantis/1.0 (Language=TypeScript)',
+  };
+}
+
+export async function listAmazonFbmOrders(
+  accessToken: string,
+  options: { lastUpdatedAfter: string; lastUpdatedBefore?: string; nextToken?: string | null; pageSize?: number },
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ orders: AmazonOrder[]; nextToken: string | null }> {
+  const url = new URL('/orders/v0/orders', AMAZON_FAR_EAST_ENDPOINT);
+  url.searchParams.set('MarketplaceIds', AMAZON_AU_MARKETPLACE_ID);
+  url.searchParams.set('FulfillmentChannels', 'MFN');
+  url.searchParams.set('OrderStatuses', 'Unshipped,PartiallyShipped,Shipped,InvoiceUnconfirmed,Canceled');
+  url.searchParams.set('LastUpdatedAfter', options.lastUpdatedAfter);
+  if (options.lastUpdatedBefore) url.searchParams.set('LastUpdatedBefore', options.lastUpdatedBefore);
+  if (options.nextToken) url.searchParams.set('NextToken', options.nextToken);
+  url.searchParams.set('MaxResultsPerPage', String(Math.max(1, Math.min(100, Math.floor(options.pageSize ?? 100)))));
+  const response = await fetchImpl(url, {
+    method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+  });
+  const body = await response.json().catch(() => null) as {
+    payload?: { Orders?: AmazonOrder[]; NextToken?: string };
+  } | null;
+  if (!response.ok) throw new Error(`Amazon orders request failed with HTTP ${response.status}.`);
+  return {
+    orders: Array.isArray(body?.payload?.Orders) ? body.payload.Orders : [],
+    nextToken: String(body?.payload?.NextToken ?? '').trim() || null,
+  };
+}
+
+export async function listAmazonOrderItems(
+  accessToken: string,
+  amazonOrderId: string,
+  nextToken: string | null = null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ items: AmazonOrderItem[]; nextToken: string | null }> {
+  const url = new URL(`/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`, AMAZON_FAR_EAST_ENDPOINT);
+  if (nextToken) url.searchParams.set('NextToken', nextToken);
+  const response = await fetchImpl(url, {
+    method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+  });
+  const body = await response.json().catch(() => null) as {
+    payload?: { AmazonOrderId?: string; OrderItems?: AmazonOrderItem[]; NextToken?: string };
+  } | null;
+  if (!response.ok) throw new Error(`Amazon order items request failed with HTTP ${response.status}.`);
+  if (body?.payload?.AmazonOrderId && body.payload.AmazonOrderId !== amazonOrderId) {
+    throw new Error('Amazon returned order items for an unexpected order.');
+  }
+  return {
+    items: Array.isArray(body?.payload?.OrderItems) ? body.payload.OrderItems : [],
+    nextToken: String(body?.payload?.NextToken ?? '').trim() || null,
+  };
+}
+
 export async function updateAmazonListingInventory(
   accessToken: string,
   sellerId: string,

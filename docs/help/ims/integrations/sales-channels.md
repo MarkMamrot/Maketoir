@@ -17,6 +17,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Test the saved authorization for one Amazon seller account.
 - Synchronize Amazon Australia listings and review the linked, unmatched, and conflicting SKU totals.
 - Enable inventory for selected one-to-one Amazon listing mappings and synchronize current online availability.
+- Choose a dispatch location for each Amazon seller account and synchronize seller-fulfilled orders.
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
@@ -43,7 +44,17 @@ Choose **Sync listings** to read that seller account's Amazon Australia listings
 
 Open **Manage listings**, select linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. **Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Each update sets Amazon's seller-fulfilled quantity to the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
 
-Inventory synchronization does not activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
+After an Amazon channel completes final activation, Solvantis checks for stock movements every 15 minutes and sends changed enabled listings to that exact seller account. A paused, setup-pending, disabled, or automation-paused channel is not processed automatically. Use **Sync inventory** during setup or when an administrator needs an immediate full reconciliation.
+
+Choose **Order setup** and assign the active IMS location that will dispatch orders for that seller account. Each Amazon account can use a different location. Solvantis cannot import an order until its seller account has a dispatch location.
+
+Choose **Sync orders** to import recent Amazon Australia seller-fulfilled orders. The first successful synchronization checks the preceding 24 hours; later synchronizations overlap the saved update time by five minutes so boundary updates are not missed. Repeated updates cannot create a second sales order for the same Amazon account and order ID.
+
+Amazon orders use the standard Online Customer and are shown as paid through Amazon without creating an IMS payment transaction. Amazon settlement accounting remains separate. Exact seller-SKU links use their IMS variants. An order line without a linked seller SKU uses the non-stock online fallback product, preserving the complete order value without changing stock for an unidentified product.
+
+An unshipped order becomes a confirmed IMS sales order and commits stock at the configured dispatch location. Quantities Amazon reports as shipped pass through the normal sales-order fulfilment process, including partial shipments. A cancellation releases remaining committed stock. Pending and Amazon-fulfilled orders are not imported.
+
+Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
 
 > **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.
 
@@ -68,6 +79,10 @@ Inventory synchronization does not activate the Amazon channel. Orders, fulfilme
 | Amazon listings have conflicts | Find the duplicated IMS variant SKU and resolve the intended mapping before enabling later synchronization |
 | An Amazon inventory item is skipped | Confirm the listing is linked one-to-one, included, inventory-enabled, and belongs to a stock-tracked IMS product |
 | Amazon inventory is queued for retry | Test the exact seller connection, review the mapping, and run **Sync inventory** again after the provider issue is resolved |
+| Automatic Amazon inventory updates do not run | Confirm the channel has completed activation, is not paused, and the business's automation is not paused |
+| Amazon orders cannot synchronize | Open **Order setup** and choose an active dispatch location for that seller account |
+| An Amazon order shows the fallback product | Link that seller SKU to one IMS variant, then review the imported order before fulfilment |
+| More Amazon order updates remain | Run **Sync orders** again; each pass is bounded so provider requests remain reliable |
 
 ## Worked examples
 

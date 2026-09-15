@@ -11,7 +11,12 @@ vi.mock('@/lib/ims/shopifyInventorySync', () => ({ getOnlinePickLocationIds: moc
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.run }));
 
-import { enqueueAmazonInventoryJobs, processAmazonInventoryJobs, syncAmazonInventoryForChannel } from '../amazonInventorySync';
+import {
+  enqueueAmazonInventoryJobs,
+  enqueueChangedAmazonInventoryJobs,
+  processAmazonInventoryJobs,
+  syncAmazonInventoryForChannel,
+} from '../amazonInventorySync';
 
 describe('Amazon inventory synchronization', () => {
   beforeEach(() => {
@@ -33,6 +38,36 @@ describe('Amazon inventory synchronization', () => {
     expect(params).toEqual(['inventory_update', 'business-1', 'instance-1']);
   });
 
+  it('queues changed variants through a per-instance stock movement cursor', async () => {
+    mocks.query
+      .mockResolvedValueOnce([{ value: '40' }])
+      .mockResolvedValueOnce([{ watermark: 52 }]);
+
+    await expect(enqueueChangedAmazonInventoryJobs({
+      businessId: 'business-1', channelInstanceId: 'instance-1',
+    })).resolves.toBe(1);
+
+    const [enqueueSql, enqueueParams] = mocks.execute.mock.calls[0];
+    expect(enqueueSql).toContain("CONCAT('amazon_inventory:', mapping.variant_id, ':', MAX(movement.id))");
+    expect(enqueueSql).toContain('movement.id > ? AND movement.id <= ?');
+    expect(enqueueParams).toEqual(['inventory_update', 'business-1', 40, 52, 'instance-1']);
+    expect(mocks.execute.mock.calls[1][1]).toEqual([
+      'business-1', 'amazon_inventory_cursor:instance-1', '52',
+    ]);
+  });
+
+  it('does not advance the movement cursor when job insertion fails', async () => {
+    mocks.query
+      .mockResolvedValueOnce([{ value: '40' }])
+      .mockResolvedValueOnce([{ watermark: 52 }]);
+    mocks.execute.mockRejectedValueOnce(new Error('queue insert failed'));
+
+    await expect(enqueueChangedAmazonInventoryJobs({
+      businessId: 'business-1', channelInstanceId: 'instance-1',
+    })).rejects.toThrow('queue insert failed');
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+  });
+
   it('revalidates the mapping and pushes current online availability', async () => {
     mocks.query
       .mockResolvedValueOnce([{ id: 11, operation_key: 'amazon_inventory:variant-1',
@@ -44,6 +79,8 @@ describe('Amazon inventory synchronization', () => {
     expect(mocks.access).toHaveBeenCalledWith('business-1', 'instance-1');
     expect(mocks.query.mock.calls[2][1]).toEqual(['variant-1', 2, 5]);
     expect(mocks.update).toHaveBeenCalledWith('access-token', 'A1SELLER99', 'SELLER-SKU', 7);
+    expect(mocks.execute.mock.calls[0][0]).toContain("status = 'processing'");
+    expect(mocks.execute.mock.calls[0][0]).toContain('Recovered after an interrupted inventory worker.');
   });
 
   it('retries a failed update and records a safe runtime issue', async () => {
