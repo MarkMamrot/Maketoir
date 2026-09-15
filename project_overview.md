@@ -78,6 +78,10 @@ Production requires `SALES_ASSISTANT_HMAC_SECRET` (at least 32 characters), `GEM
 - Stripe Connect Standard uses direct charges with no platform fee. Merchant secret keys are not stored. Signed webhooks idempotently convert successful payments into normal `so_type='online'`, `sales_channel='native_shop'` IMS orders.
 - Native orders use the existing daily online Xero summary process. Stripe is a regular gateway-clearing allocation; Stripe webhooks never create Xero invoices directly.
 
+### Amazon Sales Channels
+- Amazon Australia uses one channel instance per Seller Central account. Public SP-API OAuth verifies the seller ID and active AU marketplace participation before storing the encrypted refresh token.
+- OAuth-complete Amazon instances remain disabled in setup-pending state until listings, inventory, FBM orders, fulfilments, and returns are all operational. Authorization alone must never start synchronization.
+
 ### Customer Returns and Store Credit
 - IMS customer credit notes are the authoritative return records. Completing a manual IMS credit note issues the customer store credit; drafts do not affect the balance.
 - POS returns automatically create completed `source='pos'` IMS credit notes. Store-credit returns issue credit through that note; cash/card refunds create the note without changing store credit.

@@ -27,6 +27,10 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_cs_knowledge_versions',
   'ims_products',
   'ims_product_variants',
+  'ims_sales_channel_product_selections',
+  'ims_sales_channel_product_mappings',
+  'ims_sales_channel_events',
+  'ims_sales_channel_jobs',
   'ims_product_images',
   'ims_shopify_sync_log',
   'ims_website_content_attempts',
@@ -139,6 +143,10 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  ims_sales_channel_product_selections: ['business_id', 'channel_instance_id', 'variant_id', 'is_selected', 'inventory_enabled', 'price_enabled'],
+  ims_sales_channel_product_mappings: ['business_id', 'channel_instance_id', 'variant_id', 'external_product_id', 'external_variant_id', 'mapping_status', 'last_seen_at'],
+  ims_sales_channel_events: ['business_id', 'channel_instance_id', 'provider', 'event_type', 'external_event_id', 'status', 'attempts'],
+  ims_sales_channel_jobs: ['business_id', 'channel_instance_id', 'provider', 'operation', 'operation_key', 'status', 'attempts', 'available_at'],
   loyalty_redemptions: ['expires_at'],
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
   ims_bulk_product_presets: ['business_id', 'user_key', 'name', 'settings_json', 'last_used_at', 'created_at', 'updated_at'],

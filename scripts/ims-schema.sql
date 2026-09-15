@@ -757,6 +757,81 @@ CREATE TABLE IF NOT EXISTS ims_product_variants (
   INDEX idx_pv_sku (sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Provider-neutral sales-channel state. channel_instance_id references the
+-- main control-plane database and therefore cannot use a cross-schema FK.
+CREATE TABLE IF NOT EXISTS ims_sales_channel_product_selections (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  variant_id          VARCHAR(36) NOT NULL,
+  is_selected         TINYINT(1) NOT NULL DEFAULT 0,
+  inventory_enabled   TINYINT(1) NOT NULL DEFAULT 0,
+  price_enabled       TINYINT(1) NOT NULL DEFAULT 0,
+  settings_json       JSON NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_variant_selection (business_id, channel_instance_id, variant_id),
+  INDEX idx_channel_selected (business_id, channel_instance_id, is_selected, variant_id),
+  CONSTRAINT fk_channel_selection_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_sales_channel_product_mappings (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  variant_id          VARCHAR(36) NULL,
+  external_product_id VARCHAR(191) NULL,
+  external_variant_id VARCHAR(191) NOT NULL,
+  external_inventory_id VARCHAR(191) NULL,
+  mapping_status      ENUM('linked','unmatched','conflict','archived') NOT NULL DEFAULT 'linked',
+  metadata_json       JSON NULL,
+  last_seen_at        DATETIME(3) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_external_variant (business_id, channel_instance_id, external_variant_id),
+  UNIQUE KEY uq_channel_ims_variant (business_id, channel_instance_id, variant_id),
+  INDEX idx_channel_external_product (business_id, channel_instance_id, external_product_id),
+  CONSTRAINT fk_channel_mapping_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_sales_channel_events (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  provider            VARCHAR(32) NOT NULL,
+  event_type          VARCHAR(100) NOT NULL,
+  external_event_id   VARCHAR(191) NOT NULL,
+  occurred_at         DATETIME(3) NULL,
+  payload_json        JSON NULL,
+  status              ENUM('pending','processing','complete','failed','ignored') NOT NULL DEFAULT 'pending',
+  attempts            INT NOT NULL DEFAULT 0,
+  safe_error          VARCHAR(500) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  processed_at        DATETIME(3) NULL,
+  UNIQUE KEY uq_channel_event (business_id, channel_instance_id, external_event_id),
+  INDEX idx_channel_event_work (business_id, provider, status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_sales_channel_jobs (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  provider            VARCHAR(32) NOT NULL,
+  operation           VARCHAR(64) NOT NULL,
+  operation_key       VARCHAR(191) NOT NULL,
+  payload_json        JSON NULL,
+  status              ENUM('pending','processing','complete','failed') NOT NULL DEFAULT 'pending',
+  attempts            INT NOT NULL DEFAULT 0,
+  available_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  locked_at           DATETIME(3) NULL,
+  completed_at        DATETIME(3) NULL,
+  safe_error          VARCHAR(500) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_job_operation (business_id, channel_instance_id, operation_key),
+  INDEX idx_channel_job_work (provider, status, available_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Product Images ───────────────────────────────────────────
 -- Up to 8 images per product; one marked is_primary (used by POS/website).
 -- updated_at enables incremental "since" sync from the POS product cache.

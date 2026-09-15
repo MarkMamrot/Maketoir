@@ -113,7 +113,7 @@ describe('SalesChannelInstanceRepository', () => {
       businessId: 'business-1', channelInstanceId: 'instance-1', ready: true,
     });
 
-    expect(mockExecute.mock.calls[0][0]).toContain("WHEN is_enabled = 0 THEN 'paused'");
+    expect(mockExecute.mock.calls[0][0]).toContain("WHEN is_enabled = 0 AND runtime_status = 'draft' THEN 'draft'");
     expect(mockExecute.mock.calls[0][1]).toEqual(['ready', null, 1, 'business-1', 'instance-1']);
   });
 

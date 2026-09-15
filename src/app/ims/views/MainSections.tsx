@@ -301,7 +301,7 @@ export function MainSections(props: MainSectionsProps) {
       />
 
       {/* Integrations */}
-      {view === 'sales-channels' && (shopifyEnabled || nativeShopEnabled) && (
+      {view === 'sales-channels' && (
         <SalesChannelsView canManage={userTier === 'Admin' || userTier === 'SuperAdmin'} />
       )}
       {view === 'xero' && xeroAccountingEnabled && (

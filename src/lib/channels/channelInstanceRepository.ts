@@ -160,6 +160,7 @@ export const SalesChannelInstanceRepository = {
       `UPDATE sales_channel_instances
           SET readiness_status = ?, safe_error = ?,
               runtime_status = CASE
+                WHEN is_enabled = 0 AND runtime_status = 'draft' THEN 'draft'
                 WHEN is_enabled = 0 THEN 'paused'
                 WHEN ? = 1 THEN 'active'
                 ELSE 'error'
@@ -169,5 +170,17 @@ export const SalesChannelInstanceRepository = {
       [input.ready ? 'ready' : 'error', safeError, input.ready ? 1 : 0, businessId, channelInstanceId],
     );
     return this.getForBusiness(businessId, channelInstanceId);
+  },
+
+  async markSyncedForBusiness(businessIdInput: string, channelInstanceIdInput: string): Promise<void> {
+    const businessId = businessIdInput.trim();
+    const channelInstanceId = channelInstanceIdInput.trim();
+    if (!businessId || !channelInstanceId) return;
+    await execute(
+      `UPDATE sales_channel_instances
+          SET last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ?`,
+      [businessId, channelInstanceId],
+    );
   },
 };

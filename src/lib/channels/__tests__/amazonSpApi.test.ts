@@ -1,0 +1,110 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  AMAZON_AU_MARKETPLACE_ID,
+  buildAmazonAuthorizeUrl,
+  exchangeAmazonAuthorizationCode,
+  getAmazonMarketplaceParticipations,
+  listAmazonListings,
+  requireActiveAmazonAustraliaParticipation,
+  updateAmazonListingInventory,
+} from '../amazonSpApi';
+
+describe('Amazon SP-API authorization', () => {
+  beforeEach(() => {
+    process.env.AMAZON_SP_API_APPLICATION_ID = 'amzn1.sellerapps.app.test';
+    process.env.AMAZON_SP_API_LWA_CLIENT_ID = 'client-id';
+    process.env.AMAZON_SP_API_LWA_CLIENT_SECRET = 'client-secret';
+  });
+  afterEach(() => {
+    delete process.env.AMAZON_SP_API_APPLICATION_ID;
+    delete process.env.AMAZON_SP_API_LWA_CLIENT_ID;
+    delete process.env.AMAZON_SP_API_LWA_CLIENT_SECRET;
+    delete process.env.AMAZON_SP_API_APP_STAGE;
+  });
+
+  it('builds the Australia production consent URL', () => {
+    const url = new URL(buildAmazonAuthorizeUrl('signed-state'));
+    expect(url.origin).toBe('https://sellercentral.amazon.com.au');
+    expect(url.pathname).toBe('/apps/authorize/consent');
+    expect(url.searchParams.get('application_id')).toBe('amzn1.sellerapps.app.test');
+    expect(url.searchParams.get('state')).toBe('signed-state');
+    expect(url.searchParams.has('version')).toBe(false);
+  });
+
+  it('exchanges the short-lived code without exposing app credentials elsewhere', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      access_token: 'access-token', refresh_token: 'refresh-token', expires_in: 3600, token_type: 'bearer',
+    })));
+    await expect(exchangeAmazonAuthorizationCode('oauth-code', 'https://example.com/callback', fetchImpl)).resolves.toEqual({
+      accessToken: 'access-token', refreshToken: 'refresh-token', expiresIn: 3600,
+    });
+    const body = String(fetchImpl.mock.calls[0][1].body);
+    expect(body).toContain('grant_type=authorization_code');
+    expect(body).toContain('redirect_uri=https%3A%2F%2Fexample.com%2Fcallback');
+  });
+
+  it('checks Far East marketplace participation using the LWA token', async () => {
+    const participation = {
+      marketplace: { id: AMAZON_AU_MARKETPLACE_ID, countryCode: 'AU', name: 'Amazon.com.au', defaultCurrencyCode: 'AUD', domainName: 'amazon.com.au' },
+      storeName: 'Retail AU', participation: { isParticipating: true, hasSuspendedListings: false },
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ payload: [participation] })));
+    const rows = await getAmazonMarketplaceParticipations('access-token', fetchImpl);
+    expect(requireActiveAmazonAustraliaParticipation(rows)).toEqual(participation);
+    expect(fetchImpl.mock.calls[0][0]).toContain('sellingpartnerapi-fe.amazon.com/sellers/v1/marketplaceParticipations');
+    expect(fetchImpl.mock.calls[0][1].headers['x-amz-access-token']).toBe('access-token');
+  });
+
+  it('rejects absent, inactive, and suspended Australia participation', () => {
+    expect(() => requireActiveAmazonAustraliaParticipation([])).toThrow('does not have access');
+    const base = { marketplace: { id: AMAZON_AU_MARKETPLACE_ID }, storeName: 'AU' } as any;
+    expect(() => requireActiveAmazonAustraliaParticipation([{ ...base, participation: { isParticipating: false, hasSuspendedListings: false } }])).toThrow('not participating');
+    expect(() => requireActiveAmazonAustraliaParticipation([{ ...base, participation: { isParticipating: true, hasSuspendedListings: true } }])).toThrow('suspended');
+  });
+
+  it('lists only Australia items and returns the pagination token', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      items: [{ sku: 'SKU-1', summaries: [{ asin: 'B001' }] }],
+      pagination: { nextToken: 'next-page' },
+    })));
+    const result = await listAmazonListings('access-token', 'A1SELLER99', { pageSize: 50, nextToken: 'current' }, fetchImpl);
+    const url = new URL(fetchImpl.mock.calls[0][0]);
+    expect(url.searchParams.get('marketplaceIds')).toBe(AMAZON_AU_MARKETPLACE_ID);
+    expect(url.searchParams.get('pageSize')).toBe('20');
+    expect(url.searchParams.get('pageToken')).toBe('current');
+    expect(result.nextToken).toBe('next-page');
+  });
+
+  it('does not expose an Amazon listing error response', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('{"secret":"detail"}', { status: 403 }));
+    await expect(listAmazonListings('access-token', 'A1SELLER99', {}, fetchImpl)).rejects.toThrow('HTTP 403');
+  });
+
+  it('replaces seller-fulfilled inventory for one exact seller SKU', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sku: 'SKU / 1', status: 'ACCEPTED', submissionId: 'submission-1', issues: [],
+    })));
+    await expect(updateAmazonListingInventory('access-token', 'A1SELLER99', 'SKU / 1', 7.8, fetchImpl)).resolves.toMatchObject({
+      sku: 'SKU / 1', status: 'ACCEPTED', submissionId: 'submission-1',
+    });
+    const url = new URL(fetchImpl.mock.calls[0][0]);
+    expect(url.pathname).toBe('/listings/2021-08-01/items/A1SELLER99/SKU%20%2F%201');
+    expect(url.searchParams.get('marketplaceIds')).toBe(AMAZON_AU_MARKETPLACE_ID);
+    expect(fetchImpl.mock.calls[0][1].method).toBe('PATCH');
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
+      productType: 'PRODUCT',
+      patches: [{ op: 'replace', path: '/attributes/fulfillment_availability',
+        value: [{ fulfillment_channel_code: 'DEFAULT', quantity: 7 }] }],
+    });
+  });
+
+  it('reports Amazon inventory rejection without exposing its response body', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sku: 'SKU-1', status: 'INVALID', submissionId: 'submission-1',
+      issues: [{ code: '99001', message: 'private listing detail', severity: 'ERROR' }],
+    })));
+    await expect(updateAmazonListingInventory('access-token', 'A1SELLER99', 'SKU-1', 2, fetchImpl))
+      .rejects.toThrow('Amazon rejected the inventory update (99001).');
+  });
+});

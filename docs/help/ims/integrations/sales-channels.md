@@ -1,9 +1,9 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-09","owner":"integrations"}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-15","owner":"integrations"}
 ---
 # Sales Channels
 
-Sales Channels shows each online storefront separately. A business with multiple Shopify stores has one row per store, while the Solvantis Online Store appears as its own channel.
+Sales Channels shows each online storefront separately. A business can connect multiple Amazon Seller Central accounts, while each Shopify store and the Solvantis Online Store also appears as its own channel.
 
 ## Main operations
 
@@ -13,6 +13,10 @@ Sales Channels shows each online storefront separately. A business with multiple
 - Compare the operations supported by each provider.
 - Rename a channel so staff can distinguish its purpose.
 - Test a Shopify instance against its exact saved store and credentials.
+- Connect an Amazon Australia Seller Central account through Amazon's authorization page.
+- Test the saved authorization for one Amazon seller account.
+- Synchronize Amazon Australia listings and review the linked, unmatched, and conflicting SKU totals.
+- Enable inventory for selected one-to-one Amazon listing mappings and synchronize current online availability.
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
@@ -22,6 +26,26 @@ Open **Integrations > Sales Channels**. Each row identifies the storefront, prov
 Administrators can use the pencil button beside a channel name to rename it. Other IMS users can review the same status information but cannot change it.
 
 Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.
+
+### Connect Amazon Australia
+
+1. Choose **Connect Amazon**.
+2. Enter a channel name that identifies the seller account for staff.
+3. Continue to Amazon and sign in to the intended Seller Central account.
+4. Review Amazon's permissions and authorize Solvantis.
+5. Return to Sales Channels and confirm the Amazon seller ID and **Setup pending** status.
+
+Solvantis verifies that the account actively participates in Amazon Australia and that its listings are not suspended. Each Seller Central account becomes a separate channel, so repeat these steps for another seller account. Authorization alone does not start catalogue, inventory, order, fulfilment, or return synchronization; the channel remains setup pending until every required operation is configured.
+
+Choose **Test connection** on an Amazon row to refresh that account's saved authorization and recheck its Amazon Australia participation.
+
+Choose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.
+
+Open **Manage listings**, select linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. **Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Each update sets Amazon's seller-fulfilled quantity to the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
+
+Inventory synchronization does not activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
+
+> **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.
 
 | Status | Meaning | Next step |
 |---|---|---|
@@ -40,6 +64,10 @@ Administrators can choose **Test connection** on a Shopify row. Solvantis authen
 | Two stores look similar | Compare the external account identity; channel names are labels and may be changed later |
 | A row needs attention | Use its error summary, then open the matching provider integration for detailed history |
 | Products or orders are stale | Check the exact channel instance before retrying provider synchronization |
+| Amazon listings are unmatched | Add or correct the IMS variant SKU, then run **Sync listings** again |
+| Amazon listings have conflicts | Find the duplicated IMS variant SKU and resolve the intended mapping before enabling later synchronization |
+| An Amazon inventory item is skipped | Confirm the listing is linked one-to-one, included, inventory-enabled, and belongs to a stock-tracked IMS product |
+| Amazon inventory is queued for retry | Test the exact seller connection, review the mapping, and run **Sync inventory** again after the provider issue is resolved |
 
 ## Worked examples
 

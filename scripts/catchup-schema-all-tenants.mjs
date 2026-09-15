@@ -54,6 +54,13 @@ const INVENTORY_COSTING_TABLES = [
   'ims_fifo_cost_allocations',
 ];
 
+const SALES_CHANNEL_TABLES = [
+  'ims_sales_channel_product_selections',
+  'ims_sales_channel_product_mappings',
+  'ims_sales_channel_events',
+  'ims_sales_channel_jobs',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -76,6 +83,12 @@ const INVENTORY_COSTING_TABLE_DDLS = INVENTORY_COSTING_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const SALES_CHANNEL_TABLE_DDLS = SALES_CHANNEL_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -88,6 +101,7 @@ const conn = await mysql.createConnection({
 const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
   ...INVENTORY_COSTING_TABLE_DDLS,
+  ...SALES_CHANNEL_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',

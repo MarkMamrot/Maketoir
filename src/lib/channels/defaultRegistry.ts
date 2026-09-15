@@ -32,5 +32,20 @@ export function createDefaultSalesChannelRegistry(): SalesChannelRegistry {
       settlements: false,
     },
   });
+  registry.register({
+    provider: 'amazon',
+    displayName: 'Amazon',
+    capabilities: {
+      catalogue: false,
+      inventory: false,
+      orders: false,
+      fulfilments: false,
+      returns: false,
+      customers: false,
+      giftCards: false,
+      loyalty: false,
+      settlements: false,
+    },
+  });
   return registry;
 }

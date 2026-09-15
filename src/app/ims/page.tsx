@@ -729,7 +729,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             if (child.id === 'builds') return showBuilds;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
             if (child.id === 'xero') return showXero;
-            if (child.id === 'sales-channels') return showShopify || showNativeShop;
+            if (child.id === 'sales-channels') return true;
             if (child.id === 'shopify') return showShopify;
             if (child.id === 'online-shop') return showNativeShop;
             return true;
@@ -22618,8 +22618,7 @@ export default function ImsPage() {
 
   useEffect(() => {
     if (!hasRestoredInitialHash || !settingsLoaded) return;
-    const disabledView = (view === 'sales-channels' && !pageCapabilities.shopifyEnabled && !pageCapabilities.nativeShopEnabled)
-      || (view === 'shopify' && !pageCapabilities.shopifyEnabled)
+    const disabledView = (view === 'shopify' && !pageCapabilities.shopifyEnabled)
       || (view === 'online-shop' && !pageCapabilities.nativeShopEnabled);
     if (!disabledView) return;
     window.history.replaceState(window.history.state, '', '#dashboard');

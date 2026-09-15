@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Check, CheckCircle2, Clock3, Pencil, PauseCircle, RefreshCw, Store, TestTube2, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, Pencil, Plus, PauseCircle, RefreshCw, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ChannelCapabilities {
@@ -29,6 +29,19 @@ interface ChannelInstance {
   capabilities: ChannelCapabilities;
 }
 
+interface AmazonMapping {
+  mappingId: number;
+  variantId: string | null;
+  asin: string | null;
+  sellerSku: string;
+  status: 'linked' | 'unmatched' | 'conflict' | 'archived';
+  itemName: string | null;
+  productName: string | null;
+  imsSku: string | null;
+  selected: boolean;
+  inventoryEnabled: boolean;
+}
+
 const CAPABILITY_LABELS: Array<[keyof ChannelCapabilities, string]> = [
   ['catalogue', 'Catalogue'],
   ['inventory', 'Inventory'],
@@ -42,6 +55,9 @@ const CAPABILITY_LABELS: Array<[keyof ChannelCapabilities, string]> = [
 ];
 
 function statusDetails(instance: ChannelInstance) {
+  if (instance.runtimeStatus === 'draft') {
+    return { label: 'Setup pending', color: '#475569', background: '#e2e8f0', icon: Clock3 };
+  }
   if (!instance.enabled || instance.runtimeStatus === 'paused') {
     return { label: 'Paused', color: '#92400e', background: '#fef3c7', icon: PauseCircle };
   }
@@ -72,6 +88,15 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [inventorySyncingId, setInventorySyncingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [amazonDialogOpen, setAmazonDialogOpen] = useState(false);
+  const [amazonDisplayName, setAmazonDisplayName] = useState('Amazon Australia');
+  const [mappingInstance, setMappingInstance] = useState<ChannelInstance | null>(null);
+  const [mappings, setMappings] = useState<AmazonMapping[]>([]);
+  const [mappingIds, setMappingIds] = useState<Set<number>>(new Set());
+  const [mappingLoading, setMappingLoading] = useState(false);
 
   const load = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -92,6 +117,12 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('amazonSuccess');
+    const failure = params.get('amazonError');
+    if (success) setNotice(success);
+    if (failure) setError(failure);
+    if (success || failure) window.history.replaceState(window.history.state, '', `${window.location.pathname}#sales-channels`);
     return () => controller.abort();
   }, []);
 
@@ -131,6 +162,109 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     }
   };
 
+  const syncAmazonListings = async (instance: ChannelInstance) => {
+    setSyncingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      let nextToken: string | null = null;
+      let pageCount = 0;
+      const totals = { processed: 0, linked: 0, unmatched: 0, conflicts: 0 };
+      do {
+        const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/listings`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pageSize: 20, nextToken }),
+        });
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Amazon listings could not be synchronized.');
+        totals.processed += Number(body.processed ?? 0);
+        totals.linked += Number(body.linked ?? 0);
+        totals.unmatched += Number(body.unmatched ?? 0);
+        totals.conflicts += Number(body.conflicts ?? 0);
+        nextToken = typeof body.nextToken === 'string' && body.nextToken ? body.nextToken : null;
+        pageCount++;
+        if (pageCount >= 500 && nextToken) throw new Error('Amazon returned too many listing pages. Run sync again to continue.');
+      } while (nextToken);
+      setNotice(`${instance.displayName}: ${totals.processed} listings checked, ${totals.linked} linked, ${totals.unmatched} unmatched, ${totals.conflicts} conflicts.`);
+      await load();
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : 'Amazon listings could not be synchronized.');
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const syncAmazonInventory = async (instance: ChannelInstance) => {
+    setInventorySyncingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const totals = { processed: 0, pushed: 0, skipped: 0, failed: 0 };
+      let enqueue = true;
+      for (let batch = 0; batch < 20; batch++) {
+        const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/inventory`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enqueue, limit: 100 }),
+        });
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Amazon inventory could not be synchronized.');
+        totals.processed += Number(body.processed ?? 0);
+        totals.pushed += Number(body.pushed ?? 0);
+        totals.skipped += Number(body.skipped ?? 0);
+        totals.failed += Number(body.failed ?? 0);
+        enqueue = false;
+        if (Number(body.processed ?? 0) < 100) break;
+        if (batch === 19) throw new Error('Amazon inventory has more work remaining. Run sync again to continue.');
+      }
+      setNotice(`${instance.displayName}: ${totals.pushed} inventory levels pushed, ${totals.skipped} skipped, ${totals.failed} queued for retry.`);
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : 'Amazon inventory could not be synchronized.');
+    } finally {
+      setInventorySyncingId(null);
+    }
+  };
+
+  const openAmazonMappings = async (instance: ChannelInstance) => {
+    setMappingInstance(instance);
+    setMappings([]);
+    setMappingIds(new Set());
+    setMappingLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/mappings`);
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon product mappings could not be loaded.');
+      setMappings(Array.isArray(body.mappings) ? body.mappings : []);
+    } catch (mappingError) {
+      setMappingInstance(null);
+      setError(mappingError instanceof Error ? mappingError.message : 'Amazon product mappings could not be loaded.');
+    } finally {
+      setMappingLoading(false);
+    }
+  };
+
+  const updateAmazonMappings = async (changes: { selected?: boolean; inventoryEnabled?: boolean }) => {
+    if (!mappingInstance || mappingIds.size === 0) return;
+    setMappingLoading(true);
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(mappingInstance.channelInstanceId)}/amazon/mappings`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mappingIds: [...mappingIds], ...changes }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon product controls could not be saved.');
+      setMappings(current => current.map(mapping => mappingIds.has(mapping.mappingId) && mapping.status === 'linked'
+        ? { ...mapping,
+          selected: changes.selected ?? (changes.inventoryEnabled === true ? true : mapping.selected),
+          inventoryEnabled: changes.inventoryEnabled ?? mapping.inventoryEnabled } : mapping));
+      setMappingIds(new Set());
+    } catch (mappingError) {
+      setError(mappingError instanceof Error ? mappingError.message : 'Amazon product controls could not be saved.');
+    } finally {
+      setMappingLoading(false);
+    }
+  };
+
   return (
     <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
@@ -138,17 +272,31 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 22, fontWeight: 750 }}>Sales Channels</h1>
           <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>Connected storefronts and their current operating state.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          title="Refresh sales channels"
-          aria-label="Refresh sales channels"
-          style={{ width: 36, height: 36, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', display: 'grid', placeItems: 'center', cursor: loading ? 'wait' : 'pointer' }}
-        >
-          <RefreshCw size={16} aria-hidden="true" />
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canManage && (
+            <button type="button" onClick={() => setAmazonDialogOpen(true)} style={{ minHeight: 36, padding: '0 12px', border: 0, borderRadius: 6, background: '#111827', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>
+              <Plus size={15} aria-hidden="true" /> Connect Amazon
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            title="Refresh sales channels"
+            aria-label="Refresh sales channels"
+            style={{ width: 36, height: 36, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', display: 'grid', placeItems: 'center', cursor: loading ? 'wait' : 'pointer' }}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+          </button>
+        </div>
       </div>
+
+      {notice && (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 14px', marginBottom: 16, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#166534', fontSize: 13 }}>
+          <CheckCircle2 size={17} aria-hidden="true" /> <span style={{ flex: 1 }}>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} title="Dismiss" aria-label="Dismiss message" style={{ width: 26, height: 26, border: 0, background: 'transparent', color: '#166534', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={15} /></button>
+        </div>
+      )}
 
       {error && (
         <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 14px', marginBottom: 16, border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', fontSize: 13 }}>
@@ -224,7 +372,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                   {capabilities.map(([key, label]) => (
                     <span key={key} style={{ padding: '4px 7px', border: '1px solid var(--sv-border)', borderRadius: 4, color: 'var(--sv-text-dim)', background: '#fff', fontSize: 11 }}>{label}</span>
                   ))}
-                  {canManage && instance.provider === 'shopify' && (
+                  {canManage && (instance.provider === 'shopify' || instance.provider === 'amazon') && (
                     <button
                       type="button"
                       disabled={testingId === instance.channelInstanceId}
@@ -235,10 +383,106 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       {testingId === instance.channelInstanceId ? 'Testing...' : 'Test connection'}
                     </button>
                   )}
+                  {instance.provider === 'amazon' && capabilities.length === 0 && (
+                    <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Operational setup pending</span>
+                  )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button
+                      type="button"
+                      disabled={syncingId === instance.channelInstanceId}
+                      onClick={() => void syncAmazonListings(instance)}
+                      style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#166534', background: '#f0fdf4', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: syncingId === instance.channelInstanceId ? 'wait' : 'pointer' }}
+                    >
+                      <Download size={14} aria-hidden="true" />
+                      {syncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync listings'}
+                    </button>
+                  )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button type="button" onClick={() => void openAmazonMappings(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      <ListChecks size={14} aria-hidden="true" /> Manage listings
+                    </button>
+                  )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button type="button" disabled={inventorySyncingId === instance.channelInstanceId} onClick={() => void syncAmazonInventory(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#9a3412', background: '#fff7ed', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: inventorySyncingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
+                      <RefreshCw size={14} aria-hidden="true" /> {inventorySyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync inventory'}
+                    </button>
+                  )}
                 </div>
               </section>
             );
           })}
+        </div>
+      )}
+
+      {amazonDialogOpen && (
+        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAmazonDialogOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="connect-amazon-title"
+            onSubmit={event => {
+              event.preventDefault();
+              const name = amazonDisplayName.trim();
+              if (!name) return;
+              window.location.assign(`/api/ims/amazon/connect?displayName=${encodeURIComponent(name)}`);
+            }}
+            style={{ width: 'min(440px, 100%)', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.24)', padding: 22 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <h2 id="connect-amazon-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>Connect Amazon Australia</h2>
+                <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>You will sign in to Seller Central and authorize Solvantis for one seller account.</p>
+              </div>
+              <button type="button" onClick={() => setAmazonDialogOpen(false)} title="Close" aria-label="Close Amazon connection" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <label htmlFor="amazon-channel-name" style={{ display: 'block', marginTop: 18, color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Channel name</label>
+            <input id="amazon-channel-name" autoFocus maxLength={120} value={amazonDisplayName} onChange={event => setAmazonDisplayName(event.target.value)} style={{ width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, color: 'var(--sv-text-strong)', background: '#fff', fontSize: 13, boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" onClick={() => setAmazonDialogOpen(false)} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+              <button type="submit" disabled={!amazonDisplayName.trim()} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750, cursor: amazonDisplayName.trim() ? 'pointer' : 'not-allowed', opacity: amazonDisplayName.trim() ? 1 : .55 }}>Continue to Amazon</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {mappingInstance && (
+        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setMappingInstance(null); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="amazon-mappings-title" style={{ width: 'min(920px, 100%)', maxHeight: 'min(760px, calc(100vh - 36px))', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.24)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '20px 22px 14px', borderBottom: '1px solid var(--sv-border)' }}>
+              <div>
+                <h2 id="amazon-mappings-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>{mappingInstance.displayName} listings</h2>
+                <p style={{ margin: '5px 0 0', color: 'var(--sv-text-dim)', fontSize: 12 }}>Only one-to-one SKU matches can be included.</p>
+              </div>
+              <button type="button" onClick={() => setMappingInstance(null)} title="Close" aria-label="Close Amazon listings" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 22px', borderBottom: '1px solid var(--sv-border)' }}>
+              <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{mappingIds.size} selected</span>
+              <button type="button" disabled={mappingLoading || mappingIds.size === 0} onClick={() => void updateAmazonMappings({ selected: true })} style={{ minHeight: 30, padding: '0 10px', border: 0, borderRadius: 4, background: '#166534', color: '#fff', fontSize: 11, fontWeight: 700, cursor: mappingIds.size ? 'pointer' : 'not-allowed', opacity: mappingIds.size ? 1 : .55 }}>Include</button>
+              <button type="button" disabled={mappingLoading || mappingIds.size === 0} onClick={() => void updateAmazonMappings({ selected: false, inventoryEnabled: false })} style={{ minHeight: 30, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 4, background: '#fff', color: 'var(--sv-text)', fontSize: 11, fontWeight: 700, cursor: mappingIds.size ? 'pointer' : 'not-allowed', opacity: mappingIds.size ? 1 : .55 }}>Exclude</button>
+              <button type="button" disabled={mappingLoading || mappingIds.size === 0} onClick={() => void updateAmazonMappings({ inventoryEnabled: true })} style={{ minHeight: 30, padding: '0 10px', border: '1px solid #fed7aa', borderRadius: 4, background: '#fff7ed', color: '#9a3412', fontSize: 11, fontWeight: 700, cursor: mappingIds.size ? 'pointer' : 'not-allowed', opacity: mappingIds.size ? 1 : .55 }}>Inventory on</button>
+              <button type="button" disabled={mappingLoading || mappingIds.size === 0} onClick={() => void updateAmazonMappings({ inventoryEnabled: false })} style={{ minHeight: 30, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 4, background: '#fff', color: 'var(--sv-text)', fontSize: 11, fontWeight: 700, cursor: mappingIds.size ? 'pointer' : 'not-allowed', opacity: mappingIds.size ? 1 : .55 }}>Inventory off</button>
+              <button type="button" disabled={mappingLoading} onClick={() => setMappingIds(new Set(mappings.filter(mapping => mapping.status === 'linked').map(mapping => mapping.mappingId)))} style={{ minHeight: 30, marginLeft: 'auto', padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 4, background: '#fff', color: 'var(--sv-text)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Select linked</button>
+            </div>
+            <div style={{ overflow: 'auto', minHeight: 160 }}>
+              <div style={{ minWidth: 700 }}>
+                <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'grid', gridTemplateColumns: '40px minmax(170px, 1fr) 150px 140px 100px', gap: 12, padding: '9px 22px', background: '#f8fafc', borderBottom: '1px solid var(--sv-border)', color: '#475569', fontSize: 11, fontWeight: 750 }}>
+                  <span /><span>Listing</span><span>Seller SKU</span><span>IMS SKU</span><span>Status</span>
+                </div>
+                {mappingLoading && mappings.length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 12 }}>Loading listings...</div>
+                  : mappings.length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 12 }}>No listings synchronized yet.</div>
+                    : mappings.map(mapping => {
+                      const eligible = mapping.status === 'linked';
+                      return <div key={mapping.mappingId} style={{ display: 'grid', gridTemplateColumns: '40px minmax(170px, 1fr) 150px 140px 100px', gap: 12, alignItems: 'center', padding: '10px 22px', borderBottom: '1px solid #eef2f7', fontSize: 12 }}>
+                        <input type="checkbox" disabled={!eligible} checked={mappingIds.has(mapping.mappingId)} onChange={event => setMappingIds(current => { const next = new Set(current); if (event.target.checked) next.add(mapping.mappingId); else next.delete(mapping.mappingId); return next; })} aria-label={`Select ${mapping.sellerSku}`} />
+                        <span style={{ minWidth: 0 }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', overflowWrap: 'anywhere' }}>{mapping.itemName || mapping.productName || 'Unnamed listing'}</strong><span style={{ color: 'var(--sv-text-dim)' }}>{mapping.asin || 'No ASIN'}</span></span>
+                        <span style={{ overflowWrap: 'anywhere' }}>{mapping.sellerSku}</span>
+                        <span style={{ overflowWrap: 'anywhere' }}>{mapping.imsSku || 'Not linked'}</span>
+                        <span style={{ color: mapping.status === 'linked' ? '#166534' : mapping.status === 'conflict' ? '#b91c1c' : '#92400e', fontWeight: 700 }}>{mapping.inventoryEnabled ? 'Inventory on' : mapping.selected ? 'Included' : mapping.status}</span>
+                      </div>;
+                    })}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
