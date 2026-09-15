@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -10934,6 +10934,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             const displayAmountPaid = displayForeignCurrencyAmount(amountPaid, currency, viewModal.po.exchange_rate);
             const displayBalance = displayForeignCurrencyAmount(rawBalance, currency, viewModal.po.exchange_rate);
             const totalDisplay = displayForeignCurrencyAmount(Number(viewModal.po.total_amount || 0), currency, viewModal.po.exchange_rate);
+            const xeroPaymentsNeedingAttention = xeroAccountingEnabled
+              ? (viewModal.po.payments || []).filter((payment: any) => ['failed', 'unknown', 'pending'].includes(payment.xero_post_status))
+              : [];
             return (
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -10942,6 +10945,18 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <button onClick={() => setPoPayForm({ date: today(), amount: '', audAmount: '', rate: String(displayRate), rateDirection: 'foreign_to_aud', notes: '', method: '', xeroIntent: 'solvantis_only', applyDiscount: false, operationKey: crypto.randomUUID() })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
+
+                {xeroPaymentsNeedingAttention.length > 0 && (
+                  <div role="alert" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10, padding: '9px 11px', borderLeft: '3px solid var(--sv-amber)', background: 'rgba(245,158,11,.08)', color: 'var(--sv-text)', fontSize: 12, lineHeight: 1.45 }}>
+                    <AlertTriangle size={16} style={{ flex: '0 0 auto', marginTop: 1, color: 'var(--sv-amber)' }} />
+                    <div>
+                      <strong>Xero payment attention required</strong>
+                      <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>
+                        {xeroPaymentsNeedingAttention.length} payment{xeroPaymentsNeedingAttention.length === 1 ? '' : 's'} requested for Xero {xeroPaymentsNeedingAttention.length === 1 ? 'has' : 'have'} not been confirmed there. Review the status below and choose <strong>Post to Xero</strong> to retry after resolving the stated issue.
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {(viewModal.po.payments || []).length > 0 && (
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>

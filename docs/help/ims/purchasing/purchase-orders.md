@@ -61,6 +61,8 @@ For a foreign-currency payment, enter the amount in the purchase-order currency 
 
 When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the supplier credit note** before saving. Solvantis records the payment, a stock-neutral supplier credit note, and the discount application together. The supplier credit reference remains blank unless the supplier actually issued one. An applied settlement payment and its credit note must be corrected together.
 
+When a payment requested for Xero is not confirmed there, the PO keeps a visible **Xero payment attention required** warning. Review the affected payment and its error, correct the Xero bill or account mapping if needed, then choose **Post to Xero** on that payment to retry. Solvantis does not automatically replay a failed payment after the bill is later changed or Authorised. Payments deliberately recorded as **Solvantis only** do not show this warning.
+
 > **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery.
 
 ## Purchase order status flow
