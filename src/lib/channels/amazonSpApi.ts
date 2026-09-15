@@ -211,6 +211,37 @@ export interface AmazonShipmentConfirmation {
   orderItems: AmazonShipmentConfirmationItem[];
 }
 
+export interface AmazonFinancialIdentifier {
+  relatedIdentifierName?: string;
+  relatedIdentifierValue?: string;
+}
+
+export interface AmazonFinancialTransaction {
+  sellingPartnerMetadata?: { sellingPartnerId?: string; marketplaceId?: string };
+  relatedIdentifiers?: AmazonFinancialIdentifier[];
+  transactionType?: string;
+  transactionId?: string;
+  transactionStatus?: string;
+  description?: string;
+  postedDate?: string;
+  totalAmount?: { currencyCode?: string; currencyAmount?: number };
+  items?: Array<{
+    description?: string;
+    totalAmount?: { currencyCode?: string; currencyAmount?: number };
+    relatedIdentifiers?: Array<{ itemRelatedIdentifierName?: string; itemRelatedIdentifierValue?: string }>;
+    contexts?: Array<{ contextType?: string; asin?: string; sku?: string; quantityShipped?: number; fulfillmentNetwork?: string }>;
+    breakdowns?: Array<{ breakdownType?: string; breakdownAmount?: { currencyCode?: string; currencyAmount?: number } }>;
+  }>;
+  breakdowns?: Array<{ breakdownType?: string; breakdownAmount?: { currencyCode?: string; currencyAmount?: number } }>;
+}
+
+export interface AmazonReportStatus {
+  reportId: string;
+  reportType: string;
+  processingStatus: 'IN_QUEUE' | 'IN_PROGRESS' | 'CANCELLED' | 'DONE' | 'FATAL' | string;
+  reportDocumentId?: string;
+}
+
 function amazonOrdersHeaders(accessToken: string) {
   return {
     'x-amz-access-token': accessToken,
@@ -267,6 +298,91 @@ export async function listAmazonOrderItems(
     items: Array.isArray(body?.payload?.OrderItems) ? body.payload.OrderItems : [],
     nextToken: String(body?.payload?.NextToken ?? '').trim() || null,
   };
+}
+
+export async function listAmazonFinancialTransactions(
+  accessToken: string,
+  options: { postedAfter: string; postedBefore: string; nextToken?: string | null },
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ transactions: AmazonFinancialTransaction[]; nextToken: string | null }> {
+  const postedAfter = new Date(options.postedAfter);
+  const postedBefore = new Date(options.postedBefore);
+  if (!Number.isFinite(postedAfter.getTime()) || !Number.isFinite(postedBefore.getTime()) || postedAfter >= postedBefore) {
+    throw new Error('Amazon finance transaction dates are invalid.');
+  }
+  const url = new URL('/finances/2024-06-19/transactions', AMAZON_FAR_EAST_ENDPOINT);
+  url.searchParams.set('postedAfter', postedAfter.toISOString());
+  url.searchParams.set('postedBefore', postedBefore.toISOString());
+  url.searchParams.set('marketplaceId', AMAZON_AU_MARKETPLACE_ID);
+  url.searchParams.set('transactionStatus', 'RELEASED');
+  if (options.nextToken) url.searchParams.set('nextToken', options.nextToken);
+  const response = await fetchImpl(url, {
+    method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+  });
+  const body = await response.json().catch(() => null) as {
+    payload?: { transactions?: AmazonFinancialTransaction[]; nextToken?: string };
+  } | null;
+  if (!response.ok) throw new Error(`Amazon finance transactions request failed with HTTP ${response.status}.`);
+  return {
+    transactions: Array.isArray(body?.payload?.transactions) ? body.payload.transactions : [],
+    nextToken: String(body?.payload?.nextToken ?? '').trim() || null,
+  };
+}
+
+export async function createAmazonReturnsReport(
+  accessToken: string,
+  dataStartTime: string,
+  dataEndTime: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const response = await fetchImpl(`${AMAZON_FAR_EAST_ENDPOINT}/reports/2021-06-30/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...amazonOrdersHeaders(accessToken) },
+    body: JSON.stringify({
+      reportType: 'GET_FLAT_FILE_RETURNS_DATA_BY_RETURN_DATE',
+      marketplaceIds: [AMAZON_AU_MARKETPLACE_ID],
+      dataStartTime,
+      dataEndTime,
+    }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = await response.json().catch(() => null) as { reportId?: string } | null;
+  if (!response.ok) throw new Error(`Amazon returns report request failed with HTTP ${response.status}.`);
+  const reportId = String(body?.reportId ?? '').trim();
+  if (!reportId) throw new Error('Amazon did not return a returns report ID.');
+  return reportId;
+}
+
+export async function getAmazonReport(
+  accessToken: string,
+  reportId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AmazonReportStatus> {
+  const response = await fetchImpl(
+    `${AMAZON_FAR_EAST_ENDPOINT}/reports/2021-06-30/reports/${encodeURIComponent(reportId)}`,
+    { method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000) },
+  );
+  const body = await response.json().catch(() => null) as AmazonReportStatus | null;
+  if (!response.ok) throw new Error(`Amazon returns report status failed with HTTP ${response.status}.`);
+  if (!body?.reportId || !body.processingStatus) throw new Error('Amazon returned an invalid report status.');
+  return body;
+}
+
+export async function downloadAmazonReportDocument(
+  accessToken: string,
+  reportDocumentId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ url: string; compressionAlgorithm: string | null }> {
+  const response = await fetchImpl(
+    `${AMAZON_FAR_EAST_ENDPOINT}/reports/2021-06-30/documents/${encodeURIComponent(reportDocumentId)}`,
+    { method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000) },
+  );
+  const body = await response.json().catch(() => null) as { url?: string; compressionAlgorithm?: string } | null;
+  if (!response.ok) throw new Error(`Amazon returns report document request failed with HTTP ${response.status}.`);
+  const url = String(body?.url ?? '').trim();
+  if (!url) throw new Error('Amazon did not return a report document URL.');
+  return { url, compressionAlgorithm: String(body?.compressionAlgorithm ?? '').trim() || null };
 }
 
 export async function confirmAmazonShipment(

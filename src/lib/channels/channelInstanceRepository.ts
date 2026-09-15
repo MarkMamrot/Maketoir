@@ -187,6 +187,26 @@ export const SalesChannelInstanceRepository = {
     );
   },
 
+  async setAmazonReturnSyncCursorForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    lastRequestedAt: string;
+  }): Promise<void> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    const lastRequestedAt = input.lastRequestedAt.trim();
+    if (!businessId || !channelInstanceId || !lastRequestedAt) {
+      throw new SalesChannelValidationError('A valid Amazon returns cursor is required.');
+    }
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.returnsLastRequestedAt', ?),
+              last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
+      [lastRequestedAt, businessId, channelInstanceId],
+    );
+  },
+
   async setReadinessForBusiness(input: {
     businessId: string;
     channelInstanceId: string;

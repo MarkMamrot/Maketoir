@@ -23,6 +23,7 @@ The credit-note viewer separates the credit summary, credited products and total
 | POS return or exchange | The original sale in POS | POS creates and completes an internal credit note | The linked credit note for returned lines | The register's selected store-credit or refund outcome | Do not restock the POS sale and the credit note separately |
 | Native online return | The native Sales Order **Return / Credit** action | A linked credit note with **Original payment refund** | The linked credit note after payment settlement succeeds | Original store credit is restored first; any remainder goes back through Stripe | Do not issue a separate manual store credit, card refund, or stock adjustment |
 | Shopify return | Shopify's refund workflow | An externally settled Shopify credit note appears in IMS | The imported credit note when Shopify marks the line for restock | Shopify returns the customer value | Do not refund or restock the same line again in IMS |
+| Amazon seller-fulfilled return | Amazon Seller Central | A return observation does not create an IMS credit note | Not from the observation alone; confirm physical receipt first | Amazon handles the external settlement | Do not treat an Amazon refund as proof that goods were received, or refund the customer twice |
 
 ## Before you begin
 
@@ -31,6 +32,7 @@ The credit-note viewer separates the credit summary, credited products and total
 - [ ] Select **Restock** only for goods that are physically returned and sellable.
 - [ ] For goods not yet received, keep the note Draft or mark it **Awaiting Product**.
 - [ ] For a native refund, confirm the original payment connection is available before completion.
+- [ ] For an Amazon return, confirm the exact seller account, physical receipt, and provider settlement separately.
 
 > **Warning:** Complete one linked credit note for the return. Do not also adjust stock, add store credit manually, or send another payment refund for the same goods.
 
@@ -74,6 +76,7 @@ The credit-note viewer separates the credit summary, credited products and total
 | Return quantity is rejected | It exceeds the fulfilled quantity still available to return | Check earlier linked returns and reduce the quantity |
 | Stock did not return | **Restock** was cleared, the item was not linked to a stock variant, or completion failed | Review the line and note status before correcting anything |
 | Native refund failed | Stripe could not verify or settle the original card payment | Fix the shown issue and retry the same credit note |
+| Amazon shows a refund but stock did not return | A financial refund does not confirm physical receipt | Check the Amazon return and receive the goods through the appropriate IMS return workflow only when they are physically received |
 | Xero failed after a manual return completed | The operational return succeeded but accounting did not | Retry the note's Xero action; do not repeat the return |
 
 ## Worked examples

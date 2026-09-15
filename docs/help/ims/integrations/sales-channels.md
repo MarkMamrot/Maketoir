@@ -59,6 +59,10 @@ When staff mark a prepared Amazon shipment dispatched, Solvantis fulfils the ass
 
 If Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again, and automatic retries start only after the Amazon channel completes final activation. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.
 
+After final activation, Solvantis periodically requests the seller return report for each Amazon account. Amazon prepares these reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report windows and Amazon RMA identities prevent a boundary update from creating a duplicate observation.
+
+An Amazon return observation records the return request, quantity, reason, resolution, delivery date, and Amazon-reported refunded amount against an order from that exact seller account. The observation alone does not add stock, create store credit, issue another refund, or create an IMS credit note. Confirm physical receipt and Amazon settlement before completing any separate IMS correction.
+
 Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
 
 > **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.
@@ -89,6 +93,8 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | An Amazon order shows the fallback product | Link that seller SKU to one IMS variant, then review the imported order before fulfilment |
 | More Amazon order updates remain | Run **Sync orders** again; each pass is bounded so provider requests remain reliable |
 | An Amazon shipment shows Channel sync pending | Check parcel tracking and the exact seller connection, then choose **Mark dispatched** to retry the outstanding confirmation |
+| An Amazon return is not yet observed | Amazon may still be preparing the seller return report; check the exact seller account and allow the next synchronization to poll it |
+| An observed Amazon return did not add stock or customer credit | This is intentional; confirm physical receipt and settlement before using the appropriate linked return workflow |
 
 ## Worked examples
 

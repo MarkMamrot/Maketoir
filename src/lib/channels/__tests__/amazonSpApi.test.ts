@@ -4,9 +4,13 @@ import {
   AMAZON_AU_MARKETPLACE_ID,
   buildAmazonAuthorizeUrl,
   confirmAmazonShipment,
+  createAmazonReturnsReport,
+  downloadAmazonReportDocument,
   exchangeAmazonAuthorizationCode,
+  getAmazonReport,
   getAmazonMarketplaceParticipations,
   listAmazonFbmOrders,
+  listAmazonFinancialTransactions,
   listAmazonListings,
   listAmazonOrderItems,
   requireActiveAmazonAustraliaParticipation,
@@ -120,6 +124,47 @@ describe('Amazon SP-API authorization', () => {
     expect(result).toMatchObject({ items: [{ OrderItemId: 'item-1' }], nextToken: 'next-items' });
     await expect(listAmazonOrderItems('access-token', '111/222', null, fetchImpl))
       .rejects.toThrow('unexpected order');
+  });
+
+  it('lists released Amazon AU finance transactions using the documented Finances contract', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      payload: { transactions: [{ transactionId: 'txn-1', description: 'Refund Order' }], nextToken: 'next-1' },
+    })));
+    const result = await listAmazonFinancialTransactions('access-token', {
+      postedAfter: '2026-09-14T00:00:00Z', postedBefore: '2026-09-15T00:00:00Z',
+    }, fetchImpl);
+    const url = new URL(fetchImpl.mock.calls[0][0]);
+    expect(url.pathname).toBe('/finances/2024-06-19/transactions');
+    expect(url.searchParams.get('marketplaceId')).toBe(AMAZON_AU_MARKETPLACE_ID);
+    expect(url.searchParams.get('transactionStatus')).toBe('RELEASED');
+    expect(result).toEqual({ transactions: [{ transactionId: 'txn-1', description: 'Refund Order' }], nextToken: 'next-1' });
+  });
+
+  it('rejects an invalid Amazon finance transaction window before calling Amazon', async () => {
+    const fetchImpl = vi.fn();
+    await expect(listAmazonFinancialTransactions('access-token', {
+      postedAfter: '2026-09-15T00:00:00Z', postedBefore: '2026-09-14T00:00:00Z',
+    }, fetchImpl)).rejects.toThrow('dates are invalid');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('requests and retrieves an Amazon AU returns report without exposing document errors', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ reportId: 'report-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        reportId: 'report-1', reportType: 'GET_FLAT_FILE_RETURNS_DATA_BY_RETURN_DATE',
+        processingStatus: 'DONE', reportDocumentId: 'document-1',
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ url: 'https://download.example/report', compressionAlgorithm: 'GZIP' })));
+    await expect(createAmazonReturnsReport('access-token', '2026-09-01T00:00:00Z', '2026-09-15T00:00:00Z', fetchImpl))
+      .resolves.toBe('report-1');
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toMatchObject({
+      reportType: 'GET_FLAT_FILE_RETURNS_DATA_BY_RETURN_DATE', marketplaceIds: [AMAZON_AU_MARKETPLACE_ID],
+    });
+    await expect(getAmazonReport('access-token', 'report-1', fetchImpl)).resolves.toMatchObject({ processingStatus: 'DONE' });
+    await expect(downloadAmazonReportDocument('access-token', 'document-1', fetchImpl)).resolves.toEqual({
+      url: 'https://download.example/report', compressionAlgorithm: 'GZIP',
+    });
   });
 
   it('confirms one exact Amazon AU package using the documented Orders v0 contract', async () => {
