@@ -46,20 +46,35 @@ export async function syncAmazonOrdersForChannel(input: {
   const access = await getAmazonChannelAccess(input.businessId, input.channelInstanceId);
   if (!access) throw new Error('Amazon authorization is missing.');
   const now = input.now ?? new Date();
-  const before = new Date(now.getTime() - 2 * 60_000);
+  const continuedAfter = validDate(instance.settings.ordersContinuationAfter);
+  const continuedBefore = validDate(instance.settings.ordersContinuationBefore);
+  const hasContinuation = Boolean(continuedAfter && continuedBefore && continuedAfter < continuedBefore);
+  const before = hasContinuation ? continuedBefore! : new Date(now.getTime() - 2 * 60_000);
   const savedCursor = validDate(instance.settings.ordersLastUpdatedAt);
-  const after = new Date((savedCursor?.getTime() ?? now.getTime() - DEFAULT_LOOKBACK_HOURS * 3_600_000)
-    - (savedCursor ? CURSOR_OVERLAP_MINUTES * 60_000 : 0));
+  const after = hasContinuation ? continuedAfter! : new Date(
+    (savedCursor?.getTime() ?? now.getTime() - DEFAULT_LOOKBACK_HOURS * 3_600_000)
+      - (savedCursor ? CURSOR_OVERLAP_MINUTES * 60_000 : 0),
+  );
   const maxOrders = Math.max(1, Math.min(100, Math.floor(input.limit ?? 25)));
 
   return runImsForBusiness(input.businessId, async () => {
     const totals = { scanned: 0, imported: 0, updated: 0, skipped: 0, failed: 0, hasMore: false };
-    let nextToken: string | null = null;
+    let nextToken = hasContinuation && typeof instance.settings.ordersContinuationToken === 'string'
+      ? instance.settings.ordersContinuationToken : null;
     let exhausted = false;
     for (let page = 0; page < 20; page++) {
-      const response = await listAmazonFbmOrders(access.accessToken, {
-        lastUpdatedAfter: after.toISOString(), lastUpdatedBefore: before.toISOString(), nextToken, pageSize: 100,
-      });
+      const pageToken = nextToken;
+      let response;
+      try {
+        response = await listAmazonFbmOrders(access.accessToken, {
+          lastUpdatedAfter: after.toISOString(), lastUpdatedBefore: before.toISOString(), nextToken, pageSize: 100,
+        });
+      } catch (error) {
+        if (hasContinuation) await SalesChannelInstanceRepository.clearAmazonOrderSyncContinuationForBusiness({
+          businessId: input.businessId, channelInstanceId: input.channelInstanceId,
+        });
+        throw error;
+      }
       for (const order of response.orders) {
         const externalEventId = eventId(order.AmazonOrderId, order.LastUpdateDate);
         await imsExecute(
@@ -82,6 +97,7 @@ export async function syncAmazonOrdersForChannel(input: {
         }
         if (totals.scanned >= maxOrders) {
           totals.hasMore = true;
+          nextToken = pageToken;
           break;
         }
         totals.scanned += 1;
@@ -125,6 +141,12 @@ export async function syncAmazonOrdersForChannel(input: {
       if (!nextToken) { exhausted = true; break; }
     }
     if (!exhausted) totals.hasMore = true;
+    if (totals.hasMore && totals.failed === 0) {
+      await SalesChannelInstanceRepository.setAmazonOrderSyncContinuationForBusiness({
+        businessId: input.businessId, channelInstanceId: input.channelInstanceId,
+        lastUpdatedAfter: after.toISOString(), lastUpdatedBefore: before.toISOString(), nextToken: nextToken ?? '',
+      });
+    }
     if (exhausted && totals.failed === 0) {
       await SalesChannelInstanceRepository.setAmazonOrderSyncCursorForBusiness({
         businessId: input.businessId, channelInstanceId: input.channelInstanceId,

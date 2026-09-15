@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getAmazonChannelAccess } from '@/lib/channels/amazonCredentials';
-import { syncAmazonListingMappings } from '@/lib/channels/amazonListingSync';
+import { archiveMissingAmazonListingMappings, syncAmazonListingMappings } from '@/lib/channels/amazonListingSync';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { listAmazonListings } from '@/lib/channels/amazonSpApi';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -25,14 +25,25 @@ export async function POST(request: Request, { params }: Context) {
     const credentials = await getAmazonChannelAccess(businessId, channelInstanceId);
     if (!credentials) return NextResponse.json({ error: 'Amazon authorization is missing.' }, { status: 409 });
     const body = await request.json().catch(() => ({}));
+    const requestedSyncStartedAt = typeof body?.syncStartedAt === 'string' ? body.syncStartedAt : '';
+    const parsedSyncStartedAt = new Date(requestedSyncStartedAt);
+    const syncStartedAtIso = Number.isFinite(parsedSyncStartedAt.getTime())
+      ? parsedSyncStartedAt.toISOString()
+      : new Date().toISOString();
+    const syncStartedAt = syncStartedAtIso.slice(0, 23).replace('T', ' ');
     const page = await listAmazonListings(credentials.accessToken, credentials.sellerId, {
       pageSize: Number(body?.pageSize), nextToken: typeof body?.nextToken === 'string' ? body.nextToken : null,
     });
-    const result = await syncAmazonListingMappings({ businessId, channelInstanceId, items: page.items });
-    if (!page.nextToken) await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
-      businessId, channelInstanceId, operation: 'listings',
-    });
-    return NextResponse.json({ success: true, ...result, processed: page.items.length, nextToken: page.nextToken });
+    const result = await syncAmazonListingMappings({ businessId, channelInstanceId, items: page.items, syncStartedAt });
+    let archived = 0;
+    if (!page.nextToken) {
+      archived = await archiveMissingAmazonListingMappings({ businessId, channelInstanceId, syncStartedAt });
+      await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
+        businessId, channelInstanceId, operation: 'listings',
+      });
+    }
+    return NextResponse.json({ success: true, ...result, archived, processed: page.items.length,
+      nextToken: page.nextToken, syncStartedAt: syncStartedAtIso });
   } catch (error) {
     await reportRuntimeIssue({
       businessId, source: 'ims.channels', operation: 'sync_amazon_listings',

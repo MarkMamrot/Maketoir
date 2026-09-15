@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), getInstance: vi.fn(), markSetup: vi.fn(), access: vi.fn(),
-  list: vi.fn(), sync: vi.fn(), report: vi.fn(),
+  list: vi.fn(), sync: vi.fn(), archive: vi.fn(), report: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
@@ -10,7 +10,9 @@ vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanc
 } }));
 vi.mock('@/lib/channels/amazonCredentials', () => ({ getAmazonChannelAccess: mocks.access }));
 vi.mock('@/lib/channels/amazonSpApi', () => ({ listAmazonListings: mocks.list }));
-vi.mock('@/lib/channels/amazonListingSync', () => ({ syncAmazonListingMappings: mocks.sync }));
+vi.mock('@/lib/channels/amazonListingSync', () => ({
+  syncAmazonListingMappings: mocks.sync, archiveMissingAmazonListingMappings: mocks.archive,
+}));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { POST } from '../route';
@@ -30,6 +32,7 @@ describe('POST Amazon channel listings', () => {
     mocks.access.mockResolvedValue({ accessToken: 'access', sellerId: 'A1SELLER99' });
     mocks.list.mockResolvedValue({ items: [{ sku: 'SKU-1' }], nextToken: null });
     mocks.sync.mockResolvedValue({ linked: 1, unmatched: 0, conflicts: 0 });
+    mocks.archive.mockResolvedValue(2);
     mocks.report.mockResolvedValue(undefined);
   });
 
@@ -50,9 +53,13 @@ describe('POST Amazon channel listings', () => {
     expect(response.status).toBe(200);
     expect(mocks.access).toHaveBeenCalledWith('business-1', 'instance-1');
     expect(mocks.list).toHaveBeenCalledWith('access', 'A1SELLER99', { pageSize: 20, nextToken: null });
-    expect(mocks.sync).toHaveBeenCalledWith({
+    expect(mocks.sync).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'business-1', channelInstanceId: 'instance-1', items: [{ sku: 'SKU-1' }],
-    });
+      syncStartedAt: expect.any(String),
+    }));
+    expect(mocks.archive).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', channelInstanceId: 'instance-1', syncStartedAt: expect.any(String),
+    }));
     expect(mocks.markSetup).toHaveBeenCalledWith({
       businessId: 'business-1', channelInstanceId: 'instance-1', operation: 'listings',
     });
@@ -62,6 +69,7 @@ describe('POST Amazon channel listings', () => {
     mocks.list.mockResolvedValue({ items: [], nextToken: 'next' });
     await POST(request({ nextToken: 'current' }), context);
     expect(mocks.markSetup).not.toHaveBeenCalled();
+    expect(mocks.archive).not.toHaveBeenCalled();
   });
 
   it('reports failures without returning provider details', async () => {

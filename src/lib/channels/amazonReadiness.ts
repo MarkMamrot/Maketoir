@@ -29,9 +29,16 @@ function present(value: unknown): boolean {
   return typeof value === 'string' && Number.isFinite(new Date(value).getTime());
 }
 
+function recent(value: unknown, now: Date, maximumAgeMs: number): boolean {
+  if (!present(value)) return false;
+  const age = now.getTime() - new Date(String(value)).getTime();
+  return age <= maximumAgeMs;
+}
+
 export async function assessAmazonReadiness(input: {
   businessId: string;
   channelInstanceId: string;
+  now?: Date;
 }): Promise<{ ready: boolean; checks: AmazonReadinessCheck[] }> {
   const instance = await SalesChannelInstanceRepository.getForBusiness(input.businessId, input.channelInstanceId);
   if (!instance || instance.provider !== 'amazon') throw new Error('Amazon channel not found.');
@@ -86,27 +93,41 @@ export async function assessAmazonReadiness(input: {
   });
 
   const settings = instance.settings;
+  const now = input.now ?? new Date();
+  const listingsReady = recent(settings.listingsLastSyncedAt, now, 24 * 60 * 60_000);
+  const listingsAt = new Date(String(settings.listingsLastSyncedAt ?? '')).getTime();
+  const inventoryAt = new Date(String(settings.inventoryLastSyncedAt ?? '')).getTime();
+  const inventoryReady = recent(settings.inventoryLastSyncedAt, now, 60 * 60_000)
+    && Number.isFinite(listingsAt) && inventoryAt >= listingsAt;
+  const ordersReady = recent(settings.ordersLastUpdatedAt, now, 30 * 60_000)
+    && !present(settings.ordersContinuationBefore);
+  const returnsReady = recent(settings.returnsLastRequestedAt, now, 26 * 60 * 60_000);
+  const refundsReady = recent(settings.refundsLastPostedAt, now, 26 * 60 * 60_000)
+    && !present(settings.refundsContinuationBefore);
   const ambiguousCount = Math.max(0, Number(settings.refundsAmbiguousCount ?? 0));
   const checks: AmazonReadinessCheck[] = [
     { key: 'authorization', label: 'Amazon Australia connection', passed: authorizationPassed, detail: authorizationDetail },
     { key: 'dispatch_location', label: 'Dispatch location', passed: Number(local.location_ready) === 1,
       detail: Number(local.location_ready) === 1 ? 'An active IMS dispatch location is configured.' : 'Choose an active IMS dispatch location.' },
-    { key: 'listings', label: 'Listing synchronization', passed: present(settings.listingsLastSyncedAt),
-      detail: present(settings.listingsLastSyncedAt) ? 'A complete listing synchronization has succeeded.' : 'Run Sync listings through its final page.' },
+    { key: 'listings', label: 'Listing synchronization', passed: listingsReady,
+      detail: listingsReady ? 'A complete listing synchronization succeeded in the last 24 hours.' : 'Run Sync listings through its final page.' },
     { key: 'mappings', label: 'Listing mappings', passed: Number(local.mapping_count) > 0 && Number(local.unresolved_mapping_count) === 0,
       detail: Number(local.mapping_count) === 0 ? 'No Amazon Australia listings have been observed.'
         : Number(local.unresolved_mapping_count) > 0 ? `${Number(local.unresolved_mapping_count)} listing mappings still need attention.`
           : 'All observed listings have exact IMS mappings.' },
     { key: 'inventory', label: 'Inventory synchronization',
-      passed: present(settings.inventoryLastSyncedAt) && Number(local.inventory_mapping_count) > 0,
+      passed: inventoryReady && Number(local.inventory_mapping_count) > 0,
       detail: Number(local.inventory_mapping_count) === 0 ? 'Enable inventory for at least one linked listing.'
-        : present(settings.inventoryLastSyncedAt) ? 'A complete inventory synchronization has succeeded.' : 'Run Sync inventory successfully.' },
-    { key: 'orders', label: 'Order synchronization', passed: present(settings.ordersLastUpdatedAt),
-      detail: present(settings.ordersLastUpdatedAt) ? 'The seller-fulfilled order cursor is established.' : 'Run Sync orders successfully.' },
-    { key: 'returns', label: 'Return report synchronization', passed: present(settings.returnsLastRequestedAt),
-      detail: present(settings.returnsLastRequestedAt) ? 'A return report window has completed.' : 'Run Sync returns until the return report completes.' },
-    { key: 'refunds', label: 'Refund synchronization', passed: present(settings.refundsLastPostedAt),
-      detail: present(settings.refundsLastPostedAt) ? 'The released refund cursor is established.' : 'Run Sync returns to verify Finance access.' },
+        : inventoryReady ? 'Inventory synchronized after the latest listing sync in the last hour.'
+          : 'Run Sync inventory after the latest listing sync.' },
+    { key: 'orders', label: 'Order synchronization', passed: ordersReady,
+      detail: ordersReady ? 'The seller-fulfilled order cursor is current and its window is complete.'
+        : 'Run Sync orders until no more updates remain.' },
+    { key: 'returns', label: 'Return report synchronization', passed: returnsReady,
+      detail: returnsReady ? 'A return report window completed in the last 26 hours.' : 'Run Sync returns until the return report completes.' },
+    { key: 'refunds', label: 'Refund synchronization', passed: refundsReady,
+      detail: refundsReady ? 'The released refund cursor is current and its window is complete.'
+        : 'Run Sync returns until Finance pagination completes.' },
     { key: 'work_queue', label: 'Channel work queues',
       passed: Number(local.channel_job_issue_count) === 0 && Number(local.shipping_job_issue_count) === 0,
       detail: Number(local.channel_job_issue_count) + Number(local.shipping_job_issue_count) === 0

@@ -15,7 +15,7 @@ export async function syncAmazonRefundsForChannel(input: {
   businessId: string;
   channelInstanceId: string;
   now?: Date;
-}): Promise<{ scanned: number; observed: number; ignored: number; created: number; ambiguous: number }> {
+}): Promise<{ scanned: number; observed: number; ignored: number; created: number; ambiguous: number; hasMore: boolean }> {
   const instance = await SalesChannelInstanceRepository.getForBusiness(input.businessId, input.channelInstanceId);
   if (!instance || instance.provider !== 'amazon') throw new Error('Amazon channel not found.');
   const access = await getAmazonChannelAccess(input.businessId, input.channelInstanceId);
@@ -27,15 +27,29 @@ export async function syncAmazonRefundsForChannel(input: {
   const postedAfterMs = Number.isFinite(saved.getTime())
     ? Math.max(fallback, saved.getTime() - CURSOR_OVERLAP_DAYS * 86_400_000)
     : fallback;
-  const postedAfter = new Date(postedAfterMs).toISOString();
-  const postedBefore = new Date(postedBeforeMs).toISOString();
+  const continuedAfter = new Date(String(instance.settings.refundsContinuationAfter ?? ''));
+  const continuedBefore = new Date(String(instance.settings.refundsContinuationBefore ?? ''));
+  const hasContinuation = Number.isFinite(continuedAfter.getTime()) && Number.isFinite(continuedBefore.getTime())
+    && continuedAfter < continuedBefore;
+  const postedAfter = hasContinuation ? continuedAfter.toISOString() : new Date(postedAfterMs).toISOString();
+  const postedBefore = hasContinuation ? continuedBefore.toISOString() : new Date(postedBeforeMs).toISOString();
 
   try {
     return await runImsForBusiness(input.businessId, async () => {
       const totals = { scanned: 0, observed: 0, ignored: 0 };
-      let nextToken: string | null = null;
+      let nextToken = hasContinuation && typeof instance.settings.refundsContinuationToken === 'string'
+        ? instance.settings.refundsContinuationToken : null;
+      let hasMore = false;
       for (let page = 0; page < MAX_PAGES; page += 1) {
-        const response = await listAmazonFinancialTransactions(access.accessToken, { postedAfter, postedBefore, nextToken });
+        let response;
+        try {
+          response = await listAmazonFinancialTransactions(access.accessToken, { postedAfter, postedBefore, nextToken });
+        } catch (error) {
+          if (hasContinuation) await SalesChannelInstanceRepository.clearAmazonRefundSyncContinuationForBusiness({
+            businessId: input.businessId, channelInstanceId: input.channelInstanceId,
+          });
+          throw error;
+        }
         totals.scanned += response.transactions.length;
         const imported = await importAmazonRefundObservations({
           businessId: input.businessId,
@@ -46,16 +60,23 @@ export async function syncAmazonRefundsForChannel(input: {
         totals.ignored += imported.ignored;
         nextToken = response.nextToken;
         if (!nextToken) break;
-        if (page === MAX_PAGES - 1) throw new Error('Amazon refund synchronization exceeded its safe page limit.');
+        if (page === MAX_PAGES - 1) hasMore = true;
       }
       const reconciled = await reconcileAmazonRefunds({
         businessId: input.businessId, channelInstanceId: input.channelInstanceId,
       });
-      await SalesChannelInstanceRepository.setAmazonRefundSyncCursorForBusiness({
-        businessId: input.businessId, channelInstanceId: input.channelInstanceId, lastPostedAt: postedBefore,
-        ambiguousCount: reconciled.ambiguous,
-      });
-      return { ...totals, ...reconciled };
+      if (hasMore && nextToken) {
+        await SalesChannelInstanceRepository.setAmazonRefundSyncContinuationForBusiness({
+          businessId: input.businessId, channelInstanceId: input.channelInstanceId, postedAfter, postedBefore, nextToken,
+          ambiguousCount: reconciled.ambiguous,
+        });
+      } else {
+        await SalesChannelInstanceRepository.setAmazonRefundSyncCursorForBusiness({
+          businessId: input.businessId, channelInstanceId: input.channelInstanceId, lastPostedAt: postedBefore,
+          ambiguousCount: reconciled.ambiguous,
+        });
+      }
+      return { ...totals, ...reconciled, hasMore };
     });
   } catch (error) {
     await reportRuntimeIssue({

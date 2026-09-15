@@ -21,6 +21,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Dispatch prepared Amazon orders with parcel tracking and monitor any channel confirmation retry.
 - Synchronize Amazon returns and externally settled refunds, then review any generated credit-note drafts.
 - Check Amazon activation readiness and resolve every reported blocker without activating the channel.
+- Activate or deactivate a ready Amazon seller account's automatic synchronization.
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
@@ -43,7 +44,7 @@ Solvantis verifies that the account actively participates in Amazon Australia an
 
 Choose **Test connection** on an Amazon row to refresh that account's saved authorization and recheck its Amazon Australia participation.
 
-Choose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.
+Choose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. After the final page, listings no longer returned by Amazon are archived and stop receiving inventory updates. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.
 
 Open **Manage listings**, select linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. **Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Each update sets Amazon's seller-fulfilled quantity to the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
 
@@ -51,7 +52,7 @@ After an Amazon channel completes final activation, Solvantis checks for stock m
 
 Choose **Order setup** and assign the active IMS location that will dispatch orders for that seller account. Each Amazon account can use a different location. Solvantis cannot import an order until its seller account has a dispatch location.
 
-Choose **Sync orders** to import recent Amazon Australia seller-fulfilled orders. The first successful synchronization checks the preceding 24 hours; later synchronizations overlap the saved update time by five minutes so boundary updates are not missed. Repeated updates cannot create a second sales order for the same Amazon account and order ID.
+Choose **Sync orders** to import recent Amazon Australia seller-fulfilled orders. The first successful synchronization checks the preceding 24 hours; later synchronizations overlap the saved update time by five minutes so boundary updates are not missed. When a large window needs more than one pass, Solvantis resumes the same window on the next pass and advances the cursor only after every page completes. Repeated updates cannot create a second sales order for the same Amazon account and order ID.
 
 Amazon orders use the standard Online Customer and are shown as paid through Amazon without creating an IMS payment transaction. Amazon settlement accounting remains separate. Exact seller-SKU links use their IMS variants. An order line without a linked seller SKU uses the non-stock online fallback product, preserving the complete order value without changing stock for an unidentified product.
 
@@ -59,28 +60,36 @@ An unshipped order becomes a confirmed IMS sales order and commits stock at the 
 
 When staff mark a prepared Amazon shipment dispatched, Solvantis fulfils the assigned quantities locally and then confirms each tracked parcel to the exact Seller Central account that supplied the order. Each parcel sends its carrier, service, tracking number, dispatch time, and Amazon order-item quantities separately. Multiple parcels can therefore carry different tracking numbers.
 
-If Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again, and automatic retries start only after the Amazon channel completes final activation. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.
+If Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again. Automatic retries start only after final activation and stop after five failed attempts; an administrator can retry manually after correcting the cause. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.
 
-Choose **Sync returns** to request or poll the seller return report and read released Amazon refund transactions for that account. Amazon prepares return reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report and finance windows plus Amazon return/refund identities prevent a boundary update from creating a duplicate observation. After final activation, Solvantis performs the same checks automatically.
+Choose **Sync returns** to request or poll the seller return report and read released Amazon refund transactions for that account. Amazon prepares return reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report and finance windows plus Amazon return/refund identities prevent a boundary update from creating a duplicate observation. Large Finance windows resume from the saved page on the next run. Return and refund evidence is retained even when its local order arrives later. After final activation, Solvantis performs the same checks automatically.
 
 An Amazon return observation records the return request, quantity, reason, resolution, delivery date, and Amazon-reported refunded amount against an order from that exact seller account. When one unreconciled Amazon RMA and one released refund match the order unambiguously, Solvantis creates an Amazon Draft in **Customer Credit Notes**. Its settlement is already external and every line starts with **Restock** cleared. Review the draft and select **Restock** only for sellable goods physically received before completion. Completing it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.
 
-If an order has multiple unmatched RMAs or refunds, Solvantis reports the evidence as ambiguous and does not guess which records belong together. Review those cases before recording a linked correction.
+If an order has multiple unmatched RMAs or refunds, Solvantis reports the evidence as ambiguous and does not guess which records belong together. Choose **Resolve refunds**, select the order, one RMA, and one released refund, then create the review draft. Solvantis verifies that both records belong to the same Amazon order and are still unlinked. The return report amount supplies the customer refund value; the Finance seller-net amount is shown only to identify the settlement.
 
 ### Check Amazon activation readiness
 
 Choose **Check readiness** after completing the setup operations for one Amazon seller account. Solvantis rechecks that account's Amazon Australia authorization and reports each requirement separately:
 
 - An active IMS dispatch location is assigned.
-- A complete listing synchronization has succeeded, at least one listing was observed, and no listing mapping remains unmatched or conflicting.
-- Inventory is enabled for at least one linked listing and a complete inventory synchronization has succeeded.
-- Order, return-report, and released-refund synchronization cursors are established.
+- A complete listing synchronization has succeeded in the last 24 hours, at least one listing was observed, and no current listing mapping remains unmatched or conflicting.
+- Inventory is enabled for at least one linked listing and synchronized after the latest listing sync within the last hour.
+- The order cursor is no more than 30 minutes old, return and refund cursors are no more than 26 hours old, and no order or Finance page window remains incomplete.
 - No Amazon inventory, report, or shipment-confirmation job is pending or failed.
 - No ambiguous refund match or unreviewed Amazon credit-note draft remains.
 
-A passing result records that the seller account is operationally ready. It does not activate the channel, enable automatic synchronization, or turn on any Amazon capability. A later setup change resets the result so administrators must run **Check readiness** again.
+A passing result records that the seller account is operationally ready but does not activate it. A later setup change resets the result so administrators must run **Check readiness** again.
 
 Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final readiness check must still be completed before the channel can become active.
+
+### Activate or deactivate Amazon
+
+After every readiness check passes, choose **Activate** and confirm the exact seller account. Solvantis repeats the complete readiness assessment immediately before changing the state. Activation succeeds only if the persisted channel is still ready after that assessment.
+
+Activation starts automatic inventory, seller-fulfilled order, shipment-confirmation retry, return-report, and released-refund synchronization for that seller account. The business-wide automation pause still prevents scheduled processing while it is on.
+
+Choose **Deactivate** to stop that channel from entering any automatic Amazon synchronization. Deactivation retains its authorization, seller identity, mappings, settings, synchronization cursors, observations, orders, and credit notes. Manual setup controls remain available, and a later activation repeats the complete readiness assessment.
 
 > **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.
 
@@ -91,7 +100,7 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | Setup pending | The instance has not completed readiness checks | Complete the provider connection setup |
 | Needs attention | The latest readiness or runtime state contains an operational problem | Read the safe error summary and inspect the provider integration |
 
-> **Important:** Passing Amazon readiness does not activate the channel. Activation remains a separate controlled rollout step.
+> **Important:** Read the confirmation carefully. Activating one Amazon row starts automation only for the seller ID displayed on that row.
 
 ## Troubleshooting
 
@@ -108,12 +117,13 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | Automatic Amazon inventory updates do not run | Confirm the channel has completed activation, is not paused, and the business's automation is not paused |
 | Amazon orders cannot synchronize | Open **Order setup** and choose an active dispatch location for that seller account |
 | An Amazon order shows the fallback product | Link that seller SKU to one IMS variant, then review the imported order before fulfilment |
-| More Amazon order updates remain | Run **Sync orders** again; each pass is bounded so provider requests remain reliable |
+| More Amazon order updates remain | Run **Sync orders** again; Solvantis resumes the saved window until every page completes |
 | An Amazon shipment shows Channel sync pending | Check parcel tracking and the exact seller connection, then choose **Mark dispatched** to retry the outstanding confirmation |
 | An Amazon return is not yet observed | Amazon may still be preparing the seller return report; check the exact seller account and allow the next synchronization to poll it |
-| An Amazon return shows as ambiguous | More than one unmatched RMA or refund exists for the order; review the Amazon records before creating a linked correction |
+| An Amazon return shows as ambiguous | Choose **Resolve refunds**, select one RMA and one released refund for the same order, then create the review draft |
 | An Amazon Draft did not add stock or customer credit | This is intentional; verify the externally settled amount and select Restock only for goods physically received before completing the draft |
 | Amazon readiness does not pass | Expand the readiness results and complete each failed item for that exact seller account; pending jobs and unreviewed Amazon drafts must be resolved first |
+| Amazon activation is rejected after readiness passed | Setup changed or new unresolved work appeared before activation; run **Check readiness** again and resolve the new blocker |
 
 ## Worked examples
 

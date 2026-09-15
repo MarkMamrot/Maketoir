@@ -1,3 +1,10 @@
+## 2026-09-15 - Guarded Amazon channel activation workflow
+
+- Administrators can activate an Amazon seller instance only after a fresh full readiness assessment passes. The final main-database update independently requires that the exact instance still has `readiness_status='ready'`, closing the setup-change race before `is_enabled=1` and `runtime_status='active'` are written.
+- Activation starts the existing exact-instance inventory, FBM order, shipment-confirmation retry, return-report, and released-refund cron eligibility. Deactivation immediately removes the instance from automatic processing while retaining credentials, mappings, cursors, observations, orders, and credit notes.
+- Successful connection tests and manual inventory reconciliation preserve readiness for an already active channel; listing synchronization and setup changes invalidate it. Amazon registry capabilities remain disabled for the staged rollout.
+- Validation passed 145 channel tests, the full 2,859-test suite with five environment-gated skips, Help/Assistant compilation, production build, diagnostics, and diff checks. No schema migration, live Amazon request, or tenant activation was performed.
+
 ## 2026-09-14 - Monsterthreads sandbox FIFO activation
 
 - The paused Monsterthreads development sandbox was prepared and permanently switched from Average Cost revision 1 to FIFO revision 2. Epoch 2 owns 8,520 opening layers with quantity 48,862.0000 and opening value AUD 406,518.1429; independent readback and the FIFO integrity audit reconciled exactly with no findings.

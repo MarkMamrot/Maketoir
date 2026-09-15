@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  getInstance: vi.fn(), setCursor: vi.fn(), access: vi.fn(), list: vi.fn(), normalize: vi.fn(),
+  getInstance: vi.fn(), setCursor: vi.fn(), setContinuation: vi.fn(), clearContinuation: vi.fn(),
+  access: vi.fn(), list: vi.fn(), normalize: vi.fn(),
   importObservations: vi.fn(), reconcile: vi.fn(), report: vi.fn(),
   run: vi.fn(async (_businessId: string, callback: () => Promise<unknown>) => callback()),
 }));
 vi.mock('../channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
   getForBusiness: mocks.getInstance, setAmazonRefundSyncCursorForBusiness: mocks.setCursor,
+  setAmazonRefundSyncContinuationForBusiness: mocks.setContinuation,
+  clearAmazonRefundSyncContinuationForBusiness: mocks.clearContinuation,
 } }));
 vi.mock('../amazonCredentials', () => ({ getAmazonChannelAccess: mocks.access }));
 vi.mock('../amazonSpApi', () => ({ listAmazonFinancialTransactions: mocks.list }));
@@ -37,7 +40,7 @@ describe('syncAmazonRefundsForChannel', () => {
   it('persists every finance page, reconciles, and advances the exact-instance cursor last', async () => {
     await expect(syncAmazonRefundsForChannel({
       businessId: 'business-1', channelInstanceId: 'instance-1', now: new Date('2026-09-16T00:02:00Z'),
-    })).resolves.toEqual({ scanned: 2, observed: 2, ignored: 0, created: 1, ambiguous: 0 });
+    })).resolves.toEqual({ scanned: 2, observed: 2, ignored: 0, created: 1, ambiguous: 0, hasMore: false });
     expect(mocks.run).toHaveBeenCalledWith('business-1', expect.any(Function));
     expect(mocks.list.mock.calls[0][1]).toEqual({
       postedAfter: '2026-09-12T00:00:00.000Z', postedBefore: '2026-09-16T00:00:00.000Z', nextToken: null,
@@ -60,5 +63,36 @@ describe('syncAmazonRefundsForChannel', () => {
       businessId: 'business-1', operation: 'sync_refunds',
       context: expect.objectContaining({ channelInstanceId: 'instance-1' }),
     }));
+  });
+
+  it('persists page 20 and resumes the same Finance window', async () => {
+    mocks.list.mockReset().mockResolvedValue({ transactions: [], nextToken: 'page-21' });
+    mocks.importObservations.mockReset().mockResolvedValue({ observed: 0, ignored: 0 });
+    const first = await syncAmazonRefundsForChannel({
+      businessId: 'business-1', channelInstanceId: 'instance-1', now: new Date('2026-09-16T00:02:00Z'),
+    });
+    expect(first.hasMore).toBe(true);
+    expect(mocks.list).toHaveBeenCalledTimes(20);
+    expect(mocks.setCursor).not.toHaveBeenCalled();
+    expect(mocks.setContinuation).toHaveBeenCalledWith(expect.objectContaining({
+      postedAfter: '2026-09-12T00:00:00.000Z', postedBefore: '2026-09-16T00:00:00.000Z', nextToken: 'page-21',
+    }));
+
+    vi.clearAllMocks();
+    mocks.getInstance.mockResolvedValue({ provider: 'amazon', settings: {
+      refundsLastPostedAt: '2026-09-14T00:00:00Z', refundsContinuationAfter: '2026-09-12T00:00:00.000Z',
+      refundsContinuationBefore: '2026-09-16T00:00:00.000Z', refundsContinuationToken: 'page-21',
+    } });
+    mocks.access.mockResolvedValue({ accessToken: 'access-token' });
+    mocks.list.mockResolvedValue({ transactions: [], nextToken: null });
+    mocks.normalize.mockReturnValue([]);
+    mocks.importObservations.mockResolvedValue({ observed: 0, ignored: 0 });
+    mocks.reconcile.mockResolvedValue({ created: 0, ambiguous: 0, ignored: 0 });
+    await syncAmazonRefundsForChannel({
+      businessId: 'business-1', channelInstanceId: 'instance-1', now: new Date('2026-09-20T00:02:00Z'),
+    });
+    expect(mocks.list).toHaveBeenCalledWith('access-token', {
+      postedAfter: '2026-09-12T00:00:00.000Z', postedBefore: '2026-09-16T00:00:00.000Z', nextToken: 'page-21',
+    });
   });
 });

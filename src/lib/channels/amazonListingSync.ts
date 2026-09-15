@@ -21,6 +21,7 @@ export async function syncAmazonListingMappings(input: {
   businessId: string;
   channelInstanceId: string;
   items: AmazonListingItem[];
+  syncStartedAt?: string;
 }): Promise<{ linked: number; unmatched: number; conflicts: number }> {
   const variants = await imsQuery<VariantRow>(
     `SELECT variant_id, sku FROM ims_product_variants WHERE business_id = ? AND is_active = 1`,
@@ -49,17 +50,33 @@ export async function syncAmazonListingMappings(input: {
       `INSERT INTO ims_sales_channel_product_mappings
          (business_id, channel_instance_id, variant_id, external_product_id, external_variant_id,
           mapping_status, metadata_json, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))
+      VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP(3)))
        ON DUPLICATE KEY UPDATE variant_id = VALUES(variant_id), external_product_id = VALUES(external_product_id),
          mapping_status = VALUES(mapping_status), metadata_json = VALUES(metadata_json),
          last_seen_at = VALUES(last_seen_at), updated_at = CURRENT_TIMESTAMP(3)`,
       [input.businessId, input.channelInstanceId, match.variantId, String(summary?.asin ?? '').trim() || null,
         sellerSku, match.status, JSON.stringify({ itemName: summary?.itemName ?? null, statuses: summary?.status ?? [],
-          issues: item.issues ?? [], fulfillmentAvailability: item.fulfillmentAvailability ?? [] })],
+          issues: item.issues ?? [], fulfillmentAvailability: item.fulfillmentAvailability ?? [] }),
+        input.syncStartedAt ?? null],
     );
     if (match.status === 'linked') linked++;
     else if (match.status === 'conflict') conflicts++;
     else unmatched++;
   }
   return { linked, unmatched, conflicts };
+}
+
+export async function archiveMissingAmazonListingMappings(input: {
+  businessId: string;
+  channelInstanceId: string;
+  syncStartedAt: string;
+}): Promise<number> {
+  const result = await imsExecute(
+    `UPDATE ims_sales_channel_product_mappings
+        SET mapping_status = 'archived', updated_at = CURRENT_TIMESTAMP(3)
+      WHERE business_id = ? AND channel_instance_id = ?
+        AND (last_seen_at IS NULL OR last_seen_at < ?) AND mapping_status <> 'archived'`,
+    [input.businessId, input.channelInstanceId, input.syncStartedAt],
+  );
+  return Number(result.affectedRows ?? 0);
 }

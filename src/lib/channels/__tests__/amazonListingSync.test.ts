@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ query: vi.fn(), execute: vi.fn() }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute }));
 
-import { matchAmazonListingSku, syncAmazonListingMappings } from '../amazonListingSync';
+import { archiveMissingAmazonListingMappings, matchAmazonListingSku, syncAmazonListingMappings } from '../amazonListingSync';
 
 describe('matchAmazonListingSku', () => {
   const variants = [
@@ -29,11 +29,21 @@ describe('syncAmazonListingMappings', () => {
     const result = await syncAmazonListingMappings({
       businessId: 'business-1', channelInstanceId: 'instance-1',
       items: [{ sku: 'AMAZON-SKU', summaries: [{ asin: 'B001', itemName: 'Item' }] }],
+      syncStartedAt: '2026-09-16 01:02:03.000',
     });
     expect(result).toEqual({ linked: 1, unmatched: 0, conflicts: 0 });
     expect(mocks.query.mock.calls[1][1]).toEqual(['business-1', 'instance-1']);
     expect(mocks.execute.mock.calls[0][1]).toEqual(expect.arrayContaining([
       'business-1', 'instance-1', 'one', 'B001', 'AMAZON-SKU', 'linked',
     ]));
+  });
+
+  it('archives mappings not observed during the completed full synchronization', async () => {
+    await archiveMissingAmazonListingMappings({
+      businessId: 'business-1', channelInstanceId: 'instance-1', syncStartedAt: '2026-09-16 01:02:03.000',
+    });
+    expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining("mapping_status = 'archived'"), [
+      'business-1', 'instance-1', '2026-09-16 01:02:03.000',
+    ]);
   });
 });

@@ -4,7 +4,11 @@ const mocks = vi.hoisted(() => ({ query: vi.fn(), create: vi.fn() }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query }));
 vi.mock('@/lib/ims/ImsRepository', () => ({ ImsCNRepo: { create: mocks.create } }));
 
-import { reconcileAmazonRefunds } from '../amazonRefundReconciliation';
+import {
+  listAmazonRefundResolutionGroups,
+  reconcileAmazonRefunds,
+  resolveAmazonRefundPair,
+} from '../amazonRefundReconciliation';
 
 const returnPayload = {
   amazonOrderId: '111-2222222-3333333', amazonRmaId: 'RMA-1', merchantSku: 'SKU-1', asin: 'B001',
@@ -74,6 +78,57 @@ describe('reconcileAmazonRefunds', () => {
       .mockResolvedValueOnce([{ external_return_id: 'RMA-1', external_refund_id: 'refund-1' }]);
     await expect(reconcileAmazonRefunds({ businessId: 'business-1', channelInstanceId: 'instance-1' }))
       .resolves.toEqual({ created: 0, ambiguous: 0, ignored: 1 });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('lists only unresolved orders with multiple RMA or refund choices', async () => {
+    mocks.query
+      .mockResolvedValueOnce([
+        { event_type: 'return.observed', payload_json: returnPayload },
+        { event_type: 'return.observed', payload_json: { ...returnPayload, amazonRmaId: 'RMA-2', refundedAmount: 20 } },
+        { event_type: 'refund.observed', payload_json: refundPayload },
+      ])
+      .mockResolvedValueOnce([]);
+    await expect(listAmazonRefundResolutionGroups({ businessId: 'business-1', channelInstanceId: 'instance-1' }))
+      .resolves.toEqual([expect.objectContaining({
+        amazonOrderId: returnPayload.amazonOrderId,
+        returns: [expect.objectContaining({ amazonRmaId: 'RMA-1' }), expect.objectContaining({ amazonRmaId: 'RMA-2' })],
+        refunds: [expect.objectContaining({ amazonRefundId: 'refund-1' })],
+      })]);
+  });
+
+  it('creates the standard external draft for an explicitly selected same-order pair', async () => {
+    mocks.query
+      .mockResolvedValueOnce([
+        { event_type: 'return.observed', payload_json: returnPayload },
+        { event_type: 'refund.observed', payload_json: refundPayload },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        so_id: 42, so_number: 'AMZ-111', customer_id: 9, location_id: 3, source_so_item_id: 101,
+        variant_id: 'variant-1', merchant_sku: 'SKU-1', local_sku: 'LOCAL-1', item_name: 'Returned item',
+      }]);
+    await expect(resolveAmazonRefundPair({
+      businessId: 'business-1', channelInstanceId: 'instance-1', amazonOrderId: returnPayload.amazonOrderId,
+      amazonRmaId: 'RMA-1', amazonRefundId: 'refund-1', createdBy: 'Admin user',
+    })).resolves.toEqual({ creditNoteId: 7 });
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      external_return_id: 'RMA-1', external_refund_id: 'refund-1', settlement_method: 'external',
+    }), [expect.objectContaining({ restock: false })], 'business-1', 'Admin user');
+  });
+
+  it('rejects a selected return and refund from different Amazon orders', async () => {
+    mocks.query
+      .mockResolvedValueOnce([
+        { event_type: 'return.observed', payload_json: returnPayload },
+        { event_type: 'refund.observed', payload_json: { ...refundPayload, amazonOrderId: 'different-order' } },
+      ])
+      .mockResolvedValueOnce([]);
+    await expect(resolveAmazonRefundPair({
+      businessId: 'business-1', channelInstanceId: 'instance-1', amazonOrderId: returnPayload.amazonOrderId,
+      amazonRmaId: 'RMA-1', amazonRefundId: 'refund-1', createdBy: 'Admin user',
+    })).rejects.toThrow('not a valid pair');
     expect(mocks.create).not.toHaveBeenCalled();
   });
 });

@@ -25,9 +25,9 @@ describe('assessAmazonReadiness', () => {
       provider: 'amazon',
       settings: {
         orderLocationId: 7,
-        listingsLastSyncedAt: '2026-09-15T01:00:00Z',
-        inventoryLastSyncedAt: '2026-09-15T02:00:00Z',
-        ordersLastUpdatedAt: '2026-09-15T03:00:00Z',
+        listingsLastSyncedAt: '2026-09-15T04:30:00Z',
+        inventoryLastSyncedAt: '2026-09-15T04:45:00Z',
+        ordersLastUpdatedAt: '2026-09-15T05:00:00Z',
         returnsLastRequestedAt: '2026-09-15T04:00:00Z',
         refundsLastPostedAt: '2026-09-15T05:00:00Z',
         refundsAmbiguousCount: 0,
@@ -42,7 +42,9 @@ describe('assessAmazonReadiness', () => {
   });
 
   it('marks readiness without activating when every operational check passes', async () => {
-    const result = await assessAmazonReadiness({ businessId: 'business-1', channelInstanceId: 'instance-1' });
+    const result = await assessAmazonReadiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', now: new Date('2026-09-15T05:10:00Z'),
+    });
 
     expect(result.ready).toBe(true);
     expect(result.checks).toHaveLength(10);
@@ -68,5 +70,25 @@ describe('assessAmazonReadiness', () => {
     expect(result.checks.find(check => check.key === 'work_queue')?.detail).toContain('2 Amazon jobs');
     expect(result.checks.find(check => check.key === 'return_review')?.detail).toContain('2 Amazon refund matches');
     expect(mocks.setReadiness).toHaveBeenCalledWith(expect.objectContaining({ ready: false }));
+  });
+
+  it('rejects stale or out-of-order synchronization evidence and partial windows', async () => {
+    mocks.getInstance.mockResolvedValue({ provider: 'amazon', settings: {
+      orderLocationId: 7,
+      listingsLastSyncedAt: '2026-09-15T03:00:00Z',
+      inventoryLastSyncedAt: '2026-09-15T02:00:00Z',
+      ordersLastUpdatedAt: '2026-09-15T04:55:00Z', ordersContinuationBefore: '2026-09-15T05:00:00Z',
+      returnsLastRequestedAt: '2026-09-13T00:00:00Z',
+      refundsLastPostedAt: '2026-09-15T04:00:00Z', refundsContinuationBefore: '2026-09-15T05:00:00Z',
+      refundsAmbiguousCount: 0,
+    } });
+    const result = await assessAmazonReadiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', now: new Date('2026-09-15T05:10:00Z'),
+    });
+    expect(result.ready).toBe(false);
+    expect(result.checks.find(check => check.key === 'inventory')?.passed).toBe(false);
+    expect(result.checks.find(check => check.key === 'orders')?.passed).toBe(false);
+    expect(result.checks.find(check => check.key === 'returns')?.passed).toBe(false);
+    expect(result.checks.find(check => check.key === 'refunds')?.passed).toBe(false);
   });
 });

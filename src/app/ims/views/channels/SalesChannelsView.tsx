@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, Power, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ChannelCapabilities {
@@ -55,6 +55,12 @@ interface AmazonReadinessCheck {
   detail: string;
 }
 
+interface AmazonRefundResolutionGroup {
+  amazonOrderId: string;
+  returns: Array<{ amazonRmaId: string; requestedAt: string; refundedAmount: number; currencyCode: string; lineCount: number }>;
+  refunds: Array<{ amazonRefundId: string; postedAt: string; currencyCode: string; sellerNetAmount: number }>;
+}
+
 const CAPABILITY_LABELS: Array<[keyof ChannelCapabilities, string]> = [
   ['catalogue', 'Catalogue'],
   ['inventory', 'Inventory'],
@@ -107,6 +113,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [returnSyncingId, setReturnSyncingId] = useState<string | null>(null);
   const [readinessCheckingId, setReadinessCheckingId] = useState<string | null>(null);
   const [readinessChecks, setReadinessChecks] = useState<Record<string, AmazonReadinessCheck[]>>({});
+  const [activationChangingId, setActivationChangingId] = useState<string | null>(null);
   const [orderSettingsInstance, setOrderSettingsInstance] = useState<ChannelInstance | null>(null);
   const [orderLocations, setOrderLocations] = useState<OrderLocation[]>([]);
   const [orderLocationId, setOrderLocationId] = useState('');
@@ -118,6 +125,12 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [mappings, setMappings] = useState<AmazonMapping[]>([]);
   const [mappingIds, setMappingIds] = useState<Set<number>>(new Set());
   const [mappingLoading, setMappingLoading] = useState(false);
+  const [refundResolutionInstance, setRefundResolutionInstance] = useState<ChannelInstance | null>(null);
+  const [refundResolutionGroups, setRefundResolutionGroups] = useState<AmazonRefundResolutionGroup[]>([]);
+  const [refundResolutionOrderId, setRefundResolutionOrderId] = useState('');
+  const [refundResolutionRmaId, setRefundResolutionRmaId] = useState('');
+  const [refundResolutionRefundId, setRefundResolutionRefundId] = useState('');
+  const [refundResolutionLoading, setRefundResolutionLoading] = useState(false);
 
   const load = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -189,12 +202,13 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     setNotice('');
     try {
       let nextToken: string | null = null;
+      let syncStartedAt: string | null = null;
       let pageCount = 0;
       const totals = { processed: 0, linked: 0, unmatched: 0, conflicts: 0 };
       do {
         const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/listings`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pageSize: 20, nextToken }),
+          body: JSON.stringify({ pageSize: 20, nextToken, syncStartedAt }),
         });
         const body = await response.json();
         if (!response.ok || !body.success) throw new Error(body.error || 'Amazon listings could not be synchronized.');
@@ -203,6 +217,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
         totals.unmatched += Number(body.unmatched ?? 0);
         totals.conflicts += Number(body.conflicts ?? 0);
         nextToken = typeof body.nextToken === 'string' && body.nextToken ? body.nextToken : null;
+        syncStartedAt = typeof body.syncStartedAt === 'string' ? body.syncStartedAt : syncStartedAt;
         pageCount++;
         if (pageCount >= 500 && nextToken) throw new Error('Amazon returned too many listing pages. Run sync again to continue.');
       } while (nextToken);
@@ -331,6 +346,54 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     }
   };
 
+  const openAmazonRefundResolution = async (instance: ChannelInstance) => {
+    setRefundResolutionInstance(instance);
+    setRefundResolutionGroups([]);
+    setRefundResolutionOrderId('');
+    setRefundResolutionRmaId('');
+    setRefundResolutionRefundId('');
+    setRefundResolutionLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/refund-resolution`);
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon refund ambiguities could not be loaded.');
+      const groups = Array.isArray(body.groups) ? body.groups : [];
+      setRefundResolutionGroups(groups);
+      if (groups.length > 0) setRefundResolutionOrderId(String(groups[0].amazonOrderId));
+    } catch (resolutionError) {
+      setRefundResolutionInstance(null);
+      setError(resolutionError instanceof Error ? resolutionError.message : 'Amazon refund ambiguities could not be loaded.');
+    } finally {
+      setRefundResolutionLoading(false);
+    }
+  };
+
+  const resolveAmazonRefund = async () => {
+    if (!refundResolutionInstance || !refundResolutionOrderId || !refundResolutionRmaId || !refundResolutionRefundId) return;
+    setRefundResolutionLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(refundResolutionInstance.channelInstanceId)}/amazon/refund-resolution`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amazonOrderId: refundResolutionOrderId, amazonRmaId: refundResolutionRmaId,
+          amazonRefundId: refundResolutionRefundId }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'The Amazon refund pair could not be resolved.');
+      setNotice(`${refundResolutionInstance.displayName}: Amazon review draft ${Number(body.creditNoteId)} created.`);
+      setRefundResolutionGroups(Array.isArray(body.groups) ? body.groups : []);
+      setRefundResolutionOrderId('');
+      setRefundResolutionRmaId('');
+      setRefundResolutionRefundId('');
+      await load();
+    } catch (resolutionError) {
+      setError(resolutionError instanceof Error ? resolutionError.message : 'The Amazon refund pair could not be resolved.');
+    } finally {
+      setRefundResolutionLoading(false);
+    }
+  };
+
   const checkAmazonReadiness = async (instance: ChannelInstance) => {
     setReadinessCheckingId(instance.channelInstanceId);
     setError('');
@@ -350,6 +413,33 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
       setError(readinessError instanceof Error ? readinessError.message : 'Amazon activation readiness could not be checked.');
     } finally {
       setReadinessCheckingId(null);
+    }
+  };
+
+  const changeAmazonActivation = async (instance: ChannelInstance) => {
+    const active = !instance.enabled;
+    const confirmed = window.confirm(active
+      ? `Activate ${instance.displayName}? Automatic inventory, order, fulfilment, return, and refund synchronization will begin for this seller account.`
+      : `Deactivate ${instance.displayName}? Automatic Amazon synchronization will stop until it is activated again.`);
+    if (!confirmed) return;
+    setActivationChangingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/activation`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }),
+      });
+      const body = await response.json();
+      if (Array.isArray(body.checks)) {
+        setReadinessChecks(current => ({ ...current, [instance.channelInstanceId]: body.checks }));
+      }
+      if (!response.ok || !body.success) throw new Error(body.error || `Amazon channel could not be ${active ? 'activated' : 'deactivated'}.`);
+      setNotice(`${instance.displayName} was ${active ? 'activated' : 'deactivated'}.`);
+      await load();
+    } catch (activationError) {
+      setError(activationError instanceof Error ? activationError.message : `Amazon channel could not be ${active ? 'activated' : 'deactivated'}.`);
+    } finally {
+      setActivationChangingId(null);
     }
   };
 
@@ -512,7 +602,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       {testingId === instance.channelInstanceId ? 'Testing...' : 'Test connection'}
                     </button>
                   )}
-                  {instance.provider === 'amazon' && capabilities.length === 0 && (
+                  {instance.provider === 'amazon' && !instance.enabled && capabilities.length === 0 && (
                     <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Operational setup pending</span>
                   )}
                   {canManage && instance.provider === 'amazon' && (
@@ -551,9 +641,20 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       <RotateCcw size={14} aria-hidden="true" /> {returnSyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync returns'}
                     </button>
                   )}
+                  {canManage && instance.provider === 'amazon' && Number(instance.settings?.refundsAmbiguousCount ?? 0) > 0 && (
+                    <button type="button" onClick={() => void openAmazonRefundResolution(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid #fca5a5', borderRadius: 4, color: '#991b1b', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      <AlertCircle size={14} aria-hidden="true" /> Resolve refunds ({Number(instance.settings.refundsAmbiguousCount)})
+                    </button>
+                  )}
                   {canManage && instance.provider === 'amazon' && (
                     <button type="button" disabled={readinessCheckingId === instance.channelInstanceId} onClick={() => void checkAmazonReadiness(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid #a5b4fc', borderRadius: 4, color: '#3730a3', background: '#eef2ff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: readinessCheckingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
                       <ShieldCheck size={14} aria-hidden="true" /> {readinessCheckingId === instance.channelInstanceId ? 'Checking...' : 'Check readiness'}
+                    </button>
+                  )}
+                  {canManage && instance.provider === 'amazon' && (instance.enabled || instance.readinessStatus === 'ready') && (
+                    <button type="button" disabled={activationChangingId === instance.channelInstanceId} onClick={() => void changeAmazonActivation(instance)} style={{ minHeight: 29, padding: '4px 9px', border: `1px solid ${instance.enabled ? '#fecaca' : '#86efac'}`, borderRadius: 4, color: instance.enabled ? '#991b1b' : '#166534', background: instance.enabled ? '#fff' : '#f0fdf4', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 750, cursor: activationChangingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
+                      {instance.enabled ? <PauseCircle size={14} aria-hidden="true" /> : <Power size={14} aria-hidden="true" />}
+                      {activationChangingId === instance.channelInstanceId ? 'Saving...' : instance.enabled ? 'Deactivate' : 'Activate'}
                     </button>
                   )}
                 </div>
@@ -668,6 +769,55 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
               <button type="submit" disabled={orderSettingsLoading || !orderLocationId} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750, cursor: orderSettingsLoading || !orderLocationId ? 'not-allowed' : 'pointer', opacity: orderSettingsLoading || !orderLocationId ? .55 : 1 }}>{orderSettingsLoading ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {refundResolutionInstance && (
+        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !refundResolutionLoading) setRefundResolutionInstance(null); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="amazon-refund-resolution-title" style={{ width: 'min(680px, 100%)', maxHeight: 'calc(100vh - 36px)', overflow: 'auto', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.24)', padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <h2 id="amazon-refund-resolution-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>{refundResolutionInstance.displayName} refund matching</h2>
+                <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>Pair one RMA with one released refund from the same order. The draft will not restock goods.</p>
+              </div>
+              <button type="button" disabled={refundResolutionLoading} onClick={() => setRefundResolutionInstance(null)} title="Close" aria-label="Close Amazon refund matching" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            {refundResolutionGroups.length === 0 ? (
+              <div style={{ marginTop: 18, padding: 18, background: '#f8fafc', color: 'var(--sv-text-dim)', fontSize: 12 }}>No unresolved multi-match refunds remain.</div>
+            ) : (
+              <>
+                <label htmlFor="amazon-refund-order" style={{ display: 'block', marginTop: 18, color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Amazon order</label>
+                <select id="amazon-refund-order" value={refundResolutionOrderId} disabled={refundResolutionLoading} onChange={event => { setRefundResolutionOrderId(event.target.value); setRefundResolutionRmaId(''); setRefundResolutionRefundId(''); }} style={{ width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', fontSize: 13 }}>
+                  <option value="">Choose an order</option>
+                  {refundResolutionGroups.map(group => <option key={group.amazonOrderId} value={group.amazonOrderId}>{group.amazonOrderId}</option>)}
+                </select>
+                {(() => {
+                  const group = refundResolutionGroups.find(item => item.amazonOrderId === refundResolutionOrderId);
+                  if (!group) return null;
+                  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14, marginTop: 16 }}>
+                    <div>
+                      <label htmlFor="amazon-refund-rma" style={{ display: 'block', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Return RMA</label>
+                      <select id="amazon-refund-rma" value={refundResolutionRmaId} disabled={refundResolutionLoading} onChange={event => setRefundResolutionRmaId(event.target.value)} style={{ width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', fontSize: 12 }}>
+                        <option value="">Choose an RMA</option>
+                        {group.returns.map(item => <option key={item.amazonRmaId} value={item.amazonRmaId}>{item.amazonRmaId} · ${item.refundedAmount.toFixed(2)} · {item.lineCount} line{item.lineCount === 1 ? '' : 's'}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="amazon-refund-id" style={{ display: 'block', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Released refund</label>
+                      <select id="amazon-refund-id" value={refundResolutionRefundId} disabled={refundResolutionLoading} onChange={event => setRefundResolutionRefundId(event.target.value)} style={{ width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', fontSize: 12 }}>
+                        <option value="">Choose a refund</option>
+                        {group.refunds.map(item => <option key={item.amazonRefundId} value={item.amazonRefundId}>{item.amazonRefundId} · seller net ${Math.abs(item.sellerNetAmount).toFixed(2)}</option>)}
+                      </select>
+                    </div>
+                  </div>;
+                })()}
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" disabled={refundResolutionLoading} onClick={() => setRefundResolutionInstance(null)} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Close</button>
+              {refundResolutionGroups.length > 0 && <button type="button" disabled={refundResolutionLoading || !refundResolutionOrderId || !refundResolutionRmaId || !refundResolutionRefundId} onClick={() => void resolveAmazonRefund()} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#991b1b', color: '#fff', fontSize: 12, fontWeight: 750, cursor: refundResolutionLoading ? 'wait' : 'pointer', opacity: refundResolutionLoading || !refundResolutionOrderId || !refundResolutionRmaId || !refundResolutionRefundId ? .55 : 1 }}>{refundResolutionLoading ? 'Creating...' : 'Create review draft'}</button>}
+            </div>
+          </div>
         </div>
       )}
     </div>

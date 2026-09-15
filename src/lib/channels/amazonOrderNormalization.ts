@@ -76,8 +76,8 @@ export function normalizeAmazonOrder(order: AmazonOrder, items: AmazonOrderItem[
   if (lines.length === 0) throw new Error(`Amazon order ${amazonOrderId} has no order items.`);
 
   const totalAmount = money(amount(order.OrderTotal));
-  const taxAmount = money(Math.max(0, itemTax + items.reduce((sum, item) =>
-    sum + amount(item.ShippingTax) - amount(item.ShippingDiscountTax), 0)));
+  // IMS freight is stored tax-inclusive and added after merchandise subtotal/tax.
+  const taxAmount = money(Math.max(0, itemTax));
   freight = money(Math.max(0, freight));
   return {
     amazonOrderId,

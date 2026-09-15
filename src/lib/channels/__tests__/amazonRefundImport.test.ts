@@ -25,11 +25,11 @@ describe('importAmazonRefundObservations', () => {
     expect(mocks.execute.mock.calls[0][1][2]).toBe('refund:refund-1:transaction-1');
   });
 
-  it('ignores refund evidence for an unknown or cross-instance order', async () => {
+  it('retains refund evidence for later linking when its order has not arrived in this instance', async () => {
     mocks.query.mockResolvedValue([]);
     await expect(importAmazonRefundObservations({
       businessId: 'business-1', channelInstanceId: 'instance-2', observations: [observation],
-    })).resolves.toEqual({ observed: 0, ignored: 1 });
-    expect(mocks.execute).not.toHaveBeenCalled();
+    })).resolves.toEqual({ observed: 1, ignored: 1 });
+    expect(mocks.execute.mock.calls[0][1][4]).toContain('"salesOrderId":null');
   });
 });

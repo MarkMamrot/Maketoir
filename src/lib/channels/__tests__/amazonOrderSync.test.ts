@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  getInstance: vi.fn(), setCursor: vi.fn(), access: vi.fn(), listOrders: vi.fn(), listItems: vi.fn(),
+  getInstance: vi.fn(), setCursor: vi.fn(), setContinuation: vi.fn(), clearContinuation: vi.fn(),
+  access: vi.fn(), listOrders: vi.fn(), listItems: vi.fn(),
   importOrder: vi.fn(), run: vi.fn(async (_businessId: string, callback: () => Promise<unknown>) => callback()),
   execute: vi.fn(), query: vi.fn(), report: vi.fn(),
 }));
 vi.mock('../channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
   getForBusiness: mocks.getInstance, setAmazonOrderSyncCursorForBusiness: mocks.setCursor,
+  setAmazonOrderSyncContinuationForBusiness: mocks.setContinuation,
+  clearAmazonOrderSyncContinuationForBusiness: mocks.clearContinuation,
 } }));
 vi.mock('../amazonCredentials', () => ({ getAmazonChannelAccess: mocks.access }));
 vi.mock('../amazonSpApi', () => ({ listAmazonFbmOrders: mocks.listOrders, listAmazonOrderItems: mocks.listItems }));
@@ -76,5 +79,33 @@ describe('syncAmazonOrdersForChannel', () => {
       businessId: 'business-1', channelInstanceId: 'instance-1',
     })).rejects.toThrow('Choose a dispatch location');
     expect(mocks.run).not.toHaveBeenCalled();
+  });
+
+  it('persists and resumes the exact first-page window when the order limit is reached', async () => {
+    mocks.listOrders.mockResolvedValue({ orders: [order, { ...order, AmazonOrderId: 'second-order' }], nextToken: 'page-2' });
+    const first = await syncAmazonOrdersForChannel({
+      businessId: 'business-1', channelInstanceId: 'instance-1', limit: 1,
+      now: new Date('2026-09-15T01:00:00Z'),
+    });
+    expect(first.hasMore).toBe(true);
+    expect(mocks.setContinuation).toHaveBeenCalledWith({
+      businessId: 'business-1', channelInstanceId: 'instance-1',
+      lastUpdatedAfter: '2026-09-14T23:55:00.000Z', lastUpdatedBefore: '2026-09-15T00:58:00.000Z', nextToken: '',
+    });
+
+    vi.clearAllMocks();
+    mocks.getInstance.mockResolvedValue({ provider: 'amazon', settings: {
+      orderLocationId: 7, ordersLastUpdatedAt: '2026-09-15T00:00:00Z',
+      ordersContinuationAfter: '2026-09-14T23:55:00.000Z',
+      ordersContinuationBefore: '2026-09-15T00:58:00.000Z', ordersContinuationToken: '',
+    } });
+    mocks.access.mockResolvedValue({ accessToken: 'access-token' });
+    mocks.listOrders.mockResolvedValue({ orders: [], nextToken: null });
+    await syncAmazonOrdersForChannel({
+      businessId: 'business-1', channelInstanceId: 'instance-1', now: new Date('2026-09-16T01:00:00Z'),
+    });
+    expect(mocks.listOrders.mock.calls[0][1]).toMatchObject({
+      lastUpdatedAfter: '2026-09-14T23:55:00.000Z', lastUpdatedBefore: '2026-09-15T00:58:00.000Z', nextToken: '',
+    });
   });
 });

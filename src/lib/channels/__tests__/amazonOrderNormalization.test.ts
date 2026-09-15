@@ -17,7 +17,7 @@ describe('normalizeAmazonOrder', () => {
     }]);
 
     expect(result.lines[0]).toMatchObject({ quantityOrdered: 2, unitPrice: 10.45, lineTotal: 20.9, taxRate: 0.1 });
-    expect(result).toMatchObject({ subtotal: 18.2, taxAmount: 2.7, freight: 8.8, totalAmount: 29.7 });
+    expect(result).toMatchObject({ subtotal: 19, taxAmount: 1.9, freight: 8.8, totalAmount: 29.7 });
     expect(result.paymentGateway).toBe('Amazon - Standard');
   });
 

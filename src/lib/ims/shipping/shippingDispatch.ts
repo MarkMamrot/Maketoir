@@ -298,6 +298,8 @@ type AmazonShipmentJobRequest = {
   confirmation: AmazonShipmentConfirmation;
 };
 
+const AMAZON_SHIPMENT_MAX_ATTEMPTS = 5;
+
 export async function confirmAmazonShipmentJobs(businessId: string, shipmentId: number): Promise<void> {
   const jobs = await imsQuery<{ id: number; request_json: AmazonShipmentJobRequest | string }>(
     `SELECT id, request_json
@@ -340,9 +342,10 @@ export async function confirmAmazonShipmentJobs(businessId: string, shipmentId: 
       await imsExecute(
         `UPDATE ims_shipping_channel_jobs
             SET status = 'failed', attempt_count = attempt_count + 1,
-                next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE), safe_error = ?
+                next_attempt_at = CASE WHEN attempt_count + 1 >= ? THEN NULL ELSE DATE_ADD(NOW(), INTERVAL 15 MINUTE) END,
+                safe_error = ?
           WHERE business_id = ? AND id = ? AND status <> 'complete'`,
-        [safeError, businessId, job.jobId],
+        [AMAZON_SHIPMENT_MAX_ATTEMPTS, safeError, businessId, job.jobId],
       );
       throw error;
     }
@@ -365,12 +368,13 @@ export async function retryAmazonShipmentConfirmationsForChannel(input: {
            ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
         WHERE job.business_id = ? AND job.sales_channel = 'amazon'
           AND job.status IN ('pending', 'failed')
+          AND job.attempt_count < ?
           AND (job.next_attempt_at IS NULL OR job.next_attempt_at <= NOW())
           AND sales_order.channel_instance_id = ?
         GROUP BY job.shipment_id
         ORDER BY MIN(job.id)
         LIMIT ?`,
-      [input.businessId, input.channelInstanceId, limit],
+      [input.businessId, AMAZON_SHIPMENT_MAX_ATTEMPTS, input.channelInstanceId, limit],
     );
     const totals = { attempted: shipments.length, completed: 0, failed: 0 };
     for (const shipment of shipments) {

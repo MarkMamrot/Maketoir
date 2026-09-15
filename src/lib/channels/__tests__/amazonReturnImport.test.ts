@@ -25,11 +25,11 @@ describe('Amazon return observation import', () => {
     expect(mocks.execute.mock.calls[0][1][2]).toBe('return:111-2222222-3333333:RMA-1:SKU-1');
   });
 
-  it('ignores a return that does not belong to an imported order in this instance', async () => {
+  it('retains a return for later linking when its order has not arrived in this instance', async () => {
     mocks.query.mockResolvedValue([]);
     await expect(importAmazonReturnObservations({
       businessId: 'business-1', channelInstanceId: 'instance-2', observations: [observation],
-    })).resolves.toEqual({ observed: 0, ignored: 1 });
-    expect(mocks.execute).not.toHaveBeenCalled();
+    })).resolves.toEqual({ observed: 1, ignored: 1 });
+    expect(mocks.execute.mock.calls[0][1][4]).toContain('"salesOrderId":null');
   });
 });

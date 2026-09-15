@@ -137,8 +137,21 @@ describe('SalesChannelInstanceRepository', () => {
       completedAt: '2026-09-15T02:00:00.000Z',
     });
 
-    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("readiness_status = 'not_tested'"), [
-      '$.listingsLastSyncedAt', '2026-09-15T02:00:00.000Z', 'business-1', 'instance-1',
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("readiness_status = IF(is_enabled = 1"), [
+      '$.listingsLastSyncedAt', '2026-09-15T02:00:00.000Z', 1, 1, 'business-1', 'instance-1',
+    ]);
+  });
+
+  it('preserves active readiness after successful Amazon authorization or inventory verification', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+
+    await SalesChannelInstanceRepository.markAmazonSetupOperationForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', operation: 'inventory',
+      completedAt: '2026-09-15T02:00:00.000Z',
+    });
+
+    expect(mockExecute.mock.calls[0][1]).toEqual([
+      '$.inventoryLastSyncedAt', '2026-09-15T02:00:00.000Z', 0, 0, 'business-1', 'instance-1',
     ]);
   });
 
@@ -179,5 +192,33 @@ describe('SalesChannelInstanceRepository', () => {
     expect(mockExecute.mock.calls[0][1][0]).toBe('error');
     expect(mockExecute.mock.calls[0][1][1]).toHaveLength(1000);
     expect(mockExecute.mock.calls[0][1].slice(2)).toEqual([0, 'business-1', 'instance-1']);
+  });
+
+  it('activates Amazon only while the exact instance remains ready', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([{
+      channel_instance_id: 'instance-1', business_id: 'business-1', provider: 'amazon',
+      display_name: 'Amazon AU', external_account_key: 'seller-1', is_enabled: 1,
+      runtime_status: 'active', readiness_status: 'ready', settings_json: '{}', last_sync_at: null, safe_error: null,
+    }]);
+
+    await expect(SalesChannelInstanceRepository.setAmazonActivationForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', active: true, actorUserId: 7,
+    })).resolves.toMatchObject({ enabled: true, runtimeStatus: 'active' });
+
+    expect(mockExecute.mock.calls[0][0]).toContain("AND (? = 0 OR readiness_status = 'ready')");
+    expect(mockExecute.mock.calls[0][1]).toEqual([
+      1, 'active', '$.activatedAt', expect.any(String), '$.activatedByUserId', 7,
+      'business-1', 'instance-1', 1,
+    ]);
+  });
+
+  it('does not report an Amazon activation transition when the readiness guard changes', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 0 });
+
+    await expect(SalesChannelInstanceRepository.setAmazonActivationForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', active: true,
+    })).resolves.toBeNull();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 });
