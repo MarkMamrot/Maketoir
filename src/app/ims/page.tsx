@@ -597,6 +597,10 @@ function DetailSectionDivider({ label, summary, action, marginTop = 24 }: {
   );
 }
 
+function PurchaseOrderFinancialSections({ payments, landedCosts }: { payments: React.ReactNode; landedCosts: React.ReactNode }) {
+  return <>{payments}{landedCosts}</>;
+}
+
 function Row2({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>;
 }
@@ -10851,8 +10855,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             </tfoot>
           </table>
 
-          {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
-          {(() => {
+          <PurchaseOrderFinancialSections landedCosts={(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
             const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received';
             return (
@@ -10932,10 +10935,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 )}
               </div>
             );
-          })()}
-
-          {/* ── Payments ── */}
-          {(() => {
+          })()} payments={(() => {
             const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
             const isFx = currency !== 'AUD';
             const displayRate = normalizeDisplayFxRate(currency, viewModal.po.exchange_rate);
@@ -11062,7 +11062,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 )}
               </div>
             );
-          })()}
+          })()} />
           <DetailSectionDivider label="Accounting" />
           <PoAccountingSection po={viewModal.po} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
 
