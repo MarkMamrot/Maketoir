@@ -1,5 +1,5 @@
 ---
-{"id":"ims-customer-returns-refunds","title":"Customer Returns, Store Credit, and Refunds","audiences":["ims"],"capability":"orders","screen":"Sales > Customer Credit Notes","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-online-shop"],"contexts":["credit-notes"],"contextSections":{"credit-notes":"Step-by-step"},"order":33,"summary":"Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.","lastReviewed":"2026-08-23","owner":"sales"}
+{"id":"ims-customer-returns-refunds","title":"Customer Returns, Store Credit, and Refunds","audiences":["ims"],"capability":"orders","screen":"Sales > Customer Credit Notes","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-online-shop"],"contexts":["credit-notes"],"contextSections":{"credit-notes":"Step-by-step"},"order":33,"summary":"Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.","lastReviewed":"2026-09-15","owner":"sales"}
 ---
 # Customer Returns, Store Credit, and Refunds
 
@@ -10,6 +10,7 @@ Use the credit note linked to the original sale to keep returned goods and custo
 - Create a manual IMS credit note for an in-person or account return handled in IMS.
 - Review POS-created return records without entering the stock return again.
 - Refund a native online order to its original mix of store credit and card payment.
+- Review Amazon refund drafts and choose whether physically received goods should return to stock.
 - Mark goods as awaiting product when value should not be completed yet.
 - Reverse a mistaken completed manual credit note through its offered action.
 
@@ -23,7 +24,7 @@ The credit-note viewer separates the credit summary, credited products and total
 | POS return or exchange | The original sale in POS | POS creates and completes an internal credit note | The linked credit note for returned lines | The register's selected store-credit or refund outcome | Do not restock the POS sale and the credit note separately |
 | Native online return | The native Sales Order **Return / Credit** action | A linked credit note with **Original payment refund** | The linked credit note after payment settlement succeeds | Original store credit is restored first; any remainder goes back through Stripe | Do not issue a separate manual store credit, card refund, or stock adjustment |
 | Shopify return | Shopify's refund workflow | An externally settled Shopify credit note appears in IMS | The imported credit note when Shopify marks the line for restock | Shopify returns the customer value | Do not refund or restock the same line again in IMS |
-| Amazon seller-fulfilled return | Amazon Seller Central | A return observation does not create an IMS credit note | Not from the observation alone; confirm physical receipt first | Amazon handles the external settlement | Do not treat an Amazon refund as proof that goods were received, or refund the customer twice |
+| Amazon seller-fulfilled return | **Integrations > Sales Channels > Sync returns**, then **Customer Credit Notes** | One unambiguous RMA and released refund create an Amazon Draft | Completing the reviewed draft, only for lines where staff select **Restock** | Amazon has already handled the customer refund | Do not issue store credit, send another refund, or select Restock without receiving sellable goods |
 
 ## Before you begin
 
@@ -68,6 +69,16 @@ The credit-note viewer separates the credit summary, credited products and total
 3. Fix the payment issue, then retry completion on that same note.
 4. Confirm the note is Complete before making any separate correction.
 
+### Review an Amazon refund draft
+
+1. In **Integrations > Sales Channels**, find the exact Amazon seller account and choose **Sync returns**. A return report may remain pending until a later synchronization.
+2. Open **Sales > Customer Credit Notes**, filter **Source** to **Amazon**, and open the Draft linked to the Amazon refund.
+3. Compare the order, RMA, quantities, and refunded total with Seller Central. Solvantis creates a draft only when one unmatched RMA and one released refund match the order.
+4. Leave **Restock** cleared for goods not received, damaged, or unsellable. Select it only for mapped sellable goods physically received at the shown location.
+5. Complete the reviewed draft. Completion records the return and adds only selected goods to stock; it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.
+
+> **Important:** Amazon's seller settlement total can include fees and fee reversals. Solvantis uses the customer-facing refunded amount from the return report for the draft, not the seller's net transaction total.
+
 ## Troubleshooting
 
 | Symptom | Likely reason | What to do |
@@ -77,6 +88,7 @@ The credit-note viewer separates the credit summary, credited products and total
 | Stock did not return | **Restock** was cleared, the item was not linked to a stock variant, or completion failed | Review the line and note status before correcting anything |
 | Native refund failed | Stripe could not verify or settle the original card payment | Fix the shown issue and retry the same credit note |
 | Amazon shows a refund but stock did not return | A financial refund does not confirm physical receipt | Check the Amazon return and receive the goods through the appropriate IMS return workflow only when they are physically received |
+| No Amazon Draft was created | The report is still pending, the order was not imported through that seller account, or multiple unmatched RMAs/refunds made the match ambiguous | Run Sync returns later, confirm the exact seller account, and compare the order's return and refund records |
 | Xero failed after a manual return completed | The operational return succeeded but accounting did not | Retry the note's Xero action; do not repeat the return |
 
 ## Worked examples

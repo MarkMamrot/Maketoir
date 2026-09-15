@@ -32,19 +32,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
       actorId: session.userId,
       actorName: session.name ?? session.email,
     });
-    triggerCNXeroSync(businessId, cnId).catch(error => reportRuntimeIssue({
-      businessId,
-      source: 'ims_credit_notes',
-      operation: 'complete_xero_sync',
-      title: 'Customer credit note completed but Xero sync failed',
-      error,
-      reference: { type: 'credit_note', id: cnId },
-    }).catch(() => {}));
+    const xeroExcluded = pendingNote?.source === 'amazon';
+    if (!xeroExcluded) {
+      triggerCNXeroSync(businessId, cnId).catch(error => reportRuntimeIssue({
+        businessId,
+        source: 'ims_credit_notes',
+        operation: 'complete_xero_sync',
+        title: 'Customer credit note completed but Xero sync failed',
+        error,
+        reference: { type: 'credit_note', id: cnId },
+      }).catch(() => {}));
+    }
     const cn = await ImsCNRepo.get(cnId, businessId);
     return NextResponse.json({
       success: true,
       data: cn,
-      xeroSync: {
+      xeroSync: xeroExcluded ? { state: 'not_required', retryEligible: false } : {
         state: 'queued',
         queuedAt: new Date().toISOString(),
         retryEligible: true,

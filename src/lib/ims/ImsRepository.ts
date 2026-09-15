@@ -5580,13 +5580,16 @@ export interface ImsCN {
   original_so_number?: string | null;
   location_id: number;
   status: CNStatus;
-  source?: 'manual' | 'shopify' | 'pos' | 'so_shortfall';
+  source?: 'manual' | 'shopify' | 'pos' | 'so_shortfall' | 'amazon';
   pos_sale_id?: number | null;
   settlement_method?: 'store_credit' | 'refund' | 'external';
   settlement_status?: 'pending' | 'complete' | 'error';
   store_credit_transaction_id?: number | null;
   shopify_refund_id?: string | null;
   shopify_return_id?: string | null;   // Shopify Returns API id (links return approval to refund)
+  channel_instance_id?: string | null;
+  external_return_id?: string | null;
+  external_refund_id?: string | null;
   cn_date: string;
   completed_at?: string | null;
   reference?: string | null;
@@ -5848,7 +5851,8 @@ export const ImsCNRepo = {
 
   async create(
     data: Pick<ImsCN, 'location_id' | 'cn_date' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes' | 'customer_id'> &
-      Partial<Pick<ImsCN, 'so_id' | 'original_so_number' | 'source' | 'shopify_refund_id' | 'pos_sale_id' | 'settlement_method'>>,
+      Partial<Pick<ImsCN, 'so_id' | 'original_so_number' | 'source' | 'shopify_refund_id' | 'pos_sale_id' |
+        'settlement_method' | 'settlement_status' | 'channel_instance_id' | 'external_return_id' | 'external_refund_id'>>,
     items: (Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>)[],
     businessId: string,
     createdBy?: string,
@@ -5873,11 +5877,14 @@ export const ImsCNRepo = {
       const [res] = await conn.execute(
         `INSERT INTO ims_credit_notes
           (business_id,cn_number,customer_id,so_id,original_so_number,location_id,status,source,pos_sale_id,settlement_method,
-           shopify_refund_id,cn_date,reference,tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           settlement_status,shopify_refund_id,channel_instance_id,external_return_id,external_refund_id,
+           cn_date,reference,tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [businessId, cnNumber, data.customer_id ?? null, data.so_id ?? null, data.original_so_number ?? null,
          data.location_id, 'draft', data.source ?? 'manual', data.pos_sale_id ?? null,
-         data.source === 'shopify' ? 'external' : (data.settlement_method ?? 'store_credit'), data.shopify_refund_id ?? null,
+         data.source === 'shopify' || data.source === 'amazon' ? 'external' : (data.settlement_method ?? 'store_credit'),
+         data.settlement_status ?? 'pending', data.shopify_refund_id ?? null, data.channel_instance_id ?? null,
+         data.external_return_id ?? null, data.external_refund_id ?? null,
          data.cn_date, data.reference ?? null, data.tax_treatment, data.tax_code ?? null,
          subtotal, tax_amount, total_amount, data.notes ?? null, createdBy ?? null],
       );

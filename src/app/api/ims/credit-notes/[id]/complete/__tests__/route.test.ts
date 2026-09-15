@@ -51,6 +51,21 @@ describe('POST /api/ims/credit-notes/[id]/complete', () => {
     }));
   });
 
+  it('completes an Amazon review draft without queuing another Xero credit note', async () => {
+    mocks.get
+      .mockResolvedValueOnce({ id: 41, status: 'draft', source: 'amazon', settlement_method: 'external' })
+      .mockResolvedValueOnce({ id: 41, status: 'complete', source: 'amazon', settlement_method: 'external' });
+
+    const response = await POST(completionRequest(), params);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      success: true,
+      xeroSync: { state: 'not_required', retryEligible: false },
+    });
+    expect(mocks.xero).not.toHaveBeenCalled();
+  });
+
   it('keeps Advisor accounts read-only', async () => {
     mocks.session.mockResolvedValue({ businessId: 'biz-1', tier: 'Advisor' });
 

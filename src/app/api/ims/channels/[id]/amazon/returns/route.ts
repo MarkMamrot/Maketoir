@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
+import { syncAmazonRefundsForChannel } from '@/lib/channels/amazonRefundSync';
 import { syncAmazonReturnsForChannel } from '@/lib/channels/amazonReturnSync';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -23,7 +24,11 @@ export async function POST(_request: Request, { params }: Context) {
     if (!instance || instance.provider !== 'amazon') {
       return NextResponse.json({ error: 'Amazon channel not found.' }, { status: 404 });
     }
-    return NextResponse.json({ success: true, ...await syncAmazonReturnsForChannel({ businessId, channelInstanceId }) });
+    const [returns, refunds] = await Promise.all([
+      syncAmazonReturnsForChannel({ businessId, channelInstanceId }),
+      syncAmazonRefundsForChannel({ businessId, channelInstanceId }),
+    ]);
+    return NextResponse.json({ success: true, returns, refunds });
   } catch (error) {
     await reportRuntimeIssue({
       businessId, source: 'amazon.returns', operation: 'manual_returns_sync',

@@ -207,6 +207,26 @@ export const SalesChannelInstanceRepository = {
     );
   },
 
+  async setAmazonRefundSyncCursorForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    lastPostedAt: string;
+  }): Promise<void> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    const lastPostedAt = input.lastPostedAt.trim();
+    if (!businessId || !channelInstanceId || !lastPostedAt) {
+      throw new SalesChannelValidationError('A valid Amazon refund cursor is required.');
+    }
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.refundsLastPostedAt', ?),
+              last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'amazon'`,
+      [lastPostedAt, businessId, channelInstanceId],
+    );
+  },
+
   async setReadinessForBusiness(input: {
     businessId: string;
     channelInstanceId: string;

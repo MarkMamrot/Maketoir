@@ -546,7 +546,7 @@ export async function triggerSOXeroVoid(businessId: string, soId: number): Promi
  */
 export async function triggerCNXeroSync(businessId: string, cnId: number): Promise<void> {
   const cn = await ImsCNRepo.get(cnId, businessId);
-  if (!cn || cn.status !== 'complete' || cn.source === 'pos') return;
+  if (!cn || cn.status !== 'complete' || cn.source === 'pos' || cn.source === 'amazon') return;
   if (!(await isXeroConnected(businessId))) return;
 
   const policy = await loadDocumentPolicy(businessId);

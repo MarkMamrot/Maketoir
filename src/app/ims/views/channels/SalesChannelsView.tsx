@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, RefreshCw, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, RefreshCw, RotateCcw, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ChannelCapabilities {
@@ -97,6 +97,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [inventorySyncingId, setInventorySyncingId] = useState<string | null>(null);
   const [orderSyncingId, setOrderSyncingId] = useState<string | null>(null);
+  const [returnSyncingId, setReturnSyncingId] = useState<string | null>(null);
   const [orderSettingsInstance, setOrderSettingsInstance] = useState<ChannelInstance | null>(null);
   const [orderLocations, setOrderLocations] = useState<OrderLocation[]>([]);
   const [orderLocationId, setOrderLocationId] = useState('');
@@ -300,6 +301,27 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     }
   };
 
+  const syncAmazonReturns = async (instance: ChannelInstance) => {
+    setReturnSyncingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/returns`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon returns could not be synchronized.');
+      const returnsState = body.returns?.state === 'requested' ? 'return report requested'
+        : body.returns?.state === 'pending' ? 'return report pending' : `${Number(body.returns?.observed ?? 0)} returns observed`;
+      setNotice(`${instance.displayName}: ${returnsState}; ${Number(body.refunds?.observed ?? 0)} refunds observed, ${Number(body.refunds?.created ?? 0)} review drafts created, ${Number(body.refunds?.ambiguous ?? 0)} ambiguous.`);
+      await load();
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : 'Amazon returns could not be synchronized.');
+    } finally {
+      setReturnSyncingId(null);
+    }
+  };
+
   const openAmazonMappings = async (instance: ChannelInstance) => {
     setMappingInstance(instance);
     setMappings([]);
@@ -491,6 +513,11 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                   {canManage && instance.provider === 'amazon' && (
                     <button type="button" disabled={orderSyncingId === instance.channelInstanceId} onClick={() => void syncAmazonOrders(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid #bae6fd', borderRadius: 4, color: '#075985', background: '#f0f9ff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: orderSyncingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
                       <ShoppingBag size={14} aria-hidden="true" /> {orderSyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync orders'}
+                    </button>
+                  )}
+                  {canManage && instance.provider === 'amazon' && (
+                    <button type="button" disabled={returnSyncingId === instance.channelInstanceId} onClick={() => void syncAmazonReturns(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid #fecdd3', borderRadius: 4, color: '#9f1239', background: '#fff1f2', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: returnSyncingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
+                      <RotateCcw size={14} aria-hidden="true" /> {returnSyncingId === instance.channelInstanceId ? 'Syncing...' : 'Sync returns'}
                     </button>
                   )}
                 </div>

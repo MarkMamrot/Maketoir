@@ -11989,7 +11989,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [recordType, setRecordType] = useState<'credit_notes' | 'pos_returns'>('credit_notes');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopify'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopify' | 'amazon'>('all');
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterReference, setFilterReference] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -12360,6 +12360,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const sourceBadge = (source: string) => {
     const meta = source === 'shopify'
       ? { label: 'Shopify', background: 'rgba(16,185,129,.1)', color: 'var(--sv-mint)' }
+      : source === 'amazon'
+        ? { label: 'Amazon', background: '#fff1f2', color: '#9f1239' }
       : source === 'pos'
         ? { label: 'POS', background: 'rgba(56,189,248,.12)', color: '#38bdf8' }
         : { label: 'Manual', background: 'rgba(156,163,175,.12)', color: 'var(--sv-text-dim)' };
@@ -12383,7 +12385,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
       <p style={{ margin: '-10px 0 16px', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
         {recordType === 'pos_returns'
           ? `These internal return records are created by POS Sales to own returned stock and store-credit issuance.${xeroAccountingEnabled ? ' They remain in the POS end-of-day accounting flow and are not posted to Xero as separate credit notes.' : ''}`
-          : 'Completing a manual credit note adds its value to the customer\'s read-only store-credit balance. Shopify credits are settled by Shopify. Every balance change is recorded in the customer store-credit ledger.'}
+          : 'Completing a manual credit note adds its value to the customer\'s read-only store-credit balance. Shopify credits are settled by Shopify. Amazon refund drafts require review before completion and begin with Restock cleared. Every balance change is recorded in the customer store-credit ledger.'}
       </p>
 
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -12431,10 +12433,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 {recordType === 'credit_notes' && (
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Source</label>
-                    <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopify')} style={{ ...inputStyle, width: '100%' }}>
+                    <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopify' | 'amazon')} style={{ ...inputStyle, width: '100%' }}>
                       <option value="all">All Sources</option>
                       <option value="manual">Manual / IMS</option>
                       <option value="shopify">Shopify</option>
+                      <option value="amazon">Amazon</option>
                     </select>
                   </div>
                 )}
@@ -12450,7 +12453,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 </div>
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
                   <div>Type: <strong style={{ color: 'var(--sv-text-main)' }}>{recordType === 'pos_returns' ? 'POS Returns / Exchanges' : 'Customer Credit Notes'}</strong></div>
-                  {recordType === 'credit_notes' && <div>Source: <strong style={{ color: 'var(--sv-text-main)' }}>{sourceFilter === 'all' ? 'All Sources' : sourceFilter === 'manual' ? 'Manual / IMS' : 'Shopify'}</strong></div>}
+                  {recordType === 'credit_notes' && <div>Source: <strong style={{ color: 'var(--sv-text-main)' }}>{sourceFilter === 'all' ? 'All Sources' : sourceFilter === 'manual' ? 'Manual / IMS' : sourceFilter === 'amazon' ? 'Amazon' : 'Shopify'}</strong></div>}
                   <div>Status: <strong style={{ color: 'var(--sv-text-main)', textTransform: 'capitalize' }}>{statusFilter ? statusFilter.replace('_', ' ') : 'All'}</strong></div>
                   <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
                 </div>
@@ -12498,6 +12501,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     <td style={{ padding: '10px 12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtCurrency(cn.total_amount)}</td>
                     {xeroAccountingEnabled && <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                       {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported and settled by Shopify">Shopify</span>
+                        : cn.source === 'amazon' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Externally settled by Amazon">Amazon</span>
                         : cn.source === 'pos' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Included in the POS end-of-day accounting flow">POS / EOD</span>
                         : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
                         : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
@@ -12670,8 +12674,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 ['Location', viewModal.cn.location_name],
                 ['Customer', viewModal.cn.customer_name ?? '—'],
                 ['Reference', viewModal.cn.reference ?? '—'],
-                ['Source', viewModal.cn.source === 'pos' ? 'POS return' : viewModal.cn.source === 'shopify' ? 'Shopify' : 'Manual IMS'],
-                ['Settlement', viewModal.cn.settlement_method === 'store_credit' ? 'Customer store credit' : viewModal.cn.settlement_method === 'refund' ? 'Original payment refund' : 'External (Shopify)'],
+                ['Source', viewModal.cn.source === 'pos' ? 'POS return' : viewModal.cn.source === 'shopify' ? 'Shopify' : viewModal.cn.source === 'amazon' ? 'Amazon' : 'Manual IMS'],
+                ['Settlement', viewModal.cn.settlement_method === 'store_credit' ? 'Customer store credit' : viewModal.cn.settlement_method === 'refund' ? 'Original payment refund' : viewModal.cn.source === 'amazon' ? 'External (Amazon)' : 'External (Shopify)'],
                 ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : viewModal.cn.tax_treatment === 'no_tax' ? 'No Tax' : 'Ex-Tax'],
                 ['Status', viewModal.cn.status],
               ].map(([label, val]) => (

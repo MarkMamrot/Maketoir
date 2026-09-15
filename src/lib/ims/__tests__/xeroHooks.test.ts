@@ -361,6 +361,15 @@ describe('credit note Xero document policies', () => {
     expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
   });
 
+  it('never syncs externally settled Amazon credit notes separately', async () => {
+    mockCNGet.mockResolvedValue({ ...customerCreditNote, source: 'amazon', settlement_method: 'external' });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockGetPolicy).not.toHaveBeenCalled();
+    expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+  });
+
   it('always creates Shopify credit notes as Authorised', async () => {
     mockCNGet.mockResolvedValue({ ...customerCreditNote, source: 'shopify' });
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, manualCustomerCreditNoteAction: 'none' });

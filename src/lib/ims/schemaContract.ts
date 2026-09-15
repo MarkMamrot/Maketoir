@@ -147,6 +147,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_sales_channel_product_mappings: ['business_id', 'channel_instance_id', 'variant_id', 'external_product_id', 'external_variant_id', 'mapping_status', 'last_seen_at'],
   ims_sales_channel_events: ['business_id', 'channel_instance_id', 'provider', 'event_type', 'external_event_id', 'status', 'attempts'],
   ims_sales_channel_jobs: ['business_id', 'channel_instance_id', 'provider', 'operation', 'operation_key', 'status', 'attempts', 'available_at'],
+  ims_credit_notes: ['business_id', 'source', 'settlement_method', 'channel_instance_id', 'external_return_id', 'external_refund_id'],
   loyalty_redemptions: ['expires_at'],
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
   ims_bulk_product_presets: ['business_id', 'user_key', 'name', 'settings_json', 'last_used_at', 'created_at', 'updated_at'],

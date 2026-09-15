@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { syncAmazonRefundsForChannel } from '@/lib/channels/amazonRefundSync';
 import { syncAmazonReturnsForChannel } from '@/lib/channels/amazonReturnSync';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { query } from '@/services/MySQLService';
@@ -20,17 +21,21 @@ export async function POST(request: Request) {
         AND business.deleted_at IS NULL AND COALESCE(business.automation_paused, 0) = 0
       ORDER BY instance.business_id, instance.channel_instance_id`,
   );
-  const totals = { channels: channels.length, requested: 0, pending: 0, complete: 0, observed: 0, ignored: 0, failed: 0 };
+  const totals = {
+    channels: channels.length, requested: 0, pending: 0, complete: 0,
+    returnsObserved: 0, refundsObserved: 0, draftsCreated: 0, ambiguous: 0, ignored: 0, failedChannels: 0,
+  };
   for (const channel of channels) {
+    let failed = false;
     try {
       const result = await syncAmazonReturnsForChannel({
         businessId: channel.business_id, channelInstanceId: channel.channel_instance_id,
       });
       totals[result.state] += 1;
-      totals.observed += result.observed;
+      totals.returnsObserved += result.observed;
       totals.ignored += result.ignored;
     } catch (error) {
-      totals.failed += 1;
+      failed = true;
       await reportRuntimeIssue({
         businessId: channel.business_id, source: 'amazon.returns', operation: 'automatic_returns_sync',
         title: 'Automatic Amazon returns synchronization failed', error,
@@ -38,6 +43,24 @@ export async function POST(request: Request) {
         reference: { type: 'sales_channel_instance', id: channel.channel_instance_id },
       }).catch(() => null);
     }
+    try {
+      const result = await syncAmazonRefundsForChannel({
+        businessId: channel.business_id, channelInstanceId: channel.channel_instance_id,
+      });
+      totals.refundsObserved += result.observed;
+      totals.draftsCreated += result.created;
+      totals.ambiguous += result.ambiguous;
+      totals.ignored += result.ignored;
+    } catch (error) {
+      failed = true;
+      await reportRuntimeIssue({
+        businessId: channel.business_id, source: 'amazon.refunds', operation: 'automatic_refunds_sync',
+        title: 'Automatic Amazon refund synchronization failed', error,
+        context: { channelInstanceId: channel.channel_instance_id },
+        reference: { type: 'sales_channel_instance', id: channel.channel_instance_id },
+      }).catch(() => null);
+    }
+    if (failed) totals.failedChannels += 1;
   }
-  return NextResponse.json({ success: totals.failed === 0, ...totals }, { status: totals.failed === 0 ? 200 : 207 });
+  return NextResponse.json({ success: totals.failedChannels === 0, ...totals }, { status: totals.failedChannels === 0 ? 200 : 207 });
 }

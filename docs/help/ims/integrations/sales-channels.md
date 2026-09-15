@@ -19,6 +19,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Enable inventory for selected one-to-one Amazon listing mappings and synchronize current online availability.
 - Choose a dispatch location for each Amazon seller account and synchronize seller-fulfilled orders.
 - Dispatch prepared Amazon orders with parcel tracking and monitor any channel confirmation retry.
+- Synchronize Amazon returns and externally settled refunds, then review any generated credit-note drafts.
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
@@ -59,9 +60,11 @@ When staff mark a prepared Amazon shipment dispatched, Solvantis fulfils the ass
 
 If Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again, and automatic retries start only after the Amazon channel completes final activation. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.
 
-After final activation, Solvantis periodically requests the seller return report for each Amazon account. Amazon prepares these reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report windows and Amazon RMA identities prevent a boundary update from creating a duplicate observation.
+Choose **Sync returns** to request or poll the seller return report and read released Amazon refund transactions for that account. Amazon prepares return reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report and finance windows plus Amazon return/refund identities prevent a boundary update from creating a duplicate observation. After final activation, Solvantis performs the same checks automatically.
 
-An Amazon return observation records the return request, quantity, reason, resolution, delivery date, and Amazon-reported refunded amount against an order from that exact seller account. The observation alone does not add stock, create store credit, issue another refund, or create an IMS credit note. Confirm physical receipt and Amazon settlement before completing any separate IMS correction.
+An Amazon return observation records the return request, quantity, reason, resolution, delivery date, and Amazon-reported refunded amount against an order from that exact seller account. When one unreconciled Amazon RMA and one released refund match the order unambiguously, Solvantis creates an Amazon Draft in **Customer Credit Notes**. Its settlement is already external and every line starts with **Restock** cleared. Review the draft and select **Restock** only for sellable goods physically received before completion. Completing it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.
+
+If an order has multiple unmatched RMAs or refunds, Solvantis reports the evidence as ambiguous and does not guess which records belong together. Review those cases before recording a linked correction.
 
 Inventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final activation checks must still be completed before the channel can become active.
 
@@ -94,7 +97,8 @@ Inventory synchronization does not itself activate the Amazon channel. Orders, f
 | More Amazon order updates remain | Run **Sync orders** again; each pass is bounded so provider requests remain reliable |
 | An Amazon shipment shows Channel sync pending | Check parcel tracking and the exact seller connection, then choose **Mark dispatched** to retry the outstanding confirmation |
 | An Amazon return is not yet observed | Amazon may still be preparing the seller return report; check the exact seller account and allow the next synchronization to poll it |
-| An observed Amazon return did not add stock or customer credit | This is intentional; confirm physical receipt and settlement before using the appropriate linked return workflow |
+| An Amazon return shows as ambiguous | More than one unmatched RMA or refund exists for the order; review the Amazon records before creating a linked correction |
+| An Amazon Draft did not add stock or customer credit | This is intentional; verify the externally settled amount and select Restock only for goods physically received before completing the draft |
 
 ## Worked examples
 

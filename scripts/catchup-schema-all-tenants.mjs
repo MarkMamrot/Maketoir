@@ -926,12 +926,15 @@ const TABLE_DDLS = [
     original_so_number  VARCHAR(100) NULL,
     location_id         INT          NOT NULL,
     status              ENUM('draft','awaiting_product','complete','cancelled','reversed') NOT NULL DEFAULT 'draft',
-    source              ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual',
+    source              ENUM('manual','shopify','pos','so_shortfall','amazon') NOT NULL DEFAULT 'manual',
     pos_sale_id         INT          NULL,
     settlement_method   ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit',
     settlement_status   ENUM('pending','complete','error') NOT NULL DEFAULT 'pending',
     store_credit_transaction_id INT NULL,
     shopify_return_id   VARCHAR(100) NULL,
+    channel_instance_id CHAR(36) NULL,
+    external_return_id  VARCHAR(191) NULL,
+    external_refund_id  VARCHAR(191) NULL,
     cn_date             DATE         NOT NULL,
     completed_at        DATETIME     NULL,
     reversed_at         DATETIME     NULL,
@@ -957,6 +960,8 @@ const TABLE_DDLS = [
     INDEX idx_status (status),
     INDEX idx_customer (customer_id),
     INDEX idx_shopify_return (business_id, shopify_return_id),
+    UNIQUE KEY uq_cn_channel_return (business_id, channel_instance_id, external_return_id),
+    UNIQUE KEY uq_cn_channel_refund (business_id, channel_instance_id, external_refund_id),
     UNIQUE INDEX uq_cn_pos_sale (business_id, pos_sale_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_credit_note_items (
@@ -1357,12 +1362,15 @@ const COLUMNS = [
   // ── ims_credit_notes ─────────────────────────────────────────────────────
   ['ims_credit_notes', 'so_id',               'INT NULL'],
   ['ims_credit_notes', 'original_so_number',  'VARCHAR(100) NULL'],
-  ['ims_credit_notes', 'source',              "ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual'"],
+  ['ims_credit_notes', 'source',              "ENUM('manual','shopify','pos','so_shortfall','amazon') NOT NULL DEFAULT 'manual'"],
   ['ims_credit_notes', 'pos_sale_id',         'INT NULL'],
   ['ims_credit_notes', 'settlement_method',   "ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit'"],
   ['ims_credit_notes', 'settlement_status',   "ENUM('pending','complete','error') NOT NULL DEFAULT 'pending'"],
   ['ims_credit_notes', 'store_credit_transaction_id', 'INT NULL'],
   ['ims_credit_notes', 'shopify_return_id',   'VARCHAR(100) NULL'],
+  ['ims_credit_notes', 'channel_instance_id', 'CHAR(36) NULL AFTER shopify_return_id'],
+  ['ims_credit_notes', 'external_return_id',  'VARCHAR(191) NULL AFTER channel_instance_id'],
+  ['ims_credit_notes', 'external_refund_id',  'VARCHAR(191) NULL AFTER external_return_id'],
   ['ims_credit_notes', 'completed_at',        'DATETIME NULL'],
   ['ims_credit_notes', 'reversed_at',         'DATETIME NULL'],
   ['ims_credit_notes', 'reversal_reason',     'VARCHAR(500) NULL'],
@@ -1514,6 +1522,8 @@ const INDEXES = [
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
+  ['ims_credit_notes', 'uq_cn_channel_return', 'UNIQUE INDEX `uq_cn_channel_return` (`business_id`, `channel_instance_id`, `external_return_id`)'],
+  ['ims_credit_notes', 'uq_cn_channel_refund', 'UNIQUE INDEX `uq_cn_channel_refund` (`business_id`, `channel_instance_id`, `external_refund_id`)'],
   ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],
   ['ims_credit_notes', 'uq_business_cn', 'UNIQUE INDEX `uq_business_cn` (`business_id`, `cn_number`)'],
   ['ims_credit_note_items', 'idx_cn_source_so_item', 'INDEX `idx_cn_source_so_item` (`source_so_item_id`)'],
@@ -1883,7 +1893,7 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'gift_card_transactions', 'type', ['deactivate', 'reconcile']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
-    await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);
+    await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall', 'amazon']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'tax_treatment', ['ex_tax', 'inc_tax', 'no_tax']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
