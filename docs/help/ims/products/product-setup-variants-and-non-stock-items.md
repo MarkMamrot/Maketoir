@@ -15,6 +15,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
 - Record weight and package dimensions for variants that may be shipped.
 - Record product-level customs details before preparing the item for international shipping.
+- Mark a product as an online candidate, preview its destination for every configured storefront, and override an individual channel assignment when needed.
 - Choose which optional product and variant fields appear under **Settings > Products**.
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
 - Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.
@@ -63,7 +64,10 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 13. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
 14. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.
-15. Choose **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.
+15. For a saved product, use **Online candidate** to make its catalogue content available to channel-rule evaluation. Under **Channel destinations**, review the saved product's effective Include or Exclude result, matched rule, override and observed provider state for every configured storefront. An administrator can choose **Include** or **Exclude** for one storefront, or **Automatic** to return the product to that storefront's ordered rules.
+16. Choose **Save All**, then refresh **Channel destinations** to evaluate the saved catalogue values. Check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.
+
+The destination preview evaluates saved product data. Unsaved changes to brand, category, tags, online candidate, content, images or variants do not affect the result until the product is saved and the preview is refreshed. A destination override changes assignment intent only. It does not publish, unpublish or modify the product at Shopify, Amazon or the Solvantis Online Store, and the observed provider state can differ until a publication workflow processes that intent.
 
 When **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.
 

@@ -55,4 +55,22 @@ describe('channel product assignment repository', () => {
     expect(mocks.execute.mock.calls[0][0]).toContain('product.business_id = ? AND product.product_id = ?');
     expect(mocks.execute.mock.calls[0][1]).toEqual(['instance-1', 'include', 'include', 'business-1', 'product-1']);
   });
+
+  it('evaluates one exact product without using a fuzzy search match', async () => {
+    mocks.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ product_id: 'product-1', product_name: 'Dress', is_online: 1, is_active: 1,
+        is_stock_item: 1, description: null, website_title: null, product_type: null, category: null,
+        subcategory: null, brand: null, tags: null, image_count: 0, variant_count: 1,
+        override_mode: null, provider_state: null }])
+      .mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await evaluateChannelProducts({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      productId: 'product-1', limit: 1 });
+
+    expect(mocks.query.mock.calls[1][0]).toContain('product.product_id = ?');
+    expect(mocks.query.mock.calls[1][1]).toEqual(['instance-1', 'business-1', 'product-1', 1, 0]);
+    expect(mocks.query.mock.calls[2][1]).toEqual(['business-1', 'product-1']);
+    expect(result.products).toHaveLength(1);
+  });
 });

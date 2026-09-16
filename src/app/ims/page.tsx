@@ -62,6 +62,7 @@ import { StockAvailabilityManagementView } from './views/reports/StockAvailabili
 import { BulkAddEditProductsView } from './views/products/BulkAddEditProductsView';
 import { ProductBuildsView } from './views/products/ProductBuildsView';
 import { BuildRecipeEditor } from './views/products/BuildRecipeEditor';
+import { ProductChannelDestinations } from './views/products/ProductChannelDestinations';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
@@ -4318,6 +4319,8 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
         </label>
         <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Makes this product eligible for channel rules; it does not publish the product.</span>
       </div>
+
+      <ProductChannelDestinations productId={productId} isReadOnly={isReadOnly} />
 
       <div style={{ position: 'relative', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
         {loading ? (

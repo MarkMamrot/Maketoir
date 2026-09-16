@@ -161,16 +161,20 @@ export async function evaluateChannelProducts(input: {
   businessId: string;
   channelInstanceId: string;
   apply?: boolean;
+  productId?: string;
   search?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ products: ChannelProductEvaluationRow[]; total: number; applied: number }> {
   const rules = await listChannelProductRules(input);
+  const productId = String(input.productId ?? '').trim();
   const search = String(input.search ?? '').trim();
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
   const offset = Math.max(0, Math.floor(input.offset ?? 0));
+  const whereProduct = productId ? ' AND product.product_id = ?' : '';
   const whereSearch = search ? ' AND (product.name LIKE ? OR product.base_sku LIKE ? OR product.brand LIKE ?)' : '';
   const params: unknown[] = [input.channelInstanceId, input.businessId];
+  if (productId) params.push(productId);
   if (search) params.push(...Array(3).fill(`%${search}%`));
   const rows = await imsQuery<ProductContextRow>(
     `SELECT product.product_id, product.name AS product_name, product.is_online, product.is_active,
@@ -188,14 +192,15 @@ export async function evaluateChannelProducts(input: {
        LEFT JOIN ims_sales_channel_product_assignments assignment
          ON assignment.business_id = product.business_id AND assignment.channel_instance_id = ?
         AND assignment.product_id = product.product_id
-      WHERE product.business_id = ?${whereSearch}
+      WHERE product.business_id = ?${whereProduct}${whereSearch}
       ORDER BY product.name, product.product_id LIMIT ? OFFSET ?`,
     [...params, limit, offset],
   );
   const countParams: unknown[] = [input.businessId];
+  if (productId) countParams.push(productId);
   if (search) countParams.push(...Array(3).fill(`%${search}%`));
   const countRows = await imsQuery<{ total: number | string }>(
-    `SELECT COUNT(*) AS total FROM ims_products product WHERE product.business_id = ?${whereSearch}`,
+    `SELECT COUNT(*) AS total FROM ims_products product WHERE product.business_id = ?${whereProduct}${whereSearch}`,
     countParams,
   );
   const evaluated = rows.map(row => {

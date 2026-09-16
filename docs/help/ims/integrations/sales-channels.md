@@ -40,6 +40,8 @@ Rules run in their displayed order and the first matching enabled rule decides w
 
 Use **Save and preview** to store the rules and inspect the result without changing assignments. The preview shows the matched rule, automatic result, effective result and provider state. Set a product override to **Include** or **Exclude** when it must differ from the automatic result; choose **Automatic** to return it to rule control. Overrides remain in effect when rules are changed or reapplied.
 
+The same effective result is shown for a saved product under **Products > All Products > Online Store > Channel destinations**. Save catalogue changes before refreshing that product preview. Administrators can set the same exact-storefront override there without opening the complete rule list.
+
 Choose **Apply assignments** only after reviewing the preview. Applying records the desired assignment for all products in the channel; it does not create, update, publish or remove anything at Shopify, Amazon or the Solvantis Online Store. Existing provider links and publication continue unchanged until the relevant publication workflow processes that intent.
 
 Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.

@@ -1,3 +1,10 @@
+## 2026-09-16 - Product-level channel destination preview
+
+- A saved product's Online Store section now evaluates that exact product across every configured sales-channel instance and shows its effective Include/Exclude destination, matched rule, persistent override and observed provider state.
+- Administrators can set the same exact-storefront `automatic`, `include` or `exclude` override from the product editor; advisors can review results without changing them. The preview always uses saved catalogue values and never publishes or unpublishes provider products.
+- The read-only product destination route verifies product ownership in the active tenant before evaluating exact-instance rules and reports operational failures through Runtime Issues.
+- Validation passed 169 focused channel tests, the full 2,883-test suite with five environment-gated skips, Help/Assistant compilation, production build, and touched-file diagnostics. No schema deployment or provider request was performed.
+
 ## 2026-09-15 - Provider-neutral channel product assignment foundation
 
 - `ims_products.is_online` is now presented as **Online candidate**: an input to online content preparation and channel rules, not an instruction to publish to every storefront.
