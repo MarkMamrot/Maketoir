@@ -2558,7 +2558,8 @@ function MainPos({
         </button>
         {(daybookPreferences.showInMainMenu || (daybookPreferences.hourlyReminder && daybookIncomplete > 0)) && <a
           href="/pos?screen=daybook"
-          onClick={event => { event.preventDefault(); setScreen('daybook'); }}
+          target="_blank"
+          rel="noopener noreferrer"
           className={daybookReminderPulse ? 'pos-daybook-reminder-pulse' : ''}
           title={daybookIncomplete > 0 ? `Store Daybook: ${daybookIncomplete} incomplete task${daybookIncomplete === 1 ? '' : 's'}` : 'Store Daybook'}
           aria-label={daybookIncomplete > 0 ? `Open Store Daybook, ${daybookIncomplete} incomplete tasks` : 'Open Store Daybook'}
@@ -2646,7 +2647,7 @@ function MainPos({
                       {isLayby ? 'Layby: ON' : 'Layby: Off'}
                     </button>
                     <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
-                    <a href="/pos?screen=daybook" onClick={event => { event.preventDefault(); setScreen('daybook'); setMoreMenuOpen(false); }}
+                    <a href="/pos?screen=daybook" target="_blank" rel="noopener noreferrer" onClick={() => setMoreMenuOpen(false)}
                       style={btnStyle({ color: '#f6c55b', fontWeight: 750 })}
                       onMouseEnter={e => (e.currentTarget.style.background = mHov)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}

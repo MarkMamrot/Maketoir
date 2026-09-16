@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
+  AlertTriangle, Bold, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
   ClipboardPlus, ClipboardX, Copy, Eye, Megaphone, MessageSquare, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
-  Trash2, Truck, UserRoundCheck, Users, X,
+  Italic, List, Trash2, Truck, UserRoundCheck, Users, X,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { PosSession } from '../../_types';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { getDaybookDisplayDates, getDaybookTaskDisplay } from '@/lib/pos/daybookService';
@@ -21,13 +23,13 @@ type Staff = { id?: number | null; name: string; initials: string };
 type TaskPhase = 'opening' | 'during_day' | 'closing';
 type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; comments?: DaybookComment[]; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
 type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; instructions?: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; is_active: number; can_edit: boolean; staff_name?: string; staff_initials?: string; signed_at?: string };
-type EditableTask = Pick<Task, 'template_id' | 'title_snapshot' | 'instructions' | 'phase' | 'recurrence' | 'weekday' | 'scheduled_date'>;
+type EditableTask = Pick<Task, 'id' | 'template_id' | 'title_snapshot' | 'instructions' | 'phase' | 'recurrence' | 'weekday' | 'scheduled_date'>;
 type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
 type Reader = { name: string; initials: string; read_at: string };
 type DaybookComment = { id: number; item_type: 'task' | 'communication' | 'record'; item_id: number; comment_text: string; staff_name: string; staff_initials: string; actor_name: string; created_at: string };
 type Editable = { background_color?: ColourKey | null; can_edit: boolean };
 type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number; readers: Reader[]; comments: DaybookComment[] };
-type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null; comments: DaybookComment[] };
+type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; resolved_at?: string | null; status_updated_at?: string | null; status_staff_initials?: string | null; location_id: number; source_location_id?: number | null; destination_location_id?: number | null; staff_name: string; staff_initials: string; comments: DaybookComment[] };
 type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null; secret_label?: string | null; has_secret?: boolean };
 type ReferenceCategory = { id: number; name: string };
 type GuideRow = Editable & { id: number; variant_id?: string | null; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
@@ -113,6 +115,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   const [active, setActive] = useState<string>('today');
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [staff, setStaff] = useState<Staff | null>(null);
+  const [staffHydrated, setStaffHydrated] = useState(false);
   const [identityOpen, setIdentityOpen] = useState(false);
   const [identityName, setIdentityName] = useState('');
   const [identityInitials, setIdentityInitials] = useState('');
@@ -139,6 +142,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
       setStaff(saved ? JSON.parse(saved) : null);
       setIdentityOpen(!saved);
     } catch { setStaff(null); setIdentityOpen(true); }
+    finally { setStaffHydrated(true); }
   }, [identityKey]);
 
   useEffect(() => {
@@ -162,7 +166,9 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
     finally { if (showLoading) setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (staffHydrated) void load(staff);
+  }, [date, staff?.id, staff?.initials, staffHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (workspace && workspace.date !== taskPhaseDate) {
@@ -377,7 +383,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
             onPhaseChange={setTaskPhase}
             saving={saving}
             onSign={signChecklistTask}
-            onEdit={task => openEditor('task', { _id: task.template_id, title: task.title_snapshot, instructions: task.instructions, phase: task.phase, recurrence: task.recurrence, weekday: task.weekday, scheduled_date: task.scheduled_date })}
+            onEdit={task => openEditor('task', { _id: task.template_id, _instance_id: task.id, title: task.title_snapshot, instructions: task.instructions, phase: task.phase, recurrence: task.recurrence, weekday: task.weekday, scheduled_date: task.scheduled_date })}
             onDelete={async task => {
               if (!confirm(`Delete "${task.title_snapshot}" from the active Daybook? Future occurrences will stop, while existing sign-off history will be retained.`)) return;
               await perform('delete_item', { item_type: 'task', item_id: task.template_id });
@@ -392,7 +398,8 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
             <Title title="Store communications" subtitle="Latest first. Acknowledgments are visible to the whole store." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('communication', { location_ids: workspace.location.id })}><Plus size={17} /> Add new</button> : undefined} />
             <div className={styles.feed}>{workspace?.communications.map(item => <article className={`${styles.notice} ${item.priority !== 'normal' ? styles.noticeImportant : ''} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}>
               <div className={styles.noticeMeta}><span>{item.priority}</span><time>{shortTime(item.published_at)}</time></div>
-              <div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('communication', { _id: item.id, title: item.title, message: item.message, priority: item.priority, background_color: item.background_color })} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div><p>{item.message}</p>
+              <div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('communication', { _id: item.id, title: item.title, message: item.message, priority: item.priority, background_color: item.background_color })} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div>
+              <div className={styles.formattedMessage}><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{item.message}</ReactMarkdown></div>
               <div className={styles.readers}><Users size={15} />{item.readers.length ? item.readers.map(reader => <span key={reader.initials} title={`${reader.name} · ${shortTime(reader.read_at)}`}><b>{reader.initials}</b>{reader.name}</span>) : <small>No acknowledgments yet</small>}</div>
               <CommentThread comments={item.comments} saving={saving} onAdd={commentText => perform('add_comment', { item_type: 'communication', item_id: item.id, comment_text: commentText })} />
               <footer><small>{item.read_count} acknowledgment{Number(item.read_count) === 1 ? '' : 's'}</small><button disabled={saving || Boolean(Number(item.my_read))} onClick={() => perform('read_communication', { communication_id: item.id })}>{Number(item.my_read) ? <><Check size={16} /> Read</> : 'Mark as read'}</button></footer>
@@ -407,6 +414,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
             saving={saving}
             perform={perform}
             manager={Boolean(workspace?.permissions.manager)}
+            locationId={location.id}
             onAdd={() => openEditor(active as EditorType)}
             onEdit={record => openEditor(active as EditorType, { _id: record.id, occurred_on: record.occurred_on, background_color: record.background_color, ...detailsOf(record) })}
             onDelete={async record => {
@@ -428,7 +436,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
           canAdd={Boolean(workspace?.permissions.manager)}
           onAdd={() => openEditor('reference')}
           onAddCategory={addReferenceCategory}
-          onEdit={item => openEditor('reference', { _id: item.id, category: item.category, title: item.title, content: item.content, link_url: item.link_url, secret_label: item.secret_label, background_color: item.background_color })}
+          onEdit={item => openEditor('reference', { _id: item.id, _has_secret: Boolean(item.has_secret), secret_mode: 'keep', category: item.category, title: item.title, content: item.content, link_url: item.link_url, secret_label: item.secret_label, background_color: item.background_color })}
           revealSecret={referenceId => post('reveal_reference_secret', { reference_id: referenceId })}
         />}
 
@@ -545,13 +553,13 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
 function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className={styles.search}><Search size={17} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>; }
 
-function CommentThread({ comments, saving, onAdd }: { comments: DaybookComment[]; saving: boolean; onAdd: (commentText: string) => Promise<unknown> }) {
+function CommentThread({ comments, saving, onAdd, label = 'Comments', placeholder = 'Leave a comment or update' }: { comments: DaybookComment[]; saving: boolean; onAdd: (commentText: string) => Promise<unknown>; label?: string; placeholder?: string }) {
   const [commentText, setCommentText] = useState('');
   return <details className={styles.commentThread}>
-    <summary><MessageSquare size={14} /> Comments{comments.length ? ` (${comments.length})` : ''}</summary>
+    <summary><MessageSquare size={14} /> {label}{comments.length ? ` (${comments.length})` : ''}</summary>
     <div className={styles.commentList}>{comments.length === 0 && <small>No updates yet.</small>}{comments.map(comment => <div key={comment.id}><b>{comment.staff_name} ({comment.staff_initials})</b><time>{shortTime(comment.created_at)}</time><p>{comment.comment_text}</p></div>)}</div>
     <form onSubmit={async event => { event.preventDefault(); const next = commentText.trim(); if (!next) return; await onAdd(next); setCommentText(''); }}>
-      <textarea value={commentText} onChange={event => setCommentText(event.target.value)} placeholder="Leave a comment or update" maxLength={4000} />
+      <textarea value={commentText} onChange={event => setCommentText(event.target.value)} placeholder={placeholder} maxLength={4000} />
       <button type="submit" disabled={saving || !commentText.trim()}>Add comment</button>
     </form>
   </details>;
@@ -598,16 +606,41 @@ function ReferenceSecret({ label, onReveal }: { label: string; onReveal: () => P
   </div>;
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder = '', maxLength }: { label: string; value?: string; onChange: (value: string) => void; type?: string; placeholder?: string; maxLength?: number }) {
-  return <label className={styles.field}><span>{label}{maxLength && <small>{(value || '').length}/{maxLength}</small>}</span>{type === 'textarea' ? <textarea value={value || ''} maxLength={maxLength} onChange={event => onChange(event.target.value)} placeholder={placeholder} /> : <input type={type} value={value || ''} maxLength={maxLength} onChange={event => onChange(event.target.value)} placeholder={placeholder} />}</label>;
+function Field({ label, value, onChange, type = 'text', placeholder = '', maxLength, autoComplete }: { label: string; value?: string; onChange: (value: string) => void; type?: string; placeholder?: string; maxLength?: number; autoComplete?: string }) {
+  return <label className={styles.field}><span>{label}{maxLength && <small>{(value || '').length}/{maxLength}</small>}</span>{type === 'textarea' ? <textarea value={value || ''} maxLength={maxLength} onChange={event => onChange(event.target.value)} placeholder={placeholder} /> : <input type={type} value={value || ''} maxLength={maxLength} autoComplete={autoComplete} onChange={event => onChange(event.target.value)} placeholder={placeholder} />}</label>;
 }
 
-function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
+function FormattedMessageField({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  function format(kind: 'bold' | 'italic' | 'list') {
+    const input = inputRef.current;
+    if (!input) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const current = value || '';
+    const selected = current.slice(start, end);
+    const before = kind === 'bold' ? '**' : kind === 'italic' ? '*' : '- ';
+    const after = kind === 'bold' ? '**' : kind === 'italic' ? '*' : '';
+    const replacement = kind === 'list'
+      ? (selected || 'List item').split('\n').map(line => `- ${line.replace(/^[-*]\s+/, '')}`).join('\n')
+      : `${before}${selected || (kind === 'bold' ? 'bold text' : 'italic text')}${after}`;
+    const next = `${current.slice(0, start)}${replacement}${current.slice(end)}`;
+    onChange(next);
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(start, start + replacement.length);
+    });
+  }
+  return <label className={styles.field}><span>Message</span><div className={styles.formatEditor}><div className={styles.formatToolbar} aria-label="Message formatting"><button type="button" onClick={() => format('bold')} title="Bold" aria-label="Bold"><Bold size={15} /></button><button type="button" onClick={() => format('italic')} title="Italic" aria-label="Italic"><Italic size={15} /></button><button type="button" onClick={() => format('list')} title="Bulleted list" aria-label="Bulleted list"><List size={15} /></button></div><textarea ref={inputRef} value={value || ''} onChange={event => onChange(event.target.value)} /></div></label>;
+}
+
+function RecordSection({ type, records, saving, perform, manager, locationId, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
   type: string;
   records: RecordRow[];
   saving: boolean;
   perform: (action: string, payload?: Record<string, unknown>) => Promise<void>;
   manager: boolean;
+  locationId: number;
   onAdd: () => void;
   onEdit: (record: RecordRow) => void;
   onDelete: (record: RecordRow) => Promise<void>;
@@ -624,6 +657,9 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit,
   };
   const labels: Record<string, string> = { customer_name: 'Customer name', contact_details: 'Contact details', item: 'Item', notes: 'Notes', quantity: 'Quantity', unit: 'Unit', store_notes: 'Store notes', sku: 'SKU / code', size: 'Size', system_quantity: 'System quantity', physical_quantity: 'Physical quantity found', time: 'Time', staff_present: 'Staff present', event_description: 'Event description', loss_or_damage: 'Loss or damage', emergency_services: 'Emergency services called?', instigator_description: 'Description of incident instigator', management_notified: 'Has management been told?' };
   const usesClipboard = type === 'customer_request' || type === 'store_need';
+  if (type === 'stock_discrepancy') {
+    return <DiscrepancyTable records={records} saving={saving} manager={manager} locationId={locationId} perform={perform} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} />;
+  }
   const recordGroups = type === 'store_need'
     ? [
       ['store_supplies', 'Store Supplies'],
@@ -643,9 +679,9 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit,
           <div className={styles.cardHeading}><h3>{record.title}</h3></div>
           <p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p>
           <small>Logged by {record.staff_name} ({record.staff_initials})</small>
-          {(type === 'customer_request' || type === 'store_need') && <CommentThread comments={record.comments} saving={saving} onAdd={commentText => perform('add_comment', { item_type: 'record', item_id: record.id, comment_text: commentText })} />}
+          {(type === 'customer_request' || type === 'store_need') && <CommentThread comments={record.comments} saving={saving} label={type === 'store_need' ? 'Warehouse updates' : 'Comments'} placeholder={type === 'store_need' ? 'Add availability, packing, dispatch, or supplier update' : 'Leave a comment or update'} onAdd={commentText => perform('add_comment', { item_type: 'record', item_id: record.id, comment_text: commentText })} />}
           <div className={styles.recordFooter}>
-            <StatusActions record={record} saving={saving} manager={manager} perform={perform} />
+            <StatusActions record={record} saving={saving} manager={manager} locationId={locationId} perform={perform} />
             {usesClipboard && <div className={styles.recordCardActions}>
               {record.can_edit && <button type="button" onClick={() => onEdit(record)} title={`Edit ${record.title}`}><Pencil size={15} /> Edit</button>}
               {record.can_edit && <button type="button" className={styles.recordDeleteAction} onClick={() => void onDelete(record)} disabled={saving} title={`Delete ${record.title}`}><Trash2 size={15} /> Delete</button>}
@@ -663,14 +699,56 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit,
   </section>;
 }
 
-function StatusActions({ record, saving, manager, perform }: { record: RecordRow; saving: boolean; manager: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+function DiscrepancyTable({ records, saving, manager, locationId, perform, onAdd, onEdit, onDelete }: {
+  records: RecordRow[];
+  saving: boolean;
+  manager: boolean;
+  locationId: number;
+  perform: (action: string, payload?: Record<string, unknown>) => Promise<void>;
+  onAdd: () => void;
+  onEdit: (record: RecordRow) => void;
+  onDelete: (record: RecordRow) => Promise<void>;
+}) {
+  return <section className={styles.contentSection}>
+    <Title title="Stock discrepancies" subtitle="Compare system and counted quantities in one review table. Daybook does not adjust stock." action={<button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add discrepancy</button>} />
+    <div className={styles.discrepancyScroll} tabIndex={0} aria-label="Stock discrepancies table">
+      <table className={styles.discrepancyTable}>
+        <thead><tr><th>Date</th><th>Code</th><th>Item description</th><th>Size</th><th>System qty</th><th>Actual qty</th><th>Variance</th><th>Staff</th><th>Manager outcome</th><th>Date fixed</th><th>Notes</th><th aria-label="Actions" /></tr></thead>
+        <tbody>{records.map(record => {
+          const details = detailsOf(record);
+          const variance = Number(details.variance ?? Number(details.physical_quantity) - Number(details.system_quantity));
+          return <tr key={record.id}>
+            <td>{record.occurred_on || shortTime(record.created_at)}</td>
+            <td><strong>{String(details.sku || '')}</strong></td>
+            <td>{String(details.item || record.title)}</td>
+            <td>{String(details.size || '')}</td>
+            <td className={styles.quantityCell}>{String(details.system_quantity ?? '')}</td>
+            <td className={styles.quantityCell}>{String(details.physical_quantity ?? '')}</td>
+            <td className={`${styles.quantityCell} ${variance < 0 ? styles.negativeVariance : variance > 0 ? styles.positiveVariance : ''}`}>{Number.isFinite(variance) ? variance : ''}</td>
+            <td>{record.staff_initials || record.staff_name}</td>
+            <td><span className={styles.statusChip}>{record.status.replaceAll('_', ' ')}</span>{record.status_staff_initials && <small className={styles.statusBy}>by {record.status_staff_initials}</small>}<StatusActions record={record} saving={saving} manager={manager} locationId={locationId} perform={perform} /></td>
+            <td>{record.status_updated_at ? shortTime(record.status_updated_at) : ''}</td>
+            <td className={styles.notesCell}>{String(details.notes || '')}</td>
+            <td><div className={styles.tableActions}>{record.can_edit && <><button type="button" onClick={() => onEdit(record)} aria-label={`Edit ${record.title}`} title="Edit discrepancy"><Pencil size={15} /></button><button type="button" onClick={() => void onDelete(record)} disabled={saving} aria-label={`Delete ${record.title}`} title="Delete discrepancy"><Trash2 size={15} /></button></>}</div></td>
+          </tr>;
+        })}</tbody>
+      </table>
+      {records.length === 0 && <p className={styles.empty}>No stock discrepancies recorded.</p>}
+    </div>
+  </section>;
+}
+
+function StatusActions({ record, saving, manager, locationId, perform }: { record: RecordRow; saving: boolean; manager: boolean; locationId: number; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+  const isSource = Number(record.source_location_id ?? record.location_id) === locationId;
+  const isDestination = Number(record.destination_location_id) === locationId;
   const next: Record<string, string[]> = {
     customer_request: record.status === 'open' ? ['contacted', 'fulfilled', 'cancelled'] : record.status === 'contacted' ? ['fulfilled', 'cancelled'] : [],
-    store_need: ({ requested: ['approved', 'cancelled'], approved: ['packed', 'cancelled'], packed: ['sent'], sent: ['received'] } as Record<string, string[]>)[record.status] || [],
+    store_need: ({ requested: [...(isDestination ? ['approved'] : []), 'cancelled'], approved: [...(isDestination ? ['packed'] : []), 'cancelled'], packed: [...(isDestination ? ['sent'] : []), 'cancelled'], sent: isSource ? ['received'] : [] } as Record<string, string[]>)[record.status] || [],
     stock_discrepancy: manager ? ({ open: ['stocktake_planned', 'adjusted', 'no_change', 'closed'], stocktake_planned: ['adjusted', 'no_change', 'closed'], adjusted: ['closed'], no_change: ['closed'] } as Record<string, string[]>)[record.status] || [] : [],
     incident: manager ? ['reviewed', 'closed'].filter(status => status !== record.status) : [],
   };
-  return next[record.record_type]?.length ? <div className={styles.statusActions}>{next[record.record_type].map(status => <button disabled={saving} key={status} onClick={() => perform('transition_record', { record_id: record.id, status })}>{status.replaceAll('_', ' ')}</button>)}</div> : null;
+  const actionLabels: Record<string, string> = { approved: 'Approve', packed: 'Mark packed', sent: 'Mark sent', received: 'Confirm received', contacted: 'Mark contacted', fulfilled: 'Mark fulfilled', cancelled: 'Cancel', stocktake_planned: 'Plan stocktake', adjusted: 'Mark adjusted', no_change: 'Not a discrepancy', closed: 'Close' };
+  return next[record.record_type]?.length ? <div className={styles.statusActions}>{next[record.record_type].map(status => <button disabled={saving} key={status} onClick={() => perform('transition_record', { record_id: record.id, status })}>{actionLabels[status] || status.replaceAll('_', ' ')}</button>)}</div> : null;
 }
 
 function EditorForm({ type, form, setForm, locations, referenceCategories, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; referenceCategories: ReferenceCategory[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
@@ -695,7 +773,7 @@ function EditorForm({ type, form, setForm, locations, referenceCategories, savin
       return;
     }
     const action = type === 'task' ? (editing ? 'update_task' : 'create_task') : type === 'communication' ? (editing ? 'update_communication' : 'create_communication') : type === 'reference' ? (editing ? 'update_reference' : 'save_reference') : editing ? 'update_guide' : 'save_guide';
-    const ids = { template_id: form._id, communication_id: form._id, reference_id: form._id, guide_id: form._id };
+    const ids = { template_id: form._id, instance_id: form._instance_id, communication_id: form._id, reference_id: form._id, guide_id: form._id };
     await perform(action, { ...form, ...ids, background_color: form.background_color || null, location_ids: form.location_ids ? form.location_ids.split(',').map(Number) : [] });
   }
   async function deleteItem() {
@@ -705,8 +783,8 @@ function EditorForm({ type, form, setForm, locations, referenceCategories, savin
   return <><h2 id="editor-title">{editing ? 'Edit' : 'Add new'} {heading}</h2><form className={styles.managerForm} onSubmit={event => { event.preventDefault(); void submit(); }}>
     {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{type === 'store_need' && <label className={styles.field}><span>Category</span><select required value={form.need_category || ''} onChange={event => setForm({ ...form, need_category: event.target.value })}><option value="">Choose a category</option><option value="store_supplies">Store Supplies</option><option value="stock_request">Stock Request</option></select></label>}{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
     {type === 'task' && <><Field label="Task title" value={form.title} maxLength={50} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} maxLength={600} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
-    {type === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Message" type="textarea" value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label>{!editing && <div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div>}</>}
-    {type === 'reference' && <><label className={styles.field}><span>Category</span><input required list="daybook-reference-categories" value={form.category || ''} onChange={event => setForm({ ...form, category: event.target.value })} placeholder="Choose or enter a category" /><datalist id="daybook-reference-categories">{referenceCategories.map(category => <option value={category.name} key={category.id} />)}</datalist></label><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Resource link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /><div className={styles.formRow}><Field label="Secret label (optional)" value={form.secret_label} onChange={value => setForm({ ...form, secret_label: value })} placeholder="Password, PIN, Wi-Fi password" /><Field label={editing ? 'Replace secret (leave blank to keep)' : 'Secret value (optional)'} type="password" value={form.secret_value} onChange={value => setForm({ ...form, secret_value: value })} /></div></>}
+    {type === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><FormattedMessageField value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label>{!editing && <div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div>}</>}
+    {type === 'reference' && <><label className={styles.field}><span>Category</span><input required list="daybook-reference-categories" value={form.category || ''} onChange={event => setForm({ ...form, category: event.target.value })} placeholder="Choose or enter a category" /><datalist id="daybook-reference-categories">{referenceCategories.map(category => <option value={category.name} key={category.id} />)}</datalist></label><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Resource link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} />{editing && form._has_secret === 'true' && <label className={styles.field}><span>Stored secret</span><select value={form.secret_mode || 'keep'} onChange={event => setForm({ ...form, secret_mode: event.target.value, secret_value: '' })}><option value="keep">Keep existing secret</option><option value="replace">Replace secret</option><option value="remove">Remove secret</option></select></label>}<div className={styles.formRow}><Field label="Secret label (optional)" value={form.secret_label} onChange={value => setForm({ ...form, secret_label: value })} placeholder="Password, PIN, Wi-Fi password" />{(!editing || form._has_secret !== 'true' || form.secret_mode === 'replace') && <Field label={editing ? 'New secret value' : 'Secret value (optional)'} type="password" autoComplete="new-password" value={form.secret_value} onChange={value => setForm({ ...form, secret_value: value, secret_mode: value ? 'replace' : form.secret_mode })} />}</div>{editing && form.secret_mode === 'remove' && <p className={styles.secretRemovalNote}>The stored secret and its label will be removed when you save.</p>}</>}
     {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}
     {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
     {editing && confirmDelete && <div className={styles.deleteConfirmation} role="alert"><div><strong>Delete this {heading}?</strong><span>It will leave the active Daybook. Existing audit history is retained.</span></div><button type="button" onClick={() => setConfirmDelete(false)} disabled={saving}>Cancel</button><button type="button" className={styles.confirmDeleteButton} onClick={() => void deleteItem()} disabled={saving}>{saving ? 'Deleting…' : 'Delete item'}</button></div>}

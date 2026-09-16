@@ -311,15 +311,20 @@ export async function GET(request: Request) {
          JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
          WHERE c.business_id = ? AND t.location_id = ? AND c.archived_at IS NULL
            AND (c.expires_at IS NULL OR c.expires_at >= NOW())
-         ORDER BY c.is_pinned DESC, c.published_at DESC LIMIT 100`,
+         ORDER BY c.published_at DESC, c.id DESC LIMIT 100`,
         [context.locationId, staffInitials, context.businessId, context.locationId],
       ),
       imsQuery(
-        `SELECT * FROM pos_daybook_records
-         WHERE business_id = ? AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?)
-           AND status <> 'deleted'
-           AND (record_type <> 'incident' OR ? = 1)
-         ORDER BY created_at DESC LIMIT 500`,
+        `SELECT r.*,
+                (SELECT e.staff_initials FROM pos_daybook_record_events e
+                  WHERE e.business_id = r.business_id AND e.record_id = r.id ORDER BY e.id DESC LIMIT 1) AS status_staff_initials,
+                (SELECT e.created_at FROM pos_daybook_record_events e
+                  WHERE e.business_id = r.business_id AND e.record_id = r.id ORDER BY e.id DESC LIMIT 1) AS status_updated_at
+         FROM pos_daybook_records r
+         WHERE r.business_id = ? AND (r.location_id = ? OR r.source_location_id = ? OR r.destination_location_id = ?)
+           AND r.status <> 'deleted'
+           AND (r.record_type <> 'incident' OR ? = 1)
+         ORDER BY r.created_at DESC LIMIT 500`,
         [context.businessId, context.locationId, context.locationId, context.locationId, context.isManager ? 1 : 0],
       ),
       imsQuery(
@@ -353,11 +358,19 @@ export async function GET(request: Request) {
         [context.businessId, context.locationId],
       ),
       imsQuery<{ id: number; item_type: string; item_id: number; comment_text: string; staff_name: string; staff_initials: string; actor_name: string; created_at: string }>(
-        `SELECT id, item_type, item_id, comment_text, staff_name, staff_initials, actor_name, created_at
-           FROM pos_daybook_comments
-          WHERE business_id = ? AND location_id = ?
-          ORDER BY created_at, id`,
-        [context.businessId, context.locationId],
+        `SELECT c.id, c.item_type, c.item_id, c.comment_text, c.staff_name, c.staff_initials, c.actor_name, c.created_at
+           FROM pos_daybook_comments c
+          WHERE c.business_id = ? AND (
+            (c.item_type <> 'record' AND c.location_id = ?)
+            OR (c.item_type = 'record' AND EXISTS (
+              SELECT 1 FROM pos_daybook_records r
+               WHERE r.id = c.item_id AND r.business_id = c.business_id
+                 AND (r.location_id = ? OR r.source_location_id = ? OR r.destination_location_id = ?)
+                 AND r.status <> 'deleted'
+            ))
+          )
+          ORDER BY c.created_at, c.id`,
+        [context.businessId, context.locationId, context.locationId, context.locationId, context.locationId],
       ),
       getEditPolicy(context.businessId),
     ]);
@@ -817,14 +830,18 @@ export async function POST(request: Request) {
       const content = String(body.content ?? '').trim();
       const category = String(body.category ?? '').trim().replace(/\s+/g, ' ').slice(0, 50);
       if (!category || !title || !content) return error('Category, title, and information are required.');
+      const secretMode = ['keep', 'replace', 'remove'].includes(String(body.secret_mode)) ? String(body.secret_mode) : 'keep';
       const secretValue = String(body.secret_value ?? '');
-      const secretUpdate = secretValue ? encrypt(secretValue) : null;
+      if (secretMode === 'replace' && !secretValue) return error('Enter the replacement secret or choose Remove secret.');
+      const secretUpdate = secretMode === 'replace' ? encrypt(secretValue) : null;
       await imsExecute(
         `UPDATE pos_daybook_references SET category = ?, title = ?, content = ?, link_url = ?, secret_label = ?,
-           secret_value_encrypted = CASE WHEN ? IS NULL THEN secret_value_encrypted ELSE ? END, background_color = ?
+           secret_value_encrypted = CASE WHEN ? = 'remove' THEN NULL WHEN ? = 'replace' THEN ? ELSE secret_value_encrypted END,
+           background_color = ?
          WHERE id = ? AND business_id = ?`,
         [category, title, content, String(body.link_url ?? '').trim() || null,
-          String(body.secret_label ?? '').trim().slice(0, 120) || null, secretUpdate, secretUpdate,
+          secretMode === 'remove' ? null : String(body.secret_label ?? '').trim().slice(0, 120) || null,
+          secretMode, secretMode, secretUpdate,
           normalizeDaybookColour(body.background_color), referenceId, context.businessId],
       );
       return NextResponse.json({ success: true });
@@ -862,6 +879,14 @@ export async function POST(request: Request) {
          WHERE business_id = ? AND location_id = ? AND template_id = ? AND status = 'open'`,
         [phase, title, instructions, context.businessId, context.locationId, templateId],
       );
+      const instanceId = Number(body.instance_id ?? 0);
+      if (Number.isInteger(instanceId) && instanceId > 0) {
+        await imsExecute(
+          `UPDATE pos_daybook_task_instances SET phase = ?, title_snapshot = ?, instructions_snapshot = ?
+           WHERE id = ? AND business_id = ? AND location_id = ? AND template_id = ?`,
+          [phase, title, instructions, instanceId, context.businessId, context.locationId, templateId],
+        );
+      }
       return NextResponse.json({ success: true });
     }
 

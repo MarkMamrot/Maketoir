@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-09-10","owner":"retail"}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-09-16","owner":"retail"}
 ---
 # Store Daybook
 
@@ -10,11 +10,11 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 - Choose the staff member using Daybook for the current day.
 - Complete and sign opening, throughout-the-day, weekly and closing tasks.
 - Add timestamped comments and handover updates to checklist tasks, communications, customer requests and store needs.
-- Read and acknowledge store communications.
+- Read newest-first store communications, use basic text formatting and acknowledge each notice.
 - See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
 - Build one clipboard from selected Requests and Store needs for pasting into branch transfer notes.
-- Follow warehouse requests through packing, sending and receipt.
+- Follow warehouse requests through packing, sending and receipt, with updates shared between the store and warehouse.
 - Search approved reference information and product storage guidance.
 - Add new items from the tab where they belong and choose an optional card colour.
 - Let managers schedule tasks, publish store content, maintain Reference categories and manage the branch's Daybook staff list.
@@ -27,7 +27,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 | Comms | Manager notices for selected stores | Each staff member selects **Mark as read** |
 | Requests | Customer products and follow-up | Contacted, fulfilled or cancelled |
 | Store needs | Store Supplies or Stock Requests needed from a warehouse | Requested, approved, packed, sent and received |
-| Discrepancies | Differences between system and physical quantities | A manager records the stocktake outcome |
+| Discrepancies | Differences between system and physical quantities in a comparison table | Staff can correct or delete an entry; a manager records the stocktake outcome |
 | Incidents | Factual safety, security, loss or damage reports | Staff sign on submission; managers review and close |
 | References and Product guide | Approved store information, product photos, shelf and box locations | Managers maintain the content |
 
@@ -79,9 +79,10 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 ### Read a communication
 
 1. Open **Comms**. Important and urgent notices are visually highlighted, with the newest notices first.
-2. Review the names and initials below the notice to see who has already acknowledged it.
-3. Read the full notice and select **Mark as read**.
-4. Confirm your name and initials appear. Another staff member using the same register must acknowledge it under their own Daybook identity.
+2. When adding or editing a notice, use the formatting buttons for bold text, italic text or a bulleted list.
+3. Review the names and initials below the notice to see who has already acknowledged it.
+4. Read the full notice and select **Mark as read**.
+5. Confirm your name and initials appear. Daybook remembers the acknowledgement when you leave and return. Another staff member using the same register must acknowledge it under their own Daybook identity.
 
 ### Add operational follow-up
 
@@ -90,6 +91,10 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited. On a wide screen, Store Supplies and Stock Requests appear beside each other so both queues can be reviewed together.
 4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
 5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
+
+Warehouse staff use **Warehouse updates** on the same Store Need to record availability, supplier shortages, packing or dispatch details. Those updates are visible at both the requesting store and destination warehouse. The warehouse progresses a request through **Approved**, **Packed** and **Sent**; the requesting store uses **Confirm received** after checking the delivery.
+
+Stock discrepancies use a wide comparison table with date, code, item, size, system quantity, actual quantity, variance, staff, manager outcome, completion date and notes. Scroll horizontally on a smaller screen. Use the pencil to correct an entry or the bin to remove one that is no longer a discrepancy. These actions retain the audit record and never change stock on hand.
 
 ### Build branch transfer notes
 
@@ -114,7 +119,7 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 
 Managers use **Add new** in Today, Comms, References and Product guide to add daily, weekly or one-date tasks, publish communications to selected stores, and maintain approved reference and product information. Staff use **Add new** in Requests, Store needs, Discrepancies and Incidents.
 
-Reference desk groups entries into expandable categories such as Contacts, Logins, Troubleshooting and Guides. A manager selects **Add category**, enters the category name and saves it before adding entries. Empty categories remain visible, and the category picker also retains category names used by older References. Search opens matching categories. A reference can include ordinary information, a resource link and an optional encrypted secret. Secret values are masked until a Daybook staff member selects **Reveal**, can be copied while visible, and are never included in Reference search or Assistant knowledge.
+Reference desk groups entries into expandable categories such as Contacts, Logins, Troubleshooting and Guides. A manager selects **Add category**, enters the category name and saves it before adding entries. Empty categories remain visible, and the category picker also retains category names used by older References. Search opens matching categories. A reference can include ordinary information, a resource link and an optional encrypted secret. Secret values are masked until a Daybook staff member selects **Reveal**, can be copied while visible, and are never included in Reference search or Assistant knowledge. When editing a reference with a secret, explicitly choose whether to keep, replace or remove it; the secret entry field appears only when replacement is selected.
 
 To add or edit a Product guide, search the active product list by product name, SKU or barcode and choose the matching variant. Daybook uses that catalogue product's primary photo automatically. A placeholder is shown when the product does not have a primary photo. The guide cannot be saved until a matching result is chosen.
 
@@ -124,7 +129,7 @@ Some imported storage-map entries may initially contain a shelf or storage descr
 
 When an item can be edited under the current policy, select **Edit** beside a daily task or at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
 
-To remove a task, Request or Store need, select **Delete** beside it and confirm the warning. For other editable items, open the edit popup and select **Delete**. A deleted task stops appearing on future scheduled dates. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
+To remove a task, Request, Store need or stock discrepancy, select its bin action and confirm the warning. For other editable items, open the edit popup and select **Delete**. A deleted task stops appearing on future scheduled dates. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
 
 Managers open **Settings** and choose one tenant-wide editing policy:
 
@@ -142,7 +147,7 @@ The same POS-accessible Settings tab also controls:
 - **Hourly incomplete-task reminder** checks today's tasks when POS opens and every hour. When tasks remain incomplete, the Daybook icon briefly pulses and shows the count. Reduced-motion browser preferences disable animation.
 - **Daybook staff** lets a manager add staff names and initials, edit existing entries, or remove former staff from the branch identity picker. Removing staff does not rewrite their historical sign-offs, acknowledgments or comments. The currently selected staff member cannot be removed until another identity is selected.
 
-The Store Daybook option is a normal link to `/pos?screen=daybook`, so staff can right-click it and open Daybook in a new tab. A normal click keeps the faster in-app transition.
+The Store Daybook option opens in a new browser tab so the active POS sale remains available in its original tab.
 
 ## Privacy and access
 
@@ -162,10 +167,12 @@ The Store Daybook option is a normal link to `/pos?screen=daybook`, so staff can
 | A previous-day cell says **Not signed** | The task was scheduled but no completion was recorded for that day | Confirm the work with the store team and follow the manager's process for missed checks |
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
+| A saved task still shows its old wording | The save may not have completed | Check for an error at the top of Daybook and retry; the edited occurrence and future open occurrences update as soon as the save succeeds |
 | Pencil or bin is missing from a task | The task is historical and no longer active | Add a new active task if the work needs to resume |
 | Edit or Delete is missing from a Request or Store need | The current editing policy does not permit this staff member to change the card | Ask an allowed editor or manager to make the change |
 | Clipboard text is not available to paste | Browser clipboard permission was denied or the clipboard was replaced by another copy action | Select **Add to clipboard** on any included card again, then paste; the saved location list remains visible at the bottom |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |
+| The requesting store cannot see a warehouse update | The update was not added to the Store Need thread | Add it under **Warehouse updates** on that Store Need rather than in an unrelated communication |
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
 | Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |
 | A Product guide cannot be saved | No active catalogue product has been selected | Search by product name, SKU or barcode and select a result before saving |
