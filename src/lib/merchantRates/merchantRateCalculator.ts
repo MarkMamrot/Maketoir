@@ -48,6 +48,13 @@ const ADMINISTRATION_FEE = 2.5;
 const TERMINAL_SIM_FEE = 5;
 const MINIMUM_SERVICE_FEE = 30;
 
+export const TYPICAL_GIFT_BOOK_CARD_MIX = {
+  visaMastercard: 0.65,
+  eftpos: 0.30,
+  amexDiners: 0.04,
+  unionPay: 0.01,
+} as const;
+
 function nonNegative(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
@@ -59,6 +66,16 @@ export function getTieredMerchantServiceRate(monthlyTurnover: number): number {
   if (turnover < 50_000_000) return 0.0018;
   if (turnover < 250_000_000) return 0.0014;
   return 0.0012;
+}
+
+export function splitTypicalGiftBookCardTurnover(monthlyTurnover: number) {
+  const turnover = nonNegative(monthlyTurnover);
+  return {
+    visaMastercardVolume: turnover * TYPICAL_GIFT_BOOK_CARD_MIX.visaMastercard,
+    eftposVolume: turnover * TYPICAL_GIFT_BOOK_CARD_MIX.eftpos,
+    amexDinersVolume: turnover * TYPICAL_GIFT_BOOK_CARD_MIX.amexDiners,
+    unionPayVolume: turnover * TYPICAL_GIFT_BOOK_CARD_MIX.unionPay,
+  };
 }
 
 export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): MerchantRateComparison {
@@ -87,9 +104,7 @@ export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): 
   const tieredRate = getTieredMerchantServiceRate(inputs.monthlyTurnover);
   const premiumCardFees = (inputs.amexDinersVolume * AMEX_DINERS_RATE)
     + (inputs.unionPayVolume * UNIONPAY_RATE);
-  const sharedFees = {
-    transactionFees: estimatedTransactions * TRANSACTION_FEE,
-    administrationFees: ADMINISTRATION_FEE,
+  const equipmentFees = {
     terminalRentalFees: inputs.currentMonthlyTerminalFees,
     terminalSimFees: inputs.terminalCount * TERMINAL_SIM_FEE,
   };
@@ -100,6 +115,8 @@ export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): 
     interchangeSchemeFees: number,
     eftposTransactionFees: number,
     solvantisMerchantFees: number,
+    transactionFees: number,
+    administrationFees: number,
   ): MerchantRateOption => {
     const providerServiceFees = merchantServiceFees + eftposTransactionFees;
     const minimumServiceFeeAdjustment = Math.max(0, MINIMUM_SERVICE_FEE - providerServiceFees);
@@ -108,10 +125,10 @@ export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): 
       + eftposTransactionFees
       + solvantisMerchantFees
       + minimumServiceFeeAdjustment
-      + sharedFees.transactionFees
-      + sharedFees.administrationFees
-      + sharedFees.terminalRentalFees
-      + sharedFees.terminalSimFees;
+      + transactionFees
+      + administrationFees
+      + equipmentFees.terminalRentalFees
+      + equipmentFees.terminalSimFees;
 
     return {
       id,
@@ -119,7 +136,9 @@ export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): 
       interchangeSchemeFees,
       eftposTransactionFees,
       solvantisMerchantFees,
-      ...sharedFees,
+      transactionFees,
+      administrationFees,
+      ...equipmentFees,
       minimumServiceFeeAdjustment,
       monthlyTotal,
     };
@@ -132,6 +151,8 @@ export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): 
     inputs.visaMastercardVolume * VISA_MASTERCARD_INTERCHANGE_SCHEME_RATE,
     estimatedEftposTransactions * EFTPOS_TRANSACTION_RATE,
     inputs.visaMastercardVolume * inputs.solvantisMerchantFeeRate,
+    estimatedTransactions * TRANSACTION_FEE,
+    ADMINISTRATION_FEE,
   );
   const flat = makeOption(
     'flat',
@@ -141,6 +162,8 @@ export function calculateMerchantRateComparison(rawInputs: MerchantRateInputs): 
       + (inputs.eftposVolume * EFTPOS_INTERCHANGE_SCHEME_RATE),
     0,
     (inputs.visaMastercardVolume + inputs.eftposVolume) * inputs.solvantisMerchantFeeRate,
+    0,
+    0,
   );
   const monthlySaving = Math.abs(tiered.monthlyTotal - flat.monthlyTotal);
 

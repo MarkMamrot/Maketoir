@@ -780,6 +780,13 @@ export default function AdminPage() {
           ] as { id: View; label: string }[]).map(item => (
             <button key={item.id} onClick={() => setView(item.id)} style={S.navBtn(view === item.id)}>{item.label}</button>
           ))}
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim,#64748b)', textTransform: 'uppercase', letterSpacing: .7, padding: '4px 12px', margin: '16px 0 8px' }}>Utilities</p>
+          <a
+            href="/dashboard#merchant-rate-calculator"
+            style={{ ...S.navBtn(false), display: 'block', textDecoration: 'none', boxSizing: 'border-box' }}
+          >
+            Merchant Rate Calculator
+          </a>
         </div>
 
         {/* Main */}
@@ -800,7 +807,7 @@ export default function AdminPage() {
           .super-admin-body { flex-direction: column !important; overflow: visible !important; }
           .super-admin-sidebar { width: auto !important; flex-direction: row !important; overflow-x: auto; border-right: 0 !important; border-bottom: 1px solid rgba(255,255,255,.1); }
           .super-admin-sidebar > p { display: none !important; }
-          .super-admin-sidebar > button { width: auto !important; white-space: nowrap; }
+          .super-admin-sidebar > button, .super-admin-sidebar > a { width: auto !important; white-space: nowrap; }
           .super-admin-main { padding: 12px !important; overflow: visible !important; }
         }
       `}</style>

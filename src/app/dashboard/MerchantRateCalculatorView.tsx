@@ -4,6 +4,7 @@ import { AlertTriangle, Check, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import {
   calculateMerchantRateComparison,
+  splitTypicalGiftBookCardTurnover,
   type MerchantRateInputs,
   type MerchantRateOption,
 } from '@/lib/merchantRates/merchantRateCalculator';
@@ -35,6 +36,10 @@ const NUMBER = new Intl.NumberFormat('en-AU', { maximumFractionDigits: 0 });
 function parseAmount(value: string): number {
   const parsed = Number(value.replace(/,/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function inputAmount(value: number): string {
+  return value.toFixed(2).replace(/\.00$/, '');
 }
 
 function CurrencyInput({
@@ -148,6 +153,18 @@ export function MerchantRateCalculatorView() {
     setValues(current => ({ ...current, [id]: value }));
   };
 
+  const updateMonthlyTurnover = (_id: InputKey, value: string) => {
+    const split = splitTypicalGiftBookCardTurnover(parseAmount(value));
+    setValues(current => ({
+      ...current,
+      monthlyTurnover: value,
+      eftposVolume: inputAmount(split.eftposVolume),
+      visaMastercardVolume: inputAmount(split.visaMastercardVolume),
+      amexDinersVolume: inputAmount(split.amexDinersVolume),
+      unionPayVolume: inputAmount(split.unionPayVolume),
+    }));
+  };
+
   return (
     <div className="mx-auto max-w-7xl pb-10">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-5">
@@ -175,8 +192,8 @@ export function MerchantRateCalculatorView() {
               id="monthlyTurnover"
               label="Total card turnover"
               value={values.monthlyTurnover}
-              onChange={updateValue}
-              hint="Used to select the tiered Visa/Mastercard rate."
+              onChange={updateMonthlyTurnover}
+              hint="Prefills a typical gift/book retail card mix and selects the tiered rate."
             />
             <CurrencyInput
               id="averageTransactionValue"
@@ -225,6 +242,7 @@ export function MerchantRateCalculatorView() {
 
             <div className="border-t border-gray-200 pt-4">
               <p className="mb-4 text-xs font-bold uppercase text-gray-500">Turnover by card type</p>
+              <p className="mb-4 text-xs leading-5 text-gray-500">Typical starting mix: 65% Visa/Mastercard, 30% EFTPOS, 4% Amex/Diners and 1% UnionPay. Override any amount when the customer's actual mix is known.</p>
               <div className="space-y-4">
                 <CurrencyInput id="eftposVolume" label="Standard EFTPOS" value={values.eftposVolume} onChange={updateValue} />
                 <CurrencyInput id="visaMastercardVolume" label="Visa and Mastercard" value={values.visaMastercardVolume} onChange={updateValue} />
@@ -295,7 +313,7 @@ export function MerchantRateCalculatorView() {
 
           <div className="mt-5 text-xs leading-5 text-gray-500">
             <p>
-              Both estimates include the supplied $0.03 transaction fee, $2.50 monthly administration fee, entered terminal rental, $5 terminal SIM fee per terminal and $30 minimum merchant service fee. Amex and Diners use 1.60%; UnionPay uses 1.80%.
+              Nuvei includes the supplied $0.03 transaction fee and $2.50 monthly administration fee. Tyro has no transaction or monthly administration fee, so both rows show $0. Both estimates include entered terminal rental, $5 terminal SIM fee per terminal and the $30 minimum merchant service fee. Amex and Diners use 1.60%; UnionPay uses 1.80%.
             </p>
             <p className="mt-2">
               Excludes gateway, refund, chargeback, terminal incident, same-day funding and Velocity fees. This is an indicative comparison, not a quote.

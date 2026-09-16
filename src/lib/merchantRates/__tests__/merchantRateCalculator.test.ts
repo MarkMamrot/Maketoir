@@ -2,7 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateMerchantRateComparison,
   getTieredMerchantServiceRate,
+  splitTypicalGiftBookCardTurnover,
 } from '../merchantRateCalculator';
+
+describe('splitTypicalGiftBookCardTurnover', () => {
+  it('allocates turnover across a typical gift and book retailer card mix', () => {
+    expect(splitTypicalGiftBookCardTurnover(100_000)).toEqual({
+      visaMastercardVolume: 65_000,
+      eftposVolume: 30_000,
+      amexDinersVolume: 4_000,
+      unionPayVolume: 1_000,
+    });
+  });
+});
 
 describe('getTieredMerchantServiceRate', () => {
   it.each([
@@ -41,9 +53,11 @@ describe('calculateMerchantRateComparison', () => {
     expect(result.flat.interchangeSchemeFees).toBeCloseTo(300);
     expect(result.flat.solvantisMerchantFees).toBeCloseTo(180);
     expect(result.tiered.monthlyTotal).toBeCloseTo(757.5);
-    expect(result.flat.monthlyTotal).toBeCloseTo(944.5);
+    expect(result.flat.transactionFees).toBe(0);
+    expect(result.flat.administrationFees).toBe(0);
+    expect(result.flat.monthlyTotal).toBeCloseTo(912);
     expect(result.cheaperOption).toBe('tiered');
-    expect(result.annualSaving).toBeCloseTo(2_244);
+    expect(result.annualSaving).toBeCloseTo(1_854);
   });
 
   it('applies the monthly minimum service fee and normalises invalid inputs', () => {
