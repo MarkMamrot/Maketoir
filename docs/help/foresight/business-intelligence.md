@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-business-intelligence","title":"Business Intelligence and Inventory Analysis","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Business Intelligence","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["business-intelligence","business-info","brand-profile","sync-data","calculated-data","inventory","inactive-candidates","lost-candidates","space-analysis","stock-turnover"],"contextSections":{"business-intelligence":"Business information and data","business-info":"Business information and data","brand-profile":"Business information and data","sync-data":"Refresh source data","calculated-data":"Read calculated results","inventory":"Inventory analysis","inactive-candidates":"Inventory analysis","lost-candidates":"Inventory analysis","space-analysis":"Inventory analysis","stock-turnover":"Inventory analysis"},"relatedTopics":["foresight-workspaces","foresight-planning"],"order":10,"summary":"Keep business information current and investigate performance or inventory signals before acting.","lastReviewed":"2026-08-29","owner":"foresight"}
+{"id":"foresight-business-intelligence","title":"Business Intelligence and Inventory Analysis","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Business Intelligence","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["business-intelligence","business-info","brand-profile","sync-data","calculated-data","merchant-rate-calculator","inventory","inactive-candidates","lost-candidates","space-analysis","stock-turnover"],"contextSections":{"business-intelligence":"Business information and data","business-info":"Business information and data","brand-profile":"Business information and data","sync-data":"Refresh source data","calculated-data":"Read calculated results","merchant-rate-calculator":"Compare merchant rates","inventory":"Inventory analysis","inactive-candidates":"Inventory analysis","lost-candidates":"Inventory analysis","space-analysis":"Inventory analysis","stock-turnover":"Inventory analysis"},"relatedTopics":["foresight-workspaces","foresight-planning"],"order":10,"summary":"Keep business information current and investigate performance or inventory signals before acting.","lastReviewed":"2026-09-16","owner":"foresight"}
 ---
 # Business Intelligence and Inventory Analysis
 
@@ -44,6 +44,20 @@ Calculated views turn available source records into summaries. A result is only 
 The Assistant can summarise up to 90 complete business days of stored paid-media and commerce observations when **Intel & Automation Marketing** is enabled. It reports Google Ads and Meta spend and platform-attributed revenue separately from authoritative online and POS sales. Its ecommerce MER uses authoritative tax-exclusive online net revenue divided by paid-media spend. Platform ROAS remains the platform's own attribution and should not be treated as the same measure.
 
 The summary omits advertising account and campaign identities. It includes the latest observation date, tax-inclusive commerce sales and returns, extracted tax, tax-exclusive net revenue, cost coverage, and data-quality warnings. It reads stored Solvantis observations and does not contact an advertising platform live, so check source freshness before acting.
+
+## Compare merchant rates
+
+Merchant Rate Calculator compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Enter monthly card turnover, average transaction value, terminal count, current total monthly terminal rental, turnover by card type, and the Solvantis Merchant Fee percentage. Keep UnionPay separate because its supplied rate differs from Amex and Diners.
+
+The calculator estimates transaction counts from turnover and average transaction value. For Nuvei, it adds an estimated 0.40% interchange and scheme cost to Visa and Mastercard; standard EFTPOS remains the supplied fixed per-transaction rate. For Tyro, it adds an estimated 0.40% network cost to Visa and Mastercard and 0.25% to EFTPOS. The editable Solvantis Merchant Fee is added to Visa and Mastercard for Nuvei, and to Visa, Mastercard, and EFTPOS for Tyro.
+
+It shows provider merchant service fees, network costs, Solvantis Merchant Fee, equipment and shared charges separately. Both options use the entered current terminal rental, so equipment is compared like for like. The lower estimate and possible monthly and annual difference are highlighted. Align the card-type amounts with total turnover before relying on the result.
+
+| Estimate includes | Estimate excludes | Result |
+| --- | --- | --- |
+| Listed processing, transaction, administration, terminal rental, terminal SIM, and minimum service fees | Gateway, refund, chargeback, terminal incident, same-day funding, and Velocity fees | Indicative comparison, not a quote |
+
+> **Important:** Confirm the customer's actual card mix, transaction counts, equipment, and applicable contract terms before presenting savings.
 
 ## Inventory analysis
 

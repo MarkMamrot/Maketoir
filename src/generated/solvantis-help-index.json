@@ -18,6 +18,7 @@
         "brand-profile",
         "sync-data",
         "calculated-data",
+        "merchant-rate-calculator",
         "inventory",
         "inactive-candidates",
         "lost-candidates",
@@ -30,6 +31,7 @@
         "brand-profile": "Business information and data",
         "sync-data": "Refresh source data",
         "calculated-data": "Read calculated results",
+        "merchant-rate-calculator": "Compare merchant rates",
         "inventory": "Inventory analysis",
         "inactive-candidates": "Inventory analysis",
         "lost-candidates": "Inventory analysis",
@@ -42,7 +44,7 @@
       ],
       "order": 10,
       "summary": "Keep business information current and investigate performance or inventory signals before acting.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-09-16",
       "owner": "foresight",
       "filename": "docs/help/foresight/business-intelligence.md",
       "sections": [
@@ -73,16 +75,21 @@
         },
         {
           "id": "foresight-business-intelligence:6",
+          "heading": "Compare merchant rates",
+          "content": "Merchant Rate Calculator compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Enter monthly card turnover, average transaction value, terminal count, current total monthly terminal rental, turnover by card type, and the Solvantis Merchant Fee percentage. Keep UnionPay separate because its supplied rate differs from Amex and Diners.\n\nThe calculator estimates transaction counts from turnover and average transaction value. For Nuvei, it adds an estimated 0.40% interchange and scheme cost to Visa and Mastercard; standard EFTPOS remains the supplied fixed per-transaction rate. For Tyro, it adds an estimated 0.40% network cost to Visa and Mastercard and 0.25% to EFTPOS. The editable Solvantis Merchant Fee is added to Visa and Mastercard for Nuvei, and to Visa, Mastercard, and EFTPOS for Tyro.\n\nIt shows provider merchant service fees, network costs, Solvantis Merchant Fee, equipment and shared charges separately. Both options use the entered current terminal rental, so equipment is compared like for like. The lower estimate and possible monthly and annual difference are highlighted. Align the card-type amounts with total turnover before relying on the result.\n\n| Estimate includes | Estimate excludes | Result |\n| --- | --- | --- |\n| Listed processing, transaction, administration, terminal rental, terminal SIM, and minimum service fees | Gateway, refund, chargeback, terminal incident, same-day funding, and Velocity fees | Indicative comparison, not a quote |\n\n> **Important:** Confirm the customer's actual card mix, transaction counts, equipment, and applicable contract terms before presenting savings."
+        },
+        {
+          "id": "foresight-business-intelligence:7",
           "heading": "Inventory analysis",
           "content": "Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover are investigation lists. They do not automatically change a product or prove why a result occurred.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product, sales, stock, and selected period | Whether the signal makes sense for this product and season | A candidate or comparison to investigate | None |"
         },
         {
-          "id": "foresight-business-intelligence:7",
+          "id": "foresight-business-intelligence:8",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Two views disagree | Dates, locations, definitions, or refresh times differ | Align those settings before comparing again |\n| A candidate seems wrong | Recent receipts, seasonality, or product history changes the picture | Inspect the product and source records |\n| Results are empty | The source is not ready or the chosen period has no records | Check source status and widen the period only when appropriate |\n| Refresh fails twice | The connection or source needs attention | Stop retrying and check Setup connection status |"
         },
         {
-          "id": "foresight-business-intelligence:8",
+          "id": "foresight-business-intelligence:9",
           "heading": "Worked examples",
           "content": "### Review a slow-moving jacket\n\nStock Turnover flags a jacket with 18 units on hand and two sales in the selected period. Check that the period includes the relevant winter weeks, inspect stock by location and incoming orders, then decide whether to move stock, change ordering, or leave it for the season.\n\n### Compare two sales summaries\n\nOne view uses the last seven complete days and another includes today. Set both to the same complete dates and confirm the source refresh time before treating the difference as a business change."
         }

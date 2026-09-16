@@ -9,6 +9,7 @@ import { CustomerServiceView } from './CustomerServiceView';
 import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
 import { CreativeReviewView } from './CreativeReviewView';
+import { MerchantRateCalculatorView } from './MerchantRateCalculatorView';
 import { dashboardHashView } from './dashboardHandoff';
 import { BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
@@ -49,6 +50,7 @@ const NAV: NavItem[] = [
       { id: 'brand-profile', label: 'Brand Profile' },
       { id: 'sync-data', label: 'Sync Data' },
       { id: 'calculated-data', label: 'Reports' },
+      { id: 'merchant-rate-calculator', label: 'Merchant Rate Calculator' },
     ],
   },
   {
@@ -9140,6 +9142,7 @@ export default function DashboardPage() {
     'business-info': 'Business Info',
     'brand-profile': 'Brand Profile',
     'sync-data': 'Sync Data',
+    'merchant-rate-calculator': 'Merchant Rate Calculator',
     'brand-assets': 'Brand Assets',
     'brand-assets-models': 'Brand Assets — Models',
     'brand-assets-backdrops': 'Brand Assets — Backdrops',
@@ -9299,6 +9302,7 @@ export default function DashboardPage() {
           {activeView === 'calculated-data' && (
             <CalculatedDataView databaseId={databaseId} />
           )}
+          {activeView === 'merchant-rate-calculator' && <MerchantRateCalculatorView />}
         </main>
       </div>
       </div>
