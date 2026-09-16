@@ -1,3 +1,13 @@
+## 2026-09-16 - Guarded product publication execution and Amazon existing-ASIN offers
+
+- Provider-neutral product assignment now feeds a durable tenant outbox for Native Store, exact-instance Shopify and Amazon publication. Workers revalidate current intent before provider calls, recover stale locks, retry operational failures up to five attempts, and report them through Runtime Issues.
+- Product publication requires an explicit per-channel `productPublicationEnabled` opt-in plus enabled, active and ready channel state. Enabling does not publish immediately; administrator reconciliation first reports the mismatch count and requires separate confirmation. The scheduled worker is deployed but remains dormant while channels are opted out.
+- Native Store updates local publication state after validating an active sellable product. Shopify changes only an exact-instance linked product between Active and Draft. Amazon supports seller-fulfilled offers for existing ASINs only, using tax-inclusive AUD price and current tracked availability; it does not author full apparel parent/child catalogues.
+- Amazon Manage listings can now map one active IMS variant to an existing 10-character ASIN and unique seller SKU in that exact seller account. Saving the mapping enables its offer controls and invalidates readiness but does not contact Amazon.
+- Publication operation keys use product, desired state and assignment revision, making repeated or concurrent reconciliation idempotent for unchanged intent while allowing a later intent revision to enqueue fresh work.
+- `ims_sales_channel_jobs` was deployed and directly verified only in `readyedu_MonsterthreadsSandboxIMS`. Final live readback confirmed publication disabled, 846 Shopify mismatches and zero pending/failed jobs; a direct execution attempt returned 409. Production schemas and settings were not changed, and no provider publication occurred.
+- Validation passed 194 focused channel tests, the final full 2,921-test suite with five environment-gated skips, Help/Assistant compilation (68 topics, 549 chunks), schema-script syntax, diagnostics for touched files, diff checks and the production build.
+
 ## 2026-09-16 - Sandbox channel assignments and bulk overrides
 
 - The provider-neutral product-rule and assignment tables were deployed only to `readyedu_MonsterthreadsSandboxIMS` through targeted, idempotent catch-up runs. Direct metadata readback verified both tables, their exact-instance product uniqueness, desired/provider-state indexes and the internal matched-rule foreign key; production tenants were not changed.

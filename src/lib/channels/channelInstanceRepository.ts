@@ -146,6 +146,24 @@ export const SalesChannelInstanceRepository = {
     return this.getForBusiness(businessId, channelInstanceId);
   },
 
+  async setProductPublicationEnabledForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    enabled: boolean;
+  }): Promise<SalesChannelInstance | null> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    if (!businessId || !channelInstanceId) return null;
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.productPublicationEnabled', CAST(? AS UNSIGNED)),
+              updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ?`,
+      [input.enabled ? 1 : 0, businessId, channelInstanceId],
+    );
+    return this.getForBusiness(businessId, channelInstanceId);
+  },
+
   async setAmazonOrderLocationForBusiness(input: {
     businessId: string;
     channelInstanceId: string;

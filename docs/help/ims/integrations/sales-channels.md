@@ -14,6 +14,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Rename a channel so staff can distinguish its purpose.
 - Define ordered product rules for each exact storefront, preview their destinations, and apply assignment intent.
 - Include or exclude an individual product persistently when its automatic rule result is unsuitable.
+- Enable automatic publication for a prepared channel and reconcile confirmed assignment differences.
 - Test a Shopify instance against its exact saved store and credentials.
 - Connect an Amazon Australia Seller Central account through Amazon's authorization page.
 - Test the saved authorization for one Amazon seller account.
@@ -44,6 +45,20 @@ The same effective result is shown for a saved product under **Products > All Pr
 
 Choose **Apply assignments** only after reviewing the preview. Applying records the desired assignment for all products in the channel; it does not create, update, publish or remove anything at Shopify, Amazon or the Solvantis Online Store. Existing provider links and publication continue unchanged until the relevant publication workflow processes that intent.
 
+### Publish assigned products
+
+Product publication is off by default for every channel. An administrator must first complete the provider setup and readiness checks, activate the channel, then select **Automatic publication** for that exact storefront. Enabling the setting does not immediately change provider products.
+
+Choose **Reconcile products** to review how many assignments differ from their observed provider state. Confirm that count to queue and process the current differences. Solvantis rechecks each product's latest assignment before contacting the provider, so a queued item whose intent has changed is skipped. Blocked products retain their assignment and show an issue that must be corrected before reconciliation is retried. Automatic scheduled reconciliation uses the same safeguards and does not run for disabled, paused, unready, or opted-out channels.
+
+Provider behavior differs:
+
+- The Solvantis Online Store publishes or unpublishes the local online product after confirming the product is active and has an active variant with a positive price.
+- Shopify changes an exactly linked product between Active and Draft. A product without an exact link to that Shopify store is blocked rather than guessed.
+- Amazon creates or removes seller-fulfilled offers only for variants mapped to an existing ASIN and seller SKU in that exact seller account. The product must be active, have a positive tax-inclusive AUD price, and use tracked inventory. Full Amazon parent/child catalogue creation is not supported by this workflow.
+
+Assignment intent and provider state are separate. **Include** means Solvantis should publish when the channel is eligible; it does not prove that the provider has accepted the change. Review blocked or failed results before relying on an offer being live.
+
 Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.
 
 ### Connect Amazon Australia
@@ -60,7 +75,9 @@ Choose **Test connection** on an Amazon row to refresh that account's saved auth
 
 Choose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. After the final page, listings no longer returned by Amazon are archived and stop receiving inventory updates. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.
 
-Open **Manage listings**, select linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. **Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Each update sets Amazon's seller-fulfilled quantity to the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
+Open **Manage listings**, select linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. To prepare a new seller offer for a product already present in Amazon's catalogue, search for one active IMS variant under **Add existing-ASIN offer**, enter its 10-character ASIN and the seller SKU for this account, then save the mapping. Saving enables offer price and inventory controls but does not contact Amazon; the offer changes only during a later confirmed product reconciliation. A variant or seller SKU can be linked only once in the same Amazon account.
+
+**Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Each update sets Amazon's seller-fulfilled quantity to the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
 
 After an Amazon channel completes final activation, Solvantis checks for stock movements every 15 minutes and sends changed enabled listings to that exact seller account. A paused, setup-pending, disabled, or automation-paused channel is not processed automatically. Use **Sync inventory** during setup or when an administrator needs an immediate full reconciliation.
 
@@ -126,6 +143,9 @@ Choose **Deactivate** to stop that channel from entering any automatic Amazon sy
 | Products or orders are stale | Check the exact channel instance before retrying provider synchronization |
 | Amazon listings are unmatched | Add or correct the IMS variant SKU, then run **Sync listings** again |
 | Amazon listings have conflicts | Find the duplicated IMS variant SKU and resolve the intended mapping before enabling later synchronization |
+| An Amazon product cannot be published | Confirm one active IMS variant is mapped to an existing ASIN and unique seller SKU, has a positive price, and uses tracked inventory |
+| Reconcile products is unavailable | Complete readiness, activate the exact channel, and enable Automatic publication |
+| A product remains blocked after reconciliation | Review its provider link and required product data, correct the issue, then reconcile again |
 | An Amazon inventory item is skipped | Confirm the listing is linked one-to-one, included, inventory-enabled, and belongs to a stock-tracked IMS product |
 | Amazon inventory is queued for retry | Test the exact seller connection, review the mapping, and run **Sync inventory** again after the provider issue is resolved |
 | Automatic Amazon inventory updates do not run | Confirm the channel has completed activation, is not paused, and the business's automation is not paused |

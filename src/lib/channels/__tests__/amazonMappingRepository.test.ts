@@ -1,9 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), execute: vi.fn() }));
-vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute }));
+const mocks = vi.hoisted(() => ({
+  query: vi.fn(), execute: vi.fn(), connectionExecute: vi.fn(), begin: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+}));
+vi.mock('@/services/IMSMySQLService', () => ({
+  imsQuery: mocks.query,
+  imsExecute: mocks.execute,
+  getIMSPool: () => ({ getConnection: async () => ({
+    execute: mocks.connectionExecute, beginTransaction: mocks.begin, commit: mocks.commit,
+    rollback: mocks.rollback, release: mocks.release,
+  }) }),
+}));
 
-import { listAmazonMappings, setAmazonMappingControls } from '../amazonMappingRepository';
+import {
+  createAmazonExistingAsinMapping,
+  listAmazonMappings,
+  searchAmazonMappingCandidates,
+  setAmazonMappingControls,
+} from '../amazonMappingRepository';
 
 describe('Amazon mapping repository', () => {
   beforeEach(() => { vi.clearAllMocks(); });
@@ -34,5 +48,50 @@ describe('Amazon mapping repository', () => {
     await expect(setAmazonMappingControls({ businessId: 'business-1', channelInstanceId: 'instance-1', mappingIds: [] , selected: true })).resolves.toBe(0);
     await expect(setAmazonMappingControls({ businessId: 'business-1', channelInstanceId: 'instance-1', mappingIds: [1] })).resolves.toBe(0);
     expect(mocks.execute).not.toHaveBeenCalled();
+  });
+
+  it('searches only active unmapped variants in the exact instance', async () => {
+    mocks.query.mockResolvedValue([{ variant_id: 'variant-1', product_name: 'Blue Vase', variant_label: '', sku: 'BV-1' }]);
+    await expect(searchAmazonMappingCandidates({
+      businessId: 'business-1', channelInstanceId: 'instance-1', search: ' vase ',
+    })).resolves.toEqual([{ variantId: 'variant-1', productName: 'Blue Vase', variantLabel: 'Default', sku: 'BV-1' }]);
+    expect(mocks.query.mock.calls[0][0]).toContain("mapping.mapping_status <> 'archived'");
+    expect(mocks.query.mock.calls[0][1]).toEqual(['instance-1', 'business-1', '%vase%', '%vase%', '%vase%']);
+  });
+
+  it('creates a linked existing-ASIN offer mapping and enables its inventory and price controls atomically', async () => {
+    mocks.connectionExecute
+      .mockResolvedValueOnce([[{ variant_id: 'variant-1' }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    await createAmazonExistingAsinMapping({
+      businessId: 'business-1', channelInstanceId: 'instance-1', variantId: 'variant-1',
+      asin: ' b012345678 ', sellerSku: ' SELLER-1 ',
+    });
+    expect(mocks.begin).toHaveBeenCalled();
+    expect(mocks.connectionExecute.mock.calls[2][1]).toEqual([
+      'business-1', 'instance-1', 'variant-1', 'B012345678', 'SELLER-1',
+    ]);
+    expect(mocks.connectionExecute.mock.calls[3][0]).toContain('inventory_enabled = 1');
+    expect(mocks.commit).toHaveBeenCalled();
+    expect(mocks.release).toHaveBeenCalled();
+  });
+
+  it('links an existing unmatched seller listing instead of inserting a duplicate', async () => {
+    mocks.connectionExecute
+      .mockResolvedValueOnce([[{ variant_id: 'variant-1' }], []])
+      .mockResolvedValueOnce([[{ id: 9, variant_id: null, external_variant_id: 'SELLER-1' }], []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    await createAmazonExistingAsinMapping({
+      businessId: 'business-1', channelInstanceId: 'instance-1', variantId: 'variant-1',
+      asin: 'B012345678', sellerSku: 'SELLER-1',
+    });
+    expect(mocks.connectionExecute.mock.calls[2][0]).toContain('UPDATE ims_sales_channel_product_mappings');
+    expect(mocks.connectionExecute.mock.calls[2][1]).toEqual([
+      'variant-1', 'B012345678', 9, 'business-1', 'instance-1',
+    ]);
+    expect(mocks.commit).toHaveBeenCalled();
   });
 });

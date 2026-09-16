@@ -493,6 +493,72 @@ export async function updateAmazonListingInventory(
   return { sku: body.sku, status: body.status, submissionId: body.submissionId, issues };
 }
 
+async function requireAcceptedListingSubmission(response: Response, operation: string): Promise<AmazonListingSubmission> {
+  const body = await response.json().catch(() => null) as Partial<AmazonListingSubmission> | null;
+  if (!response.ok) throw new Error(`Amazon ${operation} failed with HTTP ${response.status}.`);
+  if (!body?.sku || !body.status || !body.submissionId) {
+    throw new Error(`Amazon returned an invalid ${operation} response.`);
+  }
+  const issues = Array.isArray(body.issues) ? body.issues.map(issue => ({
+    code: String(issue?.code ?? ''), message: String(issue?.message ?? ''), severity: String(issue?.severity ?? ''),
+  })) : [];
+  if (body.status !== 'ACCEPTED' || issues.some(issue => issue.severity === 'ERROR')) {
+    const code = issues.find(issue => issue.severity === 'ERROR')?.code;
+    throw new Error(`Amazon rejected the ${operation}${code ? ` (${code})` : ''}.`);
+  }
+  return { sku: body.sku, status: body.status, submissionId: body.submissionId, issues };
+}
+
+export async function putAmazonExistingAsinOffer(
+  accessToken: string,
+  sellerId: string,
+  input: { sellerSku: string; asin: string; price: number; quantity: number },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AmazonListingSubmission> {
+  const url = new URL(
+    `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(input.sellerSku)}`,
+    AMAZON_FAR_EAST_ENDPOINT,
+  );
+  url.searchParams.set('marketplaceIds', AMAZON_AU_MARKETPLACE_ID);
+  url.searchParams.set('includedData', 'issues');
+  const response = await fetchImpl(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...amazonOrdersHeaders(accessToken) },
+    body: JSON.stringify({
+      productType: 'PRODUCT',
+      requirements: 'LISTING_OFFER_ONLY',
+      attributes: {
+        condition_type: [{ value: 'new_new', marketplace_id: AMAZON_AU_MARKETPLACE_ID }],
+        merchant_suggested_asin: [{ value: input.asin, marketplace_id: AMAZON_AU_MARKETPLACE_ID }],
+        purchasable_offer: [{ marketplace_id: AMAZON_AU_MARKETPLACE_ID, currency: 'AUD',
+          our_price: [{ schedule: [{ value_with_tax: Number(input.price.toFixed(2)) }] }] }],
+        fulfillment_availability: [{ fulfillment_channel_code: 'DEFAULT', quantity: Math.max(0, Math.floor(input.quantity)) }],
+      },
+    }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(30_000),
+  });
+  return requireAcceptedListingSubmission(response, 'offer submission');
+}
+
+export async function deleteAmazonListingOffer(
+  accessToken: string,
+  sellerId: string,
+  sellerSku: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AmazonListingSubmission> {
+  const url = new URL(
+    `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sellerSku)}`,
+    AMAZON_FAR_EAST_ENDPOINT,
+  );
+  url.searchParams.set('marketplaceIds', AMAZON_AU_MARKETPLACE_ID);
+  url.searchParams.set('issueLocale', 'en_AU');
+  const response = await fetchImpl(url, {
+    method: 'DELETE', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+  });
+  return requireAcceptedListingSubmission(response, 'offer deletion');
+}
+
 export async function listAmazonListings(
   accessToken: string,
   sellerId: string,

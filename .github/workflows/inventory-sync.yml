@@ -37,3 +37,18 @@ jobs:
           echo "HTTP status: $RESPONSE"
           echo "Response: $RESPONSE_BODY"
           [ "$RESPONSE" = "200" ] || exit 1
+
+      - name: Reconcile opted-in channel product publication
+        if: always()
+        run: |
+          BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit":100}' \
+            "${{ secrets.APP_URL }}/api/ims/channels/product-publication/cron")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
+          echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
+          [ "$RESPONSE" = "200" ] || exit 1

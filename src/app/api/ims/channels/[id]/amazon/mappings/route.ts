@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { listAmazonMappings, setAmazonMappingControls } from '@/lib/channels/amazonMappingRepository';
+import {
+  createAmazonExistingAsinMapping,
+  listAmazonMappings,
+  searchAmazonMappingCandidates,
+  setAmazonMappingControls,
+} from '@/lib/channels/amazonMappingRepository';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -22,10 +27,12 @@ async function authorize(context: Context) {
   return { businessId, channelInstanceId };
 }
 
-export async function GET(_: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   const auth = await authorize(context);
   if ('response' in auth) return auth.response;
   try {
+    const search = new URL(request.url).searchParams.get('q')?.trim() ?? '';
+    if (search) return NextResponse.json({ success: true, candidates: await searchAmazonMappingCandidates({ ...auth, search }) });
     return NextResponse.json({ success: true, mappings: await listAmazonMappings(auth) });
   } catch (error) {
     await reportRuntimeIssue({ businessId: auth.businessId, source: 'ims.channels', operation: 'list_amazon_mappings',
@@ -55,5 +62,32 @@ export async function PATCH(request: Request, context: Context) {
       title: 'Amazon product controls could not be saved', error,
       reference: { type: 'sales_channel_instance', id: auth.channelInstanceId }, context: { provider: 'amazon' } }).catch(() => null);
     return NextResponse.json({ error: 'Amazon product controls could not be saved.' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request, context: Context) {
+  const auth = await authorize(context);
+  if ('response' in auth) return auth.response;
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const variantId = String(body?.variantId ?? '').trim();
+  const asin = String(body?.asin ?? '').trim();
+  const sellerSku = String(body?.sellerSku ?? '').trim();
+  if (!variantId || !asin || !sellerSku) {
+    return NextResponse.json({ error: 'Variant, ASIN and seller SKU are required.' }, { status: 400 });
+  }
+  try {
+    await createAmazonExistingAsinMapping({ ...auth, variantId, asin, sellerSku });
+    await SalesChannelInstanceRepository.invalidateAmazonReadinessForBusiness(auth);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (/valid|between|not found/i.test(message)) return NextResponse.json({ error: message }, { status: 400 });
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json({ error: 'That IMS variant or seller SKU is already mapped in this Amazon account.' }, { status: 409 });
+    }
+    await reportRuntimeIssue({ businessId: auth.businessId, source: 'ims.channels', operation: 'create_amazon_offer_mapping',
+      title: 'Amazon existing-ASIN mapping could not be created', error,
+      reference: { type: 'sales_channel_instance', id: auth.channelInstanceId }, context: { variantId, asin } }).catch(() => null);
+    return NextResponse.json({ error: 'Amazon existing-ASIN mapping could not be created.' }, { status: 500 });
   }
 }

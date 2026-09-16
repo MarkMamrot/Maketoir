@@ -5,6 +5,7 @@ import {
   buildAmazonAuthorizeUrl,
   confirmAmazonShipment,
   createAmazonReturnsReport,
+  deleteAmazonListingOffer,
   downloadAmazonReportDocument,
   exchangeAmazonAuthorizationCode,
   getAmazonReport,
@@ -13,6 +14,7 @@ import {
   listAmazonFinancialTransactions,
   listAmazonListings,
   listAmazonOrderItems,
+  putAmazonExistingAsinOffer,
   requireActiveAmazonAustraliaParticipation,
   updateAmazonListingInventory,
 } from '../amazonSpApi';
@@ -228,5 +230,36 @@ describe('Amazon SP-API authorization', () => {
     })));
     await expect(updateAmazonListingInventory('access-token', 'A1SELLER99', 'SKU-1', 2, fetchImpl))
       .rejects.toThrow('Amazon rejected the inventory update (99001).');
+  });
+
+  it('submits an existing-ASIN offer with tax-inclusive AUD price and MFN quantity', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sku: 'SELLER-1', status: 'ACCEPTED', submissionId: 'submission-2', issues: [],
+    })));
+    await putAmazonExistingAsinOffer('access-token', 'A1SELLER99', {
+      sellerSku: 'SELLER-1', asin: 'B012345678', price: 24.95, quantity: 3.9,
+    }, fetchImpl);
+    const request = fetchImpl.mock.calls[0][1];
+    expect(request.method).toBe('PUT');
+    expect(JSON.parse(request.body)).toMatchObject({
+      productType: 'PRODUCT', requirements: 'LISTING_OFFER_ONLY',
+      attributes: {
+        merchant_suggested_asin: [{ value: 'B012345678', marketplace_id: AMAZON_AU_MARKETPLACE_ID }],
+        purchasable_offer: [{ marketplace_id: AMAZON_AU_MARKETPLACE_ID, currency: 'AUD',
+          our_price: [{ schedule: [{ value_with_tax: 24.95 }] }] }],
+        fulfillment_availability: [{ fulfillment_channel_code: 'DEFAULT', quantity: 3 }],
+      },
+    });
+  });
+
+  it('deletes one exact seller offer without exposing rejection details', async () => {
+    const accepted = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sku: 'SELLER-1', status: 'ACCEPTED', submissionId: 'submission-3', issues: [],
+    })));
+    await deleteAmazonListingOffer('access-token', 'A1SELLER99', 'SELLER-1', accepted);
+    expect(accepted.mock.calls[0][1].method).toBe('DELETE');
+    const rejected = vi.fn().mockResolvedValue(new Response('{"secret":"detail"}', { status: 422 }));
+    await expect(deleteAmazonListingOffer('access-token', 'A1SELLER99', 'SELLER-1', rejected))
+      .rejects.toThrow('Amazon offer deletion failed with HTTP 422.');
   });
 });

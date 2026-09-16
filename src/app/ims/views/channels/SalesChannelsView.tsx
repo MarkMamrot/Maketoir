@@ -50,6 +50,13 @@ interface AmazonMapping {
   inventoryEnabled: boolean;
 }
 
+interface AmazonMappingCandidate {
+  variantId: string;
+  productName: string;
+  variantLabel: string;
+  sku: string;
+}
+
 interface AmazonReadinessCheck {
   key: string;
   label: string;
@@ -116,6 +123,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [readinessCheckingId, setReadinessCheckingId] = useState<string | null>(null);
   const [readinessChecks, setReadinessChecks] = useState<Record<string, AmazonReadinessCheck[]>>({});
   const [activationChangingId, setActivationChangingId] = useState<string | null>(null);
+  const [publicationWorkingId, setPublicationWorkingId] = useState<string | null>(null);
   const [orderSettingsInstance, setOrderSettingsInstance] = useState<ChannelInstance | null>(null);
   const [orderLocations, setOrderLocations] = useState<OrderLocation[]>([]);
   const [orderLocationId, setOrderLocationId] = useState('');
@@ -127,6 +135,11 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [mappings, setMappings] = useState<AmazonMapping[]>([]);
   const [mappingIds, setMappingIds] = useState<Set<number>>(new Set());
   const [mappingLoading, setMappingLoading] = useState(false);
+  const [mappingCandidateSearch, setMappingCandidateSearch] = useState('');
+  const [mappingCandidates, setMappingCandidates] = useState<AmazonMappingCandidate[]>([]);
+  const [mappingCandidateId, setMappingCandidateId] = useState('');
+  const [mappingAsin, setMappingAsin] = useState('');
+  const [mappingSellerSku, setMappingSellerSku] = useState('');
   const [refundResolutionInstance, setRefundResolutionInstance] = useState<ChannelInstance | null>(null);
   const [refundResolutionGroups, setRefundResolutionGroups] = useState<AmazonRefundResolutionGroup[]>([]);
   const [refundResolutionOrderId, setRefundResolutionOrderId] = useState('');
@@ -446,10 +459,78 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     }
   };
 
+  const productPublicationEnabled = (instance: ChannelInstance) => (
+    instance.settings?.productPublicationEnabled === true || instance.settings?.productPublicationEnabled === 1
+  );
+
+  const changeProductPublication = async (instance: ChannelInstance, enabled: boolean) => {
+    if (enabled && !window.confirm(
+      `Enable automatic product publication for ${instance.displayName}? Future publication runs can publish or unpublish products according to this channel's assignments.`,
+    )) return;
+    setPublicationWorkingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/product-publication`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Product publication setting could not be saved.');
+      setNotice(`${instance.displayName} automatic product publication is ${enabled ? 'enabled' : 'disabled'}.`);
+      await load();
+    } catch (publicationError) {
+      setError(publicationError instanceof Error ? publicationError.message : 'Product publication setting could not be saved.');
+    } finally {
+      setPublicationWorkingId(null);
+    }
+  };
+
+  const runProductPublication = async (instance: ChannelInstance) => {
+    setPublicationWorkingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const statusResponse = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/product-publication`);
+      const statusBody = await statusResponse.json();
+      if (!statusResponse.ok || !statusBody.success) throw new Error(statusBody.error || 'Publication status could not be loaded.');
+      const needsPublication = Number(statusBody.needsPublication ?? 0);
+      if (needsPublication === 0) {
+        setNotice(`${instance.displayName} already matches its product assignments.`);
+        return;
+      }
+      if (!window.confirm(
+        `Reconcile ${needsPublication} product${needsPublication === 1 ? '' : 's'} with ${instance.displayName}? This can publish or unpublish products on that storefront.`,
+      )) return;
+      const totals = { queued: 0, processed: 0, applied: 0, blocked: 0, skipped: 0, failed: 0 };
+      let enqueue = true;
+      for (let batch = 0; batch < 100; batch++) {
+        const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/product-publication`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enqueue, limit: 100 }),
+        });
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Product publication could not run.');
+        for (const key of Object.keys(totals) as Array<keyof typeof totals>) totals[key] += Number(body[key] ?? 0);
+        enqueue = false;
+        if (Number(body.status?.pendingJobs ?? 0) === 0) break;
+      }
+      setNotice(`${instance.displayName}: ${totals.applied} applied, ${totals.blocked} blocked, ${totals.failed} failed.`);
+      await load();
+    } catch (publicationError) {
+      setError(publicationError instanceof Error ? publicationError.message : 'Product publication could not run.');
+    } finally {
+      setPublicationWorkingId(null);
+    }
+  };
+
   const openAmazonMappings = async (instance: ChannelInstance) => {
     setMappingInstance(instance);
     setMappings([]);
     setMappingIds(new Set());
+    setMappingCandidateSearch('');
+    setMappingCandidates([]);
+    setMappingCandidateId('');
+    setMappingAsin('');
+    setMappingSellerSku('');
     setMappingLoading(true);
     setError('');
     try {
@@ -460,6 +541,51 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     } catch (mappingError) {
       setMappingInstance(null);
       setError(mappingError instanceof Error ? mappingError.message : 'Amazon product mappings could not be loaded.');
+    } finally {
+      setMappingLoading(false);
+    }
+  };
+
+  const searchAmazonCandidates = async () => {
+    if (!mappingInstance || mappingCandidateSearch.trim().length < 2) return;
+    setMappingLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(mappingInstance.channelInstanceId)}/amazon/mappings?q=${encodeURIComponent(mappingCandidateSearch.trim())}`);
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'IMS variants could not be searched.');
+      setMappingCandidates(Array.isArray(body.candidates) ? body.candidates : []);
+      setMappingCandidateId('');
+    } catch (mappingError) {
+      setError(mappingError instanceof Error ? mappingError.message : 'IMS variants could not be searched.');
+    } finally {
+      setMappingLoading(false);
+    }
+  };
+
+  const createAmazonOfferMapping = async () => {
+    if (!mappingInstance || !mappingCandidateId || !mappingAsin.trim() || !mappingSellerSku.trim()) return;
+    setMappingLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(mappingInstance.channelInstanceId)}/amazon/mappings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variantId: mappingCandidateId, asin: mappingAsin, sellerSku: mappingSellerSku }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Amazon offer mapping could not be saved.');
+      setNotice(`${mappingInstance.displayName}: existing-ASIN offer mapping saved. No Amazon listing was changed.`);
+      setMappingCandidateSearch('');
+      setMappingCandidates([]);
+      setMappingCandidateId('');
+      setMappingAsin('');
+      setMappingSellerSku('');
+      const refreshed = await fetch(`/api/ims/channels/${encodeURIComponent(mappingInstance.channelInstanceId)}/amazon/mappings`);
+      const refreshedBody = await refreshed.json();
+      if (refreshed.ok && refreshedBody.success) setMappings(Array.isArray(refreshedBody.mappings) ? refreshedBody.mappings : []);
+      await load();
+    } catch (mappingError) {
+      setError(mappingError instanceof Error ? mappingError.message : 'Amazon offer mapping could not be saved.');
     } finally {
       setMappingLoading(false);
     }
@@ -610,6 +736,27 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       <SlidersHorizontal size={14} aria-hidden="true" /> Product rules
                     </button>
                   )}
+                  {canManage && (
+                    <label style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
+                      <input
+                        type="checkbox"
+                        checked={productPublicationEnabled(instance)}
+                        disabled={publicationWorkingId === instance.channelInstanceId}
+                        onChange={event => void changeProductPublication(instance, event.target.checked)}
+                      />
+                      Automatic publication
+                    </label>
+                  )}
+                  {canManage && (
+                    <button
+                      type="button"
+                      disabled={!productPublicationEnabled(instance) || publicationWorkingId === instance.channelInstanceId || !instance.enabled || instance.runtimeStatus !== 'active' || instance.readinessStatus !== 'ready'}
+                      onClick={() => void runProductPublication(instance)}
+                      style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#166534', background: '#f0fdf4', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: publicationWorkingId === instance.channelInstanceId ? 'wait' : 'pointer', opacity: !productPublicationEnabled(instance) || !instance.enabled || instance.runtimeStatus !== 'active' || instance.readinessStatus !== 'ready' ? .55 : 1 }}
+                    >
+                      <RefreshCw size={14} aria-hidden="true" /> {publicationWorkingId === instance.channelInstanceId ? 'Working...' : 'Reconcile products'}
+                    </button>
+                  )}
                   {instance.provider === 'amazon' && !instance.enabled && capabilities.length === 0 && (
                     <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Operational setup pending</span>
                   )}
@@ -722,9 +869,31 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '20px 22px 14px', borderBottom: '1px solid var(--sv-border)' }}>
               <div>
                 <h2 id="amazon-mappings-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>{mappingInstance.displayName} listings</h2>
-                <p style={{ margin: '5px 0 0', color: 'var(--sv-text-dim)', fontSize: 12 }}>Only one-to-one SKU matches can be included.</p>
+                <p style={{ margin: '5px 0 0', color: 'var(--sv-text-dim)', fontSize: 12 }}>Synchronize existing listings or map an IMS variant to an existing ASIN before publication.</p>
               </div>
               <button type="button" onClick={() => setMappingInstance(null)} title="Close" aria-label="Close Amazon listings" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '12px 22px', borderBottom: '1px solid var(--sv-border)', background: '#f8fafc' }}>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 12, fontWeight: 750 }}>Add existing-ASIN offer</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.4fr) auto minmax(180px, 1.4fr) 130px 150px auto', gap: 8, alignItems: 'end', marginTop: 8 }}>
+                <label style={{ minWidth: 0, color: 'var(--sv-text)', fontSize: 11 }}>Find IMS variant
+                  <input value={mappingCandidateSearch} onChange={event => setMappingCandidateSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void searchAmazonCandidates(); } }} placeholder="Product, SKU or barcode" style={{ display: 'block', width: '100%', height: 32, marginTop: 4, padding: '0 8px', border: '1px solid var(--sv-border)', borderRadius: 4, boxSizing: 'border-box' }} />
+                </label>
+                <button type="button" disabled={mappingLoading || mappingCandidateSearch.trim().length < 2} onClick={() => void searchAmazonCandidates()} style={{ height: 32, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 4, background: '#fff', fontSize: 11, fontWeight: 700 }}>Search</button>
+                <label style={{ minWidth: 0, color: 'var(--sv-text)', fontSize: 11 }}>IMS variant
+                  <select value={mappingCandidateId} onChange={event => { const variantId = event.target.value; setMappingCandidateId(variantId); const candidate = mappingCandidates.find(item => item.variantId === variantId); if (candidate) setMappingSellerSku(candidate.sku.slice(0, 40)); }} style={{ display: 'block', width: '100%', height: 32, marginTop: 4, border: '1px solid var(--sv-border)', borderRadius: 4 }}>
+                    <option value="">Choose variant</option>
+                    {mappingCandidates.map(candidate => <option key={candidate.variantId} value={candidate.variantId}>{candidate.productName} · {candidate.variantLabel} · {candidate.sku}</option>)}
+                  </select>
+                </label>
+                <label style={{ color: 'var(--sv-text)', fontSize: 11 }}>ASIN
+                  <input value={mappingAsin} maxLength={10} onChange={event => setMappingAsin(event.target.value.toUpperCase())} placeholder="B012345678" style={{ display: 'block', width: '100%', height: 32, marginTop: 4, padding: '0 8px', border: '1px solid var(--sv-border)', borderRadius: 4, boxSizing: 'border-box' }} />
+                </label>
+                <label style={{ color: 'var(--sv-text)', fontSize: 11 }}>Seller SKU
+                  <input value={mappingSellerSku} maxLength={40} onChange={event => setMappingSellerSku(event.target.value)} style={{ display: 'block', width: '100%', height: 32, marginTop: 4, padding: '0 8px', border: '1px solid var(--sv-border)', borderRadius: 4, boxSizing: 'border-box' }} />
+                </label>
+                <button type="button" disabled={mappingLoading || !mappingCandidateId || mappingAsin.trim().length !== 10 || !mappingSellerSku.trim()} onClick={() => void createAmazonOfferMapping()} style={{ height: 32, padding: '0 10px', border: 0, borderRadius: 4, background: '#111827', color: '#fff', fontSize: 11, fontWeight: 700 }}>Save mapping</button>
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 22px', borderBottom: '1px solid var(--sv-border)' }}>
               <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{mappingIds.size} selected</span>

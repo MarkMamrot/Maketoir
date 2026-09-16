@@ -98,6 +98,17 @@ describe('SalesChannelInstanceRepository', () => {
     ]);
   });
 
+  it('gates product publication on the exact business-owned instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([]);
+    await SalesChannelInstanceRepository.setProductPublicationEnabledForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ', enabled: true,
+    });
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("'$.productPublicationEnabled'"), [
+      1, 'business-1', 'instance-1',
+    ]);
+  });
+
   it('rejects empty channel names', async () => {
     await expect(SalesChannelInstanceRepository.renameForBusiness({
       businessId: 'business-1', channelInstanceId: 'instance-1', displayName: ' ',
