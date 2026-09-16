@@ -2647,7 +2647,7 @@ function MainPos({
                       {isLayby ? 'Layby: ON' : 'Layby: Off'}
                     </button>
                     <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
-                    <a href="/pos?screen=daybook" target="_blank" rel="noopener noreferrer" onClick={() => setMoreMenuOpen(false)}
+                    <a href="/pos?screen=daybook" target="_blank" rel="noopener noreferrer"
                       style={btnStyle({ color: '#f6c55b', fontWeight: 750 })}
                       onMouseEnter={e => (e.currentTarget.style.background = mHov)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}

@@ -1,3 +1,11 @@
+## 2026-09-16 - Store Daybook workflow and usability improvements
+
+- Communications now load newest first, support safe Markdown bold/italic/list formatting, and wait for restored staff identity before loading so acknowledgements persist correctly across navigation.
+- Reference editing now has explicit keep, replace and remove-secret modes; password inputs render only for replacement, preventing password-manager autofill from silently changing saved credentials.
+- Store Needs now expose shared warehouse update threads and location-aware Approved, Packed, Sent and Received actions. Stock Discrepancies use a horizontally scrolling comparison table with edit/delete controls and manager outcome attribution.
+- Editing a checklist occurrence refreshes that exact instance, including completed rows. POS Daybook links open in a new tab without unmounting the triggering anchor.
+- Canonical Help and generated Help/Assistant indexes were updated. Validation passed the full 2,921-test suite with five skips, production build, diagnostics, diff checks, and authenticated desktop/mobile Playwright checks; temporary browser verification records were removed.
+
 ## 2026-09-16 - Guarded product publication execution and Amazon existing-ASIN offers
 
 - Provider-neutral product assignment now feeds a durable tenant outbox for Native Store, exact-instance Shopify and Amazon publication. Workers revalidate current intent before provider calls, recover stale locks, retry operational failures up to five attempts, and report them through Runtime Issues.
