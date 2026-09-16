@@ -145,18 +145,18 @@ input[type=number] {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--sv-link) 22%, transparent);
   }
 
-  button:not(.sv-button-flat):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]) {
+  button:not(.sv-button-flat):not(.solv-nav-item):not(.solv-nav-child):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]) {
     box-shadow: var(--sv-button-shadow) !important;
     transform: translateY(0);
     transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
   }
 
-  button:not(.sv-button-flat):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]):not(:disabled):hover {
+  button:not(.sv-button-flat):not(.solv-nav-item):not(.solv-nav-child):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]):not(:disabled):hover {
     box-shadow: var(--sv-button-shadow-hover) !important;
     transform: translateY(-1px);
   }
 
-  button:not(.sv-button-flat):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]):not(:disabled):active {
+  button:not(.sv-button-flat):not(.solv-nav-item):not(.solv-nav-child):not(.bg-transparent):not([style*="background: none"]):not([style*="background: transparent"]):not([class*="backdrop" i]):not([class*="textButton" i]):not([class*="NameButton" i]):not([class*="dragHandle" i]):not([class*="sectionIdentity" i]):not([class*="inheritButton" i]):not(:disabled):active {
     box-shadow: var(--sv-button-shadow-active) !important;
     transform: translateY(1px);
     transition-duration: 60ms;
