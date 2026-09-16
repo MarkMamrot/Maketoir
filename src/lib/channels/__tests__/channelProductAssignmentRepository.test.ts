@@ -14,6 +14,7 @@ import {
   evaluateChannelProducts,
   replaceChannelProductRules,
   setChannelProductOverride,
+  setChannelProductOverrides,
 } from '../channelProductAssignmentRepository';
 
 describe('channel product assignment repository', () => {
@@ -44,6 +45,7 @@ describe('channel product assignment repository', () => {
     const result = await evaluateChannelProducts({ businessId: 'business-1', channelInstanceId: 'instance-1', apply: true });
     expect(result.products[0]).toMatchObject({ ruleDecision: 'include', effectiveDecision: 'exclude',
       overrideMode: 'exclude', providerState: 'published' });
+    expect(mocks.query.mock.calls[1][0]).toContain('BINARY assignment.product_id = BINARY product.product_id');
     expect(mocks.execute.mock.calls[0][0]).not.toContain('provider_state =');
     expect(mocks.execute.mock.calls[0][1].slice(0, 3)).toEqual(['business-1', 'instance-1', 'product-1']);
     expect(result.applied).toBe(1);
@@ -54,6 +56,15 @@ describe('channel product assignment repository', () => {
       productId: 'product-1', overrideMode: 'include' });
     expect(mocks.execute.mock.calls[0][0]).toContain('product.business_id = ? AND product.product_id = ?');
     expect(mocks.execute.mock.calls[0][1]).toEqual(['instance-1', 'include', 'include', 'business-1', 'product-1']);
+  });
+
+  it('bulk updates deduplicated products through one tenant-scoped statement', async () => {
+    const applied = await setChannelProductOverrides({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      productIds: ['product-1', 'product-2', 'product-1'], overrideMode: 'exclude' });
+    expect(applied).toBe(2);
+    expect(mocks.execute).toHaveBeenCalledOnce();
+    expect(mocks.execute.mock.calls[0][0]).toContain('product.business_id = ? AND product.product_id IN (?,?)');
+    expect(mocks.execute.mock.calls[0][1]).toEqual(['instance-1', 'exclude', 'exclude', 'business-1', 'product-1', 'product-2']);
   });
 
   it('evaluates one exact product without using a fuzzy search match', async () => {
@@ -69,7 +80,8 @@ describe('channel product assignment repository', () => {
       productId: 'product-1', limit: 1 });
 
     expect(mocks.query.mock.calls[1][0]).toContain('product.product_id = ?');
-    expect(mocks.query.mock.calls[1][1]).toEqual(['instance-1', 'business-1', 'product-1', 1, 0]);
+    expect(mocks.query.mock.calls[1][0]).toContain('LIMIT 1 OFFSET 0');
+    expect(mocks.query.mock.calls[1][1]).toEqual(['instance-1', 'business-1', 'product-1']);
     expect(mocks.query.mock.calls[2][1]).toEqual(['business-1', 'product-1']);
     expect(result.products).toHaveLength(1);
   });

@@ -190,11 +190,11 @@ export async function evaluateChannelProducts(input: {
                    WHERE is_active = 1 GROUP BY business_id, product_id) variants
          ON variants.business_id = product.business_id AND variants.product_id = product.product_id
        LEFT JOIN ims_sales_channel_product_assignments assignment
-         ON assignment.business_id = product.business_id AND assignment.channel_instance_id = ?
-        AND assignment.product_id = product.product_id
+         ON BINARY assignment.business_id = BINARY product.business_id AND assignment.channel_instance_id = ?
+        AND BINARY assignment.product_id = BINARY product.product_id
       WHERE product.business_id = ?${whereProduct}${whereSearch}
-      ORDER BY product.name, product.product_id LIMIT ? OFFSET ?`,
-    [...params, limit, offset],
+      ORDER BY product.name, product.product_id LIMIT ${limit} OFFSET ${offset}`,
+    params,
   );
   const countParams: unknown[] = [input.businessId];
   if (productId) countParams.push(productId);
@@ -266,4 +266,31 @@ export async function setChannelProductOverride(input: {
        updated_at = CURRENT_TIMESTAMP(3)`,
     [input.channelInstanceId, input.overrideMode, input.overrideMode, input.businessId, input.productId],
   );
+}
+
+export async function setChannelProductOverrides(input: {
+  businessId: string;
+  channelInstanceId: string;
+  productIds: string[];
+  overrideMode: ChannelProductOverrideMode;
+}): Promise<number> {
+  if (!['automatic', 'include', 'exclude'].includes(input.overrideMode)) throw new Error('Invalid channel product override.');
+  const productIds = [...new Set(input.productIds.map(productId => String(productId).trim()).filter(Boolean))];
+  if (productIds.length === 0 || productIds.length > 500) throw new Error('Choose between 1 and 500 products.');
+  const placeholders = productIds.map(() => '?').join(',');
+  await imsExecute(
+    `INSERT INTO ims_sales_channel_product_assignments
+       (business_id, channel_instance_id, product_id, rule_decision, override_mode, desired_state)
+     SELECT product.business_id, ?, product.product_id, 'exclude', ?,
+            IF(? = 'include', 'published', 'unpublished')
+       FROM ims_products product
+      WHERE product.business_id = ? AND product.product_id IN (${placeholders})
+     ON DUPLICATE KEY UPDATE override_mode = VALUES(override_mode),
+       desired_state = CASE
+         WHEN VALUES(override_mode) = 'automatic' THEN IF(rule_decision = 'include', 'published', 'unpublished')
+         WHEN VALUES(override_mode) = 'include' THEN 'published' ELSE 'unpublished' END,
+       updated_at = CURRENT_TIMESTAMP(3)`,
+    [input.channelInstanceId, input.overrideMode, input.overrideMode, input.businessId, ...productIds],
+  );
+  return productIds.length;
 }

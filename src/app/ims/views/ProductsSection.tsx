@@ -60,7 +60,7 @@ export function ProductsSection({
       {view === 'brands' && <BrandsView />}
       {view === 'gift-cards' && <GiftCardsView />}
       {view === 'bulk-edit' && <BulkEditView />}
-      {view === 'bulk-add-edit' && <BulkAddEditProductsView businessId={businessId} />}
+      {view === 'bulk-add-edit' && <BulkAddEditProductsView businessId={businessId} isAdvisor={isAdvisor} />}
     </>
   );
 }

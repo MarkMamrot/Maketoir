@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), getInstance: vi.fn(), listRules: vi.fn(), replaceRules: vi.fn(),
-  evaluate: vi.fn(), setOverride: vi.fn(), report: vi.fn(),
+  evaluate: vi.fn(), setOverride: vi.fn(), setOverrides: vi.fn(), report: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
@@ -13,6 +13,7 @@ vi.mock('@/lib/channels/channelProductAssignmentRepository', () => ({
   replaceChannelProductRules: mocks.replaceRules,
   evaluateChannelProducts: mocks.evaluate,
   setChannelProductOverride: mocks.setOverride,
+  setChannelProductOverrides: mocks.setOverrides,
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
@@ -35,6 +36,7 @@ describe('channel product rules route', () => {
     mocks.listRules.mockResolvedValue([]);
     mocks.replaceRules.mockResolvedValue([]);
     mocks.evaluate.mockResolvedValue({ products: [], total: 0, applied: 0 });
+    mocks.setOverrides.mockResolvedValue(2);
     mocks.report.mockResolvedValue(undefined);
   });
 
@@ -71,5 +73,21 @@ describe('channel product rules route', () => {
       businessId: 'business-1', channelInstanceId: 'instance-1', productId: 'product-1', overrideMode: 'include',
     }));
     expect((await PATCH(request('PATCH', { productId: 'product-1', overrideMode: 'sometimes' }), context)).status).toBe(400);
+  });
+
+  it('applies one override to a bounded product selection', async () => {
+    const response = await PATCH(request('PATCH', { productIds: ['product-1', 'product-2'], overrideMode: 'include' }), context);
+    expect(response.status).toBe(200);
+    expect(mocks.setOverrides).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', channelInstanceId: 'instance-1',
+      productIds: ['product-1', 'product-2'], overrideMode: 'include',
+    }));
+    expect(await response.json()).toMatchObject({ applied: 2 });
+  });
+
+  it('rejects more than 500 product overrides', async () => {
+    const response = await PATCH(request('PATCH', { productIds: Array.from({ length: 501 }, (_, index) => `product-${index}`), overrideMode: 'exclude' }), context);
+    expect(response.status).toBe(400);
+    expect(mocks.setOverrides).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, FileUp, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, FileUp, ListChecks, ListFilter, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
   bulkProductLocationFieldsForBranch,
@@ -120,6 +120,12 @@ interface BulkProductPreset {
   name: string;
   settings: BulkProductWorkspaceSettings;
   lastUsedAt: string | null;
+}
+
+interface SalesChannelOption {
+  channelInstanceId: string;
+  displayName: string;
+  providerDisplayName: string;
 }
 
 const inputStyle = {
@@ -448,11 +454,12 @@ function serializedForeignCosts(variant: VariantDraft): string | null | undefine
   return Object.keys(costs).length ? JSON.stringify(costs) : null;
 }
 
-export function BulkAddEditProductsView({ businessId }: { businessId: string }) {
+export function BulkAddEditProductsView({ businessId, isAdvisor = false }: { businessId: string; isAdvisor?: boolean }) {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [brands, setBrands] = useState<LookupOption[]>([]);
   const [suppliers, setSuppliers] = useState<LookupOption[]>([]);
   const [locations, setLocations] = useState<LookupOption[]>([]);
+  const [salesChannels, setSalesChannels] = useState<SalesChannelOption[]>([]);
   const [serverProducts, setServerProducts] = useState<ProductDraft[]>([]);
   const [dirtyProducts, setDirtyProducts] = useState<Record<string, ProductDraft>>({});
   const [newProducts, setNewProducts] = useState<ProductDraft[]>([]);
@@ -470,6 +477,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [applyingChannelOverride, setApplyingChannelOverride] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [bulkChannelId, setBulkChannelId] = useState('');
+  const [bulkOverrideMode, setBulkOverrideMode] = useState<'automatic' | 'include' | 'exclude'>('automatic');
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -563,11 +574,17 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         if (!response.ok || !result.success) throw new Error(result.error || 'Locations could not be loaded.');
         return result;
       }),
-    ]).then(([settingsResult, brandsResult, suppliersResult, locationsResult]) => {
+      fetch('/api/ims/channels').then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Sales channels could not be loaded.');
+        return result;
+      }),
+    ]).then(([settingsResult, brandsResult, suppliersResult, locationsResult, channelsResult]) => {
       setSettings(settingsResult.data ?? {});
       setBrands(brandsResult.data ?? []);
       setSuppliers(suppliersResult.data ?? []);
       setLocations((locationsResult.data ?? []).filter((location: any) => Number(location.is_active ?? 1) !== 0));
+      setSalesChannels(Array.isArray(channelsResult.instances) ? channelsResult.instances : []);
       setConfigurationLoaded(true);
     }).catch(error => {
       setSelectedFields(sanitizeBulkProductFieldSelection(null, availableFields));
@@ -631,6 +648,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Products could not be loaded.');
       setServerProducts(result.products.map(productFromApi));
+      setSelectedProductIds(new Set());
       setTotal(Number(result.total ?? 0));
     } catch (error) {
       setServerProducts([]);
@@ -956,6 +974,29 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     setErrors({});
     setMessage('Changes discarded.');
   };
+  const applyChannelOverride = async () => {
+    const channel = salesChannels.find(candidate => candidate.channelInstanceId === bulkChannelId);
+    const productIds = [...selectedProductIds];
+    if (!channel || productIds.length === 0) return;
+    const action = bulkOverrideMode === 'automatic' ? 'return to automatic rules' : `${bulkOverrideMode} in the destination`;
+    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} for ${productIds.length} selected product${productIds.length === 1 ? '' : 's'} in ${channel.displayName}? This records assignment intent and does not publish products.`)) return;
+    setApplyingChannelOverride(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(channel.channelInstanceId)}/product-rules`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds, overrideMode: bulkOverrideMode }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Channel overrides could not be applied.');
+      setSelectedProductIds(new Set());
+      setMessage(`${Number(result.applied ?? productIds.length)} product channel override${productIds.length === 1 ? '' : 's'} saved for ${channel.displayName}. No products were published.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Channel overrides could not be applied.');
+    } finally {
+      setApplyingChannelOverride(false);
+    }
+  };
 
   const productsWithVariants = displayedProducts.filter(hasGeneratedVariants);
   const managedProduct = displayedProducts.find(product => product.clientId === manageVariantsProductId) ?? null;
@@ -968,9 +1009,16 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     checked ? [...current, ...fieldIds] : current.filter(id => !fieldIds.includes(id)),
     availableFields,
   ));
-  const totalWidth = 44 + 180 + fields.reduce((sum, field) => sum + field.width, 0);
-  const renderColGroup = () => <colgroup><col style={{ width: 44 }} /><col style={{ width: 180 }} />{fields.map(field => <col key={field.id} style={{ width: field.width }} />)}</colgroup>;
-
+  const selectableProductIds = displayedProducts.flatMap(product => product.productId ? [product.productId] : []);
+  const allVisibleSelected = selectableProductIds.length > 0 && selectableProductIds.every(productId => selectedProductIds.has(productId));
+  const totalWidth = 68 + 180 + fields.reduce((sum, field) => sum + field.width, 0);
+  const renderColGroup = () => (
+    <colgroup>
+      <col style={{ width: 68 }} />
+      <col style={{ width: 180 }} />
+      {fields.map(field => <col key={field.id} style={{ width: field.width }} />)}
+    </colgroup>
+  );
   const valueFor = (product: ProductDraft, variant: VariantDraft | undefined, field: BulkProductFieldDefinition) => {
     if (field.owner === 'product') return product[field.id] ?? '';
     if (field.currencyCode) return variant?.foreignCosts[field.currencyCode] ?? '';
@@ -1039,17 +1087,18 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     return (
       <tr key={variant?.clientId ?? product.clientId} style={{ background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)' }}>
         <td style={{ position: 'sticky', left: 0, zIndex: 3, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: 4, borderBottom: '1px solid var(--sv-etch)', textAlign: 'center' }}>
+          {!variant && product.productId && <input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedProductIds.has(product.productId)} onChange={event => setSelectedProductIds(current => { const next = new Set(current); event.target.checked ? next.add(product.productId!) : next.delete(product.productId!); return next; })} style={{ width: 15, height: 15, margin: hasGeneratedVariants(product) ? '0 3px 0 0' : 0, verticalAlign: 'middle' }} />}
           {!variant && !product.productId && <button type="button" title="Delete new product" aria-label={`Delete ${product.name || 'new product'}`} onClick={() => removeNewProduct(product.clientId)} style={{ ...buttonStyle, padding: 2, border: 0, color: 'var(--sv-danger, #b42318)' }}><X size={15} /></button>}
           {!variant && hasGeneratedVariants(product) && <button type="button" aria-label={`${expanded.has(product.clientId) ? 'Collapse' : 'Expand'} ${product.name || 'new product'} variants`} onClick={() => setExpanded(current => { const next = new Set(current); next.has(product.clientId) ? next.delete(product.clientId) : next.add(product.clientId); return next; })} style={{ ...buttonStyle, padding: 2, border: 0 }}>
             {expanded.has(product.clientId) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>}
         </td>
-        <td style={{ position: 'sticky', left: 44, zIndex: 2, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: '5px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 11, fontWeight: 650, color: 'var(--sv-text-dim)' }}>
+        <td style={{ position: 'sticky', left: 68, zIndex: 2, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: '5px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 11, fontWeight: 650, color: 'var(--sv-text-dim)' }}>
           {variant ? variantLabel(variant) : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}><span>{product.productId ? 'Existing product' : 'New product'}</span><button type="button" title="Manage variants" aria-label={`Manage variants for ${product.name || 'new product'}`} onClick={() => setManageVariantsProductId(product.clientId)} style={{ ...buttonStyle, padding: '4px 6px' }}><Settings2 size={14} /> Variants</button></div>}
         </td>
         {fields.map(field => {
           const frozen = field.id === 'name';
-          return <td key={field.id} style={{ position: frozen ? 'sticky' : undefined, left: frozen ? 224 : undefined, zIndex: frozen ? 1 : undefined, background: frozen ? (variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)') : undefined, boxShadow: frozen ? '3px 0 5px rgba(15,23,42,.08)' : undefined, padding: 3, borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>{field.owner === 'product' && !variant ? renderEditor(product, undefined, field) : field.owner === 'variant' && (variant || defaultVariant) ? renderEditor(product, variant ?? defaultVariant, field) : null}</td>;
+          return <td key={field.id} style={{ position: frozen ? 'sticky' : undefined, left: frozen ? 248 : undefined, zIndex: frozen ? 1 : undefined, background: frozen ? (variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)') : undefined, boxShadow: frozen ? '3px 0 5px rgba(15,23,42,.08)' : undefined, padding: 3, borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>{field.owner === 'product' && !variant ? renderEditor(product, undefined, field) : field.owner === 'variant' && (variant || defaultVariant) ? renderEditor(product, variant ?? defaultVariant, field) : null}</td>;
         })}
       </tr>
     );
@@ -1082,6 +1131,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
             const generated = populateBlankProductSkus(displayedProducts.map(product => ({ clientId: product.clientId, brand: product.brand, baseSku: product.base_sku })));
             generated.forEach(row => { if (row.baseSku !== displayedProducts.find(product => product.clientId === row.clientId)?.base_sku) updateProductField(String(row.clientId), 'base_sku', row.baseSku ?? ''); });
           }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKUs</button>
+          {!isAdvisor && salesChannels.length > 0 && <>
+            <select aria-label="Channel for selected products" value={bulkChannelId} onChange={event => setBulkChannelId(event.target.value)} style={{ ...inputStyle, width: 190 }}><option value="">Choose channel...</option>{salesChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName} ({channel.providerDisplayName})</option>)}</select>
+            <select aria-label="Channel override for selected products" value={bulkOverrideMode} onChange={event => setBulkOverrideMode(event.target.value as 'automatic' | 'include' | 'exclude')} style={{ ...inputStyle, width: 145 }}><option value="automatic">Automatic</option><option value="include">Include</option><option value="exclude">Exclude</option></select>
+            <button type="button" disabled={!bulkChannelId || selectedProductIds.size === 0 || applyingChannelOverride} onClick={() => void applyChannelOverride()} style={{ ...buttonStyle, opacity: !bulkChannelId || selectedProductIds.size === 0 || applyingChannelOverride ? .5 : 1 }}><ListChecks size={15} /> {applyingChannelOverride ? 'Applying...' : `Apply to selected${selectedProductIds.size ? ` (${selectedProductIds.size})` : ''}`}</button>
+          </>}
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
         <select aria-label="Sort products" value={`${sortKey}:${sortDirection}`} onChange={event => { const [nextKey, nextDirection] = event.target.value.split(':') as [BulkProductSortKey, BulkProductSortDirection]; setSortKey(nextKey); setSortDirection(nextDirection); setPage(1); }} style={{ ...inputStyle, width: 225 }}>
@@ -1164,11 +1218,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
       <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, minWidth: 0, background: 'var(--sv-bg-1)' }}>
         <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 10, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0' }}>
-          <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34, padding: 0 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}><button type="button" title="Expand all variants" aria-label="Expand all variants" disabled={!productsWithVariants.length} onClick={() => setExpanded(new Set(productsWithVariants.map(product => product.clientId)))} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: productsWithVariants.length ? 'pointer' : 'default', opacity: productsWithVariants.length ? 1 : .35 }}><ChevronsUpDown size={14} /></button><button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: expanded.size ? 'pointer' : 'default', opacity: expanded.size ? 1 : .35 }}><ChevronsDownUp size={14} /></button></div></th><th style={{ position: 'sticky', left: 44, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => {
+          <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34, padding: 0 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}><input type="checkbox" aria-label="Select all products on this page" checked={allVisibleSelected} disabled={!selectableProductIds.length} onChange={event => setSelectedProductIds(event.target.checked ? new Set(selectableProductIds) : new Set())} style={{ width: 14, height: 14, margin: 0 }} /><button type="button" title="Expand all variants" aria-label="Expand all variants" disabled={!productsWithVariants.length} onClick={() => setExpanded(new Set(productsWithVariants.map(product => product.clientId)))} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: productsWithVariants.length ? 'pointer' : 'default', opacity: productsWithVariants.length ? 1 : .35 }}><ChevronsUpDown size={14} /></button><button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: expanded.size ? 'pointer' : 'default', opacity: expanded.size ? 1 : .35 }}><ChevronsDownUp size={14} /></button></div></th><th style={{ position: 'sticky', left: 68, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => {
             const columnSortKey = fieldSortKey(field);
             const isActiveSort = columnSortKey === sortKey;
             const frozen = field.id === 'name';
-            return <th key={field.id} aria-sort={isActiveSort ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined} style={{ position: frozen ? 'sticky' : undefined, left: frozen ? 224 : undefined, zIndex: frozen ? 10 : undefined, background: frozen ? 'var(--sv-bg-2)' : undefined, boxShadow: frozen ? '3px 0 5px rgba(15,23,42,.08)' : undefined, borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: 0, fontSize: 11, color: 'var(--sv-text-dim)' }}>{columnSortKey ? <button type="button" aria-label={`Sort by ${field.label}${isActiveSort ? ` ${sortDirection === 'asc' ? 'descending' : 'ascending'}` : ''}`} onClick={() => toggleColumnSort(columnSortKey)} title={`Sort by ${field.label}`} style={{ width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, padding: '0 7px', border: 0, background: isActiveSort ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'transparent', color: isActiveSort ? 'var(--sv-action)' : 'var(--sv-text-dim)', font: 'inherit', fontWeight: isActiveSort ? 750 : 650, cursor: 'pointer', textAlign: 'left' }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label}</span>{isActiveSort && (sortDirection === 'asc' ? <ArrowUp size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} /> : <ArrowDown size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} />)}</button> : <span style={{ display: 'flex', alignItems: 'center', height: 34, padding: '0 7px' }}>{field.label}</span>}</th>;
+            return <th key={field.id} aria-sort={isActiveSort ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined} style={{ position: frozen ? 'sticky' : undefined, left: frozen ? 248 : undefined, zIndex: frozen ? 10 : undefined, background: frozen ? 'var(--sv-bg-2)' : undefined, boxShadow: frozen ? '3px 0 5px rgba(15,23,42,.08)' : undefined, borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: 0, fontSize: 11, color: 'var(--sv-text-dim)' }}>{columnSortKey ? <button type="button" aria-label={`Sort by ${field.label}${isActiveSort ? ` ${sortDirection === 'asc' ? 'descending' : 'ascending'}` : ''}`} onClick={() => toggleColumnSort(columnSortKey)} title={`Sort by ${field.label}`} style={{ width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, padding: '0 7px', border: 0, background: isActiveSort ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-2))' : 'transparent', color: isActiveSort ? 'var(--sv-action)' : 'var(--sv-text-dim)', font: 'inherit', fontWeight: isActiveSort ? 750 : 650, cursor: 'pointer', textAlign: 'left' }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label}</span>{isActiveSort && (sortDirection === 'asc' ? <ArrowUp size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} /> : <ArrowDown size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} />)}</button> : <span style={{ display: 'flex', alignItems: 'center', height: 34, padding: '0 7px' }}>{field.label}</span>}</th>;
           })}</tr></thead></table>
         </div>
         <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bulk-add-edit-products-scroll" tabIndex={0} role="region" aria-label="Bulk Add/Edit Products table. Use Left and Right arrows to scroll columns and Up and Down arrows to scroll the page." onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0, borderRadius: '0 0 10px 10px' }}>

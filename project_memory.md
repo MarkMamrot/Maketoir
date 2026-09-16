@@ -1,3 +1,10 @@
+## 2026-09-16 - Sandbox channel assignments and bulk overrides
+
+- The provider-neutral product-rule and assignment tables were deployed only to `readyedu_MonsterthreadsSandboxIMS` through targeted, idempotent catch-up runs. Direct metadata readback verified both tables, their exact-instance product uniqueness, desired/provider-state indexes and the internal matched-rule foreign key; production tenants were not changed.
+- Legacy product identifiers use `utf8mb4_general_ci` while the new assignment identities use `utf8mb4_0900_ai_ci`, so product-assignment joins now compare business and product IDs with `BINARY`. Product preview pagination validates and interpolates integer LIMIT/OFFSET values because the tenant driver's prepared `execute()` rejected bound pagination values.
+- The authenticated sandbox created the ordered `Sandbox online candidates` rule and evaluated all 6,451 products without contacting a provider. Bulk Add/Edit now lets administrators select saved products on the current page and apply an exact-storefront Automatic, Include or Exclude override independently of catalogue saving.
+- Live verification returned `2026 Artists Calendar` to Automatic for `Monsterthreads DEV SANDBOX Shopify`; its effective decision is Include while observed provider state remains Unknown. Confirmation and success text explicitly stated that no products were published.
+
 ## 2026-09-16 - Product-level channel destination preview
 
 - A saved product's Online Store section now evaluates that exact product across every configured sales-channel instance and shows its effective Include/Exclude destination, matched rule, persistent override and observed provider state.

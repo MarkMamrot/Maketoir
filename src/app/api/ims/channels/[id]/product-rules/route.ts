@@ -6,6 +6,7 @@ import {
   listChannelProductRules,
   replaceChannelProductRules,
   setChannelProductOverride,
+  setChannelProductOverrides,
 } from '@/lib/channels/channelProductAssignmentRepository';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import type { ChannelProductOverrideMode, ChannelProductRuleDefinition } from '@/lib/channels/channelProductRules';
@@ -117,18 +118,21 @@ export async function PATCH(request: Request, context: Context) {
   if ('response' in auth) return auth.response;
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const productId = String(body?.productId ?? '').trim();
+  const productIds = Array.isArray(body?.productIds) ? body.productIds.map(value => String(value).trim()).filter(Boolean) : [];
   const overrideMode = String(body?.overrideMode ?? '') as ChannelProductOverrideMode;
-  if (!productId || !['automatic', 'include', 'exclude'].includes(overrideMode)) {
-    return NextResponse.json({ error: 'A valid product and override are required.' }, { status: 400 });
+  if ((!productId && productIds.length === 0) || productIds.length > 500 || !['automatic', 'include', 'exclude'].includes(overrideMode)) {
+    return NextResponse.json({ error: 'Between 1 and 500 valid products and an override are required.' }, { status: 400 });
   }
   try {
-    await setChannelProductOverride({ ...auth, productId, overrideMode });
-    return NextResponse.json({ success: true });
+    const applied = productIds.length > 0
+      ? await setChannelProductOverrides({ ...auth, productIds, overrideMode })
+      : (await setChannelProductOverride({ ...auth, productId, overrideMode }), 1);
+    return NextResponse.json({ success: true, applied });
   } catch (error) {
     await reportRuntimeIssue({
       businessId: auth.businessId, source: 'ims.channels', operation: 'override_product_assignment',
       title: 'Channel product override could not be saved', error,
-      context: { channelInstanceId: auth.channelInstanceId, productId },
+      context: { channelInstanceId: auth.channelInstanceId, productId: productId || undefined, productCount: productIds.length || 1 },
       reference: { type: 'sales_channel_instance', id: auth.channelInstanceId },
     }).catch(() => null);
     return NextResponse.json({ error: 'Channel product override could not be saved.' }, { status: 500 });

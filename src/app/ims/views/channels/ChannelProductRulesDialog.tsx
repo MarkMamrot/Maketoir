@@ -130,11 +130,18 @@ export default function ChannelProductRulesDialog({ instance, onClose, onApplied
   };
 
   const applyAssignments = async () => {
-    if (!window.confirm(`Apply these rules to all ${total} products for ${instance.displayName}? This records destination intent but does not publish products.`)) return;
     setApplying(true);
     setError('');
     setNotice('');
     try {
+      const preflightResponse = await fetch(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apply: false, limit: 1, offset: 0 }),
+      });
+      const preflight = await preflightResponse.json();
+      if (!preflightResponse.ok || !preflight.success) throw new Error(preflight.error || 'Channel assignment scope could not be checked.');
+      const fullCatalogueTotal = Number(preflight.total ?? 0);
+      if (!window.confirm(`Apply these rules to all ${fullCatalogueTotal} products for ${instance.displayName}? This records destination intent but does not publish products.`)) return;
       let offset = 0;
       let applied = 0;
       let catalogueTotal: number | null = null;
