@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
-  AlertTriangle, Bold, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
+  AlertTriangle, ArrowDown, ArrowUp, Bold, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
   ClipboardPlus, ClipboardX, Copy, Ellipsis, Eye, Highlighter, Megaphone, MessageSquare, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
   Italic, List, Trash2, Truck, UserRoundCheck, X,
 } from 'lucide-react';
@@ -37,9 +37,9 @@ function communicationHasText(value: string) {
   return value.replace(/<[^>]*>/g, '').replaceAll('&nbsp;', ' ').trim().length > 0;
 }
 type TaskPhase = 'opening' | 'during_day' | 'closing';
-type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; comments?: DaybookComment[]; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
-type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; instructions?: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; is_active: number; can_edit: boolean; staff_name?: string; staff_initials?: string; signed_at?: string };
-type EditableTask = Pick<Task, 'id' | 'template_id' | 'title_snapshot' | 'instructions' | 'phase' | 'recurrence' | 'weekday' | 'scheduled_date'>;
+type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; sort_order: number; status: string; can_edit: boolean; comments?: DaybookComment[]; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
+type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; instructions?: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; sort_order: number; status: string; is_active: number; can_edit: boolean; staff_name?: string; staff_initials?: string; signed_at?: string };
+type EditableTask = Pick<Task, 'id' | 'template_id' | 'title_snapshot' | 'instructions' | 'phase' | 'recurrence' | 'weekday' | 'scheduled_date' | 'sort_order'>;
 type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
 type Reader = { name: string; initials: string; read_at: string };
 type DaybookComment = { id: number; item_type: 'task' | 'communication' | 'record'; item_id: number; comment_text: string; staff_name: string; staff_initials: string; actor_name: string; created_at: string; can_edit: boolean };
@@ -422,6 +422,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
               if (!confirm(`Delete "${task.title_snapshot}" from the active Daybook? Future occurrences will stop, while existing sign-off history will be retained.`)) return;
               await perform('delete_item', { item_type: 'task', item_id: task.template_id });
             }}
+            onReorder={templateIds => perform('reorder_tasks', { template_ids: templateIds })}
             onComment={(task, commentText) => perform('add_comment', { item_type: 'task', item_id: task.id, comment_text: commentText })}
             onAdd={workspace?.permissions.manager ? () => openEditor('task', { phase: taskPhase }) : undefined}
           />
@@ -498,7 +499,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   );
 }
 
-function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onAdd, onComment }: {
+function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onReorder, onAdd, onComment }: {
   workspace: Workspace | null;
   phase: TaskPhase;
   onPhaseChange: (phase: TaskPhase) => void;
@@ -506,6 +507,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   onSign: (task: Task) => Promise<void>;
   onEdit: (task: EditableTask) => void;
   onDelete: (task: EditableTask) => Promise<void>;
+  onReorder: (templateIds: number[]) => Promise<unknown>;
   onComment: (task: Task, commentText: string) => Promise<unknown>;
   onAdd?: () => void;
 }) {
@@ -517,11 +519,11 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   ];
   const currentTasks = workspace.tasks.filter(task => task.phase === phase);
   const phaseHistory = workspace.taskHistory.filter(item => item.phase === phase);
-  const rows = new Map<number, { templateId: number; title: string; instructions?: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null; editableTask?: EditableTask }>();
-  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, instructions: item.instructions, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date, editableTask: item.can_edit ? item : undefined });
+  const rows = new Map<number, { templateId: number; title: string; instructions?: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null; sortOrder: number; editableTask?: EditableTask }>();
+  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, instructions: item.instructions, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date, sortOrder: item.sort_order, editableTask: item.can_edit ? item : undefined });
   for (const task of currentTasks) {
     const historicalTask = rows.get(task.template_id)?.editableTask;
-    rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, instructions: task.instructions, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, editableTask: task.can_edit ? task : historicalTask });
+    rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, instructions: task.instructions, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, sortOrder: task.sort_order, editableTask: task.can_edit ? task : historicalTask });
   }
   const scheduleGroups = new Map<string, { label: string; order: number; rows: typeof rows extends Map<number, infer Row> ? Row[] : never }>();
   for (const row of rows.values()) {
@@ -531,6 +533,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
     scheduleGroups.set(schedule.key, group);
   }
   const groupedRows = [...scheduleGroups.entries()].sort(([, left], [, right]) => left.order - right.order);
+  for (const [, group] of groupedRows) group.rows.sort((left, right) => left.sortOrder - right.sortOrder || left.templateId - right.templateId);
   const displayDates = getDaybookDisplayDates(workspace.taskDates);
   const completed = currentTasks.filter(task => task.status === 'completed').length;
   const selected = phaseMeta.find(item => item.id === phase) ?? phaseMeta[0];
@@ -556,10 +559,15 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
         })}</tr></thead>
         {groupedRows.map(([groupKey, group]) => <tbody className={`${styles.scheduleGroup} ${styles[`scheduleTone${group.order <= 7 ? group.order : 0}`]}`} key={groupKey}>
           <tr className={styles.scheduleHeading}><th colSpan={workspace.taskDates.length + 1} scope="rowgroup"><span>{group.label}</span><small>{group.rows.length} {group.rows.length === 1 ? 'task' : 'tasks'}</small></th></tr>
-          {group.rows.map(row => {
+          {group.rows.map((row, rowIndex) => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
           const display = getDaybookTaskDisplay(row.title, currentTask?.instructions_snapshot ?? row.instructions);
-          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <span className={styles.taskInstructions}>{display.instructions}</span>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button></div>}{currentTask && <CommentThread comments={currentTask.comments ?? []} saving={saving} onAdd={commentText => onComment(currentTask, commentText)} />}</th>{displayDates.map(taskDate => {
+          const move = (offset: number) => {
+            const orderedIds = group.rows.map(item => item.templateId);
+            [orderedIds[rowIndex], orderedIds[rowIndex + offset]] = [orderedIds[rowIndex + offset], orderedIds[rowIndex]];
+            void onReorder(orderedIds);
+          };
+          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <span className={styles.taskInstructions}>{display.instructions}</span>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button><button type="button" onClick={() => move(-1)} disabled={saving || rowIndex === 0} title={`Move ${row.title} up`} aria-label={`Move ${row.title} up`}><ArrowUp size={15} /></button><button type="button" onClick={() => move(1)} disabled={saving || rowIndex === group.rows.length - 1} title={`Move ${row.title} down`} aria-label={`Move ${row.title} down`}><ArrowDown size={15} /></button></div>}{currentTask && <CommentThread comments={currentTask.comments ?? []} saving={saving} onAdd={commentText => onComment(currentTask, commentText)} />}</th>{displayDates.map(taskDate => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
             if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;

@@ -52,7 +52,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 5. Check that your initials appear immediately without the page returning to the top. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
-8. Any Daybook staff member can use the pencil or bin icon beside every active task in Open the store, Keep the day moving, or Close with confidence. The bin always shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.
+8. Any Daybook staff member can use the up and down arrows beside an active task to change its position within the same schedule group. The first and last available arrows are disabled. The pencil edits the task, while the bin shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
 

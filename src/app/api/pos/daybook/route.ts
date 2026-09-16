@@ -276,7 +276,7 @@ export async function GET(request: Request) {
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
                 s.actor_name AS last_actor_name, s.created_at AS signed_at,
-          t.is_active, t.recurrence, t.weekday, t.scheduled_date, t.instructions,
+          t.is_active, t.recurrence, t.weekday, t.scheduled_date, t.instructions, t.sort_order,
                 t.created_by_id, t.created_by_staff_identity_id, t.created_by_staff_initials
          FROM pos_daybook_task_instances i
          JOIN pos_daybook_task_templates t ON t.business_id = i.business_id AND t.id = i.template_id
@@ -286,12 +286,12 @@ export async function GET(request: Request) {
          )
          WHERE i.business_id = ? AND i.location_id = ? AND i.task_date = ?
            AND (t.is_active = 1 OR i.status = 'completed' OR i.task_date < CURRENT_DATE())
-         ORDER BY FIELD(i.phase, 'opening','during_day','closing'), i.id`,
+         ORDER BY FIELD(i.phase, 'opening','during_day','closing'), t.sort_order, t.id`,
         [context.businessId, context.locationId, taskDate],
       ),
       imsQuery(
         `SELECT i.id, i.template_id, i.task_date, i.title_snapshot, i.phase, i.status, t.is_active,
-          t.recurrence, t.weekday, t.scheduled_date, t.instructions,
+          t.recurrence, t.weekday, t.scheduled_date, t.instructions, t.sort_order,
           t.created_by_id, t.created_by_staff_identity_id, t.created_by_staff_initials,
                 s.staff_name, s.staff_initials, s.created_at AS signed_at
          FROM pos_daybook_task_instances i
@@ -302,7 +302,7 @@ export async function GET(request: Request) {
          )
          WHERE i.business_id = ? AND i.location_id = ? AND i.task_date BETWEEN ? AND ?
            AND (t.is_active = 1 OR i.status = 'completed' OR i.task_date < CURRENT_DATE())
-         ORDER BY FIELD(i.phase, 'opening','during_day','closing'), i.template_id, i.task_date`,
+         ORDER BY FIELD(i.phase, 'opening','during_day','closing'), t.sort_order, t.id, i.task_date`,
         [context.businessId, context.locationId, taskDates[0], taskDate],
       ),
       imsQuery(
@@ -914,6 +914,62 @@ export async function POST(request: Request) {
           normalizeDaybookColour(body.background_color), referenceId, context.businessId],
       );
       return NextResponse.json({ success: true });
+    }
+
+    if (action === 'reorder_tasks') {
+      const orderedIds = Array.isArray(body.template_ids)
+        ? [...new Set(body.template_ids.map(Number).filter(id => Number.isInteger(id) && id > 0))]
+        : [];
+      if (orderedIds.length < 2) return error('At least two tasks are required to change the order.');
+      const connection = await getIMSPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.execute(
+          `SELECT id, phase, recurrence, weekday, scheduled_date, created_by_id,
+                  created_by_staff_identity_id, created_by_staff_initials
+             FROM pos_daybook_task_templates
+            WHERE business_id = ? AND location_id = ? AND is_active = 1
+            FOR UPDATE`,
+          [context.businessId, context.locationId],
+        ) as any;
+        const selected = rows.filter((row: any) => orderedIds.includes(Number(row.id)));
+        if (selected.length !== orderedIds.length) {
+          await connection.rollback();
+          return error('A task was not found.', 404);
+        }
+        const first = selected[0];
+        const sameGroup = (row: any) => row.phase === first.phase
+          && row.recurrence === first.recurrence
+          && Number(row.weekday ?? 0) === Number(first.weekday ?? 0)
+          && String(row.scheduled_date ?? '') === String(first.scheduled_date ?? '');
+        const group = rows.filter(sameGroup);
+        if (group.length !== orderedIds.length || group.some((row: any) => !orderedIds.includes(Number(row.id)))) {
+          await connection.rollback();
+          return error('The task list changed. Refresh the Daybook and try again.', 409);
+        }
+        const editPolicy = await getEditPolicy(context.businessId);
+        if (selected.some((template: any) => !mayManageTask(context, staff, editPolicy, {
+          author_user_id: template.created_by_id,
+          author_staff_identity_id: template.created_by_staff_identity_id,
+          author_staff_initials: template.created_by_staff_initials,
+        }))) {
+          await connection.rollback();
+          return error('You do not have permission to reorder these tasks.', 403);
+        }
+        for (const [index, templateId] of orderedIds.entries()) {
+          await connection.execute(
+            'UPDATE pos_daybook_task_templates SET sort_order = ? WHERE id = ? AND business_id = ? AND location_id = ?',
+            [(index + 1) * 10, templateId, context.businessId, context.locationId],
+          );
+        }
+        await connection.commit();
+        return NextResponse.json({ success: true });
+      } catch (caught) {
+        await connection.rollback();
+        throw caught;
+      } finally {
+        connection.release();
+      }
     }
 
     if (action === 'update_task') {
