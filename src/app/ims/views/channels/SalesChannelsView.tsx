@@ -1,7 +1,9 @@
 'use client';
 
-import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, Power, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, Store, TestTube2, X } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, Power, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, SlidersHorizontal, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+import ChannelProductRulesDialog from './ChannelProductRulesDialog';
 
 interface ChannelCapabilities {
   catalogue: boolean;
@@ -131,6 +133,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [refundResolutionRmaId, setRefundResolutionRmaId] = useState('');
   const [refundResolutionRefundId, setRefundResolutionRefundId] = useState('');
   const [refundResolutionLoading, setRefundResolutionLoading] = useState(false);
+  const [productRulesInstance, setProductRulesInstance] = useState<ChannelInstance | null>(null);
 
   const load = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -602,6 +605,11 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       {testingId === instance.channelInstanceId ? 'Testing...' : 'Test connection'}
                     </button>
                   )}
+                  {canManage && (
+                    <button type="button" onClick={() => setProductRulesInstance(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      <SlidersHorizontal size={14} aria-hidden="true" /> Product rules
+                    </button>
+                  )}
                   {instance.provider === 'amazon' && !instance.enabled && capabilities.length === 0 && (
                     <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Operational setup pending</span>
                   )}
@@ -819,6 +827,14 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
             </div>
           </div>
         </div>
+      )}
+
+      {productRulesInstance && (
+        <ChannelProductRulesDialog
+          instance={productRulesInstance}
+          onClose={() => setProductRulesInstance(null)}
+          onApplied={async () => { await load(); }}
+        />
       )}
     </div>
   );

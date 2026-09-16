@@ -34,7 +34,9 @@ Retail prices and delivery rates are tax-inclusive AUD amounts. At checkout the 
 
 ## Products and publication
 
-A product needs at least one active variant with a retail price and a unique native store address before publication. Review images, content, current sale pricing, and availability before publishing. Sold-out tracked products may remain visible but cannot be added to the cart. Products with **Tracks Inventory** off can be added and purchased without an available-stock limit; checkout does not reserve, commit or deduct stock for those lines.
+A product's **Online candidate** setting identifies it as ready for online content preparation and channel-rule evaluation. It does not publish the product or assign it to every storefront. Use **Integrations > Sales Channels > Product rules** to preview and apply the desired assignment for the Solvantis Online Store independently of Shopify or Amazon.
+
+A product needs at least one active variant with a retail price and a unique native store address before native publication. Review images, content, current sale pricing, assignment and availability before publishing. Applying an assignment records intent only; the native publication control remains authoritative until that workflow processes assignment intent. Sold-out tracked products may remain visible but cannot be added to the cart. Products with **Tracks Inventory** off can be added and purchased without an available-stock limit; checkout does not reserve, commit or deduct stock for those lines.
 
 ## Templates and pages
 

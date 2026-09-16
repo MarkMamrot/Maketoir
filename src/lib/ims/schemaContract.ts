@@ -29,6 +29,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_product_variants',
   'ims_sales_channel_product_selections',
   'ims_sales_channel_product_mappings',
+  'ims_sales_channel_product_rules',
+  'ims_sales_channel_product_assignments',
   'ims_sales_channel_events',
   'ims_sales_channel_jobs',
   'ims_product_images',
@@ -145,6 +147,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_sales_channel_product_selections: ['business_id', 'channel_instance_id', 'variant_id', 'is_selected', 'inventory_enabled', 'price_enabled'],
   ims_sales_channel_product_mappings: ['business_id', 'channel_instance_id', 'variant_id', 'external_product_id', 'external_variant_id', 'mapping_status', 'last_seen_at'],
+  ims_sales_channel_product_rules: ['business_id', 'channel_instance_id', 'name', 'priority', 'is_enabled', 'match_mode', 'decision', 'conditions_json'],
+  ims_sales_channel_product_assignments: ['business_id', 'channel_instance_id', 'product_id', 'rule_decision', 'matched_rule_id', 'override_mode', 'desired_state', 'readiness_status', 'provider_state', 'evaluation_hash'],
   ims_sales_channel_events: ['business_id', 'channel_instance_id', 'provider', 'event_type', 'external_event_id', 'status', 'attempts'],
   ims_sales_channel_jobs: ['business_id', 'channel_instance_id', 'provider', 'operation', 'operation_key', 'status', 'attempts', 'available_at'],
   ims_credit_notes: ['business_id', 'source', 'settlement_method', 'channel_instance_id', 'external_return_id', 'external_refund_id'],

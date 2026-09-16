@@ -12,6 +12,8 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Review the external account identity and last successful synchronization time.
 - Compare the operations supported by each provider.
 - Rename a channel so staff can distinguish its purpose.
+- Define ordered product rules for each exact storefront, preview their destinations, and apply assignment intent.
+- Include or exclude an individual product persistently when its automatic rule result is unsuitable.
 - Test a Shopify instance against its exact saved store and credentials.
 - Connect an Amazon Australia Seller Central account through Amazon's authorization page.
 - Test the saved authorization for one Amazon seller account.
@@ -29,6 +31,16 @@ Sales Channels shows each online storefront separately. A business can connect m
 Open **Integrations > Sales Channels**. Each row identifies the storefront, provider, operating state, account identity, last synchronization time, and supported operations.
 
 Administrators can use the pencil button beside a channel name to rename it. Other IMS users can review the same status information but cannot change it.
+
+### Assign products with channel rules
+
+Choose **Product rules** on any channel row to define that exact storefront's default product assignments. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product to every channel.
+
+Rules run in their displayed order and the first matching enabled rule decides whether to include or exclude the product. A rule can require all of its conditions or any one condition. Conditions can use catalogue facts such as active status, online candidate, product type, category, brand, tags, content, images and variant count. A product that matches no rule is excluded by default.
+
+Use **Save and preview** to store the rules and inspect the result without changing assignments. The preview shows the matched rule, automatic result, effective result and provider state. Set a product override to **Include** or **Exclude** when it must differ from the automatic result; choose **Automatic** to return it to rule control. Overrides remain in effect when rules are changed or reapplied.
+
+Choose **Apply assignments** only after reviewing the preview. Applying records the desired assignment for all products in the channel; it does not create, update, publish or remove anything at Shopify, Amazon or the Solvantis Online Store. Existing provider links and publication continue unchanged until the relevant publication workflow processes that intent.
 
 Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.
 

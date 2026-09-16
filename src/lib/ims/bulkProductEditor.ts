@@ -60,7 +60,7 @@ export const BULK_PRODUCT_FIELDS: BulkProductFieldDefinition[] = [
   { id: 'description', label: 'Description', owner: 'product', editor: 'textarea', width: 300, fillDown: true },
   { id: 'is_active', label: 'Product Active', owner: 'product', editor: 'boolean', width: 115, fillDown: true },
   { id: 'is_stock_item', label: 'Tracks Inventory', owner: 'product', editor: 'boolean', width: 130, fillDown: true },
-  { id: 'is_online', label: 'Online', owner: 'product', editor: 'boolean', width: 95, fillDown: true },
+  { id: 'is_online', label: 'Online candidate', owner: 'product', editor: 'boolean', width: 130, fillDown: true },
   { id: 'website_title', label: 'Website Title', owner: 'product', editor: 'text', width: 220, fillDown: true },
   { id: 'allow_indent_wholesale', label: 'Allow Wholesale Indent', owner: 'product', editor: 'boolean', width: 175, fillDown: true },
   { id: 'customs_description', label: 'Customs Description', owner: 'product', editor: 'textarea', width: 260, fillDown: true },

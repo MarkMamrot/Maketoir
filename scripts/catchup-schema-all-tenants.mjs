@@ -57,6 +57,8 @@ const INVENTORY_COSTING_TABLES = [
 const SALES_CHANNEL_TABLES = [
   'ims_sales_channel_product_selections',
   'ims_sales_channel_product_mappings',
+  'ims_sales_channel_product_rules',
+  'ims_sales_channel_product_assignments',
   'ims_sales_channel_events',
   'ims_sales_channel_jobs',
 ];
@@ -87,7 +89,10 @@ const SALES_CHANNEL_TABLE_DDLS = SALES_CHANNEL_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
   const match = canonicalImsSchema.match(expression);
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
-  return match[0].replace(/;$/, '');
+  return match[0]
+    .replace(/^\s*CONSTRAINT fk_channel_(?:selection_variant|mapping_variant|assignment_product)\b[^\n]*,?\r?\n/gm, '')
+    .replace(/,\s*(\) ENGINE=)/, '\n$1')
+    .replace(/;$/, '');
 });
 
 const conn = await mysql.createConnection({

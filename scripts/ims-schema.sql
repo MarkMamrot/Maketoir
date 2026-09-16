@@ -794,6 +794,49 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_product_mappings (
   CONSTRAINT fk_channel_mapping_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_sales_channel_product_rules (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  name                VARCHAR(120) NOT NULL,
+  priority            INT NOT NULL DEFAULT 100,
+  is_enabled          TINYINT(1) NOT NULL DEFAULT 1,
+  match_mode          ENUM('all','any') NOT NULL DEFAULT 'all',
+  decision            ENUM('include','exclude') NOT NULL DEFAULT 'include',
+  conditions_json     JSON NOT NULL,
+  created_by_user_id  INT NULL,
+  created_by_name     VARCHAR(120) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_channel_product_rules (business_id, channel_instance_id, priority, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_sales_channel_product_assignments (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  channel_instance_id CHAR(36) NOT NULL,
+  product_id          VARCHAR(36) NOT NULL,
+  rule_decision       ENUM('include','exclude') NOT NULL DEFAULT 'exclude',
+  matched_rule_id     BIGINT NULL,
+  override_mode       ENUM('automatic','include','exclude') NOT NULL DEFAULT 'automatic',
+  desired_state       ENUM('unpublished','published') NOT NULL DEFAULT 'unpublished',
+  readiness_status    ENUM('not_evaluated','ready','blocked') NOT NULL DEFAULT 'not_evaluated',
+  readiness_issues_json JSON NULL,
+  provider_state      ENUM('unknown','unpublished','pending','published','error') NOT NULL DEFAULT 'unknown',
+  external_product_id VARCHAR(191) NULL,
+  evaluation_hash     CHAR(64) NULL,
+  evaluated_at        DATETIME(3) NULL,
+  last_submitted_at   DATETIME(3) NULL,
+  last_observed_at    DATETIME(3) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_channel_product_assignment (business_id, channel_instance_id, product_id),
+  INDEX idx_channel_product_desired (business_id, channel_instance_id, desired_state, readiness_status),
+  INDEX idx_channel_product_provider_state (business_id, channel_instance_id, provider_state),
+  CONSTRAINT fk_channel_assignment_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE,
+  CONSTRAINT fk_channel_assignment_rule FOREIGN KEY (matched_rule_id) REFERENCES ims_sales_channel_product_rules(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS ims_sales_channel_events (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(100) NOT NULL,

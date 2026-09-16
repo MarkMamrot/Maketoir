@@ -1,3 +1,21 @@
+## 2026-09-15 - Provider-neutral channel product assignment foundation
+
+- `ims_products.is_online` is now presented as **Online candidate**: an input to online content preparation and channel rules, not an instruction to publish to every storefront.
+- Each exact sales-channel instance can own ordered first-match include/exclude rules with default exclusion. Persistent product-level `automatic`, `include`, or `exclude` overrides are applied after rule evaluation.
+- Assignment application stores desired product-level intent, the matched rule, evaluation hash, readiness and provider-state separation. It never calls Shopify, Amazon, or Native Shop and does not overwrite observed provider state; existing publication behavior remains unchanged.
+- Canonical tenant schema and idempotent all-tenant catch-up definitions now include product rules and assignments. These additions have not been deployed to any tenant.
+- Administrators can edit rules, preview product outcomes, set overrides, and apply the complete catalogue in bounded 500-product pages from Sales Channels. Help and Assistant indexes describe the candidate, assignment, and publication boundaries.
+- Validation passed 171 focused channel tests, the full 2,878-test suite with five environment-gated skips, schema-script syntax, production build, diagnostics, Help/Assistant compilation, and diff checks.
+
+## 2026-09-15 - Amazon production hardening and Monsterthreads schema rollout
+
+- Amazon order and Finance pagination now persist exact-window continuation state, return/refund evidence survives arrival before its local order, stale listings archive after a complete full sync, and Amazon freight remains tax-inclusive without duplicating freight GST in merchandise tax.
+- Administrators can explicitly pair one unresolved RMA and one released refund from the same Amazon order. The server revalidates exact-instance ownership and unlinked evidence before creating the standard externally settled, no-restock review draft. Automatic shipment confirmation retries stop after five failures.
+- Activation readiness now requires recent, correctly ordered listing/inventory evidence, current completed order/Finance windows, and recent return/refund evidence. The canonical Help and generated Help/Assistant indexes describe the current workflow.
+- The targeted idempotent catch-up was applied twice to `readyedu_MonsterthreadsIMS`. A legacy variant collation prevented the initial selection/mapping table foreign keys, so catch-up bootstrap now omits those two compatibility FKs while preserving application checks and indexes. Direct readback verified all four sales-channel tables, Amazon order and credit-note columns/enums, and both exact-instance credit-note unique indexes.
+- Monsterthreads has `automation_paused=0`. No Amazon channel instance exists yet, so no Seller Central credential was available for the approved read-only preflight and no channel was activated. Configured schedules remain orders every five minutes, fulfilments every five minutes, inventory every 15 minutes, and returns/refunds hourly at minute 17.
+- Validation passed 152 channel tests, the full 2,866-test suite with five environment-gated skips, Help/Assistant compilation, production build, and diff checks before the final migration compatibility change.
+
 ## 2026-09-15 - Guarded Amazon channel activation workflow
 
 - Administrators can activate an Amazon seller instance only after a fresh full readiness assessment passes. The final main-database update independently requires that the exact instance still has `readiness_status='ready'`, closing the setup-change race before `is_enabled=1` and `runtime_status='active'` are written.

@@ -4314,8 +4314,9 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
             disabled={isReadOnly}
             style={{ margin: 0, width: 16, height: 16 }}
           />
-          Available on Online Store
+          Online candidate
         </label>
+        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Makes this product eligible for channel rules; it does not publish the product.</span>
       </div>
 
       <div style={{ position: 'relative', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
@@ -6604,7 +6605,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     ...(showCols.ws_price ? [['ws_price', 'WS Price'] as [string, string]] : []),
     ...(showCols.soh ? [['stock', 'SOH / Avail'] as [string, string]] : []),
     ...(showCols.variants ? [['variants', 'Variants'] as [string, string]] : []),
-    ...(showCols.online ? [['is_online', 'Website Product'] as [string, string]] : []),
+    ...(showCols.online ? [['is_online', 'Online Candidate'] as [string, string]] : []),
     ...(showCols.shopify_synced ? [['shopify_product_id', 'Shopify Synced'] as [string, string]] : []),
     ...(showCols.active ? [['is_active', 'Active'] as [string, string]] : []),
     ...(showCols.created ? [['created_at', 'Created'] as [string, string]] : []),
@@ -6706,13 +6707,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   </select>
                 </div>
 
-                {/* Website Product */}
+                {/* Online candidate */}
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Website Product</label>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Online candidate</label>
                   <select value={filterWebsite} onChange={e => { setFilterWebsite(e.target.value as any); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
                     <option value="all">All</option>
-                    <option value="yes">Yes — online</option>
-                    <option value="no">No — not online</option>
+                    <option value="yes">Yes — candidate</option>
+                    <option value="no">No — not a candidate</option>
                   </select>
                 </div>
 
