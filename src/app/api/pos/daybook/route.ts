@@ -3,18 +3,22 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { decrypt, encrypt } from '@/lib/encryption';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
+  canEditDaybookComment,
   canEditDaybookItem,
   canManageDaybookTask,
   canTransitionDiscrepancy,
   canTransitionNeed,
   canTransitionRequest,
   getDaybookDateRange,
+  deriveDaybookCommunicationTitle,
   normalizeDaybookColour,
   normalizeDaybookEditPolicy,
+  normalizeDaybookTheme,
   normalizeDaybookTaskCopy,
   normalizeStaffIdentity,
   parseDaybookDate,
   resolveDaybookLocationId,
+  sanitizeDaybookCommunicationHtml,
 } from '@/lib/pos/daybookService';
 import type { DaybookDiscrepancyStatus, DaybookEditPolicy, DaybookNeedStatus, DaybookRequestStatus, DaybookStaffIdentity } from '@/lib/pos/daybookTypes';
 import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -133,13 +137,14 @@ async function getEditPolicy(businessId: string): Promise<DaybookEditPolicy> {
 
 async function getDaybookPreferences(businessId: string) {
   const rows = await imsQuery<{ key: string; value: string }>(
-    "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('pos_daybook_main_menu', 'pos_daybook_hourly_reminder')",
+    "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('pos_daybook_main_menu', 'pos_daybook_hourly_reminder', 'pos_daybook_theme')",
     [businessId],
   );
   const values = new Map(rows.map(row => [row.key, row.value]));
   return {
     showInMainMenu: values.get('pos_daybook_main_menu') === 'yes',
     hourlyReminder: values.get('pos_daybook_hourly_reminder') === 'yes',
+    theme: normalizeDaybookTheme(values.get('pos_daybook_theme')),
   };
 }
 
@@ -357,8 +362,9 @@ export async function GET(request: Request) {
          WHERE r.business_id = ? AND t.location_id = ? ORDER BY r.read_at`,
         [context.businessId, context.locationId],
       ),
-      imsQuery<{ id: number; item_type: string; item_id: number; comment_text: string; staff_name: string; staff_initials: string; actor_name: string; created_at: string }>(
-        `SELECT c.id, c.item_type, c.item_id, c.comment_text, c.staff_name, c.staff_initials, c.actor_name, c.created_at
+      imsQuery<{ id: number; item_type: string; item_id: number; comment_text: string; staff_identity_id: number | null; staff_name: string; staff_initials: string; actor_user_id: number | null; actor_name: string; created_at: string }>(
+        `SELECT c.id, c.item_type, c.item_id, c.comment_text, c.staff_identity_id, c.staff_name, c.staff_initials,
+                c.actor_user_id, c.actor_name, c.created_at
            FROM pos_daybook_comments c
           WHERE c.business_id = ? AND (
             (c.item_type <> 'record' AND c.location_id = ?)
@@ -374,8 +380,21 @@ export async function GET(request: Request) {
       ),
       getEditPolicy(context.businessId),
     ]);
-    const commentsFor = (itemType: string, itemId: number) => rawComments.filter(comment => comment.item_type === itemType && Number(comment.item_id) === Number(itemId));
     const selectedStaff: DaybookStaffIdentity = { id: null, name: '', initials: staffInitials };
+    const commentsFor = (itemType: string, itemId: number) => rawComments
+      .filter(comment => comment.item_type === itemType && Number(comment.item_id) === Number(itemId))
+      .map(comment => ({
+        ...comment,
+        can_edit: canEditDaybookComment({
+          isManager: context.isManager,
+          actorUserId: context.actorUserId,
+          staffIdentityId: selectedStaff.id ?? null,
+          staffInitials: selectedStaff.initials,
+          authorUserId: Number(comment.actor_user_id ?? 0) || null,
+          authorStaffIdentityId: Number(comment.staff_identity_id ?? 0) || null,
+          authorStaffInitials: comment.staff_initials,
+        }),
+      }));
     const readersByCommunication = new Map<number, { name: string; initials: string; read_at: string }[]>();
     for (const read of communicationReads) {
       const readers = readersByCommunication.get(Number(read.communication_id)) ?? [];
@@ -386,6 +405,7 @@ export async function GET(request: Request) {
     }
     const communications = rawCommunications.map(item => ({
       ...item,
+      message: sanitizeDaybookCommunicationHtml(item.message),
       readers: readersByCommunication.get(Number(item.id)) ?? [],
       comments: commentsFor('communication', Number(item.id)),
       can_edit: mayEdit(context, selectedStaff, editPolicy, item),
@@ -511,8 +531,57 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, comment: {
         id: result.insertId, item_type: itemType, item_id: itemId, comment_text: commentText,
         staff_name: staff.name, staff_initials: staff.initials, actor_name: context.actorName,
-        created_at: new Date().toISOString(),
+        created_at: new Date().toISOString(), can_edit: true,
       } });
+    }
+
+    if (action === 'update_comment') {
+      const commentId = Number(body.comment_id ?? 0);
+      const commentText = String(body.comment_text ?? '').trim().slice(0, 4000);
+      if (!Number.isInteger(commentId) || commentId <= 0 || !commentText) return error('A valid comment is required.');
+      const comments = await imsQuery<{
+        id: number; item_type: string; item_id: number; staff_identity_id: number | null;
+        staff_initials: string; actor_user_id: number | null;
+      }>(
+        `SELECT id, item_type, item_id, staff_identity_id, staff_initials, actor_user_id
+           FROM pos_daybook_comments WHERE id = ? AND business_id = ? LIMIT 1`,
+        [commentId, context.businessId],
+      );
+      const comment = comments[0];
+      if (!comment || !COMMENT_ITEM_TYPES.has(comment.item_type)) return error('Comment not found.', 404);
+      const ownershipSql = comment.item_type === 'task'
+        ? 'SELECT id FROM pos_daybook_task_instances WHERE id = ? AND business_id = ? AND location_id = ? LIMIT 1'
+        : comment.item_type === 'communication'
+          ? `SELECT c.id FROM pos_daybook_communications c JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
+               WHERE c.id = ? AND c.business_id = ? AND t.location_id = ? AND c.archived_at IS NULL LIMIT 1`
+          : `SELECT id FROM pos_daybook_records WHERE id = ? AND business_id = ?
+               AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?) AND status <> 'deleted' LIMIT 1`;
+      const ownershipParams = comment.item_type === 'record'
+        ? [comment.item_id, context.businessId, context.locationId, context.locationId, context.locationId]
+        : [comment.item_id, context.businessId, context.locationId];
+      if (!(await imsQuery<{ id: number }>(ownershipSql, ownershipParams))[0]) return error('Daybook item not found.', 404);
+      if (!canEditDaybookComment({
+        isManager: context.isManager,
+        actorUserId: context.actorUserId,
+        staffIdentityId: staff.id ?? null,
+        staffInitials: staff.initials,
+        authorUserId: Number(comment.actor_user_id ?? 0) || null,
+        authorStaffIdentityId: Number(comment.staff_identity_id ?? 0) || null,
+        authorStaffInitials: comment.staff_initials,
+      })) return error('You do not have permission to edit this comment.', 403);
+      await imsExecute(
+        'UPDATE pos_daybook_comments SET comment_text = ? WHERE id = ? AND business_id = ?',
+        [commentText, commentId, context.businessId],
+      );
+      await imsExecute(
+        `INSERT INTO pos_daybook_content_events
+           (business_id, location_id, item_type, item_id, action, staff_identity_id, staff_name,
+            staff_initials, actor_user_id, actor_name, actor_tier)
+         VALUES (?, ?, 'comment', ?, 'edited', ?, ?, ?, ?, ?, ?)`,
+        [context.businessId, context.locationId, commentId, staff.id, staff.name, staff.initials,
+          context.actorUserId, context.actorName, context.actorTier],
+      );
+      return NextResponse.json({ success: true, comment_id: commentId, comment_text: commentText });
     }
 
     if (action === 'reveal_reference_secret') {
@@ -764,9 +833,9 @@ export async function POST(request: Request) {
     if (action === 'update_communication') {
       const communicationId = Number(body.communication_id ?? 0);
       const rows = await imsQuery<{
-        id: number; author_user_id: number | null; author_staff_identity_id: number | null; author_staff_initials: string | null;
+        id: number; priority: string; author_user_id: number | null; author_staff_identity_id: number | null; author_staff_initials: string | null;
       }>(
-        `SELECT c.id, c.author_user_id, c.author_staff_identity_id, c.author_staff_initials
+        `SELECT c.id, c.priority, c.author_user_id, c.author_staff_identity_id, c.author_staff_initials
          FROM pos_daybook_communications c
          JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
          WHERE c.id = ? AND c.business_id = ? AND t.location_id = ? LIMIT 1`,
@@ -775,13 +844,13 @@ export async function POST(request: Request) {
       const communication = rows[0];
       if (!communication) return error('Communication not found.', 404);
       if (!mayEdit(context, staff, await getEditPolicy(context.businessId), communication)) return error('You do not have permission to edit this item.', 403);
-      const title = String(body.title ?? '').trim().slice(0, 255);
-      const message = String(body.message ?? '').trim();
-      if (!title || !message) return error('Title and message are required.');
+      const message = sanitizeDaybookCommunicationHtml(body.message);
+      const title = deriveDaybookCommunicationTitle(message);
+      if (!message) return error('A message is required.');
       await imsExecute(
         `UPDATE pos_daybook_communications SET title = ?, message = ?, priority = ?, background_color = ?
          WHERE id = ? AND business_id = ?`,
-        [title, message, ['normal', 'important', 'urgent'].includes(String(body.priority)) ? body.priority : 'normal',
+        [title, message, ['normal', 'important', 'urgent'].includes(String(body.priority)) ? body.priority : communication.priority,
           normalizeDaybookColour(body.background_color), communicationId, context.businessId],
       );
       return NextResponse.json({ success: true });
@@ -1007,11 +1076,13 @@ export async function POST(request: Request) {
       const preferences = {
         showInMainMenu: body.show_in_main_menu === true,
         hourlyReminder: body.hourly_reminder === true,
+        theme: normalizeDaybookTheme(body.theme),
       };
       for (const [key, value] of [
         ['pos_daybook_edit_policy', editPolicy],
         ['pos_daybook_main_menu', preferences.showInMainMenu ? 'yes' : 'no'],
         ['pos_daybook_hourly_reminder', preferences.hourlyReminder ? 'yes' : 'no'],
+        ['pos_daybook_theme', preferences.theme],
       ]) {
         await imsExecute(
           `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, ?, ?)
@@ -1041,27 +1112,43 @@ export async function POST(request: Request) {
     }
 
     if (action === 'create_communication') {
-      const title = String(body.title ?? '').trim().slice(0, 255);
-      const message = String(body.message ?? '').trim();
+      const message = sanitizeDaybookCommunicationHtml(body.message);
+      const title = deriveDaybookCommunicationTitle(message);
       const targetIds = Array.isArray(body.location_ids) ? body.location_ids.map(Number).filter(Number.isInteger) : [context.locationId];
-      if (!title || !message || targetIds.length === 0) return error('Title, message, and target locations are required.');
+      if (!message || targetIds.length === 0) return error('A message and target locations are required.');
       for (const targetId of targetIds) if (!(await validateLocation(context.businessId, targetId))) return error('A target location was not found.');
-      const result = await imsExecute(
-        `INSERT INTO pos_daybook_communications
-           (business_id, title, message, priority, is_pinned, author_user_id, author_name,
-            author_staff_identity_id, author_staff_name, author_staff_initials, background_color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [context.businessId, title, message, ['normal', 'important', 'urgent'].includes(String(body.priority)) ? body.priority : 'normal',
-          body.is_pinned ? 1 : 0, context.actorUserId, context.actorName, staff.id, staff.name, staff.initials,
-          normalizeDaybookColour(body.background_color)],
-      );
-      for (const targetId of targetIds) {
-        await imsExecute(
-          'INSERT INTO pos_daybook_communication_targets (business_id, communication_id, location_id) VALUES (?, ?, ?)',
-          [context.businessId, result.insertId, targetId],
+      const connection = await getIMSPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        const [result] = await connection.execute(
+          `INSERT INTO pos_daybook_communications
+             (business_id, title, message, priority, is_pinned, author_user_id, author_name,
+              author_staff_identity_id, author_staff_name, author_staff_initials, background_color)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [context.businessId, title, message, ['normal', 'important', 'urgent'].includes(String(body.priority)) ? body.priority : 'normal',
+            body.is_pinned ? 1 : 0, context.actorUserId, context.actorName, staff.id, staff.name, staff.initials,
+            normalizeDaybookColour(body.background_color)],
+        ) as any;
+        for (const targetId of targetIds) {
+          await connection.execute(
+            'INSERT INTO pos_daybook_communication_targets (business_id, communication_id, location_id) VALUES (?, ?, ?)',
+            [context.businessId, result.insertId, targetId],
+          );
+        }
+        await connection.execute(
+          `INSERT INTO pos_daybook_communication_reads
+             (business_id, communication_id, location_id, staff_identity_id, staff_name, staff_initials, actor_user_id, actor_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [context.businessId, result.insertId, context.locationId, staff.id, staff.name, staff.initials, context.actorUserId, context.actorName],
         );
+        await connection.commit();
+        return NextResponse.json({ success: true, id: result.insertId });
+      } catch (caught) {
+        await connection.rollback();
+        throw caught;
+      } finally {
+        connection.release();
       }
-      return NextResponse.json({ success: true, id: result.insertId });
     }
 
     if (action === 'save_reference') {

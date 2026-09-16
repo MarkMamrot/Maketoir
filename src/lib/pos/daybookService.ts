@@ -6,8 +6,10 @@ import type {
   DaybookTaskRecurrence,
   DaybookColourKey,
   DaybookEditPolicy,
+  DaybookTheme,
 } from './daybookTypes';
-import { DAYBOOK_COLOUR_KEYS, DAYBOOK_EDIT_POLICIES } from './daybookTypes';
+import { DAYBOOK_COLOUR_KEYS, DAYBOOK_EDIT_POLICIES, DAYBOOK_THEMES } from './daybookTypes';
+import sanitizeHtml from 'sanitize-html';
 
 export const NEWTOWN_COMMUNICATIONS_START_DATE = '2026-01-01';
 
@@ -137,6 +139,42 @@ export function normalizeDaybookColour(value: unknown): DaybookColourKey | null 
 export function normalizeDaybookEditPolicy(value: unknown): DaybookEditPolicy {
   const policy = String(value ?? '');
   return DAYBOOK_EDIT_POLICIES.includes(policy as DaybookEditPolicy) ? policy as DaybookEditPolicy : 'managers';
+}
+
+export function normalizeDaybookTheme(value: unknown): DaybookTheme {
+  const theme = String(value ?? '');
+  return DAYBOOK_THEMES.includes(theme as DaybookTheme) ? theme as DaybookTheme : 'evergreen';
+}
+
+export function deriveDaybookCommunicationTitle(value: unknown): string {
+  const plainValue = sanitizeHtml(String(value ?? ''), { allowedTags: [], allowedAttributes: {} });
+  const firstLine = plainValue.split(/\r?\n/).map(line => line.trim()).find(Boolean) ?? '';
+  const plainText = firstLine.replace(/^[-+>]\s+/, '').replace(/[*_`#~]/g, '').trim();
+  return plainText.slice(0, 255) || 'Communication';
+}
+
+export function sanitizeDaybookCommunicationHtml(value: unknown): string {
+  const html = sanitizeHtml(String(value ?? '').trim().slice(0, 20_000), {
+    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li'],
+    allowedAttributes: {},
+  }).trim();
+  return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).trim() ? html : '';
+}
+
+export function canEditDaybookComment(input: {
+  isManager: boolean;
+  actorUserId: number | null;
+  staffIdentityId: number | null;
+  staffInitials: string;
+  authorUserId: number | null;
+  authorStaffIdentityId: number | null;
+  authorStaffInitials: string;
+}): boolean {
+  if (input.isManager) return true;
+  if (input.staffIdentityId !== null && input.staffIdentityId === input.authorStaffIdentityId) return true;
+  if (input.staffInitials && input.staffInitials.toUpperCase() === input.authorStaffInitials.toUpperCase()) return true;
+  const hasStaffAuthor = input.authorStaffIdentityId !== null || Boolean(input.authorStaffInitials);
+  return !hasStaffAuthor && input.actorUserId !== null && input.actorUserId === input.authorUserId;
 }
 
 export function canEditDaybookItem(input: {

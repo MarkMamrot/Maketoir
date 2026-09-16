@@ -1,3 +1,11 @@
+## 2026-09-16 - Daybook paper-folder themes and compact communications
+
+- Store Daybook now uses a full-width rounded paper-folder layout with sans-serif typography and folder-style section tabs. Managers can choose tenant-wide Evergreen, Pink folder, Coastal or Citrus schemes in Daybook Settings; content and the standard yellow communication highlight remain independent of the scheme.
+- Communications now use compact full-width rows ordered newest first, with date/read status on the left, message content in the centre, combined acknowledgement initials below, and a three-dot action menu plus badged comment control on the right. Normal priority labels and visible headlines were removed; legacy important communications retain a small alert marker.
+- Communication creation and editing happen inline with bold, italic and list formatting. New communications derive their internal audit title from the first message line, choose their fixed target stores on creation, and can use one standard yellow highlight.
+- Staff can correct their own comments and managers can correct any comment after tenant/location visibility and attribution checks. Comment edits retain the original author attribution and write a content audit event.
+- Validation passed 2,923 tests with five skips, Help/Assistant compilation (68 topics and 549 chunks), production build, touched-file diagnostics, diff checks, and authenticated desktop/mobile Playwright inspection. Temporary browser records were removed and the sandbox theme was restored to Evergreen.
+
 ## 2026-09-16 - Store Daybook workflow and usability improvements
 
 - Communications now load newest first, support safe Markdown bold/italic/list formatting, and wait for restored staff identity before loading so acknowledgements persist correctly across navigation.

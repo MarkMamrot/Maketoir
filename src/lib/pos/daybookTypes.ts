@@ -36,6 +36,9 @@ export interface DaybookActorAudit {
 export const DAYBOOK_EDIT_POLICIES = ['author_only', 'managers', 'anyone'] as const;
 export type DaybookEditPolicy = typeof DAYBOOK_EDIT_POLICIES[number];
 
+export const DAYBOOK_THEMES = ['evergreen', 'pink', 'coastal', 'citrus'] as const;
+export type DaybookTheme = typeof DAYBOOK_THEMES[number];
+
 export const DAYBOOK_COLOUR_KEYS = [
   'pastel_rose',
   'pastel_peach',

@@ -12,9 +12,13 @@ import {
   shouldImportNewtownCommunication,
   taskOccursOnDate,
   canEditDaybookItem,
+  canEditDaybookComment,
   canManageDaybookTask,
+  deriveDaybookCommunicationTitle,
   normalizeDaybookColour,
   normalizeDaybookEditPolicy,
+  normalizeDaybookTheme,
+  sanitizeDaybookCommunicationHtml,
   normalizeDaybookTaskCopy,
 } from '../daybookService';
 
@@ -117,5 +121,23 @@ describe('Store Daybook rules', () => {
     expect(canEditDaybookItem({ policy: 'author_only', isManager: false, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: 9, authorStaffIdentityId: 2, authorStaffInitials: 'HG' })).toBe(true);
     expect(canEditDaybookItem({ policy: 'author_only', isManager: true, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: 9, authorStaffIdentityId: 8, authorStaffInitials: 'LM' })).toBe(false);
     expect(canEditDaybookItem({ policy: 'author_only', isManager: true, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: null, authorStaffIdentityId: null, authorStaffInitials: '' })).toBe(true);
+  });
+
+  it('normalizes themes and derives hidden communication titles from formatted messages', () => {
+    expect(normalizeDaybookTheme('pink')).toBe('pink');
+    expect(normalizeDaybookTheme('neon')).toBe('evergreen');
+    expect(deriveDaybookCommunicationTitle('**Stock room update**\n\n- Boxes moved')).toBe('Stock room update');
+    expect(deriveDaybookCommunicationTitle('   ')).toBe('Communication');
+    expect(deriveDaybookCommunicationTitle('<p><strong>Stock room update</strong></p>')).toBe('Stock room update');
+    expect(sanitizeDaybookCommunicationHtml('<p><strong>Safe</strong><script>alert(1)</script></p>')).toBe('<p><strong>Safe</strong></p>');
+    expect(sanitizeDaybookCommunicationHtml('<p onclick="bad()"><em>Update</em></p>')).toBe('<p><em>Update</em></p>');
+    expect(sanitizeDaybookCommunicationHtml('<p><br></p>')).toBe('');
+  });
+
+  it('allows managers and the attributed staff member to edit a comment', () => {
+    const comment = { actorUserId: 10, staffIdentityId: 2, staffInitials: 'HG', authorUserId: 20, authorStaffIdentityId: 2, authorStaffInitials: 'HG' };
+    expect(canEditDaybookComment({ ...comment, isManager: false })).toBe(true);
+    expect(canEditDaybookComment({ ...comment, isManager: true, staffIdentityId: 9, staffInitials: 'LM' })).toBe(true);
+    expect(canEditDaybookComment({ ...comment, isManager: false, staffIdentityId: 9, staffInitials: 'LM' })).toBe(false);
   });
 });

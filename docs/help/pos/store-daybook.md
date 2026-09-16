@@ -9,14 +9,14 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 - Choose the staff member using Daybook for the current day.
 - Complete and sign opening, throughout-the-day, weekly and closing tasks.
-- Add timestamped comments and handover updates to checklist tasks, communications, customer requests and store needs.
+- Add timestamped comments and handover updates to checklist tasks, communications, customer requests and store needs. Correct your own comment when needed; managers can correct any comment.
 - Read newest-first store communications, use basic text formatting and acknowledge each notice.
 - See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
 - Build one clipboard from selected Requests and Store needs for pasting into branch transfer notes.
 - Follow warehouse requests through packing, sending and receipt, with updates shared between the store and warehouse.
 - Search approved reference information and product storage guidance.
-- Add new items from the tab where they belong and choose an optional card colour.
+- Add new items from the tab where they belong. Communications can use one standard yellow highlight; other supported content retains optional card colours.
 - Let managers schedule tasks, publish store content, maintain Reference categories and manage the branch's Daybook staff list.
 
 ## At a glance
@@ -60,10 +60,10 @@ Task rows and sign-off cells use a compact layout so more of the week fits on sc
 
 ### Add comments and updates
 
-1. Open **Comments** on a current checklist task, communication, customer request or store need.
+1. Open **Comments** on a current checklist task, customer request or store need. On a communication, select the comment icon and use its number badge to see how many replies exist.
 2. Enter a concise update and select **Add comment**.
 3. The comment appears immediately with the staff name, initials and time. Other staff see it on their next silent refresh.
-4. Add a new comment to correct or extend an earlier update; existing comments remain in the audit thread.
+4. Use the pencil beside your own comment to correct its wording. Managers can correct any comment. The original staff attribution and audit history remain retained.
 
 Comments do not change completion or workflow status. Checking, reopening, acknowledging, commenting, editing, deleting and changing status keep the current Daybook position instead of replacing the whole page with a loading view.
 
@@ -78,17 +78,21 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 
 ### Read a communication
 
-1. Open **Comms**. Important and urgent notices are visually highlighted, with the newest notices first.
-2. When adding or editing a notice, use the formatting buttons for bold text, italic text or a bulleted list.
-3. Review the names and initials below the notice to see who has already acknowledged it.
-4. Read the full notice and select **Mark as read**.
-5. Confirm your name and initials appear. Daybook remembers the acknowledgement when you leave and return. Another staff member using the same register must acknowledge it under their own Daybook identity.
+1. Open **Comms**. Newest communications appear first in compact full-width rows.
+2. Read from left to right: date and read status, the communication, then its action and comment controls. Normal communications have no priority label; important older communications show an alert icon.
+3. Review the labelled author initials and the acknowledgement initials to see who wrote the communication and who has already read it. The author is acknowledged automatically when publishing and does not need to acknowledge their own communication again.
+4. Read the full communication and select **Mark as read**. Your initials join that same line.
+5. Select the comment icon to show or hide replies. Its badge shows the current comment count.
+6. Open the three-dot menu to edit, delete, highlight or comment when those actions are available to you.
+7. Daybook remembers the acknowledgement when you leave and return. Another staff member using the same register must acknowledge it under their own Daybook identity.
+
+Managers add and edit communications directly in the list rather than in a popup. Enter the message in the full-width editor and use the toolbar above it for bold text, italic text or a bulleted list. Formatting appears directly in the editor. Optionally apply the standard yellow highlight. When adding a communication, choose its target stores; that audience remains fixed after publication. A separate headline is not required; use bold text at the start when the message needs a heading. Yellow is the only communication highlight so highlighted notices remain easy to recognise across every Daybook colour scheme.
 
 ### Add operational follow-up
 
 1. Open the relevant section: **Requests**, **Store needs**, **Discrepancies**, or **Incidents**.
 2. Select **Add new** at the top of the tab.
-3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited. On a wide screen, Store Supplies and Stock Requests appear beside each other so both queues can be reviewed together.
+3. Complete the popup fields, enter concise factual notes and optionally choose a card colour. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited. On a wide screen, Store Supplies and Stock Requests appear beside each other so both queues can be reviewed together.
 4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
 5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
 
@@ -127,7 +131,7 @@ When a guided variant is first added to the current POS sale, a popup shows its 
 
 Some imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.
 
-When an item can be edited under the current policy, select **Edit** beside a daily task or at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
+When an item can be edited under the current policy, select **Edit** beside a daily task or at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Communications use their three-dot menu and edit directly in the list. Optional card backgrounds remain available for operational records, references and product guides; communications use only the standard yellow highlight.
 
 To remove a task, Request, Store need or stock discrepancy, select its bin action and confirm the warning. For other editable items, open the edit popup and select **Delete**. A deleted task stops appearing on future scheduled dates. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
 
@@ -143,6 +147,7 @@ Status changes and incident visibility still follow their separate operational p
 
 The same POS-accessible Settings tab also controls:
 
+- **Colour scheme** changes the whole tenant's Daybook between **Evergreen**, **Pink folder**, **Coastal**, and **Citrus**. Each keeps the same full-width paper-folder layout and does not alter content or communication highlights.
 - **Show Daybook in the POS main bar** adds a direct Daybook icon to the POS header.
 - **Hourly incomplete-task reminder** checks today's tasks when POS opens and every hour. When tasks remain incomplete, the Daybook icon briefly pulses and shows the count. Reduced-motion browser preferences disable animation.
 - **Daybook staff** lets a manager add staff names and initials, edit existing entries, or remove former staff from the branch identity picker. Removing staff does not rewrite their historical sign-offs, acknowledgments or comments. The currently selected staff member cannot be removed until another identity is selected.
