@@ -30,6 +30,7 @@ describe('Amazon SP-API authorization', () => {
     delete process.env.AMAZON_SP_API_LWA_CLIENT_ID;
     delete process.env.AMAZON_SP_API_LWA_CLIENT_SECRET;
     delete process.env.AMAZON_SP_API_APP_STAGE;
+    delete process.env.AMAZON_SP_API_USE_SANDBOX;
   });
 
   it('builds the Australia production consent URL', () => {
@@ -65,11 +66,29 @@ describe('Amazon SP-API authorization', () => {
     expect(fetchImpl.mock.calls[0][1].headers['x-amz-access-token']).toBe('access-token');
   });
 
+  it('routes SP-API calls to the Far East sandbox only when explicitly enabled', async () => {
+    process.env.AMAZON_SP_API_USE_SANDBOX = 'true';
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ payload: [] })));
+    await getAmazonMarketplaceParticipations('access-token', fetchImpl);
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://sandbox.sellingpartnerapi-fe.amazon.com/sellers/v1/marketplaceParticipations');
+  });
+
   it('rejects absent, inactive, and suspended Australia participation', () => {
     expect(() => requireActiveAmazonAustraliaParticipation([])).toThrow('does not have access');
     const base = { marketplace: { id: AMAZON_AU_MARKETPLACE_ID }, storeName: 'AU' } as any;
     expect(() => requireActiveAmazonAustraliaParticipation([{ ...base, participation: { isParticipating: false, hasSuspendedListings: false } }])).toThrow('not participating');
     expect(() => requireActiveAmazonAustraliaParticipation([{ ...base, participation: { isParticipating: true, hasSuspendedListings: true } }])).toThrow('suspended');
+  });
+
+  it('translates Amazon\'s documented US-only Sellers fixture only in local sandbox mode', () => {
+    process.env.AMAZON_SP_API_USE_SANDBOX = 'true';
+    const fixture = {
+      marketplace: { id: 'ATVPDKIKX0DER', countryCode: 'US', name: 'Amazon.com', defaultCurrencyCode: 'USD', domainName: 'amazon.com' },
+      storeName: 'BestSellerStore', participation: { isParticipating: true, hasSuspendedListings: false },
+    };
+    expect(requireActiveAmazonAustraliaParticipation([fixture]).marketplace).toMatchObject({
+      id: AMAZON_AU_MARKETPLACE_ID, countryCode: 'AU', defaultCurrencyCode: 'AUD',
+    });
   });
 
   it('lists only Australia items and returns the pagination token', async () => {

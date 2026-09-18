@@ -1,6 +1,21 @@
 export const AMAZON_AU_MARKETPLACE_ID = 'A39IBJ37TRP1C6';
 export const AMAZON_FAR_EAST_ENDPOINT = 'https://sellingpartnerapi-fe.amazon.com';
+export const AMAZON_FAR_EAST_SANDBOX_ENDPOINT = 'https://sandbox.sellingpartnerapi-fe.amazon.com';
 export const AMAZON_AU_SELLER_CENTRAL = 'https://sellercentral.amazon.com.au';
+
+export function amazonSpApiSandboxEnabled(): boolean {
+  const enabled = process.env.AMAZON_SP_API_USE_SANDBOX?.trim().toLowerCase() === 'true';
+  if (enabled && process.env.NODE_ENV === 'production') {
+    throw new Error('Amazon SP-API sandbox mode cannot run in production.');
+  }
+  return enabled;
+}
+
+function amazonSpApiEndpoint(): string {
+  return amazonSpApiSandboxEnabled()
+    ? AMAZON_FAR_EAST_SANDBOX_ENDPOINT
+    : AMAZON_FAR_EAST_ENDPOINT;
+}
 
 interface AmazonLwaTokenResponse {
   access_token?: string;
@@ -101,7 +116,7 @@ export async function getAmazonMarketplaceParticipations(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<AmazonMarketplaceParticipation[]> {
-  const response = await fetchImpl(`${AMAZON_FAR_EAST_ENDPOINT}/sellers/v1/marketplaceParticipations`, {
+  const response = await fetchImpl(`${amazonSpApiEndpoint()}/sellers/v1/marketplaceParticipations`, {
     method: 'GET',
     headers: {
       'x-amz-access-token': accessToken,
@@ -118,6 +133,20 @@ export async function getAmazonMarketplaceParticipations(
 
 export function requireActiveAmazonAustraliaParticipation(rows: AmazonMarketplaceParticipation[]): AmazonMarketplaceParticipation {
   const australia = rows.find(row => row.marketplace?.id === AMAZON_AU_MARKETPLACE_ID);
+  if (!australia && amazonSpApiSandboxEnabled()) {
+    const fixture = rows.find(row => row.participation?.isParticipating && !row.participation.hasSuspendedListings);
+    if (fixture) return {
+      ...fixture,
+      marketplace: {
+        ...fixture.marketplace,
+        id: AMAZON_AU_MARKETPLACE_ID,
+        countryCode: 'AU',
+        name: 'Amazon.com.au Sandbox',
+        defaultCurrencyCode: 'AUD',
+        domainName: 'amazon.com.au',
+      },
+    };
+  }
   if (!australia) throw new Error('This seller account does not have access to Amazon Australia.');
   if (!australia.participation?.isParticipating) throw new Error('This seller account is not participating in Amazon Australia.');
   if (australia.participation.hasSuspendedListings) throw new Error('Amazon Australia listings are suspended for this seller account.');
@@ -255,7 +284,7 @@ export async function listAmazonFbmOrders(
   options: { lastUpdatedAfter: string; lastUpdatedBefore?: string; nextToken?: string | null; pageSize?: number },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ orders: AmazonOrder[]; nextToken: string | null }> {
-  const url = new URL('/orders/v0/orders', AMAZON_FAR_EAST_ENDPOINT);
+  const url = new URL('/orders/v0/orders', amazonSpApiEndpoint());
   url.searchParams.set('MarketplaceIds', AMAZON_AU_MARKETPLACE_ID);
   url.searchParams.set('FulfillmentChannels', 'MFN');
   url.searchParams.set('OrderStatuses', 'Unshipped,PartiallyShipped,Shipped,InvoiceUnconfirmed,Canceled');
@@ -282,7 +311,7 @@ export async function listAmazonOrderItems(
   nextToken: string | null = null,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ items: AmazonOrderItem[]; nextToken: string | null }> {
-  const url = new URL(`/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`, AMAZON_FAR_EAST_ENDPOINT);
+  const url = new URL(`/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`, amazonSpApiEndpoint());
   if (nextToken) url.searchParams.set('NextToken', nextToken);
   const response = await fetchImpl(url, {
     method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000),
@@ -310,7 +339,7 @@ export async function listAmazonFinancialTransactions(
   if (!Number.isFinite(postedAfter.getTime()) || !Number.isFinite(postedBefore.getTime()) || postedAfter >= postedBefore) {
     throw new Error('Amazon finance transaction dates are invalid.');
   }
-  const url = new URL('/finances/2024-06-19/transactions', AMAZON_FAR_EAST_ENDPOINT);
+  const url = new URL('/finances/2024-06-19/transactions', amazonSpApiEndpoint());
   url.searchParams.set('postedAfter', postedAfter.toISOString());
   url.searchParams.set('postedBefore', postedBefore.toISOString());
   url.searchParams.set('marketplaceId', AMAZON_AU_MARKETPLACE_ID);
@@ -335,7 +364,7 @@ export async function createAmazonReturnsReport(
   dataEndTime: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
-  const response = await fetchImpl(`${AMAZON_FAR_EAST_ENDPOINT}/reports/2021-06-30/reports`, {
+  const response = await fetchImpl(`${amazonSpApiEndpoint()}/reports/2021-06-30/reports`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...amazonOrdersHeaders(accessToken) },
     body: JSON.stringify({
@@ -360,7 +389,7 @@ export async function getAmazonReport(
   fetchImpl: typeof fetch = fetch,
 ): Promise<AmazonReportStatus> {
   const response = await fetchImpl(
-    `${AMAZON_FAR_EAST_ENDPOINT}/reports/2021-06-30/reports/${encodeURIComponent(reportId)}`,
+    `${amazonSpApiEndpoint()}/reports/2021-06-30/reports/${encodeURIComponent(reportId)}`,
     { method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000) },
   );
   const body = await response.json().catch(() => null) as AmazonReportStatus | null;
@@ -375,7 +404,7 @@ export async function downloadAmazonReportDocument(
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ url: string; compressionAlgorithm: string | null }> {
   const response = await fetchImpl(
-    `${AMAZON_FAR_EAST_ENDPOINT}/reports/2021-06-30/documents/${encodeURIComponent(reportDocumentId)}`,
+    `${amazonSpApiEndpoint()}/reports/2021-06-30/documents/${encodeURIComponent(reportDocumentId)}`,
     { method: 'GET', headers: amazonOrdersHeaders(accessToken), cache: 'no-store', signal: AbortSignal.timeout(30_000) },
   );
   const body = await response.json().catch(() => null) as { url?: string; compressionAlgorithm?: string } | null;
@@ -418,7 +447,7 @@ export async function confirmAmazonShipment(
   });
   const url = new URL(
     `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/shipmentConfirmation`,
-    AMAZON_FAR_EAST_ENDPOINT,
+    amazonSpApiEndpoint(),
   );
   const response = await fetchImpl(url, {
     method: 'POST',
@@ -452,7 +481,7 @@ export async function updateAmazonListingInventory(
   if (!Number.isFinite(quantity)) throw new Error('Amazon inventory quantity is invalid.');
   const url = new URL(
     `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sellerSku)}`,
-    AMAZON_FAR_EAST_ENDPOINT,
+    amazonSpApiEndpoint(),
   );
   url.searchParams.set('marketplaceIds', AMAZON_AU_MARKETPLACE_ID);
   url.searchParams.set('includedData', 'issues');
@@ -517,7 +546,7 @@ export async function putAmazonExistingAsinOffer(
 ): Promise<AmazonListingSubmission> {
   const url = new URL(
     `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(input.sellerSku)}`,
-    AMAZON_FAR_EAST_ENDPOINT,
+    amazonSpApiEndpoint(),
   );
   url.searchParams.set('marketplaceIds', AMAZON_AU_MARKETPLACE_ID);
   url.searchParams.set('includedData', 'issues');
@@ -549,7 +578,7 @@ export async function deleteAmazonListingOffer(
 ): Promise<AmazonListingSubmission> {
   const url = new URL(
     `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sellerSku)}`,
-    AMAZON_FAR_EAST_ENDPOINT,
+    amazonSpApiEndpoint(),
   );
   url.searchParams.set('marketplaceIds', AMAZON_AU_MARKETPLACE_ID);
   url.searchParams.set('issueLocale', 'en_AU');
@@ -565,7 +594,7 @@ export async function listAmazonListings(
   options: { pageSize?: number; nextToken?: string | null } = {},
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ items: AmazonListingItem[]; nextToken: string | null }> {
-  const url = new URL(`/listings/2021-08-01/items/${encodeURIComponent(sellerId)}`, AMAZON_FAR_EAST_ENDPOINT);
+  const url = new URL(`/listings/2021-08-01/items/${encodeURIComponent(sellerId)}`, amazonSpApiEndpoint());
   url.searchParams.set('marketplaceIds', AMAZON_AU_MARKETPLACE_ID);
   url.searchParams.set('pageSize', String(Math.max(1, Math.min(20, Math.floor(options.pageSize ?? 20)))));
   url.searchParams.set('includedData', 'summaries,issues,fulfillmentAvailability');

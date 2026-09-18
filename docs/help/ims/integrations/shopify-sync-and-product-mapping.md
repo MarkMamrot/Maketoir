@@ -25,7 +25,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 | Establish opening stock after catalogue import | Warehouse and Kotara exist in both systems with matching names | Preview, review, then apply Shopify opening stock |
 | Product is missing from Shopify sync | Product eligibility and sync status | Sync or retry where offered |
 | Shopify customer is missing from active lists | Customer Sync result and recent Shopify order activity | Pull customers again; a new identified order reactivates its linked customer automatically |
-| Inventory looks stale | Variant linkage, location mapping, and recent sync or webhook | Fix the cause, then retry or wait for the queued update |
+| Inventory looks stale | Variant and inventory-item linkage, location mapping, and recent sync or webhook | Fix the cause, then wait for the queued update to retry |
 | Order line shows Shopify Misc Charge | Original Shopify title and variant linkage | Repair the intended product mapping |
 | Fulfilment or tracking is stale | Fulfilment webhook and sync history | Process the supported update again after fixing the cause |
 | Payout needs accounting review | **Xero > Shopify Payouts** | Reconcile and post the balanced payout plan |
@@ -47,6 +47,8 @@ Assistant can check whether the local Shopify connection appears configured, whe
 This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Shopify > Webhooks** when live registration must be verified, and use **Sync History** for the complete operational record.
 
 For products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.
+
+Failed Shopify quantity updates remain queued and are retried by the next scheduled inventory run. The failed run does not advance the last-successful inventory sync time. Review the inventory notification or **Sync History**, repair an invalid Shopify product, variant, inventory-item, location, or connection link, then allow the queued update to retry. Do not make a compensating stock adjustment unless the Solvantis quantity itself is wrong.
 
 ## Step-by-step
 

@@ -1216,6 +1216,7 @@ const TABLE_DDLS = [
 ];
 
 const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
+const requestedRepair = process.argv.find(argument => argument.startsWith('--repair='))?.slice('--repair='.length);
 const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA-Z0-9_]+)`?/)?.[1] ?? '';
 
 // Column definitions: [table, column, definition]
@@ -1627,6 +1628,13 @@ async function ensureColumnCollationMatches(schema, table, column, referenceTabl
   );
 }
 
+async function repairLoyaltyCollations(schema) {
+  await ensureColumnCollationMatches(schema, 'loyalty_accounts', 'business_id', 'ims_sales_orders', 'business_id');
+  await ensureColumnCollationMatches(schema, 'loyalty_transactions', 'business_id', 'ims_sales_orders', 'business_id');
+  await ensureColumnCollationMatches(schema, 'loyalty_transactions', 'source_id', 'ims_sales_orders', 'shopify_order_id');
+  console.log(`  verified ${schema} loyalty join collations`);
+}
+
 async function ensureShopifyLineItemId(schema, table, nullable) {
   const [rows] = await conn.query(
     `SELECT c.COLUMN_TYPE, c.IS_NULLABLE, c.CHARACTER_SET_NAME, c.COLLATION_NAME,
@@ -1906,6 +1914,7 @@ async function migrateSchema(schema, businessId) {
     await ensureNullableColumn(schema, 'ims_cs_drafts', 'target_message_id', 'BIGINT NULL');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_transactions', 'balance_after', 'INT NOT NULL');
+    await repairLoyaltyCollations(schema);
     await ensureColumnCollationMatches(schema, 'ims_po_shortfall_resolutions', 'business_id', 'ims_purchase_orders', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_supplier_credit_settlements', 'business_id', 'ims_purchase_orders', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_so_shortfall_resolutions', 'business_id', 'ims_sales_orders', 'business_id');
@@ -2280,6 +2289,10 @@ try {
   const selectedSchemas = requestedSchema ? [requestedSchema] : [...schemas];
   console.log(`Schemas: ${selectedSchemas.join(', ')}`);
   for (const schema of selectedSchemas) {
+    if (requestedRepair === 'loyalty-collations') {
+      await repairLoyaltyCollations(schema);
+      continue;
+    }
     await migrateSchema(schema, businessIdsBySchema.get(schema));
     if (requestedTable) continue;
     await verifyBackorderMergeSchema(schema);

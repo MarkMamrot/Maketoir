@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shopifyInventoryPolicyPayload, shouldRunInventorySync } from '../shopifyInventorySync';
+import { inventoryQueueIdsToDelete, shopifyInventoryPolicyPayload, shouldRunInventorySync } from '../shopifyInventorySync';
 
 describe('shouldRunInventorySync', () => {
   it('runs immediately when there is no previous run', () => {
@@ -22,5 +22,17 @@ describe('shopifyInventoryPolicyPayload', () => {
 
   it('does not manage inventory for untracked products and continues selling', () => {
     expect(shopifyInventoryPolicyPayload(0)).toEqual({ inventory_management: null, inventory_policy: 'continue' });
+  });
+});
+
+describe('inventoryQueueIdsToDelete', () => {
+  it('retains every item for a business whose Shopify batch failed', () => {
+    const queued = [
+      { variant_id: 'variant-a', business_id: 'business-1' },
+      { variant_id: 'variant-b', business_id: 'business-1' },
+      { variant_id: 'variant-c', business_id: 'business-2' },
+    ];
+
+    expect(inventoryQueueIdsToDelete(queued, new Set(['business-1']))).toEqual(['variant-c']);
   });
 });

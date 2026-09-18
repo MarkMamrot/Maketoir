@@ -14,6 +14,13 @@
 - Editing a checklist occurrence refreshes that exact instance, including completed rows. POS Daybook links open in a new tab without unmounting the triggering anchor.
 - Canonical Help and generated Help/Assistant indexes were updated. Validation passed the full 2,921-test suite with five skips, production build, diagnostics, diff checks, and authenticated desktop/mobile Playwright checks; temporary browser verification records were removed.
 
+## 2026-09-17 - Local Amazon hosted-sandbox routing
+
+- Local development can explicitly route all Amazon SP-API calls to `https://sandbox.sellingpartnerapi-fe.amazon.com` with `AMAZON_SP_API_USE_SANDBOX=true`; production refuses to run with sandbox mode enabled. The default remains the production Far East endpoint.
+- Amazon's hosted Sellers sandbox returns its documented participating US fixture even through the Far East endpoint. Explicit non-production sandbox mode translates that fixture to the existing AU marketplace contract so the local OAuth callback can complete without weakening production's strict Amazon Australia validation.
+- Local credential presence and identifier shapes were checked without exposing secrets. Seller Central accepted the configured draft application identifier and entered its Australian consent redirect. A placeholder-token sandbox request returned 403, confirming that seller OAuth and a refresh token are still required before Sellers, Listings, Orders, Reports or Finances calls.
+- Validation passed 19 focused Amazon SP-API tests and the production build. No seller authorization completed, no refresh token was stored, and no provider data was changed.
+
 ## 2026-09-16 - Guarded product publication execution and Amazon existing-ASIN offers
 
 - Provider-neutral product assignment now feeds a durable tenant outbox for Native Store, exact-instance Shopify and Amazon publication. Workers revalidate current intent before provider calls, recover stale locks, retry operational failures up to five attempts, and report them through Runtime Issues.

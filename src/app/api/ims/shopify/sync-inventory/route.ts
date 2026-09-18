@@ -136,11 +136,13 @@ async function handlePost(req: Request) {
             return { skipped: true, processed: 0, pushed: 0, businesses: 0, errors: [] as string[] };
           }
           const result = await drainInventoryQueue(Number(body?.limit ?? 250), business_id);
-          await imsExecute(
-            `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'shopify_inventory_sync_last_run_at', ?)
-             ON DUPLICATE KEY UPDATE value = VALUES(value)`,
-            [business_id, new Date().toISOString()],
-          );
+          if (result.errors.length === 0) {
+            await imsExecute(
+              `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'shopify_inventory_sync_last_run_at', ?)
+               ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+              [business_id, new Date().toISOString()],
+            );
+          }
           return { skipped: false, ...result };
         });
         if (res.skipped) {
@@ -155,7 +157,10 @@ async function handlePost(req: Request) {
         totals.errors.push(`${business_id}: ${e?.message ?? 'drain failed'}`);
       }
     }
-    return NextResponse.json({ success: true, ...totals });
+    return NextResponse.json(
+      { success: totals.errors.length === 0, ...totals },
+      { status: totals.errors.length === 0 ? 200 : 502 },
+    );
   }
 
   // ── Session path: manual actions for the current business ──────────────────

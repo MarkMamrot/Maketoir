@@ -14,6 +14,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { createNotification } from '@/lib/ims/createNotification';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -136,6 +137,13 @@ async function computeAvailable(
 
 export interface PushResult { pushed: number; skipped: number; errors: string[]; locationId: number | null }
 
+export function inventoryQueueIdsToDelete(
+  queued: { variant_id: string; business_id: string }[],
+  failedBusinessIds: ReadonlySet<string>,
+): string[] {
+  return queued.filter(item => !failedBusinessIds.has(item.business_id)).map(item => item.variant_id);
+}
+
 /**
  * Push inventory for a business. Pass explicit variantIds, or all=true to push
  * every Shopify-linked variant (initial reconcile). Respects the
@@ -234,8 +242,8 @@ export async function pushInventoryForBusiness(
 
 /**
  * Drain the dirty-variant queue across all businesses. Processes up to `limit`
- * variants. Variants that can't be pushed (no Shopify link, business not
- * connected, sync disabled) are removed from the queue so it doesn't back up.
+ * variants. Unlinked variants are cleared, while a business batch that reports
+ * an error remains queued for a later retry.
  */
 export async function drainInventoryQueue(limit = 250): Promise<{ processed: number; pushed: number; businesses: number; errors: string[] }> {
   let queued: { variant_id: string; business_id: string; inv: string | null }[];
@@ -257,9 +265,7 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
 
   // Group by business
   const byBiz = new Map<string, string[]>();
-  const allVariantIds: string[] = [];
   for (const q of queued) {
-    allVariantIds.push(q.variant_id);
     if (!q.inv) continue; // not linked — will just be cleared
     if (!byBiz.has(q.business_id)) byBiz.set(q.business_id, []);
     byBiz.get(q.business_id)!.push(q.variant_id);
@@ -267,14 +273,24 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
 
   let pushed = 0;
   const drainErrors: string[] = [];
+  const failedBusinessIds = new Set<string>();
   for (const [businessId, variantIds] of byBiz) {
     try {
       // force:true so queued items always push regardless of the 'enabled' toggle.
       const res = await pushInventoryForBusiness(businessId, { variantIds, force: true });
       pushed += res.pushed;
       if (res.errors.length) {
+        failedBusinessIds.add(businessId);
         drainErrors.push(...res.errors.slice(0, 3));
         await ImsShopifyRepo.logAction('upload', 'error', `Inventory sync failed for ${res.errors.length} issue(s): ${res.errors[0]}`, businessId, { variant_ids: variantIds, errors: res.errors }).catch(() => {});
+        await reportRuntimeIssue({
+          businessId,
+          source: 'shopify_inventory',
+          operation: 'drain_queue',
+          title: 'Shopify inventory queue could not be drained',
+          error: res.errors[0],
+          context: { variant_count: variantIds.length, errors: res.errors.slice(0, 10) },
+        });
         createNotification(
           businessId,
           'shopify_inventory',
@@ -288,8 +304,17 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
     } catch (e: any) {
       const msg = e?.message ?? 'unknown error';
       console.error('[inventory-sync] business', businessId, msg);
+      failedBusinessIds.add(businessId);
       drainErrors.push(msg);
       await ImsShopifyRepo.logAction('upload', 'error', `Inventory sync crashed: ${msg}`, businessId, { variant_ids: variantIds, error: msg }).catch(() => {});
+      await reportRuntimeIssue({
+        businessId,
+        source: 'shopify_inventory',
+        operation: 'drain_queue',
+        title: 'Shopify inventory queue stopped unexpectedly',
+        error: e,
+        context: { variant_count: variantIds.length },
+      });
       createNotification(
         businessId,
         'shopify_inventory',
@@ -300,10 +325,11 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
     }
   }
 
-  // Delete processed variants from the queue in chunks (avoids huge IN() clauses).
+  // Retain failed business batches so a transient provider error cannot lose stock updates.
+  const completedVariantIds = inventoryQueueIdsToDelete(queued, failedBusinessIds);
   const DEL_CHUNK = 500;
-  for (let i = 0; i < allVariantIds.length; i += DEL_CHUNK) {
-    const chunk = allVariantIds.slice(i, i + DEL_CHUNK);
+  for (let i = 0; i < completedVariantIds.length; i += DEL_CHUNK) {
+    const chunk = completedVariantIds.slice(i, i + DEL_CHUNK);
     const ph = chunk.map(() => '?').join(',');
     await imsExecute(
       `DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${ph})`,

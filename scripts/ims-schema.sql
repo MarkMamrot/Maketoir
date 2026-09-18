@@ -2678,7 +2678,7 @@ CREATE TABLE IF NOT EXISTS loyalty_accounts (
   UNIQUE KEY uq_loyalty_account (business_id, contact_id),
   INDEX idx_loyalty_account_business (business_id),
   CONSTRAINT fk_loyalty_account_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_membership_events (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -2691,7 +2691,7 @@ CREATE TABLE IF NOT EXISTS loyalty_membership_events (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_loyalty_membership_contact (business_id, contact_id, created_at),
   CONSTRAINT fk_loyalty_membership_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -2713,7 +2713,7 @@ CREATE TABLE IF NOT EXISTS loyalty_transactions (
   INDEX idx_loyalty_transaction_source (business_id, source_type, source_id),
   INDEX idx_loyalty_transaction_type (business_id, type, created_at),
   CONSTRAINT fk_loyalty_transaction_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ── Native Online Shop ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_online_shop_products (

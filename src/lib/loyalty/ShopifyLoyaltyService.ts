@@ -181,11 +181,11 @@ export const ShopifyLoyaltyService = {
         `SELECT t.id, t.account_id, a.contact_id, t.points_delta, t.eligible_spend_cents
            FROM ims_sales_orders so
            JOIN loyalty_transactions t
-             ON t.business_id = so.business_id
+             ON BINARY t.business_id = BINARY so.business_id
             AND t.type = 'earn'
             AND t.source_type = 'shopify_order'
-            AND t.source_id = so.shopify_order_id
-           JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+            AND BINARY t.source_id = BINARY so.shopify_order_id
+           JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
           WHERE so.business_id = ? AND so.shopify_order_id = ?
           ORDER BY t.id
           LIMIT 1

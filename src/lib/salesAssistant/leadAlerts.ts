@@ -113,12 +113,12 @@ export async function deliverProspectLeadAlert(leadId: number): Promise<boolean>
 }
 
 export async function retryPendingProspectLeadAlerts(limit = 50): Promise<{ attempted: number; sent: number }> {
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
   const rows = await query<{ id: number }>(
     `SELECT l.id FROM prospect_leads l
       WHERE EXISTS(SELECT 1 FROM prospect_lead_events p WHERE p.lead_id = l.id AND p.event_type = 'alert_pending')
         AND NOT EXISTS(SELECT 1 FROM prospect_lead_events s WHERE s.lead_id = l.id AND s.event_type = 'alert_sent')
-      ORDER BY l.created_at LIMIT ?`,
-    [Math.min(Math.max(Math.trunc(limit), 1), 100)],
+      ORDER BY l.created_at LIMIT ${safeLimit}`,
   );
   let sent = 0;
   for (const row of rows) if (await deliverProspectLeadAlert(Number(row.id))) sent += 1;

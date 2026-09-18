@@ -126,6 +126,8 @@ describe('ShopifyLoyaltyService', () => {
       businessId: 'business-1', shopifyOrderId: '1001', shopifyRefundId: 'refund-2', eligibleRefundSpend: 32,
     });
 
+    expect(connection.execute.mock.calls[0]?.[0]).toContain('BINARY t.business_id = BINARY so.business_id');
+    expect(connection.execute.mock.calls[0]?.[0]).toContain('BINARY t.source_id = BINARY so.shopify_order_id');
     expect(mockApplyTransaction).toHaveBeenCalledWith(connection, expect.objectContaining({
       contactId: 42,
       pointsDelta: -32,
