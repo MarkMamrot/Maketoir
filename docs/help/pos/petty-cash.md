@@ -1,5 +1,5 @@
 ---
-{"id":"pos-petty-cash","title":"Petty Cash at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Petty Cash","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-end-of-day-xero","pos-reports-transactions","pos-settings-terminals-offline-recovery"],"contexts":["pos-petty-cash"],"contextSections":{"pos-petty-cash":"Step-by-step"},"order":34,"summary":"Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-petty-cash","title":"Petty Cash at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Petty Cash","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-end-of-day-xero","pos-reports-transactions","pos-settings-terminals-offline-recovery"],"contexts":["pos-petty-cash"],"contextSections":{"pos-petty-cash":"Step-by-step"},"order":34,"summary":"Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Petty Cash at POS
 

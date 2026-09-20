@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-credit","title":"Store Credit at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout > Customer Store Credit","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-customers","pos-selling-payments-manager-approval","pos-returns-exchanges-customer-credit","pos-gift-cards"],"contexts":["pos-store-credit"],"contextSections":{"pos-store-credit":"Step-by-step"},"order":18,"summary":"Confirm a linked customer's available store credit and apply it safely to a POS sale.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-store-credit","title":"Store Credit at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout > Customer Store Credit","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-customers","pos-selling-payments-manager-approval","pos-returns-exchanges-customer-credit","pos-gift-cards"],"contexts":["pos-store-credit"],"contextSections":{"pos-store-credit":"Step-by-step"},"order":18,"summary":"Confirm a linked customer's available store credit and apply it safely to a POS sale.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Store Credit at POS
 

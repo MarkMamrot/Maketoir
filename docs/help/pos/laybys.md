@@ -1,5 +1,5 @@
 ---
-{"id":"pos-laybys","title":"Laybys at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > More > Layby","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-reports-transactions","pos-settings-terminals-offline-recovery"],"contexts":["pos-layby"],"contextSections":{"pos-layby":"Step-by-step"},"order":22,"summary":"Mark the current cart as a layby and save the currently supported fully allocated layby transaction.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-laybys","title":"Laybys at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > More > Layby","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-reports-transactions","pos-settings-terminals-offline-recovery"],"contexts":["pos-layby"],"contextSections":{"pos-layby":"Step-by-step"},"order":22,"summary":"Mark the current cart as a layby and save the currently supported fully allocated layby transaction.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Laybys at POS
 

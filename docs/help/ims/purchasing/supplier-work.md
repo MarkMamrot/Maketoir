@@ -1,5 +1,5 @@
 ---
-{"id":"ims-supplier-work","title":"Purchasing Planning and Supplier Work","audiences":["ims"],"capability":"orders","screen":"Purchasing","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["order-planner"],"contextSections":{"order-planner":"Order planner"},"relatedTopics":["ims-purchase-orders","ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-stock-levels-adjustments"],"order":11,"summary":"Turn replenishment suggestions into reviewed purchase orders and choose the right supplier workflow when plans change.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-supplier-work","title":"Purchasing Planning and Supplier Work","audiences":["ims"],"capability":"orders","screen":"Purchasing","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["order-planner"],"contextSections":{"order-planner":"Order planner"},"relatedTopics":["ims-purchase-orders","ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-stock-levels-adjustments"],"order":11,"summary":"Turn replenishment suggestions into reviewed purchase orders and choose the right supplier workflow when plans change.","lastReviewed":"2026-08-23","owner":"inventory","quickSections":["Main operations","Order planner","Choose the next workflow"]}
 ---
 # Purchasing Planning and Supplier Work
 

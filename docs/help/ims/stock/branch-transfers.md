@@ -1,5 +1,5 @@
 ---
-{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-08-30","owner":"inventory"}
+{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-08-30","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Branch Transfers
 

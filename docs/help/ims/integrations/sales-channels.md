@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-15","owner":"integrations"}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-15","owner":"integrations","quickSections":["Main operations"]}
 ---
 # Sales Channels
 
@@ -11,6 +11,9 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Check whether a channel is active, paused, waiting for setup, or needs attention.
 - Review the external account identity and last successful synchronization time.
 - Compare the operations supported by each provider.
+
+## Publishing and provider operations
+
 - Rename a channel so staff can distinguish its purpose.
 - Define ordered product rules for each exact storefront, preview their destinations, and apply assignment intent.
 - Include or exclude an individual product persistently when its automatic rule result is unsuitable.

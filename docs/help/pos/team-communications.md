@@ -1,5 +1,5 @@
 ---
-{"id":"pos-team-communications","title":"Team Communications at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Team Chat","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-store-daybook","pos-selling-payments-manager-approval"],"contexts":["pos-team-chat"],"contextSections":{"pos-team-chat":"Step-by-step"},"order":36,"summary":"Read and send branch or Warehouse messages from POS, including supported screenshot attachments.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-team-communications","title":"Team Communications at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Team Chat","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-store-daybook","pos-selling-payments-manager-approval"],"contexts":["pos-team-chat"],"contextSections":{"pos-team-chat":"Step-by-step"},"order":36,"summary":"Read and send branch or Warehouse messages from POS, including supported screenshot attachments.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Team Communications at POS
 

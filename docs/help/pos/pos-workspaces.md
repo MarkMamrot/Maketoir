@@ -1,5 +1,5 @@
 ---
-{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["pos-overview"],"contextSections":{"pos-overview":"Main operations"},"order":1,"summary":"Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["pos-overview"],"contextSections":{"pos-overview":"Main operations"},"order":1,"summary":"Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","POS reports","Daily operating checklist"]}
 ---
 # Point of Sale
 

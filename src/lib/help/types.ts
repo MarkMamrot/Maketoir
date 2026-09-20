@@ -8,6 +8,7 @@ export interface HelpSection {
   id: string;
   heading: string;
   content: string;
+  presentation: 'quick' | 'detail';
 }
 
 export interface HelpTopic {
@@ -22,6 +23,7 @@ export interface HelpTopic {
   relatedTopics?: string[];
   contexts: string[];
   contextSections?: Record<string, string>;
+  quickSections: string[];
   order?: number;
   summary: string;
   lastReviewed: string;

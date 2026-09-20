@@ -3,6 +3,8 @@ import { getAdminSession } from '@/lib/sessionUtils';
 import { resolveActorBusinessAccess } from '@/lib/auth/businessAccess';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   let activeBusinessId: string | undefined;
   try {

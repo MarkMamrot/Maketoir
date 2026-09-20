@@ -1,5 +1,5 @@
 ---
-{"id":"pos-gift-cards","title":"Gift Cards at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout > Gift Card","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-returns-exchanges-customer-credit","pos-store-credit"],"contexts":["pos-gift-cards"],"contextSections":{"pos-gift-cards":"Step-by-step"},"order":16,"summary":"Sell a gift card, verify its code and balance, or redeem it as part or all of a POS payment.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-gift-cards","title":"Gift Cards at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout > Gift Card","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-returns-exchanges-customer-credit","pos-store-credit"],"contexts":["pos-gift-cards"],"contextSections":{"pos-gift-cards":"Step-by-step"},"order":16,"summary":"Sell a gift card, verify its code and balance, or redeem it as part or all of a POS payment.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Gift Cards at POS
 

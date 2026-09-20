@@ -1,5 +1,5 @@
 ---
-{"id":"setup-runtime-issues","title":"Runtime Issues","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Runtime Issues","product":"setup","format":"task","parentId":"setup-connections","contexts":["runtime-issues"],"contextSections":{"runtime-issues":"Step-by-step"},"relatedTopics":["setup-integration-readiness-troubleshooting","setup-team-access-security"],"order":6,"summary":"Review operational failures, record the outcome, and close only issues that have been verified.","lastReviewed":"2026-08-26","owner":"platform"}
+{"id":"setup-runtime-issues","title":"Runtime Issues","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Runtime Issues","product":"setup","format":"task","parentId":"setup-connections","contexts":["runtime-issues"],"contextSections":{"runtime-issues":"Step-by-step"},"relatedTopics":["setup-integration-readiness-troubleshooting","setup-team-access-security"],"order":6,"summary":"Review operational failures, record the outcome, and close only issues that have been verified.","lastReviewed":"2026-08-26","owner":"platform","quickSections":["Main operations","At a glance"]}
 ---
 # Runtime Issues
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-08-23","owner":"reporting"}
+{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-08-23","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"]}
 ---
 # IMS Reports
 

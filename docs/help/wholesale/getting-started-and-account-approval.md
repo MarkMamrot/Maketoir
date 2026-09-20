@@ -1,5 +1,5 @@
 ---
-{"id":"wholesale-getting-started-account-approval","title":"Getting Started and Account Approval","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Application and Sign In","product":"wholesale","format":"task","parentId":"wholesale-portal","relatedTopics":["wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"order":10,"summary":"Apply for wholesale access, verify your email, understand approval states, and sign in with an approved email code.","lastReviewed":"2026-08-23","owner":"wholesale"}
+{"id":"wholesale-getting-started-account-approval","title":"Getting Started and Account Approval","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Application and Sign In","product":"wholesale","format":"task","parentId":"wholesale-portal","relatedTopics":["wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"order":10,"summary":"Apply for wholesale access, verify your email, understand approval states, and sign in with an approved email code.","lastReviewed":"2026-08-23","owner":"wholesale","quickSections":["Main operations","At a glance"]}
 ---
 # Getting Started and Account Approval
 

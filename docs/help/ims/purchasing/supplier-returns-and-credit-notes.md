@@ -1,5 +1,5 @@
 ---
-{"id":"ims-supplier-returns-credit-notes","title":"Supplier Returns and Credit Notes","audiences":["ims"],"capability":"orders","screen":"Purchasing > Supplier Credit Notes","product":"ims","format":"task","parentId":"ims-supplier-work","contexts":["supplier-credit-notes"],"contextSections":{"supplier-credit-notes":"Step-by-step"},"relatedTopics":["ims-supplier-work","ims-purchase-orders","ims-po-receiving-resolution","ims-inventory-costing"],"order":13,"summary":"Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.","lastReviewed":"2026-09-10","owner":"inventory"}
+{"id":"ims-supplier-returns-credit-notes","title":"Supplier Returns and Credit Notes","audiences":["ims"],"capability":"orders","screen":"Purchasing > Supplier Credit Notes","product":"ims","format":"task","parentId":"ims-supplier-work","contexts":["supplier-credit-notes"],"contextSections":{"supplier-credit-notes":"Step-by-step"},"relatedTopics":["ims-supplier-work","ims-purchase-orders","ims-po-receiving-resolution","ims-inventory-costing"],"order":13,"summary":"Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.","lastReviewed":"2026-09-10","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Supplier Returns and Credit Notes
 

@@ -1369,6 +1369,7 @@ const COLUMNS = [
   ['ims_credit_notes', 'so_id',               'INT NULL'],
   ['ims_credit_notes', 'original_so_number',  'VARCHAR(100) NULL'],
   ['ims_credit_notes', 'source',              "ENUM('manual','shopify','pos','so_shortfall','amazon') NOT NULL DEFAULT 'manual'"],
+  ['ims_credit_notes', 'shopify_refund_id',   'VARCHAR(64) NULL AFTER source'],
   ['ims_credit_notes', 'pos_sale_id',         'INT NULL'],
   ['ims_credit_notes', 'settlement_method',   "ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit'"],
   ['ims_credit_notes', 'settlement_status',   "ENUM('pending','complete','error') NOT NULL DEFAULT 'pending'"],
@@ -1528,6 +1529,7 @@ const INDEXES = [
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
+  ['ims_credit_notes', 'uq_cn_shopify_refund', 'UNIQUE INDEX `uq_cn_shopify_refund` (`business_id`, `shopify_refund_id`)'],
   ['ims_credit_notes', 'uq_cn_channel_return', 'UNIQUE INDEX `uq_cn_channel_return` (`business_id`, `channel_instance_id`, `external_return_id`)'],
   ['ims_credit_notes', 'uq_cn_channel_refund', 'UNIQUE INDEX `uq_cn_channel_refund` (`business_id`, `channel_instance_id`, `external_refund_id`)'],
   ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],
@@ -1738,7 +1740,20 @@ async function migrateSchema(schema, businessId) {
     if (missingColumns.length) {
       throw new Error(`${schema}.${requestedTable} is missing registered columns: ${missingColumns.join(', ')}`);
     }
-    console.log(`  ${schema}.${requestedTable}: ${added} columns added, ${requestedColumns.length - added} already present`);
+    const requestedIndexes = INDEXES.filter(([table]) => table === requestedTable);
+    const [indexRows] = await conn.query(
+      `SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, requestedTable],
+    );
+    const existingIndexes = new Set(indexRows.map(row => row.INDEX_NAME));
+    let indexesAdded = 0;
+    for (const [, indexName, definition] of requestedIndexes) {
+      if (existingIndexes.has(indexName)) continue;
+      await conn.query(`ALTER TABLE \`${schema}\`.\`${requestedTable}\` ADD ${definition}`);
+      existingIndexes.add(indexName);
+      indexesAdded++;
+    }
+    console.log(`  ${schema}.${requestedTable}: ${added} columns and ${indexesAdded} indexes added`);
     return;
   }
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-customer-returns-refunds","title":"Customer Returns, Store Credit, and Refunds","audiences":["ims"],"capability":"orders","screen":"Sales > Customer Credit Notes","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-online-shop"],"contexts":["credit-notes"],"contextSections":{"credit-notes":"Step-by-step"},"order":33,"summary":"Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.","lastReviewed":"2026-09-15","owner":"sales"}
+{"id":"ims-customer-returns-refunds","title":"Customer Returns, Store Credit, and Refunds","audiences":["ims"],"capability":"orders","screen":"Sales > Customer Credit Notes","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-online-shop"],"contexts":["credit-notes"],"contextSections":{"credit-notes":"Step-by-step"},"order":33,"summary":"Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.","lastReviewed":"2026-09-15","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 # Customer Returns, Store Credit, and Refunds
 

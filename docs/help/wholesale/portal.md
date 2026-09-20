@@ -1,5 +1,5 @@
 ---
-{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-09-10","owner":"wholesale"}
+{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-09-10","owner":"wholesale","quickSections":["Main operations","Home","Support"]}
 ---
 # Wholesale Portal
 

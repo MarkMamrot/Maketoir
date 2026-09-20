@@ -1,3 +1,11 @@
+## 2026-09-20 - Layered Help and detailed Assistant retrieval
+
+- All 68 authenticated Help topics now declare 1-4 default-open `quickSections`. The Help drawer shows those concise sections first, adds an **In this topic** jump list, and places reference, procedures, troubleshooting and worked examples under accessible **More help** accordions with expand/collapse controls.
+- Context links, Help search results and Assistant citations expand and focus a collapsed destination automatically. Authored section order remains authoritative, and existing topic IDs, context mappings, capability filters and public prospect summaries remain stable.
+- The Assistant index retains each complete `##` section and adds supplemental `###` chunks linked to the parent Help section for precise retrieval and working citations. Canonical sections receive ranking preference so focused chunks do not displace complete evidence for broad questions.
+- Dense default-open content was reduced in IMS Workspaces, Contacts and CRM, Purchase Orders and Sales Channels. Every default-open section is now below 2,500 characters; the largest remaining sections are structured lookup tables rather than long prose.
+- Validation passed 34 focused Help/Assistant tests, the full 2,930-test suite with five skips, Help compilation with 68 topics and 743 Assistant chunks, production build, touched-file diagnostics and whitespace checks. Authenticated visual inspection remains outstanding because the available browser session redirected to login.
+
 ## 2026-09-16 - Daybook paper-folder themes and compact communications
 
 - Store Daybook now uses a full-width rounded paper-folder layout with sans-serif typography and folder-style section tabs. Managers can choose tenant-wide Evergreen, Pink folder, Coastal or Citrus schemes in Daybook Settings; content and the standard yellow communication highlight remain independent of the scheme.

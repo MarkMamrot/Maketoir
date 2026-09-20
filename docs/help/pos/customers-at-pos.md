@@ -1,5 +1,5 @@
 ---
-{"id":"pos-customers","title":"Customers at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Customer","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-store-credit"],"contexts":["customer-search"],"contextSections":{"customer-search":"Step-by-step"},"order":12,"summary":"Find, create, reactivate, link, or remove the correct customer from a POS sale.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-customers","title":"Customers at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Customer","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-store-credit"],"contexts":["customer-search"],"contextSections":{"customer-search":"Step-by-step"},"order":12,"summary":"Find, create, reactivate, link, or remove the correct customer from a POS sale.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Customers at POS
 

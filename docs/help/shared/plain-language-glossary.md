@@ -1,5 +1,5 @@
 ---
-{"id":"shared-plain-language-glossary","title":"Plain-language Glossary","audiences":["ims","pos","wholesale"],"capability":"navigation","screen":"Shared Help","product":"shared","format":"reference","contexts":["shared-glossary"],"relatedTopics":["shared-troubleshooting-by-symptom"],"order":900,"summary":"Look up common stock, order, customer-value, payment, and integration terms in everyday retail language.","lastReviewed":"2026-08-23","owner":"help"}
+{"id":"shared-plain-language-glossary","title":"Plain-language Glossary","audiences":["ims","pos","wholesale"],"capability":"navigation","screen":"Shared Help","product":"shared","format":"reference","contexts":["shared-glossary"],"relatedTopics":["shared-troubleshooting-by-symptom"],"order":900,"summary":"Look up common stock, order, customer-value, payment, and integration terms in everyday retail language.","lastReviewed":"2026-08-23","owner":"help","quickSections":["Main operations","Stock and fulfilment","Orders, returns, and customer value"]}
 ---
 # Plain-language Glossary
 

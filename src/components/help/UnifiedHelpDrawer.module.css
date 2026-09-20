@@ -57,16 +57,22 @@
 .noResults { padding: 10px; color: var(--sv-text-dim, #64736f); font-size: 12px; }
 
 .content { min-width: 0; overflow-y: auto; padding: 26px clamp(20px, 4vw, 42px) 52px; background: var(--sv-bg-1, #fff); }
+.content > * { max-width: 680px; }
 .breadcrumbs { display: flex; flex-wrap: wrap; gap: 6px; color: #60716c; font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .breadcrumbs span + span::before { content: '/'; margin-right: 6px; color: #9aa7a3; }
 .content h1 { margin: 9px 0 8px; font-size: 28px; line-height: 1.15; letter-spacing: 0; color: var(--sv-text-strong, #14211f); }
 .summary { margin: 0 0 24px; color: var(--sv-text-dim, #596965); font-size: 15px; line-height: 1.55; }
 .contextButton { margin-bottom: 18px; padding: 8px 10px; border: 1px solid #178078; border-radius: 5px; background: transparent; color: #126c65; font-weight: 700; cursor: pointer; }
+.topicContents { margin: 0 0 24px; padding: 12px 0; border-top: 1px solid var(--sv-etch, #dfe5e2); border-bottom: 1px solid var(--sv-etch, #dfe5e2); }
+.topicContents > strong { display: block; margin-bottom: 8px; color: var(--sv-text-strong, #14211f); font-size: 12px; text-transform: uppercase; }
+.topicContents > div { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.topicContents button { padding: 2px 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: #126c65; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.topicContents button:hover, .topicContents button:focus-visible { border-bottom-color: currentColor; }
 .sections { display: grid; gap: 26px; }
 .sections section { scroll-margin-top: 18px; }
 .sections h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: 0; color: var(--sv-text-strong, #14211f); }
 .sections h3 { margin: 18px 0 7px; font-size: 15px; letter-spacing: 0; }
-.sections p, .sections li { font-size: 14px; line-height: 1.62; }
+.sections p, .sections li, .detailContent p, .detailContent li { font-size: 14px; line-height: 1.58; }
 .sections ul, .sections ol { padding-left: 22px; }
 .sections table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .sections th, .sections td { padding: 8px; border: 1px solid var(--sv-etch, #dce3e0); text-align: left; vertical-align: top; }
@@ -74,6 +80,26 @@
 .sections input[type="checkbox"] { margin: 0 7px 0 -1px; accent-color: #168077; }
 .sections li:has(> input[type="checkbox"]) { list-style: none; margin-left: -20px; }
 .mainOperations { padding: 16px 18px; border-left: 3px solid #168077; background: #f0f7f5; }
+.moreHelp { margin-top: 34px; padding-top: 22px; border-top: 2px solid var(--sv-etch, #dfe5e2); }
+.moreHelpHeading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.moreHelpHeading h2 { margin: 0; color: var(--sv-text-strong, #14211f); font-size: 19px; }
+.moreHelpHeading p { margin: 3px 0 0; color: var(--sv-text-dim, #64736f); font-size: 12px; }
+.moreHelpHeading > div:last-child { display: flex; flex: 0 0 auto; gap: 10px; }
+.moreHelpHeading button { padding: 3px 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: #126c65; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.moreHelpHeading button:hover, .moreHelpHeading button:focus-visible { border-bottom-color: currentColor; }
+.detailSections { display: grid; border-top: 1px solid var(--sv-etch, #dfe5e2); }
+.detailSection { scroll-margin-top: 18px; border-bottom: 1px solid var(--sv-etch, #dfe5e2); }
+.detailSection > h2 { margin: 0; font-size: inherit; }
+.detailSection > h2 > button { width: 100%; min-height: 48px; padding: 11px 2px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; background: transparent; color: var(--sv-text-strong, #14211f); font: inherit; font-size: 15px; font-weight: 800; text-align: left; cursor: pointer; }
+.detailSection > h2 > button:hover, .detailSection > h2 > button:focus-visible { color: #126c65; }
+.detailSection > h2 svg { flex: 0 0 auto; transition: transform 160ms ease; }
+.detailSection > h2 > button[aria-expanded="true"] svg { transform: rotate(180deg); }
+.detailContent { padding: 2px 2px 20px; }
+.detailContent h3 { margin: 20px 0 7px; color: var(--sv-text-strong, #14211f); font-size: 15px; }
+.detailContent ul, .detailContent ol { padding-left: 22px; }
+.detailContent table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detailContent th, .detailContent td { padding: 8px; border: 1px solid var(--sv-etch, #dce3e0); text-align: left; vertical-align: top; }
+.detailContent th { background: var(--sv-bg-0, #f5f7f6); }
 .relatedTopics { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--sv-etch, #dfe5e2); }
 .relatedTopics h2 { margin: 0 0 10px; font-size: 16px; }
 .relatedTopics div { display: grid; gap: 7px; }
@@ -93,5 +119,6 @@
   .topicList button { min-width: 0; }
   .content { padding: 22px 18px 44px; }
   .content h1 { font-size: 24px; }
+  .moreHelpHeading { align-items: flex-start; flex-direction: column; }
   .floatingTrigger { right: 10px; bottom: 10px; }
 }

@@ -6,8 +6,9 @@ import { searchHelpTopics } from '../searchHelpTopics';
 const topic = {
   id: 'returns', title: 'Returns', summary: 'Return customer goods', audiences: ['ims'],
   capability: 'orders', screen: 'Sales', product: 'ims', contexts: ['returns'], owner: 'sales',
+  quickSections: ['Refunds'],
   lastReviewed: '2026-08-23', filename: 'returns.md', sections: [
-    { id: 'returns:1', heading: 'Refunds', content: 'Complete the linked **credit note** once, then review the refund.' },
+    { id: 'returns:1', heading: 'Refunds', content: 'Complete the linked **credit note** once, then review the refund.', presentation: 'quick' },
   ],
 } satisfies HelpTopic;
 

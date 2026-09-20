@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-09-11","owner":"sales"}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-09-11","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 
 # Sales Orders and Fulfilment

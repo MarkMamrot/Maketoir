@@ -269,7 +269,7 @@ export async function runAssistant(input: {
       section: source.heading,
       screen: source.screen,
       topicId: source.topicId,
-      sectionId: source.topicId ? source.id : undefined,
+      sectionId: source.topicId ? source.sectionId ?? source.id : undefined,
     }] : [];
   });
   const candidate = decision.mode === 'workflow_candidate' ? normalizeCandidate(decision.candidate) : null;

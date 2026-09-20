@@ -13,6 +13,7 @@ function topic(id: string, product: HelpProduct): HelpTopic {
     screen: id,
     product,
     contexts: [id],
+    quickSections: [],
     owner: id,
     lastReviewed: '2026-08-29',
     filename: `${id}.md`,

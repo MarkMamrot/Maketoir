@@ -1,5 +1,5 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-09-11","owner":"inventory"}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-09-11","owner":"inventory","quickSections":["Main operations","Purchase order status flow"]}
 ---
 # Purchase Orders
 
@@ -17,6 +17,8 @@ A purchase order records what you intend to buy from a supplier and where it sho
 | Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |
 | Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |
 | Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |
+
+## Find and review purchase orders
 
 Advisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.
 

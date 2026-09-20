@@ -1,5 +1,5 @@
 ---
-{"id":"setup-business-brand-appearance","title":"Business and Brand","audiences":["ims"],"capability":"navigation","screen":"Setup > Business and Brand","product":"setup","format":"task","parentId":"setup-connections","contexts":["business","profile"],"contextSections":{"business":"Step-by-step","profile":"Maintain Brand Profile"},"relatedTopics":["foresight-business-intelligence","foresight-content-production-customer-service","setup-team-access-security"],"order":2,"summary":"Keep business facts and reviewed brand information accurate for reporting, planning, content, and customer service.","lastReviewed":"2026-08-29","owner":"setup"}
+{"id":"setup-business-brand-appearance","title":"Business and Brand","audiences":["ims"],"capability":"navigation","screen":"Setup > Business and Brand","product":"setup","format":"task","parentId":"setup-connections","contexts":["business","profile"],"contextSections":{"business":"Step-by-step","profile":"Maintain Brand Profile"},"relatedTopics":["foresight-business-intelligence","foresight-content-production-customer-service","setup-team-access-security"],"order":2,"summary":"Keep business facts and reviewed brand information accurate for reporting, planning, content, and customer service.","lastReviewed":"2026-08-29","owner":"setup","quickSections":["Main operations","At a glance"]}
 ---
 # Business and Brand
 

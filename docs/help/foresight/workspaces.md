@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-workspaces","title":"Intel & Automation","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Intel & Automation workspace and understand what each area can change.","lastReviewed":"2026-08-29","owner":"foresight"}
+{"id":"foresight-workspaces","title":"Intel & Automation","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Intel & Automation workspace and understand what each area can change.","lastReviewed":"2026-08-29","owner":"foresight","quickSections":["Main operations","Choose a workspace","Dashboard"]}
 ---
 # Intel & Automation
 

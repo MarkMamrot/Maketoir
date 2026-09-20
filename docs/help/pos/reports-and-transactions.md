@@ -1,5 +1,5 @@
 ---
-{"id":"pos-reports-transactions","title":"POS Reports and Transactions","audiences":["pos","ims"],"capability":"pos","screen":"POS > Reports","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-returns-exchanges-customer-credit","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["reports"],"contextSections":{"reports":"Step-by-step"},"order":32,"summary":"Review location totals and transactions, reprint receipts, start returns, and perform permitted corrections.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-reports-transactions","title":"POS Reports and Transactions","audiences":["pos","ims"],"capability":"pos","screen":"POS > Reports","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-returns-exchanges-customer-credit","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["reports"],"contextSections":{"reports":"Step-by-step"},"order":32,"summary":"Review location totals and transactions, reprint receipts, start returns, and perform permitted corrections.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # POS Reports and Transactions
 

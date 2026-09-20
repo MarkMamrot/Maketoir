@@ -5,6 +5,7 @@ import type { AvailableOperationCapabilities, OperationCapability } from '@/lib/
 
 export interface AssistantKnowledgeResult {
   id: string;
+  sectionId?: string;
   title: string;
   heading: string;
   screen: string;
@@ -15,6 +16,7 @@ export interface AssistantKnowledgeResult {
 
 interface IndexedChunk {
   id: string;
+  sectionId?: string;
   topicId?: string;
   title: string;
   heading: string;
@@ -136,5 +138,5 @@ export function retrieveAssistantKnowledge(input: {
   }
   return [...primary, ...secondary]
     .slice(0, limit)
-    .map(({ id, title, heading, screen, topicId, content, score }) => ({ id, title, heading, screen, topicId, content, score }));
+    .map(({ id, sectionId, title, heading, screen, topicId, content, score }) => ({ id, sectionId, title, heading, screen, topicId, content, score }));
 }

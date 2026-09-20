@@ -1,5 +1,5 @@
 ---
-{"id":"pos-branch-transfers","title":"POS Branch Transfers","audiences":["pos","ims"],"capability":"pos","screen":"POS > Create Transfer and Receive Transfers","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","ims-location-stock-operations"],"contexts":["receive-transfers","branch-transfer"],"contextSections":{"receive-transfers":"Step-by-step","branch-transfer":"Step-by-step"},"order":30,"summary":"Send stock from the active POS branch and receive it at the destination without duplicating movements.","lastReviewed":"2026-08-30","owner":"retail"}
+{"id":"pos-branch-transfers","title":"POS Branch Transfers","audiences":["pos","ims"],"capability":"pos","screen":"POS > Create Transfer and Receive Transfers","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","ims-location-stock-operations"],"contexts":["receive-transfers","branch-transfer"],"contextSections":{"receive-transfers":"Step-by-step","branch-transfer":"Step-by-step"},"order":30,"summary":"Send stock from the active POS branch and receive it at the destination without duplicating movements.","lastReviewed":"2026-08-30","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # POS Branch Transfers
 

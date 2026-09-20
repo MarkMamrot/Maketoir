@@ -62,6 +62,9 @@ export function UnifiedHelpDrawer({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(initialHelpSection(contextual?.topic)),
   );
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    () => new Set(contextual?.sectionId ? [contextual.sectionId] : []),
+  );
   const [query, setQuery] = useState('');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const closeDrawer = useCallback(() => {
@@ -73,6 +76,7 @@ export function UnifiedHelpDrawer({
     if (!open) return;
     setSelectedId(contextual?.topic.id ?? null);
     setExpandedGroups(new Set(initialHelpSection(contextual?.topic)));
+    setExpandedSections(new Set(contextual?.sectionId ? [contextual.sectionId] : []));
     closeButtonRef.current?.focus();
     if (contextual?.sectionId) {
       requestAnimationFrame(() => document.getElementById(contextual.sectionId!)?.scrollIntoView({ block: 'start' }));
@@ -97,11 +101,26 @@ export function UnifiedHelpDrawer({
   const searchResults = useMemo(() => searchHelpTopics(topics, normalizedQuery), [topics, normalizedQuery]);
   const topicGroups = normalizedQuery ? [] : groupHelpTopics(topics);
 
+  const focusSection = (sectionId: string) => {
+    setExpandedSections(current => new Set(current).add(sectionId));
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })));
+  };
+
   const selectTopic = (topic: HelpTopic, sectionId?: string) => {
     setSelectedId(topic.id);
     setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
+    setExpandedSections(new Set(sectionId ? [sectionId] : []));
     setQuery('');
-    if (sectionId) requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' }));
+    if (sectionId) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })));
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(current => {
+      const next = new Set(current);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
   };
 
   const toggleGroup = (groupId: string) => {
@@ -175,8 +194,9 @@ export function UnifiedHelpDrawer({
                   if (!topic) return;
                   setSelectedId(topic.id);
                   setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
+                  setExpandedSections(new Set(citation.sectionId ? [citation.sectionId] : []));
                   setMode('help');
-                  if (citation.sectionId) requestAnimationFrame(() => document.getElementById(citation.sectionId!)?.scrollIntoView({ block: 'start' }));
+                  if (citation.sectionId) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(citation.sectionId!)?.scrollIntoView({ block: 'start' })));
                 }}
                 embedded
               />
@@ -230,14 +250,35 @@ export function UnifiedHelpDrawer({
                     {selected.id !== contextual?.topic.id && contextual && (
                       <button className={styles.contextButton} onClick={() => selectTopic(contextual.topic)}>Back to help for this page</button>
                     )}
+                    <nav className={styles.topicContents} aria-label="In this topic">
+                      <strong>In this topic</strong>
+                      <div>{selected.sections.map(section => <button key={section.id} onClick={() => focusSection(section.id)}>{section.heading}</button>)}</div>
+                    </nav>
                     <div className={styles.sections}>
-                      {selected.sections.map(section => (
+                      {selected.sections.filter(section => section.presentation === 'quick').map(section => (
                         <section key={section.id} id={section.id} className={section.heading === 'Main operations' ? styles.mainOperations : ''}>
                           <h2>{section.heading}</h2>
                           <HelpMarkdown>{section.content}</HelpMarkdown>
                         </section>
                       ))}
                     </div>
+                    {selected.sections.some(section => section.presentation === 'detail') && (
+                      <section className={styles.moreHelp} aria-labelledby="more-help-heading">
+                        <div className={styles.moreHelpHeading}>
+                          <div><h2 id="more-help-heading">More help</h2><p>Detailed answers, troubleshooting and examples.</p></div>
+                          <div><button onClick={() => setExpandedSections(new Set(selected.sections.filter(section => section.presentation === 'detail').map(section => section.id)))}>Expand all</button><button onClick={() => setExpandedSections(new Set())}>Collapse all</button></div>
+                        </div>
+                        <div className={styles.detailSections}>
+                          {selected.sections.filter(section => section.presentation === 'detail').map(section => {
+                            const expanded = expandedSections.has(section.id);
+                            return <section key={section.id} id={section.id} className={styles.detailSection}>
+                              <h2><button type="button" aria-expanded={expanded} aria-controls={`${section.id}-content`} onClick={() => toggleSection(section.id)}><span>{section.heading}</span><ChevronDown size={17} /></button></h2>
+                              {expanded && <div id={`${section.id}-content`} className={styles.detailContent}><HelpMarkdown>{section.content}</HelpMarkdown></div>}
+                            </section>;
+                          })}
+                        </div>
+                      </section>
+                    )}
                     {relatedTopics.length > 0 && (
                       <nav className={styles.relatedTopics} aria-label="Related Help topics">
                         <h2>Related Help</h2>

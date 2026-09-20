@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Integrations > Xero","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero"],"contextSections":{"xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-08-27","owner":"integrations"}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Integrations > Xero","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero"],"contextSections":{"xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-08-27","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Xero Sync and Reconciliation
 

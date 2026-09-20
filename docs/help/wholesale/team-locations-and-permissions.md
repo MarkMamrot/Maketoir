@@ -1,5 +1,5 @@
 ---
-{"id":"wholesale-team-locations-permissions","title":"Team, Locations, and Permissions","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Account","product":"wholesale","format":"task","parentId":"wholesale-portal","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules"],"contexts":["account"],"contextSections":{"account":"Step-by-step"},"order":30,"summary":"Switch assigned buying locations and understand what Owners, Admins, and Buyers can manage.","lastReviewed":"2026-08-23","owner":"wholesale"}
+{"id":"wholesale-team-locations-permissions","title":"Team, Locations, and Permissions","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Account","product":"wholesale","format":"task","parentId":"wholesale-portal","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules"],"contexts":["account"],"contextSections":{"account":"Step-by-step"},"order":30,"summary":"Switch assigned buying locations and understand what Owners, Admins, and Buyers can manage.","lastReviewed":"2026-08-23","owner":"wholesale","quickSections":["Main operations","At a glance"]}
 ---
 # Team, Locations, and Permissions
 

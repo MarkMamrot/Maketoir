@@ -120,6 +120,11 @@ function parseDocument(filename, source, options = {}) {
       || metadata.relatedTopics.some(value => !String(value).trim()))) {
       throw new Error(`${filename}: invalid relatedTopics`);
     }
+    if (!Array.isArray(metadata.quickSections) || metadata.quickSections.length < 1 || metadata.quickSections.length > 4
+      || metadata.quickSections.some(value => !String(value).trim())
+      || new Set(metadata.quickSections.map(value => String(value).toLowerCase())).size !== metadata.quickSections.length) {
+      throw new Error(`${filename}: quickSections must contain 1 to 4 unique headings`);
+    }
   }
 
   const sections = [];
@@ -157,6 +162,9 @@ function parseDocument(filename, source, options = {}) {
   flush();
   if (options.help) {
     const headings = new Set(sections.map(section => section.heading.toLowerCase()));
+    for (const heading of metadata.quickSections) {
+      if (!headings.has(String(heading).toLowerCase())) throw new Error(`${filename}: quickSections targets missing section ${heading}`);
+    }
     for (const required of ['Main operations', 'Worked examples']) {
       if (!headings.has(required.toLowerCase())) throw new Error(`${filename}: missing required section ${required}`);
     }
@@ -171,6 +179,35 @@ function parseDocument(filename, source, options = {}) {
     }
   }
   return { metadata, sections, source: match[2].trim() };
+}
+
+function assistantChunksForSection(section) {
+  const hasSubheadings = /^### /m.test(section.content);
+  if (!hasSubheadings) return [{ ...section, sectionId: section.id, sourcePriority: 8 }];
+  const chunks = [{ ...section, sectionId: section.id, sourcePriority: 8 }];
+  let subheading = '';
+  let body = [];
+  const flush = () => {
+    const content = body.join('\n').trim();
+    if (!content || !subheading) return;
+    chunks.push({
+      ...section,
+      id: `${section.id}.${chunks.length}`,
+      sectionId: section.id,
+      sourcePriority: 0,
+      heading: `${section.heading} > ${subheading}`,
+      content,
+    });
+  };
+  for (const line of section.content.split(/\r?\n/)) {
+    if (line.startsWith('### ')) {
+      flush();
+      subheading = line.slice(4).trim();
+      body = [];
+    } else body.push(line);
+  }
+  flush();
+  return chunks;
 }
 
 function publicSalesProjection(metadata, filename) {
@@ -226,13 +263,18 @@ for (const helpPath of await markdownFiles(helpDirectory)) {
   if (ids.has(parsed.metadata.id)) throw new Error(`Duplicate help document id: ${parsed.metadata.id}`);
   ids.add(parsed.metadata.id);
   documents.push({ ...parsed.metadata, filename: relativePath });
-  chunks.push(...parsed.sections);
+  chunks.push(...parsed.sections.flatMap(assistantChunksForSection));
   const salesProjection = publicSalesProjection(parsed.metadata, relativePath);
   if (salesProjection) prospectSources.push(salesProjection);
   helpTopics.push({
     ...parsed.metadata,
     filename: relativePath,
-    sections: parsed.sections.map(({ id, heading, content }) => ({ id, heading, content })),
+    sections: parsed.sections.map(({ id, heading, content }) => ({
+      id,
+      heading,
+      content,
+      presentation: parsed.metadata.quickSections.some(value => String(value).toLowerCase() === heading.toLowerCase()) ? 'quick' : 'detail',
+    })),
   });
 }
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-crm-workflows","title":"CRM Segments, Tasks, and Pipeline","audiences":["ims"],"capability":"navigation","screen":"Contacts > CRM","product":"ims","format":"task","parentId":"ims-contacts-crm","contexts":["crm"],"contextSections":{"crm":"Step-by-step"},"relatedTopics":["ims-contacts-crm","ims-customer-orders"],"order":41,"summary":"Organise customer follow-up with live segments, assigned tasks, and sales opportunities.","lastReviewed":"2026-08-23","owner":"customer"}
+{"id":"ims-crm-workflows","title":"CRM Segments, Tasks, and Pipeline","audiences":["ims"],"capability":"navigation","screen":"Contacts > CRM","product":"ims","format":"task","parentId":"ims-contacts-crm","contexts":["crm"],"contextSections":{"crm":"Step-by-step"},"relatedTopics":["ims-contacts-crm","ims-customer-orders"],"order":41,"summary":"Organise customer follow-up with live segments, assigned tasks, and sales opportunities.","lastReviewed":"2026-08-23","owner":"customer","quickSections":["Main operations","At a glance"]}
 ---
 # CRM Segments, Tasks, and Pipeline
 
