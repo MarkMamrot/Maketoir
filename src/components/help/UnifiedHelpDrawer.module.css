@@ -34,10 +34,11 @@
 .modeTabs button { min-height: 36px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 6px; background: transparent; color: var(--sv-text-dim, #64736f); font-weight: 700; cursor: pointer; }
 .modeTabs .activeTab { background: #e5f2ef; color: #0f6a62; }
 
-.helpLayout { min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.helpLayout { min-height: 0; display: grid; grid-template-columns: 194px minmax(0, 1fr); }
 .topicNav { min-height: 0; padding: 12px 10px; overflow-y: auto; border-right: 1px solid var(--sv-etch, #dfe5e2); background: var(--sv-bg-0, #f5f7f6); }
 .searchBox { height: 38px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--sv-etch, #d2dbd7); border-radius: 6px; background: var(--sv-bg-1, #fff); color: #66736f; }
 .searchBox input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; }
+.topicBrowserToggle { display: none; }
 .topicList { margin-top: 10px; display: grid; gap: 3px; }
 .topicGroup { display: grid; gap: 3px; }
 .topicGroup + .topicGroup { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--sv-etch, #dfe5e2); }
@@ -45,7 +46,7 @@
 .groupToggle svg { transition: transform 160ms ease; }
 .groupToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .groupTopics { display: grid; gap: 3px; }
-.topicList button { min-height: 40px; padding: 8px 9px; display: grid; grid-template-columns: 1fr; align-items: center; gap: 6px; text-align: left; border: 0; border-radius: 5px; background: transparent; color: var(--sv-text-main, #25322f); font: inherit; font-size: 13px; cursor: pointer; }
+.topicList button { min-height: 34px; padding: 6px 8px; display: grid; grid-template-columns: 1fr; align-items: center; gap: 6px; text-align: left; border: 0; border-radius: 5px; background: transparent; color: var(--sv-text-main, #25322f); font: inherit; font-size: 12px; line-height: 1.35; cursor: pointer; }
 .topicList button:hover { background: var(--sv-bg-1, #fff); }
 .topicList .selectedTopic { background: #dcefeb; color: #0e625b; font-weight: 800; }
 .topicList .searchResult { min-height: 72px; }
@@ -68,8 +69,8 @@
 .topicContents > div { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .topicContents button { padding: 2px 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: #126c65; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .topicContents button:hover, .topicContents button:focus-visible { border-bottom-color: currentColor; }
-.sections { display: grid; gap: 26px; }
-.sections section { scroll-margin-top: 18px; }
+.sections { min-width: 0; display: grid; gap: 26px; }
+.sections section { min-width: 0; scroll-margin-top: 18px; }
 .sections h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: 0; color: var(--sv-text-strong, #14211f); }
 .sections h3 { margin: 18px 0 7px; font-size: 15px; letter-spacing: 0; }
 .sections p, .sections li, .detailContent p, .detailContent li { font-size: 14px; line-height: 1.58; }
@@ -79,7 +80,7 @@
 .sections th { background: var(--sv-bg-0, #f5f7f6); }
 .sections input[type="checkbox"] { margin: 0 7px 0 -1px; accent-color: #168077; }
 .sections li:has(> input[type="checkbox"]) { list-style: none; margin-left: -20px; }
-.mainOperations { padding: 16px 18px; border-left: 3px solid #168077; background: #f0f7f5; }
+.mainOperations { padding-left: 16px; border-left: 3px solid #168077; }
 .moreHelp { margin-top: 34px; padding-top: 22px; border-top: 2px solid var(--sv-etch, #dfe5e2); }
 .moreHelpHeading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .moreHelpHeading h2 { margin: 0; color: var(--sv-text-strong, #14211f); font-size: 19px; }
@@ -112,12 +113,19 @@
 @media (max-width: 720px) {
   .drawer { inset: 0; width: 100%; border: 0; border-radius: 0; }
   .helpLayout { grid-template-columns: 1fr; }
-  .topicNav { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--sv-etch, #dfe5e2); }
-  .topicList { display: grid; overflow: visible; }
+  .topicNav { min-height: auto; padding: 10px; overflow: visible; border-right: 0; border-bottom: 1px solid var(--sv-etch, #dfe5e2); }
+  .topicBrowserToggle { width: 100%; min-height: 46px; margin-top: 8px; padding: 6px 9px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--sv-etch, #d2dbd7); border-radius: 6px; background: var(--sv-bg-1, #fff); color: var(--sv-text-main, #25322f); text-align: left; cursor: pointer; }
+  .topicBrowserToggle span { min-width: 0; display: grid; gap: 1px; }
+  .topicBrowserToggle small { color: var(--sv-text-dim, #64736f); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .topicBrowserToggle strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+  .topicBrowserToggle svg { flex: 0 0 auto; transition: transform 160ms ease; }
+  .topicBrowserToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .topicList { display: none; max-height: min(42vh, 330px); overflow-y: auto; }
+  .topicListOpen { display: grid; }
   .topicGroup { display: grid; }
   .topicGroup + .topicGroup { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--sv-etch, #dfe5e2); border-left: 0; }
   .topicList button { min-width: 0; }
-  .content { padding: 22px 18px 44px; }
+  .content { padding: 18px 18px 44px; }
   .content h1 { font-size: 24px; }
   .moreHelpHeading { align-items: flex-start; flex-direction: column; }
   .floatingTrigger { right: 10px; bottom: 10px; }

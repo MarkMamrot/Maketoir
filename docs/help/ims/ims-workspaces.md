@@ -14,6 +14,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Follow a source link when reviewing a summary instead of recreating the transaction.
 - Use Team Chat to communicate with POS locations as the configured default warehouse.
 - Open Notifications in the top bar to review stock, order, and integration actions that need attention.
+- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
 
 ## Choose a workspace

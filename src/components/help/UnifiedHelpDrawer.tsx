@@ -65,6 +65,7 @@ export function UnifiedHelpDrawer({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     () => new Set(contextual?.sectionId ? [contextual.sectionId] : []),
   );
+  const [topicBrowserOpen, setTopicBrowserOpen] = useState(false);
   const [query, setQuery] = useState('');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const closeDrawer = useCallback(() => {
@@ -77,10 +78,8 @@ export function UnifiedHelpDrawer({
     setSelectedId(contextual?.topic.id ?? null);
     setExpandedGroups(new Set(initialHelpSection(contextual?.topic)));
     setExpandedSections(new Set(contextual?.sectionId ? [contextual.sectionId] : []));
+    setTopicBrowserOpen(false);
     closeButtonRef.current?.focus();
-    if (contextual?.sectionId) {
-      requestAnimationFrame(() => document.getElementById(contextual.sectionId!)?.scrollIntoView({ block: 'start' }));
-    }
   }, [open, contextual?.topic.id, contextual?.sectionId]);
 
   useEffect(() => {
@@ -110,6 +109,7 @@ export function UnifiedHelpDrawer({
     setSelectedId(topic.id);
     setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
     setExpandedSections(new Set(sectionId ? [sectionId] : []));
+    setTopicBrowserOpen(false);
     setQuery('');
     if (sectionId) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })));
   };
@@ -208,7 +208,17 @@ export function UnifiedHelpDrawer({
                   <Search size={15} />
                   <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Help" aria-label="Search Help" />
                 </label>
-                <div className={styles.topicList}>
+                <button
+                  type="button"
+                  className={styles.topicBrowserToggle}
+                  aria-expanded={topicBrowserOpen || Boolean(normalizedQuery)}
+                  aria-controls="help-topic-list"
+                  onClick={() => setTopicBrowserOpen(current => !current)}
+                >
+                  <span><small>Browse topics</small><strong>{selected?.title ?? 'Choose a topic'}</strong></span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </button>
+                <div id="help-topic-list" className={`${styles.topicList} ${topicBrowserOpen || normalizedQuery ? styles.topicListOpen : ''}`}>
                   {normalizedQuery && searchResults.map(({ topic, section, snippet }) => (
                     <button key={`${topic.id}:${section.id}`} className={styles.searchResult} onClick={() => selectTopic(topic, section.id)}>
                       <span><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span>
