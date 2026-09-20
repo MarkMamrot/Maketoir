@@ -24,8 +24,10 @@ describe('UnifiedHelpDrawer layered topics', () => {
 
     expect(screen.getByRole('heading', { name: 'IMS Workspaces', level: 1 })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Main operations', level: 2 })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Browse topics/ }).className).toContain('sv-button-flat');
 
     const detailToggle = screen.getByRole('button', { name: 'How summaries work', expanded: false });
+    expect(detailToggle.className).toContain('sv-button-flat');
     expect(screen.queryByText(/Dashboard cards, CRM profiles/)).toBeNull();
 
     fireEvent.click(detailToggle);

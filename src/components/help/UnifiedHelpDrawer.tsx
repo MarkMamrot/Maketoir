@@ -160,22 +160,22 @@ export function UnifiedHelpDrawer({
               <h2 id="unified-help-title">{mode === 'team' ? 'Team Communications' : 'Solvantis Help'}</h2>
               <span>{mode === 'team' ? 'Warehouse and POS location messages' : contextual?.exact ? `Help for ${contextual.topic.title}` : 'Product guidance and live assistance'}</span>
             </div>
-            <button ref={closeButtonRef} className={styles.iconButton} onClick={closeDrawer} aria-label="Close Help" title="Close Help">
+            <button ref={closeButtonRef} className={`${styles.iconButton} sv-button-flat`} onClick={closeDrawer} aria-label="Close Help" title="Close Help">
               <X size={20} />
             </button>
           </header>
 
           <div className={styles.modeTabs} role="tablist" aria-label="Help mode">
             {teamChatEnabled && (
-              <button className={mode === 'team' ? styles.activeTab : ''} onClick={() => setMode('team')} role="tab" aria-selected={mode === 'team'}>
+              <button className={`sv-button-flat ${mode === 'team' ? styles.activeTab : ''}`} onClick={() => setMode('team')} role="tab" aria-selected={mode === 'team'}>
                 <Users size={16} /> Team Chat
                 {teamUnread > 0 && <span style={{ minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center', borderRadius: 9, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800 }}>{teamUnread > 99 ? '99+' : teamUnread}</span>}
               </button>
             )}
-            <button className={mode === 'help' ? styles.activeTab : ''} onClick={() => setMode('help')} role="tab" aria-selected={mode === 'help'}>
+            <button className={`sv-button-flat ${mode === 'help' ? styles.activeTab : ''}`} onClick={() => setMode('help')} role="tab" aria-selected={mode === 'help'}>
               <BookOpen size={16} /> Help
             </button>
-            <button className={mode === 'ask' ? styles.activeTab : ''} onClick={() => setMode('ask')} role="tab" aria-selected={mode === 'ask'}>
+            <button className={`sv-button-flat ${mode === 'ask' ? styles.activeTab : ''}`} onClick={() => setMode('ask')} role="tab" aria-selected={mode === 'ask'}>
               <MessageCircle size={16} /> Ask Solvantis
             </button>
           </div>
@@ -210,7 +210,7 @@ export function UnifiedHelpDrawer({
                 </label>
                 <button
                   type="button"
-                  className={styles.topicBrowserToggle}
+                  className={`${styles.topicBrowserToggle} sv-button-flat`}
                   aria-expanded={topicBrowserOpen || Boolean(normalizedQuery)}
                   aria-controls="help-topic-list"
                   onClick={() => setTopicBrowserOpen(current => !current)}
@@ -220,7 +220,7 @@ export function UnifiedHelpDrawer({
                 </button>
                 <div id="help-topic-list" className={`${styles.topicList} ${topicBrowserOpen || normalizedQuery ? styles.topicListOpen : ''}`}>
                   {normalizedQuery && searchResults.map(({ topic, section, snippet }) => (
-                    <button key={`${topic.id}:${section.id}`} className={styles.searchResult} onClick={() => selectTopic(topic, section.id)}>
+                    <button key={`${topic.id}:${section.id}`} className={`${styles.searchResult} sv-button-flat`} onClick={() => selectTopic(topic, section.id)}>
                       <span><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span>
                     </button>
                   ))}
@@ -228,7 +228,7 @@ export function UnifiedHelpDrawer({
                     <div className={styles.topicGroup} key={group.id}>
                       <button
                         type="button"
-                        className={styles.groupToggle}
+                        className={`${styles.groupToggle} sv-button-flat`}
                         aria-expanded={expandedGroups.has(group.id)}
                         aria-controls={topicGroupId(group.label)}
                         onClick={() => toggleGroup(group.id)}
@@ -239,7 +239,7 @@ export function UnifiedHelpDrawer({
                       {expandedGroups.has(group.id) && (
                         <div id={topicGroupId(group.label)} className={styles.groupTopics}>
                           {group.topics.map(topic => (
-                            <button key={topic.id} className={topic.id === selected?.id ? styles.selectedTopic : ''} onClick={() => selectTopic(topic)}>
+                            <button key={topic.id} className={`sv-button-flat ${topic.id === selected?.id ? styles.selectedTopic : ''}`} onClick={() => selectTopic(topic)}>
                               <span>{topic.title}</span>
                             </button>
                           ))}
@@ -262,7 +262,7 @@ export function UnifiedHelpDrawer({
                     )}
                     <nav className={styles.topicContents} aria-label="In this topic">
                       <strong>In this topic</strong>
-                      <div>{selected.sections.map(section => <button key={section.id} onClick={() => focusSection(section.id)}>{section.heading}</button>)}</div>
+                      <div>{selected.sections.map(section => <button className="sv-button-flat" key={section.id} onClick={() => focusSection(section.id)}>{section.heading}</button>)}</div>
                     </nav>
                     <div className={styles.sections}>
                       {selected.sections.filter(section => section.presentation === 'quick').map(section => (
@@ -276,13 +276,13 @@ export function UnifiedHelpDrawer({
                       <section className={styles.moreHelp} aria-labelledby="more-help-heading">
                         <div className={styles.moreHelpHeading}>
                           <div><h2 id="more-help-heading">More help</h2><p>Detailed answers, troubleshooting and examples.</p></div>
-                          <div><button onClick={() => setExpandedSections(new Set(selected.sections.filter(section => section.presentation === 'detail').map(section => section.id)))}>Expand all</button><button onClick={() => setExpandedSections(new Set())}>Collapse all</button></div>
+                          <div><button className="sv-button-flat" onClick={() => setExpandedSections(new Set(selected.sections.filter(section => section.presentation === 'detail').map(section => section.id)))}>Expand all</button><button className="sv-button-flat" onClick={() => setExpandedSections(new Set())}>Collapse all</button></div>
                         </div>
                         <div className={styles.detailSections}>
                           {selected.sections.filter(section => section.presentation === 'detail').map(section => {
                             const expanded = expandedSections.has(section.id);
                             return <section key={section.id} id={section.id} className={styles.detailSection}>
-                              <h2><button type="button" aria-expanded={expanded} aria-controls={`${section.id}-content`} onClick={() => toggleSection(section.id)}><span>{section.heading}</span><ChevronDown size={17} /></button></h2>
+                              <h2><button className="sv-button-flat" type="button" aria-expanded={expanded} aria-controls={`${section.id}-content`} onClick={() => toggleSection(section.id)}><span>{section.heading}</span><ChevronDown size={17} /></button></h2>
                               {expanded && <div id={`${section.id}-content`} className={styles.detailContent}><HelpMarkdown>{section.content}</HelpMarkdown></div>}
                             </section>;
                           })}
@@ -292,7 +292,7 @@ export function UnifiedHelpDrawer({
                     {relatedTopics.length > 0 && (
                       <nav className={styles.relatedTopics} aria-label="Related Help topics">
                         <h2>Related Help</h2>
-                        <div>{relatedTopics.map(topic => <button key={topic.id} onClick={() => selectTopic(topic)}>{topic.title}<ChevronRight size={14} /></button>)}</div>
+                        <div>{relatedTopics.map(topic => <button className="sv-button-flat" key={topic.id} onClick={() => selectTopic(topic)}>{topic.title}<ChevronRight size={14} /></button>)}</div>
                       </nav>
                     )}
                   </>
