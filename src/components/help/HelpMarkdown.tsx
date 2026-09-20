@@ -31,6 +31,9 @@ export function HelpMarkdown({ children }: { children: string }) {
         const kind = calloutKind(calloutChildren);
         return createElement('blockquote', { className: `${styles.callout} ${styles[kind]}` }, calloutChildren);
       },
+      ul: ({ children: listChildren }) => createElement('ul', { className: styles.unorderedList }, listChildren),
+      ol: ({ children: listChildren }) => createElement('ol', { className: styles.orderedList }, listChildren),
+      li: ({ children: itemChildren }) => createElement('li', { className: styles.listItem }, itemChildren),
       table: ({ children: tableChildren }) => createElement(
         'div',
         { className: styles.tableScroll, role: 'region', 'aria-label': 'Scrollable Help table', tabIndex: 0 },

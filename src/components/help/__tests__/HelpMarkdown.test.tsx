@@ -26,4 +26,12 @@ describe('HelpMarkdown', () => {
     expect(html).toContain('disabled=""');
     expect(html).toContain('Count the physical stock');
   });
+
+  it('applies explicit formatting classes to unordered and ordered lists', () => {
+    const html = renderToStaticMarkup(createElement(HelpMarkdown, null, '- First action\n- Second action\n\n1. First step\n2. Second step'));
+
+    expect(html).toMatch(/<ul class="[^"]*unorderedList/);
+    expect(html).toMatch(/<ol class="[^"]*orderedList/);
+    expect(html.match(/<li class="[^"]*listItem/g)).toHaveLength(4);
+  });
 });

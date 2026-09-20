@@ -75,12 +75,6 @@
 .sections h3 { margin: 18px 0 7px; font-size: 15px; letter-spacing: 0; }
 .sections p, .sections li, .detailContent p, .detailContent li { font-size: 14px; line-height: 1.58; }
 .sections p, .detailContent p { margin: 0 0 12px; }
-.sections ul, .sections ol, .detailContent ul, .detailContent ol { margin: 8px 0 14px; padding-left: 24px; }
-.sections ul, .detailContent ul { list-style: disc outside; }
-.sections ol, .detailContent ol { list-style: decimal outside; }
-.sections li, .detailContent li { padding-left: 3px; }
-.sections li + li, .detailContent li + li { margin-top: 7px; }
-.sections li::marker, .detailContent li::marker { color: #168077; font-weight: 800; }
 .sections table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .sections th, .sections td { padding: 8px; border: 1px solid var(--sv-etch, #dce3e0); text-align: left; vertical-align: top; }
 .sections th { background: var(--sv-bg-0, #f5f7f6); }

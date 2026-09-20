@@ -1,3 +1,30 @@
+.unorderedList,
+.orderedList {
+  margin: 8px 0 14px;
+  padding-left: 24px;
+}
+
+.unorderedList {
+  list-style: disc outside;
+}
+
+.orderedList {
+  list-style: decimal outside;
+}
+
+.listItem {
+  padding-left: 3px;
+}
+
+.listItem + .listItem {
+  margin-top: 7px;
+}
+
+.listItem::marker {
+  color: #168077;
+  font-weight: 800;
+}
+
 .tableScroll {
   min-width: 0;
   max-width: 100%;
