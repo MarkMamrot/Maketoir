@@ -627,7 +627,14 @@ export function ShipOrdersWorkspace({
     );
     setSubmissionResults(
       selected
-        .filter((shipment) => shipment.providerShipmentId)
+        .filter(
+          (shipment) =>
+            shipment.providerShipmentId &&
+            (shipment.labelStatus === "available" ||
+              shipment.status === "label_pending" ||
+              shipment.status === "label_submitting" ||
+              shipment.status === "label_ready"),
+        )
         .map((shipment) => ({
           shipmentId: shipment.shipmentId,
           soId: shipment.soId,

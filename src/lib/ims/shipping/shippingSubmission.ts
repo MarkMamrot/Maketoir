@@ -660,11 +660,34 @@ export function groupShipmentsByLabelPreference<
   return [...groups.values()];
 }
 
+export function normalizeAusPostAddressLines(lines: readonly string[]): string[] {
+  const wrapped: string[] = [];
+  for (const sourceLine of lines) {
+    const words = sourceLine.trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+    let current = "";
+    for (const word of words) {
+      if (word.length > 40)
+        throw new Error("An address contains a word longer than Australia Post's 40-character limit.");
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= 40) {
+        current = candidate;
+      } else {
+        wrapped.push(current);
+        current = word;
+      }
+    }
+    if (current) wrapped.push(current);
+  }
+  if (wrapped.length > 3)
+    throw new Error("An address requires more than Australia Post's three address lines.");
+  return wrapped;
+}
+
 function carrierAddressPayload(address: CarrierAddress): AusPostShipmentAddress {
   return {
     name: address.name,
     ...(address.businessName ? { business_name: address.businessName } : {}),
-    lines: address.lines,
+    lines: normalizeAusPostAddressLines(address.lines),
     ...(address.suburb ? { suburb: address.suburb } : {}),
     ...(address.state ? { state: address.state } : {}),
     ...(address.postcode ? { postcode: address.postcode } : {}),

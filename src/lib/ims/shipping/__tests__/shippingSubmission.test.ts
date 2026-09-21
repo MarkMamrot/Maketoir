@@ -5,6 +5,7 @@ import {
   buildAusPostInternationalShipment,
   getAusPostLabelPreference,
   groupShipmentsByLabelPreference,
+  normalizeAusPostAddressLines,
   validateSelectedShippingRate,
 } from "../shippingSubmission";
 
@@ -88,6 +89,22 @@ describe("Australia Post shipment submission", () => {
         },
       ],
     });
+  });
+
+  it("losslessly wraps carrier address lines at 40 characters", () => {
+    const source = "Unit 12 123 A Particularly Long Street Name";
+    const lines = normalizeAusPostAddressLines([source, "Building B"]);
+
+    expect(lines.every((line) => line.length <= 40)).toBe(true);
+    expect(lines.join(" ")).toBe(`${source} Building B`);
+  });
+
+  it("rejects addresses that cannot fit Australia Post's address-line contract", () => {
+    expect(() => normalizeAusPostAddressLines(["x".repeat(41)])).toThrow("40-character limit");
+    expect(() => normalizeAusPostAddressLines([
+      "First address line requiring a wrap",
+      "Second address line requiring a wrap",
+    ])).toThrow("three address lines");
   });
 
   it("uses carrier-supported compact A4 layouts for Parcel and Express Post", () => {
