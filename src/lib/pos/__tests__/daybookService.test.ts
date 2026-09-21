@@ -86,10 +86,14 @@ describe('Store Daybook rules', () => {
     expect(taskOccursOnDate({ recurrence: 'once', scheduledDate: '2026-08-25' }, '2026-08-24')).toBe(false);
   });
 
-  it('calculates physical minus system stock and enforces staged workflows', () => {
+  it('calculates physical minus system stock and allows forward workflow skips', () => {
     expect(calculateStockVariance(4, 3)).toBe(-1);
     expect(canTransitionNeed('requested', 'approved')).toBe(true);
-    expect(canTransitionNeed('requested', 'sent')).toBe(false);
+    expect(canTransitionNeed('requested', 'sent')).toBe(true);
+    expect(canTransitionNeed('requested', 'received')).toBe(true);
+    expect(canTransitionNeed('approved', 'received')).toBe(true);
+    expect(canTransitionNeed('packed', 'approved')).toBe(false);
+    expect(canTransitionNeed('received', 'sent')).toBe(false);
     expect(canTransitionDiscrepancy('open', 'stocktake_planned')).toBe(true);
     expect(canTransitionDiscrepancy('closed', 'open')).toBe(false);
   });

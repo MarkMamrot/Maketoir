@@ -163,7 +163,7 @@ export default function Landing() {
                 </button>
               </div>
               <p className="text-slate-500 text-xs mt-4">3 months for $1 · No credit card required · Cancel anytime</p>
-              <ProspectSalesAssistant sourcePath="/" showHeroPrompt />
+              <ProspectSalesAssistant sourcePath="/" showTimedPrompt />
             </div>
 
             {/* Right — hero video */}
@@ -506,7 +506,9 @@ export default function Landing() {
               { name: 'Google Analytics', cls: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
               { name: 'Google Ads', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
               { name: 'Meta Ads', cls: 'text-blue-600 bg-blue-50 border-blue-200' },
-              { name: 'Gmail', cls: 'text-red-700 bg-red-50 border-red-200' },
+              { name: 'Google Apps', cls: 'text-red-700 bg-red-50 border-red-200' },
+              { name: 'Australia Post', cls: 'text-red-700 bg-red-50 border-red-200' },
+              { name: 'Amazon', cls: 'text-orange-700 bg-orange-50 border-orange-200' },
               { name: 'Payment Terminal Integration', cls: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
               { name: '+ More Coming', cls: 'text-slate-500 bg-slate-50 border-slate-200' },
             ].map((item) => (

@@ -29,9 +29,9 @@ const REQUEST_TRANSITIONS: Record<DaybookRequestStatus, readonly DaybookRequestS
 };
 
 const NEED_TRANSITIONS: Record<DaybookNeedStatus, readonly DaybookNeedStatus[]> = {
-  requested: ['approved', 'cancelled'],
-  approved: ['packed', 'cancelled'],
-  packed: ['sent', 'cancelled'],
+  requested: ['approved', 'packed', 'sent', 'received', 'cancelled'],
+  approved: ['packed', 'sent', 'received', 'cancelled'],
+  packed: ['sent', 'received', 'cancelled'],
   sent: ['received'],
   received: [],
   cancelled: [],

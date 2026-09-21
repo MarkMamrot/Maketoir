@@ -436,12 +436,13 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
           <RecordSection
             type={active}
             records={records}
+            locations={workspace?.locations ?? []}
             saving={saving}
             perform={perform}
             manager={Boolean(workspace?.permissions.manager)}
             locationId={location.id}
             onAdd={() => openEditor(active as EditorType)}
-            onEdit={record => openEditor(active as EditorType, { _id: record.id, occurred_on: record.occurred_on, background_color: record.background_color, ...detailsOf(record) })}
+            onEdit={record => openEditor(active as EditorType, { _id: record.id, occurred_on: record.occurred_on, destination_location_id: record.destination_location_id, background_color: record.background_color, ...detailsOf(record) })}
             onDelete={async record => {
               if (!confirm(`Delete "${record.title}" from the active Daybook? Its audit history will be retained.`)) return;
               await perform('delete_item', { item_type: 'record', item_id: record.id });
@@ -481,7 +482,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
 
       {editor && workspace && <div className={styles.modalBackdrop} role="presentation"><div className={styles.editorModal} role="dialog" aria-modal="true" aria-labelledby="editor-title">
         <button className={styles.modalClose} onClick={() => { setEditor(null); setForm({}); }} aria-label="Close"><X /></button>
-        <EditorForm type={editor} form={form} setForm={setForm} locations={workspace.locations} referenceCategories={workspace.referenceCategories} saving={saving} perform={perform} />
+        <EditorForm type={editor} form={form} setForm={setForm} locations={workspace.locations} referenceCategories={workspace.referenceCategories} manager={workspace.permissions.manager} saving={saving} perform={perform} />
       </div></div>}
 
       {identityOpen && <div className={styles.modalBackdrop} role="presentation"><div className={styles.identityModal} role="dialog" aria-modal="true" aria-labelledby="identity-title">
@@ -752,9 +753,10 @@ function FormattedMessageField({ value, onChange }: { value?: string; onChange: 
   return <div className={styles.formatEditor}><div className={styles.formatToolbar} role="toolbar" aria-label="Message formatting"><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBold().run())} title="Bold" aria-label="Bold" aria-pressed={formatting.bold}><Bold size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleItalic().run())} title="Italic" aria-label="Italic" aria-pressed={formatting.italic}><Italic size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBulletList().run())} title="Bulleted list" aria-label="Bulleted list" aria-pressed={formatting.bulletList}><List size={15} /></button></div><EditorContent editor={editor} /></div>;
 }
 
-function RecordSection({ type, records, saving, perform, manager, locationId, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
+function RecordSection({ type, records, locations, saving, perform, manager, locationId, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
   type: string;
   records: RecordRow[];
+  locations: Location[];
   saving: boolean;
   perform: (action: string, payload?: Record<string, unknown>) => Promise<void>;
   manager: boolean;
@@ -792,11 +794,22 @@ function RecordSection({ type, records, saving, perform, manager, locationId, on
     </div>} />
       <div className={`${styles.recordList} ${type === 'store_need' ? styles.storeNeedGroups : ''}`}>{records.length === 0 && <p className={styles.empty}>Nothing recorded here yet.</p>}{recordGroups.map(group => <section className={`${styles.recordGroup} ${group.key === 'uncategorized' ? styles.fullWidthGroup : ''}`} key={group.key}>{group.label && <h3>{group.label}<span>{group.records.length}</span></h3>}{group.records.map(record => {
         const details = detailsOf(record);
+        const sourceName = locations.find(location => location.id === Number(record.source_location_id ?? record.location_id))?.name || 'Requesting store';
+        const destinationName = locations.find(location => location.id === Number(record.destination_location_id))?.name || 'No warehouse selected';
+        const workflowMessage = record.record_type === 'store_need' ? ({
+          requested: record.destination_location_id ? `${destinationName} can approve, pack or send this request. ${sourceName} can confirm receipt if it has already arrived.` : 'No warehouse is assigned. A manager must edit this request and choose where to send it.',
+          approved: `${destinationName} can mark this packed or sent. ${sourceName} can confirm receipt if it has already arrived.`,
+          packed: `${destinationName} can mark this sent. ${sourceName} can confirm receipt if it has already arrived.`,
+          sent: `${sourceName} must confirm receipt when it arrives.`,
+          received: `${sourceName} confirmed receipt.`,
+          cancelled: 'This request was cancelled.',
+        } as Record<string, string>)[record.status] : '';
         return <article className={`${styles.record} ${record.background_color ? styles[record.background_color] : ''}`} key={record.id}>
           <div className={styles.recordTop}><span>{record.status.replaceAll('_', ' ')}</span><time>{shortTime(record.created_at)}</time></div>
           <div className={styles.cardHeading}><h3>{record.title}</h3></div>
           <p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p>
           <small>Logged by {record.staff_name} ({record.staff_initials})</small>
+          {record.record_type === 'store_need' && <div className={styles.recordWorkflow}><strong>{sourceName} → {destinationName}</strong><span>{workflowMessage}</span></div>}
           {(type === 'customer_request' || type === 'store_need') && <CommentThread comments={record.comments} saving={saving} label={type === 'store_need' ? 'Warehouse updates' : 'Comments'} placeholder={type === 'store_need' ? 'Add availability, packing, dispatch, or supplier update' : 'Leave a comment or update'} onAdd={commentText => perform('add_comment', { item_type: 'record', item_id: record.id, comment_text: commentText })} />}
           <div className={styles.recordFooter}>
             <StatusActions record={record} saving={saving} manager={manager} locationId={locationId} perform={perform} />
@@ -861,7 +874,12 @@ function StatusActions({ record, saving, manager, locationId, perform }: { recor
   const isDestination = Number(record.destination_location_id) === locationId;
   const next: Record<string, string[]> = {
     customer_request: record.status === 'open' ? ['contacted', 'fulfilled', 'cancelled'] : record.status === 'contacted' ? ['fulfilled', 'cancelled'] : [],
-    store_need: ({ requested: [...(isDestination ? ['approved'] : []), 'cancelled'], approved: [...(isDestination ? ['packed'] : []), 'cancelled'], packed: [...(isDestination ? ['sent'] : []), 'cancelled'], sent: isSource ? ['received'] : [] } as Record<string, string[]>)[record.status] || [],
+    store_need: ({
+      requested: [...(isDestination ? ['approved', 'packed', 'sent'] : []), ...(isSource ? ['received'] : []), 'cancelled'],
+      approved: [...(isDestination ? ['packed', 'sent'] : []), ...(isSource ? ['received'] : []), 'cancelled'],
+      packed: [...(isDestination ? ['sent'] : []), ...(isSource ? ['received'] : []), 'cancelled'],
+      sent: isSource ? ['received'] : [],
+    } as Record<string, string[]>)[record.status] || [],
     stock_discrepancy: manager ? ({ open: ['stocktake_planned', 'adjusted', 'no_change', 'closed'], stocktake_planned: ['adjusted', 'no_change', 'closed'], adjusted: ['closed'], no_change: ['closed'] } as Record<string, string[]>)[record.status] || [] : [],
     incident: manager ? ['reviewed', 'closed'].filter(status => status !== record.status) : [],
   };
@@ -869,7 +887,7 @@ function StatusActions({ record, saving, manager, locationId, perform }: { recor
   return next[record.record_type]?.length ? <div className={styles.statusActions}>{next[record.record_type].map(status => <button disabled={saving} key={status} onClick={() => perform('transition_record', { record_id: record.id, status })}>{actionLabels[status] || status.replaceAll('_', ' ')}</button>)}</div> : null;
 }
 
-function EditorForm({ type, form, setForm, locations, referenceCategories, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; referenceCategories: ReferenceCategory[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+function EditorForm({ type, form, setForm, locations, referenceCategories, manager, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; referenceCategories: ReferenceCategory[]; manager: boolean; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const recordFields: Record<string, string[]> = {
     customer_request: ['customer_name', 'contact_details', 'item', 'notes'], store_need: ['item', 'quantity', 'unit', 'store_notes'],
@@ -899,7 +917,7 @@ function EditorForm({ type, form, setForm, locations, referenceCategories, savin
     await perform('delete_item', { item_type: itemType, item_id: Number(form._id) });
   }
   return <><h2 id="editor-title">{editing ? 'Edit' : 'Add new'} {heading}</h2><form className={styles.managerForm} onSubmit={event => { event.preventDefault(); void submit(); }}>
-    {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{type === 'store_need' && <label className={styles.field}><span>Category</span><select required value={form.need_category || ''} onChange={event => setForm({ ...form, need_category: event.target.value })}><option value="">Choose a category</option><option value="store_supplies">Store Supplies</option><option value="stock_request">Stock Request</option></select></label>}{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
+    {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{type === 'store_need' && <label className={styles.field}><span>Category</span><select required value={form.need_category || ''} onChange={event => setForm({ ...form, need_category: event.target.value })}><option value="">Choose a category</option><option value="store_supplies">Store Supplies</option><option value="stock_request">Stock Request</option></select></label>}{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && (!editing || manager) && <label className={styles.field}><span>Send to</span><select required value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select>{editing && <small>Only requested items can be rerouted.</small>}</label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
     {type === 'task' && <><Field label="Task title" value={form.title} maxLength={50} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} maxLength={600} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
     {type === 'reference' && <><label className={styles.field}><span>Category</span><input required list="daybook-reference-categories" value={form.category || ''} onChange={event => setForm({ ...form, category: event.target.value })} placeholder="Choose or enter a category" /><datalist id="daybook-reference-categories">{referenceCategories.map(category => <option value={category.name} key={category.id} />)}</datalist></label><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Resource link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} />{editing && form._has_secret === 'true' && <label className={styles.field}><span>Stored secret</span><select value={form.secret_mode || 'keep'} onChange={event => setForm({ ...form, secret_mode: event.target.value, secret_value: '' })}><option value="keep">Keep existing secret</option><option value="replace">Replace secret</option><option value="remove">Remove secret</option></select></label>}<div className={styles.formRow}><Field label="Secret label (optional)" value={form.secret_label} onChange={value => setForm({ ...form, secret_label: value })} placeholder="Password, PIN, Wi-Fi password" />{(!editing || form._has_secret !== 'true' || form.secret_mode === 'replace') && <Field label={editing ? 'New secret value' : 'Secret value (optional)'} type="password" autoComplete="new-password" value={form.secret_value} onChange={value => setForm({ ...form, secret_value: value, secret_mode: value ? 'replace' : form.secret_mode })} />}</div>{editing && form.secret_mode === 'remove' && <p className={styles.secretRemovalNote}>The stored secret and its label will be removed when you save.</p>}</>}
     {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}

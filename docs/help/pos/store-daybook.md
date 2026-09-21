@@ -26,7 +26,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 | Today | Opening, daily, weekly and closing tasks grouped by their scheduled day, with compact seven-day sign-off history | Staff name, initials, signed-in account and time are retained |
 | Comms | Manager notices for selected stores | Each staff member selects **Mark as read** |
 | Requests | Customer products and follow-up | Contacted, fulfilled or cancelled |
-| Store needs | Store Supplies or Stock Requests needed from a warehouse | Requested, approved, packed, sent and received |
+| Store needs | Store Supplies or Stock Requests needed from a warehouse | Requested, optionally approved, packed or sent, then received |
 | Discrepancies | Differences between system and physical quantities in a comparison table | Staff can correct or delete an entry; a manager records the stocktake outcome |
 | Incidents | Factual safety, security, loss or damage reports | Staff sign on submission; managers review and close |
 | References and Product guide | Approved store information, product photos, shelf and box locations | Managers maintain the content |
@@ -92,11 +92,11 @@ Managers add and edit communications directly in the list rather than in a popup
 
 1. Open the relevant section: **Requests**, **Store needs**, **Discrepancies**, or **Incidents**.
 2. Select **Add new** at the top of the tab.
-3. Complete the popup fields, enter concise factual notes and optionally choose a card colour. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited. On a wide screen, Store Supplies and Stock Requests appear beside each other so both queues can be reviewed together.
+3. Complete the popup fields, choose the destination under **Send to**, enter concise factual notes and optionally choose a card colour. A new Store Need must be classified as **Store Supplies** or **Stock Request**; older unclassified needs remain under **Uncategorized** until edited. On a wide screen, Store Supplies and Stock Requests appear beside each other so both queues can be reviewed together.
 4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
 5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
 
-Warehouse staff use **Warehouse updates** on the same Store Need to record availability, supplier shortages, packing or dispatch details. Those updates are visible at both the requesting store and destination warehouse. The warehouse progresses a request through **Approved**, **Packed** and **Sent**; the requesting store uses **Confirm received** after checking the delivery.
+Each Store Need shows its requesting store, destination and available next actions. Warehouse staff use **Warehouse updates** on the same Store Need to record availability, supplier shortages, packing or dispatch details. Those updates are visible at both the requesting store and destination warehouse. The destination can record **Approved**, **Packed** and **Sent**, and may skip an earlier milestone when it was not recorded. After physically checking the delivery, the requesting store can use **Confirm received** from any open stage even when the warehouse forgot to record an earlier step. A manager can correct the destination while the request is still **Requested**, but cannot reroute it after processing begins.
 
 Stock discrepancies use a wide comparison table with date, code, item, size, system quantity, actual quantity, variance, staff, manager outcome, completion date and notes. Scroll horizontally on a smaller screen. Use the pencil to correct an entry or the bin to remove one that is no longer a discrepancy. These actions retain the audit record and never change stock on hand.
 
@@ -176,7 +176,7 @@ The Store Daybook option opens in a new browser tab so the active POS sale remai
 | Pencil or bin is missing from a task | The task is historical and no longer active | Add a new active task if the work needs to resume |
 | Edit or Delete is missing from a Request or Store need | The current editing policy does not permit this staff member to change the card | Ask an allowed editor or manager to make the change |
 | Clipboard text is not available to paste | Browser clipboard permission was denied or the clipboard was replaced by another copy action | Select **Add to clipboard** on any included card again, then paste; the saved location list remains visible at the bottom |
-| A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |
+| A requested Store Need has no Approve or Sent button | Those stages belong to the destination shown on the card | Open that destination's Location Daybook to record its progress; the requesting store can still use **Confirm received** after the delivery physically arrives |
 | The requesting store cannot see a warehouse update | The update was not added to the Store Need thread | Add it under **Warehouse updates** on that Store Need rather than in an unrelated communication |
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
 | Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |

@@ -595,7 +595,7 @@
     {
       "id": "prospect-integrations",
       "title": "Integration Approach",
-      "summary": "Solvantis has native capabilities for Xero accounting, Shopify product, inventory, order, customer, return and loyalty flows, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.",
+      "summary": "Solvantis connects Xero, Shopify, Amazon Australia, Australia Post, Cin7, Google business tools, and Google and Meta marketing data. Scale and Enterprise include supported standard 3PL workflows. Provider-specific development, third-party fees and complex warehouse processes are confirmed during discovery and may be separately quoted.",
       "capabilities": [
         "integrations",
         "accounting",

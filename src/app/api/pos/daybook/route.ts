@@ -768,6 +768,7 @@ export async function POST(request: Request) {
       const recordType = String(body.record_type ?? '');
       if (!RECORD_TYPES.has(recordType)) return error('Invalid record type.');
       const destinationLocationId = Number(body.destination_location_id ?? 0) || null;
+      if (recordType === 'store_need' && !destinationLocationId) return error('Choose where to send this Store Need.');
       if (destinationLocationId && !(await validateLocation(context.businessId, destinationLocationId))) return error('Destination location not found.');
       const details = jsonDetails(body.details);
       if (recordType === 'store_need' && !STORE_NEED_CATEGORIES.has(String(details.need_category ?? ''))) {
@@ -797,9 +798,9 @@ export async function POST(request: Request) {
     if (action === 'update_record') {
       const recordId = Number(body.record_id ?? 0);
       const rows = await imsQuery<{
-        id: number; record_type: string; actor_user_id: number | null; staff_identity_id: number | null; staff_initials: string;
+        id: number; record_type: string; status: string; destination_location_id: number | null; actor_user_id: number | null; staff_identity_id: number | null; staff_initials: string;
       }>(
-        `SELECT id, record_type, actor_user_id, staff_identity_id, staff_initials FROM pos_daybook_records
+        `SELECT id, record_type, status, destination_location_id, actor_user_id, staff_identity_id, staff_initials FROM pos_daybook_records
          WHERE id = ? AND business_id = ? AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?) LIMIT 1`,
         [recordId, context.businessId, context.locationId, context.locationId, context.locationId],
       );
@@ -816,16 +817,27 @@ export async function POST(request: Request) {
       if (record.record_type === 'store_need' && !STORE_NEED_CATEGORIES.has(String(details.need_category ?? ''))) {
         return error('Choose Store Supplies or Stock Request.');
       }
+      let destinationLocationId = record.destination_location_id;
+      if (record.record_type === 'store_need' && Object.hasOwn(body, 'destination_location_id')) {
+        const requestedDestinationId = Number(body.destination_location_id ?? 0) || null;
+        if (requestedDestinationId !== record.destination_location_id) {
+          if (!context.isManager) return error('Manager access is required to reroute a Store Need.', 403);
+          if (record.status !== 'requested') return error('Only requested Store Needs can be rerouted.', 409);
+          if (!requestedDestinationId) return error('Choose where to send this Store Need.');
+          if (!(await validateLocation(context.businessId, requestedDestinationId))) return error('Destination location not found.');
+          destinationLocationId = requestedDestinationId;
+        }
+      }
       if (record.record_type === 'stock_discrepancy') {
         const system = Number(details.system_quantity);
         const physical = Number(details.physical_quantity);
         if (Number.isFinite(system) && Number.isFinite(physical)) details.variance = physical - system;
       }
       await imsExecute(
-        `UPDATE pos_daybook_records SET title = ?, occurred_on = ?, details_json = ?, background_color = ?
+        `UPDATE pos_daybook_records SET title = ?, occurred_on = ?, details_json = ?, destination_location_id = ?, background_color = ?
          WHERE id = ? AND business_id = ?`,
         [title, parseDaybookDate(String(body.occurred_on ?? '')), JSON.stringify(details),
-          normalizeDaybookColour(body.background_color), recordId, context.businessId],
+          destinationLocationId, normalizeDaybookColour(body.background_color), recordId, context.businessId],
       );
       return NextResponse.json({ success: true });
     }

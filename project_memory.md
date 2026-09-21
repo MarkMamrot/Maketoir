@@ -163,6 +163,12 @@
 - The idempotent catch-up added `ims_stock_movements.source_line_id` and `idx_sm_source_line` to Monsterthreads, Sage, Solvantis, and Monsterthreads Sandbox. Direct readback confirmed both objects in all four schemas; initialized tenants remained `average_cost` and no FIFO activation occurred.
 - The full Vitest suite passed 2,663 tests with one skipped, and the production build passed. FIFO production activation remains disabled.
 
+## 2026-09-22 - Store Need routing and skippable workflow stages
+
+- Store Need cards now show the requesting location, destination and available next owner actions instead of presenting a bare status. New Store Needs require a destination, and managers can correct the destination only while the item remains Requested.
+- Warehouse milestones are no longer blocking gates: the destination can move forward to Approved, Packed or Sent without backfilling forgotten earlier clicks, and the requesting shop can Confirm received from any open warehouse stage after physically checking delivery. Existing record events retain the actual from/to jump for audit.
+- Production audit found one active QV Store Need created without a destination. A guarded transaction routed that record to the tenant's configured Warehouse Branch and verified no active destination-less Store Needs remain.
+
 ## 2026-09-10 - Daybook task copy, sell guidance and wide layouts
 
 - Daybook checklist titles are capped at 50 characters and instructions at 600 in both the editor and API. Instructions render as uncropped multiline text with stronger task-row hierarchy.

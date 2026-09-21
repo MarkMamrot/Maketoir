@@ -70,15 +70,15 @@ function currentAttribution(sourcePath: string) {
 
 export function ProspectSalesAssistant({
   sourcePath,
-  showHeroPrompt = false,
+  showTimedPrompt = false,
 }: {
   sourcePath: string;
-  showHeroPrompt?: boolean;
+  showTimedPrompt?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [launcherVisible, setLauncherVisible] = useState(false);
+  const [timedPromptVisible, setTimedPromptVisible] = useState(false);
   const [draft, setDraft] = useState('');
-  const [heroDraft, setHeroDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -104,11 +104,23 @@ export function ProspectSalesAssistant({
   };
 
   useEffect(() => {
-    const updateVisibility = () => setLauncherVisible(window.scrollY > 320);
+    const updateVisibility = () => {
+      if (window.scrollY > 320) setLauncherVisible(true);
+    };
     updateVisibility();
     window.addEventListener('scroll', updateVisibility, { passive: true });
     return () => window.removeEventListener('scroll', updateVisibility);
   }, []);
+
+  useEffect(() => {
+    if (!showTimedPrompt || window.sessionStorage.getItem('solvantis-assistant-prompt-dismissed')) return;
+    const promptTimer = window.setTimeout(() => {
+      setLauncherVisible(true);
+      setTimedPromptVisible(true);
+      recordEvent('assistant_prompt_shown', { source: 'timed_launcher' });
+    }, 8_000);
+    return () => window.clearTimeout(promptTimer);
+  }, [showTimedPrompt]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,8 +180,16 @@ export function ProspectSalesAssistant({
 
   const openDialog = (opener?: HTMLElement | null) => {
     returnFocusRef.current = opener || document.activeElement as HTMLElement | null;
+    setTimedPromptVisible(false);
+    window.sessionStorage.setItem('solvantis-assistant-prompt-dismissed', 'true');
     setOpen(true);
-    recordEvent('assistant_impression', { source: showHeroPrompt ? 'hero_or_launcher' : 'launcher' });
+    recordEvent('assistant_impression', { source: showTimedPrompt ? 'timed_prompt_or_launcher' : 'launcher' });
+  };
+
+  const dismissTimedPrompt = () => {
+    setTimedPromptVisible(false);
+    window.sessionStorage.setItem('solvantis-assistant-prompt-dismissed', 'true');
+    recordEvent('assistant_prompt_dismissed', { source: 'timed_launcher' });
   };
 
   const closeDialog = () => {
@@ -189,7 +209,6 @@ export function ProspectSalesAssistant({
       ? previous.map(item => item.id === existingId ? { ...item, status: 'sending' } : item)
       : [...previous, { id: messageId, role: 'user', content, status: 'sending' }]);
     setDraft('');
-    setHeroDraft('');
     setSending(true);
     setDeleteError('');
 
@@ -229,14 +248,6 @@ export function ProspectSalesAssistant({
     void sendMessage(draft);
   };
 
-  const submitHero = (event: FormEvent) => {
-    event.preventDefault();
-    if (!heroDraft.trim()) return;
-    openDialog(event.currentTarget.querySelector('button'));
-    recordEvent('hero_prompt_send');
-    void sendMessage(heroDraft);
-  };
-
   const useStarter = (starter: string, opener: HTMLElement) => {
     openDialog(opener);
     recordEvent('suggested_prompt', { starter });
@@ -273,24 +284,27 @@ export function ProspectSalesAssistant({
 
   return (
     <>
-      {showHeroPrompt && (
-        <div className={styles.heroPrompt}>
-          <div className={styles.heroPromptHeading}><Sparkles size={16} /><span>Ask about your retail setup</span></div>
-          <form onSubmit={submitHero} className={styles.heroInputRow}>
-            <input value={heroDraft} onChange={event => setHeroDraft(event.target.value.slice(0, 2_000))} onFocus={() => recordEvent('hero_prompt_focus')} placeholder="e.g. Could this work across our stores and online shop?" aria-label="Ask the Solvantis sales assistant" />
-            <button type="submit" disabled={!heroDraft.trim()} aria-label="Send question" title="Send question"><ArrowUp size={18} /></button>
-          </form>
-          <div className={styles.starters} aria-label="Example questions">
-            {STARTERS.map(starter => <button key={starter} type="button" onClick={event => useStarter(starter, event.currentTarget)}>{starter}</button>)}
-          </div>
-          <p className={styles.heroPrivacy}>Questions and responses are stored to improve Solvantis and may be reviewed. <a href="/privacy">Privacy</a></p>
-        </div>
-      )}
-
       {launcherVisible && !open && (
-        <button className={styles.launcher} type="button" onClick={event => openDialog(event.currentTarget)} aria-label="Open Solvantis sales assistant" title="Ask Solvantis">
-          <MessageCircle size={21} /><span>Ask Solvantis</span>
-        </button>
+        <aside className={styles.launcherDock} aria-label="Solvantis sales assistant">
+          {timedPromptVisible && (
+            <div className={styles.timedPrompt}>
+              <button type="button" className={styles.promptDismiss} onClick={dismissTimedPrompt} aria-label="Dismiss assistant invitation" title="Dismiss">
+                <X size={16} />
+              </button>
+              <span className={styles.promptMark}><Sparkles size={17} /></span>
+              <div>
+                <strong>Could Solvantis fit your setup?</strong>
+                <p>Ask about stores, online sales, wholesale, Xero or your 3PL.</p>
+              </div>
+              <button type="button" className={styles.promptAction} onClick={event => openDialog(event.currentTarget)}>
+                Ask about your retail setup
+              </button>
+            </div>
+          )}
+          <button className={styles.launcher} type="button" onClick={event => openDialog(event.currentTarget)} aria-label="Open Solvantis sales assistant" title="Ask Solvantis">
+            <MessageCircle size={21} /><span>Ask Solvantis</span>
+          </button>
+        </aside>
       )}
 
       {open && (
@@ -314,7 +328,7 @@ export function ProspectSalesAssistant({
                   <Sparkles size={23} />
                   <h3>Tell me what you&apos;re trying to connect or improve.</h3>
                   <p>I can help with feature fit, pricing, locations, integrations and next steps.</p>
-                  <div className={styles.welcomeStarters}>{STARTERS.slice(0, 3).map(starter => <button key={starter} onClick={event => useStarter(starter, event.currentTarget)}>{starter}</button>)}</div>
+                  <div className={styles.welcomeStarters}>{STARTERS.map(starter => <button key={starter} onClick={event => useStarter(starter, event.currentTarget)}>{starter}</button>)}</div>
                 </div>
               )}
               {messages.map(message => (
