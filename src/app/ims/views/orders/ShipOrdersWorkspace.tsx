@@ -2263,7 +2263,7 @@ export function ShipOrdersWorkspace({
                       <button
                         type="button"
                         disabled={dispatching}
-                        onClick={markDispatched}
+                        onClick={() => void markDispatched()}
                         style={{
                           ...primaryButtonStyle,
                           opacity: dispatching ? 0.55 : 1,

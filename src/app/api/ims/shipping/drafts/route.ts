@@ -52,7 +52,8 @@ export async function GET() {
               ORDER BY latest.id DESC LIMIT 1
            )
         WHERE shipment.business_id = ?
-          AND shipment.status NOT IN ('complete', 'voided', 'manifested')
+          AND shipment.status NOT IN ('voided', 'manifested')
+          AND shipment.manifest_id IS NULL
         ORDER BY shipment.updated_at DESC, shipment.id DESC`,
       [session.businessId],
     );

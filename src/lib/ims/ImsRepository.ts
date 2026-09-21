@@ -2841,6 +2841,8 @@ export const ImsSORepo = {
     if (businessId) { wheres.push('so.business_id = ?'); params.push(businessId); }
     if (status) { wheres.push('so.status = ?'); params.push(status); }
     const where = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
+    const aggregateWhere = businessId ? 'WHERE business_id = ?' : '';
+    const aggregateParams = businessId ? [businessId, businessId] : [];
     try {
       return await imsQuery<ImsSO>(
         `SELECT so.*,
@@ -2852,39 +2854,42 @@ export const ImsSORepo = {
                   (so.total_amount * so.exchange_rate) - COALESCE(pay.amount_paid_local, 0) AS balance_local,
                   COALESCE(item_totals.remaining_quantity, 0) AS remaining_quantity
          FROM ims_sales_orders so
-         LEFT JOIN ims_contacts c ON c.id = so.customer_id
-         JOIN ims_locations l ON l.id = so.location_id
+         LEFT JOIN ims_contacts c ON c.id = so.customer_id AND c.business_id = so.business_id
+         JOIN ims_locations l ON l.id = so.location_id AND l.business_id = so.business_id
          LEFT JOIN (
-           SELECT so_id,
+           SELECT business_id, so_id,
                   SUM(amount) AS amount_paid,
                   SUM(amount_local) AS amount_paid_local
            FROM ims_sales_order_payments
-           GROUP BY so_id
-         ) pay ON pay.so_id = so.id
+           ${aggregateWhere}
+           GROUP BY business_id, so_id
+         ) pay ON pay.so_id = so.id AND pay.business_id = so.business_id
          LEFT JOIN (
-           SELECT so_id, SUM(GREATEST(qty_ordered - qty_fulfilled, 0)) AS remaining_quantity
+           SELECT business_id, so_id, SUM(GREATEST(qty_ordered - qty_fulfilled, 0)) AS remaining_quantity
              FROM ims_sales_order_items
-            GROUP BY so_id
-         ) item_totals ON item_totals.so_id = so.id
+            ${aggregateWhere}
+            GROUP BY business_id, so_id
+         ) item_totals ON item_totals.so_id = so.id AND item_totals.business_id = so.business_id
          ${where}
          ORDER BY so.created_at DESC`,
-        params
+        [...aggregateParams, ...params]
       );
     } catch {
       return imsQuery<ImsSO>(
         `SELECT so.*, c.name AS customer_name, l.name AS location_name,
                 COALESCE(item_totals.remaining_quantity, 0) AS remaining_quantity
          FROM ims_sales_orders so
-         LEFT JOIN ims_contacts c ON c.id = so.customer_id
-         JOIN ims_locations l ON l.id = so.location_id
+         LEFT JOIN ims_contacts c ON c.id = so.customer_id AND c.business_id = so.business_id
+         JOIN ims_locations l ON l.id = so.location_id AND l.business_id = so.business_id
          LEFT JOIN (
-           SELECT so_id, SUM(GREATEST(qty_ordered - qty_fulfilled, 0)) AS remaining_quantity
+           SELECT business_id, so_id, SUM(GREATEST(qty_ordered - qty_fulfilled, 0)) AS remaining_quantity
              FROM ims_sales_order_items
-            GROUP BY so_id
-         ) item_totals ON item_totals.so_id = so.id
+            ${aggregateWhere}
+            GROUP BY business_id, so_id
+         ) item_totals ON item_totals.so_id = so.id AND item_totals.business_id = so.business_id
          ${where}
          ORDER BY so.created_at DESC`,
-        params
+        [...(businessId ? [businessId] : []), ...params]
       );
     }
   },
