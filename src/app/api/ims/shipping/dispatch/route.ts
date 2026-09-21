@@ -4,12 +4,14 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { dispatchShippingShipment } from '@/lib/ims/shipping/shippingDispatch';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
+import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 
 export async function POST(request: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   let shipmentIds: number[] = [];
+  let currentShipmentId: number | null = null;
   try {
     const body = await request.json();
     shipmentIds = [...new Set((Array.isArray(body?.shipmentIds) ? body.shipmentIds : []).map(Number))];
@@ -17,10 +19,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Choose at least one labelled shipment.' }, { status: 400 });
     }
     const data = [];
-    for (const shipmentId of shipmentIds) data.push(await dispatchShippingShipment({ businessId: session.businessId, shipmentId }));
+    for (const shipmentId of shipmentIds) {
+      currentShipmentId = shipmentId;
+      data.push(await dispatchShippingShipment({
+        businessId: session.businessId,
+        shipmentId,
+        allowNegativeStock: body.allowNegativeStock === true,
+      }));
+    }
     return NextResponse.json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to mark shipments dispatched.';
+    if (error instanceof StockShortfallError) {
+      return NextResponse.json({
+        success: false,
+        error: message,
+        code: error.code,
+        shipmentId: currentShipmentId,
+        shortfalls: error.shortfalls,
+      }, { status: 409 });
+    }
     if (error instanceof FifoCostingConflict) {
       return NextResponse.json({ success: false, error: message, code: error.code }, { status: error.status });
     }

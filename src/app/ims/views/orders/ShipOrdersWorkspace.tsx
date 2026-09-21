@@ -734,8 +734,9 @@ export function ShipOrdersWorkspace({
       setAddingOrders(false);
     }
   };
-  const markDispatched = async () => {
+  const markDispatched = async (allowNegativeStock = false) => {
     if (
+      !allowNegativeStock &&
       !window.confirm(
         "Mark these labelled shipments as dispatched? This updates stock and Sales Order fulfillment, then syncs the connected channel.",
       )
@@ -750,9 +751,31 @@ export function ShipOrdersWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shipmentIds: created.map((item) => item.shipmentId),
+          allowNegativeStock,
         }),
       });
       const result = await readJsonResponse(response);
+      if (
+        response.status === 409 &&
+        result.code === "STOCK_SHORTFALL" &&
+        !allowNegativeStock
+      ) {
+        const shipment = savedShipments.find(
+          (item) => item.shipmentId === Number(result.shipmentId),
+        );
+        const detail = (Array.isArray(result.shortfalls) ? result.shortfalls : [])
+          .map(
+            (line: any) =>
+              `${line.sku || `Item ${line.itemId}`}: ${line.quantityOnHand} on hand, ${line.requestedQuantity} required, resulting SOH ${line.resultingQuantityOnHand}`,
+          )
+          .join("\n");
+        const confirmed = window.confirm(
+          `${shipment?.soNumber || "A shipment"} has insufficient recorded stock:\n\n${detail}\n\n` +
+            "The parcels are already labelled. Continuing will dispatch them and make stock on hand negative. Stocktake or adjust the affected stock as soon as possible.\n\nContinue and allow negative stock?",
+        );
+        if (confirmed) await markDispatched(true);
+        return;
+      }
       if (!response.ok || !result.success)
         throw new Error(result.error || "Unable to mark shipments dispatched.");
       const pending = (result.data ?? []).filter(

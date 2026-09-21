@@ -76,7 +76,11 @@ export function buildAmazonShipmentConfirmations(
   });
 }
 
-export async function dispatchShippingShipment(input: { businessId: string; shipmentId: number }): Promise<ShippingDispatchResult> {
+export async function dispatchShippingShipment(input: {
+  businessId: string;
+  shipmentId: number;
+  allowNegativeStock?: boolean;
+}): Promise<ShippingDispatchResult> {
   const connection = await getIMSPool().getConnection();
   let row: DispatchRow | null = null;
   let fulfilledVariantIds: string[] = [];
@@ -164,6 +168,7 @@ export async function dispatchShippingShipment(input: { businessId: string; ship
           soId: row.so_id,
           operationKey,
           shipmentQuantities: allocations.map(allocation => ({ itemId: Number(allocation.item_id), quantity: Number(allocation.quantity) })),
+          allowNegativeStock: input.allowNegativeStock === true,
           finalizeWhenComplete: true,
         });
         fulfilledVariantIds = fulfilment.fulfilledVariantIds;

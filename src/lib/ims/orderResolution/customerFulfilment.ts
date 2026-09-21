@@ -107,7 +107,7 @@ export async function fulfilSalesOrderPartialInTransaction(
     }
 
     const [items] = await conn.execute<any[]>(
-      `SELECT soi.id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled, soi.unit_cost,
+      `SELECT soi.id, soi.variant_id, pv.sku, soi.qty_ordered, soi.qty_fulfilled, soi.unit_cost,
               COALESCE(p.is_stock_item, 1) AS is_stock_item
          FROM ims_sales_order_items soi
          LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
@@ -171,6 +171,7 @@ export async function fulfilSalesOrderPartialInTransaction(
         const shortfall: StockShortfall = {
           itemId,
           variantId: String(item.variant_id),
+          sku: String(item.sku ?? "").trim() || undefined,
           requestedQuantity: quantity,
           quantityOnHand: oldOnHand,
           resultingQuantityOnHand: oldOnHand - quantity,

@@ -1,3 +1,14 @@
+## 2026-09-21 - Shipping dispatch stock-shortfall confirmation
+
+- Label printing does not make a shipment eligible for a manifest. Shipping Workspace requires **Mark dispatched** first because that action owns Sales Order fulfilment, stock movement, tracking, and channel sync; manifests then list dispatched unmanifested shipments.
+- A labelled Monsterthreads batch was blocked by one committed unit of SKU `1060525` with zero recorded stock on hand at the Sales Order location. Shipping dispatch now returns the blocked shipment and structured SKU-level quantities, then offers the same explicit negative-stock confirmation used by normal Sales Order fulfilment. Confirmed retries are idempotent and do not repeat already completed shipment stock movements.
+
+## 2026-09-21 - Shipping batch timeout and address recovery
+
+- A 16-consignment Monsterthreads batch stopped after eight carrier shipments because the ninth recipient street line exceeded Australia Post's 40-character limit. Serial carrier calls also outlasted the browser gateway, which displayed an HTML 502 as an invalid response, while the saved workspace incorrectly described carrier-created rows with no label request as Label processing.
+- Australia Post payload construction now losslessly wraps street addresses into at most three 40-character lines. Submission uses four bounded workers, preserves per-consignment idempotent claims, continues independent consignments after a rejection, creates labels for successful submissions, and returns successful partial results with named failures. Reopening a batch shows Label processing only when a label request actually exists.
+- The affected batch was resumed through tenant-scoped service code. Live readback verified all 16 consignments at `label_ready`: 14 Parcel Post labels in one `A4-4pp` request and two Express Post labels in one `A4-3pp` request. Existing carrier shipment IDs were reused for the first eight consignments.
+
 ## 2026-09-20 - Layered Help and detailed Assistant retrieval
 
 - All 68 authenticated Help topics now declare 1-4 default-open `quickSections`. The Help drawer shows those concise sections first, adds an **In this topic** jump list, and places reference, procedures, troubleshooting and worked examples under accessible **More help** accordions with expand/collapse controls.

@@ -1,6 +1,7 @@
 export type StockShortfall = {
   itemId: number;
   variantId: string;
+  sku?: string;
   requestedQuantity: number;
   quantityOnHand: number;
   resultingQuantityOnHand: number;
