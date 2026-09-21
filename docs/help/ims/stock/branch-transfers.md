@@ -37,6 +37,8 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 
 When the destination allows POS sales from incoming transfers, POS can sell the same variant before receipt up to the transfer's outstanding quantity. The destination may temporarily show negative stock, and IMS Notifications identifies the sale for warehouse review. Receiving the transfer adds the confirmed arrival against that balance; do not create a separate adjustment.
 
+Shipping Workspace also shows outstanding quantities from Sent and Partially Received transfers when its pre-label stock check finds a shortage at the destination branch. This explains expected supply but does not make the shipment ready: use **Receive transfer** only after the goods physically arrive. Received and Cancelled transfers are not counted as incoming.
+
 ## Step-by-step
 
 ### Create and send

@@ -15,6 +15,7 @@ Use a stocktake for a controlled physical count and a manual quantity adjustment
 - Complete the count and review quantity and value differences.
 - Reverse a mistaken supported stocktake without deleting later movements.
 - Use a manual adjustment only for a known isolated discrepancy.
+- Start a focused draft stocktake from Shipping Workspace when its pre-label check finds a physical stock discrepancy.
 
 ## At a glance
 
@@ -52,6 +53,8 @@ Use **Products > Builds** to assemble or dismantle recipe-backed stock. Build co
 6. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.
 7. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.
 8. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.
+
+When Shipping Workspace reports missing on-hand stock, **Start stock adjustment** creates a blank draft stocktake at that fulfilment branch and preloads the affected variants. Open Stocktakes, physically count those products, enter the verified quantities, and complete the stocktake. Do not use this path when a listed branch transfer is merely waiting to be received; complete the transfer receipt instead.
 
 When an opening quantity entered while creating a tracked product differs from stock already on hand, Solvantis creates and completes a stocktake for that location. Unchanged quantities, including the default zero for a new variant, do not create a stocktake or adjustment. Min Qty and Reorder Qty are saved with that location's stock settings without requiring a quantity change. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
 
