@@ -905,7 +905,6 @@ export function ShipOrdersWorkspace({
       if (!pending.length) {
         setCreated([]);
         setSubmissionResults([]);
-        setSavedSelection(new Set());
       }
     } catch (reason) {
       setError(
