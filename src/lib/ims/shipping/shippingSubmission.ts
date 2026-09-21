@@ -56,6 +56,17 @@ export type ShippingSubmissionResult = {
   chargedCost: number | null;
 };
 
+export class ShippingBatchSubmissionError extends Error {
+  constructor(
+    message: string,
+    readonly results: ShippingSubmissionResult[],
+    readonly failures: Array<{ shipmentId: number; message: string }>,
+  ) {
+    super(message);
+    this.name = "ShippingBatchSubmissionError";
+  }
+}
+
 export async function submitShippingDraftsAndCreateLabels(input: {
   businessId: string;
   shipmentIds: number[];
@@ -70,11 +81,21 @@ export async function submitShippingDraftsAndCreateLabels(input: {
   if (shipmentIds.length > 50)
     throw new Error("Submit no more than 50 shipments at once.");
 
-  const shipments: ShipmentRow[] = [];
-  for (const shipmentId of shipmentIds)
-    shipments.push(await submitOneShipment(input.businessId, shipmentId));
-  const labels = await ensureBatchLabels(input.businessId, shipments);
-  return Promise.all(
+  const settled = await mapWithConcurrency(shipmentIds, 4, async (shipmentId) =>
+    submitOneShipment(input.businessId, shipmentId),
+  );
+  const shipments = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+  const failures = settled.flatMap((result, index) =>
+    result.status === "rejected"
+      ? [{ shipmentId: shipmentIds[index], message: safeCarrierError(result.reason) }]
+      : [],
+  );
+  const labels = shipments.length
+    ? await ensureBatchLabels(input.businessId, shipments)
+    : new Map<number, { requestId: string; status: string; url?: string }>();
+  const results = await Promise.all(
     shipments.map(async (shipment) => {
       const label = labels.get(shipment.id);
       const chargedRows = await imsQuery<{ charged_cost: number | null }>(
@@ -94,6 +115,39 @@ export async function submitShippingDraftsAndCreateLabels(input: {
       };
     }),
   );
+  if (failures.length) {
+    const firstFailure = failures[0].message;
+    throw new ShippingBatchSubmissionError(
+      `${failures.length} of ${shipmentIds.length} consignments could not be submitted. ${firstFailure}`,
+      results,
+      failures,
+    );
+  }
+  return results;
+}
+
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let nextIndex = 0;
+  const runners = Array.from(
+    { length: Math.min(Math.max(1, Math.floor(concurrency)), items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++;
+        try {
+          results[index] = { status: "fulfilled", value: await worker(items[index], index) };
+        } catch (reason) {
+          results[index] = { status: "rejected", reason };
+        }
+      }
+    },
+  );
+  await Promise.all(runners);
+  return results;
 }
 
 async function submitOneShipment(

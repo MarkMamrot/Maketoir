@@ -5,6 +5,7 @@ import {
   buildAusPostInternationalShipment,
   getAusPostLabelPreference,
   groupShipmentsByLabelPreference,
+  mapWithConcurrency,
   normalizeAusPostAddressLines,
   validateSelectedShippingRate,
 } from "../shippingSubmission";
@@ -102,9 +103,28 @@ describe("Australia Post shipment submission", () => {
   it("rejects addresses that cannot fit Australia Post's address-line contract", () => {
     expect(() => normalizeAusPostAddressLines(["x".repeat(41)])).toThrow("40-character limit");
     expect(() => normalizeAusPostAddressLines([
-      "First address line requiring a wrap",
-      "Second address line requiring a wrap",
+      "First address line that definitely requires wrapping now",
+      "Second address line that definitely requires wrapping now",
     ])).toThrow("three address lines");
+  });
+
+  it("bounds concurrent work and preserves ordered partial results", async () => {
+    let active = 0;
+    let maximumActive = 0;
+    const results = await mapWithConcurrency([1, 2, 3, 4, 5], 2, async (value) => {
+      active++;
+      maximumActive = Math.max(maximumActive, active);
+      await Promise.resolve();
+      active--;
+      if (value === 3) throw new Error("rejected");
+      return value * 10;
+    });
+
+    expect(maximumActive).toBe(2);
+    expect(results.map((result) => result.status)).toEqual([
+      "fulfilled", "fulfilled", "rejected", "fulfilled", "fulfilled",
+    ]);
+    expect(results[4]).toEqual({ status: "fulfilled", value: 50 });
   });
 
   it("uses carrier-supported compact A4 layouts for Parcel and Express Post", () => {

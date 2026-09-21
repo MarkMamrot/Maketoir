@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { submitShippingDraftsAndCreateLabels } from '@/lib/ims/shipping/shippingSubmission';
+import { ShippingBatchSubmissionError, submitShippingDraftsAndCreateLabels } from '@/lib/ims/shipping/shippingSubmission';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function POST(request: Request) {
@@ -16,6 +16,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to submit shipments to Australia Post.';
+    if (error instanceof ShippingBatchSubmissionError) {
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'ims_shipping',
+        operation: 'submit_and_create_labels',
+        title: 'Australia Post batch completed with consignment failures',
+        error,
+        context: { shipmentIds, failures: error.failures },
+      });
+      return NextResponse.json(
+        { success: false, error: message, data: error.results, failures: error.failures },
+        { status: 207 },
+      );
+    }
     const validation = /choose|not found|no parcels|not supported|not enabled|already|requires review|before submission|no more than|price changed|no longer available/i.test(message);
     if (!validation) {
       await reportRuntimeIssue({

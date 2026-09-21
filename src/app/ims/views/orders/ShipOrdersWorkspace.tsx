@@ -587,11 +587,11 @@ export function ShipOrdersWorkspace({
         }),
       });
       const result = await readJsonResponse(response);
+      if (Array.isArray(result.data)) setSubmissionResults(result.data);
       if (!response.ok || !result.success)
         throw new Error(
           result.error || "Unable to submit shipments to Australia Post.",
         );
-      setSubmissionResults(result.data ?? []);
     } catch (reason) {
       setError(
         reason instanceof Error
