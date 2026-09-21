@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ShippingBatchSubmissionError, submitShippingDraftsAndCreateLabels } from '@/lib/ims/shipping/shippingSubmission';
+import { getShippingStockReadiness } from '@/lib/ims/shipping/shippingStockReadiness';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function POST(request: Request) {
@@ -12,6 +13,15 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     shipmentIds = Array.isArray(body?.shipmentIds) ? body.shipmentIds.map(Number) : [];
+    const stockReadiness = await getShippingStockReadiness({ businessId: session.businessId, shipmentIds });
+    if (!stockReadiness.ready && body?.acknowledgeStockShortfall !== true) {
+      return NextResponse.json({
+        success: false,
+        error: 'Stock is missing at the fulfilment branch. Review stock readiness before purchasing labels.',
+        code: 'STOCK_NOT_READY',
+        stockReadiness,
+      }, { status: 409 });
+    }
     const data = await submitShippingDraftsAndCreateLabels({ businessId: session.businessId, shipmentIds });
     return NextResponse.json({ success: true, data });
   } catch (error) {

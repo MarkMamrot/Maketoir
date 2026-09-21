@@ -142,6 +142,33 @@ type ManifestCandidateRow = {
   chargedCost: number | null;
   parcelCount: number;
 };
+type ShippingStockReadinessLine = {
+  locationId: number;
+  locationName: string;
+  variantId: string;
+  sku: string;
+  productName: string;
+  shipmentIds: number[];
+  soNumbers: string[];
+  requestedQuantity: number;
+  quantityOnHand: number;
+  quantityCommitted: number;
+  shortfallQuantity: number;
+  purchaseOrderIncomingQuantity: number;
+  incomingTransferQuantity: number;
+  coveredByIncomingTransfer: number;
+  uncoveredQuantity: number;
+  transfers: Array<{
+    transferId: number;
+    transferNumber: string;
+    status: "sent" | "partial";
+    quantity: number;
+  }>;
+};
+type ShippingStockReadiness = {
+  ready: boolean;
+  lines: ShippingStockReadinessLine[];
+};
 type ManifestSummaryRow = {
   id: number;
   provider: string;
@@ -223,6 +250,40 @@ export function ShipOrdersWorkspace({
   const [confirmedNonSaleOrders, setConfirmedNonSaleOrders] = useState<
     Set<number>
   >(new Set());
+  const [stockReadiness, setStockReadiness] = useState<ShippingStockReadiness | null>(null);
+  const [checkingStock, setCheckingStock] = useState(false);
+  const [stockShortfallAcknowledged, setStockShortfallAcknowledged] = useState(false);
+  const [creatingAdjustmentForLocation, setCreatingAdjustmentForLocation] = useState<number | null>(null);
+
+  async function refreshStockReadiness(shipmentIds = created.map((item) => item.shipmentId)) {
+    if (!shipmentIds.length) {
+      setStockReadiness(null);
+      return null;
+    }
+    setCheckingStock(true);
+    try {
+      const response = await fetch("/api/ims/shipping/stock-readiness", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shipmentIds }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) throw new Error(result.error || "Unable to check shipment stock.");
+      setStockReadiness(result.data);
+      setStockShortfallAcknowledged(false);
+      return result.data as ShippingStockReadiness;
+    } catch (reason) {
+      setStockReadiness(null);
+      setError(reason instanceof Error ? reason.message : "Unable to check shipment stock.");
+      return null;
+    } finally {
+      setCheckingStock(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshStockReadiness();
+  }, [created.map((item) => item.shipmentId).sort((left, right) => left - right).join(",")]);
 
   useEffect(() => {
     let active = true;
@@ -569,6 +630,12 @@ export function ShipOrdersWorkspace({
   };
 
   const submitToCarrier = async () => {
+    const currentReadiness = await refreshStockReadiness();
+    if (!currentReadiness) return;
+    if (!currentReadiness.ready && !stockShortfallAcknowledged) {
+      setError("Review the missing stock below and acknowledge it before purchasing labels.");
+      return;
+    }
     if (
       !labelsPending &&
       !window.confirm(
@@ -584,9 +651,11 @@ export function ShipOrdersWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shipmentIds: created.map((item) => item.shipmentId),
+          acknowledgeStockShortfall: stockShortfallAcknowledged,
         }),
       });
       const result = await readJsonResponse(response);
+      if (result.stockReadiness) setStockReadiness(result.stockReadiness);
       if (Array.isArray(result.data)) setSubmissionResults(result.data);
       if (!response.ok || !result.success)
         throw new Error(
@@ -600,6 +669,43 @@ export function ShipOrdersWorkspace({
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const startStockAdjustment = async (locationId: number) => {
+    const lines = stockReadiness?.lines.filter((line) => line.locationId === locationId) ?? [];
+    if (!lines.length) return;
+    setCreatingAdjustmentForLocation(locationId);
+    setError("");
+    try {
+      const locationName = lines[0].locationName;
+      const response = await fetch("/api/ims/stocktakes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference: `Shipping stock check ${new Date().toLocaleDateString("en-AU")}`,
+          location_id: locationId,
+          notes: `Started from Shipping Workspace for ${[...new Set(lines.flatMap((line) => line.soNumbers))].join(", ")}.`,
+          blank: true,
+        }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.id) throw new Error(result.error || "Unable to create stock adjustment.");
+      for (const variantId of [...new Set(lines.map((line) => line.variantId))]) {
+        const itemResponse = await fetch(`/api/ims/stocktakes/${result.id}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ variant_id: variantId, location_id: locationId }),
+        });
+        const itemResult = await readJsonResponse(itemResponse);
+        if (!itemResponse.ok) throw new Error(itemResult.error || "Unable to add an item to the stock adjustment.");
+      }
+      onClose();
+      window.location.hash = "stocktakes";
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to create stock adjustment.");
+    } finally {
+      setCreatingAdjustmentForLocation(null);
     }
   };
 
@@ -2000,6 +2106,68 @@ export function ShipOrdersWorkspace({
                   })}
                 </div>
               )}
+              {created.length > 0 && needsCarrierAction && (
+                <section
+                  aria-label="Stock readiness"
+                  style={{
+                    marginTop: 14,
+                    padding: 14,
+                    border: `1px solid ${stockReadiness?.ready ? "var(--sv-green)" : "#d6a934"}`,
+                    borderRadius: 6,
+                    background: "var(--sv-bg-2)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <strong style={{ fontSize: 13 }}>Stock readiness before labels</strong>
+                    <button type="button" disabled={checkingStock} onClick={() => void refreshStockReadiness()} style={secondaryButtonStyle}>
+                      <RefreshCw size={14} /> {checkingStock ? "Checking..." : "Refresh stock"}
+                    </button>
+                  </div>
+                  {checkingStock && !stockReadiness && <div style={{ marginTop: 8, fontSize: 12, color: "var(--sv-text-dim)" }}>Checking stock at each fulfilment branch...</div>}
+                  {stockReadiness?.ready && <div style={{ marginTop: 8, fontSize: 12, color: "var(--sv-green)" }}>All packed stock is currently on hand.</div>}
+                  {stockReadiness && !stockReadiness.ready && (
+                    <>
+                      <div style={{ marginTop: 8, fontSize: 12 }}>
+                        Stock is missing at the fulfilment branch. Incoming quantities are shown for planning but are not available until received.
+                      </div>
+                      {stockReadiness.lines.map((line) => (
+                        <div key={`${line.locationId}:${line.variantId}`} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--sv-etch)", fontSize: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                            <strong>{line.sku || line.productName} · {line.locationName}</strong>
+                            <span style={{ color: line.uncoveredQuantity > 0 ? "var(--sv-red)" : "#8a6500" }}>
+                              Need {line.requestedQuantity}; on hand {line.quantityOnHand}; short {line.shortfallQuantity}
+                            </span>
+                          </div>
+                          <div style={{ marginTop: 4, color: "var(--sv-text-dim)" }}>
+                            Orders {line.soNumbers.join(", ")} · committed {line.quantityCommitted} · PO incoming {line.purchaseOrderIncomingQuantity} · transfer incoming {line.incomingTransferQuantity}
+                          </div>
+                          {line.transfers.length > 0 && (
+                            <div style={{ marginTop: 3, color: "var(--sv-text-dim)" }}>
+                              Transfers: {line.transfers.map((transfer) => `${transfer.transferNumber} (${transfer.quantity})`).join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                        {[...new Map(stockReadiness.lines.map((line) => [line.locationId, line.locationName])).entries()].map(([locationId, locationName]) => (
+                          <button key={locationId} type="button" disabled={creatingAdjustmentForLocation !== null} onClick={() => void startStockAdjustment(locationId)} style={secondaryButtonStyle}>
+                            <ClipboardList size={14} /> {creatingAdjustmentForLocation === locationId ? "Creating..." : `Start stock adjustment · ${locationName}`}
+                          </button>
+                        ))}
+                        {stockReadiness.lines.some((line) => line.incomingTransferQuantity > 0) && (
+                          <button type="button" onClick={() => { onClose(); window.location.hash = "receive-transfers"; }} style={secondaryButtonStyle}>
+                            <PackageCheck size={14} /> Receive transfer
+                          </button>
+                        )}
+                      </div>
+                      <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, fontSize: 12 }}>
+                        <input type="checkbox" checked={stockShortfallAcknowledged} onChange={(event) => setStockShortfallAcknowledged(event.target.checked)} />
+                        I understand stock is not currently on hand and want to purchase these labels anyway. Dispatch will check stock again.
+                      </label>
+                    </>
+                  )}
+                </section>
+              )}
               {!loading && (
                 <div
                   style={{
@@ -2071,12 +2239,12 @@ export function ShipOrdersWorkspace({
                   {created.length > 0 && needsCarrierAction && (
                     <button
                       type="button"
-                      disabled={submitting}
+                      disabled={submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
                       onClick={submitToCarrier}
                       style={{
                         ...primaryButtonStyle,
-                        opacity: submitting ? 0.55 : 1,
-                        cursor: submitting ? "not-allowed" : "pointer",
+                        opacity: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? 0.55 : 1,
+                        cursor: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? "not-allowed" : "pointer",
                       }}
                     >
                       <Send size={15} />
