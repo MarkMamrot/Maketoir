@@ -424,12 +424,13 @@ export default function SolvantisCapabilityMap() {
 
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-1/2 sm:block"
+            className="pointer-events-none absolute hidden sm:block"
             style={{
               left: `${activeMapFlow.center.x}%`,
               top: `${activeMapFlow.center.y}%`,
               width: `${activeMapFlow.center.size}%`,
               aspectRatio: '1',
+              transform: 'translate(-50%, -50%)',
             }}
           >
             <span className="solvantis-center-pulse absolute inset-0 rounded-full" />
@@ -440,8 +441,14 @@ export default function SolvantisCapabilityMap() {
               key={hotspot.label}
               type="button"
               onClick={(event) => openCapability(hotspot.capabilityId, event.currentTarget)}
-              className="group absolute hidden -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-md border border-transparent outline-none transition duration-200 hover:-translate-y-[52%] hover:border-slate-900/35 hover:bg-white/10 focus-visible:border-blue-800 focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2 sm:block"
-              style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%`, width: `${hotspot.width}%`, height: `${hotspot.height}%` }}
+              className="group absolute hidden cursor-pointer rounded-md border border-transparent outline-none transition duration-200 hover:border-slate-900/35 hover:bg-white/10 focus-visible:border-blue-800 focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2 sm:block"
+              style={{
+                left: `${hotspot.x}%`,
+                top: `${hotspot.y}%`,
+                width: `${hotspot.width}%`,
+                height: `${hotspot.height}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
               aria-label={`Explore ${hotspot.label} features`}
             >
               <span className="sr-only">Open {hotspot.label} feature summary</span>
