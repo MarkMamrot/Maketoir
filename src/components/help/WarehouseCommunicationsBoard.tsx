@@ -59,9 +59,15 @@ export function WarehouseCommunicationsBoard({ active, onUnreadChange }: { activ
         if (saved?.initials) {
           setStaff(saved);
           await load(saved, warehouseLocationId);
+          return;
+        }
+        const name = String(data.identity.userName ?? '').trim();
+        const initials = defaultInitials(name);
+        if (name && initials) {
+          // Known session name — save the identity silently instead of blocking on a form.
+          await saveIdentity(name, initials, warehouseLocationId);
         } else {
-          const name = String(data.identity.userName ?? '');
-          setIdentityDraft({ name, initials: defaultInitials(name) });
+          setIdentityDraft({ name, initials });
           setLoading(false);
         }
       } catch (loadError: any) {
@@ -79,28 +85,34 @@ export function WarehouseCommunicationsBoard({ active, onUnreadChange }: { activ
     if (active && locationId && staff) void load(staff, locationId);
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function confirmIdentity() {
-    if (!identityDraft?.name.trim() || !identityDraft.initials.trim() || locationId == null) return;
+  async function saveIdentity(name: string, initials: string, warehouseLocationId: number) {
     setSaving(true);
     try {
       const response = await fetch('/api/pos/daybook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_identity', location_id: locationId, name: identityDraft.name.trim(), initials: identityDraft.initials.trim().toUpperCase() }),
+        body: JSON.stringify({ action: 'save_identity', location_id: warehouseLocationId, name, initials: initials.toUpperCase() }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Could not save your identity.');
       const savedStaff: StaffIdentity = data.staff;
-      try { localStorage.setItem(identityKey(locationId), JSON.stringify(savedStaff)); } catch {}
+      try { localStorage.setItem(identityKey(warehouseLocationId), JSON.stringify(savedStaff)); } catch {}
       setStaff(savedStaff);
       setIdentityDraft(null);
-      setLoading(true);
-      await load(savedStaff, locationId);
+      await load(savedStaff, warehouseLocationId);
     } catch (saveError: any) {
+      // Auto-save failed (or the manual form was used) — fall back to letting the user fix it themselves.
       setError(saveError.message ?? 'Could not save your identity.');
+      setIdentityDraft({ name, initials });
+      setLoading(false);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function confirmIdentity() {
+    if (!identityDraft?.name.trim() || !identityDraft.initials.trim() || locationId == null) return;
+    await saveIdentity(identityDraft.name.trim(), identityDraft.initials.trim(), locationId);
   }
 
   async function perform(action: string, payload: Record<string, unknown> = {}) {
