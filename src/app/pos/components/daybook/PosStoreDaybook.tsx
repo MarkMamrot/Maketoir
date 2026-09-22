@@ -239,6 +239,21 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
     } catch {}
   }
 
+  function communicationAttachmentUrl(attachmentId: number) {
+    return `/api/pos/daybook/attachments/${attachmentId}${locationOverride ? `?location_id=${location.id}` : ''}`;
+  }
+
+  async function uploadCommunicationAttachment(communicationId: number, file: File) {
+    const form = new FormData();
+    form.set('communication_id', String(communicationId));
+    form.set('file', file);
+    if (locationOverride) form.set('location_id', String(location.id));
+    const response = await fetch('/api/pos/daybook/attachments', { method: 'POST', body: form });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? `Failed to upload ${file.name}`);
+    await load(staff, false);
+  }
+
   async function perform(action: string, payload: Record<string, unknown> = {}) {
     try {
       const result = await post(action, payload);
@@ -430,7 +445,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
         )}
 
         {!loading && active === 'communications' && (
-          <CommunicationsView workspace={workspace} saving={saving} perform={perform} />
+          <CommunicationsView workspace={workspace} saving={saving} perform={perform} onUploadAttachment={uploadCommunicationAttachment} attachmentUrl={communicationAttachmentUrl} />
         )}
 
         {!loading && ['customer_request', 'store_need', 'stock_discrepancy', 'incident'].includes(active) && (
@@ -650,7 +665,7 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
           </div>
           <div className={styles.communicationTools}>
             {item.can_edit && <div className={styles.moreMenu}><button type="button" onClick={() => setMenuId(menuId === item.id ? null : item.id)} aria-label="Communication actions" aria-expanded={menuId === item.id}><Ellipsis size={18} /></button>{menuId === item.id && <div role="menu">
-              <button type="button" role="menuitem" onClick={() => { setDraft({ id: item.id, message: item.message, priority: item.priority, highlighted: item.background_color === 'fluoro_yellow', locationIds: '' }); setMenuId(null); }}><Pencil size={15} /> Edit</button>
+              <button type="button" role="menuitem" onClick={() => { setDraft({ id: item.id, message: item.message, priority: item.priority, highlighted: item.background_color === 'fluoro_yellow', locationIds: '', files: [] }); setMenuId(null); }}><Pencil size={15} /> Edit</button>
               <button type="button" role="menuitem" onClick={() => { void perform('update_communication', { communication_id: item.id, message: item.message, priority: item.priority, background_color: item.background_color === 'fluoro_yellow' ? null : 'fluoro_yellow' }); setMenuId(null); }}><Highlighter size={15} /> {item.background_color === 'fluoro_yellow' ? 'Remove highlight' : 'Highlight'}</button>
               <button type="button" role="menuitem" onClick={() => { setOpenComments(current => new Set(current).add(item.id)); setMenuId(null); }}><MessageSquare size={15} /> Comment</button>
               <button type="button" role="menuitem" className={styles.dangerMenuItem} onClick={() => { setMenuId(null); if (confirm('Delete this communication? Acknowledgment history will be retained.')) void perform('delete_item', { item_type: 'communication', item_id: item.id }); }}><Trash2 size={15} /> Delete</button>

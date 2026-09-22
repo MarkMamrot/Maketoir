@@ -142,6 +142,22 @@ export function WarehouseCommunicationsBoard({ active, onUnreadChange }: { activ
     }
   }
 
+  function attachmentUrl(attachmentId: number) {
+    return `/api/pos/daybook/attachments/${attachmentId}?location_id=${locationId}`;
+  }
+
+  async function uploadAttachment(communicationId: number, file: File) {
+    if (!locationId) return;
+    const form = new FormData();
+    form.set('communication_id', String(communicationId));
+    form.set('file', file);
+    form.set('location_id', String(locationId));
+    const response = await fetch('/api/pos/daybook/attachments', { method: 'POST', body: form });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? `Failed to upload ${file.name}`);
+    if (staff) await load(staff, locationId);
+  }
+
   if (loading) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading…</div>;
   if (error && !workspace && !identityDraft) return <div style={{ padding: 24, color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>;
 
@@ -167,7 +183,7 @@ export function WarehouseCommunicationsBoard({ active, onUnreadChange }: { activ
   return (
     <div className={(daybookStyles as Record<string, string>)[`theme_${workspace?.preferences.theme ?? 'evergreen'}`]} style={{ padding: '16px 20px' }}>
       {error && <div style={{ marginBottom: 10, color: 'var(--sv-red)', fontSize: 12 }}>{error}</div>}
-      <CommunicationsView workspace={workspace} saving={saving} perform={perform} />
+      <CommunicationsView workspace={workspace} saving={saving} perform={perform} onUploadAttachment={uploadAttachment} attachmentUrl={attachmentUrl} />
     </div>
   );
 }
