@@ -32,8 +32,9 @@ function dateTime(value: string | null | undefined) {
   return new Date(value).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-function statusColor(status: SupportTicket['status']) {
-  return status === 'open' ? '#fb7185' : status === 'in_progress' ? '#f59e0b' : status === 'resolved' ? '#38bdf8' : '#94a3b8';
+function statusColor(status: SupportTicket['status'], onDark: boolean) {
+  if (onDark) return status === 'open' ? '#fb7185' : status === 'in_progress' ? '#fbbf24' : status === 'resolved' ? '#38bdf8' : '#cbd5e1';
+  return status === 'open' ? '#be123c' : status === 'in_progress' ? '#a16207' : status === 'resolved' ? '#0369a1' : '#475569';
 }
 
 async function responseJson(response: Response): Promise<any> {
@@ -173,14 +174,14 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
       </div>
 
       <div style={{ ...panel, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(140px,1fr) minmax(240px,2fr) 130px 150px', padding: '9px 12px', background: '#334155', color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(140px,1fr) minmax(240px,2fr) 130px 150px', padding: '9px 12px', background: '#334155', color: '#e2e8f0', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
           <span>Status</span><span>Business</span><span>Subject</span><span>Assigned</span><span>Created</span>
         </div>
         {loading ? <p style={{ padding: 24, color: '#94a3b8' }}>Loading…</p> : loadError ? <p style={{ padding: 24, color: '#fca5a5' }}>{loadError}</p> : tickets.length === 0 ? <p style={{ padding: 24, color: '#94a3b8' }}>No matching support tickets.</p> : tickets.map(ticket => (
-          <button key={ticket.id} onClick={() => void openTicket(ticket.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '90px minmax(140px,1fr) minmax(240px,2fr) 130px 150px', alignItems: 'center', padding: '11px 12px', border: 0, borderTop: '1px solid rgba(255,255,255,.07)', background: 'transparent', color: '#e2e8f0', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}>
-            <span style={{ color: statusColor(ticket.status), fontWeight: 800, textTransform: 'uppercase', fontSize: 10 }}>{ticket.status.replace('_', ' ')}</span>
+          <button key={ticket.id} onClick={() => void openTicket(ticket.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '90px minmax(140px,1fr) minmax(240px,2fr) 130px 150px', alignItems: 'center', padding: '11px 12px', border: 0, borderTop: '1px solid var(--sv-etch,#e2e8f0)', background: 'transparent', color: 'var(--sv-text-main,#475569)', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}>
+            <span style={{ color: statusColor(ticket.status, false), fontWeight: 800, textTransform: 'uppercase', fontSize: 10 }}>{ticket.status.replace('_', ' ')}</span>
             <span>{ticket.business_name}</span>
-            <span><strong>{ticket.subject}</strong><br /><small style={{ color: '#94a3b8' }}>{ticket.source_app.toUpperCase()}{ticket.screen_context ? ` · ${ticket.screen_context}` : ''}</small></span>
+            <span><strong style={{ color: 'var(--sv-text-strong,#0f172a)' }}>{ticket.subject}</strong><br /><small style={{ color: 'var(--sv-text-dim,#64748b)' }}>{ticket.source_app.toUpperCase()}{ticket.screen_context ? ` · ${ticket.screen_context}` : ''}</small></span>
             <span>{ticket.assigned_name ?? '—'}</span>
             <span>{dateTime(ticket.created_at)}</span>
           </button>
@@ -189,13 +190,13 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
 
       {selected && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,6,23,.72)', display: 'flex', justifyContent: 'flex-end' }} onClick={() => setSelected(null)}>
-          <aside aria-label="Support ticket details" style={{ width: 'min(680px, 100vw)', height: '100dvh', overflowY: 'auto', boxSizing: 'border-box', background: drawerSurface, borderLeft: '1px solid #334155', color: '#e2e8f0', boxShadow: '-20px 0 50px rgba(2,6,23,.28)' }} onClick={event => event.stopPropagation()}>
+          <aside aria-label="Support ticket details" className="support-ticket-details" style={{ width: 'min(680px, 100vw)', height: '100dvh', overflowY: 'auto', boxSizing: 'border-box', background: drawerSurface, borderLeft: '1px solid #334155', color: '#e2e8f0', boxShadow: '-20px 0 50px rgba(2,6,23,.28)' }} onClick={event => event.stopPropagation()}>
             <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: '14px 20px', background: 'rgba(15,23,42,.97)', borderBottom: '1px solid #334155' }}>
-              <p style={{ margin: 0, color: statusColor(selected.status), textTransform: 'uppercase', fontSize: 10, fontWeight: 800 }}>{selected.status.replace('_', ' ')} · {selected.business_name}</p>
+              <p style={{ margin: 0, color: statusColor(selected.status, true), textTransform: 'uppercase', fontSize: 10, fontWeight: 800 }}>{selected.status.replace('_', ' ')} · {selected.business_name}</p>
               <button aria-label="Close ticket" title="Close" onClick={() => setSelected(null)} style={{ width: 34, height: 34, border: '1px solid #475569', borderRadius: 6, background: '#1e293b', color: '#f8fafc', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
             </div>
             <div style={{ padding: '20px clamp(16px, 4vw, 28px) 32px' }}>
-              <h2 style={{ margin: '0 0 8px', fontSize: 20, lineHeight: 1.3 }}>{selected.subject}</h2>
+              <h2 style={{ margin: '0 0 8px', color: '#f8fafc', fontSize: 20, lineHeight: 1.3 }}>{selected.subject}</h2>
               <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.55, fontSize: 13, whiteSpace: 'pre-wrap' }}>{selected.description}</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, ...drawerPanel, padding: 14, margin: '18px 0' }}>
                 <div><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>Submitted by</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{selected.submitted_by_name ?? 'Unknown'}</p></div>

@@ -118,6 +118,11 @@ input[type=number] {
   color: var(--sv-text-strong);
 }
 
+.support-ticket-details ::selection {
+  background: #2563eb;
+  color: #ffffff;
+}
+
 @layer base {
   h1, h2, h3, h4, h5, h6 {
     color: var(--sv-text-strong);
