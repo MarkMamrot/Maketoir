@@ -14755,7 +14755,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   useEffect(() => {
     const handleArrowScroll = (event: KeyboardEvent) => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
+      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea, [contenteditable="true"]')) return;
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
         window.scrollBy({ top: event.key === 'ArrowUp' ? -240 : 240, behavior: 'auto' });
@@ -22728,7 +22728,7 @@ export default function ImsPage() {
     };
     const onKey = (e: KeyboardEvent) => {
       if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
-      if ((e.target as HTMLElement).matches('input,select,textarea')) return;
+      if ((e.target as HTMLElement).closest?.('input, select, textarea, [contenteditable="true"]')) return;
       e.preventDefault();
       const main = document.querySelector('main');
       if (!main) return;
