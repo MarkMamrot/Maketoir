@@ -603,7 +603,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
 function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className={styles.search}><Search size={17} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>; }
 
-type CommunicationDraft = { id?: number; message: string; priority: string; highlighted: boolean; locationIds: string; files: File[] };
+type CommunicationDraft = { id?: number; message: string; priority: string; backgroundColor: string | null; locationIds: string; files: File[] };
 
 const COMMUNICATION_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
@@ -625,7 +625,7 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
       communication_id: draft.id,
       message: draft.message,
       priority: draft.priority,
-      background_color: draft.highlighted ? 'fluoro_yellow' : null,
+      background_color: draft.backgroundColor,
       location_ids: draft.locationIds.split(',').filter(Boolean).map(Number),
     });
     if (!result) return;
@@ -645,7 +645,7 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
   }
 
   return <section className={`${styles.contentSection} ${styles.communicationsSection}`}>
-    <Title title="Store communications" subtitle="Latest first" action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => setDraft({ message: '', priority: 'normal', highlighted: false, locationIds: String(workspace.location.id), files: [] })}><Plus size={17} /> Add new</button> : undefined} />
+    <Title title="Store communications" subtitle="Latest first" action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => setDraft({ message: '', priority: 'normal', backgroundColor: null, locationIds: String(workspace.location.id), files: [] })}><Plus size={17} /> Add new</button> : undefined} />
     {draft && !draft.id && <InlineCommunicationEditor draft={draft} setDraft={setDraft} locations={workspace?.locations ?? []} saving={saving} onSave={saveDraft} onCancel={() => setDraft(null)} />}
     <div className={styles.communicationFeed}>
       {communications.length === 0 && !draft && <p className={styles.empty}>No communications have been published.</p>}
@@ -666,7 +666,7 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
           </div>
           <div className={styles.communicationTools}>
             {item.can_edit && <div className={styles.moreMenu}><button type="button" onClick={() => setMenuId(menuId === item.id ? null : item.id)} aria-label="Communication actions" aria-expanded={menuId === item.id}><Ellipsis size={18} /></button>{menuId === item.id && <div role="menu">
-              <button type="button" role="menuitem" onClick={() => { setDraft({ id: item.id, message: item.message, priority: item.priority, highlighted: item.background_color === 'fluoro_yellow', locationIds: '', files: [] }); setMenuId(null); }}><Pencil size={15} /> Edit</button>
+              <button type="button" role="menuitem" onClick={() => { setDraft({ id: item.id, message: item.message, priority: item.priority, backgroundColor: item.background_color ?? null, locationIds: '', files: [] }); setMenuId(null); }}><Pencil size={15} /> Edit</button>
               <button type="button" role="menuitem" onClick={() => { void perform('update_communication', { communication_id: item.id, message: item.message, priority: item.priority, background_color: item.background_color === 'fluoro_yellow' ? null : 'fluoro_yellow' }); setMenuId(null); }}><Highlighter size={15} /> {item.background_color === 'fluoro_yellow' ? 'Remove highlight' : 'Highlight'}</button>
               <button type="button" role="menuitem" onClick={() => { setOpenComments(current => new Set(current).add(item.id)); setMenuId(null); }}><MessageSquare size={15} /> Comment</button>
               <button type="button" role="menuitem" className={styles.dangerMenuItem} onClick={() => { setMenuId(null); if (confirm('Delete this communication? Acknowledgment history will be retained.')) void perform('delete_item', { item_type: 'communication', item_id: item.id }); }}><Trash2 size={15} /> Delete</button>
@@ -732,7 +732,6 @@ function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave,
         )}
       </div>
     )}
-    <label className={styles.highlightToggle}><input type="checkbox" checked={draft.highlighted} onChange={event => setDraft({ ...draft, highlighted: event.target.checked })} /><Highlighter size={15} /> Highlight</label>
     <div className={styles.inlineEditorActions}><button type="button" onClick={onCancel} aria-label="Cancel"><X size={17} /></button><button type="submit" disabled={saving || !communicationHasText(draft.message) || (!draft.id && !draft.locationIds)}>{saving ? 'Saving…' : draft.id ? 'Save' : 'Add'}</button></div>
   </form>;
 }
@@ -816,11 +815,12 @@ function FormattedMessageField({ value, onChange }: { value?: string; onChange: 
       italic: activeEditor?.isActive('italic') ?? false,
       bulletList: activeEditor?.isActive('bulletList') ?? false,
       highlight: activeEditor?.isActive('highlight') ?? false,
+      hasSelection: !(activeEditor?.state.selection.empty ?? true),
     }),
   });
   if (!editor) return <div className={styles.formatEditor} />;
   const run = (action: () => void) => (event: React.MouseEvent) => { event.preventDefault(); action(); };
-  return <div className={styles.formatEditor}><div className={styles.formatToolbar} role="toolbar" aria-label="Message formatting"><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBold().run())} title="Bold" aria-label="Bold" aria-pressed={formatting.bold}><Bold size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleItalic().run())} title="Italic" aria-label="Italic" aria-pressed={formatting.italic}><Italic size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBulletList().run())} title="Bulleted list" aria-label="Bulleted list" aria-pressed={formatting.bulletList}><List size={15} /></button><button type="button" disabled={editor.state.selection.empty} onMouseDown={run(() => editor.chain().focus().toggleHighlight().run())} title="Highlight selected text" aria-label="Highlight selected text" aria-pressed={formatting.highlight}><Highlighter size={15} /></button></div><EditorContent editor={editor} /></div>;
+  return <div className={styles.formatEditor}><div className={styles.formatToolbar} role="toolbar" aria-label="Message formatting"><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBold().run())} title="Bold" aria-label="Bold" aria-pressed={formatting.bold}><Bold size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleItalic().run())} title="Italic" aria-label="Italic" aria-pressed={formatting.italic}><Italic size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBulletList().run())} title="Bulleted list" aria-label="Bulleted list" aria-pressed={formatting.bulletList}><List size={15} /></button><button type="button" disabled={!formatting.hasSelection} onMouseDown={run(() => editor.chain().focus().toggleHighlight().run())} title="Highlight selected text" aria-label="Highlight selected text" aria-pressed={formatting.highlight}><Highlighter size={15} /></button></div><EditorContent editor={editor} /></div>;
 }
 
 function RecordSection({ type, records, locations, saving, perform, manager, locationId, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
