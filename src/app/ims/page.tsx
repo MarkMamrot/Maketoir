@@ -23152,6 +23152,7 @@ export default function ImsPage() {
         currentContext={settingsOpen ? `settings-${settingsSection}` : view}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"
+        supportEndpoint="/api/ims/support-tickets"
         xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
         availableCapabilities={{
           xero: pageCapabilities.xeroAccountingEnabled,
@@ -23161,7 +23162,7 @@ export default function ImsPage() {
         showFloatingTrigger={false}
         modeRequest={helpModeRequest}
       />
-      <TeamCommunicationsDrawer open={teamCommsOpen} onOpenChange={setTeamCommsOpen} />
+      <TeamCommunicationsDrawer open={teamCommsOpen} onOpenChange={setTeamCommsOpen} userTier={user?.tier} />
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}

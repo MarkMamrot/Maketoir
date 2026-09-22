@@ -3097,6 +3097,7 @@ function MainPos({
         currentContext={linkedReturnSaleId != null ? 'pos-return' : isLayby ? 'pos-layby' : customerOpen ? 'customer-search' : screen}
         chatEndpoint="/api/pos/assistant/chat"
         escalationEndpoint="/api/pos/assistant/escalate"
+        supportEndpoint="/api/pos/support-tickets"
         xeroAccountingEnabled={xeroAccountingEnabled}
         assistantDisabled={!isOnline || offlineMode}
         assistantDisabledLabel="Assistant needs an internet connection"

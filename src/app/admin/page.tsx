@@ -8,6 +8,7 @@ import IntegrationOfferingsView from './IntegrationOfferingsView';
 import ProspectInsightsView from './ProspectInsightsView';
 import ProspectLeadsView from './ProspectLeadsView';
 import RuntimeIssuesView from './RuntimeIssuesView';
+import SupportTicketsView from './SupportTicketsView';
 import WorkflowFindingsView from './WorkflowFindingsView';
 import BusinessFeaturesView from './BusinessFeaturesView';
 import { BusinessContextSwitcher, switchBusinessContext } from '@/components/BusinessContextSwitcher';
@@ -25,7 +26,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'workflow-findings';
+type View = 'businesses' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -709,6 +710,7 @@ export default function AdminPage() {
   const [view, setView]       = useState<View>('businesses');
   const [checked, setChecked] = useState(false);
   const [openIssueCount, setOpenIssueCount] = useState(0);
+  const [openTicketCount, setOpenTicketCount] = useState(0);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -735,6 +737,23 @@ export default function AdminPage() {
         setOpenIssueCount(summary
           .filter(row => row.status !== 'fixed')
           .reduce((total, row) => total + Number(row.count ?? 0), 0));
+      })
+      .catch(() => {});
+  }, [checked, view]);
+
+  useEffect(() => {
+    if (!checked) return;
+    fetch('/api/admin/support-tickets?limit=1')
+      .then(async response => {
+        if (!response.ok) return null;
+        const text = await response.text();
+        if (!text) return null;
+        try { return JSON.parse(text); } catch { return null; }
+      })
+      .then(data => {
+        if (!data) return;
+        const summary = (data.summary ?? {}) as Record<string, number>;
+        setOpenTicketCount(Number(summary.open ?? 0) + Number(summary.in_progress ?? 0));
       })
       .catch(() => {});
   }, [checked, view]);
@@ -776,6 +795,7 @@ export default function AdminPage() {
             { id: 'prospect-insights', label: 'Prospect Insights' },
             { id: 'ai-billing', label: 'AI Usage & Credits' },
             { id: 'runtime-issues', label: `Runtime Issues${openIssueCount ? ` (${openIssueCount})` : ''}` },
+            { id: 'support-tickets', label: `Support Tickets${openTicketCount ? ` (${openTicketCount})` : ''}` },
             { id: 'workflow-findings', label: 'Workflow Findings' },
           ] as { id: View; label: string }[]).map(item => (
             <button key={item.id} onClick={() => setView(item.id)} style={S.navBtn(view === item.id)}>{item.label}</button>
@@ -799,6 +819,7 @@ export default function AdminPage() {
           {view === 'prospect-insights' && <ProspectInsightsView />}
           {view === 'ai-billing' && <AiUsageCreditsDashboard />}
           {view === 'runtime-issues' && <RuntimeIssuesView />}
+          {view === 'support-tickets' && <SupportTicketsView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
         </div>
       </div>

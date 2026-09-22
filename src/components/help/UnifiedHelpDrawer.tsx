@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, HelpCircle, MessageCircle, Search, X } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, HelpCircle, LifeBuoy, MessageCircle, Search, X } from 'lucide-react';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
@@ -24,6 +24,7 @@ export function UnifiedHelpDrawer({
   currentContext,
   chatEndpoint,
   escalationEndpoint,
+  supportEndpoint,
   assistantDisabled = false,
   assistantDisabledLabel,
   showFloatingTrigger = true,
@@ -38,6 +39,7 @@ export function UnifiedHelpDrawer({
   currentContext?: string | null;
   chatEndpoint: string;
   escalationEndpoint: string;
+  supportEndpoint?: string;
   assistantDisabled?: boolean;
   assistantDisabledLabel?: string;
   showFloatingTrigger?: boolean;
@@ -53,7 +55,7 @@ export function UnifiedHelpDrawer({
     () => listHelpTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled),
     [audience, product, availableCapabilities, xeroAccountingEnabled],
   );
-  const [mode, setMode] = useState<'help' | 'ask'>('help');
+  const [mode, setMode] = useState<'help' | 'ask' | 'support'>('help');
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(initialHelpSection(contextual?.topic)),
@@ -163,9 +165,16 @@ export function UnifiedHelpDrawer({
             <button className={`sv-button-flat ${mode === 'ask' ? styles.activeTab : ''}`} onClick={() => setMode('ask')} role="tab" aria-selected={mode === 'ask'}>
               <MessageCircle size={16} /> Ask Solvantis
             </button>
+            {supportEndpoint && (
+              <button className={`sv-button-flat ${mode === 'support' ? styles.activeTab : ''}`} onClick={() => setMode('support')} role="tab" aria-selected={mode === 'support'}>
+                <LifeBuoy size={16} /> Contact Support
+              </button>
+            )}
           </div>
 
-          {mode === 'ask' ? (
+          {mode === 'support' && supportEndpoint ? (
+            <ContactSupportForm endpoint={supportEndpoint} screenContext={currentContext ?? null} />
+          ) : mode === 'ask' ? (
             <div className={styles.assistantPane}>
               <SolvantisAssistantPanel
                 chatEndpoint={chatEndpoint}
@@ -288,5 +297,73 @@ export function UnifiedHelpDrawer({
           ) : null}
       </aside>
     </>
+  );
+}
+
+function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; screenContext: string | null }) {
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!subject.trim() || !description.trim()) {
+      setError('Please enter a subject and description.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), screenContext }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setError(data?.error ?? 'Your ticket could not be submitted. Please try again.');
+        return;
+      }
+      setSubmitted(true);
+      setSubject('');
+      setDescription('');
+    } catch {
+      setError('Your ticket could not be submitted. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div style={{ padding: 24 }}>
+        <p style={{ fontWeight: 700, marginBottom: 6 }}>Ticket submitted</p>
+        <p style={{ color: 'var(--sv-text-dim,#64748b)', fontSize: 13, marginBottom: 16 }}>
+          Thanks — our support team has been notified and will follow up if needed.
+        </p>
+        <button className="sv-button-flat" onClick={() => setSubmitted(false)}>Submit another ticket</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 480 }}>
+      <p style={{ color: 'var(--sv-text-dim,#64748b)', fontSize: 13, margin: 0 }}>
+        Can&apos;t find what you need in Help? Raise a support ticket and our team will follow up.
+      </p>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
+        Subject
+        <input value={subject} onChange={event => setSubject(event.target.value)} maxLength={255} placeholder="Brief summary of the issue" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13 }} />
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
+        Description
+        <textarea value={description} onChange={event => setDescription(event.target.value)} rows={6} placeholder="What happened? What were you trying to do?" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13, resize: 'vertical' }} />
+      </label>
+      {error && <p style={{ color: '#dc2626', fontSize: 12, margin: 0 }}>{error}</p>}
+      <button className="sv-button-flat" onClick={() => void submit()} disabled={submitting} style={{ alignSelf: 'flex-start', fontWeight: 700 }}>
+        {submitting ? 'Submitting…' : 'Submit ticket'}
+      </button>
+    </div>
   );
 }
