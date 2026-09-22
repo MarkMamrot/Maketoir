@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { CommunicationsView, type Workspace } from '@/app/pos/components/daybook/PosStoreDaybook';
+import daybookStyles from '@/app/pos/components/daybook/PosStoreDaybook.module.css';
 
 type StaffIdentity = { id?: number | null; name: string; initials: string };
 
@@ -164,7 +165,7 @@ export function WarehouseCommunicationsBoard({ active, onUnreadChange }: { activ
   }
 
   return (
-    <div style={{ padding: '16px 20px' }}>
+    <div className={(daybookStyles as Record<string, string>)[`theme_${workspace?.preferences.theme ?? 'evergreen'}`]} style={{ padding: '16px 20px' }}>
       {error && <div style={{ marginBottom: 10, color: 'var(--sv-red)', fontSize: 12 }}>{error}</div>}
       <CommunicationsView workspace={workspace} saving={saving} perform={perform} />
     </div>
