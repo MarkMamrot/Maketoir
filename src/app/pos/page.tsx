@@ -2497,43 +2497,6 @@ function MainPos({
             <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/>
           </svg>
         </button>
-        {/* Reprint icon */}
-        <button
-          onClick={() => lastSale && onReceipt(lastSale)}
-          disabled={!lastSale}
-          title={lastSale ? 'Reprint last receipt' : 'No recent sale to reprint'}
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: lastSale ? 'pointer' : 'default', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: lastSale ? 1 : .55 }}
-          onMouseEnter={e => { if (lastSale) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-          </svg>
-        </button>
-        <button
-          onClick={handleOpenTill}
-          disabled={cashDrawerLoading}
-          title="Open Till"
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: cashDrawerLoading ? .5 : 1 }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="4" width="20" height="11" rx="2" />
-            <path d="M2 15h20v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2z" />
-            <line x1="9" y1="19" x2="15" y2="19" />
-          </svg>
-        </button>
-        <button
-          onClick={() => setPettyCashOpen(true)}
-          disabled={!isOnline || regSession?.status !== 'open'}
-          title={regSession?.status !== 'open' ? 'Open the register before recording petty cash' : !isOnline ? 'Petty cash requires an online connection' : 'Record petty cash'}
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isOnline && regSession?.status === 'open' ? 'pointer' : 'default', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: isOnline && regSession?.status === 'open' ? 1 : .4 }}
-          onMouseEnter={event => { if (isOnline && regSession?.status === 'open') event.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
-          onMouseLeave={event => (event.currentTarget.style.background = 'none')}
-        >
-          <span aria-hidden="true" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>$↓</span>
-        </button>
         <button
           onClick={() => { setTeamChatOpen(false); setHelpOpen(true); }}
           title="Help and Ask Solvantis"
@@ -2556,17 +2519,6 @@ function MainPos({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           {daybookIncomplete > 0 && <span aria-hidden="true" style={{ position: 'absolute', top: -5, right: -5, minWidth: 16, height: 16, padding: '0 3px', display: 'grid', placeItems: 'center', borderRadius: 8, background: '#ef7357', color: '#fff', fontSize: 9, fontWeight: 900 }}>{daybookIncomplete > 99 ? '99+' : daybookIncomplete}</span>}
         </a>}
-        <button
-          onClick={() => {
-            if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) { setPosSettingsOpen(true); }
-          }}
-          title={['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'POS Settings' : 'POS Manager access required'}
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'pointer' : 'default', color: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'var(--sv-text-dim)' : 'var(--sv-text-muted)', transition: 'background .15s', flexShrink: 0, opacity: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 1 : .45 }}
-          onMouseEnter={e => { if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) e.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        </button>
         {/* ── Hamburger menu ── */}
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <button
