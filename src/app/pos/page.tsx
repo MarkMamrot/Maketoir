@@ -1484,7 +1484,7 @@ type SaleProductGuide = { id: number; product_name: string; category: string | n
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
   offlineMode, openEodOnMount, onEodMounted, onLogout, onReceipt, onSync,
-  lastSale, onSaleCompleted, onChangeDue, onReceiptSettingsSaved,
+  lastSale, onSaleCompleted, onChangeDue, onReceiptSettingsSaved, receiptCloseToken,
 }: {
   deviceConfig:              DeviceConfig;
   session:                   PosSession;
