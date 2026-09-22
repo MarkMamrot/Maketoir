@@ -3599,8 +3599,11 @@ function PosAvatarBar({
               if (!newMsgs.length) return prev;
               const merged = [...prev, ...newMsgs].sort((a: ChatMessage, b: ChatMessage) => a.id - b.id).slice(-200);
               const maxId = Math.max(...merged.map((m: ChatMessage) => m.id));
+              // Only advance the read watermark when the panel is actually open — bumping it just
+              // because a message arrived would make the next fetchMessages() recompute it as
+              // already read, clearing the unread badge before the user ever opens the chat.
               if (chatOpenRef.current) { saveLastRead(maxId); setUnread(0); }
-              else { lastReadRef.current = maxId; setUnread(u => u + newMsgs.length); }
+              else { setUnread(u => u + newMsgs.length); }
               return merged;
             });
           }
@@ -3723,7 +3726,7 @@ function PosAvatarBar({
             onClick={() => onChatOpenChange(!chatOpen)}
             title="Team Chat (All Locations)"
             aria-label={unread > 0 ? `Open Team Chat, ${unread} unread` : 'Open Team Chat'}
-            style={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', position: 'relative', border: chatOpen ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)', background: chatOpen ? 'color-mix(in srgb, var(--sv-action) 25%, transparent)' : 'var(--sv-bg-2, #1e293b)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: chatOpen ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)', flexShrink: 0 }}
+            style={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', position: 'relative', border: '2px solid var(--sv-action, #2563eb)', background: chatOpen ? 'var(--sv-action-hover, #1790a8)' : 'var(--sv-action, #1ea8c2)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}
           >
             T
             {unread > 0 && (
