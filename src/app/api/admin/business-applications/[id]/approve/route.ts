@@ -39,6 +39,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const result = await provisionApprovedBusiness({
       businessName: application.business_name,
       applicantUserId: application.applicant_user_id,
+      contactPhone: application.contact_phone,
+      abn: application.abn,
       hasForesight, hasIms, hasPos, aiPlanKey,
       maxLocations, maxUsers, costPerLocation,
     });

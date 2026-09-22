@@ -200,9 +200,10 @@ export async function PUT(req: Request) {
   }
 
   const businessInfo = settingsMap;
-  if (businessInfo.business_name !== undefined || businessInfo.business_abn !== undefined) {
+  if (businessInfo.business_name !== undefined || businessInfo.business_abn !== undefined || businessInfo.business_phone !== undefined) {
     await BusinessInfoRepository.upsert(businessId, {
       ...(businessInfo.business_name !== undefined ? { brand_name: businessInfo.business_name } : {}),
+      ...(businessInfo.business_phone !== undefined ? { phone: businessInfo.business_phone } : {}),
       ...(businessInfo.business_abn !== undefined ? { abn: businessInfo.business_abn } : {}),
     });
   }

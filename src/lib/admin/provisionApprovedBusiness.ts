@@ -8,6 +8,7 @@
  * orphaned business row or half-created IMS schema behind.
  */
 import { execute } from '@/services/MySQLService';
+import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import {
   cleanupFailedBusinessProvision,
   ImsProvisioningError,
@@ -18,6 +19,8 @@ import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
 export interface ApproveBusinessApplicationInput {
   businessName: string;
   applicantUserId: number;
+  contactPhone?: string | null;
+  abn?: string | null;
   hasForesight: boolean;
   hasIms: boolean;
   hasPos: boolean;
@@ -55,6 +58,12 @@ export async function provisionApprovedBusiness(input: ApproveBusinessApplicatio
        VALUES (?, ?, 'prepaid', 'observe', 'manual')`,
       [businessId, input.aiPlanKey],
     );
+
+    await BusinessInfoRepository.upsert(businessId, {
+      brand_name: input.businessName || null,
+      phone: input.contactPhone?.trim() || null,
+      abn: input.abn?.trim() || null,
+    });
 
     if (input.hasIms) {
       const ims = await provisionBusinessIms({ businessId, businessName: input.businessName });

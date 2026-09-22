@@ -4,6 +4,7 @@ export interface BusinessInfoRow {
   business_id:      string;
   brand_name:       string | null;
   brand_url:        string | null;
+  phone:            string | null;
   years_in_business: string | null;
   facebook_link:    string | null;
   instagram_link:   string | null;

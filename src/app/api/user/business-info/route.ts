@@ -26,6 +26,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       brandName:       row.brand_name        ?? '',
       brandUrl:        row.brand_url         ?? '',
+      phone:           row.phone             ?? '',
       yearsInBusiness: row.years_in_business ?? '',
       facebookUrl:     row.facebook_link     ?? '',
       instagramUrl:    row.instagram_link    ?? '',
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { databaseId, brandName, brandUrl, yearsInBusiness, facebookUrl, instagramUrl, pinterestUrl, abn } = body;
+    const { databaseId, brandName, brandUrl, phone, yearsInBusiness, facebookUrl, instagramUrl, pinterestUrl, abn } = body;
 
     const _u = JSON.parse(sessionCookie.value);
     if (!databaseId || databaseId !== _u.businessId) {
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
     await BusinessInfoRepository.upsert(databaseId, {
       brand_name:        brandName,
       brand_url:         brandUrl,
+      phone:             phone || null,
       years_in_business: yearsInBusiness,
       facebook_link:     facebookUrl  || null,
       instagram_link:    instagramUrl || null,
