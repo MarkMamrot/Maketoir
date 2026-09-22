@@ -406,6 +406,51 @@ CREATE TABLE IF NOT EXISTS wholesale_signup_review_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
+-- new-business applications (Solvantis signup review queue)
+-- Covers both a brand-new registrant's first business and an
+-- existing Admin user requesting an additional business.
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS business_applications (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  flow_type            ENUM('new_user','existing_user') NOT NULL,
+  applicant_user_id    INT NOT NULL,
+  contact_name         VARCHAR(255) NULL,
+  contact_email        VARCHAR(320) NULL,
+  contact_phone        VARCHAR(50) NULL,
+  business_name        VARCHAR(255) NOT NULL,
+  business_type        VARCHAR(32) NULL,
+  location_count_band  VARCHAR(16) NULL,
+  channels             VARCHAR(255) NULL,
+  revenue_band         VARCHAR(32) NULL,
+  country              VARCHAR(100) NULL,
+  abn                  VARCHAR(32) NULL,
+  notes                VARCHAR(2000) NULL,
+  status               ENUM('pending_review','approved','rejected') NOT NULL DEFAULT 'pending_review',
+  reviewed_by_user_id  INT NULL,
+  reviewed_by_name     VARCHAR(255) NULL,
+  reviewed_at          DATETIME(3) NULL,
+  review_reason        VARCHAR(1000) NULL,
+  resulting_business_id VARCHAR(100) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_business_applications_queue (status, created_at),
+  INDEX idx_business_applications_applicant (applicant_user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS business_application_events (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  application_id     BIGINT NOT NULL,
+  event_type         ENUM('submitted','approved','rejected') NOT NULL,
+  actor_user_id      INT NULL,
+  actor_name         VARCHAR(255) NULL,
+  reason             VARCHAR(1000) NULL,
+  created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_business_application_events_application (application_id, created_at),
+  CONSTRAINT fk_business_application_events_application
+    FOREIGN KEY (application_id) REFERENCES business_applications(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
 -- users  (global — no business_id)
 -- From master Users sheet: Name, Company, Email, Phone,
 --   Password, UserSpreadsheetId, RegistrationDate

@@ -7,7 +7,7 @@ import { PASSWORD_REQUIREMENTS, getPasswordValidation } from '@/lib/auth/passwor
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const passwordValidation = getPasswordValidation(form.password);
@@ -33,7 +33,6 @@ export default function RegisterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
-          company: form.company,
           email: form.email,
           phone: form.phone,
           password: form.password,
@@ -43,7 +42,7 @@ export default function RegisterPage() {
       if (!data.success) {
         setError(data.error || 'Registration failed.');
       } else {
-        router.push('/login?registered=1');
+        router.push('/new-business');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unexpected error.');
@@ -55,14 +54,9 @@ export default function RegisterPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-12 bg-gray-50 text-black">
       <div className="w-full max-w-md p-8 bg-white shadow-xl rounded-2xl border border-gray-200">
         <h1 className="text-3xl font-extrabold text-blue-600 mb-1 text-center">Solvantis</h1>
-        <p className="text-sm text-gray-500 mb-6 text-center">Create your business workspace</p>
+        <p className="text-sm text-gray-500 mb-6 text-center">Create your account</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="text-xs font-bold text-gray-600 uppercase">Company Name *</label>
-            <input type="text" value={form.company} onChange={set('company')} required autoComplete="organization"
-              className="w-full p-2 border border-gray-300 rounded mt-1" placeholder="Acme Pty Ltd" />
-          </div>
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Your Name</label>
             <input type="text" value={form.name} onChange={set('name')} autoComplete="name"
@@ -105,7 +99,7 @@ export default function RegisterPage() {
 
           <button type="submit" disabled={loading}
             className="w-full py-3 mt-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            {loading ? 'Creating workspace...' : 'Create Business Account'}
+            {loading ? 'Creating account...' : 'Continue'}
           </button>
         </form>
 

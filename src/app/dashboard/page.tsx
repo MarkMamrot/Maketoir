@@ -9181,11 +9181,6 @@ export default function DashboardPage() {
         </div>
         <div className="relative flex items-center gap-2">
           <BusinessContextSwitcher destination="/dashboard" enabled />
-          {businessName && (
-            <span className="hidden sm:inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full shrink-0 topbar-badge">
-              {businessName}
-            </span>
-          )}
           <button
             onClick={() => window.open('/help', '_blank')}
             title="Help"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Building2 } from 'lucide-react';
 
 interface BusinessOption {
@@ -8,7 +9,10 @@ interface BusinessOption {
   name: string;
   active?: boolean;
   isSandbox?: boolean;
+  tier?: string;
 }
+
+const ADD_NEW_BUSINESS = '__add_new_business__';
 
 export async function switchBusinessContext(businessId: string, destination: string): Promise<void> {
   const response = await fetch('/api/auth/business-context', {
@@ -22,6 +26,7 @@ export async function switchBusinessContext(businessId: string, destination: str
 }
 
 export function BusinessContextSwitcher({ destination, enabled = true }: { destination: string; enabled?: boolean }) {
+  const router = useRouter();
   const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState('');
   const [switching, setSwitching] = useState(false);
@@ -39,7 +44,8 @@ export function BusinessContextSwitcher({ destination, enabled = true }: { desti
       .catch(() => {});
   }, [enabled]);
 
-  if (!enabled || businesses.length < 2) return null;
+  if (!enabled || businesses.length === 0) return null;
+  const canAddBusiness = businesses.find(business => business.databaseId === activeBusinessId)?.tier === 'Admin';
 
   return (
     <label title={error || 'Active business'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, color: error ? '#fca5a5' : 'rgba(255,255,255,.78)', fontSize: 12 }}>
@@ -52,6 +58,7 @@ export function BusinessContextSwitcher({ destination, enabled = true }: { desti
         onChange={async event => {
           const nextBusinessId = event.target.value;
           if (!nextBusinessId || nextBusinessId === activeBusinessId) return;
+          if (nextBusinessId === ADD_NEW_BUSINESS) { router.push('/new-business'); return; }
           setSwitching(true);
           setError('');
           try {
@@ -68,6 +75,7 @@ export function BusinessContextSwitcher({ destination, enabled = true }: { desti
             {business.name}{business.isSandbox ? ' (Sandbox)' : ''}
           </option>
         ))}
+        {canAddBusiness && <option value={ADD_NEW_BUSINESS}>+ Add New Business</option>}
       </select>
       <style jsx>{`@media (max-width: 700px) { .business-context-label { display: none; } }`}</style>
     </label>

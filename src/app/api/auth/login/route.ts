@@ -23,6 +23,8 @@ import {
   recordAuthFailure,
 } from '@/lib/auth/authRateLimit';
 import { resolveLoginMembership, recordActiveBusiness } from '@/lib/auth/businessMemberships';
+import { BusinessApplicationsRepository } from '@/lib/db/BusinessApplicationsRepository';
+import { setPendingApplicantCookie } from '@/lib/auth/pendingApplicantCookies';
 import { query } from '@/services/MySQLService';
 
 async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: string): Promise<boolean> {
@@ -81,6 +83,25 @@ export async function POST(req: Request) {
 
     const membership = await resolveLoginMembership(user);
     if (!membership) {
+      const application = await BusinessApplicationsRepository.findLatestForUser(user.id);
+      if (application && application.status !== 'approved') {
+        setPendingApplicantCookie({ userId: user.id, name: user.name ?? '', email: user.email });
+        await clearAuthRateLimit('password-login', rateLimitSubject);
+        return NextResponse.json({
+          success: true,
+          message: 'Application pending review.',
+          nextRoute: '/pending-approval',
+        });
+      }
+      if (!application) {
+        setPendingApplicantCookie({ userId: user.id, name: user.name ?? '', email: user.email });
+        await clearAuthRateLimit('password-login', rateLimitSubject);
+        return NextResponse.json({
+          success: true,
+          message: 'Business details required.',
+          nextRoute: '/new-business',
+        });
+      }
       return NextResponse.json({ success: false, error: 'Your account is not enrolled in an active business.' }, { status: 403 });
     }
     const effectiveTier = user.tier === 'SuperAdmin' ? 'SuperAdmin' : membership.tier;

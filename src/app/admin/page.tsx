@@ -11,6 +11,7 @@ import RuntimeIssuesView from './RuntimeIssuesView';
 import SupportTicketsView from './SupportTicketsView';
 import WorkflowFindingsView from './WorkflowFindingsView';
 import BusinessFeaturesView from './BusinessFeaturesView';
+import { BusinessApplicationsQueue } from './BusinessApplicationsQueue';
 import { BusinessContextSwitcher, switchBusinessContext } from '@/components/BusinessContextSwitcher';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings';
+type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -788,6 +789,7 @@ export default function AdminPage() {
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim,#64748b)', textTransform: 'uppercase', letterSpacing: .7, padding: '4px 12px', margin: '4px 0 8px' }}>Admin</p>
           {([
             { id: 'businesses', label: 'Businesses' },
+            { id: 'business-applications', label: 'Business Applications' },
             { id: 'users',      label: 'Users' },
             { id: 'features', label: 'Feature Rollouts' },
             { id: 'integration-offerings', label: 'Integration Offerings' },
@@ -812,6 +814,7 @@ export default function AdminPage() {
         {/* Main */}
         <div className="super-admin-main" style={S.main}>
           {view === 'businesses' && <BusinessesView />}
+          {view === 'business-applications' && <BusinessApplicationsQueue />}
           {view === 'users'      && <UsersView />}
           {view === 'features' && <BusinessFeaturesView />}
           {view === 'integration-offerings' && <IntegrationOfferingsView />}
