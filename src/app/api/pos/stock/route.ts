@@ -31,8 +31,8 @@ export async function GET(req: Request) {
          WHERE v.variant_id = ? AND p.business_id = ? LIMIT 1`,
         [variantId, session.businessId],
       ),
-      imsQuery<{ location_name: string; qty_on_hand: number }>(
-        `SELECT l.name AS location_name, s.qty_on_hand
+      imsQuery<{ location_name: string; qty_on_hand: number; qty_committed: number }>(
+        `SELECT l.name AS location_name, s.qty_on_hand, s.qty_committed
          FROM ims_stock s
          JOIN ims_locations l ON l.id = s.location_id
          WHERE s.variant_id = ? AND l.business_id = ?

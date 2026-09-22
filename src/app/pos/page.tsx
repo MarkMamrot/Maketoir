@@ -1569,7 +1569,6 @@ function MainPos({
   const eodFromGateRef = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [teamChatOpen, setTeamChatOpen] = useState(false);
-  const [teamChatUnread, setTeamChatUnread] = useState(0);
   const [posSettingsOpen, setPosSettingsOpen] = useState(false);
   const [pettyCashOpen, setPettyCashOpen] = useState(false);
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
@@ -2532,21 +2531,6 @@ function MainPos({
           <span aria-hidden="true" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>$↓</span>
         </button>
         <button
-          onClick={() => { setHelpOpen(false); setTeamChatOpen(true); }}
-          title="Team Chat"
-          aria-label={teamChatUnread > 0 ? `Open Team Chat, ${teamChatUnread} unread` : 'Open Team Chat'}
-          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, position: 'relative' }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4z"/></svg>
-          {teamChatUnread > 0 && (
-            <span aria-hidden="true" style={{ position: 'absolute', top: -4, right: -5, minWidth: 16, height: 16, padding: '0 4px', display: 'grid', placeItems: 'center', borderRadius: 8, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>
-              {teamChatUnread > 99 ? '99+' : teamChatUnread}
-            </span>
-          )}
-        </button>
-        <button
           onClick={() => { setTeamChatOpen(false); setHelpOpen(true); }}
           title="Help and Ask Solvantis"
           aria-label="Open Help and Ask Solvantis"
@@ -3186,28 +3170,16 @@ function MainPos({
 
       {/* ── Avatar Leaderboard Bar + Chat ───────────────────────────────────── */}
       <div style={{ position: 'fixed', bottom: 12, ...(cartLeft ? { right: 12 } : { left: 12 }), zIndex: 600, display: 'flex', gap: 10, alignItems: 'flex-end', maxWidth: 'calc(100vw - 24px)' }}>
-        <section
-          aria-label="Team Communications"
-          style={{ width: 'fit-content', maxWidth: '100%', padding: '8px 10px 9px', border: '1px solid color-mix(in srgb, var(--sv-action) 35%, var(--sv-etch))', borderRadius: 8, background: 'color-mix(in srgb, var(--sv-bg-1) 94%, transparent)', boxShadow: '0 6px 20px rgba(15,23,42,.14)', backdropFilter: 'blur(8px)' }}
-        >
-          <div style={{ marginBottom: 7, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-strong)', fontSize: 10, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase' }}>
-            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sv-action)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--sv-action) 14%, transparent)' }} />
-            Team Communications
-          </div>
-          <div style={{ paddingTop: 16 }}>
-            <PosAvatarBar
-              myLocationId={session.location_id}
-              myAvatar={posSettings.avatar}
-              userName={session.full_name}
-              saleRefreshTick={saleRefreshTick}
-              morningGreetingTick={morningGreetingTick}
-              cartLeft={cartLeft}
-              chatOpen={teamChatOpen}
-              onChatOpenChange={setTeamChatOpen}
-              onUnreadChange={setTeamChatUnread}
-            />
-          </div>
-        </section>
+        <PosAvatarBar
+          myLocationId={session.location_id}
+          myAvatar={posSettings.avatar}
+          userName={session.full_name}
+          saleRefreshTick={saleRefreshTick}
+          morningGreetingTick={morningGreetingTick}
+          cartLeft={cartLeft}
+          chatOpen={teamChatOpen}
+          onChatOpenChange={setTeamChatOpen}
+        />
         <SalesTargetTracker
           myLocationId={session.location_id}
           saleRefreshTick={saleRefreshTick}
@@ -3358,7 +3330,7 @@ const MORNING_GREETINGS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosAvatarBar({
-  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick, cartLeft, chatOpen, onChatOpenChange, onUnreadChange,
+  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick, cartLeft, chatOpen, onChatOpenChange,
 }: {
   myLocationId: number;
   myAvatar: string;
@@ -3368,7 +3340,6 @@ function PosAvatarBar({
   cartLeft: boolean;
   chatOpen: boolean;
   onChatOpenChange: (open: boolean) => void;
-  onUnreadChange: (unread: number) => void;
 }) {
   // ── Leaderboard state ────────────────────────────────────────────────────────
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -3399,6 +3370,13 @@ function PosAvatarBar({
   const [dmUnread,   setDmUnread]   = useState<Record<number, number>>({});
   const dmLastReadRef = useRef<Record<number, number>>({});
   const dmListRef     = useRef<HTMLDivElement>(null);
+  // Whether the whole Team Communications tray is collapsed to a small badge icon.
+  const [minimized, setMinimized] = useState<boolean>(() => {
+    try { return localStorage.getItem('pos_team_panel_minimized') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('pos_team_panel_minimized', minimized ? '1' : '0'); } catch {}
+  }, [minimized]);
   // Tracks every message id already processed by the SSE stream, so replays on
   // reconnect (the stream closes ~every 25s) never double-count DM unread badges.
   const seenMsgIdsRef = useRef<Set<number>>(new Set());
@@ -3683,8 +3661,6 @@ function PosAvatarBar({
     }
   }, [chatOpen, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { onUnreadChange(unread); }, [unread, onUnreadChange]);
-
   useEffect(() => {
     if (dmOpen !== null) {
       const msgs = dmMessages[dmOpen] ?? [];
@@ -3700,9 +3676,67 @@ function PosAvatarBar({
 
   // Chat panel expands toward the screen edge (right when bar is on right, left when on left)
   const chatAlign = cartLeft ? 'flex-end' : 'flex-start';
+  const dmUnreadTotal = Object.values(dmUnread).reduce((sum, count) => sum + count, 0);
+  const totalUnread = unread + dmUnreadTotal;
+
+  if (minimized) {
+    return (
+      <button
+        onClick={() => setMinimized(false)}
+        title="Expand Team Communications"
+        aria-label={totalUnread > 0 ? `Expand Team Communications, ${totalUnread} unread` : 'Expand Team Communications'}
+        style={{ position: 'relative', width: 48, height: 48, flexShrink: 0, borderRadius: '50%', border: '1px solid color-mix(in srgb, var(--sv-action) 35%, var(--sv-etch))', background: 'color-mix(in srgb, var(--sv-bg-1) 94%, transparent)', boxShadow: '0 6px 20px rgba(15,23,42,.14)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sv-action)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4z"/></svg>
+        {totalUnread > 0 && (
+          <span aria-hidden="true" style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, padding: '0 4px', display: 'grid', placeItems: 'center', borderRadius: 9, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, lineHeight: 1 }}>
+            {totalUnread > 99 ? '99+' : totalUnread}
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+    <>
+    <section
+      aria-label="Team Communications"
+      style={{ width: 'fit-content', maxWidth: '100%', flexShrink: 0, padding: '8px 10px 9px', border: '1px solid color-mix(in srgb, var(--sv-action) 35%, var(--sv-etch))', borderRadius: 8, background: 'color-mix(in srgb, var(--sv-bg-1) 94%, transparent)', boxShadow: '0 6px 20px rgba(15,23,42,.14)', backdropFilter: 'blur(8px)' }}
+    >
+      <div style={{ marginBottom: 7, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-strong)', fontSize: 10, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase' }}>
+        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sv-action)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--sv-action) 14%, transparent)' }} />
+        <span style={{ flex: 1 }}>Team Communications</span>
+        <button
+          onClick={() => setMinimized(true)}
+          title="Minimize Team Communications"
+          aria-label="Minimize Team Communications"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', padding: 0, display: 'grid', placeItems: 'center' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end', paddingTop: 16 }}>
+
+        {/* ── Team Chat toggle — a selectable circle alongside individual avatars ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <button
+            onClick={() => onChatOpenChange(!chatOpen)}
+            title="Team Chat (All Locations)"
+            aria-label={unread > 0 ? `Open Team Chat, ${unread} unread` : 'Open Team Chat'}
+            style={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', position: 'relative', border: chatOpen ? '2px solid var(--sv-action, #2563eb)' : '2px solid rgba(255,255,255,.2)', background: chatOpen ? 'color-mix(in srgb, var(--sv-action) 25%, transparent)' : 'var(--sv-bg-2, #1e293b)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: chatOpen ? '0 0 0 2px var(--sv-action, #2563eb)' : '0 2px 8px rgba(0,0,0,.4)', flexShrink: 0 }}
+          >
+            T
+            {unread > 0 && (
+              <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, padding: '0 4px', display: 'grid', placeItems: 'center', borderRadius: 8, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, lineHeight: 1.4, zIndex: 3 }}>
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+          </button>
+          <div style={{ textAlign: 'center', maxWidth: 68, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '2px 5px', marginTop: 2 }}>
+            <div style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>Team Chat</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--sv-text-dim)', marginTop: 1 }}>&nbsp;</div>
+          </div>
+        </div>
 
       {/* ── Avatar circles ───────────────────────────────────────────────────── */}
       {leaderboard.map(loc => {
@@ -3799,9 +3833,11 @@ function PosAvatarBar({
           </div>
         );
       })}
+      </div>{/* end avatar row */}
+    </section>
 
-      {/* ── DM panel (shown when a location avatar is clicked) ──────────────── */}
-      {dmOpen !== null && (() => {
+    {/* ── DM panel (shown when a location avatar is clicked) — its own floating box, not nested in the Team Communications bounding box ── */}
+    {dmOpen !== null && (() => {
         const partner = leaderboard.find(l => l.id === dmOpen);
         const msgs = dmMessages[dmOpen] ?? [];
         const partnerName = partner?.name ?? `Location ${dmOpen}`;
@@ -3847,7 +3883,7 @@ function PosAvatarBar({
         );
       })()}
 
-      {/* ── Group chat panel ────────────────────────────────────────────────── */}
+      {/* ── Group chat panel — its own floating box, not nested in the Team Communications bounding box ── */}
       {chatOpen && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto' }}>
           <div style={{ width: 460, height: 440, minWidth: 360, minHeight: 340, maxWidth: '80vw', maxHeight: '80vh', resize: 'both', background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
@@ -3884,7 +3920,7 @@ function PosAvatarBar({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -4022,8 +4058,18 @@ function saveRecentIds(ids: string[]): void {
 
 // ─── POS Stock Modal ──────────────────────────────────────────────────────────
 
+function StockStat({ label, value, tone, dim, accent }: { label: string; value: number; tone?: 'good' | 'bad'; dim?: boolean; accent?: boolean }) {
+  const color = accent ? 'var(--sv-action)' : tone === 'good' ? 'var(--sv-mint)' : tone === 'bad' ? 'var(--sv-red)' : dim ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)';
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: '.62rem', color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: '1.05rem', fontWeight: 700, color }}>{value}</div>
+    </div>
+  );
+}
+
 function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose }: { variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null; onClose: () => void }) {
-  const [rows, setRows]           = useState<{ location_name: string; qty_on_hand: number }[]>([]);
+  const [rows, setRows]           = useState<{ location_name: string; qty_on_hand: number; qty_committed: number }[]>([]);
   const [description, setDescription] = useState<string | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -4039,7 +4085,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
       .then(r => r.json())
       .then(d => {
         if (d.success) {
-          setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0) })));
+          setRows((d.data ?? []).map((r: any) => ({ location_name: r.location_name ?? `Loc ${r.location_id}`, qty_on_hand: Number(r.qty_on_hand ?? 0), qty_committed: Number(r.qty_committed ?? 0) })));
           setDescription(d.description ?? null);
           setFullImageUrl(d.image_url ?? null);
         } else setError(d.error ?? 'Failed to load stock.');
@@ -4049,6 +4095,8 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
   }, [variantId]);
 
   const total = rows.reduce((s, r) => s + r.qty_on_hand, 0);
+  const totalCommitted = rows.reduce((s, r) => s + r.qty_committed, 0);
+  const totalAvailable = rows.reduce((s, r) => s + Math.max(0, r.qty_on_hand - r.qty_committed), 0);
   // Show the thumbnail immediately (no layout flash), swap to the full-res
   // image once it's fetched — the bulk product cache only carries a thumbnail.
   const displayImageUrl = fullImageUrl ?? imageUrl;
@@ -4059,7 +4107,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', padding: '1rem' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 400, maxWidth: '95vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)', userSelect: 'text' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 560, maxWidth: '95vw', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)', userSelect: 'text' }}>
         {(() => {
           // Split "Product Name — Opt1 / Opt2" into base name + options string
           const dashIdx = productName.indexOf(' — ');
@@ -4095,17 +4143,28 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
         {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loading…</div>}
         {error  && <div style={{ color: 'var(--sv-red)', fontSize: '.85rem' }}>{error}</div>}
         {!loading && !error && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px,1fr))', gap: 8 }}>
-            {rows.map(r => (
-              <div key={r.location_name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600, marginBottom: 4 }}>{r.location_name}</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: r.qty_on_hand === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)' }}>{r.qty_on_hand}</div>
-              </div>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px,1fr))', gap: 10 }}>
+            {rows.map(r => {
+              const available = Math.max(0, r.qty_on_hand - r.qty_committed);
+              return (
+                <div key={r.location_name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 16px' }}>
+                  <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', fontWeight: 600, marginBottom: 8 }}>{r.location_name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <StockStat label="SOH" value={r.qty_on_hand} />
+                    <StockStat label="Committed" value={r.qty_committed} dim={r.qty_committed === 0} />
+                    <StockStat label="Available" value={available} tone={available > 0 ? 'good' : 'bad'} />
+                  </div>
+                </div>
+              );
+            })}
             {rows.length > 1 && (
-              <div style={{ background: 'color-mix(in srgb, var(--sv-action) 12%, transparent)', border: '1px solid var(--sv-action)', borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: '.72rem', color: 'var(--sv-action)', fontWeight: 700, marginBottom: 4 }}>TOTAL</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--sv-action)' }}>{total}</div>
+              <div style={{ background: 'color-mix(in srgb, var(--sv-action) 12%, transparent)', border: '1px solid var(--sv-action)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontSize: '.72rem', color: 'var(--sv-action)', fontWeight: 700, marginBottom: 8 }}>TOTAL</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                  <StockStat label="SOH" value={total} accent />
+                  <StockStat label="Committed" value={totalCommitted} accent />
+                  <StockStat label="Available" value={totalAvailable} accent />
+                </div>
               </div>
             )}
             {rows.length === 0 && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.85rem', gridColumn: '1/-1' }}>No stock records found.</div>}
@@ -4145,8 +4204,8 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
 }
 
 function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]; onClose: () => void }) {
-  type StockApiRow = { location_id?: number | string; location_name?: string; qty_on_hand?: number | string };
-  const [stockByVariant, setStockByVariant] = useState<Record<string, { rows: { location_name: string; qty_on_hand: number }[]; error?: string }>>({});
+  type StockApiRow = { location_id?: number | string; location_name?: string; qty_on_hand?: number | string; qty_committed?: number | string };
+  const [stockByVariant, setStockByVariant] = useState<Record<string, { rows: { location_name: string; qty_on_hand: number; qty_committed: number }[]; error?: string }>>({});
   const [loading, setLoading] = useState(true);
   const productName = variants[0]?.name.split(' — ')[0] ?? 'Product';
 
@@ -4158,7 +4217,7 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
         const data = await response.json();
         if (!data.success) return [variant.variant_id, { rows: [], error: data.error ?? 'Failed to load stock.' }] as const;
         return [variant.variant_id, {
-          rows: ((data.data ?? []) as StockApiRow[]).map(row => ({ location_name: row.location_name ?? `Loc ${row.location_id}`, qty_on_hand: Number(row.qty_on_hand ?? 0) })),
+          rows: ((data.data ?? []) as StockApiRow[]).map(row => ({ location_name: row.location_name ?? `Loc ${row.location_id}`, qty_on_hand: Number(row.qty_on_hand ?? 0), qty_committed: Number(row.qty_committed ?? 0) })),
         }] as const;
       } catch (error: unknown) {
         return [variant.variant_id, { rows: [], error: error instanceof Error ? error.message : 'Failed to load stock.' }] as const;
@@ -4173,7 +4232,7 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.25rem', width: 720, maxWidth: '96vw', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.25rem', width: 880, maxWidth: '96vw', maxHeight: '88vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: '1rem' }}>
           <div>
             <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Variants and Stock by Location</div>
@@ -4193,13 +4252,20 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
                 {variant.barcode && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: '.72rem' }}>{variant.barcode}</span>}
               </div>
               {detail?.error ? <div style={{ color: 'var(--sv-red)', fontSize: '.8rem' }}>{detail.error}</div> : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 7 }}>
-                  {(detail?.rows ?? []).map(row => (
-                    <div key={row.location_name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7, padding: '8px 10px' }}>
-                      <div style={{ fontSize: '.68rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{row.location_name}</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: row.qty_on_hand === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)', marginTop: 2 }}>{row.qty_on_hand}</div>
-                    </div>
-                  ))}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                  {(detail?.rows ?? []).map(row => {
+                    const available = Math.max(0, row.qty_on_hand - row.qty_committed);
+                    return (
+                      <div key={row.location_name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7, padding: '10px 12px' }}>
+                        <div style={{ fontSize: '.68rem', color: 'var(--sv-text-dim)', fontWeight: 600, marginBottom: 6 }}>{row.location_name}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <StockStat label="SOH" value={row.qty_on_hand} />
+                          <StockStat label="Committed" value={row.qty_committed} dim={row.qty_committed === 0} />
+                          <StockStat label="Available" value={available} tone={available > 0 ? 'good' : 'bad'} />
+                        </div>
+                      </div>
+                    );
+                  })}
                   {(detail?.rows ?? []).length === 0 && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>No stock records found.</div>}
                 </div>
               )}
@@ -4728,7 +4794,6 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
           const productVariants = variantsByProduct.get(p.product_id) ?? [p];
           const isGroupedProduct = productViewMode === 'products' && productVariants.length > 1;
           const productAvailable = productVariants.reduce((sum, variant) => sum + (variant.available ?? variant.soh), 0);
-          const productSoh = productVariants.reduce((sum, variant) => sum + variant.soh, 0);
           const productAvailableAll = productVariants.reduce((sum, variant) => sum + (variant.available_all ?? variant.soh_all), 0);
           const prices = productVariants.map(variant => variant.price);
           const minPrice = Math.min(...prices);
@@ -4768,37 +4833,40 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                   </div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
-              {/* Price row + info icon */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.15rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1 }}>
+              {/* Price row — right-aligned where the info button used to sit */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', marginBottom: '.15rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1 }}>
                   {p.original_price != null && (
                     <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textDecoration: 'line-through', lineHeight: 1, marginBottom: '1px' }}>${fmt(p.original_price)}</span>
                   )}
                   <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>{isGroupedProduct && minPrice !== maxPrice ? `$${fmt(minPrice)}–$${fmt(maxPrice)}` : `$${fmt(p.price)}`}</span>
                 </div>
-                <button
-                  onClick={e => { e.stopPropagation(); if (isGroupedProduct) setProductStockModal(productVariants); else setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); }}
-                  style={{ width: 21, height: 21, padding: 0, display: 'grid', placeItems: 'center', background: 'transparent', border: '1.5px solid var(--sv-action)', borderRadius: '50%', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.78rem', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}
-                  title="Product info & stock by location"
-                  aria-label="Product info and stock by location"
-                >i</button>
               </div>
               {/* Variant options (size/colour) under price */}
               {isGroupedProduct
-                ? <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', marginTop: '2px' }}>{productVariants.length} variants</div>
-                : optionsStr && <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>{optionsStr}</div>}
+                ? <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', marginTop: '2px', textAlign: 'right' }}>{productVariants.length} variants</div>
+                : optionsStr && <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px', textAlign: 'right' }}>{optionsStr}</div>}
                 </div>{/* end right col */}
               </div>{/* end top flex row */}
               {/* Product name — full width, single line */}
               <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.25, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '.2rem', userSelect: 'text' }}>{isGroupedProduct ? p.name.split(' — ')[0] : p.name}</div>
-              {/* Stock info — compact single line */}
-              <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Stock info — compact single line; click opens product info & stock by location */}
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={e => { e.stopPropagation(); if (isGroupedProduct) setProductStockModal(productVariants); else setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (isGroupedProduct) setProductStockModal(productVariants); else setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); } }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--sv-link-tint)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                title="Show product info & stock by location"
+                aria-label="Show product info and stock by location"
+                style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', display: 'inline-flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap', cursor: 'pointer', borderRadius: 4, padding: '.1rem .3rem', margin: '0 -.3rem', textDecoration: 'underline dotted', textUnderlineOffset: '2px', transition: 'background .12s' }}
+              >
                 <span style={{ color: (isGroupedProduct ? productAvailable : (p.available ?? p.soh)) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Avail: {isGroupedProduct ? productAvailable : (p.available ?? p.soh)}</span>
-                <span>· SOH: {isGroupedProduct ? productSoh : p.soh}</span>
                 {((isGroupedProduct ? productAvailableAll - productAvailable : (p.available_all ?? p.soh_all) - (p.available ?? p.soh))) > 0 && (
                   <span>· Other: {isGroupedProduct ? productAvailableAll - productAvailable : (p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</span>
                 )}
-              </div>
+              </span>
               {/* SKU — moved to bottom */}
               {p.code && <div style={{ fontSize: '.68rem', color: 'var(--sv-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', userSelect: 'text', marginTop: '.15rem' }}>{p.code}</div>}
             </button>

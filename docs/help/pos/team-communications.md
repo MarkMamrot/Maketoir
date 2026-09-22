@@ -7,21 +7,23 @@ Use Team Communications for operational messages between the active POS location
 
 ## Main operations
 
-- Open Team Chat from the POS toolbar.
+- Open Team Chat from the circled **T** in the Team Communications tray.
 - Read unread messages for the active location.
 - Send a message to the shared team conversation.
 - Select an available branch or Warehouse avatar for a direct message.
 - Paste or attach supported screenshots and images.
+- Minimize the tray to a small badge icon when it is not needed, and expand it again from the same icon.
 - Keep Help questions in Help or Ask Solvantis rather than operational chat.
 
 ## At a glance
 
 | Need | Where to start |
 |---|---|
-| Open the shared conversation | **Team Chat** in the top toolbar |
-| Message a specific destination | Select its branch or Warehouse avatar |
-| See pending activity | Check the unread count on Team Chat |
+| Open the shared conversation | The circled **T** in the Team Communications tray |
+| Message a specific destination | Select its branch or Warehouse avatar in the same tray |
+| See pending activity | Check the unread badge on the **T** circle, or on the minimized tray icon |
 | Attach evidence | Paste or choose up to three JPG, PNG, or WebP images |
+| Free up screen space | Select the minimize control on the Team Communications tray |
 | Ask how Solvantis works | Open **Help** or **Ask Solvantis** |
 | Record a structured daily task or issue | Open **Store Daybook** |
 
@@ -36,7 +38,7 @@ Use Team Communications for operational messages between the active POS location
 
 ## Step-by-step
 
-1. Choose **Team Chat** in the top toolbar.
+1. In the Team Communications tray, choose the circled **T** for the shared conversation, or a branch or Warehouse avatar for a direct message.
 2. Read the recent messages and confirm the conversation or destination.
 3. For a direct message, select the appropriate branch or **Warehouse** avatar.
 4. Enter a concise operational message.
@@ -52,11 +54,12 @@ Use Team Communications for operational messages between the active POS location
 | Intended branch is not available | The destination is not enabled for the current communication list | Confirm the correct POS location and use the approved alternative channel |
 | Attachment is rejected | It is unsupported, too large, or exceeds the three-file limit | Use JPG, PNG, or WebP; reduce size or attachment count |
 | Message does not appear | The connection failed before it was accepted | Reconnect and check the conversation before sending again |
-| Unread count remains | More messages have not been viewed | Open Team Chat and review the current conversation |
+| Unread count remains | More messages have not been viewed | Open the conversation showing the unread badge and review it |
+| The tray is minimized and messages are missed | Notifications still accumulate while minimized | Check the badge on the minimized icon and expand the tray |
 | A task needs ownership or acknowledgement | Free-form chat is not the owning workflow | Record it in Store Daybook instead |
 
 ## Worked examples
 
 ### Send receiving evidence to Warehouse
 
-A carton arrives damaged. Staff open Team Chat, select **Warehouse**, write the transfer reference and a short description, attach two clear JPG photos, and send. They use Store Daybook as well when the issue requires tracked follow-up at the location.
+A carton arrives damaged. Staff open the Team Communications tray, select **Warehouse**, write the transfer reference and a short description, attach two clear JPG photos, and send. They use Store Daybook as well when the issue requires tracked follow-up at the location.
