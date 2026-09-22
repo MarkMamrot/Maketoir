@@ -28,7 +28,7 @@ const RECORD_TYPES = new Set(['customer_request', 'store_need', 'stock_discrepan
 const COMMENT_ITEM_TYPES = new Set(['task', 'communication', 'record']);
 const STORE_NEED_CATEGORIES = new Set(['store_supplies', 'stock_request']);
 
-type DaybookContext = {
+export type DaybookContext = {
   businessId: string;
   locationId: number;
   locationName: string;
@@ -38,7 +38,7 @@ type DaybookContext = {
   isManager: boolean;
 };
 
-async function resolveContext(locationOverride?: number): Promise<DaybookContext | null> {
+export async function resolveContext(locationOverride?: number): Promise<DaybookContext | null> {
   const session = await getImsSession(locationOverride ? ['marketoir_session'] : ['pos_session', 'marketoir_session']);
   if (!session?.businessId) return null;
   const raw = session as typeof session & { location_id?: number; location_name?: string; full_name?: string; username?: string };
@@ -272,7 +272,7 @@ export async function GET(request: Request) {
   try {
     const taskDates = getDaybookDateRange(taskDate, 7);
     for (const date of taskDates) await materializeTasks(context, date);
-    const [rawTasks, rawTaskHistory, rawCommunications, rawRecords, rawReferences, referenceCategories, rawGuides, staff, locations, communicationReads, rawComments, editPolicy] = await Promise.all([
+    const [rawTasks, rawTaskHistory, rawCommunications, rawRecords, rawReferences, referenceCategories, rawGuides, staff, locations, communicationReads, communicationAttachments, rawComments, editPolicy] = await Promise.all([
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
                 s.actor_name AS last_actor_name, s.created_at AS signed_at,
@@ -362,6 +362,13 @@ export async function GET(request: Request) {
          WHERE r.business_id = ? AND t.location_id = ? ORDER BY r.read_at`,
         [context.businessId, context.locationId],
       ),
+      imsQuery<{ id: number; communication_id: number; original_name: string; mime_type: string; file_size: number }>(
+        `SELECT DISTINCT a.id, a.communication_id, a.original_name, a.mime_type, a.file_size
+         FROM pos_daybook_communication_attachments a
+         JOIN pos_daybook_communication_targets t ON t.business_id = a.business_id AND t.communication_id = a.communication_id
+         WHERE a.business_id = ? AND t.location_id = ? ORDER BY a.id`,
+        [context.businessId, context.locationId],
+      ),
       imsQuery<{ id: number; item_type: string; item_id: number; comment_text: string; staff_identity_id: number | null; staff_name: string; staff_initials: string; actor_user_id: number | null; actor_name: string; created_at: string }>(
         `SELECT c.id, c.item_type, c.item_id, c.comment_text, c.staff_identity_id, c.staff_name, c.staff_initials,
                 c.actor_user_id, c.actor_name, c.created_at
@@ -403,11 +410,18 @@ export async function GET(request: Request) {
       }
       readersByCommunication.set(Number(read.communication_id), readers);
     }
+    const attachmentsByCommunication = new Map<number, { id: number; original_name: string; mime_type: string; file_size: number }[]>();
+    for (const attachment of communicationAttachments) {
+      const list = attachmentsByCommunication.get(Number(attachment.communication_id)) ?? [];
+      list.push({ id: attachment.id, original_name: attachment.original_name, mime_type: attachment.mime_type, file_size: attachment.file_size });
+      attachmentsByCommunication.set(Number(attachment.communication_id), list);
+    }
     const communications = rawCommunications.map(item => ({
       ...item,
       message: sanitizeDaybookCommunicationHtml(item.message),
       readers: readersByCommunication.get(Number(item.id)) ?? [],
       comments: commentsFor('communication', Number(item.id)),
+      attachments: attachmentsByCommunication.get(Number(item.id)) ?? [],
       can_edit: mayEdit(context, selectedStaff, editPolicy, item),
     }));
     const tasks = rawTasks.map(item => ({

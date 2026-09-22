@@ -44,7 +44,8 @@ type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' |
 type Reader = { name: string; initials: string; read_at: string };
 type DaybookComment = { id: number; item_type: 'task' | 'communication' | 'record'; item_id: number; comment_text: string; staff_name: string; staff_initials: string; actor_name: string; created_at: string; can_edit: boolean };
 type Editable = { background_color?: ColourKey | null; can_edit: boolean };
-type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; author_name?: string; author_staff_name?: string; author_staff_initials?: string; read_count: number; my_read: number; readers: Reader[]; comments: DaybookComment[] };
+type CommunicationAttachment = { id: number; original_name: string; mime_type: string; file_size: number };
+type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; author_name?: string; author_staff_name?: string; author_staff_initials?: string; read_count: number; my_read: number; readers: Reader[]; comments: DaybookComment[]; attachments: CommunicationAttachment[] };
 type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; resolved_at?: string | null; status_updated_at?: string | null; status_staff_initials?: string | null; location_id: number; source_location_id?: number | null; destination_location_id?: number | null; staff_name: string; staff_initials: string; comments: DaybookComment[] };
 type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null; secret_label?: string | null; has_secret?: boolean };
 type ReferenceCategory = { id: number; name: string };
@@ -586,12 +587,16 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
 function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className={styles.search}><Search size={17} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>; }
 
-type CommunicationDraft = { id?: number; message: string; priority: string; highlighted: boolean; locationIds: string };
+type CommunicationDraft = { id?: number; message: string; priority: string; highlighted: boolean; locationIds: string; files: File[] };
 
-export function CommunicationsView({ workspace, saving, perform }: {
+const COMMUNICATION_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+export function CommunicationsView({ workspace, saving, perform, onUploadAttachment, attachmentUrl }: {
   workspace: Workspace | null;
   saving: boolean;
   perform: (action: string, payload?: Record<string, unknown>) => Promise<unknown>;
+  onUploadAttachment: (communicationId: number, file: File) => Promise<unknown>;
+  attachmentUrl: (attachmentId: number) => string;
 }) {
   const [draft, setDraft] = useState<CommunicationDraft | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
@@ -600,14 +605,19 @@ export function CommunicationsView({ workspace, saving, perform }: {
 
   async function saveDraft() {
     if (!draft || !communicationHasText(draft.message)) return;
-    const result = await perform(draft.id ? 'update_communication' : 'create_communication', {
+    const result: any = await perform(draft.id ? 'update_communication' : 'create_communication', {
       communication_id: draft.id,
       message: draft.message,
       priority: draft.priority,
       background_color: draft.highlighted ? 'fluoro_yellow' : null,
       location_ids: draft.locationIds.split(',').filter(Boolean).map(Number),
     });
-    if (result) setDraft(null);
+    if (!result) return;
+    const newCommunicationId = Number(result.id ?? draft.id);
+    if (!draft.id && newCommunicationId && draft.files.length > 0) {
+      for (const file of draft.files) await onUploadAttachment(newCommunicationId, file);
+    }
+    setDraft(null);
   }
 
   function toggleComments(id: number) {
@@ -619,7 +629,7 @@ export function CommunicationsView({ workspace, saving, perform }: {
   }
 
   return <section className={`${styles.contentSection} ${styles.communicationsSection}`}>
-    <Title title="Store communications" subtitle="Latest first" action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => setDraft({ message: '', priority: 'normal', highlighted: false, locationIds: String(workspace.location.id) })}><Plus size={17} /> Add new</button> : undefined} />
+    <Title title="Store communications" subtitle="Latest first" action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => setDraft({ message: '', priority: 'normal', highlighted: false, locationIds: String(workspace.location.id), files: [] })}><Plus size={17} /> Add new</button> : undefined} />
     {draft && !draft.id && <InlineCommunicationEditor draft={draft} setDraft={setDraft} locations={workspace?.locations ?? []} saving={saving} onSave={saveDraft} onCancel={() => setDraft(null)} />}
     <div className={styles.communicationFeed}>
       {communications.length === 0 && !draft && <p className={styles.empty}>No communications have been published.</p>}
@@ -634,6 +644,9 @@ export function CommunicationsView({ workspace, saving, perform }: {
           <div className={styles.communicationBody}>
             {item.priority !== 'normal' && <AlertTriangle className={styles.importantMarker} size={17} aria-label="Important communication" />}
             <div className={styles.formattedMessage}>{isRichCommunication(item.message) ? <div dangerouslySetInnerHTML={{ __html: item.message }} /> : <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{item.message}</ReactMarkdown>}</div>
+            {item.attachments && item.attachments.length > 0 && <div className={styles.communicationAttachments}>{item.attachments.map(file => file.mime_type.startsWith('image/')
+              ? <a key={file.id} href={attachmentUrl(file.id)} target="_blank" rel="noreferrer"><img src={attachmentUrl(file.id)} alt={file.original_name} /></a>
+              : <a key={file.id} href={attachmentUrl(file.id)} target="_blank" rel="noreferrer" className={styles.communicationFileLink}>{file.original_name}</a>)}</div>}
           </div>
           <div className={styles.communicationTools}>
             {item.can_edit && <div className={styles.moreMenu}><button type="button" onClick={() => setMenuId(menuId === item.id ? null : item.id)} aria-label="Communication actions" aria-expanded={menuId === item.id}><Ellipsis size={18} /></button>{menuId === item.id && <div role="menu">
@@ -660,8 +673,25 @@ function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave,
   onSave: () => Promise<void>;
   onCancel: () => void;
 }) {
+  function addFiles(incoming: File[]) {
+    const accepted = incoming.filter(file => COMMUNICATION_ATTACHMENT_TYPES.includes(file.type) && file.size <= 10 * 1024 * 1024);
+    if (!accepted.length) return;
+    setDraft({ ...draft, files: [...draft.files, ...accepted].slice(0, 3) });
+  }
+  function handlePasteFiles(event: React.ClipboardEvent) {
+    if (draft.id) return;
+    const images = Array.from(event.clipboardData.items)
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    if (!images.length) return;
+    event.preventDefault();
+    addFiles(images);
+  }
   return <form className={styles.inlineCommunicationEditor} onSubmit={event => { event.preventDefault(); void onSave(); }}>
-    <FormattedMessageField value={draft.message} onChange={message => setDraft({ ...draft, message })} />
+    <div onPasteCapture={handlePasteFiles}>
+      <FormattedMessageField value={draft.message} onChange={message => setDraft({ ...draft, message })} />
+    </div>
     {!draft.id && locations.length > 0 && (() => {
       const selectedIds = new Set(draft.locationIds.split(',').filter(Boolean));
       const allSelected = locations.every(location => selectedIds.has(String(location.id)));
@@ -670,6 +700,22 @@ function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave,
         {locations.map(location => <label key={location.id}><input type="checkbox" checked={selectedIds.has(String(location.id))} onChange={event => { const ids = new Set(draft.locationIds.split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setDraft({ ...draft, locationIds: [...ids].join(',') }); }} />{location.name}</label>)}
       </div>;
     })()}
+    {!draft.id && (
+      <div className={styles.inlineAttachments}>
+        {draft.files.map((file, index) => (
+          <span key={`${file.name}-${index}`} className={styles.inlineAttachmentChip}>
+            {file.name}
+            <button type="button" onClick={() => setDraft({ ...draft, files: draft.files.filter((_, fileIndex) => fileIndex !== index) })} aria-label={`Remove ${file.name}`}><X size={13} /></button>
+          </span>
+        ))}
+        {draft.files.length < 3 && (
+          <label className={styles.inlineAttachButton}>
+            <ClipboardPlus size={14} /> Attach
+            <input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" style={{ display: 'none' }} onChange={event => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
+          </label>
+        )}
+      </div>
+    )}
     <label className={styles.highlightToggle}><input type="checkbox" checked={draft.highlighted} onChange={event => setDraft({ ...draft, highlighted: event.target.checked })} /><Highlighter size={15} /> Highlight</label>
     <div className={styles.inlineEditorActions}><button type="button" onClick={onCancel} aria-label="Cancel"><X size={17} /></button><button type="submit" disabled={saving || !communicationHasText(draft.message) || (!draft.id && !draft.locationIds)}>{saving ? 'Saving…' : draft.id ? 'Save' : 'Add'}</button></div>
   </form>;
