@@ -40,7 +40,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       businessName: application.business_name,
       applicantUserId: application.applicant_user_id,
       contactPhone: application.contact_phone,
+      businessType: application.business_type,
+      locationCountBand: application.location_count_band,
+      channels: application.channels,
+      country: application.country,
       abn: application.abn,
+      notes: application.notes,
       hasForesight, hasIms, hasPos, aiPlanKey,
       maxLocations, maxUsers, costPerLocation,
     });

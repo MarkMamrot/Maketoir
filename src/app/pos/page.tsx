@@ -1501,9 +1501,13 @@ function MainPos({
   onSaleCompleted:           (sale: CompletedSale) => void;
   onChangeDue:               (amount: number) => void;
   onReceiptSettingsSaved?:   (footer: string, giftMsg: string) => void;
+  receiptCloseToken?: number;
 }) {
   const [screen, setScreen] = useState<MainScreen>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('screen') === 'daybook' ? 'daybook' : 'pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
+  useEffect(() => {
+    if (receiptCloseToken > 0) setScreen('pos');
+  }, [receiptCloseToken]);
   const [linkedReturnSaleId, setLinkedReturnSaleId] = useState<number | null>(() => {
     const saleId = Number(loadCurrentCart()[0]?.return_of_sale_id);
     return Number.isInteger(saleId) && saleId > 0 ? saleId : null;
@@ -8433,6 +8437,7 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
 export default function PosPage() {
   const [screen, setScreen] = useState<'loading' | 'setup' | 'login' | 'register_gate' | 'pos' | 'receipt'>('loading');
+  const [receiptCloseToken, setReceiptCloseToken] = useState(0);
   const [deviceConfig, setDeviceConfig] = useState<DeviceConfig | null>(null);
   const [session, setSession]           = useState<PosSession | null>(null);
   const [products, setProducts]         = useState<CachedProduct[]>([]);
@@ -8617,7 +8622,7 @@ export default function PosPage() {
         sale={completedSale}
         printSettings={printSettings}
         changeDue={pendingChangeDue ?? 0}
-        onClose={() => { setCompletedSale(null); setPendingChangeDue(null); setScreen('pos'); }}
+        onClose={() => { setCompletedSale(null); setPendingChangeDue(null); setReceiptCloseToken(t => t + 1); setScreen('pos'); }}
       />
     );
   }
@@ -8699,6 +8704,7 @@ export default function PosPage() {
       onSaleCompleted={(sale) => setLastSale(sale)}
       onChangeDue={(amount) => setPendingChangeDue(amount)}
       onReceiptSettingsSaved={(footer, giftMsg) => setPrintSettings(prev => ({ ...prev, pos_receipt_footer: footer || prev.pos_receipt_footer, gift_receipt_message: giftMsg || prev.gift_receipt_message }))}
+      receiptCloseToken={receiptCloseToken}
       onLogout={async () => {
         // Try to flush any queued sales before logging out — never silently abandon them.
         try { await drainOfflineQueue(); } catch {}

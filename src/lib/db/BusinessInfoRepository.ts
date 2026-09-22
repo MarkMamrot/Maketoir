@@ -1,16 +1,21 @@
 import { query, execute } from '@/services/MySQLService';
 
 export interface BusinessInfoRow {
-  business_id:      string;
-  brand_name:       string | null;
-  brand_url:        string | null;
-  phone:            string | null;
-  years_in_business: string | null;
-  facebook_link:    string | null;
-  instagram_link:   string | null;
-  pinterest_link:   string | null;
-  abn:              string | null;
-  updated_at:       string;
+  business_id:         string;
+  brand_name:          string | null;
+  brand_url:           string | null;
+  phone:               string | null;
+  business_type:       string | null;
+  location_count_band: string | null;
+  channels:            string | null;
+  country:             string | null;
+  years_in_business:   string | null;
+  facebook_link:       string | null;
+  instagram_link:      string | null;
+  pinterest_link:      string | null;
+  abn:                 string | null;
+  notes:               string | null;
+  updated_at:          string;
 }
 
 type PartialInfo = Partial<Omit<BusinessInfoRow, 'business_id' | 'updated_at'>>;

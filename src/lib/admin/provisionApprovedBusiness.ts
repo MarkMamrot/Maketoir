@@ -20,7 +20,13 @@ export interface ApproveBusinessApplicationInput {
   businessName: string;
   applicantUserId: number;
   contactPhone?: string | null;
+  contactEmail?: string | null;
+  businessType?: string | null;
+  locationCountBand?: string | null;
+  channels?: string | null;
+  country?: string | null;
   abn?: string | null;
+  notes?: string | null;
   hasForesight: boolean;
   hasIms: boolean;
   hasPos: boolean;
@@ -62,7 +68,12 @@ export async function provisionApprovedBusiness(input: ApproveBusinessApplicatio
     await BusinessInfoRepository.upsert(businessId, {
       brand_name: input.businessName || null,
       phone: input.contactPhone?.trim() || null,
+      business_type: input.businessType?.trim() || null,
+      location_count_band: input.locationCountBand?.trim() || null,
+      channels: input.channels?.trim() || null,
+      country: input.country?.trim() || null,
       abn: input.abn?.trim() || null,
+      notes: input.notes?.trim() || null,
     });
 
     if (input.hasIms) {

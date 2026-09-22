@@ -24,14 +24,19 @@ export async function GET(req: Request) {
     if (!row) return NextResponse.json({});
 
     return NextResponse.json({
-      brandName:       row.brand_name        ?? '',
-      brandUrl:        row.brand_url         ?? '',
-      phone:           row.phone             ?? '',
-      yearsInBusiness: row.years_in_business ?? '',
-      facebookUrl:     row.facebook_link     ?? '',
-      instagramUrl:    row.instagram_link    ?? '',
-      pinterestUrl:    row.pinterest_link    ?? '',
-      abn:             row.abn               ?? '',
+      brandName:          row.brand_name          ?? '',
+      brandUrl:           row.brand_url           ?? '',
+      phone:              row.phone               ?? '',
+      businessType:       row.business_type       ?? '',
+      locationCountBand:  row.location_count_band ?? '',
+      channels:           row.channels            ?? '',
+      country:            row.country             ?? '',
+      yearsInBusiness:    row.years_in_business   ?? '',
+      facebookUrl:        row.facebook_link       ?? '',
+      instagramUrl:       row.instagram_link      ?? '',
+      pinterestUrl:       row.pinterest_link      ?? '',
+      abn:                row.abn                 ?? '',
+      notes:              row.notes               ?? '',
     });
   } catch (error: any) {
     console.error('Business info read error:', error);
@@ -47,7 +52,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { databaseId, brandName, brandUrl, phone, yearsInBusiness, facebookUrl, instagramUrl, pinterestUrl, abn } = body;
+    const { databaseId, brandName, brandUrl, phone, businessType, locationCountBand, channels, country, yearsInBusiness, facebookUrl, instagramUrl, pinterestUrl, abn, notes } = body;
 
     const _u = JSON.parse(sessionCookie.value);
     if (!databaseId || databaseId !== _u.businessId) {
@@ -58,14 +63,19 @@ export async function POST(req: Request) {
     }
 
     await BusinessInfoRepository.upsert(databaseId, {
-      brand_name:        brandName,
-      brand_url:         brandUrl,
-      phone:             phone || null,
-      years_in_business: yearsInBusiness,
-      facebook_link:     facebookUrl  || null,
-      instagram_link:    instagramUrl || null,
-      pinterest_link:    pinterestUrl || null,
-      abn:               abn || null,
+      brand_name:          brandName,
+      brand_url:           brandUrl,
+      phone:               phone || null,
+      business_type:       businessType || null,
+      location_count_band: locationCountBand || null,
+      channels:            channels || null,
+      country:             country || null,
+      years_in_business:   yearsInBusiness,
+      facebook_link:       facebookUrl  || null,
+      instagram_link:      instagramUrl || null,
+      pinterest_link:      pinterestUrl || null,
+      abn:                 abn || null,
+      notes:               notes || null,
     });
 
     return NextResponse.json({ success: true, message: 'Business information saved to database successfully.' });

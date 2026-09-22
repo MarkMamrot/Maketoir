@@ -887,16 +887,21 @@ CREATE TABLE IF NOT EXISTS support_ticket_settings (
 --   Years in Business, Facebook Link, Instagram Link, Pinterest Link
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS business_info (
-  business_id       VARCHAR(100) PRIMARY KEY,
-  brand_name        VARCHAR(255),
-  brand_url         VARCHAR(500),
-  phone             VARCHAR(50),
-  years_in_business VARCHAR(50),
-  facebook_link     VARCHAR(500),
-  instagram_link    VARCHAR(500),
-  pinterest_link    VARCHAR(500),
-  abn               VARCHAR(32),
-  updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  business_id         VARCHAR(100) PRIMARY KEY,
+  brand_name          VARCHAR(255),
+  brand_url           VARCHAR(500),
+  phone               VARCHAR(50),
+  business_type       VARCHAR(32),
+  location_count_band VARCHAR(16),
+  channels            VARCHAR(255),
+  country             VARCHAR(100),
+  years_in_business   VARCHAR(50),
+  facebook_link       VARCHAR(500),
+  instagram_link      VARCHAR(500),
+  pinterest_link      VARCHAR(500),
+  abn                 VARCHAR(32),
+  notes               TEXT,
+  updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
