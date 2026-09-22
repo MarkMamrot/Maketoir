@@ -43,6 +43,37 @@ try {
       updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+
+  const [businessIdColumns] = await connection.query(
+    `SELECT CHARACTER_SET_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'businesses'
+        AND COLUMN_NAME = 'business_id'
+      LIMIT 1`,
+  );
+  const businessIdColumn = businessIdColumns[0];
+  if (businessIdColumn?.CHARACTER_SET_NAME && businessIdColumn?.COLLATION_NAME) {
+    const [supportTicketColumns] = await connection.query(
+      `SELECT CHARACTER_SET_NAME, COLLATION_NAME
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'support_tickets'
+          AND COLUMN_NAME = 'business_id'
+        LIMIT 1`,
+    );
+    const supportTicketColumn = supportTicketColumns[0];
+    if (
+      supportTicketColumn?.CHARACTER_SET_NAME !== businessIdColumn.CHARACTER_SET_NAME
+      || supportTicketColumn?.COLLATION_NAME !== businessIdColumn.COLLATION_NAME
+    ) {
+      const charset = String(businessIdColumn.CHARACTER_SET_NAME).replace(/[^a-zA-Z0-9_]/g, '');
+      const collation = String(businessIdColumn.COLLATION_NAME).replace(/[^a-zA-Z0-9_]/g, '');
+      await connection.query(
+        `ALTER TABLE support_tickets MODIFY COLUMN business_id VARCHAR(100) CHARACTER SET ${charset} COLLATE ${collation} NULL`,
+      );
+    }
+  }
   console.log('✓ support_tickets and support_ticket_settings tables ready.');
 } finally {
   await connection.end();
