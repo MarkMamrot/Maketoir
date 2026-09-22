@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Highlight from '@tiptap/extension-highlight';
 import {
   AlertTriangle, ArrowDown, ArrowUp, Bold, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
   ClipboardPlus, ClipboardX, Copy, Ellipsis, Eye, Highlighter, Megaphone, MessageSquare, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
@@ -799,7 +800,7 @@ function Field({ label, value, onChange, type = 'text', placeholder = '', maxLen
 function FormattedMessageField({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [StarterKit],
+    extensions: [StarterKit, Highlight],
     content: communicationEditorHtml(value || ''),
     editorProps: { attributes: { class: styles.richMessageContent, 'aria-label': 'Communication message', 'data-placeholder': 'Write a communication…' } },
     onUpdate: ({ editor: activeEditor }) => onChange(activeEditor.getHTML().slice(0, 20_000)),
@@ -814,11 +815,12 @@ function FormattedMessageField({ value, onChange }: { value?: string; onChange: 
       bold: activeEditor?.isActive('bold') ?? false,
       italic: activeEditor?.isActive('italic') ?? false,
       bulletList: activeEditor?.isActive('bulletList') ?? false,
+      highlight: activeEditor?.isActive('highlight') ?? false,
     }),
   });
   if (!editor) return <div className={styles.formatEditor} />;
   const run = (action: () => void) => (event: React.MouseEvent) => { event.preventDefault(); action(); };
-  return <div className={styles.formatEditor}><div className={styles.formatToolbar} role="toolbar" aria-label="Message formatting"><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBold().run())} title="Bold" aria-label="Bold" aria-pressed={formatting.bold}><Bold size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleItalic().run())} title="Italic" aria-label="Italic" aria-pressed={formatting.italic}><Italic size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBulletList().run())} title="Bulleted list" aria-label="Bulleted list" aria-pressed={formatting.bulletList}><List size={15} /></button></div><EditorContent editor={editor} /></div>;
+  return <div className={styles.formatEditor}><div className={styles.formatToolbar} role="toolbar" aria-label="Message formatting"><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBold().run())} title="Bold" aria-label="Bold" aria-pressed={formatting.bold}><Bold size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleItalic().run())} title="Italic" aria-label="Italic" aria-pressed={formatting.italic}><Italic size={15} /></button><button type="button" onMouseDown={run(() => editor.chain().focus().toggleBulletList().run())} title="Bulleted list" aria-label="Bulleted list" aria-pressed={formatting.bulletList}><List size={15} /></button><button type="button" disabled={editor.state.selection.empty} onMouseDown={run(() => editor.chain().focus().toggleHighlight().run())} title="Highlight selected text" aria-label="Highlight selected text" aria-pressed={formatting.highlight}><Highlighter size={15} /></button></div><EditorContent editor={editor} /></div>;
 }
 
 function RecordSection({ type, records, locations, saving, perform, manager, locationId, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
