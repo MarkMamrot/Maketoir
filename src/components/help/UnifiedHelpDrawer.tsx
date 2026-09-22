@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, HelpCircle, MessageCircle, Search, Users, X } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, HelpCircle, MessageCircle, Search, X } from 'lucide-react';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
@@ -9,7 +9,6 @@ import { groupHelpTopics, helpSectionForProduct, initialHelpSection } from '@/li
 import { searchHelpTopics } from '@/lib/help/searchHelpTopics';
 import type { AvailableOperationCapabilities, HelpProduct, HelpTopic } from '@/lib/help/types';
 import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
-import { WarehouseTeamChat } from './WarehouseTeamChat';
 import { HelpMarkdown } from './HelpMarkdown';
 import styles from './UnifiedHelpDrawer.module.css';
 
@@ -28,7 +27,6 @@ export function UnifiedHelpDrawer({
   assistantDisabled = false,
   assistantDisabledLabel,
   showFloatingTrigger = true,
-  teamChatEnabled = false,
   xeroAccountingEnabled,
   availableCapabilities,
   modeRequest,
@@ -43,10 +41,9 @@ export function UnifiedHelpDrawer({
   assistantDisabled?: boolean;
   assistantDisabledLabel?: string;
   showFloatingTrigger?: boolean;
-  teamChatEnabled?: boolean;
   xeroAccountingEnabled?: boolean;
   availableCapabilities?: AvailableOperationCapabilities;
-  modeRequest?: { key: number; mode: 'help' | 'ask' | 'team' };
+  modeRequest?: { key: number; mode: 'help' | 'ask' };
 }) {
   const contextual = useMemo(
     () => resolveHelpContext({ audience, product, context: currentContext, xeroAccountingEnabled, availableCapabilities }),
@@ -56,8 +53,7 @@ export function UnifiedHelpDrawer({
     () => listHelpTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled),
     [audience, product, availableCapabilities, xeroAccountingEnabled],
   );
-  const [mode, setMode] = useState<'help' | 'ask' | 'team'>('help');
-  const [teamUnread, setTeamUnread] = useState(0);
+  const [mode, setMode] = useState<'help' | 'ask'>('help');
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(initialHelpSection(contextual?.topic)),
@@ -141,24 +137,19 @@ export function UnifiedHelpDrawer({
       {showFloatingTrigger && !open && (
         <button
           className={styles.floatingTrigger}
-          onClick={() => { setMode(teamChatEnabled ? 'team' : 'ask'); onOpenChange(true); }}
-          aria-label={teamChatEnabled ? `Open Team Chat${teamUnread ? `, ${teamUnread} unread` : ''}` : 'Open Solvantis Help'}
-          title={teamChatEnabled ? 'Team Chat' : 'Help and Ask Solvantis'}
+          onClick={() => { setMode('ask'); onOpenChange(true); }}
+          aria-label="Open Solvantis Help"
+          title="Help and Ask Solvantis"
         >
-          {teamChatEnabled ? <Users size={21} /> : <MessageCircle size={21} />}
-          {teamChatEnabled && teamUnread > 0 && (
-            <span style={{ position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center', borderRadius: 9, background: '#ef4444', color: '#fff', border: '2px solid var(--sv-bg-1, #fff)', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>
-              {teamUnread > 99 ? '99+' : teamUnread}
-            </span>
-          )}
+          <MessageCircle size={21} />
         </button>
       )}
       <aside className={styles.drawer} role="dialog" aria-modal="false" aria-labelledby="unified-help-title" aria-hidden={!open} style={open ? undefined : { display: 'none' }}>
           <header className={styles.header}>
             <div className={styles.brandMark}><HelpCircle size={19} /></div>
             <div className={styles.headingText}>
-              <h2 id="unified-help-title">{mode === 'team' ? 'Team Communications' : 'Solvantis Help'}</h2>
-              <span>{mode === 'team' ? 'Warehouse and POS location messages' : contextual?.exact ? `Help for ${contextual.topic.title}` : 'Product guidance and live assistance'}</span>
+              <h2 id="unified-help-title">Solvantis Help</h2>
+              <span>{contextual?.exact ? `Help for ${contextual.topic.title}` : 'Product guidance and live assistance'}</span>
             </div>
             <button ref={closeButtonRef} className={`${styles.iconButton} sv-button-flat`} onClick={closeDrawer} aria-label="Close Help" title="Close Help">
               <X size={20} />
@@ -166,12 +157,6 @@ export function UnifiedHelpDrawer({
           </header>
 
           <div className={styles.modeTabs} role="tablist" aria-label="Help mode">
-            {teamChatEnabled && (
-              <button className={`sv-button-flat ${mode === 'team' ? styles.activeTab : ''}`} onClick={() => setMode('team')} role="tab" aria-selected={mode === 'team'}>
-                <Users size={16} /> Team Chat
-                {teamUnread > 0 && <span style={{ minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center', borderRadius: 9, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800 }}>{teamUnread > 99 ? '99+' : teamUnread}</span>}
-              </button>
-            )}
             <button className={`sv-button-flat ${mode === 'help' ? styles.activeTab : ''}`} onClick={() => setMode('help')} role="tab" aria-selected={mode === 'help'}>
               <BookOpen size={16} /> Help
             </button>
@@ -180,7 +165,6 @@ export function UnifiedHelpDrawer({
             </button>
           </div>
 
-          {teamChatEnabled && <div style={{ minHeight: 0, display: mode === 'team' ? 'block' : 'none' }}><WarehouseTeamChat active={open && mode === 'team'} onUnreadChange={setTeamUnread} /></div>}
           {mode === 'ask' ? (
             <div className={styles.assistantPane}>
               <SolvantisAssistantPanel

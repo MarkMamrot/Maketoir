@@ -50,8 +50,8 @@ type ReferenceRow = Editable & { id: number; category: string; title: string; co
 type ReferenceCategory = { id: number; name: string };
 type GuideRow = Editable & { id: number; variant_id?: string | null; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
 type GuideProduct = { variant_id: string; product_id: string; product_name: string; option_label?: string | null; sku?: string | null; image_url?: string | null; image_alt?: string | null };
-type Location = { id: number; name: string };
-type Workspace = {
+export type Location = { id: number; name: string };
+export type Workspace = {
   date: string;
   location: Location;
   permissions: { manager: boolean; editPolicy: 'author_only' | 'managers' | 'anyone' };
@@ -588,7 +588,7 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
 
 type CommunicationDraft = { id?: number; message: string; priority: string; highlighted: boolean; locationIds: string };
 
-function CommunicationsView({ workspace, saving, perform }: {
+export function CommunicationsView({ workspace, saving, perform }: {
   workspace: Workspace | null;
   saving: boolean;
   perform: (action: string, payload?: Record<string, unknown>) => Promise<unknown>;
@@ -662,7 +662,14 @@ function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave,
 }) {
   return <form className={styles.inlineCommunicationEditor} onSubmit={event => { event.preventDefault(); void onSave(); }}>
     <FormattedMessageField value={draft.message} onChange={message => setDraft({ ...draft, message })} />
-    {!draft.id && <div className={styles.inlineLocationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={draft.locationIds.split(',').includes(String(location.id))} onChange={event => { const ids = new Set(draft.locationIds.split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setDraft({ ...draft, locationIds: [...ids].join(',') }); }} />{location.name}</label>)}</div>}
+    {!draft.id && locations.length > 0 && (() => {
+      const selectedIds = new Set(draft.locationIds.split(',').filter(Boolean));
+      const allSelected = locations.every(location => selectedIds.has(String(location.id)));
+      return <div className={styles.inlineLocationChecks}>
+        <label><input type="checkbox" checked={allSelected} onChange={event => setDraft({ ...draft, locationIds: event.target.checked ? locations.map(location => location.id).join(',') : '' })} /><b>All locations</b></label>
+        {locations.map(location => <label key={location.id}><input type="checkbox" checked={selectedIds.has(String(location.id))} onChange={event => { const ids = new Set(draft.locationIds.split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setDraft({ ...draft, locationIds: [...ids].join(',') }); }} />{location.name}</label>)}
+      </div>;
+    })()}
     <label className={styles.highlightToggle}><input type="checkbox" checked={draft.highlighted} onChange={event => setDraft({ ...draft, highlighted: event.target.checked })} /><Highlighter size={15} /> Highlight</label>
     <div className={styles.inlineEditorActions}><button type="button" onClick={onCancel} aria-label="Cancel"><X size={17} /></button><button type="submit" disabled={saving || !communicationHasText(draft.message) || (!draft.id && !draft.locationIds)}>{saving ? 'Saving…' : draft.id ? 'Save' : 'Add'}</button></div>
   </form>;

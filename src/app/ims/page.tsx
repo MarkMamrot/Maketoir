@@ -37,6 +37,7 @@ import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { BusinessContextSwitcher } from '@/components/BusinessContextSwitcher';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
+import { TeamCommunicationsDrawer } from '@/components/help/TeamCommunicationsDrawer';
 import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -22470,7 +22471,8 @@ export default function ImsPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [helpOpen, setHelpOpen] = useState(false);
-  const [helpModeRequest, setHelpModeRequest] = useState<{ key: number; mode: 'help' | 'ask' | 'team' }>();
+  const [helpModeRequest, setHelpModeRequest] = useState<{ key: number; mode: 'help' | 'ask' }>();
+  const [teamCommsOpen, setTeamCommsOpen] = useState(false);
   const [helpSection, setHelpSection] = useState<SettingsSection>('general');
   const [syncing, setSyncing] = useState(false);
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
@@ -23156,9 +23158,10 @@ export default function ImsPage() {
           shopify: pageCapabilities.shopifyEnabled,
           native_shop: pageCapabilities.nativeShopEnabled,
         }}
-        teamChatEnabled
+        showFloatingTrigger={false}
         modeRequest={helpModeRequest}
       />
+      <TeamCommunicationsDrawer open={teamCommsOpen} onOpenChange={setTeamCommsOpen} />
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
