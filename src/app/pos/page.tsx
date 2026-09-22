@@ -2557,6 +2557,53 @@ function MainPos({
                     borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.4)',
                     zIndex: 50, overflow: 'hidden', padding: '4px 0', color: mText,
                   }}>
+                    {/* Open Till */}
+                    <button onClick={() => { handleOpenTill(); setMoreMenuOpen(false); }}
+                      disabled={cashDrawerLoading}
+                      style={btnStyle({ opacity: cashDrawerLoading ? .5 : 1, cursor: cashDrawerLoading ? 'default' : 'pointer' })}
+                      onMouseEnter={e => (e.currentTarget.style.background = mHov)}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="2" y="4" width="20" height="11" rx="2" /><path d="M2 15h20v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2z" /><line x1="9" y1="19" x2="15" y2="19" /></svg>
+                      Open Till
+                    </button>
+                    {/* Record Petty Cash */}
+                    <button onClick={() => { setPettyCashOpen(true); setMoreMenuOpen(false); }}
+                      disabled={!isOnline || regSession?.status !== 'open'}
+                      title={regSession?.status !== 'open' ? 'Open the register before recording petty cash' : !isOnline ? 'Petty cash requires an online connection' : undefined}
+                      style={btnStyle({ opacity: isOnline && regSession?.status === 'open' ? 1 : .4, cursor: isOnline && regSession?.status === 'open' ? 'pointer' : 'default' })}
+                      onMouseEnter={e => { if (isOnline && regSession?.status === 'open') e.currentTarget.style.background = mHov; }}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <span aria-hidden="true" style={{ fontSize: 15, fontWeight: 800, lineHeight: 1, width: 15, textAlign: 'center', flexShrink: 0 }}>$↓</span>
+                      Record Petty Cash
+                    </button>
+                    {/* Reprint last sale receipt */}
+                    <button onClick={() => { if (lastSale) onReceipt(lastSale); setMoreMenuOpen(false); }}
+                      disabled={!lastSale}
+                      title={!lastSale ? 'No recent sale to reprint' : undefined}
+                      style={btnStyle({ opacity: lastSale ? 1 : .55, cursor: lastSale ? 'pointer' : 'default' })}
+                      onMouseEnter={e => { if (lastSale) e.currentTarget.style.background = mHov; }}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                      Reprint last sale receipt
+                    </button>
+                    {/* Settings */}
+                    <button onClick={() => {
+                        if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) { setPosSettingsOpen(true); }
+                        setMoreMenuOpen(false);
+                      }}
+                      disabled={!['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')}
+                      title={!['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'POS Manager access required' : undefined}
+                      style={btnStyle({ opacity: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 1 : .45, cursor: ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '') ? 'pointer' : 'default' })}
+                      onMouseEnter={e => { if (['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '')) e.currentTarget.style.background = mHov; }}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                      Settings
+                    </button>
+                    <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
                     {/* Parked sales */}
                     <button onClick={() => { setScreen('parked'); setMoreMenuOpen(false); }}
                       style={btnStyle()}
