@@ -41,8 +41,15 @@ export default function PendingApprovalPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-12 bg-gray-50 text-black">
-      <div className="w-full max-w-md p-8 bg-white shadow-xl rounded-2xl border border-gray-200 text-center">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-6 text-black">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover bg-center opacity-50"
+        style={{ backgroundImage: "url('/login/LoginBackdrop.jpg')" }}
+      />
+      <div aria-hidden="true" className="absolute inset-0 bg-slate-950/20" />
+
+      <div className="relative z-10 flex aspect-square w-full max-w-sm flex-col items-center justify-center rounded-full border border-white/60 bg-white/95 p-10 text-center shadow-2xl backdrop-blur-xl sm:max-w-md sm:p-14">
         <h1 className="text-2xl font-extrabold text-blue-600 mb-1">Solvantis</h1>
 
         {error && <p className="text-red-600 text-sm mt-4">{error}</p>}
@@ -52,7 +59,7 @@ export default function PendingApprovalPage() {
             <p className="text-lg font-bold mt-4">Application submitted</p>
             <p className="text-sm text-gray-600 mt-2">
               Thanks — our team is reviewing your application for <strong>{application.businessName}</strong>.
-              We&apos;ll email you as soon as it&apos;s approved and your workspace is ready.
+              We&apos;ll be in touch in the next few hours and will notify you as soon as your workspace is ready.
             </p>
           </>
         )}

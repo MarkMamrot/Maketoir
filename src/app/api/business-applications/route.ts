@@ -34,6 +34,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const businessName: string = String(body?.businessName ?? '').trim();
+  const website: string = String(body?.website ?? '').trim();
   const businessType: string = String(body?.businessType ?? '').trim();
   const locationCountBand: string = String(body?.locationCountBand ?? '').trim();
   const channels: string[] = Array.isArray(body?.channels) ? body.channels.filter((c: unknown) => typeof c === 'string') : [];
@@ -48,6 +49,9 @@ export async function POST(req: Request) {
   }
   if (!BUSINESS_TYPES.has(businessType)) {
     return NextResponse.json({ success: false, error: 'Please select a valid business type.' }, { status: 400 });
+  }
+  if (website && !/^https?:\/\/.+/i.test(website)) {
+    return NextResponse.json({ success: false, error: 'Please enter a valid website URL (starting with http:// or https://).' }, { status: 400 });
   }
   if (!LOCATION_BANDS.has(locationCountBand)) {
     return NextResponse.json({ success: false, error: 'Please select the number of locations.' }, { status: 400 });
@@ -71,6 +75,7 @@ export async function POST(req: Request) {
       contactEmail: flowType === 'new_user' ? applicant.email : null,
       contactPhone: flowType === 'new_user' ? contactPhone || null : null,
       businessName,
+      website: website || null,
       businessType,
       locationCountBand,
       channels: channels.length ? channels.join(',') : null,

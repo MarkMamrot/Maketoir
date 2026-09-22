@@ -8,6 +8,7 @@ interface Application {
   id: number;
   flow_type: 'new_user' | 'existing_user';
   business_name: string;
+  website: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -152,6 +153,7 @@ export function BusinessApplicationsQueue() {
                   <dt style={termStyle}>Phone</dt><dd style={valueStyle}>{selected.contact_phone || 'Not provided'}</dd>
                 </>}
                 <dt style={termStyle}>Flow</dt><dd style={valueStyle}>{selected.flow_type === 'new_user' ? 'New registrant' : 'Existing Admin — additional business'}</dd>
+                <dt style={termStyle}>Website</dt><dd style={valueStyle}>{selected.website ? <a href={selected.website} target="_blank" rel="noopener noreferrer">{selected.website}</a> : 'Not provided'}</dd>
                 <dt style={termStyle}>Business type</dt><dd style={valueStyle}>{selected.business_type || 'Not provided'}</dd>
                 <dt style={termStyle}>Locations</dt><dd style={valueStyle}>{selected.location_count_band || 'Not provided'}</dd>
                 <dt style={termStyle}>Channels</dt><dd style={valueStyle}>{selected.channels || 'Not provided'}</dd>

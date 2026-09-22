@@ -418,6 +418,7 @@ CREATE TABLE IF NOT EXISTS business_applications (
   contact_email        VARCHAR(320) NULL,
   contact_phone        VARCHAR(50) NULL,
   business_name        VARCHAR(255) NOT NULL,
+  website              VARCHAR(255) NULL,
   business_type        VARCHAR(32) NULL,
   location_count_band  VARCHAR(16) NULL,
   channels             VARCHAR(255) NULL,

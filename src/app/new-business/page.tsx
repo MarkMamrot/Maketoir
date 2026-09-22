@@ -37,7 +37,7 @@ export default function NewBusinessPage() {
   const [flowType, setFlowType] = useState<'new_user' | 'existing_user' | null>(null);
   const [form, setForm] = useState({
     businessName: '', businessType: '', locationCountBand: '', channels: [] as string[],
-    revenueBand: '', country: 'Australia', abn: '', notes: '', contactPhone: '',
+    revenueBand: '', country: 'Australia', abn: '', notes: '', contactPhone: '', website: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -121,12 +121,19 @@ export default function NewBusinessPage() {
 
           {flowType === 'new_user' && (
             <div>
-              <label className="text-xs font-bold text-gray-600 uppercase">Contact Phone</label>
+              <label className="text-xs font-bold text-gray-600 uppercase">Business Phone</label>
               <input type="tel" value={form.contactPhone}
                 onChange={e => setForm(p => ({ ...p, contactPhone: e.target.value }))}
                 className="w-full p-2 border border-gray-300 rounded mt-1" />
             </div>
           )}
+
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase">Business Website (optional)</label>
+            <input type="url" value={form.website}
+              onChange={e => setForm(p => ({ ...p, website: e.target.value }))}
+              className="w-full p-2 border border-gray-300 rounded mt-1" placeholder="https://www.example.com" />
+          </div>
 
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Type of Business *</label>
@@ -198,7 +205,7 @@ export default function NewBusinessPage() {
 
           <button type="submit" disabled={loading}
             className="w-full py-3 mt-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">
-            {loading ? 'Submitting…' : 'Submit Application'}
+            {loading ? 'Submitting…' : 'Continue'}
           </button>
         </form>
       </div>

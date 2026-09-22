@@ -11,6 +11,7 @@ export interface BusinessApplicationRow {
   contact_email: string | null;
   contact_phone: string | null;
   business_name: string;
+  website: string | null;
   business_type: string | null;
   location_count_band: string | null;
   channels: string | null;
@@ -35,6 +36,7 @@ export interface CreateBusinessApplicationInput {
   contactEmail?: string | null;
   contactPhone?: string | null;
   businessName: string;
+  website?: string | null;
   businessType?: string | null;
   locationCountBand?: string | null;
   channels?: string | null;
@@ -49,13 +51,13 @@ export const BusinessApplicationsRepository = {
     const result = await execute(
       `INSERT INTO business_applications
          (flow_type, applicant_user_id, contact_name, contact_email, contact_phone,
-          business_name, business_type, location_count_band, channels, revenue_band,
+          business_name, website, business_type, location_count_band, channels, revenue_band,
           country, abn, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.flowType, input.applicantUserId,
         input.contactName ?? null, input.contactEmail ?? null, input.contactPhone ?? null,
-        input.businessName, input.businessType ?? null, input.locationCountBand ?? null,
+        input.businessName, input.website ?? null, input.businessType ?? null, input.locationCountBand ?? null,
         input.channels ?? null, input.revenueBand ?? null,
         input.country ?? null, input.abn ?? null, input.notes ?? null,
       ],
