@@ -37,6 +37,7 @@ const DAYBOOK_TABLES = [
   'pos_daybook_communications',
   'pos_daybook_communication_targets',
   'pos_daybook_communication_reads',
+  'pos_daybook_communication_attachments',
   'pos_daybook_records',
   'pos_daybook_record_events',
   'pos_daybook_comments',

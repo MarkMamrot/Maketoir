@@ -2230,6 +2230,20 @@ CREATE TABLE IF NOT EXISTS pos_daybook_communication_reads (
   INDEX idx_daybook_reads (business_id, communication_id, read_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS pos_daybook_communication_attachments (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  communication_id  BIGINT NOT NULL,
+  original_name     VARCHAR(255) NOT NULL,
+  stored_name       VARCHAR(255) NOT NULL,
+  mime_type         VARCHAR(100) NOT NULL,
+  file_size         INT UNSIGNED NOT NULL,
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_daybook_communication_attachment (business_id, communication_id),
+  CONSTRAINT fk_daybook_communication_attachment FOREIGN KEY (communication_id)
+    REFERENCES pos_daybook_communications(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS pos_daybook_records (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id       VARCHAR(100) NOT NULL,
