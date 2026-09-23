@@ -101,6 +101,7 @@ Staff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xer
 
 A paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.
 
+
 ### Calculate a POS card fee
 
 Newtown Card is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from Newtown's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.

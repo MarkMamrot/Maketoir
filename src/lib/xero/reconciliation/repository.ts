@@ -150,6 +150,11 @@ export type XeroReconciliationIssueListItem = {
   lastCheckedAt: string | Date | null;
   occurrenceCount: number;
   recommendedNextStep: string;
+  mismatchFingerprint: string;
+  ignoredFingerprint: string | null;
+  ignoredReason: string | null;
+  ignoredActorName: string | null;
+  ignoredAt: string | Date | null;
 };
 
 const ISSUE_STATUSES = new Set(['open', 'ignored', 'resolved']);
@@ -221,8 +226,17 @@ export async function listXeroReconciliationIssues(
   const rows = await dependencies.query<any>(
     `SELECT issue.id, issue.target_id, issue.rule_key, issue.severity, issue.status, issue.summary,
             issue.expected_summary, issue.actual_summary, issue.first_seen_at, issue.last_seen_at,
-            issue.occurrence_count, target.target_type, target.reference_id, target.xero_id,
-            target.last_checked_at
+            issue.occurrence_count, issue.mismatch_fingerprint, issue.ignored_fingerprint,
+            target.target_type, target.reference_id, target.xero_id, target.last_checked_at,
+            (SELECT event.reason FROM xero_reconciliation_issue_events event
+              WHERE event.business_id = issue.business_id AND event.issue_id = issue.id AND event.event_type = 'ignored'
+              ORDER BY event.id DESC LIMIT 1) AS ignored_reason,
+            (SELECT event.actor_name FROM xero_reconciliation_issue_events event
+              WHERE event.business_id = issue.business_id AND event.issue_id = issue.id AND event.event_type = 'ignored'
+              ORDER BY event.id DESC LIMIT 1) AS ignored_actor_name,
+            (SELECT event.created_at FROM xero_reconciliation_issue_events event
+              WHERE event.business_id = issue.business_id AND event.issue_id = issue.id AND event.event_type = 'ignored'
+              ORDER BY event.id DESC LIMIT 1) AS ignored_at
        ${fromSql}
       ORDER BY FIELD(issue.severity, 'critical', 'error', 'warning'), issue.first_seen_at ASC, issue.id ASC
       LIMIT ${limit} OFFSET ${offset}`,
@@ -242,6 +256,11 @@ export async function listXeroReconciliationIssues(
       firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at,
       lastCheckedAt: row.last_checked_at, occurrenceCount: Number(row.occurrence_count),
       recommendedNextStep: reconciliationRecommendation(row.rule_key),
+      mismatchFingerprint: String(row.mismatch_fingerprint),
+      ignoredFingerprint: row.ignored_fingerprint ? String(row.ignored_fingerprint) : null,
+      ignoredReason: row.ignored_reason ? String(row.ignored_reason) : null,
+      ignoredActorName: row.ignored_actor_name ? String(row.ignored_actor_name) : null,
+      ignoredAt: row.ignored_at ?? null,
     })),
   };
 }
@@ -356,6 +375,7 @@ export async function ignoreXeroReconciliationIssue(
     actorId?: string | number | null;
     actorName?: string | null;
     reason: string;
+    expectedFingerprint?: string;
   },
   dependencies: Dependencies = defaultDependencies,
 ): Promise<boolean> {
@@ -367,6 +387,7 @@ export async function ignoreXeroReconciliationIssue(
     [input.businessId, input.issueId],
   );
   if (!rows[0] || rows[0].status !== 'open') return false;
+  if (input.expectedFingerprint && rows[0].mismatch_fingerprint !== input.expectedFingerprint) return false;
   const updated = await dependencies.execute(
     `UPDATE xero_reconciliation_issues
         SET status = 'ignored', ignored_fingerprint = mismatch_fingerprint, resolved_at = NULL
@@ -382,6 +403,45 @@ export async function ignoreXeroReconciliationIssue(
       input.businessId, input.issueId, input.actorId == null ? null : String(input.actorId),
       input.actorName ?? null, reason.slice(0, 1000),
       JSON.stringify({ mismatchFingerprint: rows[0].mismatch_fingerprint }),
+    ],
+  );
+  return true;
+}
+
+export async function reopenIgnoredXeroReconciliationIssue(
+  input: {
+    businessId: string;
+    issueId: number;
+    expectedFingerprint: string;
+    actorId?: string | number | null;
+    actorName?: string | null;
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<boolean> {
+  const rows = await dependencies.query<{ id: number; status: string; mismatch_fingerprint: string; ignored_fingerprint: string | null }>(
+    `SELECT id, status, mismatch_fingerprint, ignored_fingerprint
+       FROM xero_reconciliation_issues
+      WHERE business_id = ? AND id = ? LIMIT 1`,
+    [input.businessId, input.issueId],
+  );
+  const issue = rows[0];
+  if (!issue || issue.status !== 'ignored' || issue.mismatch_fingerprint !== input.expectedFingerprint
+    || issue.ignored_fingerprint !== input.expectedFingerprint) return false;
+  const updated = await dependencies.execute(
+    `UPDATE xero_reconciliation_issues
+        SET status = 'open', ignored_fingerprint = NULL, resolved_at = NULL
+      WHERE business_id = ? AND id = ? AND status = 'ignored'
+        AND mismatch_fingerprint = ? AND ignored_fingerprint = ?`,
+    [input.businessId, input.issueId, input.expectedFingerprint, input.expectedFingerprint],
+  );
+  if (updated.affectedRows === 0) return false;
+  await dependencies.execute(
+    `INSERT INTO xero_reconciliation_issue_events
+       (business_id, issue_id, event_type, actor_id, actor_name, reason, snapshot)
+     VALUES (?, ?, 'reopened', ?, ?, 'Accepted exception undone', ?)`,
+    [
+      input.businessId, input.issueId, input.actorId == null ? null : String(input.actorId),
+      input.actorName ?? null, JSON.stringify({ mismatchFingerprint: input.expectedFingerprint }),
     ],
   );
   return true;

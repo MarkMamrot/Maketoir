@@ -13,7 +13,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
   | 'xero' | 'sales-channels' | 'shopify' | 'online-shop';
 
 interface MainSectionsProps {
@@ -85,6 +85,7 @@ interface MainSectionsProps {
   PosRegistersReportView: any;
   CashBankingReportView: any;
   StockAvailabilityManagementView: any;
+  BookkeeperAuditView: any;
   XeroView: any;
   ShopifyView: any;
   OrderPlannerView: any;
@@ -166,6 +167,7 @@ export function MainSections(props: MainSectionsProps) {
     PosRegistersReportView,
     CashBankingReportView,
     StockAvailabilityManagementView,
+    BookkeeperAuditView,
     XeroView,
     ShopifyView,
     OrderPlannerView,
@@ -287,6 +289,7 @@ export function MainSections(props: MainSectionsProps) {
       <ReportsSection
         view={view}
         xeroAccountingEnabled={xeroAccountingEnabled}
+        canReviewBookkeeperAudit={userTier === 'Admin' || userTier === 'SuperAdmin' || userTier === 'Advisor'}
         setView={setView}
         ReportsView={ReportsView}
         SalesByBranchView={SalesByBranchView}
@@ -298,6 +301,7 @@ export function MainSections(props: MainSectionsProps) {
         PosRegistersReportView={PosRegistersReportView}
         CashBankingReportView={CashBankingReportView}
         StockAvailabilityManagementView={StockAvailabilityManagementView}
+        BookkeeperAuditView={BookkeeperAuditView}
       />
 
       {/* Integrations */}

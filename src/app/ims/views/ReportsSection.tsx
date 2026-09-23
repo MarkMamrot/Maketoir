@@ -6,12 +6,13 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
   | 'xero' | 'shopify';
 
 interface ReportsSectionProps {
   view: ImsView;
   xeroAccountingEnabled: boolean;
+  canReviewBookkeeperAudit: boolean;
   setView: (v: ImsView) => void;
   ReportsView: any;
   SalesByBranchView: any;
@@ -23,11 +24,13 @@ interface ReportsSectionProps {
   PosRegistersReportView: any;
   CashBankingReportView: any;
   StockAvailabilityManagementView: any;
+  BookkeeperAuditView: any;
 }
 
 export function ReportsSection({
   view,
   xeroAccountingEnabled,
+  canReviewBookkeeperAudit,
   setView,
   ReportsView,
   SalesByBranchView,
@@ -39,6 +42,7 @@ export function ReportsSection({
   PosRegistersReportView,
   CashBankingReportView,
   StockAvailabilityManagementView,
+  BookkeeperAuditView,
 }: ReportsSectionProps) {
   return (
     <>
@@ -52,6 +56,7 @@ export function ReportsSection({
       {view === 'report-pos-registers' && <PosRegistersReportView onBack={() => setView('reports')} />}
       {view === 'report-cash-banking' && xeroAccountingEnabled && <CashBankingReportView onBack={() => setView('reports')} />}
       {view === 'report-stock-availability' && <StockAvailabilityManagementView onBack={() => setView('reports')} />}
+      {view === 'report-bookkeeper-audit' && <BookkeeperAuditView onBack={() => setView('reports')} canReview={canReviewBookkeeperAudit} />}
     </>
   );
 }

@@ -290,6 +290,17 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-bookkeeper-audit",
+      "title": "Bookkeeper Audit",
+      "summary": "Review overdue documents and negative stock, record accepted exceptions, and understand incomplete audit coverage.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "summary": "Match a business question to the right report and compare dates, GST, cost, and stock consistently.",

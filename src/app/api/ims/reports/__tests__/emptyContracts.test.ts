@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getPool: vi.fn(),
   imsQuery: vi.fn(),
   mainQuery: vi.fn(),
+  mainExecute: vi.fn(),
   requireManager: vi.fn(),
   timeZone: vi.fn(),
   dailyTransactions: vi.fn(),
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getSession }));
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mocks.getPool, imsQuery: mocks.imsQuery }));
-vi.mock('@/services/MySQLService', () => ({ query: mocks.mainQuery }));
+vi.mock('@/services/MySQLService', () => ({ query: mocks.mainQuery, execute: mocks.mainExecute }));
 vi.mock('@/lib/sessionUtils', () => ({ requirePosManagerTier: mocks.requireManager }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mocks.timeZone }));
 vi.mock('@/lib/db/PosRepository', () => ({
@@ -28,6 +29,7 @@ vi.mock('next/headers', () => ({
 }));
 
 import { GET as getCashBanking } from '../cash-banking/route';
+import { GET as getBookkeeperAudit } from '../bookkeeper-audit/route';
 import { GET as getInventoryValuation } from '../inventory-valuation/route';
 import { GET as getPosPriceChanges } from '../pos-price-changes/route';
 import { GET as getPosRegisters } from '../pos-registers/route';
@@ -112,6 +114,20 @@ describe('empty tenant report contracts', () => {
         stock_quantity: 0, valued_quantity: 0, mismatches: [],
       },
     });
+  });
+
+  it('returns an empty Bookkeeper Audit with explicit month-end coverage', async () => {
+    const response = await getBookkeeperAudit(request('/api/ims/reports/bookkeeper-audit'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expect.objectContaining({
+      success: true,
+      asOfDate: expect.any(String),
+      coverage: { operational: 'checked', cogs: 'checked', xero: 'checked', monthEndInventory: 'not_yet_checked' },
+      summary: { open: 0, accepted: 0, critical: 0, error: 0, warning: 0 },
+      items: [],
+    }));
+    expect(mocks.imsQuery).toHaveBeenCalledTimes(3);
+    expect(mocks.mainQuery).toHaveBeenCalledWith(expect.stringContaining('bookkeeper_audit_reviews'), ['business-1']);
   });
 
   it('values FIFO inventory from remaining layers and reports quantity mismatches', async () => {

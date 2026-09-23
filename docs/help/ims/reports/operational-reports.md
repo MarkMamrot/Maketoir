@@ -1,5 +1,5 @@
 ---
-{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-08-23","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"]}
+{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-bookkeeper-audit","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-09-23","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"]}
 ---
 # IMS Reports
 
@@ -16,6 +16,7 @@ Reports are read-only views of operational information. Choose a report by the q
 
 | Question | Report |
 |---|---|
+| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |
 | What sold, by product and branch? | **Sales Detail** |
 | How do branches compare? | **Sales by Branch** |
 | How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |

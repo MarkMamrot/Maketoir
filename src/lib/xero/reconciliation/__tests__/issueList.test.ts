@@ -10,7 +10,8 @@ describe('listXeroReconciliationIssues', () => {
         rule_key: 'total', severity: 'error', status: 'open', summary: 'Totals differ.',
         expected_summary: '{"total":10}', actual_summary: { total: 12 },
         first_seen_at: '2026-08-01', last_seen_at: '2026-08-02', last_checked_at: '2026-08-02',
-        occurrence_count: 3,
+        occurrence_count: 3, mismatch_fingerprint: 'mismatch-9', ignored_fingerprint: null,
+        ignored_reason: null, ignored_actor_name: null, ignored_at: null,
       }])
       .mockResolvedValueOnce([{ total: '1' }]);
 
@@ -25,6 +26,7 @@ describe('listXeroReconciliationIssues', () => {
     expect(result.total).toBe(1);
     expect(result.items[0]).toMatchObject({
       id: 9, referenceId: '42', expected: { total: 10 }, actual: { total: 12 },
+      mismatchFingerprint: 'mismatch-9', ignoredFingerprint: null,
       recommendedNextStep: expect.stringContaining('amounts'),
     });
   });

@@ -14,6 +14,7 @@ import {
   recordXeroReconciliationActionEvent,
   recordXeroReconciliationEmailEvents,
   recordXeroReconciliationIssue,
+  reopenIgnoredXeroReconciliationIssue,
   resolveXeroReconciliationIssue,
   saveXeroReconciliationEmailSettings,
   saveXeroReconciliationRecipients,
@@ -256,6 +257,28 @@ describe('recordXeroReconciliationIssue', () => {
 
     expect(execute).toHaveBeenCalledOnce();
     expect(String(execute.mock.calls[0][0])).toContain("status = 'open'");
+  });
+
+  it('reopens only an ignored issue with the exact accepted fingerprint', async () => {
+    const execute = vi.fn().mockResolvedValue({ affectedRows: 1 });
+    const query = vi.fn().mockResolvedValue([{
+      id: 9, status: 'ignored', mismatch_fingerprint: 'mismatch-1', ignored_fingerprint: 'mismatch-1',
+    }]);
+    const dependencies = { execute: execute as any, query: query as any };
+
+    await expect(reopenIgnoredXeroReconciliationIssue({
+      businessId: 'biz-1', issueId: 9, expectedFingerprint: 'mismatch-1', actorId: 7, actorName: 'Alex',
+    }, dependencies)).resolves.toBe(true);
+    expect(execute.mock.calls[0][1]).toEqual(['biz-1', 9, 'mismatch-1', 'mismatch-1']);
+    expect(String(execute.mock.calls[1][0])).toContain("'reopened'");
+
+    query.mockResolvedValueOnce([{
+      id: 9, status: 'ignored', mismatch_fingerprint: 'changed', ignored_fingerprint: 'mismatch-1',
+    }]);
+    await expect(reopenIgnoredXeroReconciliationIssue({
+      businessId: 'biz-1', issueId: 9, expectedFingerprint: 'mismatch-1',
+    }, dependencies)).resolves.toBe(false);
+    expect(execute).toHaveBeenCalledTimes(2);
   });
 
   it('resolves a matched issue once and appends a resolution event', async () => {
