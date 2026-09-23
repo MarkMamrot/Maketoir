@@ -24,6 +24,24 @@ export type BuildRequest = {
   overheadPerOutput?: number;
 };
 
+export type BuildCapacityLocation = {
+  locationId: number;
+  availableByComponent: ReadonlyMap<string, number>;
+};
+
+export type BuildCapacityPublicationPolicy = {
+  enabled: boolean;
+  maxUnits?: number | null;
+  bufferUnits?: number | null;
+};
+
+export type ChannelBuildAvailability = {
+  finishedAvailable: number;
+  rawBuildCapacity: number;
+  advertisedBuildCapacity: number;
+  channelAvailable: number;
+};
+
 export function scaledBuildQuantity(value: number, label = 'Quantity'): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) throw new ProductBuildValidationError(`${label} must be a finite number.`);
@@ -161,6 +179,66 @@ export function planBuildableOutputQuantities(
       unavailableQuantity: buildQuantity(requestedQuantity - buildableQuantity),
     };
   });
+}
+
+export function calculateBuildCapacityAtLocation(
+  rawRecipe: BuildRecipe,
+  availableByComponent: ReadonlyMap<string, number>,
+): number {
+  const recipe = validateBuildRecipe(rawRecipe);
+  let capacity = Number.POSITIVE_INFINITY;
+  for (const component of recipe.components) {
+    const available = Math.max(0, buildQuantity(
+      availableByComponent.get(component.variantId) ?? 0,
+      `Component ${component.variantId} available quantity`,
+    ));
+    const componentCapacity = Math.floor(
+      ((available / component.quantityPerOutput) * QUANTITY_SCALE) + 0.000001,
+    ) / QUANTITY_SCALE;
+    capacity = Math.min(capacity, componentCapacity);
+  }
+  return buildQuantity(Number.isFinite(capacity) ? Math.max(0, capacity) : 0, 'Build capacity');
+}
+
+export function calculateBuildCapacityAcrossLocations(
+  recipe: BuildRecipe,
+  locations: ReadonlyArray<BuildCapacityLocation>,
+): number {
+  const seen = new Set<number>();
+  return locations.reduce((total, location) => {
+    if (!Number.isInteger(location.locationId) || location.locationId <= 0) {
+      throw new ProductBuildValidationError('Build capacity requires valid locations.');
+    }
+    if (seen.has(location.locationId)) {
+      throw new ProductBuildValidationError(`Build capacity location ${location.locationId} is duplicated.`);
+    }
+    seen.add(location.locationId);
+    return buildQuantity(total + calculateBuildCapacityAtLocation(recipe, location.availableByComponent), 'Build capacity');
+  }, 0);
+}
+
+export function calculateChannelBuildAvailability(input: {
+  finishedAvailable: number;
+  rawBuildCapacity: number;
+  policy: BuildCapacityPublicationPolicy;
+}): ChannelBuildAvailability {
+  const finishedAvailable = Math.max(0, buildQuantity(input.finishedAvailable, 'Finished available quantity'));
+  const rawBuildCapacity = Math.max(0, buildQuantity(input.rawBuildCapacity, 'Raw build capacity'));
+  const bufferUnits = input.policy.bufferUnits == null
+    ? 0
+    : Math.max(0, buildQuantity(input.policy.bufferUnits, 'Build capacity buffer'));
+  const maxUnits = input.policy.maxUnits == null
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, buildQuantity(input.policy.maxUnits, 'Build capacity maximum'));
+  const advertisedBuildCapacity = input.policy.enabled
+    ? Math.max(0, Math.floor(Math.min(maxUnits, rawBuildCapacity - bufferUnits)))
+    : 0;
+  return {
+    finishedAvailable,
+    rawBuildCapacity,
+    advertisedBuildCapacity,
+    channelAvailable: Math.max(0, Math.floor(finishedAvailable) + advertisedBuildCapacity),
+  };
 }
 
 export function calculateBuildUnitCost(recipe: BuildRecipe, overheadOverride?: number): number {

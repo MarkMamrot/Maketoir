@@ -8,6 +8,7 @@ import {
   type SalesChannelInstance,
   type SalesChannelProvider,
 } from './types';
+import { normalizeChannelInventoryLocationIds } from './buildCapacityPolicy';
 
 interface SalesChannelInstanceRow {
   channel_instance_id: string;
@@ -160,6 +161,36 @@ export const SalesChannelInstanceRepository = {
               updated_at = CURRENT_TIMESTAMP(3)
         WHERE business_id = ? AND channel_instance_id = ?`,
       [input.enabled ? 1 : 0, businessId, channelInstanceId],
+    );
+    return this.getForBusiness(businessId, channelInstanceId);
+  },
+
+  async setBuildCapacityPolicyForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    enabled: boolean;
+    inventoryLocationIds: number[];
+  }): Promise<SalesChannelInstance | null> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    if (!businessId || !channelInstanceId) return null;
+    const inventoryLocationIds = normalizeChannelInventoryLocationIds(input.inventoryLocationIds);
+    if (inventoryLocationIds.length > 100) {
+      throw new SalesChannelValidationError('A channel can use at most 100 inventory locations.');
+    }
+    const locationArraySql = inventoryLocationIds.length
+      ? `JSON_ARRAY(${inventoryLocationIds.map(() => 'CAST(? AS UNSIGNED)').join(', ')})`
+      : 'JSON_ARRAY()';
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(
+                COALESCE(settings_json, JSON_OBJECT()),
+                '$.buildCapacityEnabled', CAST(? AS UNSIGNED),
+                '$.inventoryLocationIds', ${locationArraySql}
+              ),
+              updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ?`,
+      [input.enabled ? 1 : 0, ...inventoryLocationIds, businessId, channelInstanceId],
     );
     return this.getForBusiness(businessId, channelInstanceId);
   },

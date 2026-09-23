@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
       day: string;
       count: number;
       total: string;
+      total_ex_tax: string;
+      shopify_refunds: string;
+      net_total: string;
       subtotal: string;
       tax: string;
       freight: string;
@@ -35,6 +38,7 @@ export async function GET(req: NextRequest) {
          DATE_FORMAT(so.order_date, '%Y-%m-%d') AS day,
          COUNT(*) AS count,
          SUM(so.total_amount) AS total,
+         SUM(so.total_amount - so.tax_amount) AS total_ex_tax,
          SUM(so.subtotal) AS subtotal,
          SUM(so.tax_amount) AS tax,
          SUM(so.freight) AS freight,
@@ -51,6 +55,23 @@ export async function GET(req: NextRequest) {
        ORDER BY day DESC`,
       params,
     );
+
+    const refundParams: any[] = [businessId];
+    const refundLocWhere = locationId ? 'AND location_id = ?' : '';
+    if (locationId) refundParams.push(Number(locationId));
+    const refundRows = await imsQuery<{ day: string; total: string }>(
+      `SELECT DATE_FORMAT(cn_date, '%Y-%m-%d') AS day, SUM(total_amount) AS total
+         FROM ims_credit_notes
+        WHERE business_id = ? AND source = 'shopify' AND status = 'complete' ${refundLocWhere}
+        GROUP BY DATE_FORMAT(cn_date, '%Y-%m-%d')`,
+      refundParams,
+    );
+    const refundsByDay = new Map(refundRows.map(row => [String(row.day).slice(0, 10), Number(row.total)]));
+    for (const row of rows as any[]) {
+      const refundTotal = refundsByDay.get(String(row.day).slice(0, 10)) ?? 0;
+      row.shopify_refunds = refundTotal;
+      row.net_total = Number(row.total) - refundTotal;
+    }
 
     // Load Xero sync status for these dates from the main DB.
     // xero_sync_log.detail = 'online batch YYYY-MM-DD' for online_batch entries.

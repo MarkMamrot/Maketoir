@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateBuildComponentDemand,
   assertAcyclicBuildRecipes,
+  calculateBuildCapacityAcrossLocations,
+  calculateBuildCapacityAtLocation,
+  calculateChannelBuildAvailability,
   calculateBuildUnitCost,
   calculateReversalComponents,
   hashProductBuildRequest,
@@ -72,6 +75,57 @@ describe('product build domain', () => {
       { outputVariantId: 'gift-set', requestedQuantity: 2, buildableQuantity: 2, unavailableQuantity: 0 },
       { outputVariantId: 'second-set', requestedQuantity: 2, buildableQuantity: 0.5, unavailableQuantity: 1.5 },
     ]);
+  });
+
+  it('calculates fractional Build Capacity independently per location', () => {
+    const garmentRecipe = {
+      outputVariantId: 'dress-small',
+      revision: 1,
+      components: [
+        { variantId: 'fabric', quantityPerOutput: 125.5 },
+        { variantId: 'zip', quantityPerOutput: 1 },
+      ],
+    };
+    expect(calculateBuildCapacityAtLocation(garmentRecipe, new Map([
+      ['fabric', 502],
+      ['zip', 10],
+    ]))).toBe(4);
+    expect(calculateBuildCapacityAcrossLocations(garmentRecipe, [
+      { locationId: 1, availableByComponent: new Map([['fabric', 125.5], ['zip', 1]]) },
+      { locationId: 2, availableByComponent: new Map([['fabric', 251], ['zip', 2]]) },
+    ])).toBe(3);
+  });
+
+  it('does not combine components held at different locations', () => {
+    expect(calculateBuildCapacityAcrossLocations(recipe, [
+      { locationId: 1, availableByComponent: new Map([['mug', 4], ['box', 0]]) },
+      { locationId: 2, availableByComponent: new Map([['mug', 0], ['box', 2]]) },
+    ])).toBe(0);
+  });
+
+  it('applies Build Capacity policy without changing physical finished availability', () => {
+    expect(calculateChannelBuildAvailability({
+      finishedAvailable: 2.75,
+      rawBuildCapacity: 12.5,
+      policy: { enabled: true, bufferUnits: 2.5, maxUnits: 8 },
+    })).toEqual({
+      finishedAvailable: 2.75,
+      rawBuildCapacity: 12.5,
+      advertisedBuildCapacity: 8,
+      channelAvailable: 10,
+    });
+    expect(calculateChannelBuildAvailability({
+      finishedAvailable: 2.75,
+      rawBuildCapacity: 12.5,
+      policy: { enabled: false },
+    }).channelAvailable).toBe(2);
+  });
+
+  it('rejects duplicate locations in Build Capacity calculations', () => {
+    expect(() => calculateBuildCapacityAcrossLocations(recipe, [
+      { locationId: 1, availableByComponent: new Map([['mug', 2], ['box', 1]]) },
+      { locationId: 1, availableByComponent: new Map([['mug', 2], ['box', 1]]) },
+    ])).toThrow(/duplicated/);
   });
 
   it('rejects stale recipes and same-batch output/component chaining', () => {

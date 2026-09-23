@@ -39,7 +39,10 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
   const taxAmount = itemTaxAmount + shippingTaxAmount;
   const transactionAmount = refundTxns.reduce((s, t) => s + parseFloat(t?.amount ?? '0'), 0);
   const itemisedAmount = rlis.reduce((s, r) => s + parseFloat(r?.subtotal ?? '0'), 0);
-  const amount = transactionAmount > 0 ? transactionAmount : itemisedAmount;
+  const shippingAmount = adjustments
+    .filter(adjustment => String(adjustment?.kind) === 'shipping_refund')
+    .reduce((sum, adjustment) => sum + Math.abs(parseFloat(adjustment?.amount ?? '0')), 0);
+  const amount = transactionAmount > 0 ? transactionAmount : itemisedAmount + shippingAmount;
 
   const gateway = refundTxns[0]?.gateway ?? fallbackGateway ?? null;
 
@@ -60,6 +63,21 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
       };
     })
     .filter(l => l.shopifyVariantId && l.quantity > 0);
+
+  for (const adjustment of adjustments.filter(entry => String(entry?.kind) === 'shipping_refund')) {
+    const grossAmount = Math.abs(parseFloat(adjustment?.amount ?? '0'));
+    const lineTax = Math.abs(parseFloat(adjustment?.tax_amount ?? '0'));
+    if (!(grossAmount > 0)) continue;
+    restockLines.push({
+      shopifyVariantId: '',
+      quantity: 1,
+      restock: false,
+      unitPrice: Math.round((grossAmount - lineTax) * 10000) / 10000,
+      taxAmount: Math.round(lineTax * 100) / 100,
+      name: 'Shipping refund',
+      sku: null,
+    });
+  }
 
   return {
     shopifyRefundId: String(refund?.id ?? ''),

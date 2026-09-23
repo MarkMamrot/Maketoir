@@ -109,6 +109,22 @@ describe('SalesChannelInstanceRepository', () => {
     ]);
   });
 
+  it('sets Build Capacity policy on the exact business-owned instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([]);
+
+    await SalesChannelInstanceRepository.setBuildCapacityPolicyForBusiness({
+      businessId: ' business-1 ',
+      channelInstanceId: ' instance-1 ',
+      enabled: true,
+      inventoryLocationIds: [7, 3, 7],
+    });
+
+    expect(mockExecute.mock.calls[0][0]).toContain("'$.buildCapacityEnabled'");
+    expect(mockExecute.mock.calls[0][0]).toContain("'$.inventoryLocationIds'");
+    expect(mockExecute.mock.calls[0][1]).toEqual([1, 7, 3, 'business-1', 'instance-1']);
+  });
+
   it('rejects empty channel names', async () => {
     await expect(SalesChannelInstanceRepository.renameForBusiness({
       businessId: 'business-1', channelInstanceId: 'instance-1', displayName: ' ',

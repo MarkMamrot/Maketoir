@@ -13994,7 +13994,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     { id: 'order_date', label: 'Order Date', width: 105, group: 'Dates', render: order => order.order_date?.slice(0, 10) || '—' },
     { id: 'expected_date', label: 'Expected Date', width: 110, group: 'Dates', render: order => order.expected_date?.slice(0, 10) || '—' },
     { id: 'fulfilled_date', label: 'Fulfilled Date', width: 110, group: 'Dates', render: order => order.fulfilled_date?.slice(0, 10) || '—' },
-    { id: 'subtotal', label: 'Subtotal', width: 105, group: 'Financial', render: order => fmtCurrency(order.subtotal) },
+    { id: 'subtotal', label: 'Subtotal (ex GST)', width: 125, group: 'Financial', render: order => fmtCurrency(order.shopify_order_id && order.tax_treatment === 'inc_tax' ? Number(order.subtotal) / 1.1 : order.subtotal) },
     { id: 'tax_amount', label: 'Tax', width: 95, group: 'Financial', render: order => fmtCurrency(order.tax_amount) },
     { id: 'freight', label: 'Freight', width: 95, group: 'Financial', render: order => fmtCurrency(order.freight) },
     { id: 'discount', label: 'Discount', width: 95, group: 'Financial', render: order => fmtCurrency(order.discount) },
@@ -15359,8 +15359,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <tfoot>
               {(Number(viewModal.so.tax_amount) > 0 || Number(viewModal.so.discount) > 0 || Number(viewModal.so.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td colSpan={9} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal{viewModal.so.tax_treatment === 'inc_tax' ? ' (ex-tax)' : ''}</td>
-                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.subtotal)}</td>
+                  <td colSpan={9} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Subtotal (ex GST)</td>
+                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.so.shopify_order_id && viewModal.so.tax_treatment === 'inc_tax' ? Number(viewModal.so.subtotal) / 1.1 : viewModal.so.subtotal)}</td>
                 </tr>
               )}
               {Number(viewModal.so.freight) > 0 && (
@@ -17443,14 +17443,15 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
               )}
               {/* Financial breakdown */}
               <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.subtotal ?? 0))}</strong></span>
-                {Number(day.freight ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Freight <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.freight))}</strong></span>}
-                {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Sales ex GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.total_ex_tax ?? 0))}</strong></span>
+                {Number(day.freight ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Shipping inc GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.freight))}</strong></span>}
+                {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST included <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
+                {Number(day.shopify_refunds ?? 0) > 0 && <span title="Recorded separately as Shopify customer credit notes" style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Refunds <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.shopify_refunds))}</strong></span>}
                 {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
               </div>
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
+              <span title={Number(day.shopify_refunds ?? 0) > 0 ? `Gross sales ${fmtMoney(dayTotal)} less Shopify refunds ${fmtMoney(day.shopify_refunds)}` : 'Gross sales including GST'} style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(Number(day.net_total ?? dayTotal))}</span>
               {xeroAccountingEnabled && (Number(day.syncable_count ?? 0) > 0 ? (
                   <button
                     onClick={async (e) => {
@@ -17600,12 +17601,12 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
                             </tbody>
                             <tfoot>
                               <tr>
-                                <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Sub</td>
+                                <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Merchandise (inc GST)</td>
                                 <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.subtotal)}</td>
                               </tr>
                               {Number(order.freight) > 0 && (
                                 <tr>
-                                  <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Freight</td>
+                                  <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Shipping (inc GST)</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.freight)}</td>
                                 </tr>
                               )}
@@ -17617,12 +17618,12 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
                               )}
                               {Number(order.tax_amount) > 0 && (
                                 <tr>
-                                  <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST</td>
+                                  <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>GST included</td>
                                   <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(order.tax_amount)}</td>
                                 </tr>
                               )}
                               <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                                <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total</td>
+                                <td colSpan={6} style={{ padding: '4px 6px', textAlign: 'right', fontSize: 11, color: 'var(--sv-text-dim)' }}>Total (inc GST)</td>
                                 <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(order.total_amount)}</td>
                               </tr>
                             </tfoot>
