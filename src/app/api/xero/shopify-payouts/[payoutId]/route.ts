@@ -10,10 +10,10 @@ import { query } from '@/services/MySQLService';
 
 function authenticate(req: NextRequest) {
   const auth = requireAdminSession();
-  if (auth.response) return { response: auth.response, businessId: '' };
+  if (auth.response) return { response: auth.response, businessId: '', user: undefined };
   const businessId = req.nextUrl.searchParams.get('databaseId') ?? auth.user!.businessId;
   const denied = assertBusinessAccess(auth.user!, businessId);
-  return { response: denied, businessId };
+  return { response: denied, businessId, user: auth.user };
 }
 
 export async function GET(req: NextRequest, { params }: { params: { payoutId: string } }) {
@@ -56,6 +56,9 @@ export async function GET(req: NextRequest, { params }: { params: { payoutId: st
 export async function POST(req: NextRequest, { params }: { params: { payoutId: string } }) {
   const auth = authenticate(req);
   if (auth.response) return auth.response;
+  if (auth.user?.tier === 'Advisor') {
+    return NextResponse.json({ error: 'Advisor accounts can review Shopify payouts but cannot change or post them.' }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? 'plan');
 

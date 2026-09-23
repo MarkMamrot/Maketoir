@@ -24,7 +24,7 @@ Use **POS Sales** and **Online Sales** to inspect items, payments, returns, refe
 
 Online Sales labels each amount by its GST basis. **Sales ex GST** excludes GST from the complete order total. Shopify merchandise, shipping and order totals are shown as **inc GST**, while **GST included** is the GST already contained in those amounts rather than an extra charge.
 
-Shopify refunds are recorded as separate customer credit notes. A day with refunds shows the gross order sales, the separate refund amount, and the resulting net total. The Xero daily invoice remains the gross sales document; its Shopify credit note records the refund, so do not also reduce the gross invoice by the same refund.
+By default, Shopify refunds are recorded as separate customer credit notes. A day with refunds shows the gross order sales, the separate refund amount, and the resulting net total. The Xero daily invoice remains the gross sales document; its Shopify credit note records the refund, so do not also reduce the gross invoice by the same refund. If **Include Shopify refund credit notes** is disabled in Xero settings, those credit notes remain in IMS and are not posted to Xero; use only a separately reviewed accounting treatment for those refunds.
 
 When Xero accounting is enabled for the business, **Online Sales** also shows daily Xero posting guidance and a sync action for eligible trading days. These accounting controls are hidden when Xero accounting is disabled; the underlying online sales history remains available.
 

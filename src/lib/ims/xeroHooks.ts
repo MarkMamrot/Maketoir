@@ -551,7 +551,9 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
 
   const policy = await loadDocumentPolicy(businessId);
   if (!policy) return;
-  const action = cn.source === 'shopify' ? 'authorised' : policy.manualCustomerCreditNoteAction;
+  const action = cn.source === 'shopify'
+    ? (policy.shopifyRefundCreditNoteEnabled ? 'authorised' : 'none')
+    : policy.manualCustomerCreditNoteAction;
   if (action === 'none') return;
 
   const existingXeroId = (cn as any).xero_credit_note_id ?? null;

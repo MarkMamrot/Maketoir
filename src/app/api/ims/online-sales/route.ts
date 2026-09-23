@@ -57,13 +57,25 @@ export async function GET(req: NextRequest) {
     );
 
     const refundParams: any[] = [businessId];
-    const refundLocWhere = locationId ? 'AND location_id = ?' : '';
+    const refundLocWhere = locationId ? 'AND cn.location_id = ?' : '';
     if (locationId) refundParams.push(Number(locationId));
     const refundRows = await imsQuery<{ day: string; total: string }>(
-      `SELECT DATE_FORMAT(cn_date, '%Y-%m-%d') AS day, SUM(total_amount) AS total
-         FROM ims_credit_notes
-        WHERE business_id = ? AND source = 'shopify' AND status = 'complete' ${refundLocWhere}
-        GROUP BY DATE_FORMAT(cn_date, '%Y-%m-%d')`,
+      `SELECT DATE_FORMAT(cn.cn_date, '%Y-%m-%d') AS day,
+              SUM(CASE
+                WHEN items.cn_id IS NULL THEN cn.total_amount
+                WHEN cn.tax_treatment = 'inc_tax' THEN items.line_total
+                WHEN cn.tax_treatment = 'no_tax' THEN items.line_total
+                ELSE items.line_total + items.tax_amount
+              END) AS total
+         FROM ims_credit_notes cn
+         LEFT JOIN (
+           SELECT cn_id, SUM(line_total) AS line_total,
+                  SUM(ROUND(line_total * tax_rate, 2)) AS tax_amount
+             FROM ims_credit_note_items
+            GROUP BY cn_id
+         ) items ON items.cn_id = cn.id
+        WHERE cn.business_id = ? AND cn.source = 'shopify' AND cn.status = 'complete' ${refundLocWhere}
+        GROUP BY DATE_FORMAT(cn.cn_date, '%Y-%m-%d')`,
       refundParams,
     );
     const refundsByDay = new Map(refundRows.map(row => [String(row.day).slice(0, 10), Number(row.total)]));

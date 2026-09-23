@@ -14,6 +14,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - **Approved zero cost** counts FIFO movements whose source layer has an explicit no-charge reason. They are valid $0 COGS; unexplained zero costs still block posting.
 - Review and post balanced Shopify payout plans when enabled.
 - Retry only the accounting action that remains unfinished.
+- Administrators can grant Advisor accounts read-only access to **Shopify Payouts** from **Settings > Xero > Advisor Access**. Advisors can review payout status and details but cannot replan, repair, or post payouts.
 
 ## At a glance
 
@@ -34,6 +35,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - [ ] Read the safe error shown in Sync History.
 - [ ] Check the required account, tax, tracking, and payment mappings.
 - [ ] Confirm whether the workflow is manual or automatic under Sync Rules.
+- [ ] For a bookkeeper Advisor, ask an administrator to enable **Advisor access to Shopify Payouts** under **Settings > Xero > Advisor Access**.
 
 > **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry.
 

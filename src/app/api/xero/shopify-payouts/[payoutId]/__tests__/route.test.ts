@@ -114,6 +114,16 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     expect(mockPlan).toHaveBeenCalledOnce();
   });
 
+  it('blocks Advisor payout mutations while allowing read access', async () => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor' }, response: null });
+
+    const response = await POST(request('POST', { action: 'execute' }), context);
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('review') });
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
   it('repairs linked daily invoices and replans without posting payout actions', async () => {
     mockQuery
       .mockResolvedValueOnce([{ reconciliation_status: 'blocked', completed_actions: 0 }])

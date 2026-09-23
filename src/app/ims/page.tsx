@@ -18825,6 +18825,7 @@ function XeroView({
   businessId,
   isAdvisor = false,
   advisorMappingEnabled = false,
+  advisorPayoutsEnabled = false,
   onOpenPurchaseOrder,
   onOpenSalesOrder,
   onOpenCreditNote,
@@ -18834,6 +18835,7 @@ function XeroView({
   businessId: string;
   isAdvisor?: boolean;
   advisorMappingEnabled?: boolean;
+  advisorPayoutsEnabled?: boolean;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
   onOpenCreditNote?: (id: number) => void;
@@ -18899,6 +18901,27 @@ function XeroView({
   // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
   // only when an administrator has granted access in Xero → Overview.
   if (isAdvisor) {
+    if (advisorPayoutsEnabled) {
+      if (!status?.connected) {
+        return (
+          <div>
+            <h1 style={{ margin: '0 0 24px', fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Shopify Payouts</h1>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)' }}>
+              Xero is not connected. Ask an administrator to connect Xero before reviewing Shopify payouts.
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Shopify Payouts</h1>
+            <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(56,189,248,.15)', color: '#38bdf8' }}>Read-only</span>
+          </div>
+          <ShopifyPayoutsTab getBusinessId={getBusinessId} readOnly />
+        </div>
+      );
+    }
     const titleBar = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
@@ -20787,7 +20810,7 @@ function XeroStateBadge({ state }: { state: string | null }) {
   return <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(156,163,175,.15)', color: '#9ca3af' }}>{state}</span>;
 }
 
-function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
+function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId: () => string; readOnly?: boolean }) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
@@ -20934,7 +20957,7 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
                 <option value={90}>90 days</option>
               </select>
             </label>
-            <button title="Poll Shopify for paid payouts in the selected period and ingest any missing records" onClick={syncMissedPayouts} disabled={catchupRunning} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning ? 'wait' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>
+            {!readOnly && <button title="Poll Shopify for paid payouts in the selected period and ingest any missing records" onClick={syncMissedPayouts} disabled={catchupRunning} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning ? 'wait' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>}
             <button title="Reload payout records" onClick={loadData} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
           </div>
         </div>
@@ -20982,13 +21005,13 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
                       <td style={td}><span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: statusBg, color: statusColor }}>{payoutStatus || 'pending'}</span></td>
                       <td style={{ ...td, textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          {entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
+                          {!readOnly && entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
                             <button title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero." onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}>{retrying[retryKey] ? '…' : '↻ Replan'}</button>
                           )}
-                          {entry.payout_id && payoutStatus === 'blocked' && (
+                          {!readOnly && entry.payout_id && payoutStatus === 'blocked' && (
                             <button title="Validate linked completed-day invoices against current Shopify orders, repair safely understated invoices, then rebuild the payout plan. This does not post the payout." onClick={() => processShopifyPayout(entry.payout_id!, 'repair', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}><Wrench size={13} />{retrying[retryKey] ? '…' : 'Validate & Repair'}</button>
                           )}
-                          {entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
+                          {!readOnly && entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
                             <button title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'} onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}>{retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}</button>
                           )}
                         </div>
@@ -22462,6 +22485,7 @@ export default function ImsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [advisorSyncEnabled, setAdvisorSyncEnabled] = useState(false);
   const [advisorXeroMappingEnabled, setAdvisorXeroMappingEnabled] = useState(false);
+  const [advisorXeroPayoutsEnabled, setAdvisorXeroPayoutsEnabled] = useState(false);
   const isAdvisor = user?.tier === 'Advisor';
   const [view, setView] = useState<ImsView>('dashboard');
   const setViewSafe = useCallback((nextView: any) => {
@@ -22711,6 +22735,7 @@ export default function ImsPage() {
             const truthy = (v: any) => v === true || v === '1' || v === 'true';
             setAdvisorSyncEnabled(truthy(data?.advisor_sync_enabled));
             setAdvisorXeroMappingEnabled(truthy(data?.advisor_xero_mapping_enabled));
+            setAdvisorXeroPayoutsEnabled(truthy(data?.advisor_xero_payouts_enabled));
           }).catch(() => {});
         }
       }
@@ -23027,6 +23052,7 @@ export default function ImsPage() {
               buildsEnabled={buildsEnabled}
               isAdvisor={isAdvisor}
               advisorMappingEnabled={advisorXeroMappingEnabled}
+              advisorPayoutsEnabled={advisorXeroPayoutsEnabled}
               businessId={user?.businessId ?? ''}
               hasForesight={user?.hasForesight ?? false}
               userName={user?.name || user?.email || 'IMS user'}
@@ -27074,6 +27100,15 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       setXeroAdvisorSaving(false);
     }
   };
+  const saveXeroAdvisorPayoutAccess = async (enabled: boolean) => {
+    setXeroAdvisorSaving(true);
+    setAdvisorXeroPayoutsEnabled(enabled);
+    try {
+      await saveSettings({ advisor_xero_payouts_enabled: enabled ? 'true' : 'false' });
+    } finally {
+      setXeroAdvisorSaving(false);
+    }
+  };
   // Display helpers (decimal stored → % shown)
   const taxRateDisplay = (key: string) => {
     const v = taxDraft[key];
@@ -27365,7 +27400,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
               <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
                 Advisor Access
-                <HintBadge text="When enabled, Advisor users can only access Xero account and tracking mapping screens." />
+                <HintBadge text="These controls grant separate read-only access to Xero mapping and Shopify payout review screens." />
               </h3>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
@@ -27382,6 +27417,20 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 </span>
                 {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
               </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={advisorXeroPayoutsEnabled}
+                  disabled={xeroAdvisorSaving}
+                  onChange={e => saveXeroAdvisorPayoutAccess(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'inherit' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                  {advisorXeroPayoutsEnabled
+                    ? 'Enabled - Advisors can review Shopify payouts (read-only)'
+                    : 'Disabled - Advisors cannot access Shopify payouts'}
+                </span>
+              </label>
             </div>
 
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
@@ -27390,6 +27439,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('overview'); }} style={btnStyle('ghost', 'sm')}>Open Xero Overview</button>
                 <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('setup-ledger'); }} style={btnStyle('ghost', 'sm')}>Open Accounts &amp; Tracking</button>
                 <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('activity-history'); }} style={btnStyle('ghost', 'sm')}>Open Sync History</button>
+                <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('activity-payouts'); }} style={btnStyle('ghost', 'sm')}>Open Shopify Payouts</button>
               </div>
             </div>
 

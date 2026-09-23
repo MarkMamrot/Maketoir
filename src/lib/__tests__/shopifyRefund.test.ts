@@ -51,6 +51,7 @@ describe('parseShopifyRefund', () => {
   it('includes shipping adjustments when refund transactions are omitted', () => {
     const result = parseShopifyRefund({
       id: 1,
+      transactions: [{ kind: 'refund', status: 'success', amount: '27.94', gateway: 'shopify_payments' }],
       refund_line_items: [{
         quantity: 1,
         subtotal: '7.99',

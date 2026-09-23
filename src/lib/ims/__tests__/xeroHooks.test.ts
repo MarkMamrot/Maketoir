@@ -379,6 +379,15 @@ describe('credit note Xero document policies', () => {
     expect(mockSyncCNAsCreditNote).toHaveBeenCalledWith('biz-1', expect.objectContaining({ id: 4 }), 'AUTHORISED');
   });
 
+  it('keeps Shopify credit notes local when Shopify refund credit notes are disabled', async () => {
+    mockCNGet.mockResolvedValue({ ...customerCreditNote, source: 'shopify' });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, shopifyRefundCreditNoteEnabled: false });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+  });
+
   it('promotes a linked supplier Draft when Authorised is configured', async () => {
     mockSupplierCNGet.mockResolvedValue({ ...supplierCreditNote, xero_credit_note_id: 'xero-scn-5' });
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, supplierCreditNoteAction: 'authorised' });
