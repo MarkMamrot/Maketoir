@@ -18,6 +18,9 @@ import {
   provisionBusinessIms,
 } from '@/lib/ims/provisionBusiness';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { randomBytes } from 'crypto';
+import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
+import { sendPasswordSetupEmail } from '@/lib/auth/passwordSetupEmail';
 
 function getSuperAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -29,7 +32,8 @@ function getSuperAdminSession() {
 }
 
 export async function POST(req: Request) {
-  if (!getSuperAdminSession()) {
+  const superAdmin = getSuperAdminSession();
+  if (!superAdmin) {
     return NextResponse.json({ error: 'SuperAdmin access required.' }, { status: 403 });
   }
 
@@ -41,10 +45,13 @@ export async function POST(req: Request) {
   const imsDbName: string | undefined = body?.imsDbName?.trim() || undefined;
   const ownerEmail: string | undefined = body?.ownerEmail?.trim() || undefined;
   const ownerPassword: string | undefined = body?.ownerPassword || undefined;
+  const ownerPasswordMode: 'email' | 'manual' = body?.ownerPasswordMode === 'manual' || (!body?.ownerPasswordMode && ownerPassword)
+    ? 'manual'
+    : 'email';
   const ownerName: string | undefined = body?.ownerName?.trim() || undefined;
 
   if (!name) return NextResponse.json({ error: 'Business name is required.' }, { status: 400 });
-  if (ownerEmail && !ownerPassword) {
+  if (ownerEmail && ownerPasswordMode === 'manual' && !ownerPassword) {
     return NextResponse.json({ error: 'Owner password is required when an owner email is given.' }, { status: 400 });
   }
   if (imsDbName && !/^[a-zA-Z0-9_]{1,60}$/.test(imsDbName)) {
@@ -84,14 +91,18 @@ export async function POST(req: Request) {
 
     // 3. Optional owner user.
     let ownerCreated = false;
-    if (ownerEmail && ownerPassword) {
+    let ownerEmailSent = false;
+    let ownerEmailWarning: string | null = null;
+    if (ownerEmail) {
       const existing = await UsersRepository.findByEmail(ownerEmail).catch(() => null);
+      let ownerUserId: number;
       if (existing) {
-        steps.push(`⚠ Owner user ${ownerEmail} already exists — skipped`);
+        ownerUserId = existing.id;
+        steps.push(`Enrolled existing owner ${ownerEmail} (Admin)`);
       } else {
-        await UsersRepository.create({
+        ownerUserId = await UsersRepository.create({
           email: ownerEmail,
-          password: ownerPassword,
+          password: ownerPasswordMode === 'email' ? randomBytes(48).toString('base64url') : ownerPassword!,
           name: ownerName ?? undefined,
           businessId,
           role: 'admin',
@@ -100,6 +111,30 @@ export async function POST(req: Request) {
         ownerCreated = true;
         steps.push(`Created owner ${ownerEmail} (Admin)`);
       }
+      await enrollUserInBusiness({
+        userId: ownerUserId,
+        businessId,
+        tier: 'Admin',
+        enrolledByUserId: superAdmin.userId,
+        isDefault: !existing,
+      });
+
+      if (ownerPasswordMode === 'email') {
+        try {
+          await sendPasswordSetupEmail({
+            userId: ownerUserId,
+            email: ownerEmail,
+            name: ownerName ?? existing?.name,
+            businessId,
+            purpose: existing ? 'reset' : 'set',
+          });
+          ownerEmailSent = true;
+          steps.push(`Sent password setup email to ${ownerEmail}`);
+        } catch (emailError) {
+          ownerEmailWarning = emailError instanceof Error ? emailError.message : 'Password setup email could not be sent.';
+          steps.push(`Password setup email to ${ownerEmail} needs attention`);
+        }
+      }
     }
 
     return NextResponse.json({
@@ -107,6 +142,8 @@ export async function POST(req: Request) {
       businessId,
       imsDbName: imsResult?.imsDbName ?? null,
       ownerCreated,
+      ownerEmailSent,
+      ownerEmailWarning,
       steps,
     });
   } catch (err: any) {

@@ -306,7 +306,7 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
   const [form, setForm] = useState({
     name: '', hasForesight: true, hasIms: true, hasPos: true,
     imsDbName: '', imsDbEdited: false,
-    ownerEmail: '', ownerPassword: '', ownerName: '',
+    ownerEmail: '', ownerPassword: '', ownerPasswordMode: 'email' as 'email' | 'manual', ownerName: '',
   });
   const [working, setWorking] = useState(false);
   const [err, setErr] = useState('');
@@ -322,7 +322,7 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
   const submit = async () => {
     setErr(''); setSteps([]);
     if (!form.name.trim()) { setErr('Business name is required.'); return; }
-    if (form.ownerEmail && !form.ownerPassword) { setErr('Owner password is required when an owner email is given.'); return; }
+    if (form.ownerEmail && form.ownerPasswordMode === 'manual' && !form.ownerPassword) { setErr('Owner password is required when an owner email is given.'); return; }
     setWorking(true);
     try {
       const r = await fetch('/api/admin/onboard', {
@@ -333,13 +333,14 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
           imsDbName: form.hasIms ? (imsDbValue || undefined) : undefined,
           ownerEmail: form.ownerEmail.trim() || undefined,
           ownerPassword: form.ownerPassword || undefined,
+          ownerPasswordMode: form.ownerPasswordMode,
           ownerName: form.ownerName.trim() || undefined,
         }),
       });
       const d = await r.json();
       if (d.success) {
         setSteps(d.steps ?? []);
-        onDone(`✓ Onboarded "${form.name.trim()}"${d.imsDbName ? ` · IMS: ${d.imsDbName}` : ''}`);
+        onDone(`✓ Onboarded "${form.name.trim()}"${d.imsDbName ? ` · IMS: ${d.imsDbName}` : ''}${d.ownerEmailWarning ? ` · ${d.ownerEmailWarning}` : ''}`);
         setTimeout(onClose, 1200);
       } else {
         setSteps(d.steps ?? []);
@@ -398,10 +399,19 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
           <label style={S.label}>Owner Email</label>
           <input type="email" value={form.ownerEmail} onChange={e => set('ownerEmail', e.target.value)} style={{ ...S.input, marginBottom: 10 }} />
           <label style={S.label}>Owner Password</label>
-          <input type="password" value={form.ownerPassword} onChange={e => set('ownerPassword', e.target.value)} style={{ ...S.input, marginBottom: 10 }} />
+          <div style={{ display: 'flex', border: '1px solid var(--sv-etch,rgba(255,255,255,.15))', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
+            {([['email', 'Set by Email'], ['manual', 'Set Manually']] as const).map(([mode, label]) => (
+              <button key={mode} type="button" onClick={() => setForm(p => ({ ...p, ownerPasswordMode: mode, ownerPassword: '' }))} style={{ flex: 1, padding: '8px 10px', border: 'none', background: form.ownerPasswordMode === mode ? 'var(--sv-action,#3b82f6)' : 'transparent', color: form.ownerPasswordMode === mode ? '#fff' : 'var(--sv-text-dim,#94a3b8)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{label}</button>
+            ))}
+          </div>
+          {form.ownerPasswordMode === 'email' ? (
+            <p style={{ margin: '0 0 10px', fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim,#94a3b8)' }}>The owner will receive a secure link to choose their password. The link expires in 1 hour.</p>
+          ) : (
+            <input type="password" value={form.ownerPassword} onChange={e => set('ownerPassword', e.target.value)} style={{ ...S.input, marginBottom: 10 }} />
+          )}
           <label style={S.label}>Owner Name</label>
           <input value={form.ownerName} onChange={e => set('ownerName', e.target.value)} style={{ ...S.input }} />
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)' }}>Creates an <strong>Admin</strong>-tier user bound to this business.</p>
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)' }}>Creates or enrolls an <strong>Admin</strong>-tier user in this business.</p>
         </details>
 
         {steps.length > 0 && (

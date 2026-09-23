@@ -5,6 +5,8 @@ import { UserTier } from '@/lib/sessionUtils';
 import bcrypt from 'bcryptjs';
 import { getAdminSession } from '@/lib/sessionUtils';
 import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
+import { randomBytes } from 'crypto';
+import { sendPasswordSetupEmail } from '@/lib/auth/passwordSetupEmail';
 
 async function requireAdminOrSuperAdmin() {
   const session = getAdminSession();
@@ -54,14 +56,15 @@ export async function GET() {
  * POST /api/admin/users
  * Create a new user with specified tier.
  * Admin and SuperAdmin only. (Admins cannot create SuperAdmin users)
- * Body: { email, password, name?, company?, tier? }
+ * Body: { email, password?, passwordMode?, name?, company?, tier? }
  */
 export async function POST(req: Request) {
   const error = await requireAdminOrSuperAdmin();
   if (error) return error;
 
   try {
-    const { email, password, name, username, company, tier } = await req.json();
+    const { email, password, passwordMode, name, username, company, tier } = await req.json();
+    const setPasswordByEmail = passwordMode === 'email';
 
     if (!email) {
       return NextResponse.json(
@@ -100,10 +103,12 @@ export async function POST(req: Request) {
     const businessId = session?.businessId as string | undefined;
 
     if (!businessId) return NextResponse.json({ error: 'No active business.' }, { status: 400 });
-    if (!existing && !password) return NextResponse.json({ error: 'password is required for a new user.' }, { status: 400 });
+    if (!existing && !password && !setPasswordByEmail) {
+      return NextResponse.json({ error: 'password is required for a new user.' }, { status: 400 });
+    }
     const userId = existing?.id ?? await UsersRepository.create({
         email,
-        password,
+        password: setPasswordByEmail ? randomBytes(48).toString('base64url') : password,
         username: username ?? undefined,
         name: name ?? undefined,
         company: company ?? undefined,
@@ -113,10 +118,22 @@ export async function POST(req: Request) {
       });
     await enrollUserInBusiness({ userId, businessId, tier: userTier, enrolledByUserId: session?.userId });
 
+    if (setPasswordByEmail) {
+      await sendPasswordSetupEmail({
+        userId,
+        email,
+        name: name ?? existing?.name,
+        businessId,
+        purpose: existing ? 'reset' : 'set',
+      });
+    }
+
     return NextResponse.json({
       success: true,
       userId,
-      message: `User created with ${userTier} tier.`,
+      message: setPasswordByEmail
+        ? `User created with ${userTier} tier and a password setup email was sent.`
+        : `User created with ${userTier} tier.`,
     });
   } catch (err: any) {
     console.error('Error creating user:', err);

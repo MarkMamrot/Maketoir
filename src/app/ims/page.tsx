@@ -22305,7 +22305,7 @@ function UsersListView() {
   const [editingUser, setEditingUser] = React.useState<any | null>(null);
   const [editForm, setEditForm] = React.useState({ tier: '', username: '', name: '', pos_pin: '', clearPin: false });
   const [showCreate, setShowCreate] = React.useState(false);
-  const [createForm, setCreateForm] = React.useState({ email: '', password: '', name: '', username: '', tier: 'StandardUser' });
+  const [createForm, setCreateForm] = React.useState({ email: '', password: '', passwordMode: 'email' as 'email' | 'manual', name: '', username: '', tier: 'StandardUser' });
   const [msg, setMsg] = React.useState('');
   const [myTier, setMyTier] = React.useState<string>('');
   const [myEmail, setMyEmail] = React.useState<string>('');
@@ -22344,9 +22344,10 @@ function UsersListView() {
     e.preventDefault();
     const r = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createForm) });
     if (r.ok) {
-      flash('✓ User created.');
+      const result = await r.json().catch(() => ({}));
+      flash(result.message ? `✓ ${result.message}` : '✓ User created.');
       setShowCreate(false);
-      setCreateForm({ email: '', password: '', name: '', username: '', tier: 'StandardUser' });
+      setCreateForm({ email: '', password: '', passwordMode: 'email', name: '', username: '', tier: 'StandardUser' });
       reload();
     } else { const er = await r.json(); flash(`Error: ${er.error}`); }
   };
@@ -22452,13 +22453,25 @@ function UsersListView() {
                 { label: 'Name', field: 'name', type: 'text', required: false },
                 { label: 'Username', field: 'username', type: 'text', required: false },
                 { label: 'Email', field: 'email', type: 'email', required: true },
-                { label: 'Password', field: 'password', type: 'password', required: true },
               ].map(f => (
                 <div key={f.field} style={{ marginBottom: 12 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{f.label}{f.required ? ' *' : ''}</label>
                   <input required={f.required} type={f.type} value={(createForm as any)[f.field]} onChange={e => setCreateForm(p => ({ ...p, [f.field]: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
                 </div>
               ))}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>Password</label>
+                <div style={{ display: 'flex', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
+                  {([['email', 'Set by Email'], ['manual', 'Set Manually']] as const).map(([mode, label]) => (
+                    <button key={mode} type="button" onClick={() => setCreateForm(p => ({ ...p, passwordMode: mode, password: '' }))} style={{ flex: 1, padding: '7px 10px', border: 'none', background: createForm.passwordMode === mode ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: createForm.passwordMode === mode ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{label}</button>
+                  ))}
+                </div>
+                {createForm.passwordMode === 'email' ? (
+                  <p style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>The user will receive a secure link to choose their password. The link expires in 1 hour.</p>
+                ) : (
+                  <input required type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13, boxSizing: 'border-box' }} />
+                )}
+              </div>
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tier</label>
                 <select value={createForm.tier} onChange={e => setCreateForm(p => ({ ...p, tier: e.target.value }))} style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-strong)', fontSize: 13 }}>

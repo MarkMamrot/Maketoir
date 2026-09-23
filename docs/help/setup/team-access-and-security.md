@@ -11,7 +11,7 @@ Use Team to invite a colleague with the appropriate tier, then let them complete
 
 - Confirm the selected business and email address.
 - Choose the least privileged tier that covers the person's work in this business.
-- Send one invitation and check the result.
+- Choose **Set by Email** so the person creates their own password, then check the result.
 - Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.
 - Keep passwords, authenticator codes, and recovery codes private.
 - Export business data only when authorised to handle the file.
@@ -56,10 +56,11 @@ Users enrolled in two or more businesses can choose the active business from the
 2. Confirm the business named on the page.
 3. Enter the colleague's email address.
 4. Choose **User** or **Admin** from the role list.
-5. Select **Send Invite Email** once.
-6. Read the success or error message before trying again.
-7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.
-8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.
+5. In **Password**, keep **Set by Email** selected. Use **Set Manually** only when an authorised support process specifically requires it.
+6. Select **Create** once.
+7. Read the success or error message before trying again.
+8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.
+9. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.
 
 If the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.
 
@@ -79,7 +80,7 @@ The user form stays open if you click outside it. Select **Cancel** or press Esc
 
 | Symptom | Likely cause | Safe action |
 | --- | --- | --- |
-| Invitation email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before resending once |
+| Password setup email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before creating or sending another link |
 | Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |
 | User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |
 | User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |
