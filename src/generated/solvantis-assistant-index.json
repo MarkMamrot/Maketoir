@@ -422,6 +422,44 @@
       "filename": "docs/help/ims/contacts/segments-tasks-and-pipeline.md"
     },
     {
+      "id": "ims-cash-banking",
+      "title": "Cash Banking",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-finances",
+      "contexts": [
+        "cash-banking"
+      ],
+      "contextSections": {
+        "cash-banking": "Main operations"
+      },
+      "relatedTopics": [
+        "pos-end-of-day-xero",
+        "pos-petty-cash",
+        "ims-xero-reconciliation",
+        "ims-report-guide"
+      ],
+      "order": 63,
+      "summary": "Prepare cash deposits, record late or historical lodgements, and post each deposit to Xero without duplicating accounting.",
+      "lastReviewed": "2026-09-24",
+      "owner": "accounting",
+      "quickSections": [
+        "Main operations",
+        "At a glance",
+        "Step-by-step",
+        "Troubleshooting"
+      ],
+      "filename": "docs/help/ims/finances/cash-banking.md"
+    },
+    {
       "id": "ims-workspaces",
       "title": "IMS Workspaces",
       "audiences": [
@@ -1002,7 +1040,6 @@
       "format": "task",
       "parentId": "ims-operational-reports",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -1015,7 +1052,6 @@
         "report-stock-availability"
       ],
       "contextSections": {
-        "cash-banking": "Cash Banking workflow",
         "report-sales-detail": "Step-by-step",
         "report-sales-by-branch": "Step-by-step",
         "report-sales-summary": "Step-by-step",
@@ -1029,12 +1065,13 @@
       },
       "relatedTopics": [
         "ims-operational-reports",
+        "ims-cash-banking",
         "ims-inventory-costing",
         "ims-location-stock-operations"
       ],
       "order": 61,
       "summary": "Match a business question to the right report and compare dates, GST, cost, and stock consistently.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "owner": "reporting",
       "quickSections": [
         "Main operations",
@@ -5130,6 +5167,270 @@
       "sectionId": "ims-crm-workflows:7"
     },
     {
+      "id": "ims-cash-banking:1",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Cash Banking",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "Cash Banking groups completed store cash counts into a bank deposit. It preserves what the store reported, what the depositor recounted, what the bank accepted, and how the deposit was handled in Xero.",
+      "sectionId": "ims-cash-banking:1"
+    },
+    {
+      "id": "ims-cash-banking:2",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "- Choose one branch and the trading days included in the physical deposit.\n- Recount the cash being prepared before creating the draft.\n- After lodgement, enter the actual date, bank reference, destination bank, and amount accepted.\n- Choose **Post through Solvantis** when Solvantis still needs to create the Xero accounting.\n- Choose **Already recorded in Xero** only when someone has already entered that deposit manually in Xero.\n- Use **Retry** after a partial posting failure. Do not recreate the deposit.\n\n> **Important:** Creating a preparation draft reserves the chosen End of Day cash records. This prevents the same store cash from being included in another deposit.",
+      "sectionId": "ims-cash-banking:2"
+    },
+    {
+      "id": "ims-cash-banking:3",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "At a glance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "| Stage | Meaning | Accounting effect |\n|---|---|---|\n| Store End of Day | The store records cash held after trading | Sales and GST follow the normal End of Day accounting; cash remains in Cash Clearing |\n| Preparation draft | The depositor chooses days and recounts the physical cash | No new Xero transaction |\n| Confirm lodgement | An Admin records what the bank accepted | No Xero transaction until an accounting outcome is chosen and completed |\n| Post through Solvantis | Solvantis records variances and transfers accepted cash | Cash Clearing is credited, the destination Bank is debited, and differences use Cash Variances |\n| Already recorded in Xero | The deposit was entered manually before this Solvantis record | No Xero action is created; the Solvantis record is retained for history only |\n\n| Difference | What it compares |\n|---|---|\n| Till variance | Expected register cash against the store's End of Day count |\n| Preparation variance | Store-reported cash against the depositor's recount |\n| Bank acceptance variance | Prepared cash against the amount accepted by the bank |",
+      "sectionId": "ims-cash-banking:3"
+    },
+    {
+      "id": "ims-cash-banking:4",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Before you begin",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "- [ ] Confirm every chosen register has completed End of Day and counted cash.\n- [ ] Have the physical cash or preparation record available for an independent recount.\n- [ ] Have the bank receipt, lodgement date, reference, destination account, and accepted amount.\n- [ ] Check Xero before choosing **Already recorded in Xero**.\n- [ ] For a late entry, have a short explanation for why it is being recorded after the lodgement date.\n\n> **Warning:** Do not choose **Already recorded in Xero** merely because the cash was physically deposited. Use it only when the accounting entry also already exists in Xero.",
+      "sectionId": "ims-cash-banking:4"
+    },
+    {
+      "id": "ims-cash-banking:5",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Step-by-step",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "### Prepare a deposit\n\n1. Open **Finances > Cash Banking**.\n2. Choose the branch and date range. Older eligible trading days may be chosen.\n3. Review any blocked days. Open registers, missing cash counts, incomplete accounting, or days already reserved by another deposit cannot be chosen.\n4. Choose the days included in the deposit.\n5. Count the physical cash and enter the **Preparation recount** for each day.\n6. Review the preparation variance, then choose **Create preparation draft**.\n\n### Record the bank lodgement\n\n1. Find the draft under **Recent deposits** and choose **Enter lodgement**.\n2. Enter the actual lodgement date, bank reference, destination bank, and final amount accepted by the bank.\n3. For a past date, enter both the bank reference and an explanation. Future dates are not accepted.\n4. Choose the accounting outcome:\n   - **Post through Solvantis** leaves the confirmed deposit ready for an Admin to post.\n   - **Already recorded in Xero** finishes the record without creating Xero actions.\n5. Confirm the lodgement.\n\n### Complete Xero accounting\n\nFor **Post through Solvantis**, choose **Post to Xero**. Solvantis records preparation and bank acceptance differences where required, then transfers the accepted amount from Cash Clearing to the destination Bank account. Match the resulting transaction to the bank statement in Xero.\n\nFor **Already recorded in Xero**, verify the saved status says **Recorded in Xero manually**. No Post button is available and Solvantis cannot post that deposit later.",
+      "sectionId": "ims-cash-banking:5"
+    },
+    {
+      "id": "ims-cash-banking:5.1",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Step-by-step > Prepare a deposit",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-09-24",
+      "content": "1. Open **Finances > Cash Banking**.\n2. Choose the branch and date range. Older eligible trading days may be chosen.\n3. Review any blocked days. Open registers, missing cash counts, incomplete accounting, or days already reserved by another deposit cannot be chosen.\n4. Choose the days included in the deposit.\n5. Count the physical cash and enter the **Preparation recount** for each day.\n6. Review the preparation variance, then choose **Create preparation draft**.",
+      "sectionId": "ims-cash-banking:5"
+    },
+    {
+      "id": "ims-cash-banking:5.2",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Step-by-step > Record the bank lodgement",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-09-24",
+      "content": "1. Find the draft under **Recent deposits** and choose **Enter lodgement**.\n2. Enter the actual lodgement date, bank reference, destination bank, and final amount accepted by the bank.\n3. For a past date, enter both the bank reference and an explanation. Future dates are not accepted.\n4. Choose the accounting outcome:\n   - **Post through Solvantis** leaves the confirmed deposit ready for an Admin to post.\n   - **Already recorded in Xero** finishes the record without creating Xero actions.\n5. Confirm the lodgement.",
+      "sectionId": "ims-cash-banking:5"
+    },
+    {
+      "id": "ims-cash-banking:5.3",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Step-by-step > Complete Xero accounting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-09-24",
+      "content": "For **Post through Solvantis**, choose **Post to Xero**. Solvantis records preparation and bank acceptance differences where required, then transfers the accepted amount from Cash Clearing to the destination Bank account. Match the resulting transaction to the bank statement in Xero.\n\nFor **Already recorded in Xero**, verify the saved status says **Recorded in Xero manually**. No Post button is available and Solvantis cannot post that deposit later.",
+      "sectionId": "ims-cash-banking:5"
+    },
+    {
+      "id": "ims-cash-banking:6",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| An older day is missing | Date range and completed End of Day cash count | Widen the range, then close and count the register if needed |\n| A day says it is reserved | Recent deposits and Cash Banking report | Continue the existing deposit; do not create another |\n| The cash was banked before staff used Cash Banking | Whether the Xero accounting entry already exists | Prepare the historical days, then choose the matching accounting outcome |\n| A backdated confirmation is blocked | Bank reference and explanation | Enter both using the bank receipt and reason for late entry |\n| Xero posting partly failed | Deposit status and error | Choose **Retry**; completed actions are reused |\n| The amount differs | Till, preparation, and bank acceptance variance | Investigate the stage where the difference first appeared |",
+      "sectionId": "ims-cash-banking:6"
+    },
+    {
+      "id": "ims-cash-banking:7",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-09-24",
+      "content": "### Late entry that has not been recorded in Xero\n\nCash was deposited on Monday but entered in Solvantis on Wednesday. The Admin chooses Monday as the lodgement date, enters the bank receipt reference and explains the delay, then chooses **Post through Solvantis**. After confirmation, the Admin posts and reconciles the resulting Xero transaction.\n\n### Historical deposit already entered in Xero\n\nA prior month's deposit was physically banked and the bookkeeper already entered it manually in Xero. The Admin chooses the relevant eligible trading days, records the recount and bank details, enters the Xero or bank reference and explanation, then chooses **Already recorded in Xero**. Solvantis retains the linked history but creates no second Xero transaction.",
+      "sectionId": "ims-cash-banking:7"
+    },
+    {
+      "id": "ims-cash-banking:7.1",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Worked examples > Late entry that has not been recorded in Xero",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-09-24",
+      "content": "Cash was deposited on Monday but entered in Solvantis on Wednesday. The Admin chooses Monday as the lodgement date, enters the bank receipt reference and explains the delay, then chooses **Post through Solvantis**. After confirmation, the Admin posts and reconciles the resulting Xero transaction.",
+      "sectionId": "ims-cash-banking:7"
+    },
+    {
+      "id": "ims-cash-banking:7.2",
+      "documentId": "ims-cash-banking",
+      "title": "Cash Banking",
+      "heading": "Worked examples > Historical deposit already entered in Xero",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Finances > Cash Banking",
+      "topicId": "ims-cash-banking",
+      "contexts": [
+        "cash-banking"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-09-24",
+      "content": "A prior month's deposit was physically banked and the bookkeeper already entered it manually in Xero. The Admin chooses the relevant eligible trading days, records the recount and bank details, enters the Xero or bank reference and explanation, then chooses **Already recorded in Xero**. Solvantis retains the linked history but creates no second Xero transaction.",
+      "sectionId": "ims-cash-banking:7"
+    },
+    {
       "id": "ims-workspaces:1",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
@@ -9212,7 +9513,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9225,7 +9525,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "Use this guide to choose a report, understand what its dates and money mean, and trace a total back to source activity.",
       "sectionId": "ims-report-guide:1"
     },
@@ -9241,7 +9541,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9254,8 +9553,8 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting.\n\nOpen the Cash Banking workspace directly at **IMS → `#cash-banking`**. Use the separate **Cash Banking report** to review prepared deposits and recorded corrections.",
+      "lastReviewed": "2026-09-24",
+      "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting.\n\nOpen **Finances > Cash Banking** or use the direct `#cash-banking` link. See **Cash Banking** Help for preparation, historical lodgements, and Xero accounting outcomes. Use the separate **Cash Banking report** to review prepared deposits and recorded corrections.",
       "sectionId": "ims-report-guide:2"
     },
     {
@@ -9270,7 +9569,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9283,7 +9581,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "| Business question | Best starting report | Read next when needed |\n|---|---|---|\n| Which products sold and where? | Sales Detail | Sales Search for individual source lines |\n| How do locations compare? | Sales by Branch | Sales Detail with one branch selected |\n| What drives sales by brand, supplier, type, day, or hour? | Sales Summary | Sales Search for source activity |\n| Where is a known product sale? | Sales Search | POS Sales or the Sales Order |\n| What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |\n| What margin was recorded? | Product Margin or Sales Summary | Sale and movement history for cost coverage |\n| Is a POS price change expected? | POS Price Changes | Product and sale source |\n| What happened in a register session? | POS Registers | POS Sales and End of Day records |\n| Does recorded banking match cash handling? | Cash Banking | Register and deposit references |\n| Can demand be supplied? | Stock Availability | Sales Orders, allocation, and Purchase Orders |",
       "sectionId": "ims-report-guide:3"
     },
@@ -9299,7 +9597,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9312,7 +9609,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "1. Confirm each store has completed its POS End of Day cash count.\n2. Open **Cash Banking**, choose one branch and the relevant dates, then select eligible trading days.\n3. Recount the cash being prepared and enter that amount. Create one preparation draft for the selected days.\n4. After the bank accepts the lodgement, enter the actual lodgement date, bank reference, destination bank account, and final accepted amount.\n5. Post the confirmed deposit to Xero when posting is enabled, then match it to the bank-statement entry in Xero.\n\n**Bookkeeper shorthand:** EOD establishes cash held by the store; preparation groups and recounts that cash; lodgement records what the bank accepted; Xero posting moves the confirmed amount from cash clearing to the selected bank account.\n\nTill variance and banking variance are different. Till variance compares the register's expected cash with the store's EOD count. Preparation or bank acceptance variance compares later recounts and the accepted lodgement with the cash already in custody. Investigate each at the stage where it arose.\n\nRetrying a partial or failed Xero post completes only unfinished actions. Do not recreate the EOD sale or create a second deposit for the same trading days.",
       "sectionId": "ims-report-guide:4"
     },
@@ -9328,7 +9625,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9341,7 +9637,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "- [ ] Confirm the business date or period you intend to answer.\n- [ ] Decide which branches and transaction types belong in the comparison.\n- [ ] Note whether the external figure includes GST.\n- [ ] Use the same filters on both reports before comparing them.\n- [ ] Keep source records unchanged while investigating a reporting difference.\n\n> **Note:** A preset such as **90 Days** is a rolling window ending on the current reporting date. A custom range uses the entered start and end dates, including both boundary dates.",
       "sectionId": "ims-report-guide:5"
     },
@@ -9357,7 +9653,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9370,7 +9665,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "### Choose and run a report\n\n1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.\n\n### Understand report dates\n\n| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.\n\n### Compare tax and cost correctly\n\n| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current inventory cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.\n\n### Ask Assistant for a sales comparison\n\nAssistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.",
       "sectionId": "ims-report-guide:6"
     },
@@ -9386,7 +9681,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9399,7 +9693,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.",
       "sectionId": "ims-report-guide:6"
     },
@@ -9415,7 +9709,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9428,7 +9721,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.",
       "sectionId": "ims-report-guide:6"
     },
@@ -9444,7 +9737,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9457,7 +9749,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current inventory cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.",
       "sectionId": "ims-report-guide:6"
     },
@@ -9473,7 +9765,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9486,7 +9777,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "Assistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.",
       "sectionId": "ims-report-guide:6"
     },
@@ -9502,7 +9793,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9515,7 +9805,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Two sales totals differ | Different source coverage, dates, locations, statuses, or GST treatment | Align each choice and compare source rows |\n| Gross profit is blank | No covered sale value or incomplete cost coverage | Inspect attached cost and the source movements |\n| COGS coverage is below 100% | Some sold quantity has no complete attached cost | Review the affected sales and movement history |\n| Current valuation changed but old margin did not | Current Average Cost or remaining FIFO layers changed after the historical sale | Use current method valuation and historical attached cost for that sale |\n| Export differs from the screen you expected | Filters changed or export includes all selected pages or groups | Recheck active filters and totals before exporting |",
       "sectionId": "ims-report-guide:7"
     },
@@ -9531,7 +9821,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9544,7 +9833,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "### Compare a tax-inclusive sale with tax-exclusive margin\n\nA sale amount of $110 including GST has a tax-exclusive value of $100. If its attached tax-exclusive cost is $60, gross profit is $40. Comparing $110 directly with $60 would mix tax treatments and overstate gross profit.\n\n### Separate current and historical cost\n\nA jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.",
       "sectionId": "ims-report-guide:8"
     },
@@ -9560,7 +9849,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9573,7 +9861,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "A sale amount of $110 including GST has a tax-exclusive value of $100. If its attached tax-exclusive cost is $60, gross profit is $40. Comparing $110 directly with $60 would mix tax treatments and overstate gross profit.",
       "sectionId": "ims-report-guide:8"
     },
@@ -9589,7 +9877,6 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
-        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9602,7 +9889,7 @@
         "report-stock-availability"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-09-24",
       "content": "A jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.",
       "sectionId": "ims-report-guide:8"
     },

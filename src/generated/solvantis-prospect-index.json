@@ -123,6 +123,18 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-cash-banking",
+      "title": "Cash Banking",
+      "summary": "Prepare cash deposits, record late or historical lodgements, and post each deposit to Xero without duplicating accounting.",
+      "capabilities": [
+        "ims",
+        "integrations",
+        "xero"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-workspaces",
       "title": "IMS Workspaces",
       "summary": "Find the right IMS workspace for products, orders, customers, stock, finances, reports, and integrations.",
