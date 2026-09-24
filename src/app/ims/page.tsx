@@ -22678,6 +22678,10 @@ export default function ImsPage() {
           setPendingOpenSCN(documentId);
           return 'supplier-credit-notes' as ImsView;
         }
+        if (documentView === 'pos-sales') {
+          setPendingOpenPosSale(documentId);
+          return 'sales-orders' as ImsView;
+        }
       }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;

@@ -8,7 +8,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 ## Main operations
 
 - Open **Finances > Accounting Audit** and start in **Open**.
-- Select the source reference to open the related document, then review the recommended action.
+- Select the source reference to open the related document in a new browser tab, leaving the audit queue in place.
 - For a Xero difference, use **Xero Sync History** separately when you need the posting and retry history.
 - Correct the source workflow when the finding represents a real problem.
 - Use **Accept exception** only when the current evidence is legitimate and record why.
@@ -20,7 +20,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 | Finding | When it appears | Normal next step |
 |---|---|---|
-| Missing, zero, or negative COGS | A genuine stock sale in the previous completed month has incomplete or invalid movement cost | Review the sale movement and its receipt or opening cost source |
+| Missing, zero, or negative COGS | An inventory-tracked product sold in the previous completed month has incomplete or invalid movement cost | Use the named product and SKU to review its receipt or opening cost source |
 | Xero reconciliation difference | The existing Xero reconciliation process finds a document, amount, state, contact, currency, payment, or mapping difference | Compare Solvantis and Xero, then correct the source of truth and recheck |
 | Negative stock | An active stock position is below zero, including a fractional quantity | Review movements and correct through receiving, transfer, stocktake, or the source transaction |
 | Overdue Purchase Order | Its expected date has passed, or it is more than 30 days from order date without one | Receive, resolve, or update the order |
@@ -45,13 +45,13 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 2. Read **Action required** and **Coverage** before reviewing rows.
 3. Work from the first row downward; findings are ordered by source transaction date, newest first.
 4. Check the source, due date, quantity, and value at risk.
-5. Select the source reference to inspect the related workflow.
+5. Select the source reference to inspect the related workflow in a new tab. A POS source opens the exact transaction rather than the general sales list.
 6. Correct the source record through its normal workflow.
 7. Refresh the audit. A corrected finding clears automatically.
 
 For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document. **Xero Sync History** opens the separate Xero activity record.
 
-Sales COGS checks use the previous completed calendar month. They exclude historical imports, non-stock products, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
+Sales COGS checks use the previous completed calendar month. Each finding names the affected product and SKU. They exclude historical imports, products that do not track inventory, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
 
 ### Read an assumed due date
 

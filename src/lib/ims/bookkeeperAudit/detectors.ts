@@ -87,7 +87,7 @@ export function buildDocumentAuditFindings(rows: DocumentAuditRow[], asOfDate: s
       sourceType: row.source_type,
       sourceId: String(row.source_id),
       sourceReference: row.source_reference,
-      sourceHref: `#${SOURCE_HASHES[row.source_type]}`,
+      sourceHref: `#${SOURCE_HASHES[row.source_type]}/${row.source_id}`,
       occurredAt: row.occurred_at,
       detectedAt: new Date().toISOString(),
       dueDate,
@@ -213,6 +213,8 @@ export interface CogsAuditRow {
   source_type: 'pos_sale' | 'sales_order';
   source_id: number;
   source_reference: string;
+  sku: string;
+  product_name: string;
   occurred_at: string;
   qty_change: number | string;
   unit_cost: number | string | null;
@@ -233,6 +235,10 @@ export function buildCogsAuditFindings(rows: CogsAuditRow[], periodEnd: string):
     const attachedValue = sourceRows.reduce((sum, row) => sum + Math.max(0, -Number(row.qty_change) * Number(row.unit_cost ?? 0)), 0);
     const evidence = { movementIds: sourceRows.map(row => Number(row.movement_id)).sort((a, b) => a - b), missingCount, zeroCount, negativeCount };
     const problem = negativeCount > 0 ? 'negative' : missingCount > 0 ? 'missing' : 'zero';
+    const products = [...new Map(sourceRows.map(row => [
+      `${row.sku}:${row.product_name}`,
+      row.sku ? `${row.product_name} (${row.sku})` : row.product_name,
+    ])).values()];
     return {
       key: `cogs:${sourceKey}:${problem}`,
       fingerprint: fingerprintAuditEvidence(evidence),
@@ -240,11 +246,11 @@ export function buildCogsAuditFindings(rows: CogsAuditRow[], periodEnd: string):
       severity: negativeCount > 0 || missingCount > 0 ? 'critical' : 'error',
       coverage: 'checked',
       title: `${negativeCount > 0 ? 'Negative' : missingCount > 0 ? 'Missing' : 'Zero'} COGS on sale`,
-      summary: `${first.source_reference} has ${sourceRows.length} stock movement${sourceRows.length === 1 ? '' : 's'} with incomplete or invalid cost in the month ending ${periodEnd}.`,
+      summary: `${first.source_reference} has incomplete or invalid cost for ${products.join(', ')} in the month ending ${periodEnd}.`,
       sourceType: first.source_type,
       sourceId: String(first.source_id),
       sourceReference: first.source_reference,
-      sourceHref: first.source_type === 'pos_sale' ? '#pos-sales' : '#sales-orders',
+      sourceHref: first.source_type === 'pos_sale' ? `#pos-sales/${first.source_id}` : `#sales-orders/${first.source_id}`,
       occurredAt: sourceRows.map(row => row.occurred_at).sort().at(-1)!,
       detectedAt: new Date().toISOString(),
       dueDate: null,
@@ -269,11 +275,12 @@ export async function loadCogsAuditFindings(
             CASE WHEN sm.movement_type = 'pos_sale'
                  THEN COALESCE(NULLIF(ps.local_id, ''), CONCAT('POS #', ps.id))
                  ELSE COALESCE(so.so_number, CONCAT('SO #', sm.reference_id)) END AS source_reference,
+              COALESCE(v.sku, '') AS sku, p.name AS product_name,
             DATE_FORMAT(sm.created_at, '%Y-%m-%dT%H:%i:%s.000Z') AS occurred_at,
             sm.qty_change, sm.unit_cost
        FROM ims_stock_movements sm
        JOIN ims_product_variants v ON v.variant_id = sm.variant_id
-       JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1
+            JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ? AND p.is_stock_item = 1
        LEFT JOIN pos_sales ps ON sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale'
         AND ps.id = sm.reference_id AND ps.business_id = ?
        LEFT JOIN ims_sales_orders so ON sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order'

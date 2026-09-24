@@ -50,13 +50,15 @@ describe('bookkeeper audit operational detectors', () => {
 
   it('groups COGS anomalies by source sale and prioritises negative cost', () => {
     const findings = buildCogsAuditFindings([
-      { movement_id: 2, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', occurred_at: '2026-08-10T00:00:00.000Z', qty_change: -1, unit_cost: null },
-      { movement_id: 1, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', occurred_at: '2026-08-09T00:00:00.000Z', qty_change: 1, unit_cost: 5 },
+      { movement_id: 2, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', sku: 'SKU-RED', product_name: 'Red Shirt', occurred_at: '2026-08-10T00:00:00.000Z', qty_change: -1, unit_cost: null },
+      { movement_id: 1, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', sku: 'SKU-BLUE', product_name: 'Blue Shirt', occurred_at: '2026-08-09T00:00:00.000Z', qty_change: 1, unit_cost: 5 },
     ], '2026-08-31');
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       key: 'cogs:sales_order:42:negative', severity: 'critical', variance: 2,
       actual: '1 missing, 0 zero, 1 negative', occurredAt: '2026-08-10T00:00:00.000Z',
+      sourceHref: '#sales-orders/42',
     });
+    expect(findings[0].summary).toContain('Red Shirt (SKU-RED), Blue Shirt (SKU-BLUE)');
   });
 });
