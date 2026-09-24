@@ -1,6 +1,7 @@
 ## 2026-09-24 - Bookkeeper Audit operational queue
 
 - Finances > Accounting Audit now presents a newest-first queue for overdue operational documents, negative stock, inventory-tracked sales with invalid captured COGS, and existing Xero reconciliation differences. Findings use evidence fingerprints so accepted exceptions reopen when their underlying evidence changes.
+- Negative-stock findings now link through the owning product ID instead of the variant ID, so exact product references open the product editor rather than stopping at All Products. The queue has a client-side Filters dropdown for source type, shared preset/custom finding date, severity, and minimum/maximum value at risk, with active-filter count and clear behavior.
 - Source dates and exact source links are tenant-resolved. POS findings open the exact sale; Xero findings expose separate direct-document and Sync History actions. Deleted local sources retain saved lifecycle evidence without presenting dead links.
 - Xero credit-note reconciliation now retrieves requested credit notes by direct ID. A targeted Monsterthreads recheck cleared 21 stale false missing-document issues while retaining substantive mismatches.
 - Exact POS sale views show revenue excluding tax, line costs, COGS and gross margin. Bookkeeper Audit Help documents coverage, due-date assumptions, evidence review and exception handling.
