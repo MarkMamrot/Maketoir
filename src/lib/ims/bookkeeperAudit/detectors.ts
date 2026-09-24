@@ -197,7 +197,7 @@ export async function loadOperationalAuditFindings(
          JOIN ims_product_variants v ON v.variant_id = s.variant_id
          JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
          JOIN ims_locations l ON l.id = s.location_id AND l.business_id = ?
-        WHERE s.business_id = ? AND s.qty_on_hand < 0 AND v.is_active = 1 AND p.is_active = 1
+        WHERE s.business_id = ? AND s.qty_on_hand < 0 AND v.is_active = 1 AND p.is_active = 1 AND p.is_stock_item = 1
         ORDER BY s.updated_at DESC, s.id DESC`,
       [businessId, businessId, businessId],
     ),

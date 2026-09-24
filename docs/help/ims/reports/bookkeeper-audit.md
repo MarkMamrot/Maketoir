@@ -23,7 +23,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 |---|---|---|
 | Missing, zero, or negative COGS | An inventory-tracked product sold in the previous completed month has incomplete or invalid movement cost | Use the named product and SKU to review its receipt or opening cost source |
 | Xero reconciliation difference | The existing Xero reconciliation process finds a document, amount, state, contact, currency, payment, or mapping difference | Compare Solvantis and Xero, then correct the source of truth and recheck |
-| Negative stock | An active stock position is below zero, including a fractional quantity | Review movements and correct through receiving, transfer, stocktake, or the source transaction |
+| Negative stock | An active inventory-tracked product has a stock position below zero, including a fractional quantity | Review movements and correct through receiving, transfer, stocktake, or the source transaction. If the product should not track inventory, disable **Tracks inventory** and refresh the audit |
 | Overdue Purchase Order | Its expected date has passed, or it is more than 30 days from order date without one | Receive, resolve, or update the order |
 | Overdue Sales Order | Its expected date has passed, or it is more than 14 days from order date without one | Fulfil, resolve the remainder, or update the order |
 | Credit note awaiting product | It remains open 30 days after the credit-note date | Confirm the return or cancel the draft |

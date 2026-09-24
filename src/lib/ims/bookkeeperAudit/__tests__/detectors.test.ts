@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildCogsAuditFindings, buildDocumentAuditFindings, buildNegativeStockAuditFindings } from '../detectors';
+import { describe, expect, it, vi } from 'vitest';
+import { buildCogsAuditFindings, buildDocumentAuditFindings, buildNegativeStockAuditFindings, loadOperationalAuditFindings } from '../detectors';
 import { applyAuditReviews } from '../presentation';
 
 describe('bookkeeper audit operational detectors', () => {
@@ -33,6 +33,14 @@ describe('bookkeeper audit operational detectors', () => {
     const changed = buildNegativeStockAuditFindings([{ ...base, qty_on_hand: '-0.5' }])[0];
     expect(first).toMatchObject({ severity: 'warning', actual: -0.25, valueAtRisk: 3, sourceHref: '#products/p-1' });
     expect(changed.fingerprint).not.toBe(first.fingerprint);
+  });
+
+  it('queries negative stock only for products that track inventory', async () => {
+    const query = vi.fn().mockResolvedValue([]);
+
+    await loadOperationalAuditFindings('business-1', '2026-09-25', { query });
+
+    expect(query.mock.calls[1][0]).toContain('p.is_stock_item = 1');
   });
 
   it('accepts only an exact finding fingerprint', () => {
