@@ -52,7 +52,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 Select **Filters** to combine source type, date, severity, and value-at-risk conditions. Source types include the available document, mapping, transaction, and stock-position types in the current queue. Date filtering uses the shared report presets or a custom range. Enter a minimum, maximum, or both for value at risk. The filter badge shows how many conditions are active, and **Clear filters** restores the complete Open or Accepted queue.
 
-For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document, **View in Xero** opens the linked Xero document, and **Xero Sync History** opens the separate Xero activity record. If the local source was removed, no source link is shown.
+For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document, **View in Xero** opens the linked Xero document, and **Xero Sync History** opens the separate Xero activity record. If the local source is no longer available, the source reference is labelled **Local source unavailable - opens Xero** and opens the surviving Xero document instead.
 
 For a lifecycle-state finding, expand **Why these states are incompatible**. It shows the current Solvantis source state, the current Xero state, the Xero states expected for that workflow, and why the current combination does not agree.
 
@@ -91,7 +91,7 @@ Acceptance applies only to the exact evidence reviewed. If the quantity, value, 
 | A sale has a current product cost but Audit reports zero COGS | The sale's stock movement captured zero; current catalogue cost is not historical sale COGS | Review the receipt, opening, or earlier movement cost evidence before correcting the historical movement |
 | Xero reconciliation could not be completed | Reconciliation records could not be loaded | Check the Xero connection and refresh; other audit areas remain available |
 | A Xero finding date looks older than its last scan | The audit shows the source transaction date | Use **Xero Sync History** to review later posting or scan activity |
-| A source reference is not clickable | The local source record is no longer available | Expand the finding detail and use **View in Xero** or **Xero Sync History** to investigate the retained reconciliation evidence |
+| A source reference is not clickable | Neither a local document nor a supported Xero document link is available | Expand the finding detail and use **Xero Sync History** to investigate the retained reconciliation evidence |
 | A filter returns no findings | No row in the current Open or Accepted queue meets every selected condition | Widen the date or value range, choose another source or severity, or select **Clear filters** |
 | A document has an assumed due date | No expected date was recorded | Review the displayed fallback and update the source date when a better commitment is known |
 | An accepted finding returned to Open | Its evidence changed | Review the new quantity, value, status, or due date and make a fresh decision |
