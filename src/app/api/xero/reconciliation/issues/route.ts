@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     const items = result.items.map(item => ({
       ...item,
       ...(details.get(`${item.targetType}:${item.referenceId}`) ?? {
-        reference: `${item.targetType} #${item.referenceId}`, contactName: null, amount: null, itemDate: null,
+        reference: `${item.targetType} #${item.referenceId}`, contactName: null, amount: null, itemDate: null, status: null,
       }),
     }));
     if (format === 'csv') {

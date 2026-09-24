@@ -14782,6 +14782,17 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const posSaleStatus = String(posSale?.status || '');
   const canVoidPosSale = !isAdvisor && (posSaleStatus === 'completed' || posSaleStatus === 'layby_complete');
   const posPaidTotal = posPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+  const posCostRows = posItems.map((item: any) => {
+    const qty = Number(item.qty ?? 0);
+    const unitCost = item.unit_cost != null ? Number(item.unit_cost) : item.avg_cost != null ? Number(item.avg_cost) : null;
+    const lineTotal = Math.sign(qty) * Math.abs(Number(item.line_total || 0));
+    const taxRate = Number(item.tax_rate ?? 10);
+    const revenueEx = taxRate > 0 ? lineTotal / (1 + taxRate / 100) : lineTotal;
+    return { item, qty, unitCost, cogs: unitCost == null ? null : qty * unitCost, revenueEx, lineTotal, taxRate };
+  });
+  const posProfitability = calculatePosProfitability(posCostRows.map((row: any) => ({
+    qty: row.qty, lineTotal: row.lineTotal, taxRate: row.taxRate, unitCost: row.unitCost,
+  })));
 
   return (
     <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
@@ -15611,6 +15622,21 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     </tr>
                   </tfoot>
                 </table>
+
+                <div style={{ marginTop: 14 }}>
+                  <CostSummaryPills items={[
+                    { label: 'Revenue (ex tax)', value: fmtCurrency(posProfitability.revenueEx) },
+                    { label: 'COGS', value: posProfitability.totalCogs != null ? fmtCurrency(posProfitability.totalCogs) : '—', tone: posProfitability.totalCogs != null ? 'default' : 'warn' },
+                    { label: 'Gross Margin', value: posProfitability.marginPct != null ? `${posProfitability.marginPct.toFixed(1)}%` : '—', tone: posProfitability.marginPct != null ? (posProfitability.marginPct >= 0 ? 'good' : 'bad') : 'warn' },
+                  ]} />
+                  <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
+                    <summary style={{ cursor: 'pointer', padding: '9px 11px', fontSize: 12, fontWeight: 650, color: 'var(--sv-text-main)', background: 'var(--sv-bg-2)' }}>Cost and COGS line breakdown</summary>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}><th style={{ textAlign: 'left', padding: '6px' }}>Product / SKU</th><th style={{ textAlign: 'right', padding: '6px' }}>Qty</th><th style={{ textAlign: 'right', padding: '6px' }}>Unit cost</th><th style={{ textAlign: 'right', padding: '6px' }}>COGS</th><th style={{ textAlign: 'right', padding: '6px' }}>Revenue (ex)</th></tr></thead>
+                      <tbody>{posCostRows.map((row: any, index: number) => <tr key={row.item.id ?? index} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: '6px' }}>{row.item.name || '—'}{row.item.code ? ` (${row.item.code})` : ''}</td><td style={{ padding: '6px', textAlign: 'right' }}>{row.qty}</td><td style={{ padding: '6px', textAlign: 'right' }}>{row.unitCost != null ? fmtCurrency(row.unitCost) : '—'}</td><td style={{ padding: '6px', textAlign: 'right' }}>{row.cogs != null ? fmtCurrency(row.cogs) : '—'}</td><td style={{ padding: '6px', textAlign: 'right' }}>{fmtCurrency(row.revenueEx)}</td></tr>)}</tbody>
+                    </table>
+                  </details>
+                </div>
 
                 <div style={{ marginTop: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Payments</div>

@@ -145,6 +145,7 @@ export type XeroReconciliationIssueListItem = {
   summary: string;
   expected: Record<string, unknown> | null;
   actual: Record<string, unknown> | null;
+  targetExpected?: Record<string, unknown> | null;
   firstSeenAt: string | Date;
   lastSeenAt: string | Date;
   lastCheckedAt: string | Date | null;
@@ -227,7 +228,7 @@ export async function listXeroReconciliationIssues(
     `SELECT issue.id, issue.target_id, issue.rule_key, issue.severity, issue.status, issue.summary,
             issue.expected_summary, issue.actual_summary, issue.first_seen_at, issue.last_seen_at,
             issue.occurrence_count, issue.mismatch_fingerprint, issue.ignored_fingerprint,
-            target.target_type, target.reference_id, target.xero_id, target.last_checked_at,
+            target.target_type, target.reference_id, target.xero_id, target.expected_snapshot, target.last_checked_at,
             (SELECT event.reason FROM xero_reconciliation_issue_events event
               WHERE event.business_id = issue.business_id AND event.issue_id = issue.id AND event.event_type = 'ignored'
               ORDER BY event.id DESC LIMIT 1) AS ignored_reason,
@@ -253,6 +254,7 @@ export async function listXeroReconciliationIssues(
       referenceId: String(row.reference_id), xeroId: row.xero_id ? String(row.xero_id) : null,
       ruleKey: row.rule_key, severity: row.severity, status: row.status, summary: row.summary,
       expected: parseJsonObject(row.expected_summary), actual: parseJsonObject(row.actual_summary),
+      targetExpected: parseJsonObject(row.expected_snapshot),
       firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at,
       lastCheckedAt: row.last_checked_at, occurrenceCount: Number(row.occurrence_count),
       recommendedNextStep: reconciliationRecommendation(row.rule_key),

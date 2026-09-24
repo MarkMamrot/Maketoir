@@ -16,14 +16,31 @@ function issue(overrides: Partial<XeroReconciliationIssueListItem> = {}): XeroRe
 describe('adaptXeroAuditIssues', () => {
   it('maps amount mismatches and their value at risk', () => {
     const result = adaptXeroAuditIssues([issue()], new Map([['sales_order:42', {
-      reference: 'SO-00042', contactName: 'Example Customer', amount: 10, itemDate: '2026-08-27',
+      reference: 'SO-00042', contactName: 'Example Customer', amount: 10, itemDate: '2026-08-27', status: 'fulfilled',
     }]]));
     expect(result.findings[0]).toMatchObject({
       key: 'xero:9', category: 'accounting_xero', expected: 10, actual: 12, variance: 2, valueAtRisk: 2,
       sourceReference: 'SO-00042', sourceHref: '#sales-orders/42', xeroHistoryHref: '#xero/activity/history',
+      xeroHref: 'https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=invoice-42',
       occurredAt: '2026-08-27T00:00:00.000Z', detectedAt: '2026-09-01T00:00:00.000Z',
     });
     expect(result.reviews).toEqual([]);
+  });
+
+  it('explains lifecycle mismatches and does not link a missing local source', () => {
+    const result = adaptXeroAuditIssues([issue({
+      ruleKey: 'lifecycle_state', xeroId: 'invoice-42',
+      expected: { status: 'AUTHORISED', compatibleStatuses: ['AUTHORISED', 'PAID'] },
+      targetExpected: { status: 'AUTHORISED' },
+      actual: { status: 'VOIDED' },
+    })]);
+    expect(result.findings[0]).toMatchObject({
+      sourceHref: null,
+      detail: {
+        localState: 'Source unavailable (recorded lifecycle: AUTHORISED)', xeroState: 'VOIDED',
+        explanation: expect.stringContaining('source record is no longer available'),
+      },
+    });
   });
 
   it('maps an unchanged ignored issue to an accepted review', () => {

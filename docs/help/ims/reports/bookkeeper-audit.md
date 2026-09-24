@@ -9,7 +9,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 - Open **Finances > Accounting Audit** and start in **Open**.
 - Select the source reference to open the related document in a new browser tab, leaving the audit queue in place.
-- For a Xero difference, use **Xero Sync History** separately when you need the posting and retry history.
+- For a Xero difference, use **View in Xero** for the linked document and **Xero Sync History** separately for posting and retry history.
 - Correct the source workflow when the finding represents a real problem.
 - Use **Accept exception** only when the current evidence is legitimate and record why.
 - Check the coverage notice before treating an empty queue as a completed audit.
@@ -49,9 +49,11 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 6. Correct the source record through its normal workflow.
 7. Refresh the audit. A corrected finding clears automatically.
 
-For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document. **Xero Sync History** opens the separate Xero activity record.
+For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document, **View in Xero** opens the linked Xero document, and **Xero Sync History** opens the separate Xero activity record. If the local source was removed, no source link is shown.
 
-Sales COGS checks use the previous completed calendar month. Each finding names the affected product and SKU. They exclude historical imports, products that do not track inventory, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
+For a lifecycle-state finding, expand **Why these states are incompatible**. It shows the current Solvantis source state, the current Xero state, the Xero states expected for that workflow, and why the current combination does not agree.
+
+Sales COGS checks use the previous completed calendar month. Each finding names the affected product and SKU. Open an exact POS transaction to review Revenue excluding tax, COGS, Gross Margin, and the line-level cost breakdown. The checks exclude historical imports, products that do not track inventory, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
 
 ### Read an assumed due date
 
@@ -85,6 +87,7 @@ Acceptance applies only to the exact evidence reviewed. If the quantity, value, 
 | COGS checks could not be completed | Cost movement data could not be loaded | Refresh, then investigate the reported operational issue if it continues |
 | Xero reconciliation could not be completed | Reconciliation records could not be loaded | Check the Xero connection and refresh; other audit areas remain available |
 | A Xero finding date looks older than its last scan | The audit shows the source transaction date | Use **Xero Sync History** to review later posting or scan activity |
+| A source reference is not clickable | The local source record is no longer available | Expand the finding detail and use **View in Xero** or **Xero Sync History** to investigate the retained reconciliation evidence |
 | A document has an assumed due date | No expected date was recorded | Review the displayed fallback and update the source date when a better commitment is known |
 | An accepted finding returned to Open | Its evidence changed | Review the new quantity, value, status, or due date and make a fresh decision |
 | Accept exception is unavailable | Your access level cannot record audit review decisions | Ask an Admin, SuperAdmin, or Advisor to review it |
