@@ -8,6 +8,7 @@ type Deposit = {
   source_account_code: string;
   over_short_account_code: string | null;
   destination_account_code: string;
+  accounting_method: string;
   confirmation_status: string;
   status: string;
 };
@@ -39,11 +40,12 @@ export async function executeCashDeposit(
 ) {
   const [deposit] = await deps.query<Deposit>(
         `SELECT id, lodgement_date, bank_reference, source_account_code, over_short_account_code,
-          destination_account_code, confirmation_status, status
+          destination_account_code, accounting_method, confirmation_status, status
        FROM xero_cash_deposits WHERE business_id = ? AND id = ? LIMIT 1`,
     [businessId, depositId],
   );
   if (!deposit) throw new Error('Cash deposit not found');
+  if (deposit.accounting_method === 'recorded_externally') throw new Error('This deposit was already recorded in Xero and cannot be posted again');
   if (deposit.status === 'posted') return { status: 'posted' as const };
   if (deposit.confirmation_status !== 'confirmed') throw new Error('Cash deposit must be confirmed before posting');
   if (!['draft', 'partial', 'error'].includes(deposit.status)) throw new Error('Cash deposit is already being posted');

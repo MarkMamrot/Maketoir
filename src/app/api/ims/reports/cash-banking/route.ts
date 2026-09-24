@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     `SELECT d.id, d.ims_location_id, d.lodgement_date, d.bank_reference, d.source_account_name,
             d.destination_account_name, d.expected_total, d.counted_total, d.variance_total,
             d.deposited_total, d.bank_variance_total, d.confirmation_status,
-            d.status, d.prepared_by_name, d.confirmed_by_name, d.confirmed_at,
+            d.accounting_method, d.notes, d.status, d.prepared_by_name, d.confirmed_by_name, d.confirmed_at,
             d.posted_by_name, d.posted_at, d.xero_bank_transfer_id,
             d.error_detail, d.external_correction_note, d.external_correction_ref, d.external_correction_date, d.created_at,
             COALESCE((SELECT SUM(s.till_variance) FROM xero_cash_deposit_sources s

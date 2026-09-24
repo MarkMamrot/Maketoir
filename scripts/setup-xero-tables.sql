@@ -392,6 +392,7 @@ CREATE TABLE IF NOT EXISTS xero_cash_deposits (
   confirmed_by_user_id        BIGINT       DEFAULT NULL,
   confirmed_by_name           VARCHAR(255) DEFAULT NULL,
   confirmed_at                DATETIME     DEFAULT NULL,
+  accounting_method           VARCHAR(40)  NOT NULL DEFAULT 'solvantis',
   status                      VARCHAR(30)  NOT NULL DEFAULT 'draft',
   prepared_by_user_id         BIGINT       NOT NULL,
   prepared_by_name            VARCHAR(255) NOT NULL,

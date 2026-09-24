@@ -94,6 +94,19 @@ describe('executeCashDeposit', () => {
     expect(deps.xeroFetch).not.toHaveBeenCalled();
   });
 
+  it('refuses to post a deposit already recorded externally', async () => {
+    const deps = dependencies([]);
+    deps.query.mockResolvedValueOnce([{
+      id: 7, lodgement_date: '2026-07-30', bank_reference: 'DEP-7', source_account_code: 'CASH',
+      over_short_account_code: '898', destination_account_code: 'BANK', accounting_method: 'recorded_externally',
+      confirmation_status: 'confirmed', status: 'recorded_externally',
+    }]);
+
+    await expect(executeCashDeposit('biz-1', 7, { userId: 4, name: 'Admin' }, deps)).rejects.toThrow('already recorded in Xero');
+    expect(deps.execute).not.toHaveBeenCalled();
+    expect(deps.xeroFetch).not.toHaveBeenCalled();
+  });
+
   it('skips completed actions when retrying', async () => {
     const deps = dependencies([
       { id: 1, action_type: 'variance', amount: 2, status: 'completed', idempotency_key: 'variance-key' },

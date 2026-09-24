@@ -237,6 +237,7 @@ async function main() {
     ['confirmed_by_user_id', 'BIGINT NULL AFTER confirmation_status'],
     ['confirmed_by_name', 'VARCHAR(255) NULL AFTER confirmed_by_user_id'],
     ['confirmed_at', 'DATETIME NULL AFTER confirmed_by_name'],
+    ['accounting_method', "VARCHAR(40) NOT NULL DEFAULT 'solvantis' AFTER confirmed_at"],
     ['xero_bank_transaction_id', 'VARCHAR(100) NULL AFTER xero_bank_transfer_id'],
   ];
   for (const [columnName, definition] of cashDepositConfirmationColumns) {

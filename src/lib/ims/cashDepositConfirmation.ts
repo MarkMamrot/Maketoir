@@ -3,6 +3,36 @@ export type CashPreparationVariance = {
   amount: number;
 };
 
+export type CashDepositAccountingMethod = 'solvantis' | 'recorded_externally';
+
+export function localDateInTimeZone(date: Date, timeZone: string): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date).map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export function validateCashDepositConfirmation(input: {
+  accountingMethod: CashDepositAccountingMethod;
+  lodgementDate: string;
+  today: string;
+  bankReference: string;
+  notes: string;
+}): string | null {
+  if (input.lodgementDate > input.today) return 'Lodgement date cannot be in the future';
+  const requiresEvidence = input.lodgementDate < input.today || input.accountingMethod === 'recorded_externally';
+  if (requiresEvidence && !input.bankReference.trim()) {
+    return 'A bank reference is required for backdated or externally recorded deposits';
+  }
+  if (requiresEvidence && !input.notes.trim()) {
+    return 'An explanation is required for backdated or externally recorded deposits';
+  }
+  return null;
+}
+
 const money = (value: unknown) => Math.round(Number(value) * 100) / 100;
 
 export function buildCashDepositConfirmationPlan(input: {

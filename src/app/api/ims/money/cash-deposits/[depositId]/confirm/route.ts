@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 
-import { buildCashDepositConfirmationPlan } from '@/lib/ims/cashDepositConfirmation';
+import { buildCashDepositConfirmationPlan, localDateInTimeZone, validateCashDepositConfirmation, type CashDepositAccountingMethod } from '@/lib/ims/cashDepositConfirmation';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
 import { getPool } from '@/services/MySQLService';
@@ -19,12 +20,23 @@ export async function POST(request: Request, { params }: { params: { depositId: 
   const body = await request.json();
   const lodgementDate = typeof body.lodgementDate === 'string' ? body.lodgementDate : '';
   const bankReference = typeof body.bankReference === 'string' ? body.bankReference.trim() : '';
+  const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
+  const accountingMethod = body.accountingMethod === 'recorded_externally' ? 'recorded_externally' : body.accountingMethod === 'solvantis' || body.accountingMethod == null ? 'solvantis' : null;
   const destinationAccountId = typeof body.destinationAccountId === 'string' ? body.destinationAccountId.trim() : '';
   const depositedTotal = money(body.depositedTotal);
   if (!Number.isInteger(depositId) || depositId <= 0 || !DATE_PATTERN.test(lodgementDate)
-    || !destinationAccountId || !Number.isFinite(depositedTotal) || depositedTotal < 0) {
+    || !accountingMethod || !destinationAccountId || !Number.isFinite(depositedTotal) || depositedTotal < 0) {
     return NextResponse.json({ error: 'Lodgement date, destination bank, and a valid final deposited amount are required' }, { status: 400 });
   }
+  const timeZone = await getBusinessTimeZone(auth.user.businessId);
+  const validationError = validateCashDepositConfirmation({
+    accountingMethod,
+    lodgementDate,
+    today: localDateInTimeZone(new Date(), timeZone),
+    bankReference,
+    notes,
+  });
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   let accountResponse: any;
   try {
@@ -50,8 +62,8 @@ export async function POST(request: Request, { params }: { params: { depositId: 
   try {
     await connection.beginTransaction();
     const [rows]: any = await connection.execute(
-      `SELECT id, counted_total, over_short_account_code, confirmation_status, status,
-              lodgement_date, destination_account_id, deposited_total
+            `SELECT id, counted_total, over_short_account_code, confirmation_status, accounting_method, status,
+              lodgement_date, bank_reference, notes, destination_account_id, deposited_total
          FROM xero_cash_deposits
         WHERE business_id = ? AND id = ? FOR UPDATE`,
       [auth.user.businessId, depositId],
@@ -64,7 +76,10 @@ export async function POST(request: Request, { params }: { params: { depositId: 
     if (deposit.confirmation_status === 'confirmed') {
       const same = String(deposit.lodgement_date).slice(0, 10) === lodgementDate
         && deposit.destination_account_id === destinationAccountId
-        && Math.abs(Number(deposit.deposited_total) - depositedTotal) < 0.005;
+        && Math.abs(Number(deposit.deposited_total) - depositedTotal) < 0.005
+        && String(deposit.accounting_method || 'solvantis') === accountingMethod
+        && String(deposit.bank_reference ?? '') === bankReference
+        && String(deposit.notes ?? '') === notes;
       await connection.rollback();
       return same
         ? NextResponse.json({ success: true, depositId, replayed: true })
@@ -86,22 +101,24 @@ export async function POST(request: Request, { params }: { params: { depositId: 
     });
     const preparationVariances = confirmationPlan.preparationVariances;
     const bankVariance = confirmationPlan.bankAcceptanceVariance;
-    if ((preparationVariances.length > 0 || bankVariance !== 0) && !deposit.over_short_account_code) {
+    if (accountingMethod === 'solvantis' && (preparationVariances.length > 0 || bankVariance !== 0) && !deposit.over_short_account_code) {
       await connection.rollback();
       return NextResponse.json({ error: 'Cash Variances account is required before confirming this deposit' }, { status: 409 });
     }
 
     await connection.execute(
       `UPDATE xero_cash_deposits
-          SET lodgement_date = ?, bank_reference = ?, destination_account_id = ?,
+          SET lodgement_date = ?, bank_reference = ?, notes = ?, accounting_method = ?, destination_account_id = ?,
               destination_account_code = ?, destination_account_name = ?, deposited_total = ?,
               bank_variance_total = ?, confirmation_status = 'confirmed',
+              status = ?,
               confirmed_by_user_id = ?, confirmed_by_name = ?, confirmed_at = NOW(), error_detail = NULL
         WHERE business_id = ? AND id = ?`,
-      [lodgementDate, bankReference || null, destination.AccountID, String(destination.Code), destination.Name,
-        depositedTotal, bankVariance, auth.user.userId, auth.user.name, auth.user.businessId, depositId],
+      [lodgementDate, bankReference || null, notes || null, accountingMethod, destination.AccountID, String(destination.Code), destination.Name,
+        depositedTotal, bankVariance, accountingMethod === 'recorded_externally' ? 'recorded_externally' : 'draft',
+        auth.user.userId, auth.user.name, auth.user.businessId, depositId],
     );
-    for (const day of preparationVariances) {
+    for (const day of accountingMethod === 'solvantis' ? preparationVariances : []) {
       const date = day.businessDate;
       const amount = day.amount;
       await connection.execute(
@@ -112,7 +129,7 @@ export async function POST(request: Request, { params }: { params: { depositId: 
           actionKey(auth.user.businessId, depositId, 'preparation_variance', date)],
       );
     }
-    if (bankVariance !== 0) {
+    if (accountingMethod === 'solvantis' && bankVariance !== 0) {
       await connection.execute(
         `INSERT INTO xero_cash_deposit_actions
          (cash_deposit_id, business_id, action_key, action_type, business_date, amount, idempotency_key)
@@ -121,15 +138,17 @@ export async function POST(request: Request, { params }: { params: { depositId: 
           actionKey(auth.user.businessId, depositId, 'bank_acceptance_variance')],
       );
     }
-    await connection.execute(
-      `INSERT INTO xero_cash_deposit_actions
-       (cash_deposit_id, business_id, action_key, action_type, amount, idempotency_key)
-       VALUES (?, ?, ?, 'bank_transfer', ?, ?)`,
-      [depositId, auth.user.businessId, `${depositId}:bank_transfer`, depositedTotal,
-        actionKey(auth.user.businessId, depositId, 'bank_transfer')],
-    );
+    if (accountingMethod === 'solvantis') {
+      await connection.execute(
+        `INSERT INTO xero_cash_deposit_actions
+         (cash_deposit_id, business_id, action_key, action_type, amount, idempotency_key)
+         VALUES (?, ?, ?, 'bank_transfer', ?, ?)`,
+        [depositId, auth.user.businessId, `${depositId}:bank_transfer`, depositedTotal,
+          actionKey(auth.user.businessId, depositId, 'bank_transfer')],
+      );
+    }
     await connection.commit();
-    return NextResponse.json({ success: true, depositId, depositedTotal, bankVariance, replayed: false });
+    return NextResponse.json({ success: true, depositId, depositedTotal, bankVariance, accountingMethod, replayed: false });
   } catch (error: any) {
     await connection.rollback();
     if (error?.code === 'ER_DUP_ENTRY') {
