@@ -16583,6 +16583,8 @@ function CashBankingView() {
   const [confirmationReference, setConfirmationReference] = useState('');
   const [confirmationDestinationId, setConfirmationDestinationId] = useState('');
   const [confirmationAmount, setConfirmationAmount] = useState('');
+  const [confirmationAccountingMethod, setConfirmationAccountingMethod] = useState<'solvantis' | 'recorded_externally'>('solvantis');
+  const [confirmationNotes, setConfirmationNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [postingId, setPostingId] = useState<number | null>(null);
@@ -16651,6 +16653,8 @@ function CashBankingView() {
     setConfirmationReference('');
     setConfirmationDestinationId(deposit.default_destination_account_id ?? '');
     setConfirmationAmount(Number(deposit.counted_total).toFixed(2));
+    setConfirmationAccountingMethod('solvantis');
+    setConfirmationNotes('');
     setError('');
   };
 
@@ -16665,6 +16669,8 @@ function CashBankingView() {
           bankReference: confirmationReference,
           destinationAccountId: confirmationDestinationId,
           depositedTotal: Number(confirmationAmount),
+          accountingMethod: confirmationAccountingMethod,
+          notes: confirmationNotes,
         }),
       });
       const result = await response.json();
@@ -16677,7 +16683,7 @@ function CashBankingView() {
   };
 
   const postDeposit = async (deposit: any) => {
-    const confirmed = window.confirm(`Post cash deposit #${deposit.id} to Xero? Completed Xero actions cannot be undone in Marketoir.`);
+    const confirmed = window.confirm(`Post cash deposit #${deposit.id} to Xero?\n\nThis records any preparation and bank variances, then transfers the accepted amount from Cash Clearing to ${deposit.destination_account_name || 'the selected bank account'}.\n\nCompleted Xero actions cannot be undone in Solvantis. If posting fails, use Retry instead of recreating the deposit.`);
     if (!confirmed) return;
     setPostingId(Number(deposit.id)); setError('');
     try {
@@ -16706,6 +16712,9 @@ function CashBankingView() {
         </select>
         <SBDatePicker value={dateRange} onChange={setDateRange} />
       </div>
+      <div style={{ marginBottom: 18, padding: '11px 0', borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.6 }}>
+        <strong style={{ color: 'var(--sv-text-strong)' }}>How it works:</strong> Select a branch and eligible trading days, recount the cash being prepared, then create a draft. After banking, an Admin enters the actual lodgement and either posts it through Solvantis or records that it was already entered in Xero. Older eligible days can be selected with the date range. A draft reserves those days, so do not recreate it after an error.
+      </div>
       {error && <div style={{ padding: '10px 12px', marginBottom: 14, border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
       {!locationId && <div style={{ padding: '36px', textAlign: 'center', color: 'var(--sv-text-dim)', borderTop: '1px solid var(--sv-etch)' }}>Select one branch to prepare a cash deposit.</div>}
       {loading && <div style={{ padding: 36, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading cash days...</div>}
@@ -16717,11 +16726,11 @@ function CashBankingView() {
         <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
           <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>
-              <th style={{ padding: 9, width: 38 }}></th><th style={{ padding: 9, textAlign: 'left' }}>Trading day</th><th style={{ padding: 9, textAlign: 'right' }}>Store-reported cash</th><th style={{ padding: 9, textAlign: 'right' }}>Till variance</th><th style={{ padding: 9, textAlign: 'left' }}>Preparation recount</th><th style={{ padding: 9, textAlign: 'left' }}>Status</th>
+              <th style={{ padding: 9, width: 38 }}></th><th style={{ padding: 9, textAlign: 'left' }}>Trading day</th><th title="Cash held after the store's End of Day count" style={{ padding: 9, textAlign: 'right' }}>Store-reported cash</th><th title="Difference between expected register cash and the store's End of Day count" style={{ padding: 9, textAlign: 'right' }}>Till variance</th><th title="Count the physical cash being placed in this deposit" style={{ padding: 9, textAlign: 'left' }}>Preparation recount</th><th style={{ padding: 9, textAlign: 'left' }}>Status</th>
             </tr></thead>
             <tbody>{(data.days ?? []).map((day: any) => <tr key={day.date} style={{ borderTop: '1px solid var(--sv-etch)', opacity: day.eligible ? 1 : .58 }}>
               <td style={{ padding: 9, textAlign: 'center' }}><input type="checkbox" checked={selected.has(day.date)} disabled={!day.eligible} onChange={() => toggleDay(day)} /></td>
-              <td style={{ padding: 9, fontWeight: 600 }}>{new Date(`${day.date}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}{day.legacy && <span title="This day used the previous cash accounting method." style={{ marginLeft: 7, color: 'var(--sv-amber)', fontSize: 10 }}>LEGACY</span>}</td>
+              <td style={{ padding: 9, fontWeight: 600 }}>{new Date(`${day.date}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}{day.legacy && <span title="This End of Day used the previous accounting method. It does not confirm that the cash was banked." style={{ marginLeft: 7, color: 'var(--sv-amber)', fontSize: 10 }}>LEGACY</span>}</td>
               <td style={{ padding: 9, textAlign: 'right' }}>{fmtCurrency(day.expectedCustody)}</td>
               <td style={{ padding: 9, textAlign: 'right', color: Number(day.tillVariance) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(day.tillVariance)}</td>
               <td style={{ padding: 9 }}><input aria-label={`Deposit count for ${day.date}`} type="number" min="0" step="0.01" disabled={!selected.has(day.date)} value={counts[day.date] ?? ''} onChange={event => setCounts(previous => ({ ...previous, [day.date]: event.target.value }))} style={{ ...controlStyle, width: 130 }} /></td>
@@ -16729,7 +16738,7 @@ function CashBankingView() {
             </tr>)}</tbody>
           </table>
         </div>
-        {(data.days ?? []).length === 0 && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No counted cash reconciliations in this date range.</div>}
+        {(data.days ?? []).length === 0 && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No counted cash reconciliations appear in this range. Try an earlier range, or confirm the register was closed and its End of Day cash was counted.</div>}
         {selectedDays.length > 0 && <div style={{ marginTop: 14, padding: 14, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
             <span style={{ flex: 1 }} />
@@ -16743,8 +16752,8 @@ function CashBankingView() {
       <h2 style={{ margin: '28px 0 10px', fontSize: 15, color: 'var(--sv-text-strong)' }}>Recent deposits</h2>
       <div style={{ borderTop: '1px solid var(--sv-etch)' }}>{deposits.length === 0 ? <div style={{ padding: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No cash deposits prepared yet.</div> : deposits.map(deposit => {
         const deepLink = deposit.xero_bank_transfer_id ? `/api/ims/money/cash-deposits/${deposit.id}/xero` : null;
-        const statusColor = deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)';
-        const statusLabel = deposit.confirmation_status === 'planned' ? 'planned' : deposit.status;
+        const statusColor = ['posted', 'recorded_externally'].includes(deposit.status) ? 'var(--sv-mint)' : ['partial', 'error'].includes(deposit.status) ? 'var(--sv-red)' : 'var(--sv-amber)';
+        const statusLabel = deposit.confirmation_status === 'planned' ? 'Planned' : deposit.status === 'recorded_externally' ? 'Recorded in Xero manually' : deposit.status === 'posted' ? 'Posted to Xero' : deposit.status === 'draft' ? 'Ready to post' : deposit.status === 'posting' ? 'Posting' : 'Posting issue';
         return (
           <div key={deposit.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12, minHeight: 44 }}>
             <strong style={{ color: 'var(--sv-text-strong)', fontSize: 13 }}>#{deposit.id}</strong>
@@ -16754,27 +16763,34 @@ function CashBankingView() {
             <span style={{ flex: 1 }} />
             <span title="Cash counted when the batch was prepared" style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Prepared {fmtCurrency(deposit.counted_total)}</span>
             {deposit.deposited_total != null && <span title="Amount accepted by the bank" style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Deposited {fmtCurrency(deposit.deposited_total)}</span>}
-            <span title={deposit.error_detail || ''} style={{ minWidth: 62, textAlign: 'right', textTransform: 'capitalize', color: statusColor, fontSize: 13, fontWeight: 600 }}>{statusLabel}</span>
+            <span title={deposit.error_detail || deposit.notes || ''} style={{ minWidth: 90, textAlign: 'right', color: statusColor, fontSize: 13, fontWeight: 600 }}>{statusLabel}</span>
             {deepLink ? (
               <a href={deepLink} target="_blank" rel="noopener noreferrer" title="Open bank transfer in Xero" style={{ color: 'var(--sv-action)', textDecoration: 'none', fontSize: 11, fontWeight: 700, border: '1px solid var(--sv-action)', borderRadius: 5, padding: '4px 7px', lineHeight: 1.2 }}>Xero</a>
             ) : null}
             {canPost && deposit.confirmation_status === 'planned' && deposit.status === 'draft' && <button onClick={() => openConfirmation(deposit)} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Enter lodgement</button>}
-            {canPost && deposit.confirmation_status === 'confirmed' && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Post confirmed variances and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Post to Xero' : 'Retry'}</button>}
+            {canPost && deposit.accounting_method !== 'recorded_externally' && deposit.confirmation_status === 'confirmed' && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Post confirmed variances and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Post to Xero' : 'Retry'}</button>}
           </div>
         );
       })}</div>
       {confirmingDeposit && <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'grid', placeItems: 'center', padding: 18, background: 'rgba(0,0,0,.58)' }} onMouseDown={event => { if (event.target === event.currentTarget && !saving) setConfirmingDeposit(null); }}>
         <div style={{ width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 20, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
           <h2 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--sv-text-strong)' }}>Confirm bank lodgement #{confirmingDeposit.id}</h2>
-          <div style={{ marginBottom: 16, color: 'var(--sv-text-dim)', fontSize: 12 }}>Prepared batch: <strong style={{ color: 'var(--sv-text-strong)' }}>{fmtCurrency(confirmingDeposit.counted_total)}</strong></div>
+          <div style={{ marginBottom: 16, color: 'var(--sv-text-dim)', fontSize: 12 }}>Prepared batch: <strong style={{ color: 'var(--sv-text-strong)' }}>{fmtCurrency(confirmingDeposit.counted_total)}</strong>. Enter what the bank actually accepted, not the amount expected at End of Day.</div>
+          <div style={{ display: 'inline-flex', padding: 3, marginBottom: 14, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)' }}>
+            {([['solvantis', 'Post through Solvantis'], ['recorded_externally', 'Already recorded in Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setConfirmationAccountingMethod(value)} style={{ padding: '7px 11px', border: 0, borderRadius: 5, cursor: 'pointer', background: confirmationAccountingMethod === value ? 'var(--sv-bg-3)' : 'transparent', color: confirmationAccountingMethod === value ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 12, fontWeight: 650 }}>{label}</button>)}
+          </div>
+          <div style={{ marginBottom: 14, color: confirmationAccountingMethod === 'recorded_externally' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
+            {confirmationAccountingMethod === 'recorded_externally' ? 'Use this only when the bank deposit has already been entered manually in Xero. Solvantis will preserve this banking record but will never post it again.' : 'After confirmation, an Admin must select Post to Xero. Solvantis will record variances and move the accepted cash from Cash Clearing to the selected bank account.'}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
             <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>LODGEMENT DATE<input type="date" value={confirmationDate} onChange={event => setConfirmationDate(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
-            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>BANK REFERENCE<input value={confirmationReference} onChange={event => setConfirmationReference(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>BANK REFERENCE{(confirmationDate < today() || confirmationAccountingMethod === 'recorded_externally') ? ' *' : ''}<input value={confirmationReference} onChange={event => setConfirmationReference(event.target.value)} placeholder="Deposit slip or bank reference" style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
             <label style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--sv-text-dim)' }}>DESTINATION BANK<select value={confirmationDestinationId} onChange={event => setConfirmationDestinationId(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }}><option value="">Select bank</option>{bankAccounts.map(account => <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>)}</select></label>
             <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>FINAL AMOUNT ACCEPTED BY BANK<input type="number" min="0" step="0.01" value={confirmationAmount} onChange={event => setConfirmationAmount(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
             <div style={{ alignSelf: 'end', paddingBottom: 7, fontSize: 12, color: 'var(--sv-text-dim)' }}>Bank acceptance variance<br /><strong style={{ fontSize: 17, color: Math.abs(Number(confirmationAmount || 0) - Number(confirmingDeposit.counted_total)) < .005 ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{fmtCurrency(Number(confirmationAmount || 0) - Number(confirmingDeposit.counted_total))}</strong></div>
+            {(confirmationDate < today() || confirmationAccountingMethod === 'recorded_externally') && <label style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--sv-text-dim)' }}>{confirmationAccountingMethod === 'recorded_externally' ? 'WHY THIS WAS ALREADY RECORDED IN XERO *' : 'WHY THIS LODGEMENT IS BEING ENTERED LATE *'}<textarea value={confirmationNotes} onChange={event => setConfirmationNotes(event.target.value)} rows={3} placeholder="Give the bookkeeper enough information to verify this entry." style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4, resize: 'vertical' }} /></label>}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 18 }}><button disabled={saving} onClick={() => setConfirmingDeposit(null)} style={{ ...controlStyle, padding: '8px 13px' }}>Cancel</button><button disabled={saving || !confirmationDate || !confirmationDestinationId || !Number.isFinite(Number(confirmationAmount)) || Number(confirmationAmount) < 0} onClick={confirmDeposit} style={{ padding: '8px 13px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700 }}>{saving ? 'Confirming...' : 'Confirm lodgement'}</button></div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 18 }}><button disabled={saving} onClick={() => setConfirmingDeposit(null)} style={{ ...controlStyle, padding: '8px 13px' }}>Cancel</button><button disabled={saving || !confirmationDate || !confirmationDestinationId || !Number.isFinite(Number(confirmationAmount)) || Number(confirmationAmount) < 0 || ((confirmationDate < today() || confirmationAccountingMethod === 'recorded_externally') && (!confirmationReference.trim() || !confirmationNotes.trim()))} onClick={confirmDeposit} style={{ padding: '8px 13px', border: 0, borderRadius: 6, background: confirmationAccountingMethod === 'recorded_externally' ? 'var(--sv-amber)' : 'var(--sv-action)', color: '#fff', fontWeight: 700 }}>{saving ? 'Confirming...' : confirmationAccountingMethod === 'recorded_externally' ? 'Record without posting' : 'Confirm lodgement'}</button></div>
         </div>
       </div>}
     </div>
