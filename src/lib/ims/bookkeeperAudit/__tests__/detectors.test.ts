@@ -26,18 +26,18 @@ describe('bookkeeper audit operational detectors', () => {
 
   it('flags fractional negative stock and fingerprints quantity changes', () => {
     const base = {
-      variant_id: 'v-1', sku: 'SKU-1', product_name: 'Product', location_id: 3, location_name: 'Shop',
+      product_id: 'p-1', variant_id: 'v-1', sku: 'SKU-1', product_name: 'Product', location_id: 3, location_name: 'Shop',
       qty_on_hand: '-0.25', unit_cost: '12', updated_at: '2026-09-23T01:00:00.000Z',
     };
     const first = buildNegativeStockAuditFindings([base])[0];
     const changed = buildNegativeStockAuditFindings([{ ...base, qty_on_hand: '-0.5' }])[0];
-    expect(first).toMatchObject({ severity: 'warning', actual: -0.25, valueAtRisk: 3 });
+    expect(first).toMatchObject({ severity: 'warning', actual: -0.25, valueAtRisk: 3, sourceHref: '#products/p-1' });
     expect(changed.fingerprint).not.toBe(first.fingerprint);
   });
 
   it('accepts only an exact finding fingerprint', () => {
     const finding = buildNegativeStockAuditFindings([{
-      variant_id: 'v-1', sku: 'SKU-1', product_name: 'Product', location_id: 3, location_name: 'Shop',
+      product_id: 'p-1', variant_id: 'v-1', sku: 'SKU-1', product_name: 'Product', location_id: 3, location_name: 'Shop',
       qty_on_hand: -2, unit_cost: 12, updated_at: '2026-09-23T01:00:00.000Z',
     }])[0];
     const reviews = [{

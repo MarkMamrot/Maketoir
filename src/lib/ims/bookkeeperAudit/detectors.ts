@@ -22,6 +22,7 @@ export interface DocumentAuditRow {
 }
 
 export interface NegativeStockAuditRow {
+  product_id: string;
   variant_id: string;
   sku: string;
   product_name: string;
@@ -118,7 +119,7 @@ export function buildNegativeStockAuditFindings(rows: NegativeStockAuditRow[]): 
       sourceType: 'stock_position',
       sourceId: `${row.variant_id}:${row.location_id}`,
       sourceReference: row.sku || row.product_name,
-      sourceHref: `#products/${encodeURIComponent(row.variant_id)}`,
+      sourceHref: `#products/${encodeURIComponent(row.product_id)}`,
       occurredAt: row.updated_at,
       detectedAt: new Date().toISOString(),
       dueDate: null,
@@ -188,7 +189,7 @@ export async function loadOperationalAuditFindings(
       [businessId, businessId, businessId, businessId, businessId, businessId, businessId, businessId],
     ),
     dependencies.query<NegativeStockAuditRow>(
-      `SELECT s.variant_id, COALESCE(v.sku, '') AS sku, COALESCE(p.name, 'Unknown product') AS product_name,
+      `SELECT p.product_id, s.variant_id, COALESCE(v.sku, '') AS sku, COALESCE(p.name, 'Unknown product') AS product_name,
               s.location_id, COALESCE(l.name, 'Unknown location') AS location_name,
               s.qty_on_hand, COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud, s.avg_cost, 0) AS unit_cost,
               DATE_FORMAT(s.updated_at, '%Y-%m-%dT%H:%i:%s.000Z') AS updated_at
