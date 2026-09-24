@@ -18301,8 +18301,8 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
     load();
   };
   const exportCsv = () => {
-    const columns = ['Deposit ID', 'Lodgement Date', 'Branch', 'Destination Bank', 'Bank Reference', 'Store Reported Cash', 'Store Till Variance', 'Prepared Batch', 'Preparation Variance', 'Bank Accepted', 'Bank Acceptance Variance', 'Confirmation', 'Status', 'Prepared By', 'Confirmed By', 'Posted By', 'Posted At', 'Xero Bank Transfer ID'];
-    const values = rows.map(row => [row.id, row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : '', row.location_name, row.destination_account_name ?? '', row.bank_reference ?? '', row.expected_total, row.store_till_variance_total, row.counted_total, row.variance_total, row.deposited_total ?? '', row.bank_variance_total ?? '', row.confirmation_status, row.status, row.prepared_by_name, row.confirmed_by_name ?? '', row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
+    const columns = ['Deposit ID', 'Lodgement Date', 'Branch', 'Destination Bank', 'Bank Reference', 'Store Reported Cash', 'Store Till Variance', 'Prepared Batch', 'Preparation Variance', 'Bank Accepted', 'Bank Acceptance Variance', 'Confirmation', 'Accounting Outcome', 'Explanation', 'Prepared By', 'Confirmed By', 'Posted By', 'Posted At', 'Xero Bank Transfer ID'];
+    const values = rows.map(row => [row.id, row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : '', row.location_name, row.destination_account_name ?? '', row.bank_reference ?? '', row.expected_total, row.store_till_variance_total, row.counted_total, row.variance_total, row.deposited_total ?? '', row.bank_variance_total ?? '', row.confirmation_status, row.accounting_method === 'recorded_externally' ? 'Recorded in Xero manually' : row.status === 'posted' ? 'Posted to Xero' : row.status, row.notes ?? '', row.prepared_by_name, row.confirmed_by_name ?? '', row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
     const escape = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const blob = new Blob([[columns, ...values].map(line => line.map(escape).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${from}-${to}.csv`; link.click(); URL.revokeObjectURL(link.href);
@@ -18315,7 +18315,7 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
       <button onClick={onBack} style={control}>Back</button><h1 style={{ margin: 0, flex: 1, fontSize: 22, color: 'var(--sv-text-strong)' }}>Cash Banking Report</h1>
       <input type="date" value={from} onChange={event => setFrom(event.target.value)} style={control} /><span style={{ color: 'var(--sv-text-dim)' }}>to</span><input type="date" value={to} onChange={event => setTo(event.target.value)} style={control} />
-      <select value={status} onChange={event => setStatus(event.target.value)} style={control}><option value="">All statuses</option><option value="draft">Draft</option><option value="partial">Partial</option><option value="posted">Posted</option></select>
+      <select value={status} onChange={event => setStatus(event.target.value)} style={control}><option value="">All outcomes</option><option value="draft">Ready to post</option><option value="partial">Posting issue</option><option value="posted">Posted to Xero</option><option value="recorded_externally">Recorded in Xero manually</option></select>
       <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
     </div>
     {error && <div style={{ color: 'var(--sv-red)', marginBottom: 12 }}>{error}</div>}
