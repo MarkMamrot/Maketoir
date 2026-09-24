@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 
-import { buildCashDepositConfirmationPlan, localDateInTimeZone, validateCashDepositConfirmation, type CashDepositAccountingMethod } from '@/lib/ims/cashDepositConfirmation';
+import { buildCashDepositConfirmationPlan, localDateInTimeZone, validateCashDepositConfirmation } from '@/lib/ims/cashDepositConfirmation';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';

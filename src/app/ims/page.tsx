@@ -16660,6 +16660,10 @@ function CashBankingView() {
 
   const confirmDeposit = async () => {
     if (!confirmingDeposit) return;
+    if (confirmationAccountingMethod === 'recorded_externally') {
+      const confirmed = window.confirm('Record this deposit as already entered in Xero?\n\nSolvantis will keep the banking history but will not create or offer any Xero posting for this deposit.');
+      if (!confirmed) return;
+    }
     setSaving(true); setError('');
     try {
       const response = await fetch(`/api/ims/money/cash-deposits/${confirmingDeposit.id}/confirm`, {
