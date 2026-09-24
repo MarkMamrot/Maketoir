@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { loadCogsAuditFindings, loadOperationalAuditFindings } from '@/lib/ims/bookkeeperAudit/detectors';
 import { compareAuditFindingsNewestFirst, previousCalendarMonth } from '@/lib/ims/bookkeeperAudit/domain';
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
   }
 
   try {
+    const imsDbName = await getImsDbNameStrict(businessId);
+    if (!imsDbName) return NextResponse.json({ success: false, error: 'IMS tenant database is not configured.' }, { status: 409 });
     const timeZone = await getBusinessTimeZone(businessId);
     const asOfDate = new Date().toLocaleDateString('sv-SE', { timeZone });
     const cogsPeriod = previousCalendarMonth(asOfDate);
@@ -25,7 +28,7 @@ export async function GET(request: Request) {
       loadOperationalAuditFindings(businessId, asOfDate),
       listAcceptedAuditReviews(businessId),
       loadCogsAuditFindings(businessId, cogsPeriod).then(value => ({ status: 'fulfilled' as const, value })).catch(error => ({ status: 'rejected' as const, error })),
-      loadXeroAuditFindings(businessId).then(value => ({ status: 'fulfilled' as const, value })).catch(error => ({ status: 'rejected' as const, error })),
+      loadXeroAuditFindings(businessId, imsDbName).then(value => ({ status: 'fulfilled' as const, value })).catch(error => ({ status: 'rejected' as const, error })),
     ]);
     if (cogsResult.status === 'rejected') {
       await reportRuntimeIssue({

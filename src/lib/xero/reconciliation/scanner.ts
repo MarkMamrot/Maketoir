@@ -105,26 +105,52 @@ export async function scanXeroReconciliationTargets(
   let failedBatches = 0;
   for (const [kind, endpointTargets] of grouped) {
     for (const batch of chunks(endpointTargets, 20)) {
-      const ids = batch.map(target => target.xeroId);
-      let documents: Record<string, any>[];
-      try {
-        const response = await xeroFetch(
-          input.businessId,
-          `/${kind}?IDs=${ids.map(encodeURIComponent).join(',')}&unitdp=4`,
-          { method: 'GET' },
-        );
-        documents = Array.isArray(response?.[kind]) ? response[kind] : [];
-      } catch (error) {
-        failedBatches += 1;
-        await reportIssue({
-          businessId: input.businessId,
-          source: 'xero_reconciliation',
-          operation: 'scan_document_batch',
-          title: 'Xero reconciliation batch could not be checked',
-          error,
-          context: { endpoint: kind, targetCount: batch.length },
-        }).catch(() => {});
-        continue;
+      let documents: Record<string, any>[] = [];
+      const failedIds = new Set<string>();
+      if (kind === 'CreditNotes') {
+        for (const target of batch) {
+          try {
+            const response = await xeroFetch(
+              input.businessId,
+              `/CreditNotes/${encodeURIComponent(target.xeroId)}?unitdp=4`,
+              { method: 'GET' },
+            );
+            if (Array.isArray(response?.CreditNotes)) documents.push(...response.CreditNotes);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('failed (404):')) continue;
+            failedIds.add(target.xeroId);
+            await reportIssue({
+              businessId: input.businessId,
+              source: 'xero_reconciliation',
+              operation: 'scan_document',
+              title: 'Xero reconciliation document could not be checked',
+              error,
+              context: { endpoint: kind, targetType: target.targetType, referenceId: target.referenceId },
+            }).catch(() => {});
+          }
+        }
+        if (failedIds.size > 0) failedBatches += 1;
+      } else {
+        const ids = batch.map(target => target.xeroId);
+        try {
+          const response = await xeroFetch(
+            input.businessId,
+            `/${kind}?IDs=${ids.map(encodeURIComponent).join(',')}&unitdp=4`,
+            { method: 'GET' },
+          );
+          documents = Array.isArray(response?.[kind]) ? response[kind] : [];
+        } catch (error) {
+          failedBatches += 1;
+          await reportIssue({
+            businessId: input.businessId,
+            source: 'xero_reconciliation',
+            operation: 'scan_document_batch',
+            title: 'Xero reconciliation batch could not be checked',
+            error,
+            context: { endpoint: kind, targetCount: batch.length },
+          }).catch(() => {});
+          continue;
+        }
       }
 
       const byId = new Map(documents.map(document => [
@@ -132,6 +158,7 @@ export async function scanXeroReconciliationTargets(
         document,
       ]));
       for (const target of batch) {
+        if (failedIds.has(target.xeroId)) continue;
         const document = byId.get(target.xeroId);
         const result = await reconcile({
           businessId: input.businessId,

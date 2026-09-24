@@ -15,10 +15,13 @@ function issue(overrides: Partial<XeroReconciliationIssueListItem> = {}): XeroRe
 
 describe('adaptXeroAuditIssues', () => {
   it('maps amount mismatches and their value at risk', () => {
-    const result = adaptXeroAuditIssues([issue()]);
+    const result = adaptXeroAuditIssues([issue()], new Map([['sales_order:42', {
+      reference: 'SO-00042', contactName: 'Example Customer', amount: 10, itemDate: '2026-08-27',
+    }]]));
     expect(result.findings[0]).toMatchObject({
       key: 'xero:9', category: 'accounting_xero', expected: 10, actual: 12, variance: 2, valueAtRisk: 2,
-      sourceHref: '#xero/activity/history',
+      sourceReference: 'SO-00042', sourceHref: '#sales-orders/42', xeroHistoryHref: '#xero/activity/history',
+      occurredAt: '2026-08-27T00:00:00.000Z', detectedAt: '2026-09-01T00:00:00.000Z',
     });
     expect(result.reviews).toEqual([]);
   });

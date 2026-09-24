@@ -67,17 +67,45 @@ describe('scanXeroReconciliationTargets', () => {
   it('marks an unreturned ID missing only after a successful chunk response', async () => {
     const reconcile = vi.fn().mockResolvedValue({ mismatchCount: 1, openedRuleKeys: ['missing_document'], resolvedRuleKeys: [] });
     const targets = [target(1, 'customer_credit_note'), target(2, 'customer_credit_note')];
+    const xeroFetch = vi.fn().mockImplementation(async (_businessId: string, endpoint: string) => ({
+      CreditNotes: endpoint.includes('xero-1') ? [document(1, true)] : [],
+    }));
 
     const result = await scanXeroReconciliationTargets({ businessId: 'biz-1' }, {
       listTargets: vi.fn().mockResolvedValue(targets) as any,
-      xeroFetch: vi.fn().mockResolvedValue({ CreditNotes: [document(1, true)] }) as any,
+      xeroFetch: xeroFetch as any,
       reconcile: reconcile as any,
       mappingReadiness: noMappings() as any,
     });
 
+    expect(xeroFetch.mock.calls.map(call => call[1])).toEqual([
+      '/CreditNotes/xero-1?unitdp=4',
+      '/CreditNotes/xero-2?unitdp=4',
+    ]);
     expect(reconcile.mock.calls[0][0].actual).toEqual(expect.objectContaining({ xeroId: 'xero-1', documentType: 'ACCRECCREDIT' }));
     expect(reconcile.mock.calls[1][0].actual).toBeNull();
     expect(result).toMatchObject({ checkedCount: 2, mismatchCount: 2, failedBatches: 0 });
+  });
+
+  it('treats a direct credit-note 404 as missing without hiding transient fetch failures', async () => {
+    const reconcile = vi.fn().mockResolvedValue({ mismatchCount: 1, openedRuleKeys: ['missing_document'], resolvedRuleKeys: [] });
+    const reportIssue = vi.fn().mockResolvedValue(undefined);
+    const xeroFetch = vi.fn()
+      .mockRejectedValueOnce(new Error('Xero API GET failed (404): Not found'))
+      .mockRejectedValueOnce(new Error('Xero unavailable'));
+
+    const result = await scanXeroReconciliationTargets({ businessId: 'biz-1' }, {
+      listTargets: vi.fn().mockResolvedValue([target(1, 'supplier_credit_note'), target(2, 'supplier_credit_note')]) as any,
+      xeroFetch: xeroFetch as any,
+      reconcile: reconcile as any,
+      reportIssue: reportIssue as any,
+      mappingReadiness: noMappings() as any,
+    });
+
+    expect(reconcile).toHaveBeenCalledOnce();
+    expect(reconcile.mock.calls[0][0]).toMatchObject({ xeroId: 'xero-1', actual: null });
+    expect(reportIssue).toHaveBeenCalledWith(expect.objectContaining({ operation: 'scan_document' }));
+    expect(result).toMatchObject({ checkedCount: 1, mismatchCount: 1, failedBatches: 1 });
   });
 
   it('records stale mapping issues and resolves recovered mapping rules', async () => {

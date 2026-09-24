@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getImsDbName: vi.fn(),
   getPool: vi.fn(),
   imsQuery: vi.fn(),
   mainQuery: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getSession }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ getImsDbNameStrict: mocks.getImsDbName }));
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mocks.getPool, imsQuery: mocks.imsQuery }));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.mainQuery, execute: mocks.mainExecute }));
 vi.mock('@/lib/sessionUtils', () => ({ requirePosManagerTier: mocks.requireManager }));
@@ -49,6 +51,7 @@ describe('empty tenant report contracts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getSession.mockResolvedValue({ businessId: 'business-1' });
+    mocks.getImsDbName.mockResolvedValue('tenant_business_1');
     mocks.imsQuery.mockResolvedValue([]);
     mocks.mainQuery.mockResolvedValue([]);
     mocks.requireManager.mockReturnValue({

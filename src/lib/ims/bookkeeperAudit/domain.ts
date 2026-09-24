@@ -36,6 +36,7 @@ export interface AuditFinding {
   sourceId: string;
   sourceReference: string;
   sourceHref: string | null;
+  xeroHistoryHref?: string | null;
   occurredAt: string;
   detectedAt: string;
   dueDate: AuditDueDate | null;

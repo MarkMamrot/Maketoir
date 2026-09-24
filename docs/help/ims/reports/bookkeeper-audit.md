@@ -8,7 +8,8 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 ## Main operations
 
 - Open **Finances > Accounting Audit** and start in **Open**.
-- Review the source record and recommended action for each finding.
+- Select the source reference to open the related document, then review the recommended action.
+- For a Xero difference, use **Xero Sync History** separately when you need the posting and retry history.
 - Correct the source workflow when the finding represents a real problem.
 - Use **Accept exception** only when the current evidence is legitimate and record why.
 - Check the coverage notice before treating an empty queue as a completed audit.
@@ -42,11 +43,13 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 1. Open **Finances > Accounting Audit**.
 2. Read **Action required** and **Coverage** before reviewing rows.
-3. Work from the first row downward; findings are ordered with the most recent activity first.
+3. Work from the first row downward; findings are ordered by source transaction date, newest first.
 4. Check the source, due date, quantity, and value at risk.
-5. Select **Open** to inspect the related workflow.
+5. Select the source reference to inspect the related workflow.
 6. Correct the source record through its normal workflow.
 7. Refresh the audit. A corrected finding clears automatically.
+
+For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document. **Xero Sync History** opens the separate Xero activity record.
 
 Sales COGS checks use the previous completed calendar month. They exclude historical imports, non-stock products, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
 
@@ -81,6 +84,7 @@ Acceptance applies only to the exact evidence reviewed. If the quantity, value, 
 | The queue is empty but Coverage says checks are incomplete | One or more checks failed, or month-end inventory comparison is not yet included | Read the coverage message and do not treat the result as month-end inventory confirmation |
 | COGS checks could not be completed | Cost movement data could not be loaded | Refresh, then investigate the reported operational issue if it continues |
 | Xero reconciliation could not be completed | Reconciliation records could not be loaded | Check the Xero connection and refresh; other audit areas remain available |
+| A Xero finding date looks older than its last scan | The audit shows the source transaction date | Use **Xero Sync History** to review later posting or scan activity |
 | A document has an assumed due date | No expected date was recorded | Review the displayed fallback and update the source date when a better commitment is known |
 | An accepted finding returned to Open | Its evidence changed | Review the new quantity, value, status, or due date and make a fresh decision |
 | Accept exception is unavailable | Your access level cannot record audit review decisions | Ask an Admin, SuperAdmin, or Advisor to review it |

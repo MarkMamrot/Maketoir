@@ -22659,6 +22659,26 @@ export default function ImsPage() {
         return 'dashboard' as ImsView;
       }
       if (isXeroHash(`#${h}`)) return 'xero' as ImsView;
+      const [documentView, documentIdValue] = h.split('/');
+      const documentId = Number(documentIdValue);
+      if (Number.isInteger(documentId) && documentId > 0) {
+        if (documentView === 'purchase-orders') {
+          setPendingOpenPO(documentId);
+          return 'purchase-orders' as ImsView;
+        }
+        if (documentView === 'sales-orders') {
+          setPendingOpenSO(documentId);
+          return 'sales-orders' as ImsView;
+        }
+        if (documentView === 'credit-notes') {
+          setPendingOpenCN(documentId);
+          return 'credit-notes' as ImsView;
+        }
+        if (documentView === 'supplier-credit-notes') {
+          setPendingOpenSCN(documentId);
+          return 'supplier-credit-notes' as ImsView;
+        }
+      }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
       if (h.startsWith('builds/')) return 'builds' as ImsView;
