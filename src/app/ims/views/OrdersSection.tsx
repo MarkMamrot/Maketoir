@@ -5,7 +5,7 @@ type ImsView =
   | 'contacts' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
-  | 'pos-sales' | 'online-sales' | 'stocktakes'
+  | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
@@ -148,6 +148,7 @@ export function OrdersSection({
       {view === 'branch-transfers' && <BranchTransfersView />}
       {view === 'receive-transfers' && <ReceiveTransfersView />}
       {view === 'pos-sales' && <PosSalesView pendingOpenDay={pendingOpenPosDay} onPendingHandled={() => setPendingOpenPosDay(null)} />}
+      {view === 'cash-banking' && <PosSalesView initialTab="banking" />}
       {view === 'online-sales' && (
         <OnlineSalesView
           businessId={businessId}

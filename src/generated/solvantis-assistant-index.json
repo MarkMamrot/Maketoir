@@ -1002,6 +1002,7 @@
       "format": "task",
       "parentId": "ims-operational-reports",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -1014,6 +1015,7 @@
         "report-stock-availability"
       ],
       "contextSections": {
+        "cash-banking": "Cash Banking workflow",
         "report-sales-detail": "Step-by-step",
         "report-sales-by-branch": "Step-by-step",
         "report-sales-summary": "Step-by-step",
@@ -1022,7 +1024,7 @@
         "report-product-margin": "Step-by-step",
         "report-pos-price-changes": "Step-by-step",
         "report-pos-registers": "Step-by-step",
-        "report-cash-banking": "Step-by-step",
+        "report-cash-banking": "Cash Banking workflow",
         "report-stock-availability": "Step-by-step"
       },
       "relatedTopics": [
@@ -1036,7 +1038,8 @@
       "owner": "reporting",
       "quickSections": [
         "Main operations",
-        "At a glance"
+        "At a glance",
+        "Cash Banking workflow"
       ],
       "filename": "docs/help/ims/reports/choosing-and-reading-reports.md"
     },
@@ -9209,6 +9212,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9237,6 +9241,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9250,7 +9255,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-23",
-      "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting.",
+      "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting.\n\nOpen the Cash Banking workspace directly at **IMS → `#cash-banking`**. Use the separate **Cash Banking report** to review prepared deposits and recorded corrections.",
       "sectionId": "ims-report-guide:2"
     },
     {
@@ -9265,6 +9270,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9285,6 +9291,35 @@
       "id": "ims-report-guide:4",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
+      "heading": "Cash Banking workflow",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports",
+      "topicId": "ims-report-guide",
+      "contexts": [
+        "cash-banking",
+        "report-sales-detail",
+        "report-sales-by-branch",
+        "report-sales-summary",
+        "report-sales-search",
+        "report-inventory-valuation",
+        "report-product-margin",
+        "report-pos-price-changes",
+        "report-pos-registers",
+        "report-cash-banking",
+        "report-stock-availability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-08-23",
+      "content": "1. Confirm each store has completed its POS End of Day cash count.\n2. Open **Cash Banking**, choose one branch and the relevant dates, then select eligible trading days.\n3. Recount the cash being prepared and enter that amount. Create one preparation draft for the selected days.\n4. After the bank accepts the lodgement, enter the actual lodgement date, bank reference, destination bank account, and final accepted amount.\n5. Post the confirmed deposit to Xero when posting is enabled, then match it to the bank-statement entry in Xero.\n\n**Bookkeeper shorthand:** EOD establishes cash held by the store; preparation groups and recounts that cash; lodgement records what the bank accepted; Xero posting moves the confirmed amount from cash clearing to the selected bank account.\n\nTill variance and banking variance are different. Till variance compares the register's expected cash with the store's EOD count. Preparation or bank acceptance variance compares later recounts and the accepted lodgement with the cash already in custody. Investigate each at the stage where it arose.\n\nRetrying a partial or failed Xero post completes only unfinished actions. Do not recreate the EOD sale or create a second deposit for the same trading days.",
+      "sectionId": "ims-report-guide:4"
+    },
+    {
+      "id": "ims-report-guide:5",
+      "documentId": "ims-report-guide",
+      "title": "Choosing and Reading IMS Reports",
       "heading": "Before you begin",
       "audiences": [
         "ims"
@@ -9293,6 +9328,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9307,10 +9343,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-08-23",
       "content": "- [ ] Confirm the business date or period you intend to answer.\n- [ ] Decide which branches and transaction types belong in the comparison.\n- [ ] Note whether the external figure includes GST.\n- [ ] Use the same filters on both reports before comparing them.\n- [ ] Keep source records unchanged while investigating a reporting difference.\n\n> **Note:** A preset such as **90 Days** is a rolling window ending on the current reporting date. A custom range uses the entered start and end dates, including both boundary dates.",
-      "sectionId": "ims-report-guide:4"
+      "sectionId": "ims-report-guide:5"
     },
     {
-      "id": "ims-report-guide:5",
+      "id": "ims-report-guide:6",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Step-by-step",
@@ -9321,6 +9357,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9335,10 +9372,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-08-23",
       "content": "### Choose and run a report\n\n1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.\n\n### Understand report dates\n\n| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.\n\n### Compare tax and cost correctly\n\n| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current inventory cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.\n\n### Ask Assistant for a sales comparison\n\nAssistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.",
-      "sectionId": "ims-report-guide:5"
+      "sectionId": "ims-report-guide:6"
     },
     {
-      "id": "ims-report-guide:5.1",
+      "id": "ims-report-guide:6.1",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Step-by-step > Choose and run a report",
@@ -9349,6 +9386,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9363,10 +9401,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-08-23",
       "content": "1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.",
-      "sectionId": "ims-report-guide:5"
+      "sectionId": "ims-report-guide:6"
     },
     {
-      "id": "ims-report-guide:5.2",
+      "id": "ims-report-guide:6.2",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Step-by-step > Understand report dates",
@@ -9377,6 +9415,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9391,10 +9430,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-08-23",
       "content": "| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.",
-      "sectionId": "ims-report-guide:5"
+      "sectionId": "ims-report-guide:6"
     },
     {
-      "id": "ims-report-guide:5.3",
+      "id": "ims-report-guide:6.3",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Step-by-step > Compare tax and cost correctly",
@@ -9405,6 +9444,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9419,10 +9459,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-08-23",
       "content": "| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current inventory cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.",
-      "sectionId": "ims-report-guide:5"
+      "sectionId": "ims-report-guide:6"
     },
     {
-      "id": "ims-report-guide:5.4",
+      "id": "ims-report-guide:6.4",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Step-by-step > Ask Assistant for a sales comparison",
@@ -9433,6 +9473,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9447,10 +9488,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-08-23",
       "content": "Assistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.",
-      "sectionId": "ims-report-guide:5"
+      "sectionId": "ims-report-guide:6"
     },
     {
-      "id": "ims-report-guide:6",
+      "id": "ims-report-guide:7",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Troubleshooting",
@@ -9461,6 +9502,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9475,10 +9517,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-08-23",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Two sales totals differ | Different source coverage, dates, locations, statuses, or GST treatment | Align each choice and compare source rows |\n| Gross profit is blank | No covered sale value or incomplete cost coverage | Inspect attached cost and the source movements |\n| COGS coverage is below 100% | Some sold quantity has no complete attached cost | Review the affected sales and movement history |\n| Current valuation changed but old margin did not | Current Average Cost or remaining FIFO layers changed after the historical sale | Use current method valuation and historical attached cost for that sale |\n| Export differs from the screen you expected | Filters changed or export includes all selected pages or groups | Recheck active filters and totals before exporting |",
-      "sectionId": "ims-report-guide:6"
+      "sectionId": "ims-report-guide:7"
     },
     {
-      "id": "ims-report-guide:7",
+      "id": "ims-report-guide:8",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Worked examples",
@@ -9489,6 +9531,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9503,10 +9546,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-08-23",
       "content": "### Compare a tax-inclusive sale with tax-exclusive margin\n\nA sale amount of $110 including GST has a tax-exclusive value of $100. If its attached tax-exclusive cost is $60, gross profit is $40. Comparing $110 directly with $60 would mix tax treatments and overstate gross profit.\n\n### Separate current and historical cost\n\nA jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.",
-      "sectionId": "ims-report-guide:7"
+      "sectionId": "ims-report-guide:8"
     },
     {
-      "id": "ims-report-guide:7.1",
+      "id": "ims-report-guide:8.1",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Worked examples > Compare a tax-inclusive sale with tax-exclusive margin",
@@ -9517,6 +9560,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9531,10 +9575,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-08-23",
       "content": "A sale amount of $110 including GST has a tax-exclusive value of $100. If its attached tax-exclusive cost is $60, gross profit is $40. Comparing $110 directly with $60 would mix tax treatments and overstate gross profit.",
-      "sectionId": "ims-report-guide:7"
+      "sectionId": "ims-report-guide:8"
     },
     {
-      "id": "ims-report-guide:7.2",
+      "id": "ims-report-guide:8.2",
       "documentId": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "heading": "Worked examples > Separate current and historical cost",
@@ -9545,6 +9589,7 @@
       "screen": "Reports",
       "topicId": "ims-report-guide",
       "contexts": [
+        "cash-banking",
         "report-sales-detail",
         "report-sales-by-branch",
         "report-sales-summary",
@@ -9559,7 +9604,7 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-08-23",
       "content": "A jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.",
-      "sectionId": "ims-report-guide:7"
+      "sectionId": "ims-report-guide:8"
     },
     {
       "id": "ims-operational-reports:1",

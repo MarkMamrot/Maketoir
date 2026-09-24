@@ -1,5 +1,5 @@
 ---
-{"id":"ims-report-guide","title":"Choosing and Reading IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-sales-detail","report-sales-by-branch","report-sales-summary","report-sales-search","report-inventory-valuation","report-product-margin","report-pos-price-changes","report-pos-registers","report-cash-banking","report-stock-availability"],"contextSections":{"report-sales-detail":"Step-by-step","report-sales-by-branch":"Step-by-step","report-sales-summary":"Step-by-step","report-sales-search":"Step-by-step","report-inventory-valuation":"Step-by-step","report-product-margin":"Step-by-step","report-pos-price-changes":"Step-by-step","report-pos-registers":"Step-by-step","report-cash-banking":"Step-by-step","report-stock-availability":"Step-by-step"},"relatedTopics":["ims-operational-reports","ims-inventory-costing","ims-location-stock-operations"],"order":61,"summary":"Match a business question to the right report and compare dates, GST, cost, and stock consistently.","lastReviewed":"2026-08-23","owner":"reporting","quickSections":["Main operations","At a glance"]}
+{"id":"ims-report-guide","title":"Choosing and Reading IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["cash-banking","report-sales-detail","report-sales-by-branch","report-sales-summary","report-sales-search","report-inventory-valuation","report-product-margin","report-pos-price-changes","report-pos-registers","report-cash-banking","report-stock-availability"],"contextSections":{"cash-banking":"Cash Banking workflow","report-sales-detail":"Step-by-step","report-sales-by-branch":"Step-by-step","report-sales-summary":"Step-by-step","report-sales-search":"Step-by-step","report-inventory-valuation":"Step-by-step","report-product-margin":"Step-by-step","report-pos-price-changes":"Step-by-step","report-pos-registers":"Step-by-step","report-cash-banking":"Cash Banking workflow","report-stock-availability":"Step-by-step"},"relatedTopics":["ims-operational-reports","ims-inventory-costing","ims-location-stock-operations"],"order":61,"summary":"Match a business question to the right report and compare dates, GST, cost, and stock consistently.","lastReviewed":"2026-08-23","owner":"reporting","quickSections":["Main operations","At a glance","Cash Banking workflow"]}
 ---
 # Choosing and Reading IMS Reports
 
@@ -13,6 +13,8 @@ Use this guide to choose a report, understand what its dates and money mean, and
 - Distinguish current stock cost from cost recorded on historical sales or movements.
 - Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.
 - Review the on-screen result before exporting.
+
+Open the Cash Banking workspace directly at **IMS → `#cash-banking`**. Use the separate **Cash Banking report** to review prepared deposits and recorded corrections.
 
 ## At a glance
 
@@ -28,6 +30,20 @@ Use this guide to choose a report, understand what its dates and money mean, and
 | What happened in a register session? | POS Registers | POS Sales and End of Day records |
 | Does recorded banking match cash handling? | Cash Banking | Register and deposit references |
 | Can demand be supplied? | Stock Availability | Sales Orders, allocation, and Purchase Orders |
+
+## Cash Banking workflow
+
+1. Confirm each store has completed its POS End of Day cash count.
+2. Open **Cash Banking**, choose one branch and the relevant dates, then select eligible trading days.
+3. Recount the cash being prepared and enter that amount. Create one preparation draft for the selected days.
+4. After the bank accepts the lodgement, enter the actual lodgement date, bank reference, destination bank account, and final accepted amount.
+5. Post the confirmed deposit to Xero when posting is enabled, then match it to the bank-statement entry in Xero.
+
+**Bookkeeper shorthand:** EOD establishes cash held by the store; preparation groups and recounts that cash; lodgement records what the bank accepted; Xero posting moves the confirmed amount from cash clearing to the selected bank account.
+
+Till variance and banking variance are different. Till variance compares the register's expected cash with the store's EOD count. Preparation or bank acceptance variance compares later recounts and the accepted lodgement with the cash already in custody. Investigate each at the stage where it arose.
+
+Retrying a partial or failed Xero post completes only unfinished actions. Do not recreate the EOD sale or create a second deposit for the same trading days.
 
 ## Before you begin
 

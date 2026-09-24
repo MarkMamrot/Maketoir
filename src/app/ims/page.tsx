@@ -106,7 +106,7 @@ type ImsView =
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
-  | 'pos-sales' | 'online-sales' | 'stocktakes'
+  | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
   | 'xero' | 'sales-channels' | 'shopify' | 'online-shop';
 
@@ -16540,15 +16540,20 @@ function GiftCardsView() {
 // POS Sales View — grouped by register→day when a location is selected, by day otherwise
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PosSalesView({ pendingOpenDay, onPendingHandled }: { pendingOpenDay?: string | null; onPendingHandled?: () => void } = {}) {
+function PosSalesView({ pendingOpenDay, onPendingHandled, initialTab = 'sales' }: { pendingOpenDay?: string | null; onPendingHandled?: () => void; initialTab?: 'sales' | 'banking' } = {}) {
   const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
-  const [tab, setTab] = useState<'sales' | 'banking'>('sales');
+  const [tab, setTab] = useState<'sales' | 'banking'>(initialTab);
+  const selectTab = (nextTab: 'sales' | 'banking') => {
+    setTab(nextTab);
+    const nextHash = nextTab === 'banking' ? '#cash-banking' : '#pos-sales';
+    if (window.location.hash !== nextHash) window.location.hash = nextHash;
+  };
   return (
     <div>
       <div style={{ display: 'inline-flex', padding: 3, marginBottom: 18, borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
         {(['sales', ...(xeroAccountingEnabled ? ['banking' as const] : [])] as const).map(value => (
-          <button key={value} onClick={() => setTab(value)} style={{ padding: '7px 18px', border: 0, borderRadius: 5, cursor: 'pointer', fontSize: 13, fontWeight: 650, color: tab === value ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', background: tab === value ? 'var(--sv-bg-3)' : 'transparent' }}>
+          <button key={value} onClick={() => selectTab(value)} style={{ padding: '7px 18px', border: 0, borderRadius: 5, cursor: 'pointer', fontSize: 13, fontWeight: 650, color: tab === value ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', background: tab === value ? 'var(--sv-bg-3)' : 'transparent' }}>
             {value === 'sales' ? 'Sales' : 'Banking'}
           </button>
         ))}
@@ -22282,7 +22287,7 @@ function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'sales-orders')    return 'sales-orders';
   if (v === 'credit-notes' || v === 'supplier-credit-notes' || v === 'stocktakes') return 'inventory-documents';
   if (v === 'xero')            return 'xero';
-  if (v === 'pos-sales')       return 'pos';
+  if (v === 'pos-sales' || v === 'cash-banking') return 'pos';
   if (v === 'online-sales')    return 'shopify';
   return 'general';
 }
@@ -22611,7 +22616,7 @@ export default function ImsPage() {
     'dashboard','products','builds','stock','brands','bulk-edit','bulk-add-edit','contacts','crm','locations',
     'purchase-orders','sales-orders','stock-availability','backorders','customer-backorders','supplier-backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
-    'pos-sales','online-sales','stocktakes',
+    'pos-sales','cash-banking','online-sales','stocktakes',
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking','report-stock-availability','report-bookkeeper-audit',
@@ -22666,7 +22671,7 @@ export default function ImsPage() {
   }, [hasRestoredInitialHash, view]);
 
   useEffect(() => {
-    if (!hasRestoredInitialHash || !settingsLoaded || pageCapabilities.xeroAccountingEnabled || view !== 'xero') return;
+    if (!hasRestoredInitialHash || !settingsLoaded || pageCapabilities.xeroAccountingEnabled || (view !== 'xero' && view !== 'cash-banking')) return;
     window.history.replaceState(window.history.state, '', '#dashboard');
     setViewSafe('dashboard');
   }, [hasRestoredInitialHash, pageCapabilities.xeroAccountingEnabled, settingsLoaded, setViewSafe, view]);
