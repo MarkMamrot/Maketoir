@@ -4,11 +4,14 @@ import {
   CHANNEL_PRODUCT_RULE_FIELDS,
   CHANNEL_PRODUCT_RULE_OPERATORS,
   evaluateChannelProductRules,
+  resolveChannelProductDesiredState,
+  type ChannelProductDesiredState,
   type ChannelProductOverrideMode,
   type ChannelProductRuleCondition,
   type ChannelProductRuleContext,
   type ChannelProductRuleDefinition,
 } from '@/lib/channels/channelProductRules';
+import type { ChannelProductAssignmentMode } from '@/lib/channels/types';
 import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 interface RuleRow {
@@ -37,6 +40,7 @@ interface ProductContextRow {
   image_count: number | string;
   variant_count: number | string;
   override_mode: ChannelProductOverrideMode | null;
+  desired_state: ChannelProductDesiredState | null;
   provider_state: 'unknown' | 'unpublished' | 'pending' | 'published' | 'error' | null;
 }
 
@@ -49,6 +53,7 @@ export interface ChannelProductEvaluationRow {
   matchedRuleId: number | string | null;
   matchedRuleName: string | null;
   overrideMode: ChannelProductOverrideMode;
+  desiredState: ChannelProductDesiredState;
   providerState: ProductContextRow['provider_state'];
 }
 
@@ -165,6 +170,7 @@ export async function evaluateChannelProducts(input: {
   search?: string;
   limit?: number;
   offset?: number;
+  assignmentMode?: ChannelProductAssignmentMode;
 }): Promise<{ products: ChannelProductEvaluationRow[]; total: number; applied: number }> {
   const rules = await listChannelProductRules(input);
   const productId = String(input.productId ?? '').trim();
@@ -182,7 +188,7 @@ export async function evaluateChannelProducts(input: {
             product.category, product.subcategory, product.brand, product.tags,
             COALESCE(images.image_count, 0) AS image_count,
             COALESCE(variants.variant_count, 0) AS variant_count,
-            assignment.override_mode, assignment.provider_state
+            assignment.override_mode, assignment.desired_state, assignment.provider_state
        FROM ims_products product
        LEFT JOIN (SELECT product_id, COUNT(*) AS image_count FROM ims_product_images GROUP BY product_id) images
          ON images.product_id = product.product_id
@@ -206,7 +212,13 @@ export async function evaluateChannelProducts(input: {
   const evaluated = rows.map(row => {
     const context = contextFromRow(row);
     const result = evaluateChannelProductRules({ context, rules, overrideMode: row.override_mode ?? 'automatic' });
-    return { row, context, result, hash: createHash('sha256').update(JSON.stringify({ context, rules,
+    const desiredState = resolveChannelProductDesiredState({
+      assignmentMode: input.assignmentMode ?? 'manual',
+      ruleDecision: result.ruleDecision,
+      overrideMode: result.overrideMode,
+      currentDesiredState: row.desired_state,
+    });
+    return { row, context, result, desiredState, hash: createHash('sha256').update(JSON.stringify({ context, rules,
       overrideMode: result.overrideMode })).digest('hex') };
   });
   let applied = 0;
@@ -215,7 +227,7 @@ export async function evaluateChannelProducts(input: {
     const values = evaluated.flatMap(item => [
       input.businessId, input.channelInstanceId, item.row.product_id, item.result.ruleDecision,
       typeof item.result.matchedRuleId === 'number' ? item.result.matchedRuleId : null, item.result.overrideMode,
-      item.result.effectiveDecision === 'include' ? 'published' : 'unpublished', item.hash,
+      item.desiredState, item.hash,
     ]);
     await imsExecute(
       `INSERT INTO ims_sales_channel_product_assignments
@@ -239,6 +251,7 @@ export async function evaluateChannelProducts(input: {
       matchedRuleId: item.result.matchedRuleId,
       matchedRuleName: item.result.matchedRuleName,
       overrideMode: item.result.overrideMode,
+      desiredState: item.desiredState,
       providerState: item.row.provider_state ?? 'unknown',
     })),
     total: Number(countRows[0]?.total ?? 0),
@@ -261,7 +274,7 @@ export async function setChannelProductOverride(input: {
        FROM ims_products product WHERE product.business_id = ? AND product.product_id = ?
      ON DUPLICATE KEY UPDATE override_mode = VALUES(override_mode),
        desired_state = CASE
-         WHEN VALUES(override_mode) = 'automatic' THEN IF(rule_decision = 'include', 'published', 'unpublished')
+         WHEN VALUES(override_mode) = 'automatic' THEN desired_state
          WHEN VALUES(override_mode) = 'include' THEN 'published' ELSE 'unpublished' END,
        updated_at = CURRENT_TIMESTAMP(3)`,
     [input.channelInstanceId, input.overrideMode, input.overrideMode, input.businessId, input.productId],
@@ -287,7 +300,7 @@ export async function setChannelProductOverrides(input: {
       WHERE product.business_id = ? AND product.product_id IN (${placeholders})
      ON DUPLICATE KEY UPDATE override_mode = VALUES(override_mode),
        desired_state = CASE
-         WHEN VALUES(override_mode) = 'automatic' THEN IF(rule_decision = 'include', 'published', 'unpublished')
+         WHEN VALUES(override_mode) = 'automatic' THEN desired_state
          WHEN VALUES(override_mode) = 'include' THEN 'published' ELSE 'unpublished' END,
        updated_at = CURRENT_TIMESTAMP(3)`,
     [input.channelInstanceId, input.overrideMode, input.overrideMode, input.businessId, ...productIds],

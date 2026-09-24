@@ -30,6 +30,9 @@ export const CHANNEL_PRODUCT_RULE_OPERATORS = [
 export type ChannelProductRuleOperator = typeof CHANNEL_PRODUCT_RULE_OPERATORS[number];
 export type ChannelProductRuleDecision = 'include' | 'exclude';
 export type ChannelProductOverrideMode = 'automatic' | 'include' | 'exclude';
+export type ChannelProductDesiredState = 'published' | 'unpublished';
+
+import type { ChannelProductAssignmentMode } from './types';
 
 export interface ChannelProductRuleCondition {
   field: ChannelProductRuleField;
@@ -68,6 +71,21 @@ export interface ChannelProductRuleEvaluation {
   matchedRuleId: number | string | null;
   matchedRuleName: string | null;
   overrideMode: ChannelProductOverrideMode;
+}
+
+export function resolveChannelProductDesiredState(input: {
+  assignmentMode: ChannelProductAssignmentMode;
+  ruleDecision: ChannelProductRuleDecision;
+  overrideMode: ChannelProductOverrideMode;
+  currentDesiredState?: ChannelProductDesiredState | null;
+}): ChannelProductDesiredState {
+  if (input.overrideMode === 'include') return 'published';
+  if (input.overrideMode === 'exclude') return 'unpublished';
+  if (input.assignmentMode === 'full_sync') {
+    return input.ruleDecision === 'include' ? 'published' : 'unpublished';
+  }
+  if (input.assignmentMode === 'add_matches' && input.ruleDecision === 'include') return 'published';
+  return input.currentDesiredState ?? 'unpublished';
 }
 
 function normalized(value: unknown): string {

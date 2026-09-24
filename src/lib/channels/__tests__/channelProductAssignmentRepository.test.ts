@@ -40,7 +40,7 @@ describe('channel product assignment repository', () => {
       .mockResolvedValueOnce([{ product_id: 'product-1', product_name: 'Dress', is_online: 1, is_active: 1,
         is_stock_item: 1, description: 'Ready', website_title: 'Dress', product_type: 'Dress', category: 'Apparel',
         subcategory: null, brand: 'Brand', tags: 'featured', image_count: 2, variant_count: 3,
-        override_mode: 'exclude', provider_state: 'published' }])
+        override_mode: 'exclude', desired_state: 'unpublished', provider_state: 'published' }])
       .mockResolvedValueOnce([{ total: 1 }]);
     const result = await evaluateChannelProducts({ businessId: 'business-1', channelInstanceId: 'instance-1', apply: true });
     expect(result.products[0]).toMatchObject({ ruleDecision: 'include', effectiveDecision: 'exclude',
@@ -51,11 +51,34 @@ describe('channel product assignment repository', () => {
     expect(result.applied).toBe(1);
   });
 
+  it('applies rule metadata without publishing a recommendation in manual mode', async () => {
+    mocks.query
+      .mockResolvedValueOnce([{ id: 9, name: 'Ready', priority: 10, is_enabled: 1, match_mode: 'all',
+        decision: 'include', conditions_json: '[{"field":"online_candidate","operator":"equals","value":true}]' }])
+      .mockResolvedValueOnce([{ product_id: 'product-1', product_name: 'Dress', is_online: 1, is_active: 1,
+        is_stock_item: 1, description: 'Ready', website_title: 'Dress', product_type: 'Dress', category: 'Apparel',
+        subcategory: null, brand: 'Brand', tags: 'featured', image_count: 2, variant_count: 3,
+        override_mode: 'automatic', desired_state: 'unpublished', provider_state: 'unpublished' }])
+      .mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await evaluateChannelProducts({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      assignmentMode: 'manual', apply: true });
+
+    expect(result.products[0]).toMatchObject({ ruleDecision: 'include', desiredState: 'unpublished' });
+    expect(mocks.execute.mock.calls[0][1][6]).toBe('unpublished');
+  });
+
   it('updates an override only for a product in the exact business and channel', async () => {
     await setChannelProductOverride({ businessId: 'business-1', channelInstanceId: 'instance-1',
       productId: 'product-1', overrideMode: 'include' });
     expect(mocks.execute.mock.calls[0][0]).toContain('product.business_id = ? AND product.product_id = ?');
     expect(mocks.execute.mock.calls[0][1]).toEqual(['instance-1', 'include', 'include', 'business-1', 'product-1']);
+  });
+
+  it('clears staff protection without changing current inclusion intent', async () => {
+    await setChannelProductOverride({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      productId: 'product-1', overrideMode: 'automatic' });
+    expect(mocks.execute.mock.calls[0][0]).toContain("WHEN VALUES(override_mode) = 'automatic' THEN desired_state");
   });
 
   it('bulk updates deduplicated products through one tenant-scoped statement', async () => {
@@ -73,7 +96,7 @@ describe('channel product assignment repository', () => {
       .mockResolvedValueOnce([{ product_id: 'product-1', product_name: 'Dress', is_online: 1, is_active: 1,
         is_stock_item: 1, description: null, website_title: null, product_type: null, category: null,
         subcategory: null, brand: null, tags: null, image_count: 0, variant_count: 1,
-        override_mode: null, provider_state: null }])
+        override_mode: null, desired_state: null, provider_state: null }])
       .mockResolvedValueOnce([{ total: 1 }]);
 
     const result = await evaluateChannelProducts({ businessId: 'business-1', channelInstanceId: 'instance-1',

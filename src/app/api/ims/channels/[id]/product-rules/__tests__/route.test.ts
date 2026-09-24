@@ -32,7 +32,7 @@ describe('channel product rules route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.session.mockResolvedValue({ businessId: 'business-1', userId: 7, name: 'Admin', tier: 'Admin' });
-    mocks.getInstance.mockResolvedValue({ channelInstanceId: 'instance-1', provider: 'shopify' });
+    mocks.getInstance.mockResolvedValue({ channelInstanceId: 'instance-1', provider: 'shopify', settings: {} });
     mocks.listRules.mockResolvedValue([]);
     mocks.replaceRules.mockResolvedValue([]);
     mocks.evaluate.mockResolvedValue({ products: [], total: 0, applied: 0 });
@@ -64,7 +64,9 @@ describe('channel product rules route', () => {
 
   it('applies evaluated intent only when explicitly requested', async () => {
     await POST(request('POST', { apply: true, limit: 500 }), context);
-    expect(mocks.evaluate).toHaveBeenCalledWith(expect.objectContaining({ apply: true, limit: 500 }));
+    expect(mocks.evaluate).toHaveBeenCalledWith(expect.objectContaining({
+      apply: true, limit: 500, assignmentMode: 'manual',
+    }));
   });
 
   it('validates and saves a persistent override', async () => {

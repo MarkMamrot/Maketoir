@@ -124,12 +124,14 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [readinessChecks, setReadinessChecks] = useState<Record<string, AmazonReadinessCheck[]>>({});
   const [activationChangingId, setActivationChangingId] = useState<string | null>(null);
   const [publicationWorkingId, setPublicationWorkingId] = useState<string | null>(null);
+  const [assignmentWorkingId, setAssignmentWorkingId] = useState<string | null>(null);
   const [orderSettingsInstance, setOrderSettingsInstance] = useState<ChannelInstance | null>(null);
   const [orderLocations, setOrderLocations] = useState<OrderLocation[]>([]);
   const [orderLocationId, setOrderLocationId] = useState('');
   const [orderSettingsLoading, setOrderSettingsLoading] = useState(false);
   const [notice, setNotice] = useState('');
-  const [amazonDialogOpen, setAmazonDialogOpen] = useState(false);
+  const [addChannelDialogOpen, setAddChannelDialogOpen] = useState(false);
+  const [addChannelProvider, setAddChannelProvider] = useState<'choose' | 'amazon'>('choose');
   const [amazonDisplayName, setAmazonDisplayName] = useState('Amazon Australia');
   const [mappingInstance, setMappingInstance] = useState<ChannelInstance | null>(null);
   const [mappings, setMappings] = useState<AmazonMapping[]>([]);
@@ -463,6 +465,33 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     instance.settings?.productPublicationEnabled === true || instance.settings?.productPublicationEnabled === 1
   );
 
+  const productAssignmentMode = (instance: ChannelInstance): 'manual' | 'add_matches' | 'full_sync' => {
+    const mode = instance.settings?.productAssignmentMode;
+    return mode === 'add_matches' || mode === 'full_sync' ? mode : 'manual';
+  };
+
+  const changeProductAssignmentMode = async (instance: ChannelInstance, mode: 'manual' | 'add_matches' | 'full_sync') => {
+    if (mode === 'full_sync' && !window.confirm(
+      `Use Full sync for ${instance.displayName}? When automation runs, unprotected products that no longer match its rules will be removed from this channel.`,
+    )) return;
+    setAssignmentWorkingId(instance.channelInstanceId);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/product-assignment`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Product assignment mode could not be saved.');
+      setNotice(`${instance.displayName} product assignment mode is now ${mode === 'manual' ? 'Manual' : mode === 'add_matches' ? 'Add matches' : 'Full sync'}.`);
+      await load();
+    } catch (assignmentError) {
+      setError(assignmentError instanceof Error ? assignmentError.message : 'Product assignment mode could not be saved.');
+    } finally {
+      setAssignmentWorkingId(null);
+    }
+  };
+
   const changeProductPublication = async (instance: ChannelInstance, enabled: boolean) => {
     if (enabled && !window.confirm(
       `Enable automatic product publication for ${instance.displayName}? Future publication runs can publish or unpublish products according to this channel's assignments.`,
@@ -622,8 +651,8 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {canManage && (
-            <button type="button" onClick={() => setAmazonDialogOpen(true)} style={{ minHeight: 36, padding: '0 12px', border: 0, borderRadius: 6, background: '#111827', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>
-              <Plus size={15} aria-hidden="true" /> Connect Amazon
+            <button type="button" onClick={() => { setAddChannelProvider('choose'); setAddChannelDialogOpen(true); }} style={{ minHeight: 36, padding: '0 12px', border: 0, borderRadius: 6, background: '#111827', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>
+              <Plus size={15} aria-hidden="true" /> Add Sales Channel
             </button>
           )}
           <button
@@ -738,6 +767,22 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                   )}
                   {canManage && (
                     <label style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
+                      Assignment
+                      <select
+                        aria-label={`${instance.displayName} product assignment mode`}
+                        value={productAssignmentMode(instance)}
+                        disabled={assignmentWorkingId === instance.channelInstanceId}
+                        onChange={event => void changeProductAssignmentMode(instance, event.target.value as 'manual' | 'add_matches' | 'full_sync')}
+                        style={{ height: 23, border: 0, background: 'transparent', color: 'inherit', fontSize: 11, fontWeight: 700 }}
+                      >
+                        <option value="manual">Manual</option>
+                        <option value="add_matches">Add matches</option>
+                        <option value="full_sync">Full sync</option>
+                      </select>
+                    </label>
+                  )}
+                  {canManage && (
+                    <label style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
                       <input
                         type="checkbox"
                         checked={productPublicationEnabled(instance)}
@@ -832,9 +877,19 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
         </div>
       )}
 
-      {amazonDialogOpen && (
-        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAmazonDialogOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>
-          <form
+      {addChannelDialogOpen && (
+        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAddChannelDialogOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>
+          {addChannelProvider === 'choose' ? <div role="dialog" aria-modal="true" aria-labelledby="add-channel-title" style={{ width: 'min(620px, 100%)', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.24)', padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div><h2 id="add-channel-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>Add Sales Channel</h2><p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 12 }}>Choose the storefront or marketplace to configure.</p></div>
+              <button type="button" onClick={() => setAddChannelDialogOpen(false)} title="Close" aria-label="Close Add Sales Channel" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 18 }}>
+              <button type="button" onClick={() => setAddChannelProvider('amazon')} style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', textAlign: 'left', cursor: 'pointer' }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Amazon Australia</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>Connect another Seller Central account.</span></button>
+              <button type="button" onClick={() => window.location.assign('/setup?section=connections')} style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', textAlign: 'left', cursor: 'pointer' }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Shopify</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>Configure the current Shopify connection in Setup.</span></button>
+              <button type="button" disabled style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#f8fafc', color: 'var(--sv-text)', textAlign: 'left', opacity: .65 }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Native Store</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>{instances.some(instance => instance.provider === 'native_shop') ? 'The native store is already configured.' : 'Enable the native store in Online Channels settings.'}</span></button>
+            </div>
+          </div> : <form
             role="dialog"
             aria-modal="true"
             aria-labelledby="connect-amazon-title"
@@ -851,15 +906,15 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                 <h2 id="connect-amazon-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>Connect Amazon Australia</h2>
                 <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>You will sign in to Seller Central and authorize Solvantis for one seller account.</p>
               </div>
-              <button type="button" onClick={() => setAmazonDialogOpen(false)} title="Close" aria-label="Close Amazon connection" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+              <button type="button" onClick={() => setAddChannelDialogOpen(false)} title="Close" aria-label="Close Amazon connection" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
             </div>
             <label htmlFor="amazon-channel-name" style={{ display: 'block', marginTop: 18, color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Channel name</label>
             <input id="amazon-channel-name" autoFocus maxLength={120} value={amazonDisplayName} onChange={event => setAmazonDisplayName(event.target.value)} style={{ width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, color: 'var(--sv-text-strong)', background: '#fff', fontSize: 13, boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-              <button type="button" onClick={() => setAmazonDialogOpen(false)} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+              <button type="button" onClick={() => setAddChannelProvider('choose')} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Back</button>
               <button type="submit" disabled={!amazonDisplayName.trim()} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750, cursor: amazonDisplayName.trim() ? 'pointer' : 'not-allowed', opacity: amazonDisplayName.trim() ? 1 : .55 }}>Continue to Amazon</button>
             </div>
-          </form>
+          </form>}
         </div>
       )}
 

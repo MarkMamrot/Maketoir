@@ -86,7 +86,7 @@ const NAV: NavItem[] = [
   {
     id: 'website', label: 'Website', icon: 'website',
     children: [
-      { id: 'pending-online',               label: 'Website Content Studio' },
+      { id: 'pending-online',               label: 'Push to Sales Channels' },
       { id: 'product-description-template', label: 'Web Field Templates'      },
       { id: 'bulk-edit-listings',           label: 'Bulk Edit Listings'       },
     ],
@@ -4914,7 +4914,7 @@ function ZoomThumb({ src, className }: { src: string; className?: string }) {
 
 interface PendingOnlineProduct {
   // `id` and `code` both hold the IMS product_id — `code` is the state map key
-  // and `product_id` drives the Push to Online Shop / shopify-sync call.
+  // and `product_id` drives content saves and channel assignment.
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
   sku: string; barcode: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
@@ -4949,6 +4949,7 @@ interface ProductDiscoveryAudit {
 
 type PushStatus = 'idle' | 'pushing' | 'done' | 'error';
 type ShopifyProductLinks = { storefrontUrl: string; adminUrl: string };
+type ContentChannel = { channelInstanceId: string; displayName: string; providerDisplayName: string; enabled: boolean; runtimeStatus: string; readinessStatus: string };
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
@@ -4993,11 +4994,15 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<Record<string, string>>({});
 
-  // Push to Online Shop status
+  // Save and channel assignment status
   const [onlineStatus, setOnlineStatus]   = useState<Record<string, PushStatus>>({});
   const [onlineMessage, setOnlineMessage] = useState<Record<string, string>>({});
   const [shopifyLinksMap, setShopifyLinksMap] = useState<Record<string, ShopifyProductLinks>>({});
   const [shopifyLinksLoading, setShopifyLinksLoading] = useState<Set<string>>(new Set());
+  const [pushTargets, setPushTargets] = useState<PendingOnlineProduct[]>([]);
+  const [contentChannels, setContentChannels] = useState<ContentChannel[]>([]);
+  const [selectedContentChannelIds, setSelectedContentChannelIds] = useState<Set<string>>(new Set());
+  const [pushChannelError, setPushChannelError] = useState('');
 
   // Tavily preflight state — Step 1 before full generation
   type PreflightData = { answer: string; urls: string[] };
@@ -5679,10 +5684,22 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
-  // Push to Online Shop — same mechanism as the Edit Product modal:
-  // persist the generated content + images to the IMS product, then create/update
-  // it on Shopify via shopify-sync.
-  const handlePushToOnline = async (product: PendingOnlineProduct) => {
+  const openPushToChannels = async (targets: PendingOnlineProduct[]) => {
+    if (targets.length === 0) return;
+    setPushTargets(targets);
+    setPushChannelError('');
+    setSelectedContentChannelIds(new Set());
+    try {
+      const response = await fetch('/api/ims/channels');
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Sales channels could not be loaded.');
+      setContentChannels(Array.isArray(body.instances) ? body.instances : []);
+    } catch (channelError) {
+      setPushChannelError(channelError instanceof Error ? channelError.message : 'Sales channels could not be loaded.');
+    }
+  };
+
+  const handlePushToChannels = async (product: PendingOnlineProduct, channelInstanceIds: string[]) => {
     const key = product.code;
     if (removedKeys.has(key) || sessionBlockedKeys.has(key)) return;
     const content = contentMap[key];
@@ -5720,15 +5737,17 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         } catch { /* non-fatal per image */ }
       }
 
-      // 3. Create/update the product on the online shop
-      const syncRes = await fetch(`/api/ims/products/${product.product_id}/shopify-sync`, { method: 'POST' });
-      const syncData = await syncRes.json().catch(() => ({}));
-      if (!syncRes.ok || syncData.success === false) {
-        throw new Error(syncData.error ?? 'Push to online shop failed');
+      // 3. Save the exact channel inclusion intent. Provider publication is reconciled separately.
+      const assignmentResponse = await fetch('/api/ims/products/channel-assignments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: [product.product_id], channelInstanceIds, action: 'include' }),
+      });
+      const assignmentBody = await assignmentResponse.json().catch(() => ({}));
+      if (!assignmentResponse.ok || !assignmentBody.success) {
+        throw new Error(assignmentBody.error ?? 'Sales channel inclusion could not be saved');
       }
       setOnlineStatus(prev => ({ ...prev, [key]: 'done' }));
-      setOnlineMessage(prev => ({ ...prev, [key]: syncData.created ? '✓ Created on the online shop' : '✓ Pushed to the online shop' }));
-      await loadShopifyLinks(product, true);
+      setOnlineMessage(prev => ({ ...prev, [key]: `Saved and included in ${channelInstanceIds.length} sales channel${channelInstanceIds.length === 1 ? '' : 's'}` }));
     } catch (e: any) {
       setOnlineStatus(prev => ({ ...prev, [key]: 'error' }));
       setOnlineMessage(prev => ({ ...prev, [key]: e.message }));
@@ -5766,7 +5785,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         <div className="relative flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
-            <h2 className="font-bold text-gray-800 text-lg leading-tight">Website Content Studio</h2>
+            <h2 className="font-bold text-gray-800 text-lg leading-tight">Push to Sales Channels</h2>
             <p className="text-xs text-gray-500">Turn basic catalogue data into complete online listings with researched titles, compelling descriptions, and relevant supplier images.</p>
           </div>
           {/* Settings cog */}
@@ -5796,14 +5815,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <input type="radio" name="workflowMode" value="manual" checked={workflowMode === 'manual'} onChange={() => setAndPersistMode('manual')} className="mt-0.5 accent-blue-600 shrink-0" />
                         <div>
                           <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Manual Steps</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Find URLs, Get Images &amp; Research, Format Content, Push to Online Shop.</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Find URLs, Get Images &amp; Research, Format Content, Push to Sales Channels.</p>
                         </div>
                       </label>
                       <label className="flex items-start gap-2.5 cursor-pointer group">
                         <input type="radio" name="workflowMode" value="auto" checked={workflowMode === 'auto'} onChange={() => setAndPersistMode('auto')} className="mt-0.5 accent-blue-600 shrink-0" />
                         <div>
                           <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Auto Generate</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Generate Product Descriptions &amp; Images (full pipeline) and Push to Online Shop.</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Generate Product Descriptions &amp; Images (full pipeline) and Push to Sales Channels.</p>
                         </div>
                       </label>
                     </div>
@@ -5941,8 +5960,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) await handleAutomatedRetrieval(p); }} className="px-4 py-2 bg-[#147f95] text-white text-xs font-bold rounded-lg hover:bg-[#106b7e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
                       🤖 Generate Product Descriptions &amp; Images
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
-                      Save and Push Online
+                    <button disabled={selectedKeys.size === 0} onClick={() => void openPushToChannels(processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']))} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
+                      Push to Sales Channels
                     </button>
                   </>
                 ) : (
@@ -5956,8 +5975,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) { const key = p.code || ''; const preflight = preflightMap[key]; await handleGenerateContent(p, preflight); } }} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       ✨ Format Content
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
-                      Save and Push Online
+                    <button disabled={selectedKeys.size === 0} onClick={() => void openPushToChannels(processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']))} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
+                      Push to Sales Channels
                     </button>
                   </>
                 )}
@@ -6298,7 +6317,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       </div>
                     )}
 
-                    {/* Step 3 result: generated content + push to online shop */}
+                    {/* Step 3 result: generated content and channel assignment */}
                     {isExpanded && !isGenerating && hasContent && (
                       <div className="space-y-4 border-t border-indigo-200 bg-indigo-50 p-5" onClick={e => e.stopPropagation()}>
                         <WebsiteGeneratedContentEditor
@@ -6308,15 +6327,15 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           footer={(
                             <div className="flex flex-wrap items-center gap-3 pt-1">
                               <button
-                                onClick={() => handlePushToOnline(p)}
+                                onClick={() => void openPushToChannels([p])}
                                 disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
                                 className="rounded-lg bg-[#164e63] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#123f50] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
                               >
                                 {onlineStatus[key] === 'pushing'
-                                  ? 'Saving and pushing…'
+                                  ? 'Saving and assigning…'
                                   : onlineStatus[key] === 'done'
-                                  ? 'Saved and pushed online'
-                                  : 'Save and Push Online'}
+                                  ? 'Saved to channels'
+                                  : 'Push to Sales Channels'}
                               </button>
                               {shopifyLinksLoading.has(key) && <span className="text-xs text-gray-400">Loading Shopify links…</span>}
                               {shopifyLinksMap[key]?.storefrontUrl && (
@@ -6357,6 +6376,27 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           </>
         )}
       </div>
+      {pushTargets.length > 0 && <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-5" onMouseDown={event => { if (event.target === event.currentTarget) setPushTargets([]); }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="push-channels-title" className="w-full max-w-lg rounded-lg border border-gray-200 bg-white p-5 shadow-2xl">
+          <h3 id="push-channels-title" className="text-base font-bold text-gray-800">Push to Sales Channels</h3>
+          <p className="mt-1 text-xs text-gray-500">Save reviewed content for {pushTargets.length} product{pushTargets.length === 1 ? '' : 's'} and include them in the selected channels.</p>
+          {pushChannelError && <p role="alert" className="mt-3 rounded bg-red-50 p-2 text-xs text-red-700">{pushChannelError}</p>}
+          <div className="mt-4 space-y-2">
+            {contentChannels.map(channel => {
+              const available = channel.enabled && channel.runtimeStatus === 'active' && channel.readinessStatus === 'ready';
+              return <label key={channel.channelInstanceId} className={`grid grid-cols-[20px_1fr] items-center gap-2 rounded border border-gray-200 p-3 ${available ? '' : 'opacity-60'}`}>
+                <input type="checkbox" checked={selectedContentChannelIds.has(channel.channelInstanceId)} disabled={!available} onChange={event => setSelectedContentChannelIds(current => { const next = new Set(current); if (event.target.checked) next.add(channel.channelInstanceId); else next.delete(channel.channelInstanceId); return next; })} />
+                <span><strong className="block text-xs text-gray-800">{channel.displayName}</strong><span className="text-[11px] text-gray-500">{channel.providerDisplayName}{available ? '' : ' · Channel is not active and ready'}</span></span>
+              </label>;
+            })}
+            {contentChannels.length === 0 && !pushChannelError && <p className="text-xs text-gray-500">No sales channels are configured.</p>}
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" onClick={() => setPushTargets([])} className="rounded border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700">Cancel</button>
+            <button type="button" disabled={selectedContentChannelIds.size === 0 || pushTargets.some(product => onlineStatus[product.code] === 'pushing')} onClick={async () => { const channelIds = [...selectedContentChannelIds]; for (const product of pushTargets) await handlePushToChannels(product, channelIds); setPushTargets([]); }} className="rounded bg-[#164e63] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Save and include</button>
+          </div>
+        </div>
+      </div>}
 
       {/* Scraper Results Panel — fixed bottom, visible when setting is on and log has entries */}
       {showPreflightDialog && tavilyLog.length > 0 && (

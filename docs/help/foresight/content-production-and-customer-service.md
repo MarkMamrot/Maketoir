@@ -30,14 +30,14 @@ Use content and service tools to prepare drafts that a person checks before publ
 
 ## Step-by-step
 
-1. Open **Website Content Studio** or the relevant pending or bulk listing view.
+1. Open **Push to Sales Channels** or the relevant pending or bulk listing view.
 2. Select the product and check its source data.
 3. Choose the intended field template and inputs.
 4. Generate a draft or edit the existing proposal.
 5. Compare every product fact and policy statement with the source information.
 6. Review candidate images separately and keep existing images until a replacement is approved.
-7. Approve only the fields ready for the next supported publication step.
-8. Check the destination after publication rather than assuming it succeeded.
+7. Choose **Push to Sales Channels**, select each exact destination, and confirm the inclusion.
+8. Check each destination after its channel publication workflow runs rather than assuming inclusion means the provider accepted it.
 
 ## Prepare reliable inputs
 
@@ -55,6 +55,8 @@ Use content and service tools to prepare drafts that a person checks before publ
 | Generated title, description, or tags | Accept, edit, or leave unchanged | Reviewed field proposal | Not until published |
 | Candidate image | Approve, reject, or keep the current image | Reviewed image choice | Not until explicitly changed |
 | Bulk listing set | Which products and fields are ready | Approved batch | Only the later publication step |
+
+**Push to Sales Channels** first saves the reviewed title, description, tags, and explicitly selected candidate images to the IMS product. It then records inclusion for the exact channel instances you select. This does not bypass channel readiness or publication controls; provider publication is reconciled separately for each channel.
 
 ## Customer-service replies
 

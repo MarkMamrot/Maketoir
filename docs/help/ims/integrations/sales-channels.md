@@ -15,8 +15,10 @@ Sales Channels shows each online storefront separately. A business can connect m
 ## Publishing and provider operations
 
 - Rename a channel so staff can distinguish its purpose.
+- Use **Add Sales Channel** to choose the provider-specific connection setup.
 - Define ordered product rules for each exact storefront, preview their destinations, and apply assignment intent.
-- Include or exclude an individual product persistently when its automatic rule result is unsuitable.
+- Keep assignment **Manual** by default, or opt an exact channel into **Add matches** or **Full sync**.
+- Include or exclude products from **All Products** or an individual product, and allow automation again when appropriate.
 - Enable automatic publication for a prepared channel and reconcile confirmed assignment differences.
 - Test a Shopify instance against its exact saved store and credentials.
 - Connect an Amazon Australia Seller Central account through Amazon's authorization page.
@@ -42,9 +44,17 @@ Choose **Product rules** on any channel row to define that exact storefront's de
 
 Rules run in their displayed order and the first matching enabled rule decides whether to include or exclude the product. A rule can require all of its conditions or any one condition. Conditions can use catalogue facts such as active status, online candidate, product type, category, brand, tags, content, images and variant count. A product that matches no rule is excluded by default.
 
-Use **Save and preview** to store the rules and inspect the result without changing assignments. The preview shows the matched rule, automatic result, effective result and provider state. Set a product override to **Include** or **Exclude** when it must differ from the automatic result; choose **Automatic** to return it to rule control. Overrides remain in effect when rules are changed or reapplied.
+Use **Save and preview** to store the rules and inspect the result without changing assignments. The preview shows the matched rule, automatic result, effective result and provider state. Rules recommend candidates; they do not include products while assignment mode is **Manual**.
 
-The same effective result is shown for a saved product under **Products > All Products > Online Store > Channel destinations**. Save catalogue changes before refreshing that product preview. Administrators can set the same exact-storefront override there without opening the complete rule list.
+Choose the assignment mode on the exact channel row:
+
+- **Manual** leaves existing inclusion unchanged. Staff choose every inclusion or exclusion.
+- **Add matches** includes unprotected products that match the rules but does not remove products that stop matching.
+- **Full sync** includes matching unprotected products and removes unprotected products that stop matching.
+
+An explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Allow automation** to remove that protection while preserving the current inclusion until the selected automation mode runs.
+
+For one saved product, open **Products > All Products > Channels**, choose **Include in Channels**, review configured destinations and recommendations, then apply the checked channels. For several products, select their rows in **All Products**, choose **Include in Sales Channels**, select one or more exact channel instances, and choose **Always include**, **Always exclude**, or **Allow automation**.
 
 Choose **Apply assignments** only after reviewing the preview. Applying records the desired assignment for all products in the channel; it does not create, update, publish or remove anything at Shopify, Amazon or the Solvantis Online Store. Existing provider links and publication continue unchanged until the relevant publication workflow processes that intent.
 
@@ -64,9 +74,13 @@ Assignment intent and provider state are separate. **Include** means Solvantis s
 
 Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.
 
+### Add a sales channel
+
+Choose **Add Sales Channel**, then choose a provider. Amazon continues to Seller Central authorization for a new seller account. Shopify opens its connection settings. Enable the single Solvantis Online Store channel in Online Channels settings.
+
 ### Connect Amazon Australia
 
-1. Choose **Connect Amazon**.
+1. Choose **Add Sales Channel**, then **Amazon Australia**.
 2. Enter a channel name that identifies the seller account for staff.
 3. Continue to Amazon and sign in to the intended Seller Central account.
 4. Review Amazon's permissions and authorize Solvantis.
@@ -80,7 +94,7 @@ Choose **Sync listings** to read that seller account's Amazon Australia listings
 
 Open **Manage listings**, select linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. To prepare a new seller offer for a product already present in Amazon's catalogue, search for one active IMS variant under **Add existing-ASIN offer**, enter its 10-character ASIN and the seller SKU for this account, then save the mapping. Saving enables offer price and inventory controls but does not contact Amazon; the offer changes only during a later confirmed product reconciliation. A variant or seller SKU can be linked only once in the same Amazon account.
 
-**Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Each update sets Amazon's seller-fulfilled quantity to the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
+**Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Amazon's seller-fulfilled quantity becomes the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.
 
 After an Amazon channel completes final activation, Solvantis checks for stock movements every 15 minutes and sends changed enabled listings to that exact seller account. A paused, setup-pending, disabled, or automation-paused channel is not processed automatically. Use **Sync inventory** during setup or when an administrator needs an immediate full reconciliation.
 

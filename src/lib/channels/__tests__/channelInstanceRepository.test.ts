@@ -109,6 +109,24 @@ describe('SalesChannelInstanceRepository', () => {
     ]);
   });
 
+  it('sets product assignment mode on the exact business-owned instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([]);
+    await SalesChannelInstanceRepository.setProductAssignmentModeForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ', mode: 'add_matches',
+    });
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("'$.productAssignmentMode'"), [
+      'add_matches', 'business-1', 'instance-1',
+    ]);
+  });
+
+  it('rejects an unsupported product assignment mode', async () => {
+    await expect(SalesChannelInstanceRepository.setProductAssignmentModeForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', mode: 'sometimes' as never,
+    })).rejects.toThrow('A valid product assignment mode is required.');
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
   it('sets Build Capacity policy on the exact business-owned instance', async () => {
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);

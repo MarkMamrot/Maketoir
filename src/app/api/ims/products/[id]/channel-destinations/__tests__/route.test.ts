@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(), query: vi.fn(), listInstances: vi.fn(), evaluate: vi.fn(), report: vi.fn(),
+  session: vi.fn(), query: vi.fn(), listInstances: vi.fn(), evaluate: vi.fn(), links: vi.fn(), report: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
@@ -10,6 +10,7 @@ vi.mock('@/lib/channels/channelInstanceRepository', () => ({
   SalesChannelInstanceRepository: { listForBusiness: mocks.listInstances },
 }));
 vi.mock('@/lib/channels/channelProductAssignmentRepository', () => ({ evaluateChannelProducts: mocks.evaluate }));
+vi.mock('@/lib/channels/channelProductLinks', () => ({ getChannelProductLinks: mocks.links }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { GET } from '../route';
@@ -24,10 +25,13 @@ describe('GET product channel destinations', () => {
     mocks.query.mockResolvedValue([{ product_id: 'product-1' }]);
     mocks.listInstances.mockResolvedValue([{
       channelInstanceId: 'instance-1', businessId: 'business-1', provider: 'shopify', displayName: 'Retail Store',
-      runtimeStatus: 'active', readinessStatus: 'ready',
+      runtimeStatus: 'active', readinessStatus: 'ready', settings: { productAssignmentMode: 'add_matches' },
     }]);
     mocks.evaluate.mockResolvedValue({ products: [{ ruleDecision: 'include', effectiveDecision: 'exclude',
-      matchedRuleName: 'Online range', overrideMode: 'exclude', providerState: 'published' }], total: 1, applied: 0 });
+      matchedRuleName: 'Online range', overrideMode: 'exclude', desiredState: 'published',
+      providerState: 'published' }], total: 1, applied: 0 });
+    mocks.links.mockResolvedValue({ storefrontUrl: 'https://store.example/products/dress',
+      adminUrl: 'https://admin.shopify.com/store/example/products/123' });
     mocks.report.mockResolvedValue(undefined);
   });
 
@@ -46,9 +50,11 @@ describe('GET product channel destinations', () => {
       ['business-1', 'product-1']);
     expect(mocks.listInstances).toHaveBeenCalledWith('business-1');
     expect(mocks.evaluate).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'instance-1',
-      productId: 'product-1', limit: 1 });
+      productId: 'product-1', limit: 1, assignmentMode: 'add_matches' });
     expect(body.destinations[0]).toMatchObject({ displayName: 'Retail Store', providerDisplayName: 'Shopify',
-      effectiveDecision: 'exclude', providerState: 'published' });
+      assignmentMode: 'add_matches', effectiveDecision: 'exclude', desiredState: 'published', providerState: 'published' });
+    expect(body.destinations[0]).toMatchObject({ storefrontUrl: 'https://store.example/products/dress',
+      adminUrl: 'https://admin.shopify.com/store/example/products/123' });
   });
 
   it('does not evaluate channels when the product is outside the tenant', async () => {

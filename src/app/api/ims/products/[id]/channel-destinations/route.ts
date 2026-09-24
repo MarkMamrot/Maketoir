@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { evaluateChannelProducts } from '@/lib/channels/channelProductAssignmentRepository';
+import { getChannelProductLinks } from '@/lib/channels/channelProductLinks';
 import { createDefaultSalesChannelRegistry } from '@/lib/channels/defaultRegistry';
+import { channelProductAssignmentMode } from '@/lib/channels/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -31,21 +33,30 @@ export async function GET(_: Request, { params }: Context) {
         channelInstanceId: instance.channelInstanceId,
         productId,
         limit: 1,
+        assignmentMode: channelProductAssignmentMode(instance.settings),
       });
       const product = evaluation.products[0];
       if (!product) throw new Error('The channel evaluator did not return the requested product.');
+      const links = product.desiredState === 'published'
+        ? await getChannelProductLinks({ businessId, productId, instance }).catch(() => ({ storefrontUrl: null, adminUrl: null }))
+        : { storefrontUrl: null, adminUrl: null };
       return {
         channelInstanceId: instance.channelInstanceId,
         displayName: instance.displayName,
         provider: instance.provider,
         providerDisplayName: registry.get(instance.provider).displayName,
+        enabled: instance.enabled,
         runtimeStatus: instance.runtimeStatus,
         readinessStatus: instance.readinessStatus,
+        safeError: instance.safeError,
+        assignmentMode: channelProductAssignmentMode(instance.settings),
         ruleDecision: product.ruleDecision,
         effectiveDecision: product.effectiveDecision,
         matchedRuleName: product.matchedRuleName,
         overrideMode: product.overrideMode,
+        desiredState: product.desiredState,
         providerState: product.providerState,
+        ...links,
       };
     }));
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateChannelProductRules, type ChannelProductRuleContext } from '../channelProductRules';
+import { evaluateChannelProductRules, resolveChannelProductDesiredState, type ChannelProductRuleContext } from '../channelProductRules';
 
 const product: ChannelProductRuleContext = {
   online_candidate: true,
@@ -55,5 +55,25 @@ describe('evaluateChannelProductRules', () => {
       decision: 'include' as const, conditions: [{ field: 'online_candidate' as const, operator: 'equals' as const, value: true }] };
     expect(evaluateChannelProductRules({ context: product, rules: [rule], overrideMode: 'exclude' }).effectiveDecision).toBe('exclude');
     expect(evaluateChannelProductRules({ context: { ...product, online_candidate: false }, rules: [rule], overrideMode: 'include' }).effectiveDecision).toBe('include');
+  });
+});
+
+describe('resolveChannelProductDesiredState', () => {
+  it('preserves existing intent in manual mode while rules remain recommendations', () => {
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'manual', ruleDecision: 'exclude',
+      overrideMode: 'automatic', currentDesiredState: 'published' })).toBe('published');
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'manual', ruleDecision: 'include',
+      overrideMode: 'automatic', currentDesiredState: null })).toBe('unpublished');
+  });
+
+  it('supports additive and full-sync automation without overriding staff protection', () => {
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'add_matches', ruleDecision: 'include',
+      overrideMode: 'automatic', currentDesiredState: 'unpublished' })).toBe('published');
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'add_matches', ruleDecision: 'exclude',
+      overrideMode: 'automatic', currentDesiredState: 'published' })).toBe('published');
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'full_sync', ruleDecision: 'exclude',
+      overrideMode: 'automatic', currentDesiredState: 'published' })).toBe('unpublished');
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'full_sync', ruleDecision: 'include',
+      overrideMode: 'exclude', currentDesiredState: 'published' })).toBe('unpublished');
   });
 });

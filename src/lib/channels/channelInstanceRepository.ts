@@ -2,10 +2,12 @@ import { randomUUID } from 'crypto';
 
 import { execute, query } from '@/services/MySQLService';
 import {
+  CHANNEL_PRODUCT_ASSIGNMENT_MODES,
   isSalesChannelProvider,
   isSalesChannelReadinessStatus,
   isSalesChannelRuntimeStatus,
   type SalesChannelInstance,
+  type ChannelProductAssignmentMode,
   type SalesChannelProvider,
 } from './types';
 import { normalizeChannelInventoryLocationIds } from './buildCapacityPolicy';
@@ -161,6 +163,26 @@ export const SalesChannelInstanceRepository = {
               updated_at = CURRENT_TIMESTAMP(3)
         WHERE business_id = ? AND channel_instance_id = ?`,
       [input.enabled ? 1 : 0, businessId, channelInstanceId],
+    );
+    return this.getForBusiness(businessId, channelInstanceId);
+  },
+
+  async setProductAssignmentModeForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    mode: ChannelProductAssignmentMode;
+  }): Promise<SalesChannelInstance | null> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    if (!businessId || !channelInstanceId || !CHANNEL_PRODUCT_ASSIGNMENT_MODES.includes(input.mode)) {
+      throw new SalesChannelValidationError('A valid product assignment mode is required.');
+    }
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()), '$.productAssignmentMode', ?),
+              updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ?`,
+      [input.mode, businessId, channelInstanceId],
     );
     return this.getForBusiness(businessId, channelInstanceId);
   },

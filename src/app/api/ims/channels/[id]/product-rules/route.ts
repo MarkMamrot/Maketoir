@@ -9,6 +9,7 @@ import {
   setChannelProductOverrides,
 } from '@/lib/channels/channelProductAssignmentRepository';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
+import { channelProductAssignmentMode } from '@/lib/channels/types';
 import type { ChannelProductOverrideMode, ChannelProductRuleDefinition } from '@/lib/channels/channelProductRules';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -18,6 +19,7 @@ type Authorized = {
   businessId: string;
   channelInstanceId: string;
   session: Awaited<ReturnType<typeof getImsSession>>;
+  assignmentMode: ReturnType<typeof channelProductAssignmentMode>;
 };
 
 async function authorize(context: Context): Promise<Authorized | { response: NextResponse }> {
@@ -30,7 +32,7 @@ async function authorize(context: Context): Promise<Authorized | { response: Nex
   const channelInstanceId = String(context.params.id ?? '').trim();
   const instance = await SalesChannelInstanceRepository.getForBusiness(businessId, channelInstanceId);
   if (!instance) return { response: NextResponse.json({ error: 'Sales channel not found.' }, { status: 404 }) };
-  return { businessId, channelInstanceId, session };
+  return { businessId, channelInstanceId, session, assignmentMode: channelProductAssignmentMode(instance.settings) };
 }
 
 function pageInput(url: string) {

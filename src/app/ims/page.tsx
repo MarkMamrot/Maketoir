@@ -64,7 +64,7 @@ import { BookkeeperAuditView } from './views/reports/BookkeeperAuditView';
 import { BulkAddEditProductsView } from './views/products/BulkAddEditProductsView';
 import { ProductBuildsView } from './views/products/ProductBuildsView';
 import { BuildRecipeEditor } from './views/products/BuildRecipeEditor';
-import { ProductChannelDestinations } from './views/products/ProductChannelDestinations';
+import { NewProductChannelChoices, ProductChannelDestinations } from './views/products/ProductChannelDestinations';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
@@ -4243,7 +4243,7 @@ function ImportProductsModal({
 }
 
 
-function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly = false }: { productId: string; isOnline?: boolean; onChangeIsOnline?: (val: boolean) => void; isReadOnly?: boolean }) {
+function LegacyOnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly = false }: { productId: string; isOnline?: boolean; onChangeIsOnline?: (val: boolean) => void; isReadOnly?: boolean }) {
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [pushing, setPushing] = useState(false);
@@ -4393,6 +4393,10 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
       </div>
     </>
   );
+}
+
+function ChannelsSection({ productId, isReadOnly = false }: { productId: string; isReadOnly?: boolean }) {
+  return <ProductChannelDestinations productId={productId} isReadOnly={isReadOnly} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5867,6 +5871,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
+  const [bulkChannelsOpen, setBulkChannelsOpen] = useState(false);
+  const [bulkChannels, setBulkChannels] = useState<Array<{ channelInstanceId: string; displayName: string; providerDisplayName: string; enabled: boolean; runtimeStatus: string; readinessStatus: string }>>([]);
+  const [bulkChannelIds, setBulkChannelIds] = useState<Set<string>>(new Set());
+  const [bulkChannelAction, setBulkChannelAction] = useState<'include' | 'exclude' | 'allow_automation'>('include');
+  const [bulkChannelError, setBulkChannelError] = useState('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [stockSoh, setStockSoh] = useState<Record<string, number> | null>(null);
   const [stockAvail, setStockAvail] = useState<Record<string, number>>({});
@@ -5959,6 +5968,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [productLocations, setProductLocations] = useState<Array<{ id: number; name: string; is_active?: number }>>([]);
   const [openingStock, setOpeningStock] = useState<Record<string, OpeningStockValue>>({});
   const [pendingProductSave, setPendingProductSave] = useState<PendingProductSave | null>(null);
+  const [stagedChannelIds, setStagedChannelIds] = useState<string[]>([]);
   const openingStockScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(openingStockScrollRef);
   const { settings: productSettings } = useImsSettings();
@@ -6090,6 +6100,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     setAutoGenerateSku(false);
     setOpeningStock({});
     setPendingProductSave(null);
+    setStagedChannelIds([]);
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     setVariantRows([{ ...blankRow(), option1_value: 'Default' }]);
     setActiveCurrencies([]);
@@ -6099,6 +6110,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const openEdit = (p: any) => {
     clearPendingProductPhotos();
     setAutoGenerateSku(false);
+    setStagedChannelIds([]);
     // Prefer DB-stored base_sku; fall back to deriving from variant SKU common prefix
     let base_sku = p.base_sku || '';
     if (!base_sku) {
@@ -6306,6 +6318,19 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         }
         clearPendingProductPhotos();
       }
+      if (isProductCreationFlow && stagedChannelIds.length > 0) {
+        const assignmentResponse = await fetch('/api/ims/products/channel-assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productIds: [productId], channelInstanceIds: stagedChannelIds, action: 'include' }),
+        });
+        const assignmentResult = await assignmentResponse.json().catch(() => ({}));
+        if (!assignmentResponse.ok || !assignmentResult.success) {
+          alert('The product was saved, but one or more channel inclusions could not be saved. Review the Channels section and retry.');
+        } else {
+          setStagedChannelIds([]);
+        }
+      }
       load();
       // Stay open — refresh modal.edit with updated product data
       try {
@@ -6481,6 +6506,43 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       setSelected(new Set()); load();
     } catch (e: any) { alert(e.message); }
     finally { setBulkWorking(false); }
+  };
+
+  const openBulkChannels = async () => {
+    setBulkChannelsOpen(true);
+    setBulkChannelError('');
+    try {
+      const response = await fetch('/api/ims/channels');
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Sales channels could not be loaded.');
+      setBulkChannels(Array.isArray(body.instances) ? body.instances : []);
+      setBulkChannelIds(new Set());
+    } catch (error) {
+      setBulkChannelError(error instanceof Error ? error.message : 'Sales channels could not be loaded.');
+    }
+  };
+
+  const applyBulkChannels = async () => {
+    if (bulkChannelIds.size === 0) return;
+    setBulkWorking(true);
+    setBulkChannelError('');
+    try {
+      const response = await fetch('/api/ims/products/channel-assignments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: [...selected], channelInstanceIds: [...bulkChannelIds], action: bulkChannelAction }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) {
+        const failed = Array.isArray(body.results) ? body.results.filter((result: any) => !result.success).length : 0;
+        throw new Error(body.error || `${failed || 'One or more'} channel assignment${failed === 1 ? '' : 's'} could not be saved.`);
+      }
+      setBulkChannelsOpen(false);
+      setSelected(new Set());
+    } catch (error) {
+      setBulkChannelError(error instanceof Error ? error.message : 'Channel assignments could not be saved.');
+    } finally {
+      setBulkWorking(false);
+    }
   };
 
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
@@ -6874,12 +6936,41 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       {selected.size > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', flex: 1 }}>{selected.size} product{selected.size !== 1 ? 's' : ''} selected</span>
+          {!isAdvisor && <button disabled={bulkWorking || selected.size > 500} onClick={() => void openBulkChannels()} style={btnStyle('secondary', 'sm')}>Include in Sales Channels</button>}
           <button disabled={bulkWorking} onClick={() => handleBulkSetActive(1)} style={btnStyle('secondary', 'sm')}>Make Active</button>
           <button disabled={bulkWorking} onClick={() => handleBulkSetActive(0)} style={btnStyle('secondary', 'sm')}>Make Inactive</button>
           {!isAdvisor && <button disabled={bulkWorking} onClick={handleBulkDelete} style={btnStyle('danger', 'sm')}>Delete</button>}
           <button onClick={() => setSelected(new Set())} style={btnStyle('secondary', 'sm')}>Deselect all</button>
         </div>
       )}
+
+      {bulkChannelsOpen && <div role="dialog" aria-modal="true" aria-label="Include products in Sales Channels" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(15,23,42,.48)', display: 'grid', placeItems: 'center', padding: 20 }}>
+        <div style={{ width: 'min(540px, 100%)', maxHeight: '80vh', overflowY: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 18, boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Include in Sales Channels</h3>
+          <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{selected.size} selected product{selected.size === 1 ? '' : 's'}.</p>
+          {bulkChannelError && <div role="alert" style={{ marginBottom: 10, padding: '8px 10px', background: '#fef2f2', color: '#991b1b', fontSize: 11 }}>{bulkChannelError}</div>}
+          <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-dim)', fontSize: 11 }}>
+            Operation
+            <select value={bulkChannelAction} onChange={event => setBulkChannelAction(event.target.value as 'include' | 'exclude' | 'allow_automation')} style={{ height: 34, border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: '0 8px' }}>
+              <option value="include">Always include</option><option value="exclude">Always exclude</option><option value="allow_automation">Allow automation</option>
+            </select>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {bulkChannels.map(channel => {
+              const available = channel.enabled && channel.runtimeStatus === 'active' && channel.readinessStatus === 'ready';
+              return <label key={channel.channelInstanceId} style={{ display: 'grid', gridTemplateColumns: '22px 1fr', gap: 9, alignItems: 'center', padding: '9px 10px', border: '1px solid var(--sv-etch)', borderRadius: 5, opacity: available ? 1 : .62 }}>
+                <input type="checkbox" checked={bulkChannelIds.has(channel.channelInstanceId)} disabled={!available || bulkWorking} onChange={event => setBulkChannelIds(current => { const next = new Set(current); if (event.target.checked) next.add(channel.channelInstanceId); else next.delete(channel.channelInstanceId); return next; })} />
+                <span><strong style={{ display: 'block', fontSize: 12 }}>{channel.displayName}</strong><span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>{channel.providerDisplayName}{!available ? ' · Channel is not active and ready' : ''}</span></span>
+              </label>;
+            })}
+            {bulkChannels.length === 0 && !bulkChannelError && <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>No sales channels are configured.</span>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button type="button" disabled={bulkWorking} onClick={() => setBulkChannelsOpen(false)} style={btnStyle('secondary', 'sm')}>Cancel</button>
+            <button type="button" disabled={bulkWorking || bulkChannelIds.size === 0} onClick={() => void applyBulkChannels()} style={btnStyle('primary', 'sm')}>{bulkWorking ? 'Applying...' : 'Apply'}</button>
+          </div>
+        </div>
+      </div>}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
         <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
@@ -7532,13 +7623,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             />
           )}
 
-          {/* ── Online Store ── */}
-          {modal.edit?.product_id && (
-            <>
+          {/* ── Channels ── */}
+          <>
               {/* Website Title — separate from the supplier product name */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Channels</span>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
               </div>
               <Field label="Website Title">
@@ -7550,19 +7640,42 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 />
               </Field>
               <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: -6 }}>
-                Used as the Shopify product title instead of the Product Name above. Leave blank to use the Product Name.
+                Used as the customer-facing channel title instead of the Product Name above. Leave blank to use the Product Name.
               </div>
-              <OnlineStoreSection
+              <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={Number(form.is_online ?? 0) === 1} onChange={event => {
+                    const value = event.target.checked ? 1 : 0;
+                    setForm((previous: any) => ({ ...previous, is_online: value }));
+                    setModal(previous => previous.edit ? { ...previous, edit: { ...previous.edit, is_online: value } } : previous);
+                  }} disabled={isAdvisor} style={{ margin: 0, width: 16, height: 16 }} />
+                  Online candidate
+                </label>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Makes this product eligible for channel rules; it does not publish the product.</span>
+              </div>
+              {modal.edit?.product_id ? <ChannelsSection
                 productId={modal.edit.product_id}
-                isOnline={!!modal.edit.is_online}
-                onChangeIsOnline={(checked) => {
-                  setForm((p: any) => ({ ...p, is_online: checked ? 1 : 0 }));
-                  setModal((prev) => prev.edit ? { ...prev, edit: { ...prev.edit, is_online: checked ? 1 : 0 } } : prev);
-                }}
                 isReadOnly={isAdvisor}
-              />
-            </>
-          )}
+              /> : <NewProductChannelChoices
+                context={{
+                  online_candidate: Number(form.is_online ?? 0) === 1,
+                  active: Number(form.is_active ?? 1) === 1,
+                  stock_item: Number(form.is_stock_item ?? 1) === 1,
+                  description: form.description ?? null,
+                  website_title: form.website_title ?? null,
+                  product_type: form.product_type ?? null,
+                  category: form.category ?? null,
+                  subcategory: form.subcategory ?? null,
+                  brand: form.brand ?? null,
+                  tags: String(form.tags ?? '').split(',').map((tag: string) => tag.trim()).filter(Boolean),
+                  image_count: pendingProductPhotos.length,
+                  variant_count: variantRows.filter(row => !row._delete && Number(row.is_active ?? 1) === 1).length,
+                }}
+                selectedChannelIds={stagedChannelIds}
+                onChange={setStagedChannelIds}
+                isReadOnly={isAdvisor}
+              />}
+          </>
 
           {/* ── Wholesale ── */}
           {modal.edit?.product_id && (
