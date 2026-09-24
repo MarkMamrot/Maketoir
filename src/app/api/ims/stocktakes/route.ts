@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImportSession } from '@/app/api/ims/import/_helpers';
 import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
+import { parseStockOnHandFilter } from '@/lib/ims/stocktakes/stocktakeFilters';
 
 export async function GET() {
   try {
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest) {
     if (!reference || !location_id) {
       return NextResponse.json({ error: 'reference and location_id are required' }, { status: 400 });
     }
-    const id = await ImsStocktakeRepo.create({ reference, location_id, notes, blank: !!blank, brand_id, supplier_id, product_type }, session.businessId);
+    const stockOnHand = parseStockOnHandFilter(body.soh_operator, body.soh_value);
+    const id = await ImsStocktakeRepo.create({ reference, location_id, notes, blank: !!blank, brand_id, supplier_id, product_type, ...stockOnHand }, session.businessId);
     return NextResponse.json({ id }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

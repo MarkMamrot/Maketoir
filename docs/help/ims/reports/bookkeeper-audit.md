@@ -45,8 +45,8 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 1. Open **Finances > Accounting Audit**.
 2. Read **Action required** and **Coverage** before reviewing rows.
 3. Work from the first row downward; findings are ordered by source transaction date, newest first.
-4. Check the source, due date, quantity, and value at risk.
-5. Select the source reference to inspect the related workflow in a new tab. A POS source opens the exact transaction, and a stock position opens the owning product rather than the general product list.
+4. Check the source, its identifying name, due date, quantity, and value at risk. Stock positions show the product name, purchase documents show the supplier, and sales documents show the customer beneath the reference.
+5. Select the source reference to inspect the related workflow in a new tab. POS sales, Sales Orders, and Customer Credit Notes open the exact transaction or document, while a stock position opens the owning product rather than the general product list.
 6. Correct the source record through its normal workflow.
 7. Refresh the audit. A corrected finding clears automatically.
 

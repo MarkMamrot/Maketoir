@@ -7,11 +7,12 @@ describe('bookkeeper audit operational detectors', () => {
     const findings = buildDocumentAuditFindings([{
       source_type: 'sales_order', source_id: 42, source_reference: 'SO-00042', status: 'confirmed',
       fallback_date: '2026-09-01', explicit_due_date: null, due_rule: 'sales_order_active',
-      occurred_at: '2026-09-01T02:00:00.000Z', outstanding_quantity: '3', value_at_risk: '120.00',
+      occurred_at: '2026-09-01T02:00:00.000Z', outstanding_quantity: '3', value_at_risk: '120.00', source_context: 'Example Customer',
     }], '2026-09-16');
 
     expect(findings).toEqual([expect.objectContaining({
       key: 'sales_order:42:overdue', expected: '2026-09-15', actual: 'confirmed', variance: 3,
+      sourceContext: 'Example Customer', sourceHref: '#sales-orders/42',
       dueDate: { date: '2026-09-15', source: 'assumed', assumedDays: 14 },
     })]);
   });
@@ -24,6 +25,19 @@ describe('bookkeeper audit operational detectors', () => {
     }], '2026-10-01')).toEqual([]);
   });
 
+  it('links a customer credit note to the exact record and displays its customer', () => {
+    const findings = buildDocumentAuditFindings([{
+      source_type: 'customer_credit_note', source_id: 7, source_reference: 'CN-00007', status: 'draft',
+      fallback_date: '2026-08-01', explicit_due_date: null, due_rule: 'customer_credit_note_draft',
+      occurred_at: '2026-08-01T00:00:00.000Z', outstanding_quantity: null, value_at_risk: 25,
+      source_context: 'Example Customer',
+    }], '2026-09-25');
+
+    expect(findings[0]).toMatchObject({
+      sourceHref: '#credit-notes/7', sourceContext: 'Example Customer',
+    });
+  });
+
   it('flags fractional negative stock and fingerprints quantity changes', () => {
     const base = {
       product_id: 'p-1', variant_id: 'v-1', sku: 'SKU-1', product_name: 'Product', location_id: 3, location_name: 'Shop',
@@ -31,7 +45,7 @@ describe('bookkeeper audit operational detectors', () => {
     };
     const first = buildNegativeStockAuditFindings([base])[0];
     const changed = buildNegativeStockAuditFindings([{ ...base, qty_on_hand: '-0.5' }])[0];
-    expect(first).toMatchObject({ severity: 'warning', actual: -0.25, valueAtRisk: 3, sourceHref: '#products/p-1' });
+    expect(first).toMatchObject({ severity: 'warning', actual: -0.25, valueAtRisk: 3, sourceContext: 'Product', sourceHref: '#products/p-1' });
     expect(changed.fingerprint).not.toBe(first.fingerprint);
   });
 
@@ -40,6 +54,8 @@ describe('bookkeeper audit operational detectors', () => {
 
     await loadOperationalAuditFindings('business-1', '2026-09-25', { query });
 
+    expect(query.mock.calls[0][0]).toContain('MAX(customer.name)');
+    expect(query.mock.calls[0][0]).toContain('customer.id = cn.customer_id');
     expect(query.mock.calls[1][0]).toContain('p.is_stock_item = 1');
   });
 
@@ -58,14 +74,14 @@ describe('bookkeeper audit operational detectors', () => {
 
   it('groups COGS anomalies by source sale and prioritises negative cost', () => {
     const findings = buildCogsAuditFindings([
-      { movement_id: 2, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', sku: 'SKU-RED', product_name: 'Red Shirt', occurred_at: '2026-08-10T00:00:00.000Z', qty_change: -1, unit_cost: null },
-      { movement_id: 1, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', sku: 'SKU-BLUE', product_name: 'Blue Shirt', occurred_at: '2026-08-09T00:00:00.000Z', qty_change: 1, unit_cost: 5 },
+      { movement_id: 2, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', sku: 'SKU-RED', product_name: 'Red Shirt', customer_name: 'Example Customer', occurred_at: '2026-08-10T00:00:00.000Z', qty_change: -1, unit_cost: null },
+      { movement_id: 1, source_type: 'sales_order', source_id: 42, source_reference: 'SO-42', sku: 'SKU-BLUE', product_name: 'Blue Shirt', customer_name: 'Example Customer', occurred_at: '2026-08-09T00:00:00.000Z', qty_change: 1, unit_cost: 5 },
     ], '2026-08-31');
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       key: 'cogs:sales_order:42:negative', severity: 'critical', variance: 2,
       actual: '1 missing, 0 zero, 1 negative', occurredAt: '2026-08-10T00:00:00.000Z',
-      sourceHref: '#sales-orders/42',
+      sourceContext: 'Example Customer', sourceHref: '#sales-orders/42',
     });
     expect(findings[0].summary).toContain('Red Shirt (SKU-RED), Blue Shirt (SKU-BLUE)');
   });

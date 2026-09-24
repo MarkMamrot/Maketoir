@@ -46,7 +46,7 @@ Use **Products > Builds** to assemble or dismantle recipe-backed stock. Build co
 ### Run a stocktake
 
 1. Open **Stocktakes** and choose **New Stocktake**.
-2. Choose the location and reference. Use **Pre-populate from filters** for a defined range, or **Blank** to add items manually.
+2. Choose the location and reference. Use **Pre-populate from filters** for a defined range, or **Blank** to add items manually. Pre-population can filter by brand, supplier, product type, and Stock On Hand using greater than, less than, or equal to a quantity.
 3. Review the number of included variants, then start the stocktake. Cancelling before the first **Save & Close** discards the new stocktake without leaving a record.
 4. Count physical units and enter each quantity. You can search or browse the product and variant list to add an omitted item, then save and continue later.
 5. For scanner entry, open **Barcode/SKU Scan**, scan or paste one barcode or SKU per line, process the list, then apply the matched counts. A matched variant is added to the stocktake when it was not already included.
@@ -55,6 +55,8 @@ Use **Products > Builds** to assemble or dismantle recipe-backed stock. Build co
 8. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.
 
 When Shipping Workspace reports missing on-hand stock, **Start stock adjustment** creates a blank draft stocktake at that fulfilment branch and preloads the affected variants. Open Stocktakes, physically count those products, enter the verified quantities, and complete the stocktake. Do not use this path when a listed branch transfer is merely waiting to be received; complete the transfer receipt instead.
+
+Stock On Hand filtering uses the selected stocktake location. A variant with no stock row at that location is treated as zero, so **Equal to 0** includes it and **Greater than 0** excludes it. Negative and decimal thresholds are supported.
 
 When an opening quantity entered while creating a tracked product differs from stock already on hand, Solvantis creates and completes a stocktake for that location. Unchanged quantities, including the default zero for a new variant, do not create a stocktake or adjustment. Min Qty and Reorder Qty are saved with that location's stock settings without requiring a quantity change. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
 

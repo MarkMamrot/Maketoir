@@ -67,6 +67,7 @@ export function adaptXeroAuditIssues(
       sourceType: item.targetType,
       sourceId: item.referenceId,
       sourceReference: details?.reference ?? `${TARGET_LABELS[item.targetType] ?? item.targetType} #${item.referenceId}`,
+      sourceContext: details?.contactName ?? null,
       sourceHref: item.ruleKey.startsWith('mapping_') ? '#xero/setup/ledger' : details && sourceView ? `#${sourceView}/${item.referenceId}` : null,
       xeroHistoryHref: item.ruleKey.startsWith('mapping_') ? null : '#xero/activity/history',
       xeroHref: item.ruleKey.startsWith('mapping_') ? null : xeroDocumentHref(item.targetType, item.xeroId),

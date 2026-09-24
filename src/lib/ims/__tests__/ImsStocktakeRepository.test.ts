@@ -16,7 +16,7 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 
 import { ImsStocktakeRepo } from '../ImsRepository';
 
-describe('ImsStocktakeRepo.delete', () => {
+describe('ImsStocktakeRepo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.imsExecute.mockResolvedValue(undefined);
@@ -55,5 +55,23 @@ describe('ImsStocktakeRepo.delete', () => {
       expect.stringContaining('DELETE FROM ims_stocktakes'),
       expect.anything(),
     );
+  });
+
+  it('previews the same location-specific stock-on-hand filter used by creation', async () => {
+    mocks.imsQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("SHOW COLUMNS FROM ims_stocktakes LIKE 'business_id'")) return [{ Field: 'business_id' }];
+      if (sql.includes('SELECT COUNT(*) AS cnt')) return [{ cnt: 2 }];
+      return [];
+    });
+
+    const count = await ImsStocktakeRepo.previewVariants({
+      location_id: 3, soh_operator: 'gt', soh_value: 5,
+    }, 'biz-1');
+
+    expect(count).toBe(2);
+    const [sql, params] = mocks.imsQuery.mock.calls.find(([statement]) => statement.includes('SELECT COUNT(*) AS cnt'))!;
+    expect(sql).toContain('LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ? AND s.business_id = ?');
+    expect(sql).toContain('COALESCE(s.qty_on_hand, 0) > ?');
+    expect(params).toEqual([3, 'biz-1', 'biz-1', 'biz-1', 5]);
   });
 });

@@ -20,7 +20,7 @@ describe('adaptXeroAuditIssues', () => {
     }]]));
     expect(result.findings[0]).toMatchObject({
       key: 'xero:9', category: 'accounting_xero', expected: 10, actual: 12, variance: 2, valueAtRisk: 2,
-      sourceReference: 'SO-00042', sourceHref: '#sales-orders/42', xeroHistoryHref: '#xero/activity/history',
+      sourceReference: 'SO-00042', sourceContext: 'Example Customer', sourceHref: '#sales-orders/42', xeroHistoryHref: '#xero/activity/history',
       xeroHref: 'https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=invoice-42',
       occurredAt: '2026-08-27T00:00:00.000Z', detectedAt: '2026-09-01T00:00:00.000Z',
     });

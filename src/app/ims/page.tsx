@@ -25313,7 +25313,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
 
   // Create modal
   const [createModal, setCreateModal] = useState(false);
-  const [createForm, setCreateForm]   = useState<any>({ reference: '', location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '' });
+  const [createForm, setCreateForm]   = useState<any>({ reference: '', location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '', soh_operator: '', soh_value: '0' });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving]             = useState(false);
@@ -25353,7 +25353,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     const base = `ST-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
     const sameDay = list.filter((s: any) => s.reference && s.reference.startsWith(base)).length;
     const ref = sameDay === 0 ? base : `${base}-${sameDay + 1}`;
-    setCreateForm({ reference: ref, location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '' });
+    setCreateForm({ reference: ref, location_id: '', notes: '', blank: false, brand_id: '', supplier_id: '', product_type: '', soh_operator: '', soh_value: '0' });
     setPreviewCount(null);
     setCreateModal(true);
   };
@@ -25369,10 +25369,14 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     if (createForm.brand_id)    sp.set('brand_id',    createForm.brand_id);
     if (createForm.supplier_id) sp.set('supplier_id', createForm.supplier_id);
     if (createForm.product_type) sp.set('product_type', createForm.product_type);
+    if (createForm.soh_operator) {
+      sp.set('soh_operator', createForm.soh_operator);
+      sp.set('soh_value', createForm.soh_value);
+    }
     fetch(`/api/ims/stocktakes/preview?${sp}`).then(r => r.json()).then(d => {
       setPreviewCount(d.count ?? null);
     }).finally(() => setPreviewLoading(false));
-  }, [createModal, createForm.location_id, createForm.brand_id, createForm.supplier_id, createForm.product_type]);
+  }, [createModal, createForm.location_id, createForm.brand_id, createForm.supplier_id, createForm.product_type, createForm.soh_operator, createForm.soh_value]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25391,6 +25395,8 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
           brand_id:     createForm.brand_id    ? parseInt(createForm.brand_id,    10) : undefined,
           supplier_id:  createForm.supplier_id ? parseInt(createForm.supplier_id, 10) : undefined,
           product_type: createForm.product_type || undefined,
+          soh_operator: createForm.soh_operator || undefined,
+          soh_value:    createForm.soh_operator ? createForm.soh_value : undefined,
         }),
       });
       const j = await res.json();
@@ -25904,6 +25910,19 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                     </select>
                   </Field>
                 </Row3>
+                <Row2>
+                  <Field label="Stock On Hand">
+                    <select value={createForm.soh_operator} onChange={cf('soh_operator')} style={inputStyle}>
+                      <option value="">Any quantity</option>
+                      <option value="gt">Greater than (&gt;)</option>
+                      <option value="lt">Less than (&lt;)</option>
+                      <option value="eq">Equal to (=)</option>
+                    </select>
+                  </Field>
+                  <Field label="Quantity">
+                    <input type="number" step="any" value={createForm.soh_value} onChange={cf('soh_value')} disabled={!createForm.soh_operator} required={!!createForm.soh_operator} style={inputStyle} />
+                  </Field>
+                </Row2>
                 {createForm.location_id && (
                   <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 13 }}>
                     {previewLoading ? 'Counting variants…' : previewCount !== null ? (

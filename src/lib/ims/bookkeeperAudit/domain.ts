@@ -35,6 +35,7 @@ export interface AuditFinding {
   sourceType: string;
   sourceId: string;
   sourceReference: string;
+  sourceContext?: string | null;
   sourceHref: string | null;
   xeroHistoryHref?: string | null;
   xeroHref?: string | null;

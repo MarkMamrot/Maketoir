@@ -25,6 +25,7 @@ import { OrderAmendmentConflict, planStockRebalance, reconcileOrderLines } from 
 import { assessPurchaseOrderUndo, OrderCorrectionConflict } from './orderCorrectionPolicy';
 import { assertAllowedInventoryDocumentAction } from './inventoryDocumentLifecycle';
 import { assertExpectedInventoryDocumentRevision } from './creditNoteStatusCommands';
+import { stockOnHandCondition, type StockOnHandFilter } from './stocktakes/stocktakeFilters';
 import {
   claimInventoryDocumentOperation,
   completeInventoryDocumentOperation,
@@ -4140,7 +4141,7 @@ export const ImsStocktakeRepo = {
     brand_id?: number;
     supplier_id?: number;
     product_type?: string;
-  }, businessId: string): Promise<number> {
+  } & StockOnHandFilter, businessId: string): Promise<number> {
     await ensureStocktakeTenantTables();
     const pool = getIMSPool();
     const conn = await pool.getConnection();
@@ -4168,6 +4169,11 @@ export const ImsStocktakeRepo = {
         if (data.product_type) {
           varWheres.push('p.product_type = ?');
           varParams.push(data.product_type);
+        }
+        const sohCondition = stockOnHandCondition(data);
+        if (sohCondition) {
+          varWheres.push(sohCondition.sql);
+          varParams.push(...sohCondition.params);
         }
         const variants = await imsQuery<{ variant_id: string; qty_on_hand: number }>(
           `SELECT v.variant_id,
@@ -4431,7 +4437,7 @@ export const ImsStocktakeRepo = {
     brand_id?: number;
     supplier_id?: number;
     product_type?: string;
-  }, businessId: string): Promise<number> {
+  } & StockOnHandFilter, businessId: string): Promise<number> {
     await ensureStocktakeTenantTables();
     const varWheres: string[] = ['v.is_active = 1', 'v.business_id = ?', 'p.business_id = ?'];
     const varParams: any[] = [businessId, businessId];
@@ -4447,12 +4453,18 @@ export const ImsStocktakeRepo = {
       varWheres.push('p.product_type = ?');
       varParams.push(data.product_type);
     }
+    const sohCondition = stockOnHandCondition(data);
+    if (sohCondition) {
+      varWheres.push(sohCondition.sql);
+      varParams.push(...sohCondition.params);
+    }
     const rows = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
+       LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ? AND s.business_id = ?
        WHERE ${varWheres.join(' AND ')}`,
-      varParams
+      [data.location_id, businessId, ...varParams]
     );
     return rows[0]?.cnt ?? 0;
   },

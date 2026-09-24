@@ -19,6 +19,7 @@ export interface DocumentAuditRow {
   occurred_at: string;
   outstanding_quantity: number | string | null;
   value_at_risk: number | string | null;
+  source_context?: string | null;
 }
 
 export interface NegativeStockAuditRow {
@@ -88,6 +89,7 @@ export function buildDocumentAuditFindings(rows: DocumentAuditRow[], asOfDate: s
       sourceType: row.source_type,
       sourceId: String(row.source_id),
       sourceReference: row.source_reference,
+      sourceContext: row.source_context ?? null,
       sourceHref: `#${SOURCE_HASHES[row.source_type]}/${row.source_id}`,
       occurredAt: row.occurred_at,
       detectedAt: new Date().toISOString(),
@@ -119,6 +121,7 @@ export function buildNegativeStockAuditFindings(rows: NegativeStockAuditRow[]): 
       sourceType: 'stock_position',
       sourceId: `${row.variant_id}:${row.location_id}`,
       sourceReference: row.sku || row.product_name,
+      sourceContext: row.product_name,
       sourceHref: `#products/${encodeURIComponent(row.product_id)}`,
       occurredAt: row.updated_at,
       detectedAt: new Date().toISOString(),
@@ -144,10 +147,11 @@ export async function loadOperationalAuditFindings(
               DATE_FORMAT(po.expected_date, '%Y-%m-%d') AS explicit_due_date,
               IF(po.status = 'draft', 'purchase_order_draft', 'purchase_order_active') AS due_rule,
               DATE_FORMAT(po.updated_at, '%Y-%m-%dT%H:%i:%s.000Z') AS occurred_at,
-              SUM(GREATEST(0, poi.qty_ordered - poi.qty_received)) AS outstanding_quantity,
-              po.total_amount AS value_at_risk
+                  SUM(GREATEST(0, poi.qty_ordered - poi.qty_received)) AS outstanding_quantity,
+                  po.total_amount AS value_at_risk, MAX(COALESCE(supplier.name, po.supplier_name_raw)) AS source_context
          FROM ims_purchase_orders po
          LEFT JOIN ims_purchase_order_items poi ON poi.po_id = po.id AND poi.business_id = ?
+                LEFT JOIN ims_contacts supplier ON supplier.id = po.supplier_id AND supplier.business_id = po.business_id
         WHERE po.business_id = ? AND po.status IN ('draft','confirmed','partially_received','backordered') AND po.is_historical = 0
         GROUP BY po.id
        UNION ALL
@@ -155,35 +159,38 @@ export async function loadOperationalAuditFindings(
               DATE_FORMAT(so.expected_date, '%Y-%m-%d'),
               IF(so.status = 'draft', 'sales_order_draft', 'sales_order_active'),
               DATE_FORMAT(so.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'),
-              SUM(GREATEST(0, soi.qty_ordered - soi.qty_fulfilled)), so.total_amount
+                  SUM(GREATEST(0, soi.qty_ordered - soi.qty_fulfilled)), so.total_amount, MAX(customer.name)
          FROM ims_sales_orders so
          LEFT JOIN ims_sales_order_items soi ON soi.so_id = so.id AND soi.business_id = ?
+                LEFT JOIN ims_contacts customer ON customer.id = so.customer_id AND customer.business_id = so.business_id
         WHERE so.business_id = ? AND so.status IN ('draft','confirmed','partially_fulfilled','backordered')
           AND so.is_historical = 0 AND so.is_staff_preview_test = 0
         GROUP BY so.id
        UNION ALL
        SELECT 'customer_credit_note', cn.id, cn.cn_number, cn.status, DATE_FORMAT(cn.cn_date, '%Y-%m-%d'), NULL,
               IF(cn.status = 'draft', 'customer_credit_note_draft', 'customer_credit_note_awaiting_product'),
-              DATE_FORMAT(cn.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'), NULL, cn.total_amount
+                  DATE_FORMAT(cn.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'), NULL, cn.total_amount, customer.name
          FROM ims_credit_notes cn
+                LEFT JOIN ims_contacts customer ON customer.id = cn.customer_id AND customer.business_id = cn.business_id
         WHERE cn.business_id = ? AND cn.status IN ('draft','awaiting_product')
        UNION ALL
        SELECT 'supplier_credit_note', scn.id, scn.scn_number, scn.status, DATE_FORMAT(scn.scn_date, '%Y-%m-%d'), NULL,
-              'supplier_credit_note_draft', DATE_FORMAT(scn.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'), NULL, scn.total_amount
+                  'supplier_credit_note_draft', DATE_FORMAT(scn.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'), NULL, scn.total_amount, supplier.name
          FROM ims_supplier_credit_notes scn
+                LEFT JOIN ims_contacts supplier ON supplier.id = scn.supplier_id AND supplier.business_id = scn.business_id
         WHERE scn.business_id = ? AND scn.status = 'draft'
        UNION ALL
        SELECT 'branch_transfer', bt.id, bt.transfer_number, bt.status, DATE_FORMAT(bt.transfer_date, '%Y-%m-%d'), NULL,
               IF(bt.status = 'draft', 'branch_transfer_draft', 'branch_transfer_active'),
               DATE_FORMAT(bt.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'),
-              SUM(GREATEST(0, bti.qty_sent - COALESCE(bti.qty_received, 0))), bt.total_value
+              SUM(GREATEST(0, bti.qty_sent - COALESCE(bti.qty_received, 0))), bt.total_value, NULL
          FROM ims_branch_transfers bt
          LEFT JOIN ims_branch_transfer_items bti ON bti.transfer_id = bt.id
         WHERE bt.business_id = ? AND bt.status IN ('draft','sent','partial')
         GROUP BY bt.id
        UNION ALL
        SELECT 'stocktake', st.id, st.reference, st.status, DATE_FORMAT(st.created_at, '%Y-%m-%d'), NULL,
-              'stocktake_in_progress', DATE_FORMAT(st.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'), NULL, NULL
+              'stocktake_in_progress', DATE_FORMAT(st.updated_at, '%Y-%m-%dT%H:%i:%s.000Z'), NULL, NULL, NULL
          FROM ims_stocktakes st
         WHERE st.business_id = ? AND st.status = 'in_progress'`,
       [businessId, businessId, businessId, businessId, businessId, businessId, businessId, businessId],
@@ -216,6 +223,7 @@ export interface CogsAuditRow {
   source_reference: string;
   sku: string;
   product_name: string;
+  customer_name?: string | null;
   occurred_at: string;
   qty_change: number | string;
   unit_cost: number | string | null;
@@ -251,6 +259,7 @@ export function buildCogsAuditFindings(rows: CogsAuditRow[], periodEnd: string):
       sourceType: first.source_type,
       sourceId: String(first.source_id),
       sourceReference: first.source_reference,
+      sourceContext: first.source_type === 'sales_order' ? first.customer_name ?? null : products.join(', '),
       sourceHref: first.source_type === 'pos_sale' ? `#pos-sales/${first.source_id}` : `#sales-orders/${first.source_id}`,
       occurredAt: sourceRows.map(row => row.occurred_at).sort().at(-1)!,
       detectedAt: new Date().toISOString(),
@@ -276,7 +285,7 @@ export async function loadCogsAuditFindings(
             CASE WHEN sm.movement_type = 'pos_sale'
                  THEN COALESCE(NULLIF(ps.local_id, ''), CONCAT('POS #', ps.id))
                  ELSE COALESCE(so.so_number, CONCAT('SO #', sm.reference_id)) END AS source_reference,
-              COALESCE(v.sku, '') AS sku, p.name AS product_name,
+              COALESCE(v.sku, '') AS sku, p.name AS product_name, customer.name AS customer_name,
             DATE_FORMAT(sm.created_at, '%Y-%m-%dT%H:%i:%s.000Z') AS occurred_at,
             sm.qty_change, sm.unit_cost
        FROM ims_stock_movements sm
@@ -286,6 +295,7 @@ export async function loadCogsAuditFindings(
         AND ps.id = sm.reference_id AND ps.business_id = ?
        LEFT JOIN ims_sales_orders so ON sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order'
         AND so.id = sm.reference_id AND so.business_id = ?
+      LEFT JOIN ims_contacts customer ON customer.id = so.customer_id AND customer.business_id = so.business_id
       WHERE sm.business_id = ? AND sm.movement_type IN ('pos_sale','so_fulfilled')
         AND sm.created_at >= ? AND sm.created_at < ?
         AND ((sm.movement_type = 'pos_sale' AND ps.id IS NOT NULL AND ps.status = 'completed' AND ps.sale_type = 'sale' AND ps.is_historical = 0)

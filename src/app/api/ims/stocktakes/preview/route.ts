@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImportSession } from '@/app/api/ims/import/_helpers';
 import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
+import { parseStockOnHandFilter } from '@/lib/ims/stocktakes/stocktakeFilters';
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +13,8 @@ export async function GET(req: NextRequest) {
     const supplier_id = sp.get('supplier_id') ? parseInt(sp.get('supplier_id')!, 10) : undefined;
     const product_type = sp.get('product_type') || undefined;
     if (!location_id) return NextResponse.json({ error: 'location_id required' }, { status: 400 });
-    const count = await ImsStocktakeRepo.previewVariants({ location_id, brand_id, supplier_id, product_type }, session.businessId);
+    const stockOnHand = parseStockOnHandFilter(sp.get('soh_operator'), sp.get('soh_value'));
+    const count = await ImsStocktakeRepo.previewVariants({ location_id, brand_id, supplier_id, product_type, ...stockOnHand }, session.businessId);
     return NextResponse.json({ count });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
