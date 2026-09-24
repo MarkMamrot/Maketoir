@@ -1,6 +1,8 @@
-# Monsterthreads August 2026 zero-COGS reconstruction review
+# Monsterthreads August 2026 zero-COGS reconstruction
 
 Generated 24 September 2026 from `readyedu_MonsterthreadsIMS` after converting Gift Wrapping to non-stock.
+
+Applied 24 September 2026. All 56 identified movements were updated in one guarded transaction and annotated with their received PO item or catalogue fallback evidence.
 
 ## Findings
 
@@ -9,8 +11,8 @@ Generated 24 September 2026 from `readyedu_MonsterthreadsIMS` after converting G
 - 32 variants have completed POs with positive received quantities dated 7-21 July, before their affected August sales. Receipt stock movements were not yet written at that time; the first `po_received` movement in this tenant is 11 August.
 - Five variants have no received PO and rely on migrated catalogue `cost_aud`. `HJX031AU` was also received again on 3 September at the same AUD 6.80 cost.
 - All 37 variants currently have positive `cost_aud`; only `HJX031AU` currently has positive `avg_cost`.
-- Proposed reconstruction using effective July receipt cost where available, then `cost_aud`: AUD 656.6557.
-- 26 variants / 42 movements / AUD 427.2490 have `cost_aud` equal to effective July receipt cost.
+- Applied reconstruction using effective July receipt cost where available, then `cost_aud`: AUD 656.6567.
+- 25 variants have `cost_aud` equal to effective July receipt cost. `GEN750AU` differs by AUD 0.001 because its received PO cost is AUD 18.1600 and catalogue cost is AUD 18.1590.
 - Six variants / six movements / AUD 180.5451 use effective July receipt cost instead of current `cost_aud` because of GST extraction, receipt discount, or a different received unit cost.
 - Five variants / eight movements / AUD 48.8616 have `cost_aud` evidence only.
 
@@ -26,7 +28,7 @@ Generated 24 September 2026 from `readyedu_MonsterthreadsIMS` after converting G
 | EH-023 | Eugy 3D Paper Model: Parrot | 1 | 1 | 8.5000 | July received PO | Matches receipt | 8.5000 |
 | EH-102 | Eugy 3D Paper Model: Stingray | 1 | 1 | 8.5000 | July received PO | Matches receipt | 8.5000 |
 | EH-087 | EUGY: Cat - Pumpkin | 1 | 1 | 8.5000 | July received PO | Matches receipt | 8.5000 |
-| GEN750AU | Fish Hip Flask | 1 | 1 | 18.1590 | July received PO | Matches receipt | 18.1590 |
+| GEN750AU | Fish Hip Flask | 1 | 1 | 18.1590 | July received PO | Receipt cost 18.1600 | 18.1600 |
 | GEN884AU | Fish shaped Waiter's Corkscrew | 1 | 1 | 11.3400 | July received PO | Matches receipt | 11.3400 |
 | KJB-ZOO | Fluffy Knit Baby Blanket / ZooCrew | 1 | 1 | 44.5000 | July received PO | Receipt ex-GST 38.4318 | 38.4318 |
 | KJP-ZOO-3 | Fluffy Knit Jumper / ZooCrew | 1 | 1 | 44.5000 | July received PO | Receipt ex-GST 38.4318 | 38.4318 |
@@ -58,9 +60,10 @@ Generated 24 September 2026 from `readyedu_MonsterthreadsIMS` after converting G
 | cMT-TM0265-XL | Vinyl Owl Black Mens Tee | 1 | 1 | 8.7379 | No received PO | cost_aud only | 8.7379 |
 | cMT-WB0020 | Water Bottle: Ants 300ml | 1 | 1 | 8.8300 | No received PO | cost_aud only | 8.8300 |
 
-## Review recommendation
+## Applied method
 
 1. Use effective July received-PO cost for all 32 PO-backed variants. This equals `cost_aud` for 26 variants.
 2. For the six differences, use the received value: GST-exclusive cost for `KJB-ZOO` and `KJP-ZOO-3`; discounted receipt cost for `SC-KDS2300202X00` and `SC-SUN4306901X00`; and the received unit cost for `GEN291AU` and `TLSB-ZOC-6 to 12 months`.
-3. Use `cost_aud` only with explicit bookkeeper approval for `cMTGB0000`, `cMT-PL0041`, `cMT-TM0265-M`, `cMT-TM0265-XL`, and `cMT-WB0020`; no migrated PO cost corroborates them.
-4. Apply any approved correction only to the 56 identified zero-cost movement rows, stamp the chosen evidence in each movement note, and re-run the August COGS calculation before posting or adjusting Xero.
+3. `cost_aud` was used as approved best-effort evidence for `cMTGB0000`, `cMT-PL0041`, `cMT-TM0265-M`, `cMT-TM0265-XL`, and `cMT-WB0020`; no received PO corroborates them.
+4. Each corrected movement note identifies its received PO item or catalogue fallback. Post-commit readback found zero remaining invalid inventory-tracked August POS movements and total positive captured August POS COGS of AUD 20,212.7292.
+5. No August 2026 Xero COGS journal run exists, so no reversal or adjustment journal is required; the completed period can follow the normal posting workflow.
