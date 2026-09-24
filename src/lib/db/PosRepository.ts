@@ -128,7 +128,8 @@ async function applyCompletedPosSaleStock(
     const qtyChange = getPosStockQtyChange(Number(item.qty), data.sale_type);
     if (qtyChange === null) continue;
     const [stockRows]: any = await connection.execute(
-      `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost,
+            `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, s.qty_committed,
+              COALESCE(NULLIF(pv.avg_cost, 0), NULLIF(pv.cost_aud, 0), 0) AS avg_cost,
               COALESCE(p.is_stock_item, 1) AS is_stock_item
          FROM ims_product_variants pv
          JOIN ims_products p ON p.product_id = pv.product_id

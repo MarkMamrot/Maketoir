@@ -53,7 +53,7 @@ For Xero findings, **Date** is the source document date rather than the date the
 
 For a lifecycle-state finding, expand **Why these states are incompatible**. It shows the current Solvantis source state, the current Xero state, the Xero states expected for that workflow, and why the current combination does not agree.
 
-Sales COGS checks use the previous completed calendar month. Each finding names the affected product and SKU. Open an exact POS transaction to review Revenue excluding tax, COGS, Gross Margin, and the line-level cost breakdown. The checks exclude historical imports, products that do not track inventory, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
+Sales COGS checks use the previous completed calendar month. Each finding names the affected product and SKU. Open an exact POS transaction to review Revenue excluding tax, COGS, Gross Margin, and the line-level captured movement cost. A zero shown there means the sale did not capture positive COGS, even when the product has a current catalogue cost. The checks exclude historical imports, products that do not track inventory, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
 
 ### Read an assumed due date
 
@@ -85,6 +85,7 @@ Acceptance applies only to the exact evidence reviewed. If the quantity, value, 
 |---|---|---|
 | The queue is empty but Coverage says checks are incomplete | One or more checks failed, or month-end inventory comparison is not yet included | Read the coverage message and do not treat the result as month-end inventory confirmation |
 | COGS checks could not be completed | Cost movement data could not be loaded | Refresh, then investigate the reported operational issue if it continues |
+| A sale has a current product cost but Audit reports zero COGS | The sale's stock movement captured zero; current catalogue cost is not historical sale COGS | Review the receipt, opening, or earlier movement cost evidence before correcting the historical movement |
 | Xero reconciliation could not be completed | Reconciliation records could not be loaded | Check the Xero connection and refresh; other audit areas remain available |
 | A Xero finding date looks older than its last scan | The audit shows the source transaction date | Use **Xero Sync History** to review later posting or scan activity |
 | A source reference is not clickable | The local source record is no longer available | Expand the finding detail and use **View in Xero** or **Xero Sync History** to investigate the retained reconciliation evidence |

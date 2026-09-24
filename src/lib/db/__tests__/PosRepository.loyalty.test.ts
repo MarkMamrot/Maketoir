@@ -175,6 +175,10 @@ describe('PosSalesRepo loyalty earning', () => {
       businessId: 'business-1', state: { method: 'fifo', epochId: 6, revision: 2 },
       variantId: 'variant-1', locationId: 3, stockMovementId: 501, quantity: 1,
     });
+    expect(saleConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('COALESCE(NULLIF(pv.avg_cost, 0), NULLIF(pv.cost_aud, 0), 0) AS avg_cost'),
+      [3, 'variant-1'],
+    );
     expect(saleConnection.commit).toHaveBeenCalledOnce();
     expect(stockConnection.beginTransaction).not.toHaveBeenCalled();
   });
