@@ -438,8 +438,8 @@
         "dashboard": "Choose a workspace"
       },
       "order": 1,
-      "summary": "Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.",
-      "lastReviewed": "2026-08-30",
+      "summary": "Find the right IMS workspace for products, orders, customers, stock, finances, reports, and integrations.",
+      "lastReviewed": "2026-09-24",
       "owner": "operations",
       "quickSections": [
         "Main operations",
@@ -604,7 +604,7 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "product": "ims",
       "format": "task",
       "parentId": "ims-xero-shopify",
@@ -621,7 +621,7 @@
       ],
       "order": 91,
       "summary": "Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.",
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
@@ -963,7 +963,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "product": "ims",
       "format": "task",
       "parentId": "ims-operational-reports",
@@ -980,7 +980,7 @@
       ],
       "order": 62,
       "summary": "Review overdue documents and negative stock, record accepted exceptions, and understand incomplete audit coverage.",
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "owner": "reporting",
       "quickSections": [
         "Main operations",
@@ -5144,7 +5144,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "IMS brings day-to-day retail operations into one workspace. Start with the business question, then open the area that owns the record or action.",
       "sectionId": "ims-workspaces:1"
     },
@@ -5163,7 +5163,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "- Use the Dashboard to spot work that needs attention.\n- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
       "sectionId": "ims-workspaces:2"
     },
@@ -5182,8 +5182,8 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
-      "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Answer a business question | **Reports** | Sales, margin, valuation, registers, banking, availability |\n| Manage connected services | **Integrations** | Xero, Shopify, and the native Online Shop |",
+      "lastReviewed": "2026-09-24",
+      "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Answer a business question | **Reports** | Sales, margin, valuation, registers, and availability |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
       "sectionId": "ims-workspaces:3"
     },
     {
@@ -5201,7 +5201,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nLive checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.\n\nYour recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\nNotifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.",
       "sectionId": "ims-workspaces:4"
     },
@@ -5220,7 +5220,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |\n| A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |\n| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |\n| Ask Solvantis cannot complete an answer | Confirm the internet connection, then retry once | Use Help for the maintained procedure or contact support if the retry also fails |",
       "sectionId": "ims-workspaces:5"
     },
@@ -5239,7 +5239,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "### Trace unavailable stock\n\nOpen **Products > Stock Levels** to compare stock on hand, committed, incoming, and available. Follow committed demand to Sales Orders or Stock Allocation and incoming supply to Purchase Orders. This explains the quantity without changing it.\n\n### Follow up a customer\n\nOpen **Contacts > CRM**, find the customer, review the profile timeline, and create a task for the next action. Use the linked sale, order, or credit note when the underlying transaction needs attention.",
       "sectionId": "ims-workspaces:6"
     },
@@ -5258,7 +5258,7 @@
         "dashboard"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "Open **Products > Stock Levels** to compare stock on hand, committed, incoming, and available. Follow committed demand to Sales Orders or Stock Allocation and incoming supply to Purchase Orders. This explains the quantity without changing it.",
       "sectionId": "ims-workspaces:6"
     },
@@ -5277,7 +5277,7 @@
         "dashboard"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-09-24",
       "content": "Open **Contacts > CRM**, find the customer, review the profile timeline, and create a task for the next action. Use the linked sale, order, or credit note when the underlying transaction needs attention.",
       "sectionId": "ims-workspaces:6"
     },
@@ -6395,13 +6395,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "Use Xero setup and activity views to configure supported accounting work, investigate failures, and retry without repeating successful IMS operations.",
       "sectionId": "ims-xero-reconciliation:1"
     },
@@ -6414,13 +6414,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "- Maintain sync rules, account and tracking mappings, and payment routing.\n- Review Sync History for pending, successful, blocked, partial, or dismissed work.\n- Ask Assistant for a bounded local summary of queued documents and categorized recent failures.\n- Use COGS Reconciliation to investigate cost posting coverage.\n- **Approved zero cost** counts FIFO movements whose source layer has an explicit no-charge reason. They are valid $0 COGS; unexplained zero costs still block posting.\n- Review and post balanced Shopify payout plans when enabled.\n- Retry only the accounting action that remains unfinished.\n- Administrators can grant Advisor accounts read-only access to **Shopify Payouts** from **Settings > Xero > Advisor Access**. Advisors can review payout status and details but cannot replan, repair, or post payouts.",
       "sectionId": "ims-xero-reconciliation:2"
     },
@@ -6433,13 +6433,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "| Area | Use it for | Typical question |\n|---|---|---|\n| Sync Rules | Choose which supported workflows create Xero documents and when | Should this workflow post automatically? |\n| Accounts & Tracking | Map IMS activity to Xero accounts and reporting dimensions | Which account or branch option should this use? |\n| Payment Methods | Route tender and gateway settlement | Where should this payment clear? |\n| Sync History | Inspect and retry accounting work | Did Xero accept this source? |\n| COGS Reconciliation | Compare eligible source cost with Xero journals | Is cost of goods sold fully posted? |\n| Shopify Payouts | Plan and post balanced payout settlement | Do sales, fees, refunds, and payout total balance? |",
       "sectionId": "ims-xero-reconciliation:3"
     },
@@ -6452,13 +6452,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "- Enable **Accounting software** and choose **Xero** in **Settings > General > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.\n- [ ] Confirm Xero is connected and authorized.\n- [ ] Identify the exact IMS source and whether its operational action already succeeded.\n- [ ] Read the safe error shown in Sync History.\n- [ ] Check the required account, tax, tracking, and payment mappings.\n- [ ] Confirm whether the workflow is manual or automatic under Sync Rules.\n- [ ] For a bookkeeper Advisor, ask an administrator to enable **Advisor access to Shopify Payouts** under **Settings > Xero > Advisor Access**.\n\n> **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry.\n\n### Ask Assistant about Xero sync health\n\nAssistant can check whether the local Xero connection appears configured, list up to 30 source documents currently queued for posting, and categorize failed or skipped sync events from the last 1 to 365 days. Categories include authentication, account, tax, tracking or payment mapping, validation, rate limiting and service availability.\n\nThis check reads Solvantis records only. It does not contact Xero, refresh live Xero document states, retry or dismiss work, or expose raw error details, contact identities, tokens or request payloads. A historical failure may already have a later successful retry, so confirm the current source status in **Sync History** before acting.",
       "sectionId": "ims-xero-reconciliation:4"
     },
@@ -6471,13 +6471,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "Assistant can check whether the local Xero connection appears configured, list up to 30 source documents currently queued for posting, and categorize failed or skipped sync events from the last 1 to 365 days. Categories include authentication, account, tax, tracking or payment mapping, validation, rate limiting and service availability.\n\nThis check reads Solvantis records only. It does not contact Xero, refresh live Xero document states, retry or dismiss work, or expose raw error details, contact identities, tokens or request payloads. A historical failure may already have a later successful retry, so confirm the current source status in **Sync History** before acting.",
       "sectionId": "ims-xero-reconciliation:4"
     },
@@ -6490,13 +6490,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "### Configure a posting path\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.\n5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.\n6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.\n7. Save the mappings and run a normal source workflow.\n8. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\n### Recover a failed accounting action\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.\n\n### Decide what to repeat\n\n| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.",
       "sectionId": "ims-xero-reconciliation:5"
     },
@@ -6509,13 +6509,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.\n5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.\n6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.\n7. Save the mappings and run a normal source workflow.\n8. Open **Sync History** and confirm the resulting status before enabling broader automation.",
       "sectionId": "ims-xero-reconciliation:5"
     },
@@ -6528,13 +6528,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.",
       "sectionId": "ims-xero-reconciliation:5"
     },
@@ -6547,13 +6547,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.",
       "sectionId": "ims-xero-reconciliation:5"
     },
@@ -6566,13 +6566,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Many entries fail together | Connection expired or Xero unavailable | Reauthorize and retry affected entries |\n| One source is blocked | A required mapping or source condition is missing | Correct the named item and retry that entry |\n| COGS does not reconcile | Missing or incomplete historical cost coverage, or journal not posted | Review COGS Reconciliation and source movement cost |\n| COGS changes after a return or manager correction | The completed return or correction changed the period's captured movement cost | Review the revised period total and post the offered adjustment journal rather than repeating the source transaction |\n| Shopify payout will not post | Invoice, credit, clearing account, fee account, tax, currency, or total does not balance | Fix the named difference and replan |\n| Entry was dismissed | It was removed from the active queue, not synced | Find it in history and use the available manual retry if still required |",
       "sectionId": "ims-xero-reconciliation:6"
     },
@@ -6585,13 +6585,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "### Operational success with accounting failure\n\nStaff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xero rejects the bill because the purchasing account mapping is missing. Add the mapping and retry the Xero entry. Receiving another 10 would incorrectly double stock.\n\n### Reconcile a Shopify payout\n\nA paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.\n\n\n### Calculate a POS card fee\n\nNewtown Card is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from Newtown's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.",
       "sectionId": "ims-xero-reconciliation:7"
     },
@@ -6604,13 +6604,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "Staff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xero rejects the bill because the purchasing account mapping is missing. Add the mapping and retry the Xero entry. Receiving another 10 would incorrectly double stock.",
       "sectionId": "ims-xero-reconciliation:7"
     },
@@ -6623,13 +6623,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "A paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.",
       "sectionId": "ims-xero-reconciliation:7"
     },
@@ -6642,13 +6642,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Integrations > Xero",
+      "screen": "Finances > Xero Integration",
       "topicId": "ims-xero-reconciliation",
       "contexts": [
         "xero"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-24",
       "content": "Newtown Card is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from Newtown's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.",
       "sectionId": "ims-xero-reconciliation:7"
     },
@@ -8981,13 +8981,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "Bookkeeper Audit brings recurring operational and accounting exceptions into one newest-first queue. Use it to investigate negative stock, incomplete sales cost, Xero reconciliation differences, and documents that have remained open beyond their expected or assumed due date.",
       "sectionId": "ims-bookkeeper-audit:1"
     },
@@ -9000,14 +9000,14 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
-      "content": "- Open **Reports > Bookkeeper Audit** and start in **Open**.\n- Review the source record and recommended action for each finding.\n- Correct the source workflow when the finding represents a real problem.\n- Use **Accept exception** only when the current evidence is legitimate and record why.\n- Check the coverage notice before treating an empty queue as a completed audit.\n\n> **Important:** The audit includes existing Xero reconciliation findings and sales COGS exceptions for the previous completed calendar month. Prior month-end inventory comparison is not yet checked here. An empty queue does not confirm that the Solvantis inventory valuation agrees with Xero's Inventory Asset account.",
+      "lastReviewed": "2026-09-24",
+      "content": "- Open **Finances > Accounting Audit** and start in **Open**.\n- Review the source record and recommended action for each finding.\n- Correct the source workflow when the finding represents a real problem.\n- Use **Accept exception** only when the current evidence is legitimate and record why.\n- Check the coverage notice before treating an empty queue as a completed audit.\n\n> **Important:** The audit includes existing Xero reconciliation findings and sales COGS exceptions for the previous completed calendar month. Prior month-end inventory comparison is not yet checked here. An empty queue does not confirm that the Solvantis inventory valuation agrees with Xero's Inventory Asset account.",
       "sectionId": "ims-bookkeeper-audit:2"
     },
     {
@@ -9019,13 +9019,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "| Finding | When it appears | Normal next step |\n|---|---|---|\n| Missing, zero, or negative COGS | A genuine stock sale in the previous completed month has incomplete or invalid movement cost | Review the sale movement and its receipt or opening cost source |\n| Xero reconciliation difference | The existing Xero reconciliation process finds a document, amount, state, contact, currency, payment, or mapping difference | Compare Solvantis and Xero, then correct the source of truth and recheck |\n| Negative stock | An active stock position is below zero, including a fractional quantity | Review movements and correct through receiving, transfer, stocktake, or the source transaction |\n| Overdue Purchase Order | Its expected date has passed, or it is more than 30 days from order date without one | Receive, resolve, or update the order |\n| Overdue Sales Order | Its expected date has passed, or it is more than 14 days from order date without one | Fulfil, resolve the remainder, or update the order |\n| Credit note awaiting product | It remains open 30 days after the credit-note date | Confirm the return or cancel the draft |\n| Branch transfer in transit | It remains sent or partial seven days after transfer date | Confirm receipt at the destination |\n| In-progress stocktake | It remains in progress two days after creation | Complete or cancel the count |\n| Stale draft | The draft exceeds the period shown in the finding | Confirm whether it should proceed or be cancelled |",
       "sectionId": "ims-bookkeeper-audit:3"
     },
@@ -9038,13 +9038,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "- [ ] Confirm you are working in the correct business.\n- [ ] Have access to the source orders, credit notes, transfers, products, and stocktakes you may need to inspect.\n- [ ] Decide whether you are correcting a real issue or recording a legitimate exception.\n- [ ] Read the coverage notice for checks that are not included.",
       "sectionId": "ims-bookkeeper-audit:4"
     },
@@ -9057,14 +9057,14 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
-      "content": "### Review open findings\n\n1. Open **Reports > Bookkeeper Audit**.\n2. Read **Action required** and **Coverage** before reviewing rows.\n3. Work from the first row downward; findings are ordered with the most recent activity first.\n4. Check the source, due date, quantity, and value at risk.\n5. Select **Open** to inspect the related workflow.\n6. Correct the source record through its normal workflow.\n7. Refresh the audit. A corrected finding clears automatically.\n\nSales COGS checks use the previous completed calendar month. They exclude historical imports, non-stock products, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.\n\n### Read an assumed due date\n\nWhen a document has no expected date, the audit applies a visible fallback. The row says **Assumed** and shows the number of days after the document date. The fallback prevents undated active work from disappearing from periodic review.\n\n| Document | Assumed review date when no expected date exists |\n|---|---:|\n| Active Purchase Order | 30 days after order date |\n| Active Sales Order | 14 days after order date |\n| Credit note awaiting product | 30 days after credit-note date |\n| Sent or partial branch transfer | 7 days after transfer date |\n| In-progress stocktake | 2 days after creation |\n\n### Accept a legitimate exception\n\n1. Inspect the source and confirm the current quantity, amount, status, and due date are understood.\n2. Select **Accept exception**.\n3. Enter a reason another bookkeeper can understand later.\n4. Open **Accepted** to confirm the reviewer and reason.\n5. Select **Undo** if the acceptance was recorded incorrectly.\n\nAcceptance applies only to the exact evidence reviewed. If the quantity, value, status, due date, or Xero mismatch changes, the finding returns to **Open** automatically. Accepted Xero findings keep using the Xero reconciliation review history rather than creating a separate accounting record.\n\n> **Warning:** Accepting an exception does not change stock, complete a document, or post anything to Xero. Correct real problems in their source workflow.",
+      "lastReviewed": "2026-09-24",
+      "content": "### Review open findings\n\n1. Open **Finances > Accounting Audit**.\n2. Read **Action required** and **Coverage** before reviewing rows.\n3. Work from the first row downward; findings are ordered with the most recent activity first.\n4. Check the source, due date, quantity, and value at risk.\n5. Select **Open** to inspect the related workflow.\n6. Correct the source record through its normal workflow.\n7. Refresh the audit. A corrected finding clears automatically.\n\nSales COGS checks use the previous completed calendar month. They exclude historical imports, non-stock products, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.\n\n### Read an assumed due date\n\nWhen a document has no expected date, the audit applies a visible fallback. The row says **Assumed** and shows the number of days after the document date. The fallback prevents undated active work from disappearing from periodic review.\n\n| Document | Assumed review date when no expected date exists |\n|---|---:|\n| Active Purchase Order | 30 days after order date |\n| Active Sales Order | 14 days after order date |\n| Credit note awaiting product | 30 days after credit-note date |\n| Sent or partial branch transfer | 7 days after transfer date |\n| In-progress stocktake | 2 days after creation |\n\n### Accept a legitimate exception\n\n1. Inspect the source and confirm the current quantity, amount, status, and due date are understood.\n2. Select **Accept exception**.\n3. Enter a reason another bookkeeper can understand later.\n4. Open **Accepted** to confirm the reviewer and reason.\n5. Select **Undo** if the acceptance was recorded incorrectly.\n\nAcceptance applies only to the exact evidence reviewed. If the quantity, value, status, due date, or Xero mismatch changes, the finding returns to **Open** automatically. Accepted Xero findings keep using the Xero reconciliation review history rather than creating a separate accounting record.\n\n> **Warning:** Accepting an exception does not change stock, complete a document, or post anything to Xero. Correct real problems in their source workflow.",
       "sectionId": "ims-bookkeeper-audit:5"
     },
     {
@@ -9076,14 +9076,14 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-23",
-      "content": "1. Open **Reports > Bookkeeper Audit**.\n2. Read **Action required** and **Coverage** before reviewing rows.\n3. Work from the first row downward; findings are ordered with the most recent activity first.\n4. Check the source, due date, quantity, and value at risk.\n5. Select **Open** to inspect the related workflow.\n6. Correct the source record through its normal workflow.\n7. Refresh the audit. A corrected finding clears automatically.\n\nSales COGS checks use the previous completed calendar month. They exclude historical imports, non-stock products, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.",
+      "lastReviewed": "2026-09-24",
+      "content": "1. Open **Finances > Accounting Audit**.\n2. Read **Action required** and **Coverage** before reviewing rows.\n3. Work from the first row downward; findings are ordered with the most recent activity first.\n4. Check the source, due date, quantity, and value at risk.\n5. Select **Open** to inspect the related workflow.\n6. Correct the source record through its normal workflow.\n7. Refresh the audit. A corrected finding clears automatically.\n\nSales COGS checks use the previous completed calendar month. They exclude historical imports, non-stock products, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.",
       "sectionId": "ims-bookkeeper-audit:5"
     },
     {
@@ -9095,13 +9095,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "When a document has no expected date, the audit applies a visible fallback. The row says **Assumed** and shows the number of days after the document date. The fallback prevents undated active work from disappearing from periodic review.\n\n| Document | Assumed review date when no expected date exists |\n|---|---:|\n| Active Purchase Order | 30 days after order date |\n| Active Sales Order | 14 days after order date |\n| Credit note awaiting product | 30 days after credit-note date |\n| Sent or partial branch transfer | 7 days after transfer date |\n| In-progress stocktake | 2 days after creation |",
       "sectionId": "ims-bookkeeper-audit:5"
     },
@@ -9114,13 +9114,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "1. Inspect the source and confirm the current quantity, amount, status, and due date are understood.\n2. Select **Accept exception**.\n3. Enter a reason another bookkeeper can understand later.\n4. Open **Accepted** to confirm the reviewer and reason.\n5. Select **Undo** if the acceptance was recorded incorrectly.\n\nAcceptance applies only to the exact evidence reviewed. If the quantity, value, status, due date, or Xero mismatch changes, the finding returns to **Open** automatically. Accepted Xero findings keep using the Xero reconciliation review history rather than creating a separate accounting record.\n\n> **Warning:** Accepting an exception does not change stock, complete a document, or post anything to Xero. Correct real problems in their source workflow.",
       "sectionId": "ims-bookkeeper-audit:5"
     },
@@ -9133,13 +9133,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| The queue is empty but Coverage says checks are incomplete | One or more checks failed, or month-end inventory comparison is not yet included | Read the coverage message and do not treat the result as month-end inventory confirmation |\n| COGS checks could not be completed | Cost movement data could not be loaded | Refresh, then investigate the reported operational issue if it continues |\n| Xero reconciliation could not be completed | Reconciliation records could not be loaded | Check the Xero connection and refresh; other audit areas remain available |\n| A document has an assumed due date | No expected date was recorded | Review the displayed fallback and update the source date when a better commitment is known |\n| An accepted finding returned to Open | Its evidence changed | Review the new quantity, value, status, or due date and make a fresh decision |\n| Accept exception is unavailable | Your access level cannot record audit review decisions | Ask an Admin, SuperAdmin, or Advisor to review it |\n| A corrected finding remains | The source still meets the finding rule or the report has not refreshed | Reopen the source, confirm its status and quantities, then refresh |",
       "sectionId": "ims-bookkeeper-audit:6"
     },
@@ -9152,13 +9152,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "### Sales Order without an expected date\n\nSO-0042 was created on 1 September with no expected date and remains Confirmed. The audit assumes 15 September, which is 14 days after the order date. It appears after that date. The bookkeeper opens the order, confirms that fulfilment is genuinely outstanding, and asks operations to resolve it. Once the order no longer meets the rule, the finding clears.\n\n### Accepted fractional negative stock\n\nA location shows -0.25 units after a measured product sale. Staff confirm that a stocktake is scheduled and record that reason with **Accept exception**. If the quantity changes to -0.50, the evidence no longer matches the accepted review, so the finding returns to **Open**.",
       "sectionId": "ims-bookkeeper-audit:7"
     },
@@ -9171,13 +9171,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "SO-0042 was created on 1 September with no expected date and remains Confirmed. The audit assumes 15 September, which is 14 days after the order date. It appears after that date. The bookkeeper opens the order, confirms that fulfilment is genuinely outstanding, and asks operations to resolve it. Once the order no longer meets the rule, the finding clears.",
       "sectionId": "ims-bookkeeper-audit:7"
     },
@@ -9190,13 +9190,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Reports > Bookkeeper Audit",
+      "screen": "Finances > Accounting Audit",
       "topicId": "ims-bookkeeper-audit",
       "contexts": [
         "report-bookkeeper-audit"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-09-24",
       "content": "A location shows -0.25 units after a measured product sale. Staff confirm that a stocktake is scheduled and record that reason with **Accept exception**. If the quantity changes to -0.50, the evidence no longer matches the accepted review, so the finding returns to **Open**.",
       "sectionId": "ims-bookkeeper-audit:7"
     },

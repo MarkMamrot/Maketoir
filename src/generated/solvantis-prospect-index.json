@@ -125,7 +125,7 @@
     {
       "id": "public-capability:ims-workspaces",
       "title": "IMS Workspaces",
-      "summary": "Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.",
+      "summary": "Find the right IMS workspace for products, orders, customers, stock, finances, reports, and integrations.",
       "capabilities": [
         "ims",
         "navigation"

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.","lastReviewed":"2026-08-30","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, and integrations.","lastReviewed":"2026-09-24","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -26,8 +26,9 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 | Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |
 | Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |
 | Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |
-| Answer a business question | **Reports** | Sales, margin, valuation, registers, banking, availability |
-| Manage connected services | **Integrations** | Xero, Shopify, and the native Online Shop |
+| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |
+| Answer a business question | **Reports** | Sales, margin, valuation, registers, and availability |
+| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
 
 ## How summaries work
 

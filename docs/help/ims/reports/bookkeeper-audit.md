@@ -1,5 +1,5 @@
 ---
-{"id":"ims-bookkeeper-audit","title":"Bookkeeper Audit","audiences":["ims"],"capability":"navigation","screen":"Reports > Bookkeeper Audit","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-bookkeeper-audit"],"contextSections":{"report-bookkeeper-audit":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing"],"order":62,"summary":"Review overdue documents and negative stock, record accepted exceptions, and understand incomplete audit coverage.","lastReviewed":"2026-09-23","owner":"reporting","quickSections":["Main operations","At a glance","Step-by-step","Troubleshooting"]}
+{"id":"ims-bookkeeper-audit","title":"Bookkeeper Audit","audiences":["ims"],"capability":"navigation","screen":"Finances > Accounting Audit","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-bookkeeper-audit"],"contextSections":{"report-bookkeeper-audit":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing"],"order":62,"summary":"Review overdue documents and negative stock, record accepted exceptions, and understand incomplete audit coverage.","lastReviewed":"2026-09-24","owner":"reporting","quickSections":["Main operations","At a glance","Step-by-step","Troubleshooting"]}
 ---
 # Bookkeeper Audit
 
@@ -7,7 +7,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 ## Main operations
 
-- Open **Reports > Bookkeeper Audit** and start in **Open**.
+- Open **Finances > Accounting Audit** and start in **Open**.
 - Review the source record and recommended action for each finding.
 - Correct the source workflow when the finding represents a real problem.
 - Use **Accept exception** only when the current evidence is legitimate and record why.
@@ -40,7 +40,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 ### Review open findings
 
-1. Open **Reports > Bookkeeper Audit**.
+1. Open **Finances > Accounting Audit**.
 2. Read **Action required** and **Coverage** before reviewing rows.
 3. Work from the first row downward; findings are ordered with the most recent activity first.
 4. Check the source, due date, quantity, and value at risk.

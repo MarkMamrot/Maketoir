@@ -153,9 +153,13 @@ const NAV = [
   ]},
   { id: 'stocktakes',       label: 'Stocktakes',       section: null },
   { id: 'reports',          label: 'Reports',          section: null },
+  { id: '__finances',       label: 'Finances',         section: 'finances', children: [
+    { id: 'report-bookkeeper-audit', label: 'Accounting Audit' },
+    { id: 'cash-banking',            label: 'Cash Banking' },
+    { id: 'xero',                    label: 'Xero Integration' },
+  ]},
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'sales-channels', label: 'Sales Channels' },
-    { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
     { id: 'online-shop',    label: 'Online Shop' },
   ]},
@@ -617,7 +621,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __finances: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
   const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
@@ -647,7 +651,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     const aliases = [
       ...(item.id === '__sales' ? ['wholesale-applications'] : []),
       ...(item.id === '__contacts' ? ['contact-profile'] : []),
-      ...(item.id === 'reports' && active.startsWith('report-') ? [active] : []),
+      ...(item.id === 'reports' && active.startsWith('report-') && active !== 'report-bookkeeper-audit' ? [active] : []),
     ];
     return isSidebarSectionActive(item, active, aliases);
   };
@@ -680,6 +684,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     locations:          'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
     reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    __finances:         'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     'sales-channels':   'M3 7h18M5 7l1-4h12l1 4M5 7v13h14V7M9 20v-6h6v6',
     xero:               'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
@@ -731,7 +736,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             if (child.id === 'location-daybooks') return showLocationDaybooks;
             if (child.id === 'builds') return showBuilds;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
-            if (child.id === 'xero') return showXero;
+            if (child.id === 'xero' || child.id === 'cash-banking') return showXero;
             if (child.id === 'sales-channels') return true;
             if (child.id === 'shopify') return showShopify;
             if (child.id === 'online-shop') return showNativeShop;
