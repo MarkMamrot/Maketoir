@@ -22,6 +22,10 @@ export function validateCashDepositConfirmation(input: {
   bankReference: string;
   notes: string;
 }): string | null {
+  const parsedDate = new Date(`${input.lodgementDate}T00:00:00Z`);
+  if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== input.lodgementDate) {
+    return 'Enter a valid lodgement date';
+  }
   if (input.lodgementDate > input.today) return 'Lodgement date cannot be in the future';
   const requiresEvidence = input.lodgementDate < input.today || input.accountingMethod === 'recorded_externally';
   if (requiresEvidence && !input.bankReference.trim()) {

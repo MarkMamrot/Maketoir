@@ -12,15 +12,15 @@ export async function POST(_request: Request, { params }: { params: { depositId:
   if (!Number.isInteger(depositId) || depositId <= 0) {
     return NextResponse.json({ error: 'Invalid deposit ID' }, { status: 400 });
   }
-  const [deposit] = await query<{ accounting_method: string }>(
-    'SELECT accounting_method FROM xero_cash_deposits WHERE business_id = ? AND id = ? LIMIT 1',
-    [auth.user.businessId, depositId],
-  );
-  if (!deposit) return NextResponse.json({ error: 'Cash deposit not found' }, { status: 404 });
-  if (deposit.accounting_method === 'recorded_externally') {
-    return NextResponse.json({ error: 'This deposit was already recorded in Xero and cannot be posted again' }, { status: 409 });
-  }
   try {
+    const [deposit] = await query<{ accounting_method: string }>(
+      'SELECT accounting_method FROM xero_cash_deposits WHERE business_id = ? AND id = ? LIMIT 1',
+      [auth.user.businessId, depositId],
+    );
+    if (!deposit) return NextResponse.json({ error: 'Cash deposit not found' }, { status: 404 });
+    if (deposit.accounting_method === 'recorded_externally') {
+      return NextResponse.json({ error: 'This deposit was already recorded in Xero and cannot be posted again' }, { status: 409 });
+    }
     await assertXeroWorkflowEnabled(auth.user.businessId, 'posCashBankingEnabled');
     const result = await executeCashDeposit(auth.user.businessId, depositId, { userId: auth.user.userId, name: auth.user.name });
     return NextResponse.json(result, { status: result.status === 'posted' ? 200 : 409 });

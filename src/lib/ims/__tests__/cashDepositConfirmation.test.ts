@@ -71,4 +71,14 @@ describe('buildCashDepositConfirmationPlan', () => {
       notes: '',
     })).toContain('future');
   });
+
+  it('rejects an impossible calendar date', () => {
+    expect(validateCashDepositConfirmation({
+      accountingMethod: 'solvantis',
+      lodgementDate: '2026-02-31',
+      today: '2026-09-24',
+      bankReference: '',
+      notes: '',
+    })).toContain('valid lodgement date');
+  });
 });

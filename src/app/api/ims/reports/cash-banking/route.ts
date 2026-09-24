@@ -40,6 +40,10 @@ export async function GET(request: Request) {
   return NextResponse.json({
     success: true,
     canRecordCorrection: ['Admin', 'SuperAdmin'].includes(auth.user.tier),
-    deposits: deposits.map(deposit => ({ ...deposit, location_name: names.get(Number(deposit.ims_location_id)) ?? `Location ${deposit.ims_location_id}` })),
+    deposits: deposits.map(deposit => ({
+      ...deposit,
+      status: deposit.accounting_method === 'recorded_externally' ? 'Recorded in Xero manually' : deposit.status,
+      location_name: names.get(Number(deposit.ims_location_id)) ?? `Location ${deposit.ims_location_id}`,
+    })),
   });
 }
