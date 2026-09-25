@@ -126,6 +126,12 @@ describe('empty tenant report contracts', () => {
       success: true,
       asOfDate: expect.any(String),
       coverage: { operational: 'checked', cogs: 'checked', xero: 'checked', monthEndInventory: 'not_yet_checked' },
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: 'negative_stock', status: 'checked' }),
+        expect.objectContaining({ id: 'sales_cogs', status: 'checked' }),
+        expect.objectContaining({ id: 'xero_documents', status: 'checked' }),
+        expect.objectContaining({ id: 'month_end_inventory', status: 'not_yet_checked' }),
+      ]),
       summary: { open: 0, accepted: 0, critical: 0, error: 0, warning: 0 },
       items: [],
     }));

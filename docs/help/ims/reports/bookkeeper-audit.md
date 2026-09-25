@@ -1,5 +1,5 @@
 ---
-{"id":"ims-bookkeeper-audit","title":"Bookkeeper Audit","audiences":["ims"],"capability":"navigation","screen":"Finances > Accounting Audit","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-bookkeeper-audit"],"contextSections":{"report-bookkeeper-audit":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing"],"order":62,"summary":"Review overdue documents and negative stock, record accepted exceptions, and understand incomplete audit coverage.","lastReviewed":"2026-09-24","owner":"reporting","quickSections":["Main operations","At a glance","Step-by-step","Troubleshooting"]}
+{"id":"ims-bookkeeper-audit","title":"Bookkeeper Audit","audiences":["ims"],"capability":"navigation","screen":"Finances > Accounting Audit","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-bookkeeper-audit"],"contextSections":{"report-bookkeeper-audit":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing"],"order":62,"summary":"Review overdue documents and negative stock, record accepted exceptions, and understand incomplete audit coverage.","lastReviewed":"2026-09-25","owner":"reporting","quickSections":["Main operations","At a glance","Step-by-step","Troubleshooting"]}
 ---
 # Bookkeeper Audit
 
@@ -9,6 +9,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 - Open **Finances > Accounting Audit** and start in **Open**.
 - Use **Filters** to narrow findings by source type, finding date, severity, or minimum and maximum value at risk.
+- Open **Checks** to see every audit check and whether it completed during the latest refresh.
 - Select the source reference to open the related document in a new browser tab, leaving the audit queue in place.
 - For a Xero difference, use **View in Xero** for the linked document and **Xero Sync History** separately for posting and retry history.
 - Correct the source workflow when the finding represents a real problem.
@@ -16,6 +17,8 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 - Check the coverage notice before treating an empty queue as a completed audit.
 
 > **Important:** The audit includes existing Xero reconciliation findings and sales COGS exceptions for the previous completed calendar month. Prior month-end inventory comparison is not yet checked here. An empty queue does not confirm that the Solvantis inventory valuation agrees with Xero's Inventory Asset account.
+
+**Checks incomplete** means at least one listed check did not run successfully or is not available yet. It does not mean that every record has a problem. Open **Checks** to distinguish **Completed**, **Could not complete**, and **Not available yet** checks. A completed check with no matching problems produces no Open findings.
 
 ## At a glance
 
@@ -44,11 +47,12 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 1. Open **Finances > Accounting Audit**.
 2. Read **Action required** and **Coverage** before reviewing rows.
-3. Work from the first row downward; findings are ordered by source transaction date, newest first.
-4. Check the source, its identifying name, due date, quantity, and value at risk. Stock positions show the product name, purchase documents show the supplier, and sales documents show the customer beneath the reference.
-5. Select the source reference to inspect the related workflow in a new tab. POS sales, Sales Orders, and Customer Credit Notes open the exact transaction or document, while a stock position opens the owning product rather than the general product list.
-6. Correct the source record through its normal workflow.
-7. Refresh the audit. A corrected finding clears automatically.
+3. Open **Checks** to confirm which document, stock, COGS, Xero, and month-end checks completed.
+4. Work from the first row downward; findings are ordered by source transaction date, newest first.
+5. Check the source, its identifying name, due date, quantity, and value at risk. Stock positions show the product name, purchase documents show the supplier, and sales documents show the customer beneath the reference.
+6. Select the source reference to inspect the related workflow in a new tab. POS sales, Sales Orders, and Customer Credit Notes open the exact transaction or document, while a stock position opens the owning product rather than the general product list.
+7. Correct the source record through its normal workflow.
+8. Refresh the audit. A corrected finding clears automatically.
 
 Select **Filters** to combine source type, date, severity, and value-at-risk conditions. Source types include the available document, mapping, transaction, and stock-position types in the current queue. Date filtering uses the shared report presets or a custom range. Enter a minimum, maximum, or both for value at risk. The filter badge shows how many conditions are active, and **Clear filters** restores the complete Open or Accepted queue.
 

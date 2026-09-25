@@ -61,6 +61,7 @@ export function adaptXeroAuditIssues(
     } : null;
     return {
       key: `xero:${item.id}`,
+      checkId: item.targetType === 'mapping' ? 'xero_mappings' : 'xero_documents',
       fingerprint: item.mismatchFingerprint,
       category: 'accounting_xero',
       severity: item.severity,

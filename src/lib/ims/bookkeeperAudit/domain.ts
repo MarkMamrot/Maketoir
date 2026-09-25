@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import type { AuditCheckId } from './checks';
 
 export const AUDIT_DUE_DATE_RULES = {
   purchase_order_active: 30,
@@ -26,6 +27,7 @@ export interface AuditDueDate {
 
 export interface AuditFinding {
   key: string;
+  checkId: AuditCheckId;
   fingerprint: string;
   category: AuditCategory;
   severity: AuditSeverity;

@@ -8,6 +8,7 @@ import { applyAuditReviews } from '@/lib/ims/bookkeeperAudit/presentation';
 import { listAcceptedAuditReviews } from '@/lib/ims/bookkeeperAudit/repository';
 import { loadXeroAuditFindings } from '@/lib/ims/bookkeeperAudit/xeroAdapter';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { buildAuditCheckList, type AuditCoverage } from '@/lib/ims/bookkeeperAudit/checks';
 
 export async function GET(request: Request) {
   const session = await getImsSession();
@@ -51,17 +52,19 @@ export async function GET(request: Request) {
       ...xeroFindings,
     ].sort(compareAuditFindingsNewestFirst), [...reviews, ...xeroReviews]);
     const items = requestedStatus === 'all' ? reviewed : reviewed.filter(item => item.reviewStatus === requestedStatus);
+    const coverage: AuditCoverage = {
+      operational: 'checked',
+      cogs: cogsResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
+      xero: xeroResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
+      monthEndInventory: 'not_yet_checked',
+    };
     return NextResponse.json({
       success: true,
       asOfDate,
       checkedAt: new Date().toISOString(),
       period: { cogs: cogsPeriod },
-      coverage: {
-        operational: 'checked',
-        cogs: cogsResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
-        xero: xeroResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
-        monthEndInventory: 'not_yet_checked',
-      },
+      coverage,
+      checks: buildAuditCheckList(coverage),
       summary: {
         open: reviewed.filter(item => item.reviewStatus === 'open').length,
         accepted: reviewed.filter(item => item.reviewStatus === 'accepted').length,

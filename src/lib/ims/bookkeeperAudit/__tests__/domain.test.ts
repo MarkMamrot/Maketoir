@@ -12,6 +12,7 @@ import {
 function finding(overrides: Partial<AuditFinding>): AuditFinding {
   return {
     key: 'sales_order:1:overdue',
+    checkId: 'sales_orders',
     fingerprint: 'fingerprint',
     category: 'orders_returns',
     severity: 'warning',

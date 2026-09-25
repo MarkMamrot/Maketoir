@@ -3,16 +3,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ExternalLink, Funnel, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import type { PresentedAuditFinding } from '@/lib/ims/bookkeeperAudit/domain';
+import type { AuditCheck, AuditCheckStatus } from '@/lib/ims/bookkeeperAudit/checks';
 import { ReportScrollTable } from './ReportScrollTable';
 import { SBDatePicker, type SBDateRange } from './reportFilterHelpers';
 
-type AuditStatus = 'open' | 'accepted';
+type AuditTab = 'open' | 'accepted' | 'checks';
 type AuditResponse = {
   success: boolean;
   error?: string;
   asOfDate: string;
   checkedAt: string;
   coverage: { operational: string; cogs: string; xero: string; monthEndInventory: string };
+  checks: AuditCheck[];
   summary: { open: number; accepted: number; critical: number; error: number; warning: number };
   items: PresentedAuditFinding[];
 };
@@ -42,7 +44,7 @@ function severityTone(severity: PresentedAuditFinding['severity']) {
 }
 
 export function BookkeeperAuditView({ onBack, canReview }: { onBack: () => void; canReview: boolean }) {
-  const [status, setStatus] = useState<AuditStatus>('open');
+  const [tab, setTab] = useState<AuditTab>('open');
   const [data, setData] = useState<AuditResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState('');
@@ -59,7 +61,7 @@ export function BookkeeperAuditView({ onBack, canReview }: { onBack: () => void;
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/ims/reports/bookkeeper-audit?status=${status}`, { cache: 'no-store' });
+      const response = await fetch(`/api/ims/reports/bookkeeper-audit?status=${tab === 'accepted' ? 'accepted' : 'open'}`, { cache: 'no-store' });
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || 'Failed to load Bookkeeper Audit.');
       setData(body);
@@ -68,7 +70,7 @@ export function BookkeeperAuditView({ onBack, canReview }: { onBack: () => void;
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [tab]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -126,6 +128,11 @@ export function BookkeeperAuditView({ onBack, canReview }: { onBack: () => void;
     setMinimumValue('');
     setMaximumValue('');
   };
+  const checkStatus = (value: AuditCheckStatus) => value === 'checked'
+    ? { label: 'Completed', color: '#15803d', icon: <CheckCircle2 size={16} /> }
+    : value === 'unable_to_check'
+      ? { label: 'Could not complete', color: '#c2410c', icon: <AlertCircle size={16} /> }
+      : { label: 'Not available yet', color: '#a16207', icon: <ShieldAlert size={16} /> };
 
   return (
     <div style={{ minWidth: 0 }}>
@@ -145,14 +152,14 @@ export function BookkeeperAuditView({ onBack, canReview }: { onBack: () => void;
         <div style={{ border: '1px solid var(--sv-etch)', borderTop: `3px solid ${checksIncomplete ? '#a16207' : '#15803d'}`, borderRadius: 8, padding: 14, background: 'var(--sv-bg-1)' }}><div style={{ color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Coverage</div><div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, marginTop: 10 }}>{checksIncomplete ? <><ShieldAlert size={17} color="#a16207" /> Checks incomplete</> : <><CheckCircle2 size={17} color="#15803d" /> All checked</>}</div></div>
       </div>
 
-      {checksIncomplete && <div role="status" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, padding: '10px 12px', border: '1px solid #fde68a', background: '#fffbeb', color: '#854d0e', borderRadius: 6, fontSize: 13 }}><AlertCircle size={16} /> {data?.coverage.cogs !== 'checked' ? 'COGS checks could not be completed. ' : ''}{data?.coverage.xero !== 'checked' ? 'Xero reconciliation could not be completed. ' : ''}{data?.coverage.monthEndInventory !== 'checked' ? 'Prior month-end inventory comparison is not included yet.' : ''}</div>}
+      {checksIncomplete && <div role="status" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 14, padding: '10px 12px', border: '1px solid #fde68a', background: '#fffbeb', color: '#854d0e', borderRadius: 6, fontSize: 13 }}><AlertCircle size={16} style={{ flex: '0 0 auto', marginTop: 1 }} /><span><strong>Checks incomplete</strong> means this report did not complete every listed audit check; it does not mean every record has a problem. {data?.coverage.cogs !== 'checked' ? 'COGS checks could not be completed. ' : ''}{data?.coverage.xero !== 'checked' ? 'Xero reconciliation could not be completed. ' : ''}{data?.coverage.monthEndInventory !== 'checked' ? 'Prior month-end inventory comparison is not available yet. ' : ''}Open <strong>Checks</strong> for the full list.</span></div>}
       {error && <div role="alert" style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', borderRadius: 6 }}>{error}</div>}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div role="tablist" aria-label="Audit status" style={{ display: 'flex', gap: 4 }}>
-          {(['open', 'accepted'] as const).map(option => <button key={option} role="tab" aria-selected={status === option} onClick={() => setStatus(option)} style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '7px 12px', cursor: 'pointer', background: status === option ? 'var(--sv-text-strong)' : 'var(--sv-bg-1)', color: status === option ? 'var(--sv-bg-1)' : 'var(--sv-text)', fontWeight: 700, textTransform: 'capitalize' }}>{option}</button>)}
+        <div role="tablist" aria-label="Bookkeeper Audit views" style={{ display: 'flex', gap: 4 }}>
+          {(['open', 'accepted', 'checks'] as const).map(option => <button key={option} role="tab" aria-selected={tab === option} onClick={() => setTab(option)} style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '7px 12px', cursor: 'pointer', background: tab === option ? 'var(--sv-text-strong)' : 'var(--sv-bg-1)', color: tab === option ? 'var(--sv-bg-1)' : 'var(--sv-text)', fontWeight: 700, textTransform: 'capitalize' }}>{option}</button>)}
         </div>
-        <div ref={filtersRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {tab !== 'checks' && <div ref={filtersRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
           {activeFilterCount > 0 && <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Showing {filteredItems.length} of {data?.items.length ?? 0}</span>}
           <button type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(open => !open)} style={{ height: 34, display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${filtersOpen || activeFilterCount > 0 ? 'var(--sv-action)' : 'var(--sv-etch)'}`, borderRadius: 7, padding: '0 10px', background: filtersOpen || activeFilterCount > 0 ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))' : 'var(--sv-bg-1)', color: filtersOpen || activeFilterCount > 0 ? 'var(--sv-action)' : 'var(--sv-text)', cursor: 'pointer', fontWeight: 700 }}><Funnel size={14} /> Filters{activeFilterCount > 0 && <span style={{ minWidth: 18, height: 18, borderRadius: 9, display: 'grid', placeItems: 'center', background: 'var(--sv-action)', color: '#fff', fontSize: 10 }}>{activeFilterCount}</span>}<ChevronDown size={13} /></button>
           {filtersOpen && <div role="dialog" aria-label="Filter audit findings" style={{ position: 'absolute', zIndex: 600, top: 'calc(100% + 6px)', right: 0, width: 330, maxWidth: 'calc(100vw - 24px)', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-1)', boxShadow: '0 10px 30px rgba(0,0,0,.18)', padding: 14 }}>
@@ -163,10 +170,13 @@ export function BookkeeperAuditView({ onBack, canReview }: { onBack: () => void;
             <div style={{ marginBottom: 12 }}><span style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>Value at risk (AUD)</span><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}><input type="number" min="0" step="0.01" value={minimumValue} onChange={event => setMinimumValue(event.target.value)} placeholder="Minimum" aria-label="Minimum value at risk" style={{ minWidth: 0, height: 34, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text)', padding: '0 8px' }} /><input type="number" min="0" step="0.01" value={maximumValue} onChange={event => setMaximumValue(event.target.value)} placeholder="Maximum" aria-label="Maximum value at risk" style={{ minWidth: 0, height: 34, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text)', padding: '0 8px' }} /></div></div>
             <button type="button" onClick={clearFilters} disabled={activeFilterCount === 0} style={{ width: '100%', height: 34, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text)', cursor: activeFilterCount === 0 ? 'default' : 'pointer', opacity: activeFilterCount === 0 ? .5 : 1 }}>Clear filters</button>
           </div>}
-        </div>
+        </div>}
       </div>
 
-      {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading audit findings...</div> : !data?.items.length ? <div style={{ padding: 30, textAlign: 'center', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>{status === 'open' ? 'No operational findings require attention.' : 'No accepted exceptions.'}</div> : filteredItems.length === 0 ? <div style={{ padding: 30, textAlign: 'center', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>No findings match the selected filters.</div> : (
+      {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading audit findings...</div> : tab === 'checks' ? <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', background: 'var(--sv-bg-1)' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)' }}><strong>Checks conducted</strong><div style={{ color: 'var(--sv-text-dim)', fontSize: 12, marginTop: 4 }}>Completion shows whether each check ran successfully during this refresh. A completed check can have no findings.</div></div>
+        {(data?.checks ?? []).map(check => { const state = checkStatus(check.status); return <div key={check.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--sv-etch)' }}><div style={{ flex: '1 1 160px', fontWeight: 750 }}>{check.name}</div><div style={{ flex: '2 1 260px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{check.description}</div><div style={{ flex: '0 1 145px', color: state.color, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 750 }}>{state.icon}{state.label}</div></div>; })}
+      </div> : !data?.items.length ? <div style={{ padding: 30, textAlign: 'center', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>{tab === 'open' ? 'No operational findings require attention.' : 'No accepted exceptions.'}</div> : filteredItems.length === 0 ? <div style={{ padding: 30, textAlign: 'center', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)' }}>No findings match the selected filters.</div> : (
         <ReportScrollTable ariaLabel="Bookkeeper audit findings" bodyClassName="bookkeeper-audit-report-scroll" tableWidth={1165} renderColGroup={columns} frozenColumnWidths={[105, 100]} headerRows={<tr><th style={heading}>Date</th><th style={heading}>Severity</th><th style={heading}>Source</th><th style={heading}>Finding</th><th style={heading}>Due / expected</th><th style={{ ...heading, textAlign: 'right' }}>Value at risk</th><th style={heading}>Action</th></tr>}>
           <tbody>{filteredItems.map(finding => <tr key={`${finding.key}:${finding.fingerprint}`}>
             <td style={cell}>{shortDate(finding.occurredAt)}</td>

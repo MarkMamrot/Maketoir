@@ -55,6 +55,11 @@ const SOURCE_HASHES: Record<DocumentAuditRow['source_type'], string> = {
   stocktake: 'stocktakes',
 };
 
+const DOCUMENT_CHECK_IDS = {
+  purchase_order: 'purchase_orders', sales_order: 'sales_orders', customer_credit_note: 'customer_credit_notes',
+  supplier_credit_note: 'supplier_credit_notes', branch_transfer: 'branch_transfers', stocktake: 'stocktakes',
+} as const;
+
 function dateOnly(value: string): string {
   return value.slice(0, 10);
 }
@@ -80,6 +85,7 @@ export function buildDocumentAuditFindings(rows: DocumentAuditRow[], asOfDate: s
     const label = DOCUMENT_LABELS[row.source_type];
     return [{
       key: `${row.source_type}:${row.source_id}:${findingKind}`,
+      checkId: DOCUMENT_CHECK_IDS[row.source_type],
       fingerprint: fingerprintAuditEvidence(evidence),
       category: 'orders_returns' as const,
       severity: row.status === 'backordered' || row.status === 'partially_received' ? 'error' as const : 'warning' as const,
@@ -112,6 +118,7 @@ export function buildNegativeStockAuditFindings(rows: NegativeStockAuditRow[]): 
     const valueAtRisk = Math.abs(quantity * unitCost);
     return {
       key: `stock:${row.variant_id}:${row.location_id}:negative`,
+      checkId: 'negative_stock',
       fingerprint: fingerprintAuditEvidence({ quantity, unitCost }),
       category: 'stock',
       severity: quantity <= -1 ? 'error' : 'warning',
@@ -250,6 +257,7 @@ export function buildCogsAuditFindings(rows: CogsAuditRow[], periodEnd: string):
     ])).values()];
     return {
       key: `cogs:${sourceKey}:${problem}`,
+      checkId: 'sales_cogs',
       fingerprint: fingerprintAuditEvidence(evidence),
       category: 'sales_cogs',
       severity: negativeCount > 0 || missingCount > 0 ? 'critical' : 'error',
