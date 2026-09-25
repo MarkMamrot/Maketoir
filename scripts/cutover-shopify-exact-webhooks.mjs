@@ -110,7 +110,16 @@ try {
         [id, row.channel_instance_id, topic],
       );
     } catch (error) {
-      failures.push({ topic, optional: OPTIONAL.has(topic), error: error instanceof Error ? error.message : String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push({ topic, optional: OPTIONAL.has(topic), error: message });
+      if (apply) {
+        await connection.query(
+          `UPDATE sales_channel_webhooks
+              SET provider_registration_id = NULL, registration_status = 'failed', safe_error = ?
+            WHERE channel_instance_id = ? AND topic = ?`,
+          [message.slice(0, 1000), row.channel_instance_id, topic],
+        );
+      }
     }
   }
 
