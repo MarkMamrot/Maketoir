@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { clearAuthRateLimit, createAuthRateLimitSubject, getAuthRateLimit, recordAuthFailure } from '@/lib/auth/authRateLimit';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { LoyaltyPortalProfileRepository } from '@/lib/loyalty/LoyaltyPortalProfile';
+import { resolveLoyaltyPortalShopifyInstance } from '@/lib/loyalty/loyaltyPortalShopifyInstance';
+import { getContactChannelMappingForContact } from '@/lib/ims/contactChannelMappings';
 import { LOYALTY_PORTAL_SESSION_COOKIE, LOYALTY_PORTAL_SESSION_MAX_AGE, signLoyaltyPortalSession } from '@/lib/loyalty/LoyaltyPortalSession';
 import { verifyCustomerOtp } from '@/lib/onlineShop/onlineShopOtp';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -27,11 +29,17 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       await recordAuthFailure({ action: 'loyalty-portal-otp-verify', subjectHash: subject, threshold: 5, windowSeconds: 600, lockSeconds: 900 });
       return NextResponse.json({ error: 'That code is invalid or has expired.' }, { status: 401 });
     }
-    const valid = await runImsForBusiness(businessId, async () => (await imsQuery<{ id: number }>(
-      `SELECT id FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND is_active=1 LIMIT 1`,
-      [result.contactId, businessId!])).length === 1);
+    const channelInstanceId = await resolveLoyaltyPortalShopifyInstance({ businessId, shopifyReturnUrl: profile.shopifyReturnUrl });
+    if (!channelInstanceId) return NextResponse.json({ error: 'This customer account is unavailable.' }, { status: 403 });
+    const valid = await runImsForBusiness(businessId, async () => {
+      const [contact, mapping] = await Promise.all([
+        imsQuery<{ id: number }>('SELECT id FROM ims_contacts WHERE id=? AND business_id=? AND is_active=1 LIMIT 1', [result.contactId, businessId!]),
+        getContactChannelMappingForContact({ businessId: businessId!, channelInstanceId, contactId: result.contactId }),
+      ]);
+      return contact.length === 1 && mapping?.mappingStatus === 'linked';
+    });
     if (!valid) return NextResponse.json({ error: 'This customer account is unavailable.' }, { status: 403 });
-    cookies().set(LOYALTY_PORTAL_SESSION_COOKIE, signLoyaltyPortalSession({ businessId, contactId: result.contactId, email: result.email, portalSlug: profile.slug }),
+    cookies().set(LOYALTY_PORTAL_SESSION_COOKIE, signLoyaltyPortalSession({ businessId, channelInstanceId, contactId: result.contactId, email: result.email, portalSlug: profile.slug }),
       { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: LOYALTY_PORTAL_SESSION_MAX_AGE, path: '/' });
     await clearAuthRateLimit('loyalty-portal-otp-verify', subject);
     return NextResponse.json({ success: true });

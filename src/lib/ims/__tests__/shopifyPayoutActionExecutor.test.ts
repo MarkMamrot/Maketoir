@@ -6,12 +6,22 @@ import {
   type ShopifyPayoutExecutorDependencies,
 } from '../shopifyPayoutActionExecutor';
 
+const channelInstanceId = 'shopify-store-1';
+
 function dependencies(): ShopifyPayoutExecutorDependencies & {
   mainQuery: ReturnType<typeof vi.fn>;
   mainExecute: ReturnType<typeof vi.fn>;
   xeroFetch: ReturnType<typeof vi.fn>;
 } {
   return {
+    getShopifyContext: vi.fn().mockResolvedValue({
+      businessId: 'biz-1',
+      channelInstanceId,
+      instance: {
+        settings: { shopify: { xero: { payoutPostingEnabled: true } } },
+      },
+      credentials: {},
+    }),
     getPolicy: vi.fn().mockResolvedValue(DEFAULT_XERO_DOCUMENT_POLICY),
     mainQuery: vi.fn(),
     mainExecute: vi.fn().mockResolvedValue({ affectedRows: 1 }),
@@ -21,6 +31,8 @@ function dependencies(): ShopifyPayoutExecutorDependencies & {
 
 const invoiceAction = {
   id: 1,
+  channel_instance_id: channelInstanceId,
+  payout_channel_instance_id: channelInstanceId,
   action_key: 'payout:pay-1:invoice:inv-1',
   action_type: 'invoice_payment',
   target_xero_document_id: 'inv-1',
@@ -37,6 +49,8 @@ const invoiceAction = {
 
 const feeAction = {
   id: 2,
+  channel_instance_id: channelInstanceId,
+  payout_channel_instance_id: channelInstanceId,
   action_key: 'payout:pay-1:fees',
   action_type: 'fee_spend',
   target_xero_document_id: null,
@@ -69,7 +83,7 @@ describe('executeShopifyPayoutActions', () => {
   });
 
   it('preflights all documents then posts actions with stable idempotency keys', async () => {
-    const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result).toEqual({ status: 'reconciled', completedActionIds: [1, 2] });
     expect(deps.xeroFetch.mock.calls.map(([, path]) => path)).toEqual([
@@ -98,7 +112,7 @@ describe('executeShopifyPayoutActions', () => {
       throw new Error(`Unexpected Xero path ${path}`);
     });
 
-    const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result).toMatchObject({ status: 'blocked', completedActionIds: [] });
     expect(result.error).toContain('below planned payment 100.00');
@@ -109,7 +123,7 @@ describe('executeShopifyPayoutActions', () => {
   it('retries only unfinished actions', async () => {
     deps.mainQuery.mockResolvedValue([{ ...invoiceAction, status: 'completed', xero_id: 'payment-1' }, feeAction]);
 
-    const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result).toEqual({ status: 'reconciled', completedActionIds: [1, 2] });
     expect(deps.xeroFetch.mock.calls.map(([, path]) => path)).toEqual([
@@ -138,7 +152,7 @@ describe('executeShopifyPayoutActions', () => {
       throw new Error(`Unexpected Xero path ${path}`);
     });
 
-    const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result).toMatchObject({ status: 'blocked' });
     expect(result.error).toContain('below planned refund 120.00');
@@ -158,7 +172,7 @@ describe('executeShopifyPayoutActions', () => {
       shopifyRefundCreditNoteEnabled: false,
     });
 
-    await expect(executeShopifyPayoutActions('biz-1', 'pay-1', deps)).rejects.toMatchObject({
+    await expect(executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps)).rejects.toMatchObject({
       code: 'xero_workflow_disabled',
       status: 423,
       workflow: 'shopifyRefundCreditNoteEnabled',
@@ -170,7 +184,7 @@ describe('executeShopifyPayoutActions', () => {
   it('posts fee reversals as clearing receives', async () => {
     deps.mainQuery.mockResolvedValue([{ ...feeAction, action_type: 'fee_receive' }]);
 
-    await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(deps.xeroFetch.mock.calls[1][2].body.BankTransactions[0].Type).toBe('RECEIVE');
   });
@@ -185,7 +199,7 @@ describe('executeShopifyPayoutActions', () => {
       throw new Error(`Unexpected Xero path ${path} ${JSON.stringify(options)}`);
     });
 
-    await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
     const firstKey = deps.xeroFetch.mock.calls.find(([, path]) => path === '/Payments')?.[2]?.idempotencyKey;
 
     deps.xeroFetch.mockClear();
@@ -199,7 +213,7 @@ describe('executeShopifyPayoutActions', () => {
       throw new Error(`Unexpected Xero path ${path} ${JSON.stringify(options)}`);
     });
 
-    await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
     const secondKey = deps.xeroFetch.mock.calls.find(([, path]) => path === '/Payments')?.[2]?.idempotencyKey;
 
     expect(firstKey).toMatch(/^[a-f0-9]{64}$/);
@@ -215,7 +229,7 @@ describe('executeShopifyPayoutActions', () => {
       throw new Error(`Unexpected Xero path ${path}`);
     });
 
-    const result = await executeShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await executeShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result.status).toBe('blocked');
     expect(result.error).toContain('cannot be used for POST /Payments');

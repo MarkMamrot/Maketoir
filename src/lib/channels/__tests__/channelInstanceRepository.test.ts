@@ -127,6 +127,49 @@ describe('SalesChannelInstanceRepository', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
+  it('normalizes Shopify settings and writes only the exact Shopify instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([]);
+
+    await SalesChannelInstanceRepository.setShopifySettingsForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ',
+      settings: {
+        orders: { enabled: true, syncFrom: '2026-09-01', lastUpdatedAt: null, locationId: 7 },
+        inventory: {
+          enabled: false, buffer: -2, intervalMinutes: 0, locationId: null,
+          pickLocationIds: [7, 7, 0], lastRunAt: null,
+        },
+        customers: { outboundEnabled: false }, giftCards: { mode: 'off' },
+      },
+    });
+
+    expect(mockExecute.mock.calls[0][0]).toContain("'$.shopify', JSON_EXTRACT(?, '$')");
+    expect(mockExecute.mock.calls[0][0]).toContain("provider = 'shopify'");
+    expect(JSON.parse(mockExecute.mock.calls[0][1][0])).toMatchObject({
+      orders: { enabled: true, locationId: 7 },
+      inventory: { enabled: false, buffer: 0, intervalMinutes: 15, pickLocationIds: [7] },
+      customers: { outboundEnabled: false }, giftCards: { mode: 'off' },
+    });
+    expect(mockExecute.mock.calls[0][1].slice(1)).toEqual(['business-1', 'instance-1']);
+  });
+
+  it('does not read back Shopify settings when the guarded update misses', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 0 });
+
+    await expect(SalesChannelInstanceRepository.setShopifySettingsForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1',
+      settings: {
+        orders: { enabled: false, syncFrom: null, lastUpdatedAt: null, locationId: null },
+        inventory: {
+          enabled: false, buffer: 0, intervalMinutes: 15, locationId: null,
+          pickLocationIds: [], lastRunAt: null,
+        },
+        customers: { outboundEnabled: false }, giftCards: { mode: 'off' },
+      },
+    })).resolves.toBeNull();
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
   it('sets Build Capacity policy on the exact business-owned instance', async () => {
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);

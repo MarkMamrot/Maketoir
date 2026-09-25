@@ -13,6 +13,7 @@ export interface NormalisedRefund {
   taxAmount: number;
   gateway: string | null;
   restockLines: {
+    externalOrderItemId: string;
     shopifyVariantId: string;
     quantity: number;
     restock: boolean;
@@ -56,6 +57,7 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
       const grossSubtotal = parseFloat(r?.subtotal ?? '0');
       const unitPrice = qty > 0 ? (grossSubtotal - lineTax) / qty : 0;
       return {
+        externalOrderItemId: String(r?.line_item_id ?? r?.line_item?.id ?? ''),
         shopifyVariantId: String(r?.line_item?.variant_id ?? ''),
         quantity: qty,
         restock: RESTOCK_TYPES.has(String(r?.restock_type ?? 'no_restock')),
@@ -80,6 +82,7 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
       : adjustmentAmount + lineTax;
     if (!(grossAmount > 0)) continue;
     restockLines.push({
+      externalOrderItemId: '',
       shopifyVariantId: '',
       quantity: 1,
       restock: false,

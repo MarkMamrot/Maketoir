@@ -3,8 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 import { autoPostShopifyPayout } from '../shopifyPayoutAutoPost';
 
+const channelInstanceId = 'shopify-store-1';
+
 function dependencies() {
   return {
+    getShopifyContext: vi.fn().mockResolvedValue({
+      businessId: 'biz-1',
+      channelInstanceId,
+      instance: {
+        settings: { shopify: { xero: { payoutPostingEnabled: true, payoutAutoPostEnabled: true } } },
+      },
+      credentials: {},
+    }),
     getPolicy: vi.fn().mockResolvedValue({
       ...DEFAULT_XERO_DOCUMENT_POLICY,
       shopifyPayoutAutoPostEnabled: true,
@@ -29,14 +39,14 @@ describe('autoPostShopifyPayout', () => {
   it('authorises a linked Draft invoice before executing the payout plan', async () => {
     deps.xeroFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-1', Status: 'DRAFT' }] });
 
-    const result = await autoPostShopifyPayout('biz-1', 'payout-1', deps);
+    const result = await autoPostShopifyPayout('biz-1', channelInstanceId, 'payout-1', deps);
 
     expect(result).toEqual({ status: 'reconciled' });
     expect(deps.xeroFetch).toHaveBeenNthCalledWith(2, 'biz-1', '/Invoices/invoice-1', {
       method: 'POST',
       body: { Invoices: [{ InvoiceID: 'invoice-1', Status: 'AUTHORISED' }] },
     });
-    expect(deps.executeActions).toHaveBeenCalledWith('biz-1', 'payout-1');
+    expect(deps.executeActions).toHaveBeenCalledWith('biz-1', channelInstanceId, 'payout-1');
   });
 
   it.each([
@@ -51,7 +61,7 @@ describe('autoPostShopifyPayout', () => {
       ...override,
     });
 
-    expect(await autoPostShopifyPayout('biz-1', 'payout-1', deps)).toEqual({ status: 'skipped_disabled' });
+    expect(await autoPostShopifyPayout('biz-1', channelInstanceId, 'payout-1', deps)).toEqual({ status: 'skipped_disabled' });
     expect(deps.mainQuery).not.toHaveBeenCalled();
     expect(deps.xeroFetch).not.toHaveBeenCalled();
     expect(deps.executeActions).not.toHaveBeenCalled();
@@ -61,7 +71,7 @@ describe('autoPostShopifyPayout', () => {
   it('does not execute a blocked or otherwise unplanned payout', async () => {
     deps.mainQuery.mockReset().mockResolvedValue([{ reconciliation_status: 'blocked' }]);
 
-    expect(await autoPostShopifyPayout('biz-1', 'payout-1', deps)).toEqual({ status: 'skipped_not_planned' });
+    expect(await autoPostShopifyPayout('biz-1', channelInstanceId, 'payout-1', deps)).toEqual({ status: 'skipped_not_planned' });
     expect(deps.executeActions).not.toHaveBeenCalled();
   });
 
@@ -69,7 +79,7 @@ describe('autoPostShopifyPayout', () => {
     deps.xeroFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-1', Status: 'AUTHORISED' }] });
     deps.executeActions.mockResolvedValue({ status: 'blocked', completedActionIds: [], error: 'Account mapping missing' });
 
-    const result = await autoPostShopifyPayout('biz-1', 'payout-1', deps);
+    const result = await autoPostShopifyPayout('biz-1', channelInstanceId, 'payout-1', deps);
 
     expect(result).toEqual({ status: 'blocked', error: 'Account mapping missing' });
     expect(deps.reportIssue).toHaveBeenCalledWith(expect.objectContaining({

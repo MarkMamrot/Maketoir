@@ -38,6 +38,8 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
   const [dateRange, setDateRange]   = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
   const [page, setPage]             = useState(1);
   const [pageSize, setPageSize]     = useState(50);
+  const [channelFilter, setChannelFilter] = useState('');
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string }>>([]);
 
   const [sortCol, setSortCol] = useState<string>('qty');
   const [sortAsc, setSortAsc] = useState(false);
@@ -52,6 +54,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
     try {
       const params = new URLSearchParams({ page: String(pg), pageSize: String(ps) });
       if (ft) params.set('q', ft);
+      if (channelFilter) params.set('channelInstanceId', channelFilter);
       if (dr.kind === 'window') {
         params.set('days', String(dr.window));
       } else {
@@ -68,7 +71,13 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
     } finally {
       setLoading(false);
     }
-  }, [apiFetch]);
+  }, [apiFetch, channelFilter]);
+
+  useEffect(() => {
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      setShopifyChannels((data.instances ?? []).filter((instance: any) => instance.provider === 'shopify'));
+    }).catch(() => setShopifyChannels([]));
+  }, []);
 
   useEffect(() => { load(1, '', { kind: 'window', window: 90, label: '90 Days' }, 50); }, [load]);
 
@@ -177,6 +186,10 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
           style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: filterText ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 12, flex: '1 1 200px', minWidth: 160 }}
         />
         <SBDatePicker value={dateRange} onChange={handleDateChange} />
+        <select value={channelFilter} onChange={event => { setChannelFilter(event.target.value); setPage(1); }} style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: channelFilter ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 170 }}>
+          <option value="">All channels</option>
+          {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+        </select>
         {!loading && total > 0 && (
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             {total.toLocaleString()} variant{total !== 1 ? 's' : ''} &middot; {totalQty.toLocaleString()} units &middot; {fmtCurrency(totalRev)}

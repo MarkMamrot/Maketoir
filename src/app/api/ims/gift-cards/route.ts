@@ -3,6 +3,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { syncGiftCardIssueInvoice } from '@/services/XeroSyncService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { query as mainQuery } from '@/services/MySQLService';
 
 // ── GET /api/ims/gift-cards ───────────────────────────────────────────────────
 // Query params: status, search, limit, offset
@@ -17,15 +18,27 @@ export async function GET(req: Request) {
     const status           = searchParams.get('status')            ?? '';
     const search           = searchParams.get('search')            ?? '';
     const contactShopifyId = searchParams.get('contact_shopify_id') ?? '';
+    const contactId        = Number(searchParams.get('contact_id') ?? 0);
+    const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
+    const unassignedOnly    = searchParams.get('unassigned') === '1';
     const requestedLimit = Number.parseInt(searchParams.get('limit') ?? '200', 10);
     const requestedOffset = Number.parseInt(searchParams.get('offset') ?? '0', 10);
     const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 500)) : 200;
     const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
 
-    console.log('[gift-cards GET] session businessId:', session.businessId);
     const conditions: string[] = [];
     const params: any[] = [];
 
+    if (channelInstanceId) {
+      conditions.push('gc.channel_instance_id = ?');
+      params.push(channelInstanceId);
+    } else if (unassignedOnly) {
+      conditions.push('gc.channel_instance_id IS NULL');
+    }
+    if (Number.isInteger(contactId) && contactId > 0) {
+      conditions.push('contact.id = ?');
+      params.push(contactId);
+    }
     if (contactShopifyId.trim()) {
       conditions.push('gc.customer_id = ?');
       params.push(contactShopifyId.trim());
@@ -55,27 +68,66 @@ export async function GET(req: Request) {
               contact.phone AS customer_phone,
               contact.mobile AS customer_mobile
          FROM gift_cards gc
+         LEFT JOIN ims_contact_channel_mappings mapping
+           ON mapping.business_id = ?
+          AND mapping.channel_instance_id = gc.channel_instance_id
+          AND mapping.external_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci
+          AND mapping.mapping_status = 'linked'
          LEFT JOIN ims_contacts contact
            ON contact.business_id = ?
-          AND contact.shopify_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci
+          AND (
+            contact.id = mapping.contact_id
+            OR (gc.channel_instance_id IS NULL
+              AND contact.shopify_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci)
+          )
          ${where}
         ORDER BY gc.created_at DESC
         LIMIT ${limit} OFFSET ${offset}`,
-      [session.businessId, ...params],
+      [session.businessId, session.businessId, ...params],
     );
 
     const [{ total }] = await imsQuery<any>(
       `SELECT COUNT(*) AS total
          FROM gift_cards gc
+         LEFT JOIN ims_contact_channel_mappings mapping
+           ON mapping.business_id = ?
+          AND mapping.channel_instance_id = gc.channel_instance_id
+          AND mapping.external_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci
+          AND mapping.mapping_status = 'linked'
          LEFT JOIN ims_contacts contact
            ON contact.business_id = ?
-          AND contact.shopify_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci
+          AND (
+            contact.id = mapping.contact_id
+            OR (gc.channel_instance_id IS NULL
+              AND contact.shopify_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci)
+          )
          ${where}`,
-      [session.businessId, ...params],
+      [session.businessId, session.businessId, ...params],
     );
 
-    console.log('[gift-cards GET] rows:', rows.length, 'total:', total);
-    return NextResponse.json({ success: true, data: rows, total: Number(total) });
+    const channels = await mainQuery<{ channel_instance_id: string; display_name: string; external_account_key: string | null }>(
+      `SELECT channel_instance_id, display_name, external_account_key
+         FROM sales_channel_instances
+        WHERE business_id = ? AND provider = 'shopify'
+        ORDER BY display_name, channel_instance_id`,
+      [session.businessId],
+    );
+    const names = new Map(channels.map(channel => [channel.channel_instance_id, channel.display_name]));
+    const domains = new Map(channels.map(channel => [channel.channel_instance_id, channel.external_account_key]));
+    return NextResponse.json({
+      success: true,
+      data: rows.map(row => ({
+        ...row,
+        channel_display_name: names.get(String(row.channel_instance_id ?? '')) ?? null,
+        channel_shop_domain: domains.get(String(row.channel_instance_id ?? '')) ?? null,
+      })),
+      total: Number(total),
+      channels: channels.map(channel => ({
+        channelInstanceId: channel.channel_instance_id,
+        displayName: channel.display_name,
+        shopDomain: channel.external_account_key,
+      })),
+    });
   } catch (e: any) {
     console.error('[gift-cards GET] FULL ERROR:', e.message, e.stack);
     await reportRuntimeIssue({
@@ -101,6 +153,15 @@ export async function POST(req: Request) {
 
     // ── Bulk import ──────────────────────────────────────────────────────────
     if (body.bulk === true && Array.isArray(body.rows)) {
+      const channelInstanceId = typeof body.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+      if (channelInstanceId) {
+        const owned = await mainQuery<{ channel_instance_id: string }>(
+          `SELECT channel_instance_id FROM sales_channel_instances
+            WHERE business_id = ? AND channel_instance_id = ? AND provider = 'shopify' LIMIT 1`,
+          [session.businessId, channelInstanceId],
+        );
+        if (!owned[0]) return NextResponse.json({ error: 'The selected Shopify storefront was not found.' }, { status: 400 });
+      }
       let inserted = 0;
       let skipped  = 0;
       const errors: string[] = [];
@@ -111,10 +172,11 @@ export async function POST(req: Request) {
         try {
           await imsExecute(
             `INSERT IGNORE INTO gift_cards
-               (code, initial_balance, balance, status, customer_id, order_id,
+               (channel_instance_id, code, initial_balance, balance, status, customer_id, order_id,
                 shopify_location_id, recipient_email, created_at, last_used_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+              channelInstanceId || null,
               code,
               row.initial_balance ?? null,
               Number(row.balance ?? 0),

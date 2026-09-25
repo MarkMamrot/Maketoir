@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockQuery, mockRunImsForBusiness, mockGetCreds, mockFetchPayouts, mockIngest } = vi.hoisted(() => ({
+const { mockQuery, mockRunImsForBusiness, mockGetCreds, mockFetchPayouts, mockIngest, mockAutoPost } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockGetCreds: vi.fn(),
   mockFetchPayouts: vi.fn(),
   mockIngest: vi.fn(),
+  mockAutoPost: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
@@ -19,6 +20,7 @@ vi.mock('@/lib/ims/shopifyPayoutIngestion', () => ({
   fetchPaidShopifyPayouts: mockFetchPayouts,
   ingestShopifyPayout: mockIngest,
 }));
+vi.mock('@/lib/ims/shopifyPayoutAutoPost', () => ({ autoPostShopifyPayout: mockAutoPost }));
 
 import { POST } from '../route';
 
@@ -38,6 +40,7 @@ describe('POST /api/xero/shopify-payouts/catchup-cron', () => {
     mockGetCreds.mockResolvedValue({ shopName: 'test', token: 'token', base: 'https://test' });
     mockFetchPayouts.mockResolvedValue([]);
     mockIngest.mockResolvedValue({ status: 'planned' });
+    mockAutoPost.mockResolvedValue({ status: 'skipped_disabled' });
   });
 
   it('rejects requests without the cron secret', async () => {
@@ -47,7 +50,10 @@ describe('POST /api/xero/shopify-payouts/catchup-cron', () => {
   });
 
   it('polls and ingests paid payouts inside each tenant context', async () => {
-    mockQuery.mockResolvedValue([{ business_id: 'biz-1' }, { business_id: 'biz-2' }]);
+    mockQuery.mockResolvedValue([
+      { business_id: 'biz-1', channel_instance_id: 'store-1' },
+      { business_id: 'biz-1', channel_instance_id: 'store-2' },
+    ]);
     mockFetchPayouts
       .mockResolvedValueOnce([{ id: 'payout-1', status: 'paid' }])
       .mockResolvedValueOnce([{ id: 'payout-2', status: 'paid' }]);
@@ -56,16 +62,16 @@ describe('POST /api/xero/shopify-payouts/catchup-cron', () => {
     const json = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockRunImsForBusiness.mock.calls.map(call => call[0])).toEqual(['biz-1', 'biz-2']);
-    expect(mockIngest.mock.calls.map(call => [call[0], call[1].id])).toEqual([
-      ['biz-1', 'payout-1'],
-      ['biz-2', 'payout-2'],
+    expect(mockRunImsForBusiness.mock.calls.map(call => call[0])).toEqual(['biz-1', 'biz-1']);
+    expect(mockIngest.mock.calls.map(call => [call[0], call[1], call[2].id])).toEqual([
+      ['biz-1', 'store-1', 'payout-1'],
+      ['biz-1', 'store-2', 'payout-2'],
     ]);
-    expect(json).toMatchObject({ businesses: 2, discovered: 2, processed: 2, failed: 0 });
+    expect(json).toMatchObject({ businesses: 1, instances: 2, discovered: 2, processed: 2, failed: 0 });
   });
 
   it('continues after one payout fails', async () => {
-    mockQuery.mockResolvedValue([{ business_id: 'biz-1' }]);
+    mockQuery.mockResolvedValue([{ business_id: 'biz-1', channel_instance_id: 'store-1' }]);
     mockFetchPayouts.mockResolvedValue([{ id: 'payout-1' }, { id: 'payout-2' }]);
     mockIngest.mockRejectedValueOnce(new Error('temporary failure')).mockResolvedValueOnce({ status: 'planned' });
 

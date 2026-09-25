@@ -37,6 +37,8 @@ type SalesOrderSummary = {
   channel_order_number?: string | null;
   external_order_number?: string | null;
   shopify_order_name?: string | null;
+  channel_instance_id?: string | null;
+  channel_display_name?: string | null;
   native_checkout_id?: string | null;
   channel_shipping_method?: string | null;
   channel_delivery_type?: string | null;
@@ -1125,6 +1127,11 @@ export function ShipOrdersWorkspace({
                               >
                                 {getChannelOrderNumber(order)}
                               </span>
+                            )}
+                            {order.channel_display_name && (
+                              <div style={{ marginTop: 2, fontSize: 11, color: "var(--sv-action)" }}>
+                                {order.channel_display_name}
+                              </div>
                             )}
                           </span>
                           <span>

@@ -13,7 +13,11 @@ vi.mock('@/services/XeroService', () => ({
   xeroApiFetch: mockXeroApiFetch,
 }));
 
-import { syncDailySalesBatch } from '../XeroSyncService';
+import { syncDailySalesBatch as syncDailySalesBatchExact } from '../XeroSyncService';
+
+function syncDailySalesBatch(businessId: string, batch: Record<string, unknown>) {
+  return syncDailySalesBatchExact(businessId, { channelInstanceId: 'instance-1', ...batch } as any);
+}
 
 describe('syncDailySalesBatch online payout state', () => {
   beforeEach(() => {
@@ -58,9 +62,9 @@ describe('syncDailySalesBatch online payout state', () => {
     });
 
     expect(result).toBe('invoice-1');
-    const batchInsert = mockExecute.mock.calls.find(call => String(call[0]).includes('(business_id, batch_date, xero_invoice_id'));
+    const batchInsert = mockExecute.mock.calls.find(call => String(call[0]).includes('(business_id, channel_instance_id, batch_date, xero_invoice_id'));
     expect(batchInsert?.[1]).toEqual([
-      'biz-1', '2026-07-25', 'invoice-1', 'INV-100', 165, 'AUTHORISED',
+      'biz-1', 'instance-1', '2026-07-25', 'invoice-1', 'INV-100', 165, 'AUTHORISED',
       JSON.stringify([
         { gateway: 'shopify_payments', amount: 110, payoutManaged: true },
         { gateway: 'paypal', amount: 55, payoutManaged: false },
@@ -254,8 +258,8 @@ describe('syncDailySalesBatch online payout state', () => {
       method: 'POST',
       idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
     }));
-    const persisted = mockExecute.mock.calls.filter(call => String(call[0]).includes('(business_id, batch_date, xero_invoice_id')).at(-1);
-    expect(persisted?.[1]?.[2]).toBe('invoice-replacement');
+    const persisted = mockExecute.mock.calls.filter(call => String(call[0]).includes('(business_id, channel_instance_id, batch_date, xero_invoice_id')).at(-1);
+    expect(persisted?.[1]?.[3]).toBe('invoice-replacement');
   });
 
   it('reuses the existing invoice while retrying an idempotent clearing payment', async () => {

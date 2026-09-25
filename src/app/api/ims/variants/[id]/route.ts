@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
-import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
+import { shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { isShopifyFallbackVariant } from '@/lib/shopifyFallbackVariant';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { parseWholesalePackSizeInput } from '@/lib/wholesale/wholesaleOrderQuantity';
 import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
+import { imsQuery } from '@/services/IMSMySQLService';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { ShopifyService } from '@/services/ShopifyService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -42,32 +47,45 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (body.price_rrp !== undefined || body.price_rrp_sale !== undefined ||
         body.sku !== undefined || body.barcode !== undefined) {
       const variant = await ImsVariantsRepo.get(params.id);
-      if (variant?.shopify_variant_id) {
-        (async () => {
+      if (variant) {
+        const shopifyInstanceIds = (await SalesChannelInstanceRepository.listForBusiness(String(session.businessId)))
+          .filter(instance => instance.provider === 'shopify')
+          .map(instance => instance.channelInstanceId);
+        if (shopifyInstanceIds.length === 0) return NextResponse.json({ success: true });
+        const mappings = await imsQuery<{ channel_instance_id: string; external_variant_id: string }>(
+          `SELECT channel_instance_id, external_variant_id
+             FROM ims_sales_channel_product_mappings
+            WHERE business_id = ? AND variant_id = ? AND mapping_status = 'linked'
+              AND channel_instance_id IN (${shopifyInstanceIds.map(() => '?').join(',')})
+              AND external_variant_id IS NOT NULL AND external_variant_id <> ''`,
+          [session.businessId, params.id, ...shopifyInstanceIds],
+        );
+        await Promise.allSettled(mappings.map(async mapping => {
           try {
-            const conn = await getShopifyForBusiness(session.businessId);
-            if (!conn) return;
-            // Build payload — use direct fetch so sku/barcode aren't silently dropped
-            // by the shopify-api-node library's type mapping.
-            const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-            const credentials = await getShopifyAdminCredentials(session.businessId);
-            if (!credentials) return;
+            const { credentials } = await getShopifyOperationContext({
+              businessId: session.businessId,
+              channelInstanceId: mapping.channel_instance_id,
+            });
             const payload: Record<string, any> = {
               ...shopifyVariantPricePayload(variant.price_rrp, variant.price_rrp_sale),
             };
             if (variant.sku)     payload.sku     = variant.sku;
             if (variant.barcode) payload.barcode = variant.barcode;
-            await fetch(
-              `https://${credentials.shopDomain}/admin/api/2024-01/variants/${variant.shopify_variant_id}.json`,
-              {
-                method: 'PUT',
-                headers: { 'X-Shopify-Access-Token': credentials.token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ variant: { id: Number(variant.shopify_variant_id), ...payload } }),
-                signal: AbortSignal.timeout(15000),
-              },
-            );
+            const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
+            await shopify.updateVariant(mapping.external_variant_id, payload);
           } catch (e) {
-            console.error('[variant PUT] Shopify sync failed:', e);
+            await reportRuntimeIssue({
+              businessId: String(session.businessId),
+              source: 'shopify_variant',
+              operation: 'update_variant',
+              title: 'Shopify variant update failed',
+              error: e,
+              context: {
+                channelInstanceId: mapping.channel_instance_id,
+                variantId: params.id,
+                externalVariantId: mapping.external_variant_id,
+              },
+            }).catch(() => null);
             await notifySyncFailure({
               businessId: String(session.businessId),
               source: 'shopify_sync',
@@ -75,14 +93,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
               message: `Variant ${params.id} failed to push to Shopify. ${e instanceof Error ? e.message : String(e)}`,
               detail: {
                 variant_id: params.id,
-                shopify_variant_id: variant.shopify_variant_id,
+                channel_instance_id: mapping.channel_instance_id,
+                shopify_variant_id: mapping.external_variant_id,
                 sku: variant.sku,
               },
-              dedupeKey: `shopify:variant:${params.id}`,
+              dedupeKey: `shopify:variant:${mapping.channel_instance_id}:${params.id}`,
               dedupeMinutes: 60,
             }).catch(() => {});
           }
-        })();
+        }));
       }
     }
 

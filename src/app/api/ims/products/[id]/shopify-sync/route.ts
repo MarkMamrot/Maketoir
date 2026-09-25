@@ -12,19 +12,18 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 import fs from 'fs';
 import path from 'path';
 import { ShopifyService } from '@/services/ShopifyService';
-import { decrypt } from '@/lib/encryption';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { getShopifyProductOperationContext } from '@/lib/channels/shopifyProductOperationContext';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { shopifyInventoryPolicyPayload, shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
 import { matchShopifyVariants, parseShopifyProductId } from '@/lib/ims/shopifyManualLink';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
-async function getShopify(businessId: string) {
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) return null;
-  return { service: new ShopifyService(credentials.shopDomain, credentials.token), shopName: credentials.shopName, shopDomain: credentials.shopDomain, accessToken: credentials.token };
+async function getShopify(businessId: string, productId: string, channelInstanceId?: string | null) {
+  const context = await getShopifyProductOperationContext({ businessId, productId, channelInstanceId });
+  const credentials = context.credentials;
+  return { service: new ShopifyService(credentials.shopDomain, credentials.token), shopName: credentials.shopName, shopDomain: credentials.shopDomain, accessToken: credentials.token, externalProductId: context.externalProductId, channelInstanceId: context.channelInstanceId };
 }
 
 /**
@@ -65,7 +64,7 @@ function isShopifyImageMedia(img: { url: string; drive_file_id?: string | null }
   return true;
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
@@ -73,15 +72,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const product = await ImsProductsRepo.get(params.id, session.businessId);
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
-    const shopifyProductId = product.shopify_product_id ?? null;
-    const shop = await getShopify(session.businessId);
-
-    if (!shop) {
-      return NextResponse.json({ success: true, connected: false, linked: !!shopifyProductId, shopifyProductId });
-    }
-    if (!shopifyProductId) {
-      return NextResponse.json({ success: true, connected: true, linked: false, shopDomain: shop.shopDomain });
-    }
+    const channelInstanceId = new URL(req.url).searchParams.get('channelInstanceId');
+    const shop = await getShopify(session.businessId, params.id, channelInstanceId);
+    const shopifyProductId = shop.externalProductId;
 
     let handle = '';
     let published = false;
@@ -121,8 +114,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const product = await ImsProductsRepo.get(params.id, businessId);
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-  const shop = await getShopify(businessId);
-  if (!shop) return NextResponse.json({ error: 'Shopify is not connected.' }, { status: 400 });
+  const channelInstanceId = String(body?.channelInstanceId ?? '').trim();
+  if (!channelInstanceId) return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
+  const operationContext = await getShopifyOperationContext({ businessId, channelInstanceId });
+  const credentials = operationContext.credentials;
+  const shop = { service: new ShopifyService(credentials.shopDomain, credentials.token), shopName: credentials.shopName };
 
   let shopifyProductId: string | null = null;
   let remoteProduct: any = null;
@@ -244,18 +240,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
+    const body = await req.json().catch(() => ({}));
     const product = await ImsProductsRepo.get(params.id, session.businessId);
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
-    const shop = await getShopify(session.businessId);
-    if (!shop) return NextResponse.json({ error: 'Shopify is not connected.' }, { status: 400 });
+    const shop = await getShopify(session.businessId, params.id, body?.channelInstanceId);
 
     const images = await ImsImagesRepo.list(params.id);
     const variants = product.variants ?? [];
     const firstPriced = variants.find(v => v.price_rrp != null);
 
     // ── If not yet linked → create the product on Shopify ────────────────────
-    if (!product.shopify_product_id) {
+    if (!shop.externalProductId) {
       // Build options: only include an option axis when at least one variant has
       // a real non-empty value for it. This prevents single-variant products from
       // getting spurious "Size: Default" / "Colour: Default" options in Shopify.
@@ -325,7 +321,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     // ── Already linked → update title / description / tags / price / images ──
-    const shopifyProductId = product.shopify_product_id;
+    const shopifyProductId = shop.externalProductId;
     await shop.service.updateProduct(shopifyProductId, {
       title: product.website_title?.trim() || product.name,
       body_html: product.description ?? '',

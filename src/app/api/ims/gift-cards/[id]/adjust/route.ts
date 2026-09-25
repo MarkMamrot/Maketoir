@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool, imsExecute } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -28,6 +26,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const connection = await getIMSPool().getConnection();
   let transactionId = 0;
   let shopifyGiftCardId: string | number | null = null;
+  let channelInstanceId: string | null = null;
   let currency = 'AUD';
   let newBalance = 0;
   try {
@@ -48,7 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const [cardRows]: any = await connection.execute(
-      'SELECT id, balance, currency, status, shopify_gc_id FROM gift_cards WHERE id = ? FOR UPDATE',
+      'SELECT id, balance, currency, status, shopify_gc_id, channel_instance_id FROM gift_cards WHERE id = ? FOR UPDATE',
       [cardId],
     );
     const card = cardRows[0];
@@ -59,6 +58,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     newBalance = Math.round((currentBalance + amount) * 100) / 100;
     if (newBalance < 0) throw new Error('Adjustment cannot reduce the gift card below zero.');
     shopifyGiftCardId = card.shopify_gc_id;
+    channelInstanceId = card.channel_instance_id;
+    if (shopifyGiftCardId && !channelInstanceId) throw new Error('This legacy Shopify gift card has no store owner. Assign an owner before adjusting it.');
     currency = card.currency || 'AUD';
     const syncState = shopifyGiftCardId ? 'pending' : 'local_only';
     const [insertResult]: any = await connection.execute(
@@ -90,9 +91,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   try {
-    const credentials = await getShopifyAdminCredentials(session.businessId);
-    if (!credentials) throw new Error('Shopify credentials are not configured.');
-    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
+    const context = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId: channelInstanceId! });
+    const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
     const providerNote = `Solvantis transaction ${transactionId}: ${reason}`;
     const result = amount > 0
       ? await shopify.giftCardCredit({ giftCardId: shopifyGiftCardId, amount, currency, note: providerNote })
@@ -103,7 +103,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           SET shopify_transaction_id = ?, shopify_processed_at = ?, provider_balance_after = ?,
               sync_state = 'synced', sync_error = NULL
         WHERE id = ?`,
-      [result.transactionId, result.processedAt.slice(0, 19).replace('T', ' '), result.balance, transactionId],
+      [`${channelInstanceId}:${result.transactionId}`, result.processedAt.slice(0, 19).replace('T', ' '), result.balance, transactionId],
     );
     await imsExecute(
       `UPDATE gift_cards
@@ -122,7 +122,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       operation: 'gift_card_adjustment_push',
       title: 'Gift card adjustment is waiting for Shopify',
       error,
-      context: { cardId, transactionId, shopifyGiftCardId, amount },
+      context: { cardId, transactionId, channelInstanceId, shopifyGiftCardId, amount },
       reference: { type: 'gift_card_transaction', id: transactionId },
     });
     return NextResponse.json({ success: true, transactionId, balance: newBalance, syncState: 'error', warning: 'Saved in Solvantis but not yet applied in Shopify.' }, { status: 202 });

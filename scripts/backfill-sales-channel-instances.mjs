@@ -8,6 +8,7 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:
 import mysql from 'mysql2/promise';
 
 const apply = process.argv.includes('--apply');
+const requestedBusinessId = process.argv.find(argument => argument.startsWith('--business='))?.slice('--business='.length).trim() || null;
 const database = process.env.MYSQL_DATABASE;
 if (!database) throw new Error('MYSQL_DATABASE is required.');
 
@@ -45,6 +46,20 @@ function encryptEnvelope(value) {
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
   return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${ciphertext.toString('hex')}`;
 }
+
+function encryptText(value) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(String(value), 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${ciphertext.toString('hex')}`;
+}
+
+const SHOPIFY_EXACT_WEBHOOK_TOPICS = [
+  'orders/create', 'orders/paid', 'orders/updated', 'orders/cancelled',
+  'fulfillments/create', 'fulfillments/update', 'orders/fulfilled',
+  'refunds/create', 'returns/update',
+  'shopify_payments/payouts/create', 'shopify_payments/payouts/update',
+];
 
 function hasShopifyCredentials(row) {
   if (row.shopify_auth_mode === 'client_credentials') {
@@ -92,6 +107,104 @@ async function ensureInstance(input) {
   return { channelInstanceId, created: true };
 }
 
+function objectValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+async function migrateShopifySettings(business, channelInstanceId) {
+  const [[instance], [legacyRows], [policyRows]] = await Promise.all([
+    connection.query('SELECT settings_json FROM sales_channel_instances WHERE channel_instance_id = ? LIMIT 1', [channelInstanceId]),
+    connection.query(
+      `SELECT \`key\`, value FROM \`${business.ims_db_name}\`.ims_settings
+        WHERE business_id = ? AND \`key\` IN (
+          'shopify_order_sync_enabled','shopify_order_sync_from','online_sales_location_id',
+          'shopify_inventory_sync_enabled','shopify_inventory_sync_interval_minutes',
+          'shopify_inventory_sync_last_run_at','shopify_inventory_location_id',
+          'shopify_inventory_buffer','online_pick_priority','shopify_gc_mode','shopify_xero_auto_sync_enabled'
+        )`,
+      [business.business_id],
+    ).catch(() => [[]]),
+    connection.query(
+      `SELECT online_batch_action, online_batch_payment_sync_enabled,
+              shopify_payout_posting_enabled, shopify_payout_auto_post_enabled
+         FROM xero_document_policies WHERE business_id = ? LIMIT 1`,
+      [business.business_id],
+    ).catch(() => [[]]),
+  ]);
+  const current = objectValue(typeof instance?.settings_json === 'string'
+    ? JSON.parse(instance.settings_json || '{}')
+    : instance?.settings_json);
+  const shopify = objectValue(current.shopify);
+  const orders = { ...objectValue(shopify.orders) };
+  const inventory = { ...objectValue(shopify.inventory) };
+  const giftCards = { ...objectValue(shopify.giftCards) };
+  const xero = { ...objectValue(shopify.xero) };
+  const legacy = new Map(legacyRows.map(row => [String(row.key), row.value]));
+  const policy = policyRows[0] ?? {};
+
+  if (orders.enabled === undefined && legacy.has('shopify_order_sync_enabled')) orders.enabled = legacy.get('shopify_order_sync_enabled') === '1';
+  if (orders.syncFrom === undefined && legacy.get('shopify_order_sync_from')) orders.syncFrom = legacy.get('shopify_order_sync_from');
+  if (orders.locationId === undefined && Number(legacy.get('online_sales_location_id')) > 0) orders.locationId = Number(legacy.get('online_sales_location_id'));
+  if (inventory.enabled === undefined && legacy.has('shopify_inventory_sync_enabled')) inventory.enabled = legacy.get('shopify_inventory_sync_enabled') === '1';
+  if (inventory.intervalMinutes === undefined && Number(legacy.get('shopify_inventory_sync_interval_minutes')) > 0) inventory.intervalMinutes = Number(legacy.get('shopify_inventory_sync_interval_minutes'));
+  if (inventory.lastRunAt === undefined && legacy.get('shopify_inventory_sync_last_run_at')) inventory.lastRunAt = legacy.get('shopify_inventory_sync_last_run_at');
+  if (inventory.locationId === undefined && Number(legacy.get('shopify_inventory_location_id')) > 0) inventory.locationId = Number(legacy.get('shopify_inventory_location_id'));
+  if (inventory.buffer === undefined && Number.isFinite(Number(legacy.get('shopify_inventory_buffer')))) inventory.buffer = Math.max(0, Number(legacy.get('shopify_inventory_buffer')));
+  if (inventory.pickLocationIds === undefined && legacy.get('online_pick_priority')) {
+    try {
+      const locations = JSON.parse(String(legacy.get('online_pick_priority')));
+      if (Array.isArray(locations)) inventory.pickLocationIds = locations.map(Number).filter(Number.isInteger);
+    } catch {}
+  }
+  if (giftCards.mode === undefined && legacy.has('shopify_gc_mode')) giftCards.mode = legacy.get('shopify_gc_mode') === 'combined' ? 'combined' : 'off';
+  if (xero.dailyAutoSyncEnabled === undefined) xero.dailyAutoSyncEnabled = legacy.get('shopify_xero_auto_sync_enabled') !== '0';
+  if (xero.onlineBatchAction === undefined && policy.online_batch_action) xero.onlineBatchAction = policy.online_batch_action;
+  if (xero.paymentSyncEnabled === undefined && policy.online_batch_payment_sync_enabled != null) xero.paymentSyncEnabled = Boolean(policy.online_batch_payment_sync_enabled);
+  if (xero.payoutPostingEnabled === undefined && policy.shopify_payout_posting_enabled != null) xero.payoutPostingEnabled = Boolean(policy.shopify_payout_posting_enabled);
+  if (xero.payoutAutoPostEnabled === undefined && policy.shopify_payout_auto_post_enabled != null) xero.payoutAutoPostEnabled = Boolean(policy.shopify_payout_auto_post_enabled);
+
+  const next = { ...current, shopify: { ...shopify, orders, inventory, giftCards, xero } };
+  const changed = JSON.stringify(next) !== JSON.stringify(current);
+  if (apply && changed) {
+    await connection.query(
+      'UPDATE sales_channel_instances SET settings_json = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE channel_instance_id = ?',
+      [JSON.stringify(next), channelInstanceId],
+    );
+  }
+  return changed;
+}
+
+async function prepareShopifyWebhookCutover(business, channelInstanceId) {
+  const [rows] = await connection.query(
+    `SELECT value FROM \`${business.ims_db_name}\`.ims_settings
+      WHERE business_id = ? AND \`key\` = 'shopify_webhook_secret' LIMIT 1`,
+    [business.business_id],
+  );
+  const secret = String(rows[0]?.value ?? '').trim();
+  if (!secret) return 0;
+  const encryptedSecret = encryptText(secret);
+  let prepared = 0;
+  for (const topic of SHOPIFY_EXACT_WEBHOOK_TOPICS) {
+    if (apply) {
+      const [result] = await connection.query(
+        `INSERT INTO sales_channel_webhooks
+           (channel_instance_id, topic, provider_registration_id, encrypted_secret,
+            registration_status, safe_error)
+         VALUES (?, ?, NULL, ?, 'registered', 'Exact provider URL registration pending')
+         ON DUPLICATE KEY UPDATE
+           encrypted_secret = COALESCE(encrypted_secret, VALUES(encrypted_secret)),
+           registration_status = IF(provider_registration_id IS NULL, 'registered', registration_status),
+           safe_error = IF(provider_registration_id IS NULL, VALUES(safe_error), safe_error)`,
+        [channelInstanceId, topic, encryptedSecret],
+      );
+      prepared += Number(result.affectedRows ?? 0) > 0 ? 1 : 0;
+    } else {
+      prepared += 1;
+    }
+  }
+  return prepared;
+}
+
 async function migrateShopify(business) {
   const domain = normalizeShopifyDomain(business.shopify_shop_id);
   if (!domain) return null;
@@ -104,8 +217,11 @@ async function migrateShopify(business) {
     enabled: business.shopify_enabled === 1,
     ready,
   });
+  const settingsMigrated = await migrateShopifySettings(business, instance.channelInstanceId);
+  const webhooksPrepared = await prepareShopifyWebhookCutover(business, instance.channelInstanceId);
   const counts = { products: 0, variants: 0, selections: 0, canonicalMappings: 0, assignments: 0,
-    credentials: 0, productConflictOwners: 0, variantConflictOwners: 0 };
+    credentials: 0, settings: settingsMigrated ? 1 : 0, webhooksPrepared,
+    productConflictOwners: 0, variantConflictOwners: 0 };
   const [[productConflictRows], [variantConflictRows]] = await Promise.all([
     connection.query(
       `SELECT COALESCE(SUM(owner_count), 0) AS owner_count
@@ -520,8 +636,13 @@ try {
        LEFT JOIN business_online_channels ch ON BINARY ch.business_id = BINARY b.business_id
        LEFT JOIN online_shop_profiles p ON BINARY p.business_id = BINARY b.business_id
       WHERE b.deleted_at IS NULL AND b.ims_db_name IS NOT NULL AND b.ims_db_name <> ''
+        ${requestedBusinessId ? 'AND BINARY b.business_id = BINARY ?' : ''}
       ORDER BY b.name, b.business_id`,
+    requestedBusinessId ? [requestedBusinessId] : [],
   );
+  if (requestedBusinessId && businesses.length !== 1) {
+    throw new Error(`Requested business was not found: ${requestedBusinessId}`);
+  }
   console.log(`Sales channel compatibility ${apply ? 'apply' : 'dry run'} for ${businesses.length} businesses:`);
   for (const business of businesses) {
     business.ims_db_name = assertSchemaName(String(business.ims_db_name));

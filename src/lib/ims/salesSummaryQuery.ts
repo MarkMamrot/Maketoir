@@ -13,6 +13,7 @@ export const SALES_SUMMARY_MOVEMENT_COSTS = `
 export const SALES_SUMMARY_LINES = `
   SELECT COALESCE(hvid.variant_id, hsku.variant_id, hopt.variant_id) AS variant_id,
          hl.id AS location_id, h.invoice_date AS sale_date, NULL AS sale_hour,
+      NULL AS channel_instance_id, 'history' AS sales_channel,
          h.qty AS qty, h.line_total AS amount,
          NULL AS attached_cogs, 0 AS covered_qty, 0 AS covered_amount
     FROM ims_sales_history h
@@ -25,6 +26,7 @@ export const SALES_SUMMARY_LINES = `
   UNION ALL
 
   SELECT pos.variant_id, pos.location_id, pos.sale_date, pos.sale_hour,
+      NULL AS channel_instance_id, 'pos' AS sales_channel,
          pos.qty, pos.amount,
          CASE WHEN mc.missing_cost_count = 0 AND ABS(mc.covered_qty - ABS(pos.qty)) < 0.0001 THEN mc.attached_cogs ELSE NULL END AS attached_cogs,
          CASE WHEN mc.missing_cost_count = 0 AND ABS(mc.covered_qty - ABS(pos.qty)) < 0.0001 THEN ABS(pos.qty) ELSE 0 END AS covered_qty,
@@ -48,6 +50,7 @@ export const SALES_SUMMARY_LINES = `
   UNION ALL
 
   SELECT sales_order.variant_id, sales_order.location_id, sales_order.sale_date, sales_order.sale_hour,
+      sales_order.channel_instance_id, sales_order.sales_channel,
          sales_order.qty, sales_order.amount,
          CASE WHEN mc.missing_cost_count = 0 AND ABS(mc.covered_qty - ABS(sales_order.qty)) < 0.0001 THEN mc.attached_cogs ELSE NULL END AS attached_cogs,
          CASE WHEN mc.missing_cost_count = 0 AND ABS(mc.covered_qty - ABS(sales_order.qty)) < 0.0001 THEN ABS(sales_order.qty) ELSE 0 END AS covered_qty,
@@ -55,6 +58,7 @@ export const SALES_SUMMARY_LINES = `
     FROM (
       SELECT so.id AS sale_id, COALESCE(svid.variant_id, ssku.variant_id) AS variant_id,
              so.location_id, so.order_date AS sale_date, HOUR(so.created_at) AS sale_hour,
+              so.channel_instance_id, COALESCE(so.sales_channel, IF(so.so_type = 'online', 'online', 'b2b')) AS sales_channel,
              SUM(soi.qty_ordered) AS qty, SUM(soi.line_total) AS amount
         FROM ims_sales_order_items soi
         JOIN ims_sales_orders so ON so.id = soi.so_id
@@ -62,7 +66,7 @@ export const SALES_SUMMARY_LINES = `
         LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
        WHERE so.status NOT IN ('draft', 'cancelled') AND so.is_staff_preview_test = 0 AND so.cin7_order_id IS NULL
          AND so.order_date BETWEEN ? AND ?
-       GROUP BY so.id, COALESCE(svid.variant_id, ssku.variant_id), so.location_id,
+      GROUP BY so.id, COALESCE(svid.variant_id, ssku.variant_id), so.location_id, so.channel_instance_id, so.sales_channel, so.so_type,
                 so.order_date, HOUR(so.created_at)
     ) sales_order
     LEFT JOIN (${SALES_SUMMARY_MOVEMENT_COSTS}) mc

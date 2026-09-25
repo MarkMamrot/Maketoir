@@ -1,24 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { ShopifyService } from '@/services/ShopifyService';
-import { decrypt } from '@/lib/encryption';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   try {
-    const credentials = await getShopifyAdminCredentials(session.businessId);
-    if (!credentials) {
-      return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
-    }
+    const body = await req.json().catch(() => ({}));
+    const channelInstanceId = String(body?.channelInstanceId ?? '').trim();
+    if (!channelInstanceId) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
+    const { credentials } = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     // 1. Fetch all Shopify products
@@ -117,7 +115,7 @@ export async function POST() {
     });
 
     return NextResponse.json({
-      success: true, matched,
+      success: true, channelInstanceId, matched,
       shopify_products_fetched: shopifyProductCount,
       unmatched_ims: unmatchedIms.length,
       unmatched_shopify: unmatchedShopifyCount,

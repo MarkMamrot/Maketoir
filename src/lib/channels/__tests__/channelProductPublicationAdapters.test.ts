@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  query: vi.fn(), execute: vi.fn(), credentials: vi.fn(), shopifyUpdate: vi.fn(),
+  query: vi.fn(), execute: vi.fn(), operationContext: vi.fn(), shopifyUpdate: vi.fn(),
   amazonAccess: vi.fn(), amazonPut: vi.fn(), amazonDelete: vi.fn(), locations: vi.fn(),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute }));
 vi.mock('@/lib/onlineShop/onlineShopPages', () => ({ normalizeOnlineShopPageSlug: (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-') }));
-vi.mock('@/lib/shopifyCredentials', () => ({ getShopifyChannelAdminCredentials: mocks.credentials }));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.operationContext }));
 vi.mock('@/services/ShopifyService', () => ({ ShopifyService: class { updateProduct = mocks.shopifyUpdate; } }));
 vi.mock('../amazonCredentials', () => ({ getAmazonChannelAccess: mocks.amazonAccess }));
 vi.mock('../amazonSpApi', () => ({ putAmazonExistingAsinOffer: mocks.amazonPut, deleteAmazonListingOffer: mocks.amazonDelete }));
@@ -44,11 +44,12 @@ describe('channel product publication adapters', () => {
     mocks.query
       .mockResolvedValueOnce([{ external_product_id: '9988', readiness_status: 'ready' }])
       .mockResolvedValueOnce([{ external_product_id: '9988' }]);
-    mocks.credentials.mockResolvedValue({ shopDomain: 'sandbox.myshopify.com', token: 'token' });
+    mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
     await expect(publishShopifyProduct({
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'unpublished',
     })).resolves.toEqual({ outcome: 'applied', providerState: 'unpublished', externalProductId: '9988' });
     expect(mocks.query.mock.calls[0][1]).toEqual(['business-1', 'shopify-2', 'product-1']);
+    expect(mocks.operationContext).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'shopify-2' });
     expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'draft' });
   });
 
@@ -60,14 +61,14 @@ describe('channel product publication adapters', () => {
     await expect(publishShopifyProduct({
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'unpublished',
     })).resolves.toEqual({ outcome: 'applied', providerState: 'unpublished' });
-    expect(mocks.credentials).not.toHaveBeenCalled();
+    expect(mocks.operationContext).not.toHaveBeenCalled();
   });
 
   it('uses a ready product-level Shopify ID when no variant mapping exists', async () => {
     mocks.query
       .mockResolvedValueOnce([{ external_product_id: '7766', readiness_status: 'ready' }])
       .mockResolvedValueOnce([]);
-    mocks.credentials.mockResolvedValue({ shopDomain: 'sandbox.myshopify.com', token: 'token' });
+    mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
     await expect(publishShopifyProduct({ businessId: 'business-1', channelInstanceId: 'shopify-2',
       productId: 'product-1', desiredState: 'published' }))
       .resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '7766' });

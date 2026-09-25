@@ -20,6 +20,7 @@ import { decrypt }               from '@/lib/encryption';
 import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
+import { getShopifyProductOperationContext } from '@/lib/channels/shopifyProductOperationContext';
 
 // Allow long-running AI generations (pro models with large prompts can take a while)
 // before the platform kills the request.
@@ -771,19 +772,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!mediaData) return NextResponse.json({ error: 'mediaData required' }, { status: 400 });
 
     try {
-      // Check Shopify product ID
-      const pRows = await imsQuery<{ shopify_product_id: string | null }>(
-        'SELECT shopify_product_id FROM ims_products WHERE product_id = ?', [productId],
-      );
-      const shopifyProductId = pRows[0]?.shopify_product_id;
       let shopifyVideo: { id?: string; status?: string } | null = null;
       let shopifyWarning = '';
 
-      if (shopifyProductId) {
-        try {
-          const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-          const credentials = await getShopifyAdminCredentials(businessId);
-          if (credentials) {
+      try {
+          const context = await getShopifyProductOperationContext({
+            businessId,
+            productId,
+            channelInstanceId: body?.channelInstanceId,
+          });
+          const shopifyProductId = context.externalProductId;
+          const credentials = context.credentials;
             const token = credentials.token;
             const shop  = credentials.shopName;
             const ext   = isVideo ? 'mp4' : (mediaType.split('/')[1] ?? 'jpg');
@@ -815,13 +814,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
                 }
               }
             }
-          }
         } catch (shopErr: any) {
           console.error('[ai-creative save] Shopify push failed:', shopErr.message);
           if (isVideo) shopifyWarning = shopErr?.message ?? 'Shopify video upload failed';
           // Fall through to local storage
         }
-      }
 
       // Local volume storage — mirrors the /images/upload route pattern
       const ext      = isVideo ? 'mp4' : (mediaType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg');

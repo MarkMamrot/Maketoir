@@ -63,7 +63,10 @@ export interface OnlineDailySalesSyncResult {
 export async function syncOnlineDailySalesDay(
   businessId: string,
   date: string,
+  channelInstanceId: string,
 ): Promise<OnlineDailySalesSyncResult> {
+  const exactChannelInstanceId = channelInstanceId.trim();
+  if (!exactChannelInstanceId) throw new Error('An exact sales channel instance is required.');
   return runImsForBusiness(businessId, async () => {
     await assertXeroAccountingEnabled(businessId);
     const policy = await getXeroDocumentPolicy(businessId);
@@ -81,11 +84,12 @@ export async function syncOnlineDailySalesDay(
                 COUNT(*) AS order_count
            FROM ims_sales_orders
           WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
+            AND channel_instance_id = ?
             AND so_type = 'online'
             AND COALESCE(is_staff_preview_test, 0) = 0
             AND (is_historical IS NULL OR is_historical = 0)
             AND status != 'cancelled'`,
-        [businessId, date],
+        [businessId, date, exactChannelInstanceId],
       ),
       imsQuery<{ gateway: string; total_sales: string; total_tax: string }>(
         `SELECT gateway, COALESCE(SUM(total_sales), 0) AS total_sales, COALESCE(SUM(total_tax), 0) AS total_tax
@@ -94,6 +98,7 @@ export async function syncOnlineDailySalesDay(
                     total_amount AS total_sales, tax_amount AS total_tax
                FROM ims_sales_orders
               WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
+                AND channel_instance_id = ?
                 AND so_type = 'online' AND COALESCE(sales_channel, '') <> 'native_shop'
                 AND COALESCE(is_staff_preview_test, 0) = 0
                 AND (is_historical IS NULL OR is_historical = 0) AND status != 'cancelled'
@@ -103,17 +108,19 @@ export async function syncOnlineDailySalesDay(
                FROM ims_sales_orders so
                JOIN ims_sales_order_payments sop ON sop.so_id = so.id AND sop.business_id = so.business_id
               WHERE so.business_id = ? AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
+                AND so.channel_instance_id = ?
                 AND so.so_type = 'online' AND so.sales_channel = 'native_shop'
                 AND COALESCE(so.is_staff_preview_test, 0) = 0
                 AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled'
            ) gateway_sales GROUP BY gateway`,
-        [businessId, date, businessId, date],
+        [businessId, date, exactChannelInstanceId, businessId, date, exactChannelInstanceId],
       ),
       imsQuery<OnlineBatchOrderRow>(
         `SELECT sales_channel, native_checkout_id, shopify_order_id, shopify_order_name,
                 payment_gateway, total_amount, tax_amount
            FROM ims_sales_orders
           WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
+            AND channel_instance_id = ?
             AND so_type = 'online' AND COALESCE(sales_channel, '') <> 'native_shop'
             AND COALESCE(is_staff_preview_test, 0) = 0
             AND (is_historical IS NULL OR is_historical = 0) AND status != 'cancelled'
@@ -124,21 +131,22 @@ export async function syncOnlineDailySalesDay(
            FROM ims_sales_orders so
            JOIN ims_sales_order_payments sop ON sop.so_id = so.id AND sop.business_id = so.business_id
           WHERE so.business_id = ? AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
+            AND so.channel_instance_id = ?
             AND so.so_type = 'online' AND so.sales_channel = 'native_shop'
             AND COALESCE(so.is_staff_preview_test, 0) = 0
             AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled'`,
-        [businessId, date, businessId, date],
+        [businessId, date, exactChannelInstanceId, businessId, date, exactChannelInstanceId],
       ),
       query<OnlineGatewayMapping>(
         `SELECT gateway_name, clearing_account_code, fee_account_code, fee_tax_type,
                 deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate
            FROM xero_gateway_mappings
-          WHERE business_id = ?
+          WHERE business_id = ? AND channel_instance_id = ?
           UNION ALL
          SELECT 'store_credit', xero_account_code, NULL, 'NONE', 0, 0, 0
            FROM xero_account_mappings
           WHERE business_id = ? AND role_key = 'store_credit_liability' AND xero_account_code IS NOT NULL`,
-        [businessId, businessId],
+        [businessId, exactChannelInstanceId, businessId],
       ).catch(() => []),
     ]);
 
@@ -252,6 +260,7 @@ export async function syncOnlineDailySalesDay(
     const xeroId = await syncDailySalesBatch(businessId, {
       date,
       channel: 'online',
+      channelInstanceId: exactChannelInstanceId,
       totalSales: Math.round((totalSales - totalTax) * 100) / 100,
       totalTax,
       lineDescription: `Online Sales ${date} (${orderCount} orders)`,
@@ -271,7 +280,7 @@ export async function syncOnlineDailySalesDay(
         amount: giftCardAmount,
         date,
         channel: 'online',
-        dedupeKey: `gift card liability online ${date}`,
+        dedupeKey: `gift card liability online ${exactChannelInstanceId} ${date}`,
       });
     }
 

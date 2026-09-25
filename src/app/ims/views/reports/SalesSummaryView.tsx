@@ -12,8 +12,10 @@ interface SalesSummaryViewProps {
 }
 
 interface LocationOption { id: number; name: string }
+interface ChannelOption { channelInstanceId: string; displayName: string }
 
 const DIMENSION_FIELDS: Record<SalesSummaryDimension, string> = {
+  channel: 'channel_display_name',
   location: 'location_name',
   supplier: 'supplier_name',
   brand: 'brand',
@@ -31,6 +33,8 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
   const [totals, setTotals] = useState<any>(null);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [selectedLocationIds, setSelectedLocationIds] = useState<number[]>([]);
+  const [shopifyChannels, setShopifyChannels] = useState<ChannelOption[]>([]);
+  const [channelInstanceId, setChannelInstanceId] = useState('');
   const [dimensions, setDimensions] = useState<SalesSummaryDimension[]>(['location']);
   const [dateRange, setDateRange] = useState<SBDateRange>({ kind: 'window', window: 90, label: '90 Days' });
   const [page, setPage] = useState(1);
@@ -49,13 +53,14 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
     if (selectedLocationIds.length > 0 && selectedLocationIds.length < locations.length) {
       params.set('locationIds', selectedLocationIds.join(','));
     }
+    if (channelInstanceId) params.set('channelInstanceId', channelInstanceId);
     if (dateRange.kind === 'window') params.set('window', String(dateRange.window));
     else {
       params.set('from', dateRange.from);
       params.set('to', dateRange.to);
     }
     return params;
-  }, [dateRange, dimensions, locations.length, pageSize, selectedLocationIds]);
+  }, [channelInstanceId, dateRange, dimensions, locations.length, pageSize, selectedLocationIds]);
 
   const load = useCallback(async (requestedPage: number) => {
     setLoading(true);
@@ -75,6 +80,11 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
   }, [apiFetch, buildParams]);
 
   useEffect(() => { load(1); }, [load]);
+  useEffect(() => {
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      setShopifyChannels((data.instances ?? []).filter((instance: any) => instance.provider === 'shopify'));
+    }).catch(() => setShopifyChannels([]));
+  }, []);
 
   const setFirstDimension = (dimension: SalesSummaryDimension) => {
     setDimensions(current => [dimension, ...current.slice(1).filter(item => item !== dimension)]);
@@ -155,6 +165,13 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
 
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 0', marginBottom: 10, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)' }}>
       <SBDatePicker value={dateRange} onChange={value => { setDateRange(value); setPage(1); }} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-dim)', fontSize: 11 }}>
+        Store
+        <select value={channelInstanceId} onChange={event => { setChannelInstanceId(event.target.value); setPage(1); }} style={{ ...control, cursor: 'pointer' }}>
+          <option value="">All channels</option>
+          {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+        </select>
+      </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-dim)', fontSize: 11 }}>
         First heading
         <select value={dimensions[0]} onChange={event => setFirstDimension(event.target.value as SalesSummaryDimension)} style={{ ...control, cursor: 'pointer' }}>

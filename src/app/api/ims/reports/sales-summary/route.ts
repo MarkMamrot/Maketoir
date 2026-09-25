@@ -12,12 +12,18 @@ import {
   type SalesSummaryDimension,
 } from '@/lib/ims/salesSummary';
 import { SALES_SUMMARY_LINES } from '@/lib/ims/salesSummaryQuery';
+import { query } from '@/services/MySQLService';
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
 const DIMENSIONS: Record<SalesSummaryDimension, { selects: string[]; groups: string[]; keys: string[] }> = {
+  channel: {
+    selects: ["COALESCE(s.channel_instance_id, CONCAT('_', s.sales_channel)) AS channel_key"],
+    groups: ["COALESCE(s.channel_instance_id, CONCAT('_', s.sales_channel))"],
+    keys: ['channel_key'],
+  },
   location: {
     selects: ['s.location_id AS location_id', "COALESCE(l.name, 'Unknown') AS location_name"],
     groups: ['s.location_id', 'l.name'],
@@ -91,6 +97,7 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(searchParams.get('pageSize') ?? '50', 10)));
   const requestedLocationIds = (searchParams.get('locationIds') ?? '')
     .split(',').map(Number).filter(id => Number.isInteger(id) && id > 0);
+  const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
 
   try {
     const pool = getIMSPool();
@@ -133,6 +140,7 @@ export async function GET(req: Request) {
         LEFT JOIN ims_contacts con ON con.id = p.supplier_contact_id
         LEFT JOIN ims_locations l ON l.id = s.location_id
        WHERE p.business_id = ? AND s.location_id IN (${locationPlaceholders})
+         ${channelInstanceId ? 'AND s.channel_instance_id = ?' : ''}
        GROUP BY ${[...dimensionGroups, 's.variant_id'].join(', ')}`;
 
     const [queryRows] = await pool.query<any>(
@@ -146,11 +154,22 @@ export async function GET(req: Request) {
          FROM (${groupedByVariant}) grouped
          LEFT JOIN (${stockByVariant}) stock ON ${stockJoin}
         GROUP BY ${dimensions.flatMap(dimension => DIMENSIONS[dimension].keys).map(key => `grouped.${key}`).join(', ')}`,
-      [...dateParams, businessId, ...selectedLocationIds, ...selectedLocationIds],
+      [...dateParams, businessId, ...selectedLocationIds, ...(channelInstanceId ? [channelInstanceId] : []), ...selectedLocationIds],
     ) as any;
 
+    const channelRows = await query<{ channel_instance_id: string; display_name: string }>(
+      `SELECT channel_instance_id, display_name FROM sales_channel_instances
+        WHERE business_id = ? AND provider = 'shopify' ORDER BY display_name`,
+      [businessId],
+    );
+    const channelNames = new Map(channelRows.map(channel => [channel.channel_instance_id, channel.display_name]));
     const baseRows: RawSummaryRow[] = queryRows.map((row: any) => ({
       ...row,
+      channel_display_name: row.channel_key
+        ? (String(row.channel_key).startsWith('_')
+            ? ({ _pos: 'POS', _history: 'Imported history', _b2b: 'Wholesale / B2B', _online: 'Online (legacy)' } as Record<string, string>)[row.channel_key] ?? String(row.channel_key).slice(1)
+            : channelNames.get(String(row.channel_key)) ?? 'Unknown storefront')
+        : 'Unknown',
       sales_qty: Number(row.sales_qty ?? 0),
       sales_amount: Number(row.sales_amount ?? 0),
       attached_cogs: Number(row.attached_cogs ?? 0),
@@ -181,6 +200,11 @@ export async function GET(req: Request) {
         if (requestedLocationIds.length === 0) values.unshift({ location_id: null, location_name: 'ALL' });
         return { keys, values };
       }
+      if (dimension === 'channel') {
+        const seen = new Map<string, Record<string, unknown>>();
+        for (const row of baseRows) seen.set(String(row.channel_key), { channel_key: row.channel_key, channel_display_name: row.channel_display_name });
+        return { keys: ['channel_key', 'channel_display_name'], values: [...seen.values()] };
+      }
       return { keys, values: uniqueDomainValues(baseRows, keys) };
     });
     const allRows = completeSalesSummaryCombinations(rolledUpRows, domains, metricKeys);
@@ -201,13 +225,14 @@ export async function GET(req: Request) {
              JOIN ims_product_variants v ON v.variant_id = s.variant_id
              JOIN ims_products p ON p.product_id = v.product_id
             WHERE p.business_id = ? AND s.location_id IN (${locationPlaceholders})
+              ${channelInstanceId ? 'AND s.channel_instance_id = ?' : ''}
          ) sold
          JOIN (
            SELECT variant_id, SUM(qty_on_hand) AS current_soh
              FROM ims_stock WHERE location_id IN (${locationPlaceholders})
             GROUP BY variant_id
          ) stock ON stock.variant_id = sold.variant_id`,
-      [...dateParams, businessId, ...selectedLocationIds, ...selectedLocationIds],
+      [...dateParams, businessId, ...selectedLocationIds, ...(channelInstanceId ? [channelInstanceId] : []), ...selectedLocationIds],
     ) as any;
 
     const shape = (row: RawSummaryRow) => ({

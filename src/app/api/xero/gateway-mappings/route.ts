@@ -34,13 +34,15 @@ export async function GET(req: NextRequest) {
   const bid = req.nextUrl.searchParams.get('databaseId') ?? auth.user!.businessId;
   const denied = assertBusinessAccess(auth.user!, bid);
   if (denied) return denied;
+  const channelInstanceId = String(req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId required' }, { status: 400 });
   try {
     const rows = await query(
-      `SELECT id, gateway_name, display_name, clearing_account_code, clearing_account_name,
+      `SELECT id, channel_instance_id, gateway_name, display_name, clearing_account_code, clearing_account_name,
               fee_account_code, fee_account_name, fee_tax_type,
               deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate
-         FROM xero_gateway_mappings WHERE business_id = ? ORDER BY display_name`,
-      [bid],
+         FROM xero_gateway_mappings WHERE business_id = ? AND channel_instance_id = ? ORDER BY display_name`,
+      [bid, channelInstanceId],
     );
     return NextResponse.json({ success: true, mappings: rows });
   } catch (e: any) {
@@ -53,9 +55,17 @@ export async function POST(req: NextRequest) {
   if (auth.response) return auth.response;
   const bid = auth.user!.businessId;
   const body = await req.json();
+  const channelInstanceId = String(body.channelInstanceId ?? '').trim();
   const { gateway_name, display_name, clearing_account_code, clearing_account_name, fee_account_code, fee_account_name } = body;
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId required' }, { status: 400 });
   if (!gateway_name) return NextResponse.json({ error: 'gateway_name required' }, { status: 400 });
   try {
+    const owned = await query<{ channel_instance_id: string }>(
+      `SELECT channel_instance_id FROM sales_channel_instances
+        WHERE business_id = ? AND channel_instance_id = ? AND provider IN ('shopify','native_shop') LIMIT 1`,
+      [bid, channelInstanceId],
+    );
+    if (!owned[0]) return NextResponse.json({ error: 'Sales channel not found' }, { status: 400 });
     const feeTaxType = normalizeFeeTaxType(body.fee_tax_type);
     const normalizedGateway = String(gateway_name).trim().toLowerCase();
     const feeExcluded = normalizedGateway.includes('shopify_payment') || normalizedGateway.includes('paypal');
@@ -79,9 +89,9 @@ export async function POST(req: NextRequest) {
     }
     await execute(
       `INSERT INTO xero_gateway_mappings
-         (business_id, gateway_name, display_name, clearing_account_code, clearing_account_name,
+        (business_id, channel_instance_id, gateway_name, display_name, clearing_account_code, clearing_account_name,
           fee_account_code, fee_account_name, fee_tax_type, deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE
          display_name = VALUES(display_name),
          clearing_account_code = VALUES(clearing_account_code),
@@ -92,7 +102,7 @@ export async function POST(req: NextRequest) {
          deduct_fee_enabled = VALUES(deduct_fee_enabled),
          fixed_fee_amount = VALUES(fixed_fee_amount),
          percentage_fee_rate = VALUES(percentage_fee_rate)`,
-      [bid, normalizedGateway, display_name ?? gateway_name,
+      [bid, channelInstanceId, normalizedGateway, display_name ?? gateway_name,
        String(clearingAccount.Code), clearingAccount.Name ?? clearing_account_name ?? null,
        feeAccount ? String(feeAccount.Code) : null, feeAccount?.Name ?? fee_account_name ?? null, feeTaxType,
        deductFeeEnabled ? 1 : 0, fixedFeeAmount, percentageFeeRate],
@@ -109,11 +119,13 @@ export async function DELETE(req: NextRequest) {
   if (auth.response) return auth.response;
   const bid = auth.user!.businessId;
   const gateway_name = req.nextUrl.searchParams.get('gateway_name');
+  const channelInstanceId = String(req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId required' }, { status: 400 });
   if (!gateway_name) return NextResponse.json({ error: 'gateway_name required' }, { status: 400 });
   try {
     await execute(
-      `DELETE FROM xero_gateway_mappings WHERE business_id = ? AND gateway_name = ?`,
-      [bid, String(gateway_name).toLowerCase()],
+      `DELETE FROM xero_gateway_mappings WHERE business_id = ? AND channel_instance_id = ? AND gateway_name = ?`,
+      [bid, channelInstanceId, String(gateway_name).toLowerCase()],
     );
     return NextResponse.json({ success: true });
   } catch (e: any) {

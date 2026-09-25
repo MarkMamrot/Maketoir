@@ -1,7 +1,8 @@
 import { LoyaltyRepository } from '@/lib/ims/LoyaltyRepository';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { listContactChannelMappingsForContact } from '@/lib/ims/contactChannelMappings';
 import { LoyaltyService } from '@/lib/loyalty/LoyaltyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -14,23 +15,32 @@ export interface ShopifyCustomerMetafieldClient {
 
 export type ShopifyLoyaltyMetafieldSyncResult =
   | { status: 'synced'; contactId: number; shopifyCustomerId: string; balancePoints: number }
-  | { status: 'skipped'; contactId: number; reason: 'customer_not_found' | 'shopify_not_linked' | 'shopify_not_configured' }
+  | { status: 'skipped'; contactId: number; reason: 'customer_not_found' | 'shopify_not_linked' | 'shopify_instance_ambiguous' }
   | { status: 'failed'; contactId: number; error: string };
 
 export const ShopifyLoyaltyMetafieldService = {
   async syncConfiguredCustomer(input: {
     businessId: string;
     contactId: number;
+    channelInstanceId?: string;
   }): Promise<ShopifyLoyaltyMetafieldSyncResult> {
     try {
-      const credentials = await getShopifyAdminCredentials(input.businessId);
-      if (!credentials) {
-        return { status: 'skipped', contactId: input.contactId, reason: 'shopify_not_configured' };
+      let channelInstanceId = input.channelInstanceId?.trim() || '';
+      if (!channelInstanceId) {
+        const mappings = await listContactChannelMappingsForContact({
+          businessId: input.businessId,
+          contactId: input.contactId,
+        });
+        if (!mappings.length) return { status: 'skipped', contactId: input.contactId, reason: 'shopify_not_linked' };
+        if (mappings.length > 1) return { status: 'skipped', contactId: input.contactId, reason: 'shopify_instance_ambiguous' };
+        channelInstanceId = mappings[0].channelInstanceId;
       }
+      const context = await getShopifyOperationContext({ businessId: input.businessId, channelInstanceId });
       return this.syncCustomer({
         businessId: input.businessId,
+        channelInstanceId,
         contactId: input.contactId,
-        shopify: new ShopifyService(credentials.shopDomain, credentials.token),
+        shopify: new ShopifyService(context.credentials.shopDomain, context.credentials.token),
       });
     } catch (error) {
       await reportRuntimeIssue({
@@ -39,7 +49,7 @@ export const ShopifyLoyaltyMetafieldService = {
         operation: 'prepare_customer_metafield_sync',
         title: 'Shopify customer loyalty sync could not start',
         error,
-        context: { contactId: input.contactId },
+        context: { contactId: input.contactId, channelInstanceId: input.channelInstanceId ?? null },
         reference: { type: 'ims_contact', id: input.contactId },
       });
       return {
@@ -53,9 +63,23 @@ export const ShopifyLoyaltyMetafieldService = {
   async syncCustomer(input: {
     businessId: string;
     contactId: number;
+    channelInstanceId?: string;
     shopify: ShopifyCustomerMetafieldClient;
   }): Promise<ShopifyLoyaltyMetafieldSyncResult> {
     try {
+      let exactCustomerId: string | null = null;
+      if (input.channelInstanceId) {
+        const mappings = await imsQuery<{ external_customer_id: string }>(
+          `SELECT external_customer_id FROM ims_contact_channel_mappings
+            WHERE business_id = ? AND channel_instance_id = ? AND contact_id = ?
+              AND mapping_status = 'linked' LIMIT 1`,
+          [input.businessId, input.channelInstanceId, input.contactId],
+        );
+        exactCustomerId = String(mappings[0]?.external_customer_id ?? '').trim() || null;
+        if (!exactCustomerId) {
+          return { status: 'skipped', contactId: input.contactId, reason: 'shopify_not_linked' };
+        }
+      }
       const contacts = await imsQuery<{
         id: number;
         loyalty_member: number;
@@ -70,7 +94,7 @@ export const ShopifyLoyaltyMetafieldService = {
       );
       const contact = contacts[0];
       if (!contact) return { status: 'skipped', contactId: input.contactId, reason: 'customer_not_found' };
-      const shopifyCustomerId = String(contact.shopify_customer_id ?? '').trim();
+      const shopifyCustomerId = exactCustomerId ?? String(contact.shopify_customer_id ?? '').trim();
       if (!shopifyCustomerId) return { status: 'skipped', contactId: input.contactId, reason: 'shopify_not_linked' };
 
       const member = Boolean(contact.loyalty_member);
@@ -108,7 +132,7 @@ export const ShopifyLoyaltyMetafieldService = {
         operation: 'sync_customer_metafields',
         title: 'Shopify customer loyalty metafield sync failed',
         error,
-        context: { contactId: input.contactId },
+        context: { contactId: input.contactId, channelInstanceId: input.channelInstanceId ?? null },
         reference: { type: 'ims_contact', id: input.contactId },
       });
       return {

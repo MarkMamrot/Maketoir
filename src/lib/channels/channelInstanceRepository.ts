@@ -11,6 +11,10 @@ import {
   type SalesChannelProvider,
 } from './types';
 import { normalizeChannelInventoryLocationIds } from './buildCapacityPolicy';
+import {
+  shopifyInstanceSettings,
+  type ShopifyInstanceSettings,
+} from './shopifyInstanceSettings';
 
 interface SalesChannelInstanceRow {
   channel_instance_id: string;
@@ -184,6 +188,29 @@ export const SalesChannelInstanceRepository = {
         WHERE business_id = ? AND channel_instance_id = ?`,
       [input.mode, businessId, channelInstanceId],
     );
+    return this.getForBusiness(businessId, channelInstanceId);
+  },
+
+  async setShopifySettingsForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    settings: ShopifyInstanceSettings;
+  }): Promise<SalesChannelInstance | null> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    if (!businessId || !channelInstanceId) return null;
+    const settings = shopifyInstanceSettings({ shopify: input.settings });
+    const result = await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(
+                COALESCE(settings_json, JSON_OBJECT()),
+                '$.shopify', JSON_EXTRACT(?, '$')
+              ),
+              updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'shopify'`,
+      [JSON.stringify(settings), businessId, channelInstanceId],
+    );
+    if (Number(result.affectedRows ?? 0) !== 1) return null;
     return this.getForBusiness(businessId, channelInstanceId);
   },
 

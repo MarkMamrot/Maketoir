@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { ShopifyService } from '@/services/ShopifyService';
-import { decrypt } from '@/lib/encryption';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -14,23 +12,30 @@ import { imsQuery } from '@/services/IMSMySQLService';
  * One-time (or re-runnable) import of Shopify product images into ims_product_images.
  * Matches via shopify_product_id on ims_products.
  */
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   try {
-    const credentials = await getShopifyAdminCredentials(session.businessId);
-    if (!credentials) {
-      return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
-    }
+    const body = await req.json().catch(() => ({}));
+    const channelInstanceId = String(body?.channelInstanceId ?? '').trim();
+    if (!channelInstanceId) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
+    const { credentials } = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     // Get all IMS products for this business that are linked to Shopify
     const linked = await imsQuery<{ product_id: string; shopify_product_id: string }>(
-      `SELECT product_id, shopify_product_id FROM ims_products
-       WHERE shopify_product_id IS NOT NULL AND is_active = 1 AND business_id = ?`,
-      [session.businessId],
+      `SELECT DISTINCT variant.product_id, mapping.external_product_id AS shopify_product_id
+         FROM ims_sales_channel_product_mappings mapping
+         JOIN ims_product_variants variant
+           ON BINARY variant.business_id = BINARY mapping.business_id AND variant.variant_id = mapping.variant_id
+         JOIN ims_products product
+           ON BINARY product.business_id = BINARY variant.business_id AND product.product_id = variant.product_id
+        WHERE mapping.business_id = ? AND mapping.channel_instance_id = ?
+          AND mapping.mapping_status = 'linked' AND mapping.external_product_id IS NOT NULL
+          AND product.is_active = 1`,
+      [session.businessId, channelInstanceId],
     );
     if (!linked.length) {
       return NextResponse.json({ success: true, imported: 0, message: 'No linked products found. Run Reconcile first.' });
@@ -64,7 +69,7 @@ export async function POST() {
     await ImsShopifyRepo.logAction('upload', 'success',
       `Imported images for ${imported} products from Shopify`, session.businessId, { imported, skipped });
 
-    return NextResponse.json({ success: true, imported, skipped, total: linked.length });
+    return NextResponse.json({ success: true, channelInstanceId, imported, skipped, total: linked.length });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

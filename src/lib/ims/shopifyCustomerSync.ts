@@ -1,5 +1,10 @@
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
-import { imsExecute } from '@/services/IMSMySQLService';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import {
+  getContactChannelMappingForContact,
+  listContactChannelMappingsForContact,
+} from '@/lib/ims/contactChannelMappings';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { ShopifyService } from '@/services/ShopifyService';
 
 type SyncableContact = {
@@ -49,56 +54,85 @@ function scopeHint(message: string) {
     : message;
 }
 
-export async function syncRetailCustomerToShopify(contact: SyncableContact, businessId: string): Promise<ShopifyCustomerSyncResult> {
+export async function syncRetailCustomerToShopify(contact: SyncableContact, input: {
+  businessId: string;
+  channelInstanceId: string;
+}): Promise<ShopifyCustomerSyncResult> {
   if (!shouldSyncRetailCustomer(contact)) {
-    return { success: false, action: 'skipped', reason: 'Only retail customers sync to Shopify in v1.', shopifyCustomerId: contact.shopify_customer_id ?? null };
+    return { success: false, action: 'skipped', reason: 'Only retail customers sync to Shopify in v1.', shopifyCustomerId: null };
   }
 
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) {
-    return { success: false, action: 'skipped', reason: 'Shopify credentials not configured.', shopifyCustomerId: contact.shopify_customer_id ?? null };
-  }
-  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
-
-  if (Number(contact.is_active ?? 1) === 0) {
-    if (!contact.shopify_customer_id) {
-      return { success: false, action: 'skipped', reason: 'Inactive retail customer has no linked Shopify customer ID to disable.', shopifyCustomerId: null };
-    }
-    try {
-      await shopify.disableCustomer(contact.shopify_customer_id);
-      return { success: true, action: 'updated', shopifyCustomerId: String(contact.shopify_customer_id) };
-    } catch (e: any) {
-      return { success: false, action: 'error', reason: scopeHint(e.message ?? 'Failed to disable Shopify customer.'), shopifyCustomerId: contact.shopify_customer_id ?? null };
-    }
+  const businessId = input.businessId.trim();
+  const channelInstanceId = input.channelInstanceId.trim();
+  if (!businessId || !channelInstanceId) {
+    return { success: false, action: 'error', reason: 'Business and Shopify channel instance are required.', shopifyCustomerId: null };
   }
 
-  const payload = buildShopifyCustomerPayload(contact);
-  if (!Object.keys(payload).length) {
-    return { success: false, action: 'skipped', reason: 'Retail customer has no Shopify-syncable fields.', shopifyCustomerId: contact.shopify_customer_id ?? null };
+  const mapping = await getContactChannelMappingForContact({ businessId, channelInstanceId, contactId: contact.id });
+  if (!mapping || mapping.mappingStatus !== 'linked') {
+    return { success: false, action: 'skipped', reason: 'Customer is not linked to this Shopify storefront.', shopifyCustomerId: null };
   }
 
   try {
-    if (contact.shopify_customer_id) {
-      // Best-effort reactivation: keep IMS active state aligned for previously disabled Shopify customers.
-      await shopify.enableCustomer(contact.shopify_customer_id).catch(() => {});
-      await shopify.updateCustomer(contact.shopify_customer_id, payload);
-      return { success: true, action: 'updated', shopifyCustomerId: String(contact.shopify_customer_id) };
+    const context = await getShopifyOperationContext({ businessId, channelInstanceId });
+    if (!shopifyInstanceSettings(context.instance.settings).customers.outboundEnabled) {
+      return { success: false, action: 'skipped', reason: 'Outbound customer sync is disabled for this Shopify storefront.', shopifyCustomerId: mapping.externalCustomerId };
+    }
+    const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
+
+    if (Number(contact.is_active ?? 1) === 0) {
+      await shopify.disableCustomer(mapping.externalCustomerId);
+      return { success: true, action: 'updated', shopifyCustomerId: mapping.externalCustomerId };
     }
 
-    const email = payload.email;
-    if (email) {
-      const existing = await shopify.findCustomerByEmail(email);
-      if (existing) {
-        await shopify.updateCustomer(existing.id, payload);
-        await imsExecute('UPDATE ims_contacts SET shopify_customer_id = ? WHERE id = ?', [String(existing.id), contact.id]);
-        return { success: true, action: 'linked', shopifyCustomerId: String(existing.id) };
-      }
+    const payload = buildShopifyCustomerPayload(contact);
+    if (!Object.keys(payload).length) {
+      return { success: false, action: 'skipped', reason: 'Retail customer has no Shopify-syncable fields.', shopifyCustomerId: mapping.externalCustomerId };
     }
 
-    const created = await shopify.createCustomer(payload);
-    await imsExecute('UPDATE ims_contacts SET shopify_customer_id = ? WHERE id = ?', [String(created.id), contact.id]);
-    return { success: true, action: 'created', shopifyCustomerId: String(created.id) };
-  } catch (e: any) {
-    return { success: false, action: 'error', reason: scopeHint(e.message ?? 'Shopify customer sync failed.'), shopifyCustomerId: contact.shopify_customer_id ?? null };
+    await shopify.enableCustomer(mapping.externalCustomerId).catch(() => {});
+    await shopify.updateCustomer(mapping.externalCustomerId, payload);
+    return { success: true, action: 'updated', shopifyCustomerId: mapping.externalCustomerId };
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'shopify_customer_sync',
+      operation: 'update_mapped_customer',
+      title: 'Shopify customer sync failed',
+      error,
+      context: { channelInstanceId, contactId: contact.id },
+      reference: { type: 'ims_contact', id: contact.id },
+    }).catch(() => {});
+    return {
+      success: false,
+      action: 'error',
+      reason: scopeHint(error instanceof Error ? error.message : 'Shopify customer sync failed.'),
+      shopifyCustomerId: mapping.externalCustomerId,
+    };
   }
+}
+
+export async function syncRetailCustomerToMappedShopifyInstances(
+  contact: SyncableContact,
+  businessId: string,
+): Promise<ShopifyCustomerSyncResult> {
+  const mappings = await listContactChannelMappingsForContact({ businessId, contactId: contact.id });
+  if (!mappings.length) {
+    return { success: false, action: 'skipped', reason: 'Customer has no exact Shopify storefront mappings.', shopifyCustomerId: null };
+  }
+  const results = await Promise.all(mappings.map(mapping => syncRetailCustomerToShopify(contact, {
+    businessId,
+    channelInstanceId: mapping.channelInstanceId,
+  })));
+  const failed = results.filter(result => !result.success && result.action === 'error');
+  if (failed.length) {
+    return {
+      success: false,
+      action: 'error',
+      reason: `${failed.length} of ${results.length} mapped Shopify storefront updates failed.`,
+      shopifyCustomerId: failed[0].shopifyCustomerId,
+    };
+  }
+  const synced = results.find(result => result.success);
+  return synced ?? results[0];
 }

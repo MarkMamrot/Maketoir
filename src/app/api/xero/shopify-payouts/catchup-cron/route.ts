@@ -24,42 +24,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
 
-  const businesses = await query<{ business_id: string }>(
-    `SELECT b.business_id
+  const instances = await query<{ business_id: string; channel_instance_id: string }>(
+    `SELECT b.business_id, instance.channel_instance_id
        FROM businesses b
-       JOIN connections c ON c.business_id = b.business_id
+       JOIN sales_channel_instances instance ON instance.business_id = b.business_id
       WHERE b.deleted_at IS NULL
         AND COALESCE(b.automation_paused, 0) = 0
-        AND c.shopify_shop_id IS NOT NULL AND c.shopify_shop_id != ''
-        AND (
-          (COALESCE(c.shopify_auth_mode, 'legacy_token') = 'legacy_token' AND c.shopify_access_token IS NOT NULL AND c.shopify_access_token != '')
-          OR
-          (c.shopify_auth_mode = 'client_credentials' AND c.shopify_client_id IS NOT NULL AND c.shopify_client_id != '' AND c.shopify_client_secret IS NOT NULL AND c.shopify_client_secret != '')
-        )
-      ORDER BY b.business_id`,
+        AND instance.provider = 'shopify'
+        AND instance.is_enabled = 1
+        AND instance.runtime_status = 'active'
+        AND instance.readiness_status = 'ready'
+      ORDER BY b.business_id, instance.channel_instance_id`,
     [],
   );
   const dateMin = catchupDateMin();
   const results: Array<{
     businessId: string;
+    channelInstanceId: string;
     discovered: number;
     processed: number;
     failed: number;
     error?: string;
   }> = [];
 
-  for (const { business_id: businessId } of businesses) {
+  for (const { business_id: businessId, channel_instance_id: channelInstanceId } of instances) {
     try {
       const result = await runImsForBusiness(businessId, async () => {
-        const creds = await getShopifyApiCreds(businessId);
-        if (!creds) throw new Error('Shopify credentials are unavailable');
+        const creds = await getShopifyApiCreds(businessId, channelInstanceId);
         const payouts = await fetchPaidShopifyPayouts(creds, dateMin);
         let processed = 0;
         let failed = 0;
         for (const payout of payouts) {
           try {
-            await ingestShopifyPayout(businessId, payout, creds);
-            await autoPostShopifyPayout(businessId, String(payout?.id ?? ''));
+            await ingestShopifyPayout(businessId, channelInstanceId, payout, creds);
+            await autoPostShopifyPayout(businessId, channelInstanceId, String(payout?.id ?? ''));
             processed += 1;
           } catch (error) {
             failed += 1;
@@ -71,12 +69,12 @@ export async function POST(request: Request) {
               operation: 'payout_catchup_ingest',
               title: 'Shopify payout catch-up failed',
               error,
-              context: { date_min: dateMin },
+              context: { date_min: dateMin, channelInstanceId },
               reference: { type: 'shopify_payout', id: payoutId },
             });
           }
         }
-        return { businessId, discovered: payouts.length, processed, failed };
+        return { businessId, channelInstanceId, discovered: payouts.length, processed, failed };
       });
       results.push(result);
     } catch (error: any) {
@@ -86,10 +84,11 @@ export async function POST(request: Request) {
         operation: 'payout_catchup_business',
         title: 'Shopify payout catch-up failed for organisation',
         error,
-        context: { date_min: dateMin },
+        context: { date_min: dateMin, channelInstanceId },
       });
       results.push({
         businessId,
+        channelInstanceId,
         discovered: 0,
         processed: 0,
         failed: 1,
@@ -101,7 +100,8 @@ export async function POST(request: Request) {
   const failed = results.reduce((sum, result) => sum + result.failed, 0);
   return NextResponse.json({
     dateMin,
-    businesses: businesses.length,
+    businesses: new Set(instances.map(instance => instance.business_id)).size,
+    instances: instances.length,
     discovered: results.reduce((sum, result) => sum + result.discovered, 0),
     processed: results.reduce((sum, result) => sum + result.processed, 0),
     failed,

@@ -5,6 +5,8 @@
 
 Reports are read-only views of operational information. Choose a report by the question it answers, then align its date, location, and status filters before comparing totals.
 
+Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify storefront. Sales Summary also offers **Store / Channel** as a grouping, allowing stores to be compared in one result. Leaving the filter at **All channels** retains POS, wholesale, imported history and every online channel covered by that report.
+
 ## Main operations
 
 - Start with a summary report for the pattern and a detail report for the source records.

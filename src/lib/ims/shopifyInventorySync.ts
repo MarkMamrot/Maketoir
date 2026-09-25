@@ -11,7 +11,9 @@
  */
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { createNotification } from '@/lib/ims/createNotification';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -45,13 +47,6 @@ export async function getOnlinePickLocationIds(businessId: string): Promise<numb
   return single ? [single] : [];
 }
 
-/** Build a Shopify service for a business, or null if not connected. */
-export async function getShopifyForBusiness(businessId: string): Promise<ShopifyService | null> {
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) return null;
-  return new ShopifyService(credentials.shopDomain, credentials.token);
-}
-
 /**
  * Returns `{ price, compare_at_price }` for a Shopify variant update/create.
  *
@@ -75,42 +70,6 @@ export function shopifyInventoryPolicyPayload(isStockItem: number | boolean | nu
   return tracksInventory
     ? { inventory_management: 'shopify', inventory_policy: 'deny' }
     : { inventory_management: null, inventory_policy: 'continue' };
-}
-
-/** Resolve the Shopify location used for online inventory.
- *  Infers it from an existing inventory level (write_inventory scope only).
- *  Caches the result in ims_settings so subsequent calls are instant.
- */
-export async function getShopifyInventoryLocationId(businessId: string, shopify: ShopifyService): Promise<number | null> {
-  // Use cached value if present.
-  const cached = Number(await getSetting(businessId, 'shopify_inventory_location_id') || 0);
-  if (cached) return cached;
-
-  // Discover from the first linked variant's existing inventory level.
-  // This only needs write_inventory scope — no read_locations required.
-  try {
-    const rows = await imsQuery<{ shopify_inventory_item_id: string }>(
-      `SELECT v.shopify_inventory_item_id
-         FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1
-          AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''
-        LIMIT 1`,
-      [businessId],
-    );
-    if (rows[0]?.shopify_inventory_item_id) {
-      const locationIds = await shopify.getInventoryLocationsForItem(rows[0].shopify_inventory_item_id);
-      if (locationIds.length) {
-        // Cache so we don't re-discover on every push.
-        await imsExecute(
-          `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'shopify_inventory_location_id', ?)
-             ON DUPLICATE KEY UPDATE value = VALUES(value)`,
-          [businessId, String(locationIds[0])],
-        );
-        return locationIds[0];
-      }
-    }
-  } catch {}
-  return null;
 }
 
 /** Available-to-sell per variant across the counting locations, minus optional buffer. */
@@ -137,67 +96,62 @@ async function computeAvailable(
 
 export interface PushResult { pushed: number; skipped: number; errors: string[]; locationId: number | null }
 
-export function inventoryQueueIdsToDelete(
-  queued: { variant_id: string; business_id: string }[],
-  failedBusinessIds: ReadonlySet<string>,
-): string[] {
-  return queued.filter(item => !failedBusinessIds.has(item.business_id)).map(item => item.variant_id);
-}
-
 /**
- * Push inventory for a business. Pass explicit variantIds, or all=true to push
- * every Shopify-linked variant (initial reconcile). Respects the
- * shopify_inventory_sync_enabled setting unless force=true.
+ * Push absolute inventory to one exact Shopify instance. The instance's typed
+ * settings are the sole source of provider location, IMS locations and buffer.
  */
-export async function pushInventoryForBusiness(
-  businessId: string,
-  opts: { variantIds?: string[]; all?: boolean; force?: boolean } = {},
+export async function pushInventoryForShopifyInstance(
+  input: {
+    businessId: string;
+    channelInstanceId: string;
+    variantIds?: string[];
+    all?: boolean;
+    force?: boolean;
+  },
 ): Promise<PushResult> {
   const result: PushResult = { pushed: 0, skipped: 0, errors: [], locationId: null };
-
-  const enabled = (await getSetting(businessId, 'shopify_inventory_sync_enabled')) === '1';
-  if (!enabled && !opts.force) { result.errors.push('Inventory sync disabled'); return result; }
-
-  const shopify = await getShopifyForBusiness(businessId);
-  if (!shopify) { result.errors.push('Shopify not connected'); return result; }
-
-  const pickLocs = await getOnlinePickLocationIds(businessId);
+  const context = await getShopifyOperationContext(input);
+  const settings = shopifyInstanceSettings(context.instance.settings).inventory;
+  if (!settings.enabled && !input.force) { result.errors.push('Inventory sync disabled'); return result; }
+  const pickLocs = settings.pickLocationIds;
   if (!pickLocs.length) { result.errors.push('No stock counting locations configured'); return result; }
-
-  const buffer = Math.max(0, parseInt(await getSetting(businessId, 'shopify_inventory_buffer') || '0', 10));
-
-  // Use a pre-resolved location if passed (avoids an extra API call that needs read_locations scope).
-  const shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
+  const shopifyLocationId = settings.locationId;
   if (!shopifyLocationId) { result.errors.push('No Shopify inventory location'); return result; }
   result.locationId = shopifyLocationId;
+  const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
 
-  // Resolve the variants to push (must be Shopify-linked with an inventory_item_id)
-  let linkRows: { variant_id: string; shopify_inventory_item_id: string }[];
-  if (opts.all) {
+  let linkRows: { variant_id: string; external_inventory_id: string }[];
+  if (input.all) {
     linkRows = await imsQuery(
-      `SELECT v.variant_id, v.shopify_inventory_item_id
-         FROM ims_product_variants v
-         JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1
-          AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
-      [businessId],
+      `SELECT mapping.variant_id, mapping.external_inventory_id
+         FROM ims_sales_channel_product_mappings mapping
+         JOIN ims_product_variants variant ON variant.variant_id = mapping.variant_id
+         JOIN ims_products product ON product.product_id = variant.product_id
+        WHERE mapping.business_id = ? AND mapping.channel_instance_id = ?
+          AND mapping.mapping_status = 'linked' AND mapping.variant_id IS NOT NULL
+          AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
+          AND COALESCE(product.is_stock_item, 1) = 1`,
+      [input.businessId, input.channelInstanceId],
     );
   } else {
-    const ids = opts.variantIds ?? [];
+    const ids = [...new Set(input.variantIds ?? [])];
     if (!ids.length) return result;
     const ph = ids.map(() => '?').join(',');
     linkRows = await imsQuery(
-      `SELECT v.variant_id, v.shopify_inventory_item_id
-         FROM ims_product_variants v
-         JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1 AND v.variant_id IN (${ph})
-          AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
-      [businessId, ...ids],
+      `SELECT mapping.variant_id, mapping.external_inventory_id
+         FROM ims_sales_channel_product_mappings mapping
+         JOIN ims_product_variants variant ON variant.variant_id = mapping.variant_id
+         JOIN ims_products product ON product.product_id = variant.product_id
+        WHERE mapping.business_id = ? AND mapping.channel_instance_id = ?
+          AND mapping.mapping_status = 'linked' AND mapping.variant_id IN (${ph})
+          AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
+          AND COALESCE(product.is_stock_item, 1) = 1`,
+      [input.businessId, input.channelInstanceId, ...ids],
     );
   }
   if (!linkRows.length) return result;
 
-  const availByVariant = await computeAvailable(pickLocs, linkRows.map(r => r.variant_id), buffer);
+  const availByVariant = await computeAvailable(pickLocs, linkRows.map(r => r.variant_id), settings.buffer);
 
   // Push in bulk GraphQL batches (up to 250 inventory items per API call).
   // This replaces the old one-REST-call-per-variant loop, which was ~600ms per
@@ -206,7 +160,7 @@ export async function pushInventoryForBusiness(
   for (let i = 0; i < linkRows.length; i += BULK) {
     const chunk = linkRows.slice(i, i + BULK);
     const items = chunk.map(row => ({
-      inventoryItemId: row.shopify_inventory_item_id,
+      inventoryItemId: row.external_inventory_id,
       available: availByVariant.get(row.variant_id) ?? 0,
     }));
     try {
@@ -240,102 +194,149 @@ export async function pushInventoryForBusiness(
   return result;
 }
 
-/**
- * Drain the dirty-variant queue across all businesses. Processes up to `limit`
- * variants. Unlinked variants are cleared, while a business batch that reports
- * an error remains queued for a later retry.
- */
-export async function drainInventoryQueue(limit = 250): Promise<{ processed: number; pushed: number; businesses: number; errors: string[] }> {
-  let queued: { variant_id: string; business_id: string; inv: string | null }[];
+const INVENTORY_OPERATION = 'shopify_inventory';
+
+/** Expand legacy variant-only queue rows through exact linked mappings. */
+export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Promise<number> {
+  const shopifyInstanceIds = (await SalesChannelInstanceRepository.listForBusiness(businessId))
+    .filter(instance => instance.provider === 'shopify')
+    .map(instance => instance.channelInstanceId);
+  if (shopifyInstanceIds.length === 0) return 0;
+  const instancePlaceholders = shopifyInstanceIds.map(() => '?').join(',');
+  const inserted = await imsExecute(
+    `INSERT INTO ims_sales_channel_jobs
+       (business_id, channel_instance_id, provider, operation, operation_key, payload_json)
+     SELECT mapping.business_id, mapping.channel_instance_id, 'shopify', ?,
+            CONCAT('shopify_inventory:', mapping.variant_id), JSON_OBJECT('variantId', mapping.variant_id)
+       FROM ims_shopify_inventory_queue queue_item
+       JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
+       JOIN ims_products product ON product.product_id = variant.product_id
+       JOIN ims_sales_channel_product_mappings mapping
+         ON mapping.business_id = product.business_id AND mapping.variant_id = variant.variant_id
+      WHERE product.business_id = ? AND mapping.channel_instance_id IN (${instancePlaceholders})
+        AND mapping.mapping_status = 'linked'
+        AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
+        AND COALESCE(product.is_stock_item, 1) = 1
+     ON DUPLICATE KEY UPDATE
+       payload_json = VALUES(payload_json), status = IF(status = 'processing', status, 'pending'),
+       attempts = IF(status = 'processing', attempts, 0),
+       available_at = IF(status = 'processing', available_at, CURRENT_TIMESTAMP(3)),
+       completed_at = IF(status = 'processing', completed_at, NULL),
+       safe_error = IF(status = 'processing', safe_error, NULL)`,
+    [INVENTORY_OPERATION, businessId, ...shopifyInstanceIds],
+  );
+  await imsExecute(
+    `DELETE queue_item FROM ims_shopify_inventory_queue queue_item
+      JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
+      JOIN ims_products product ON product.product_id = variant.product_id
+    WHERE product.business_id = ? AND EXISTS (
+       SELECT 1 FROM ims_sales_channel_product_mappings mapping
+        WHERE mapping.business_id = product.business_id AND mapping.variant_id = variant.variant_id
+      AND mapping.channel_instance_id IN (${instancePlaceholders})
+          AND mapping.mapping_status = 'linked' AND mapping.external_inventory_id IS NOT NULL
+          AND mapping.external_inventory_id <> ''
+     )`,
+      [businessId, ...shopifyInstanceIds],
+  );
+  return Number(inserted.affectedRows ?? 0);
+}
+
+function jobVariantId(payload: string | Record<string, unknown> | null): string {
   try {
-    const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)), 10000));
-    queued = await imsQuery<{ variant_id: string; business_id: string; inv: string | null }>(
-      `SELECT q.variant_id, p.business_id, v.shopify_inventory_item_id AS inv
-         FROM ims_shopify_inventory_queue q
-         JOIN ims_product_variants v ON v.variant_id = q.variant_id
-         JOIN ims_products p ON p.product_id = v.product_id
-        ORDER BY q.queued_at ASC
-        LIMIT ${safeLimit}`,
+    const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    return String(parsed?.variantId ?? '').trim();
+  } catch { return ''; }
+}
+
+/**
+ * Drain exact-instance Shopify inventory jobs for one tenant. A failed store is
+ * retained for retry without suppressing successful stores.
+ */
+export async function drainInventoryQueue(
+  limit = 250,
+  businessId: string,
+): Promise<{ processed: number; pushed: number; businesses: number; errors: string[] }> {
+  await fanOutLegacyShopifyInventoryQueue(businessId);
+  await imsExecute(
+    `UPDATE ims_sales_channel_jobs
+        SET status = 'pending', locked_at = NULL, available_at = CURRENT_TIMESTAMP(3),
+            safe_error = 'Recovered after an interrupted Shopify inventory worker.'
+      WHERE business_id = ? AND provider = 'shopify' AND operation = ? AND status = 'processing'
+        AND locked_at < DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 10 MINUTE)`,
+    [businessId, INVENTORY_OPERATION],
+  );
+  const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)), 10000));
+  const jobs = await imsQuery<{ id: number; channel_instance_id: string; payload_json: string | Record<string, unknown> | null; attempts: number }>(
+    `SELECT id, channel_instance_id, payload_json, attempts
+       FROM ims_sales_channel_jobs
+      WHERE business_id = ? AND provider = 'shopify' AND operation = ?
+        AND status = 'pending' AND available_at <= CURRENT_TIMESTAMP(3)
+      ORDER BY available_at, id LIMIT ${safeLimit}`,
+    [businessId, INVENTORY_OPERATION],
+  );
+  const claimedJobs: typeof jobs = [];
+  for (const job of jobs) {
+    const claimed = await imsExecute(
+      `UPDATE ims_sales_channel_jobs
+          SET status = 'processing', attempts = attempts + 1, locked_at = CURRENT_TIMESTAMP(3), safe_error = NULL
+        WHERE id = ? AND business_id = ? AND channel_instance_id = ?
+          AND provider = 'shopify' AND operation = ? AND status = 'pending'`,
+      [job.id, businessId, job.channel_instance_id, INVENTORY_OPERATION],
     );
-  } catch (e: any) {
-    console.error('[inventory-sync] drainInventoryQueue query failed:', e?.message);
-    return { processed: 0, pushed: 0, businesses: 0, errors: [`Queue query failed: ${e?.message ?? 'unknown'}`] };
+    if (Number(claimed.affectedRows ?? 0) === 1) claimedJobs.push(job);
   }
-  if (!queued.length) return { processed: 0, pushed: 0, businesses: 0, errors: [] };
-
-  // Group by business
-  const byBiz = new Map<string, string[]>();
-  for (const q of queued) {
-    if (!q.inv) continue; // not linked — will just be cleared
-    if (!byBiz.has(q.business_id)) byBiz.set(q.business_id, []);
-    byBiz.get(q.business_id)!.push(q.variant_id);
+  const byInstance = new Map<string, typeof jobs>();
+  for (const job of claimedJobs) {
+    if (!byInstance.has(job.channel_instance_id)) byInstance.set(job.channel_instance_id, []);
+    byInstance.get(job.channel_instance_id)!.push(job);
   }
-
   let pushed = 0;
   const drainErrors: string[] = [];
-  const failedBusinessIds = new Set<string>();
-  for (const [businessId, variantIds] of byBiz) {
+  let processed = 0;
+  for (const [channelInstanceId, instanceJobs] of byInstance) {
+    const variantIds = instanceJobs.map(job => jobVariantId(job.payload_json)).filter(Boolean);
     try {
-      // force:true so queued items always push regardless of the 'enabled' toggle.
-      const res = await pushInventoryForBusiness(businessId, { variantIds, force: true });
+      const res = await pushInventoryForShopifyInstance({ businessId, channelInstanceId, variantIds });
       pushed += res.pushed;
+      processed += instanceJobs.length;
       if (res.errors.length) {
-        failedBusinessIds.add(businessId);
         drainErrors.push(...res.errors.slice(0, 3));
-        await ImsShopifyRepo.logAction('upload', 'error', `Inventory sync failed for ${res.errors.length} issue(s): ${res.errors[0]}`, businessId, { variant_ids: variantIds, errors: res.errors }).catch(() => {});
-        await reportRuntimeIssue({
-          businessId,
-          source: 'shopify_inventory',
-          operation: 'drain_queue',
-          title: 'Shopify inventory queue could not be drained',
-          error: res.errors[0],
-          context: { variant_count: variantIds.length, errors: res.errors.slice(0, 10) },
-        });
-        createNotification(
-          businessId,
-          'shopify_inventory',
-          `${res.errors.length} Shopify inventory ${res.errors.length === 1 ? 'update needs' : 'updates need'} review`,
-          [`Solvantis attempted to update ${variantIds.length} products in Shopify, but ${res.errors.length} updates reported an issue:`, ...res.errors.slice(0, 10).map(error => `- ${error}`), 'Check the affected products and their Shopify links before retrying.'].join('\n'),
-          { errors: res.errors, variant_ids: variantIds },
-        ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
+        throw new Error(res.errors[0]);
       } else {
+        await imsExecute(
+          `UPDATE ims_sales_channel_jobs SET status = 'complete', completed_at = CURRENT_TIMESTAMP(3), locked_at = NULL, safe_error = NULL
+            WHERE business_id = ? AND channel_instance_id = ? AND id IN (${instanceJobs.map(() => '?').join(',')})`,
+          [businessId, channelInstanceId, ...instanceJobs.map(job => job.id)],
+        );
         await ImsShopifyRepo.logAction('upload', 'success', `Inventory sync pushed ${res.pushed} variant(s) to Shopify`, businessId, { variant_ids: variantIds, pushed: res.pushed }).catch(() => {});
       }
     } catch (e: any) {
       const msg = e?.message ?? 'unknown error';
-      console.error('[inventory-sync] business', businessId, msg);
-      failedBusinessIds.add(businessId);
       drainErrors.push(msg);
-      await ImsShopifyRepo.logAction('upload', 'error', `Inventory sync crashed: ${msg}`, businessId, { variant_ids: variantIds, error: msg }).catch(() => {});
+      const attempts = Math.max(...instanceJobs.map(job => Number(job.attempts ?? 0) + 1), 1);
+      await imsExecute(
+        `UPDATE ims_sales_channel_jobs
+        SET status = IF(attempts >= 5, 'failed', 'pending'),
+                available_at = DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL ? SECOND), locked_at = NULL, safe_error = ?
+          WHERE business_id = ? AND channel_instance_id = ? AND id IN (${instanceJobs.map(() => '?').join(',')})`,
+        [Math.min(3600, 30 * (2 ** Math.max(0, attempts - 1))), msg.slice(0, 500), businessId, channelInstanceId, ...instanceJobs.map(job => job.id)],
+      );
       await reportRuntimeIssue({
         businessId,
         source: 'shopify_inventory',
         operation: 'drain_queue',
-        title: 'Shopify inventory queue stopped unexpectedly',
+        title: 'Shopify inventory update failed',
         error: e,
-        context: { variant_count: variantIds.length },
-      });
+        context: { channelInstanceId, variantIds, attempt: attempts },
+      }).catch(() => null);
       createNotification(
         businessId,
         'shopify_inventory',
         `Shopify inventory update stopped for ${variantIds.length} ${variantIds.length === 1 ? 'product' : 'products'}`,
         `Solvantis could not finish sending inventory for these products to Shopify. Check the connection and product links before retrying.\n\nTechnical reason: ${msg}`,
-        { errors: [msg], variant_ids: variantIds },
+        { errors: [msg], variant_ids: variantIds, channel_instance_id: channelInstanceId },
       ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
     }
   }
-
-  // Retain failed business batches so a transient provider error cannot lose stock updates.
-  const completedVariantIds = inventoryQueueIdsToDelete(queued, failedBusinessIds);
-  const DEL_CHUNK = 500;
-  for (let i = 0; i < completedVariantIds.length; i += DEL_CHUNK) {
-    const chunk = completedVariantIds.slice(i, i + DEL_CHUNK);
-    const ph = chunk.map(() => '?').join(',');
-    await imsExecute(
-      `DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${ph})`,
-      chunk,
-    ).catch(err => console.error('[inventory-sync] delete chunk error:', err?.message));
-  }
-
-  return { processed: queued.length, pushed, businesses: byBiz.size, errors: drainErrors };
+  return { processed, pushed, businesses: byInstance.size, errors: drainErrors };
 }

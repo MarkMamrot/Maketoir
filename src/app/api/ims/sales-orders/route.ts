@@ -3,6 +3,7 @@ import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { resolveEarlyPaymentDiscountOrderSnapshot } from '@/lib/ims/earlyPaymentDiscountRules';
+import { query } from '@/services/MySQLService';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
@@ -22,15 +23,33 @@ export async function GET(req: Request) {
     const pageSizeRaw = Number(searchParams.get('pageSize') ?? '25') || 25;
     const pageSize = Math.min(100, Math.max(10, pageSizeRaw));
     const rawChannel = (searchParams.get('channel') ?? 'b2b').toLowerCase();
+    const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
     const channel = (['all', 'b2b', 'online', 'pos'].includes(rawChannel)
       ? rawChannel
       : 'b2b') as 'all' | 'b2b' | 'online' | 'pos';
-    const soData = channel === 'pos' ? [] : await ImsSORepo.list(status, businessId, channel);
-    const posLedger = (channel === 'pos' || channel === 'all')
+    const effectiveChannel = channelInstanceId ? 'online' : channel;
+    const soData = effectiveChannel === 'pos' ? [] : await ImsSORepo.list(status, businessId, effectiveChannel);
+    const posLedger = !channelInstanceId && (effectiveChannel === 'pos' || effectiveChannel === 'all')
       ? await ImsSORepo.listPosLedger(status)
       : [];
 
     let merged = [...soData, ...posLedger];
+    const channelIds = [...new Set(merged.map((row: any) => String(row?.channel_instance_id ?? '').trim()).filter(Boolean))];
+    if (channelIds.length > 0) {
+      const channels = await query<{ channel_instance_id: string; display_name: string }>(
+        `SELECT channel_instance_id, display_name FROM sales_channel_instances
+          WHERE business_id = ? AND channel_instance_id IN (${channelIds.map(() => '?').join(',')})`,
+        [businessId, ...channelIds],
+      );
+      const names = new Map(channels.map(channelRow => [channelRow.channel_instance_id, channelRow.display_name]));
+      merged = merged.map((row: any) => ({
+        ...row,
+        channel_display_name: names.get(String(row?.channel_instance_id ?? '')) ?? null,
+      }));
+    }
+    if (channelInstanceId) {
+      merged = merged.filter((row: any) => String(row?.channel_instance_id ?? '') === channelInstanceId);
+    }
 
     if (product) {
       const [soIdsRaw, posIdsRaw] = await Promise.all([

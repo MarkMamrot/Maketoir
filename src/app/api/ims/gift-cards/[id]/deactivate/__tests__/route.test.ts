@@ -6,9 +6,11 @@ const mocks = vi.hoisted(() => ({
   release: vi.fn(),
   disableGiftCard: vi.fn(),
   getProvider: vi.fn(),
+  getShopifyOperationContext: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getImsSession }));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.getShopifyOperationContext }));
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: () => ({ getConnection: async () => ({
     execute: mocks.execute,
@@ -31,6 +33,9 @@ describe('gift-card deactivation route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getImsSession.mockResolvedValue({ businessId: 'business-1', tier: 'Manager' });
+    mocks.getShopifyOperationContext.mockResolvedValue({
+      credentials: { shopDomain: 'store-two.myshopify.com', token: 'store-two-token' },
+    });
   });
 
   it('returns an existing command before making another irreversible provider call', async () => {
@@ -48,5 +53,30 @@ describe('gift-card deactivation route', () => {
     expect(mocks.execute).toHaveBeenCalledTimes(1);
     expect(mocks.disableGiftCard).not.toHaveBeenCalled();
     expect(mocks.release).toHaveBeenCalledOnce();
+  });
+
+  it('uses the selected card owner for Shopify deactivation', async () => {
+    mocks.execute
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{
+        balance: '25.00', status: 'active', shopify_gc_id: 100,
+        channel_instance_id: 'shopify-store-2',
+      }]])
+      .mockResolvedValueOnce([{ insertId: 45 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    mocks.disableGiftCard.mockResolvedValue(undefined);
+    const request = new Request('https://solvantis.com.au/api/ims/gift-cards/7/deactivate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Customer request', expected_balance: 25, idempotency_key: 'deactivate-7' }),
+    });
+
+    const response = await POST(request, { params: { id: '7' } });
+
+    expect(response.status).toBe(200);
+    expect(mocks.getShopifyOperationContext).toHaveBeenCalledWith({
+      businessId: 'business-1',
+      channelInstanceId: 'shopify-store-2',
+    });
+    expect(mocks.disableGiftCard).toHaveBeenCalledWith(100);
   });
 });

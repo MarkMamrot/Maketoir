@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -114,24 +115,63 @@ export interface ShopifyDiagnosticsInput {
 
 export async function loadShopifyDiagnostics(input: ShopifyDiagnosticsInput) {
   const limit = Math.min(30, Math.max(1, input.limit ?? 30));
-  const [connection, counts, settings, logRows] = await Promise.all([
-    ConnectionsRepository.get(input.businessId),
-    ImsShopifyRepo.getCounts(input.businessId),
-    imsQuery<{ key: string; value: string | null }>(
-      "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('shopify_order_sync_enabled', 'shopify_webhook_secret')",
+  const [instances, counts, logRows] = await Promise.all([
+    query<{
+      channel_instance_id: string;
+      display_name: string;
+      external_account_key: string | null;
+      is_enabled: number;
+      runtime_status: string;
+      readiness_status: string;
+      settings_json: string | Record<string, unknown> | null;
+      credential_configured: number;
+      registered_webhooks: number;
+      secret_webhooks: number;
+    }>(
+      `SELECT instance.channel_instance_id, instance.display_name, instance.external_account_key,
+              instance.is_enabled, instance.runtime_status, instance.readiness_status, instance.settings_json,
+              EXISTS(SELECT 1 FROM sales_channel_credentials credential
+                       WHERE credential.channel_instance_id = instance.channel_instance_id
+                         AND credential.credential_type = 'shopify_admin_api'
+                         AND credential.encrypted_payload IS NOT NULL) AS credential_configured,
+              (SELECT COUNT(*) FROM sales_channel_webhooks webhook
+                WHERE webhook.channel_instance_id = instance.channel_instance_id
+                  AND webhook.registration_status = 'registered') AS registered_webhooks,
+              (SELECT COUNT(*) FROM sales_channel_webhooks webhook
+                WHERE webhook.channel_instance_id = instance.channel_instance_id
+                  AND webhook.registration_status = 'registered'
+                  AND webhook.encrypted_secret IS NOT NULL) AS secret_webhooks
+         FROM sales_channel_instances instance
+        WHERE instance.business_id = ? AND instance.provider = 'shopify'
+        ORDER BY instance.display_name, instance.channel_instance_id`,
       [input.businessId],
     ),
+    ImsShopifyRepo.getCounts(input.businessId),
     ImsShopifyRepo.getLog(limit + 1, input.businessId),
   ]);
-  const setting = (key: string) => settings.find(row => row.key === key)?.value ?? '';
-  const connected = connection?.shopify_auth_mode === 'client_credentials'
-    ? Boolean(connection.shopify_shop_id && connection.shopify_client_id && connection.shopify_client_secret)
-    : Boolean(connection?.shopify_shop_id && connection.shopify_access_token);
+  const instanceHealth = instances.map(instance => {
+    let rawSettings: Record<string, unknown> = {};
+    try { rawSettings = typeof instance.settings_json === 'string' ? JSON.parse(instance.settings_json) : instance.settings_json ?? {}; } catch {}
+    const settings = shopifyInstanceSettings(rawSettings);
+    return {
+      channelInstanceId: instance.channel_instance_id,
+      displayName: instance.display_name,
+      shopDomain: instance.external_account_key,
+      enabled: Boolean(instance.is_enabled),
+      runtimeStatus: instance.runtime_status,
+      readinessStatus: instance.readiness_status,
+      credentialsConfigured: Boolean(instance.credential_configured),
+      orderSyncEnabled: settings.orders.enabled,
+      registeredWebhooks: Number(instance.registered_webhooks),
+      webhookSecretConfigured: Number(instance.secret_webhooks) > 0,
+    };
+  });
 
   return {
-    connected,
-    orderSyncEnabled: setting('shopify_order_sync_enabled') === '1',
-    webhookSecretConfigured: Boolean(setting('shopify_webhook_secret')),
+    connected: instanceHealth.some(instance => instance.credentialsConfigured),
+    orderSyncEnabled: instanceHealth.some(instance => instance.enabled && instance.orderSyncEnabled),
+    webhookSecretConfigured: instanceHealth.some(instance => instance.webhookSecretConfigured),
+    instances: instanceHealth,
     catalogue: counts,
     recentActivity: logRows.slice(0, limit).map(row => ({
       eventId: Number(row.id),
@@ -142,6 +182,6 @@ export async function loadShopifyDiagnostics(input: ShopifyDiagnosticsInput) {
       occurredAt: row.created_at,
     })),
     truncated: logRows.length > limit,
-    webhookRegistrationChecked: false,
+    webhookRegistrationChecked: instanceHealth.length > 0,
   };
 }

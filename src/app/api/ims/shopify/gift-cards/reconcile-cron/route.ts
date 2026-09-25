@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
-import { decrypt } from '@/lib/encryption';
 import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { syncShopifyGiftCardSnapshots } from '@/lib/ims/shopifyGiftCardSync';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -19,6 +19,7 @@ interface BusinessRow {
 
 interface CronResult {
   businessId: string;
+  channelInstanceId?: string;
   status: 'synced' | 'skipped' | 'failed';
   reason?: string;
   synced?: number;
@@ -63,34 +64,47 @@ export async function POST(req: Request) {
         results.push({ businessId, status: 'skipped', reason: 'shopify_disabled' });
         continue;
       }
-      await runImsForBusiness(businessId, async () => {
-        const settingRows = await imsQuery<{ value: string }>(
-          "SELECT value FROM ims_settings WHERE `key` = 'shopify_gc_mode' LIMIT 1",
-        );
-        if (settingRows[0]?.value !== 'combined') {
-          results.push({ businessId, status: 'skipped', reason: 'gift_card_sync_disabled' });
-          return;
+      const instances = (await SalesChannelInstanceRepository.listForBusiness(businessId))
+        .filter(instance => instance.provider === 'shopify'
+          && instance.enabled
+          && instance.runtimeStatus === 'active'
+          && instance.readinessStatus === 'ready'
+          && shopifyInstanceSettings(instance.settings).giftCards.mode === 'combined');
+      if (!instances.length) {
+        results.push({ businessId, status: 'skipped', reason: 'gift_card_sync_disabled' });
+        continue;
+      }
+      for (const instance of instances) {
+        const channelInstanceId = instance.channelInstanceId;
+        try {
+          await runImsForBusiness(businessId, async () => {
+            const context = await getShopifyOperationContext({ businessId, channelInstanceId });
+            const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
+            const result = await syncShopifyGiftCardSnapshots(businessId, channelInstanceId, shopify);
+            results.push({
+              businessId,
+              channelInstanceId,
+              status: result.errors ? 'failed' : 'synced',
+              synced: result.synced,
+              inserted: result.inserted,
+              updated: result.updated,
+              reviewRequired: result.reviewRequired,
+              transactionHistoryAvailable: result.transactionHistoryAvailable,
+              errors: result.errors,
+            });
+          });
+        } catch (error) {
+          await reportRuntimeIssue({
+            businessId,
+            source: 'cron',
+            operation: 'shopify_gift_card_reconciliation',
+            title: 'Daily Shopify gift card reconciliation failed for store',
+            error,
+            context: { channelInstanceId },
+          });
+          results.push({ businessId, channelInstanceId, status: 'failed', reason: error instanceof Error ? error.message : String(error) });
         }
-
-        const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-        const credentials = await getShopifyAdminCredentials(businessId);
-        if (!credentials) {
-          results.push({ businessId, status: 'skipped', reason: 'shopify_not_connected' });
-          return;
-        }
-        const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
-        const result = await syncShopifyGiftCardSnapshots(businessId, shopify);
-        results.push({
-          businessId,
-          status: result.errors ? 'failed' : 'synced',
-          synced: result.synced,
-          inserted: result.inserted,
-          updated: result.updated,
-          reviewRequired: result.reviewRequired,
-          transactionHistoryAvailable: result.transactionHistoryAvailable,
-          errors: result.errors,
-        });
-      });
+      }
     } catch (error) {
       await reportRuntimeIssue({
         businessId,

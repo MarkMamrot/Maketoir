@@ -58,6 +58,7 @@ const INVENTORY_COSTING_TABLES = [
 const SALES_CHANNEL_TABLES = [
   'ims_sales_channel_product_selections',
   'ims_sales_channel_product_mappings',
+  'ims_contact_channel_mappings',
   'ims_sales_channel_product_rules',
   'ims_sales_channel_product_assignments',
   'ims_sales_channel_events',
@@ -91,7 +92,7 @@ const SALES_CHANNEL_TABLE_DDLS = SALES_CHANNEL_TABLES.map(table => {
   const match = canonicalImsSchema.match(expression);
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0]
-    .replace(/^\s*CONSTRAINT fk_channel_(?:selection_variant|mapping_variant|assignment_product)\b[^\n]*,?\r?\n/gm, '')
+    .replace(/^\s*CONSTRAINT (?:fk_channel_(?:selection_variant|mapping_variant|assignment_product)|fk_contact_channel_contact)\b[^\n]*,?\r?\n/gm, '')
     .replace(/,\s*(\) ENGINE=)/, '\n$1')
     .replace(/;$/, '');
 });
@@ -357,11 +358,11 @@ const TABLE_DDLS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_so_shipments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, so_id INT NOT NULL,
-    shopify_fulfilment_id VARCHAR(100) NOT NULL, status VARCHAR(100) NULL,
+    channel_instance_id CHAR(36) NULL, shopify_fulfilment_id VARCHAR(100) NOT NULL, status VARCHAR(100) NULL,
     fulfilled_at DATETIME NULL, shopify_updated_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_so_shipment_shopify (business_id, shopify_fulfilment_id),
+    UNIQUE KEY uq_so_shipment_shopify_instance (business_id, channel_instance_id, shopify_fulfilment_id),
     INDEX idx_so_shipment_order (business_id, so_id, fulfilled_at, id),
     CONSTRAINT fk_so_shipment_order FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
@@ -1222,6 +1223,7 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_sales_channel_product_mappings', 'external_inventory_id', 'VARCHAR(191) NULL AFTER external_variant_id'],
   ['ims_stock_movements', 'cost_method_snapshot', "ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost' AFTER unit_cost"],
   ['ims_stock_movements', 'cost_epoch_id', 'BIGINT NULL AFTER cost_method_snapshot'],
   ['ims_stock_movements', 'source_line_id', 'BIGINT NULL AFTER reference_id'],
@@ -1348,8 +1350,11 @@ const COLUMNS = [
   ['ims_sales_orders', 'delivery_state',      'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'delivery_postcode',   'VARCHAR(30) NULL'],
   ['ims_sales_orders', 'delivery_country',    'VARCHAR(100) NULL'],
+  ['ims_sales_orders', 'channel_shipping_method', 'VARCHAR(255) NULL AFTER delivery_country'],
+  ['ims_sales_orders', 'channel_delivery_type', 'VARCHAR(20) NULL AFTER channel_shipping_method'],
   ['ims_sales_orders', 'freight',             'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'discount',            'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+  ['ims_sales_orders', 'gift_card_amount',    'DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_amount'],
   ['ims_sales_orders', 'currency_code',       "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
   ['ims_sales_orders', 'exchange_rate',       'DECIMAL(12,6) NOT NULL DEFAULT 1.000000'],
   ['ims_sales_orders', 'cin7_member_id',      'INT NULL'],
@@ -1358,6 +1363,7 @@ const COLUMNS = [
   ['ims_sales_orders', 'refunded_amount',     'DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'financial_status',    'VARCHAR(50) NULL'],
   ['ims_sales_orders', 'returned_at',         'DATETIME NULL'],
+  ['ims_so_shipments', 'channel_instance_id', 'CHAR(36) NULL AFTER business_id'],
   // ── ims_stock_movements ─────────────────────────────────────────────────
   ['ims_stock_movements', 'channel', 'VARCHAR(20) NULL AFTER movement_type'],
   // ── pos_eod_reconciliations ─────────────────────────────────────────────
@@ -1473,6 +1479,7 @@ const COLUMNS = [
   ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
   ['store_credit_transactions', 'idempotency_key',  'VARCHAR(191) NULL'],
   // ── gift-card reconciliation ────────────────────────────────────────────
+  ['gift_cards', 'channel_instance_id', 'CHAR(36) NULL AFTER id'],
   ['gift_cards', 'shopify_updated_at', 'DATETIME NULL'],
   ['gift_cards', 'shopify_observed_balance', 'DECIMAL(12,2) NULL'],
   ['gift_cards', 'shopify_observed_status', 'VARCHAR(32) NULL'],
@@ -1525,12 +1532,13 @@ const INDEXES = [
   ['ims_sales_orders', 'idx_so_staff_preview', 'INDEX `idx_so_staff_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_sales_orders', 'idx_so_online_channel', 'INDEX `idx_so_online_channel` (`business_id`, `sales_channel`, `order_date`, `id`)'],
   ['ims_sales_orders', 'uq_so_channel_external_order', 'UNIQUE INDEX `uq_so_channel_external_order` (`business_id`, `channel_instance_id`, `external_order_id`)'],
+  ['ims_so_shipments', 'uq_so_shipment_shopify_instance', 'UNIQUE INDEX `uq_so_shipment_shopify_instance` (`business_id`, `channel_instance_id`, `shopify_fulfilment_id`)'],
   ['ims_sales_orders', 'uq_so_native_checkout', 'UNIQUE INDEX `uq_so_native_checkout` (`business_id`, `native_checkout_id`, `location_id`)'],
   ['wholesale_draft_orders', 'idx_wholesale_draft_preview', 'INDEX `idx_wholesale_draft_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
-  ['ims_credit_notes', 'uq_cn_shopify_refund', 'UNIQUE INDEX `uq_cn_shopify_refund` (`business_id`, `shopify_refund_id`)'],
+  ['ims_credit_notes', 'idx_cn_shopify_refund', 'INDEX `idx_cn_shopify_refund` (`business_id`, `shopify_refund_id`)'],
   ['ims_credit_notes', 'uq_cn_channel_return', 'UNIQUE INDEX `uq_cn_channel_return` (`business_id`, `channel_instance_id`, `external_return_id`)'],
   ['ims_credit_notes', 'uq_cn_channel_refund', 'UNIQUE INDEX `uq_cn_channel_refund` (`business_id`, `channel_instance_id`, `external_refund_id`)'],
   ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],
@@ -1541,6 +1549,8 @@ const INDEXES = [
   ['pos_sale_items', 'idx_psi_return_source', 'INDEX `idx_psi_return_source` (`return_of_sale_item_id`)'],
   ['store_credit_transactions', 'idx_sct_credit_note', 'INDEX `idx_sct_credit_note` (`credit_note_id`)'],
   ['store_credit_transactions', 'uq_sct_idempotency', 'UNIQUE INDEX `uq_sct_idempotency` (`idempotency_key`)'],
+  ['gift_cards', 'uq_gc_instance_code', 'UNIQUE INDEX `uq_gc_instance_code` (`channel_instance_id`, `code`)'],
+  ['gift_cards', 'uq_gc_shopify_instance', 'UNIQUE INDEX `uq_gc_shopify_instance` (`channel_instance_id`, `shopify_gc_id`)'],
   ['gift_cards', 'idx_gc_reconciliation', 'INDEX `idx_gc_reconciliation` (`reconciliation_state`, `updated_at`)'],
   ['gift_card_transactions', 'uq_gct_idempotency', 'UNIQUE INDEX `uq_gct_idempotency` (`idempotency_key`)'],
   ['gift_card_transactions', 'uq_gct_shopify_transaction', 'UNIQUE INDEX `uq_gct_shopify_transaction` (`shopify_transaction_id`)'],
@@ -1594,6 +1604,116 @@ async function ensureNullableColumn(schema, table, column, definition) {
   await conn.query(
     `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ${definition}`,
   );
+}
+
+async function migrateSoleShopifyInstanceOwnership(schema, businessId) {
+  if (!businessId || !process.env.MYSQL_DATABASE) return { migrated: false, reason: 'business mapping unavailable' };
+  const mainSchema = process.env.MYSQL_DATABASE;
+  if (!/^[A-Za-z0-9_]+$/.test(mainSchema)) throw new Error('Unsafe main schema name');
+  const [instances] = await conn.query(
+    `SELECT channel_instance_id FROM \`${mainSchema}\`.sales_channel_instances
+      WHERE BINARY business_id = BINARY ? AND provider = 'shopify'
+      ORDER BY channel_instance_id LIMIT 2`,
+    [businessId],
+  );
+  if (instances.length !== 1) {
+    console.log(`  ${schema}: skipped legacy Shopify ownership (${instances.length} exact instances)`);
+    return { migrated: false, reason: instances.length === 0 ? 'no exact instance' : 'ambiguous instances' };
+  }
+  const channelInstanceId = String(instances[0].channel_instance_id);
+  const [orders] = await conn.query(
+    `UPDATE \`${schema}\`.ims_sales_orders
+        SET sales_channel = 'shopify', channel_instance_id = ?,
+            external_order_id = COALESCE(NULLIF(external_order_id, ''), shopify_order_id)
+      WHERE channel_instance_id IS NULL
+        AND shopify_order_id IS NOT NULL AND shopify_order_id <> ''`,
+    [channelInstanceId],
+  );
+  const [lines] = await conn.query(
+    `UPDATE \`${schema}\`.ims_sales_order_items item
+       JOIN \`${schema}\`.ims_sales_orders sales_order
+         ON sales_order.business_id = item.business_id AND sales_order.id = item.so_id
+        SET item.external_order_item_id = COALESCE(NULLIF(item.external_order_item_id, ''), item.shopify_line_item_id)
+      WHERE sales_order.channel_instance_id = ?
+        AND item.shopify_line_item_id IS NOT NULL AND item.shopify_line_item_id <> ''`,
+    [channelInstanceId],
+  );
+  const [creditNotes] = await conn.query(
+    `UPDATE \`${schema}\`.ims_credit_notes
+        SET channel_instance_id = ?,
+            external_return_id = COALESCE(NULLIF(external_return_id, ''), shopify_return_id),
+            external_refund_id = COALESCE(NULLIF(external_refund_id, ''), shopify_refund_id)
+      WHERE channel_instance_id IS NULL AND source = 'shopify'`,
+    [channelInstanceId],
+  );
+  const [giftCards] = await conn.query(
+    `UPDATE \`${schema}\`.gift_cards SET channel_instance_id = ?
+      WHERE channel_instance_id IS NULL AND shopify_gc_id IS NOT NULL`,
+    [channelInstanceId],
+  );
+  const [contactMappings] = await conn.query(
+    `INSERT IGNORE INTO \`${schema}\`.ims_contact_channel_mappings
+       (business_id, channel_instance_id, contact_id, external_customer_id, mapping_status, last_sync_status)
+     SELECT contact.business_id, ?, contact.id, contact.shopify_customer_id, 'linked', 'success'
+       FROM \`${schema}\`.ims_contacts contact
+      WHERE contact.business_id = ? AND contact.shopify_customer_id IS NOT NULL
+        AND contact.shopify_customer_id <> ''
+        AND NOT EXISTS (
+          SELECT 1 FROM \`${schema}\`.ims_contacts duplicate
+           WHERE duplicate.business_id = contact.business_id
+             AND duplicate.shopify_customer_id = contact.shopify_customer_id
+             AND duplicate.id <> contact.id
+        )`,
+    [channelInstanceId, businessId],
+  );
+  await migrateExactShopifyShipmentOwnership(schema);
+  console.log(`  ${schema}: exact Shopify owner ${channelInstanceId}; orders ${orders.affectedRows}, lines ${lines.affectedRows}, credit notes ${creditNotes.affectedRows}, gift cards ${giftCards.affectedRows}, customer mappings ${contactMappings.affectedRows}`);
+  return { migrated: true, channelInstanceId };
+}
+
+async function migrateExactShopifyShipmentOwnership(schema) {
+  await conn.query(
+    `UPDATE \`${schema}\`.ims_so_shipments shipment
+       JOIN \`${schema}\`.ims_sales_orders sales_order
+         ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
+        SET shipment.channel_instance_id = sales_order.channel_instance_id
+      WHERE shipment.channel_instance_id IS NULL
+        AND sales_order.sales_channel = 'shopify'
+        AND sales_order.channel_instance_id IS NOT NULL`,
+  );
+  const [legacyIndexes] = await conn.query(
+    `SELECT 1 FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_so_shipments'
+        AND INDEX_NAME = 'uq_so_shipment_shopify' LIMIT 1`,
+    [schema],
+  );
+  if (legacyIndexes.length) {
+    await conn.query(`ALTER TABLE \`${schema}\`.ims_so_shipments DROP INDEX uq_so_shipment_shopify`);
+  }
+}
+
+async function migrateExactShopifyRefundIdentity(schema) {
+  const [legacyIndexes] = await conn.query(
+    `SELECT 1 FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_credit_notes'
+        AND INDEX_NAME = 'uq_cn_shopify_refund' LIMIT 1`,
+    [schema],
+  );
+  if (legacyIndexes.length) {
+    await conn.query(`ALTER TABLE \`${schema}\`.ims_credit_notes DROP INDEX uq_cn_shopify_refund`);
+  }
+}
+
+async function migrateExactShopifyGiftCardOwnership(schema) {
+  const [legacyIndexes] = await conn.query(
+    `SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'gift_cards'
+        AND INDEX_NAME IN ('uq_gift_card_code', 'uq_shopify_gc_id')`,
+    [schema],
+  );
+  for (const row of legacyIndexes) {
+    await conn.query(`ALTER TABLE \`${schema}\`.gift_cards DROP INDEX \`${row.INDEX_NAME}\``);
+  }
 }
 
 async function ensureSignedLoyaltyBalance(schema, table, column, definition) {
@@ -1754,6 +1874,9 @@ async function migrateSchema(schema, businessId) {
       existingIndexes.add(indexName);
       indexesAdded++;
     }
+    if (requestedTable === 'ims_so_shipments') await migrateExactShopifyShipmentOwnership(schema);
+    if (requestedTable === 'ims_credit_notes') await migrateExactShopifyRefundIdentity(schema);
+    if (requestedTable === 'gift_cards') await migrateExactShopifyGiftCardOwnership(schema);
     console.log(`  ${schema}.${requestedTable}: ${added} columns and ${indexesAdded} indexes added`);
     return;
   }
@@ -1840,6 +1963,14 @@ async function migrateSchema(schema, businessId) {
     }
   }
 
+  if (businessId) {
+    try {
+      await migrateSoleShopifyInstanceOwnership(schema, businessId);
+    } catch (e) {
+      console.error(`  ✗ ${schema} exact Shopify ownership backfill: ${e.message}`);
+    }
+  }
+
   try {
     await conn.query(
       `UPDATE \`${schema}\`.ims_po_shortfall_resolutions
@@ -1891,6 +2022,24 @@ async function migrateSchema(schema, businessId) {
     );
   } catch (e) {
     console.error(`  ✗ ${schema}.ims_sales_orders sales channel backfill: ${e.message}`);
+  }
+
+  try {
+    await migrateExactShopifyShipmentOwnership(schema);
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_so_shipments exact-instance migration: ${e.message}`);
+  }
+
+  try {
+    await migrateExactShopifyRefundIdentity(schema);
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_credit_notes exact-instance refund migration: ${e.message}`);
+  }
+
+  try {
+    await migrateExactShopifyGiftCardOwnership(schema);
+  } catch (e) {
+    console.error(`  ✗ ${schema}.gift_cards exact-instance ownership migration: ${e.message}`);
   }
 
   try {
@@ -1992,6 +2141,7 @@ async function verifyStockAvailabilitySchema(schema) {
 async function verifyGiftCardReconciliationSchema(schema) {
   const requiredColumns = {
     gift_cards: [
+      'channel_instance_id',
       'shopify_updated_at', 'shopify_observed_balance', 'shopify_observed_status',
       'reconciliation_state', 'reconciliation_reason', 'last_reconciled_at',
     ],
@@ -2015,6 +2165,8 @@ async function verifyGiftCardReconciliationSchema(schema) {
   );
   const indexes = new Set(indexRows.map(row => `${row.TABLE_NAME}.${row.INDEX_NAME}`));
   for (const index of [
+    'gift_cards.uq_gc_instance_code',
+    'gift_cards.uq_gc_shopify_instance',
     'gift_cards.idx_gc_reconciliation',
     'gift_card_transactions.uq_gct_idempotency',
     'gift_card_transactions.uq_gct_shopify_transaction',

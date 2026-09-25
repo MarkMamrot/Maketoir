@@ -22,6 +22,7 @@ await conn.query(`
   CREATE TABLE IF NOT EXISTS xero_gateway_mappings (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     business_id     VARCHAR(150) NOT NULL,
+    channel_instance_id VARCHAR(36) NULL,
     gateway_name    VARCHAR(150) NOT NULL COMMENT 'Value as stored in ims_sales_orders.payment_gateway (case-insensitive LIKE match)',
     display_name    VARCHAR(150) NOT NULL COMMENT 'Friendly label shown in UI',
     clearing_account_code VARCHAR(50) NULL COMMENT 'Xero bank/clearing account code',
@@ -34,8 +35,41 @@ await conn.query(`
     percentage_fee_rate DECIMAL(8,4) NOT NULL DEFAULT 0 COMMENT 'Percentage points, e.g. 1.5 means 1.5%',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_biz_gateway (business_id, gateway_name)
+    UNIQUE KEY uq_biz_instance_gateway (business_id, channel_instance_id, gateway_name)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+const [instanceColumns] = await conn.query(`
+  SELECT 1 FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_gateway_mappings'
+     AND COLUMN_NAME = 'channel_instance_id' LIMIT 1`);
+if (instanceColumns.length === 0) {
+  await conn.query('ALTER TABLE xero_gateway_mappings ADD COLUMN channel_instance_id VARCHAR(36) NULL AFTER business_id');
+}
+await conn.query(`
+  UPDATE xero_gateway_mappings mapping
+  JOIN (
+    SELECT business_id, MIN(channel_instance_id) AS channel_instance_id
+      FROM sales_channel_instances
+     WHERE provider = 'shopify'
+     GROUP BY business_id
+    HAVING COUNT(*) = 1
+  ) owner ON owner.business_id = mapping.business_id
+     SET mapping.channel_instance_id = owner.channel_instance_id
+   WHERE mapping.channel_instance_id IS NULL`);
+const [exactIndexes] = await conn.query(`
+  SELECT 1 FROM information_schema.STATISTICS
+   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_gateway_mappings'
+     AND INDEX_NAME = 'uq_biz_instance_gateway' LIMIT 1`);
+if (exactIndexes.length === 0) {
+  await conn.query('ALTER TABLE xero_gateway_mappings ADD UNIQUE KEY uq_biz_instance_gateway (business_id, channel_instance_id, gateway_name)');
+}
+const [legacyIndexes] = await conn.query(`
+  SELECT 1 FROM information_schema.STATISTICS
+   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_gateway_mappings'
+     AND INDEX_NAME = 'uq_biz_gateway' LIMIT 1`);
+if (legacyIndexes.length > 0) {
+  await conn.query('ALTER TABLE xero_gateway_mappings DROP INDEX uq_biz_gateway');
+}
 
 const [feeTaxColumns] = await conn.query(`
   SELECT 1

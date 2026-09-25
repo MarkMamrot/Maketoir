@@ -55,14 +55,13 @@ describe('integration diagnostics', () => {
   });
 
   it('returns bounded Shopify health while redacting sensitive summary text and raw detail', async () => {
-    mocks.getConnection.mockResolvedValueOnce({
-      shopify_auth_mode: 'legacy_token', shopify_shop_id: 'store.myshopify.com', shopify_access_token: 'secret-token',
-    });
+    mocks.mainQuery.mockResolvedValueOnce([{
+      channel_instance_id: 'store-1', display_name: 'Monsterthreads', external_account_key: 'store.myshopify.com',
+      is_enabled: 1, runtime_status: 'active', readiness_status: 'ready',
+      settings_json: { shopify: { orders: { enabled: true } } }, credential_configured: 1,
+      registered_webhooks: 11, secret_webhooks: 11,
+    }]);
     mocks.getCounts.mockResolvedValueOnce({ linked: 9, notInShopify: 1, total: 10 });
-    mocks.imsQuery.mockResolvedValueOnce([
-      { key: 'shopify_order_sync_enabled', value: '1' },
-      { key: 'shopify_webhook_secret', value: 'webhook-secret' },
-    ]);
     mocks.getLog.mockResolvedValueOnce([{
       id: 4, action: 'sync_prices', status: 'error',
       summary: 'Unauthorized for admin@example.com at https://store.example/path token=abc123',
@@ -79,7 +78,8 @@ describe('integration diagnostics', () => {
       webhookSecretConfigured: true,
       catalogue: { linked: 9, notInShopify: 1, total: 10 },
       recentActivity: [{ category: 'authentication' }],
-      webhookRegistrationChecked: false,
+      webhookRegistrationChecked: true,
+      instances: [{ channelInstanceId: 'store-1', displayName: 'Monsterthreads', registeredWebhooks: 11 }],
     });
     expect(JSON.stringify(result)).not.toMatch(/abc123|do-not-return|admin@example\.com|store\.example/);
   });

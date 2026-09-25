@@ -794,6 +794,26 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_product_mappings (
   CONSTRAINT fk_channel_mapping_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_contact_channel_mappings (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  channel_instance_id  CHAR(36) NOT NULL,
+  contact_id            INT NOT NULL,
+  external_customer_id  VARCHAR(191) NOT NULL,
+  mapping_status        ENUM('linked','conflict','archived') NOT NULL DEFAULT 'linked',
+  metadata_json         JSON NULL,
+  last_inbound_at       DATETIME(3) NULL,
+  last_outbound_at      DATETIME(3) NULL,
+  last_sync_status      ENUM('success','error') NULL,
+  safe_error            VARCHAR(1000) NULL,
+  created_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_contact_channel_external (business_id, channel_instance_id, external_customer_id),
+  UNIQUE KEY uq_contact_channel_contact (business_id, channel_instance_id, contact_id),
+  INDEX idx_contact_channel_contact (business_id, contact_id, mapping_status),
+  CONSTRAINT fk_contact_channel_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS ims_sales_channel_product_rules (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(100) NOT NULL,
@@ -1158,6 +1178,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   delivery_state   VARCHAR(100) NULL,
   delivery_postcode VARCHAR(30) NULL,
   delivery_country VARCHAR(100) NULL,
+  channel_shipping_method VARCHAR(255) NULL,
+  channel_delivery_type VARCHAR(20) NULL,
   payment_terms    VARCHAR(100) NULL,
   notes            TEXT,
   tax_treatment    ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
@@ -1166,6 +1188,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   subtotal         DECIMAL(12,2) NOT NULL DEFAULT 0,
   tax_amount       DECIMAL(12,2) NOT NULL DEFAULT 0,
   total_amount     DECIMAL(12,2) NOT NULL DEFAULT 0,
+  gift_card_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
   currency_code    VARCHAR(10) NOT NULL DEFAULT 'AUD',
   exchange_rate    DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
   xero_invoice_id  VARCHAR(100) NULL,
@@ -1264,6 +1287,7 @@ CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
 CREATE TABLE IF NOT EXISTS ims_so_shipments (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id              VARCHAR(100) NOT NULL,
+  channel_instance_id      CHAR(36) NULL,
   so_id                    INT NOT NULL,
   shopify_fulfilment_id    VARCHAR(100) NOT NULL,
   status                   VARCHAR(100) NULL,
@@ -1271,7 +1295,7 @@ CREATE TABLE IF NOT EXISTS ims_so_shipments (
   shopify_updated_at       DATETIME NULL,
   created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_so_shipment_shopify (business_id, shopify_fulfilment_id),
+  UNIQUE KEY uq_so_shipment_shopify_instance (business_id, channel_instance_id, shopify_fulfilment_id),
   INDEX idx_so_shipment_order (business_id, so_id, fulfilled_at, id),
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -1800,7 +1824,7 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   INDEX idx_status (status),
   INDEX idx_customer (customer_id),
   INDEX idx_shopify_return (business_id, shopify_return_id),
-  UNIQUE KEY uq_cn_shopify_refund (business_id, shopify_refund_id),
+  INDEX idx_cn_shopify_refund (business_id, shopify_refund_id),
   UNIQUE KEY uq_cn_channel_return (business_id, channel_instance_id, external_return_id),
   UNIQUE KEY uq_cn_channel_refund (business_id, channel_instance_id, external_refund_id),
   UNIQUE KEY uq_business_cn (business_id, cn_number),
@@ -2605,6 +2629,7 @@ CREATE TABLE IF NOT EXISTS ims_notifications (
 -- Gift cards (manually created or imported from Shopify/Sage)
 CREATE TABLE IF NOT EXISTS gift_cards (
   id                      INT AUTO_INCREMENT PRIMARY KEY,
+  channel_instance_id     CHAR(36)       NULL     COMMENT 'Owning exact sales channel instance; NULL for local/manual or unresolved legacy cards',
   shopify_gc_id           BIGINT         NULL     COMMENT 'Shopify gift card numeric ID',
   shopify_line_item_id    BIGINT         NULL     COMMENT 'Shopify line_item_id (order line)',
   code                    VARCHAR(100)   NOT NULL,
@@ -2626,8 +2651,8 @@ CREATE TABLE IF NOT EXISTS gift_cards (
   reconciliation_reason   VARCHAR(500)    NULL,
   last_reconciled_at      DATETIME        NULL,
   updated_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_gift_card_code     (code),
-  UNIQUE KEY uq_shopify_gc_id      (shopify_gc_id),
+  UNIQUE KEY uq_gc_instance_code   (channel_instance_id, code),
+  UNIQUE KEY uq_gc_shopify_instance (channel_instance_id, shopify_gc_id),
   INDEX idx_gc_status              (status),
   INDEX idx_gc_customer            (customer_id),
   INDEX idx_gc_reconciliation      (reconciliation_state, updated_at)

@@ -62,7 +62,7 @@ Retrying a partial or failed Xero post completes only unfinished actions. Do not
 1. State one question, such as “What did Sydney sell last month?”
 2. Use the chooser table to open the narrowest report that answers it.
 3. Select a preset or custom date range where the report offers one.
-4. Apply the same locations, statuses, search terms, and groupings required by the question.
+4. Apply the same locations, storefront or channel, statuses, search terms, and groupings required by the question.
 5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.
 6. Trace at least one representative row to its source before explaining a difference.
 7. Export only when the filtered screen answers the intended question.

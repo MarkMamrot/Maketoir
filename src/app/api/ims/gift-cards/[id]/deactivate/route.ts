@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -36,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ success: true, duplicate: true, transactionId: duplicateRows[0].id });
     }
     const [rows]: any = await connection.execute(
-      'SELECT balance, status, shopify_gc_id FROM gift_cards WHERE id = ? LIMIT 1',
+      'SELECT balance, status, shopify_gc_id, channel_instance_id FROM gift_cards WHERE id = ? LIMIT 1',
       [cardId],
     );
     const card = rows[0];
@@ -48,9 +46,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     if (card.shopify_gc_id) {
       try {
-        const credentials = await getShopifyAdminCredentials(session.businessId);
-        if (!credentials) throw new Error('Shopify credentials are not configured.');
-        await new ShopifyService(credentials.shopDomain, credentials.token).disableGiftCard(card.shopify_gc_id);
+        if (!card.channel_instance_id) throw new Error('This legacy Shopify gift card has no store owner. Assign an owner before deactivating it.');
+        const context = await getShopifyOperationContext({
+          businessId: session.businessId,
+          channelInstanceId: card.channel_instance_id,
+        });
+        await new ShopifyService(context.credentials.shopDomain, context.credentials.token).disableGiftCard(card.shopify_gc_id);
       } catch (error) {
         await reportRuntimeIssue({
           businessId: session.businessId,
@@ -58,7 +59,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           operation: 'gift_card_deactivate',
           title: 'Gift card could not be deactivated in Shopify',
           error,
-          context: { cardId, shopifyGiftCardId: card.shopify_gc_id },
+          context: { cardId, channelInstanceId: card.channel_instance_id, shopifyGiftCardId: card.shopify_gc_id },
           reference: { type: 'gift_card', id: cardId },
         });
         const message = error instanceof Error ? error.message : String(error);

@@ -49,7 +49,7 @@ Use one spelling for the same brand. For example, choose **Coastal Home** rather
 
 ## Gift cards
 
-Gift Cards shows issued cards, linked customer details, balance activity and Shopify reconciliation state. Search can use the card code, customer name, email, phone or mobile number. Issue and redemption belong to the gift-card and POS workflow; a gift-card balance is not a product price, customer store credit or stock quantity.
+Gift Cards shows issued cards, their owning Shopify storefront or local/legacy status, linked customer details, balance activity and Shopify reconciliation state. Filter by store when the business has more than one Shopify connection. Choose the source storefront when importing a Shopify gift-card CSV; this ownership controls later Shopify balance actions. Search can use the card code, customer name, email, phone or mobile number. Issue and redemption belong to the gift-card and POS workflow; a gift-card balance is not a product price, customer store credit or stock quantity.
 
 When **Shopify > Gift Cards** is set to **Combined**, a paid Shopify order that uses a gift card triggers an immediate gift-card check before Solvantis acknowledges the order notification. Solvantis also checks Shopify each day for new cards, disabled cards and transaction activity, covering delayed or missed order notifications. Use **Reconcile Now** in Shopify settings when another immediate check is needed. Shopify-created cards appear with a protected placeholder ending in the visible last four characters until the full code is resolved at POS.
 

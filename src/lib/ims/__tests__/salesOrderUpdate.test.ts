@@ -65,7 +65,7 @@ describe('ImsSORepo.update', () => {
 
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE ims_sales_order_items'),
-      ['biz-1', '9002', 'new-size', 1, 59.95, 0, 0.1, 59.95, 'T-shirt / Large', 10, 42],
+      ['biz-1', '9002', null, 'new-size', 1, 59.95, 0, 0.1, 59.95, 'T-shirt / Large', 10, 42],
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('qty_committed = qty_committed + ?'),
@@ -102,7 +102,7 @@ describe('ImsSORepo.update', () => {
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('(business_id,so_id,shopify_line_item_id'),
-      ['biz-1', 42, null, 'new-size', 1, 59.95, 0, 0.1, 59.95, null],
+      ['biz-1', 42, null, null, 'new-size', 1, 59.95, 0, 0.1, 59.95, null],
     );
   });
 

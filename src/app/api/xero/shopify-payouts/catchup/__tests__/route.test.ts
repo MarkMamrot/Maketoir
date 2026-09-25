@@ -50,18 +50,19 @@ describe('POST /api/xero/shopify-payouts/catchup', () => {
   });
 
   it('polls and ingests the requested lookback inside tenant context', async () => {
-    const response = await POST(request({ databaseId: 'biz-1', days: 30 }));
+    const response = await POST(request({ databaseId: 'biz-1', channelInstanceId: 'instance-1', days: 30 }));
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(mockRunImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
+    expect(mockGetCreds).toHaveBeenCalledWith('biz-1', 'instance-1');
     expect(mockFetchPayouts).toHaveBeenCalledWith(expect.objectContaining({ shopName: 'test' }), expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
     expect(mockIngest).toHaveBeenCalledTimes(2);
     expect(body).toMatchObject({ days: 30, discovered: 2, processed: 2, failed: 0 });
   });
 
   it('rejects an invalid lookback before Shopify access', async () => {
-    const response = await POST(request({ databaseId: 'biz-1', days: 91 }));
+    const response = await POST(request({ databaseId: 'biz-1', channelInstanceId: 'instance-1', days: 91 }));
 
     expect(response.status).toBe(400);
     expect(mockRunImsForBusiness).not.toHaveBeenCalled();
@@ -70,7 +71,7 @@ describe('POST /api/xero/shopify-payouts/catchup', () => {
   it('continues after one payout fails and returns multi-status', async () => {
     mockIngest.mockRejectedValueOnce(new Error('temporary failure')).mockResolvedValueOnce({ status: 'planned' });
 
-    const response = await POST(request({ databaseId: 'biz-1', days: 14 }));
+    const response = await POST(request({ databaseId: 'biz-1', channelInstanceId: 'instance-1', days: 14 }));
     const body = await response.json();
 
     expect(response.status).toBe(207);

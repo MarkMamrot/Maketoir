@@ -20,7 +20,8 @@ const SALES_CTE = `
     -- 1. Complete Cin7 history (all channels). Resolve variant by a VALID own id, then SKU,
     --    then cin7_option_id (variant_id may be stale after a product re-sync).
     SELECT COALESCE(hvid.variant_id, hsku.variant_id, hopt.variant_id) AS variant_id,
-           h.invoice_date AS sale_date, h.qty AS qty, h.line_total AS revenue, 'history' AS channel
+          h.invoice_date AS sale_date, h.qty AS qty, h.line_total AS revenue, 'history' AS channel,
+          NULL AS channel_instance_id
     FROM   ims_sales_history h
     LEFT JOIN ims_product_variants hvid ON hvid.variant_id = h.variant_id
     LEFT JOIN ims_product_variants hsku ON hvid.variant_id IS NULL AND hsku.sku = h.sku
@@ -31,7 +32,8 @@ const SALES_CTE = `
 
     -- 2. Live in-app POS sales
     SELECT COALESCE(pvid.variant_id, psku.variant_id) AS variant_id,
-           DATE(ps.completed_at) AS sale_date, psi.qty AS qty, psi.line_total AS revenue, 'pos' AS channel
+          DATE(ps.completed_at) AS sale_date, psi.qty AS qty, psi.line_total AS revenue, 'pos' AS channel,
+          NULL AS channel_instance_id
     FROM   pos_sale_items psi
     JOIN   pos_sales ps ON ps.id = psi.sale_id
     LEFT JOIN ims_product_variants pvid ON pvid.variant_id = psi.variant_id
@@ -44,7 +46,8 @@ const SALES_CTE = `
     -- 3. Live in-app Sales Orders (Shopify webhooks / manual)
     SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id,
            so.order_date AS sale_date, soi.qty_ordered AS qty, soi.line_total AS revenue,
-           CASE WHEN so.so_type = 'online' THEN 'online' ELSE 'wholesale' END AS channel
+           CASE WHEN so.so_type = 'online' THEN 'online' ELSE 'wholesale' END AS channel,
+           so.channel_instance_id
     FROM   ims_sales_order_items soi
     JOIN   ims_sales_orders so ON so.id = soi.so_id
     LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
@@ -61,6 +64,7 @@ export async function GET(req: Request) {
   const supplierId  = searchParams.get('supplierId')  ?? '';
   const productType = searchParams.get('productType') ?? '';
   const productId   = searchParams.get('productId')   ?? '';
+  const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
   const days        = Math.min(3650, Math.max(1, parseInt(searchParams.get('days') ?? '90')));
   const fromParam   = searchParams.get('from') ?? '';
   const toParam     = searchParams.get('to')   ?? '';
@@ -88,6 +92,7 @@ export async function GET(req: Request) {
     if (brand)       { conds.push('p.brand = ?');                filterParams.push(brand); }
     if (supplierId)  { conds.push('p.supplier_contact_id = ?');  filterParams.push(Number(supplierId)); }
     if (productType) { conds.push('p.product_type = ?');         filterParams.push(productType); }
+    if (channelInstanceId) { conds.push('s.channel_instance_id = ?'); filterParams.push(channelInstanceId); }
     // Free-text: every whitespace-separated word must match the product name or SKU (partial).
     for (const word of q.split(/\s+/).filter(Boolean)) {
       conds.push('(p.name LIKE ? OR pv.sku LIKE ?)');

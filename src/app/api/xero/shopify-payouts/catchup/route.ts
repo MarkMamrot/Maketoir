@@ -25,21 +25,24 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const days = Number(body.days ?? 14);
+  const channelInstanceId = String(body.channelInstanceId ?? '').trim();
+  if (!channelInstanceId) {
+    return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
+  }
   if (!Number.isInteger(days) || days < 1 || days > 90) {
     return NextResponse.json({ error: 'days must be a whole number from 1 to 90' }, { status: 400 });
   }
 
   try {
     const result = await runImsForBusiness(businessId, async () => {
-      const creds = await getShopifyApiCreds(businessId);
-      if (!creds) throw new Error('Shopify credentials are unavailable');
+      const creds = await getShopifyApiCreds(businessId, channelInstanceId);
       const dateMin = dateMinForDays(days);
       const payouts = await fetchPaidShopifyPayouts(creds, dateMin);
       const results: Array<{ payoutId: string; status: string; error?: string }> = [];
       for (const payout of payouts) {
         const payoutId = String(payout?.id ?? 'unknown');
         try {
-          const ingested = await ingestShopifyPayout(businessId, payout, creds);
+          const ingested = await ingestShopifyPayout(businessId, channelInstanceId, payout, creds);
           results.push({ payoutId, status: ingested.status });
         } catch (error: any) {
           results.push({ payoutId, status: 'failed', error: error?.message ?? String(error) });

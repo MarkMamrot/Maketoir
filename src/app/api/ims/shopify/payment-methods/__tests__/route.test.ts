@@ -2,16 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   mockGetImsSession,
-  mockConnectionsGet,
-  mockDecrypt,
-  mockImsQuery,
+  mockGetContext,
   mockGetAllOrders,
   mockShopifyCtor,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
-  mockConnectionsGet: vi.fn(),
-  mockDecrypt: vi.fn(),
-  mockImsQuery: vi.fn(),
+  mockGetContext: vi.fn(),
   mockGetAllOrders: vi.fn(),
   mockShopifyCtor: vi.fn(),
 }));
@@ -24,19 +20,7 @@ vi.mock('@/lib/ims/businessOperations', () => ({
 }));
 vi.mock('@/lib/shopifyCapability', () => ({ shopifyDisabledResponse: vi.fn().mockResolvedValue(null) }));
 
-vi.mock('@/lib/db/ConnectionsRepository', () => ({
-  ConnectionsRepository: {
-    get: mockConnectionsGet,
-  },
-}));
-
-vi.mock('@/lib/encryption', () => ({
-  decrypt: mockDecrypt,
-}));
-
-vi.mock('@/services/IMSMySQLService', () => ({
-  imsQuery: mockImsQuery,
-}));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mockGetContext }));
 
 vi.mock('@/services/ShopifyService', () => ({
   ShopifyService: class {
@@ -52,16 +36,16 @@ vi.mock('@/services/ShopifyService', () => ({
 
 import { GET } from '../route';
 
+const request = () => new Request('http://localhost/api/ims/shopify/payment-methods?channelInstanceId=instance-1');
+
 describe('GET /api/ims/shopify/payment-methods', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetImsSession.mockResolvedValue({ businessId: 'biz-1' });
-    mockConnectionsGet.mockResolvedValue({
-      shopify_shop_id: 'my-shop.myshopify.com',
-      shopify_access_token: 'enc-token',
+    mockGetContext.mockResolvedValue({
+      credentials: { shopDomain: 'my-shop.myshopify.com', token: 'plain-token' },
+      instance: { settings: { shopify: { orders: { syncFrom: '2026-07-01' } } } },
     });
-    mockDecrypt.mockReturnValue('plain-token');
-    mockImsQuery.mockResolvedValue([{ value: '2026-07-01' }]);
   });
 
   it('returns 401 when session is missing', async () => {
@@ -74,17 +58,12 @@ describe('GET /api/ims/shopify/payment-methods', () => {
     expect(json.error).toBe('Not authenticated');
   });
 
-  it('returns 400 when Shopify credentials are not configured', async () => {
-    mockConnectionsGet.mockResolvedValueOnce({
-      shopify_shop_id: null,
-      shopify_access_token: null,
-    });
-
-    const res = await GET();
+  it('requires an exact Shopify storefront', async () => {
+    const res = await GET(new Request('http://localhost/api/ims/shopify/payment-methods'));
     const json = await res.json();
 
     expect(res.status).toBe(400);
-    expect(json.error).toBe('Shopify credentials not configured.');
+    expect(json.error).toBe('Select a Shopify storefront.');
   });
 
   it('aggregates and normalizes gateway methods from Shopify orders', async () => {
@@ -113,13 +92,14 @@ describe('GET /api/ims/shopify/payment-methods', () => {
       },
     ]);
 
-    const res = await GET();
+    const res = await GET(request());
     const json = await res.json();
 
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
 
     expect(mockShopifyCtor).toHaveBeenCalledWith('my-shop.myshopify.com', 'plain-token');
+    expect(mockGetContext).toHaveBeenCalledWith({ businessId: 'biz-1', channelInstanceId: 'instance-1' });
     expect(mockGetAllOrders).toHaveBeenCalledWith('2026-07-01');
 
     const byKey = new Map<string, any>(json.methods.map((m: any) => [m.gateway_name, m]));
@@ -151,19 +131,19 @@ describe('GET /api/ims/shopify/payment-methods', () => {
     });
   });
 
-  it('falls back to the encrypted token if decrypt throws and defaults syncFrom', async () => {
-    mockDecrypt.mockImplementationOnce(() => {
-      throw new Error('bad decrypt');
+  it('defaults syncFrom when the exact instance has no order start date', async () => {
+    mockGetContext.mockResolvedValueOnce({
+      credentials: { shopDomain: 'my-shop.myshopify.com', token: 'plain-token' },
+      instance: { settings: {} },
     });
-    mockImsQuery.mockResolvedValueOnce([]);
     mockGetAllOrders.mockResolvedValueOnce([]);
 
-    const res = await GET();
+    const res = await GET(request());
     const json = await res.json();
 
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
-    expect(mockShopifyCtor).toHaveBeenCalledWith('my-shop.myshopify.com', 'enc-token');
+    expect(mockShopifyCtor).toHaveBeenCalledWith('my-shop.myshopify.com', 'plain-token');
 
     const passedSyncFrom = String(mockGetAllOrders.mock.calls[0][0]);
     expect(passedSyncFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -172,7 +152,7 @@ describe('GET /api/ims/shopify/payment-methods', () => {
   it('returns 500 when Shopify fetch fails', async () => {
     mockGetAllOrders.mockRejectedValueOnce(new Error('Shopify down'));
 
-    const res = await GET();
+    const res = await GET(request());
     const json = await res.json();
 
     expect(res.status).toBe(500);

@@ -32,6 +32,11 @@ interface LoyaltySummary {
   issuedRedemptions: IssuedRedemption[];
 }
 
+interface ShopifyChannelOption {
+  channelInstanceId: string;
+  displayName: string;
+}
+
 function claimKey(contactId: number, rewardId: number): string {
   const nonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `ims:contact:${contactId}:reward:${rewardId}:${nonce}`;
@@ -43,6 +48,8 @@ function adjustmentKey(contactId: number): string {
 }
 
 export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number }) {
+  const [shopifyChannels, setShopifyChannels] = useState<ShopifyChannelOption[]>([]);
+  const [channelInstanceId, setChannelInstanceId] = useState('');
   const [summary, setSummary] = useState<LoyaltySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,10 +64,15 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
   const adjustmentRetryKey = useRef('');
 
   const load = useCallback(async () => {
+    if (!channelInstanceId) {
+      setSummary(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/ims/loyalty/shopify-rewards?contactId=${contactId}`);
+      const response = await fetch(`/api/ims/loyalty/shopify-rewards?contactId=${contactId}&channelInstanceId=${encodeURIComponent(channelInstanceId)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load loyalty rewards.');
       setSummary(data.loyalty);
@@ -69,7 +81,17 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
     } finally {
       setLoading(false);
     }
-  }, [contactId]);
+  }, [contactId, channelInstanceId]);
+
+  useEffect(() => {
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      const channels = (data.instances ?? []).filter((instance: any) =>
+        instance.provider === 'shopify' && instance.enabled
+        && instance.runtimeStatus === 'active' && instance.readinessStatus === 'ready');
+      setShopifyChannels(channels);
+      setChannelInstanceId(current => current || (channels.length === 1 ? channels[0].channelInstanceId : ''));
+    }).catch(() => setShopifyChannels([]));
+  }, []);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -86,7 +108,7 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
       const response = await fetch('/api/ims/loyalty/shopify-metafields', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId }),
+        body: JSON.stringify({ contactId, channelInstanceId }),
       });
       const data = await response.json();
       if (!response.ok || data.failed > 0) {
@@ -102,7 +124,8 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
   };
 
   const issueReward = async (reward: LoyaltyReward) => {
-    if (!confirm(`Deduct ${reward.pointsCost.toLocaleString()} ${summary?.pointsLabel ?? 'points'} and issue ${reward.displayName} for Shopify?`)) return;
+    const channelName = shopifyChannels.find(channel => channel.channelInstanceId === channelInstanceId)?.displayName ?? 'the selected Shopify store';
+    if (!confirm(`Deduct ${reward.pointsCost.toLocaleString()} ${summary?.pointsLabel ?? 'points'} and issue ${reward.displayName} for ${channelName}?`)) return;
     const idempotencyKey = retryKeys.current.get(reward.id) ?? claimKey(contactId, reward.id);
     retryKeys.current.set(reward.id, idempotencyKey);
     setIssuingRewardId(reward.id);
@@ -111,7 +134,7 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
       const response = await fetch('/api/ims/loyalty/shopify-rewards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId, rewardId: reward.id, idempotencyKey }),
+        body: JSON.stringify({ contactId, channelInstanceId, rewardId: reward.id, idempotencyKey }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -208,6 +231,14 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
       </div>
 
       <div style={{ padding: '12px 14px' }}>
+        <label style={{ display: 'block', marginBottom: 12, fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>
+          Shopify storefront
+          <select value={channelInstanceId} onChange={event => setChannelInstanceId(event.target.value)} style={{ display: 'block', width: '100%', marginTop: 5, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}>
+            <option value="">Select storefront</option>
+            {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+          </select>
+        </label>
+        {!channelInstanceId && <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>Choose the storefront that will own Shopify rewards and customer balance updates.</div>}
         {error && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: 'rgba(248,113,113,.1)', color: '#f87171', fontSize: 12 }}>{error}</div>}
         {adjustmentOpen && summary?.canAdjustPoints && summary.member && (
           <div style={{ marginBottom: 12, padding: 11, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)' }}>

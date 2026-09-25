@@ -9,7 +9,7 @@ function isoDate(date: Date): string {
 
 const SALES_LINES = `
   SELECT COALESCE(hvid.variant_id, hsku.variant_id, hopt.variant_id) AS variant_id,
-         hl.id AS location_id, h.qty, h.line_total AS amount
+      hl.id AS location_id, NULL AS channel_instance_id, h.qty, h.line_total AS amount
     FROM ims_sales_history h
     LEFT JOIN ims_product_variants hvid ON hvid.variant_id = h.variant_id
     LEFT JOIN ims_product_variants hsku ON hvid.variant_id IS NULL AND hsku.sku = h.sku
@@ -20,7 +20,7 @@ const SALES_LINES = `
   UNION ALL
 
   SELECT COALESCE(pvid.variant_id, psku.variant_id) AS variant_id,
-         ps.location_id, psi.qty, psi.line_total AS amount
+      ps.location_id, NULL AS channel_instance_id, psi.qty, psi.line_total AS amount
     FROM pos_sale_items psi
     JOIN pos_sales ps ON ps.id = psi.sale_id
     LEFT JOIN ims_product_variants pvid ON pvid.variant_id = psi.variant_id
@@ -31,7 +31,7 @@ const SALES_LINES = `
   UNION ALL
 
   SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id,
-         so.location_id, soi.qty_ordered AS qty, soi.line_total AS amount
+      so.location_id, so.channel_instance_id, soi.qty_ordered AS qty, soi.line_total AS amount
     FROM ims_sales_order_items soi
     JOIN ims_sales_orders so ON so.id = soi.so_id
     LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
@@ -68,6 +68,7 @@ export async function GET(req: Request) {
     .split(',')
     .map(Number)
     .filter(id => Number.isInteger(id) && id > 0);
+  const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
 
   try {
     const pool = getIMSPool();
@@ -89,7 +90,12 @@ export async function GET(req: Request) {
     const productWhere = `WHERE ${productConditions.join(' AND ')}`;
 
     const locationPlaceholders = locationIds.map(() => '?').join(',');
-    const salesLocationWhere = locationIds.length > 0 ? `WHERE s.location_id IN (${locationPlaceholders})` : '';
+    const salesConditions = [
+      ...(locationIds.length > 0 ? [`s.location_id IN (${locationPlaceholders})`] : []),
+      ...(channelInstanceId ? ['s.channel_instance_id = ?'] : []),
+    ];
+    const salesLocationWhere = salesConditions.length > 0 ? `WHERE ${salesConditions.join(' AND ')}` : '';
+    const salesFilterParams = [...locationIds, ...(channelInstanceId ? [channelInstanceId] : [])];
     const salesAggregate = `
       SELECT s.variant_id,
              SUM(s.qty) AS sales_qty,
@@ -125,11 +131,12 @@ export async function GET(req: Request) {
          ${productWhere}
         ORDER BY sales_qty DESC, sales_amount DESC, p.name, COALESCE(v.sku, '')
         LIMIT ? OFFSET ?`,
-      [...dateParams, ...locationIds, ...productParams, pageSize, offset],
+      [...dateParams, ...salesFilterParams, ...productParams, pageSize, offset],
     ) as any;
 
     const totalsConditions = [...productConditions];
     if (locationIds.length > 0) totalsConditions.push(`s.location_id IN (${locationPlaceholders})`);
+    if (channelInstanceId) totalsConditions.push('s.channel_instance_id = ?');
     const [locationTotals] = await pool.query<any>(
       `SELECT s.location_id,
               COALESCE(SUM(s.qty), 0) AS sales_qty,
@@ -140,7 +147,7 @@ export async function GET(req: Request) {
          LEFT JOIN ims_contacts con ON con.id = p.supplier_contact_id
         WHERE ${totalsConditions.join(' AND ')}
         GROUP BY s.location_id`,
-      [...dateParams, ...productParams, ...locationIds],
+      [...dateParams, ...productParams, ...locationIds, ...(channelInstanceId ? [channelInstanceId] : [])],
     ) as any;
 
     const variantIds: string[] = rows.map((row: any) => row.variant_id);
@@ -148,6 +155,7 @@ export async function GET(req: Request) {
     if (variantIds.length > 0) {
       const variantPlaceholders = variantIds.map(() => '?').join(',');
       const pageLocationCondition = locationIds.length > 0 ? `AND s.location_id IN (${locationPlaceholders})` : '';
+      const pageChannelCondition = channelInstanceId ? 'AND s.channel_instance_id = ?' : '';
       const [branchRows] = await pool.query<any>(
         `SELECT s.variant_id, s.location_id,
                 SUM(s.qty) AS sales_qty,
@@ -155,8 +163,9 @@ export async function GET(req: Request) {
            FROM (${SALES_LINES}) s
           WHERE s.variant_id IN (${variantPlaceholders})
             ${pageLocationCondition}
+            ${pageChannelCondition}
           GROUP BY s.variant_id, s.location_id`,
-        [...dateParams, ...variantIds, ...locationIds],
+        [...dateParams, ...variantIds, ...locationIds, ...(channelInstanceId ? [channelInstanceId] : [])],
       ) as any;
       for (const row of branchRows) {
         if (!salesByVariant[row.variant_id]) salesByVariant[row.variant_id] = [];

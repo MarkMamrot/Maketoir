@@ -64,6 +64,42 @@ describe('ShopifyLoyaltyService', () => {
     ]);
   });
 
+  it('passes exact instance identity when consuming a Shopify voucher', async () => {
+    mockMarkShopifyVoucherUsed.mockResolvedValueOnce(true);
+
+    await ShopifyLoyaltyService.markPaidOrderRedemptionsUsed({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      shopifyOrderId: '1001', shopifyCustomerId: '12345', discountCodes: ['reward'],
+    });
+
+    expect(mockMarkShopifyVoucherUsed).toHaveBeenCalledWith(
+      'business-1', 'REWARD', '12345', 'instance-2',
+    );
+  });
+
+  it('awards an exact order under instance-namespaced identities', async () => {
+    const connection = setupConnection([
+      [[{ id: 10, customer_id: 42, financial_status: 'paid' }]],
+      [[{ key: 'loyalty_enabled', value: '1' }, { key: 'loyalty_earn_rate', value: '1' }]],
+      [[{ id: 42 }]],
+    ]);
+
+    await ShopifyLoyaltyService.awardPaidOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      shopifyOrderId: '1001', paidDate: '2026-09-25', eligibleSpend: 40,
+    });
+
+    expect(connection.execute.mock.calls[0][0]).toContain('channel_instance_id = ?');
+    expect(connection.execute.mock.calls[0][1]).toEqual(['business-1', 'instance-2', '1001']);
+    expect(mockApplyTransaction).toHaveBeenCalledWith(connection, expect.objectContaining({
+      sourceId: 'instance-2:1001',
+      idempotencyKey: 'shopify:instance-2:order:1001:earn',
+    }));
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({
+      businessId: 'business-1', contactId: 42, channelInstanceId: 'instance-2',
+    });
+  });
+
   it('returns an existing award before recalculating with current settings', async () => {
     mockGetMutation.mockResolvedValueOnce({ transactionId: 1, accountId: 2, balanceAfter: 90, duplicate: true });
 
@@ -153,5 +189,29 @@ describe('ShopifyLoyaltyService', () => {
       businessId: 'business-1', shopifyOrderId: '1001', shopifyRefundId: 'refund-1', eligibleRefundSpend: 20,
     })).resolves.toMatchObject({ status: 'reversed', points: null, mutation: { duplicate: true } });
     expect(mockApplyTransaction).not.toHaveBeenCalled();
+  });
+
+  it('scopes refund reversal and metafield sync to the exact Shopify instance', async () => {
+    const connection = setupConnection([
+      [[{ id: 1, account_id: 2, contact_id: 42, points_delta: 95, eligible_spend_cents: 9500 }]],
+      [[]],
+    ]);
+
+    await ShopifyLoyaltyService.reverseRefund({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      shopifyOrderId: '1001', shopifyRefundId: 'refund-2', eligibleRefundSpend: 20,
+    });
+
+    expect(connection.execute.mock.calls[0][0]).toContain('so.channel_instance_id = ?');
+    expect(connection.execute.mock.calls[0][1]).toEqual([
+      'instance-2:1001', 'business-1', 'instance-2', '1001',
+    ]);
+    expect(mockApplyTransaction).toHaveBeenCalledWith(connection, expect.objectContaining({
+      sourceId: 'instance-2:1001',
+      idempotencyKey: 'shopify:instance-2:refund:refund-2:earn',
+    }));
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({
+      businessId: 'business-1', contactId: 42, channelInstanceId: 'instance-2',
+    });
   });
 });

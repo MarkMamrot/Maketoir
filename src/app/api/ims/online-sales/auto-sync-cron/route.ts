@@ -17,6 +17,7 @@ import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 
 export const runtime = 'nodejs';
 
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'DB error' }, { status: 500 });
   }
 
-  const results: { businessId: string; date: string; success: boolean; error?: string }[] = [];
+  const results: { businessId: string; channelInstanceId: string; date: string; success: boolean; error?: string }[] = [];
 
   // Each business's work runs inside its own bound IMS schema context
   // (callback form — the only AsyncLocalStorage pattern that reliably
@@ -57,58 +58,52 @@ export async function POST(req: Request) {
   const processBusiness = async (business_id: string) => {
     const timeZone = await getBusinessTimeZone(business_id);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });
-    const settingRows = await imsQuery<{ key: string; value: string }>(
-      "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_xero_auto_sync_enabled'",
+    const channelRows = await query<{ channel_instance_id: string; provider: string; settings_json: string | Record<string, unknown> | null }>(
+      `SELECT channel_instance_id, provider, settings_json FROM sales_channel_instances
+        WHERE business_id = ? AND provider IN ('shopify','native_shop')
+          AND is_enabled = 1 AND runtime_status = 'active' AND readiness_status = 'ready'`,
       [business_id],
-    ).catch(() => [] as { key: string; value: string }[]);
-    const settings = new Map(settingRows.map(row => [row.key, row.value]));
-    const xeroAutoSyncEnabled = settings.get('shopify_xero_auto_sync_enabled') !== '0';
-    if (!xeroAutoSyncEnabled) return;
+    );
+    const enabledChannelIds = new Set(channelRows.filter(instance => {
+      if (instance.provider !== 'shopify') return true;
+      let raw: Record<string, unknown> = {};
+      try { raw = typeof instance.settings_json === 'string' ? JSON.parse(instance.settings_json) : instance.settings_json ?? {}; } catch {}
+      return shopifyInstanceSettings(raw).xero.dailyAutoSyncEnabled;
+    }).map(instance => instance.channel_instance_id));
+    if (enabledChannelIds.size === 0) return;
 
-    const hasRecentOrders = await imsQuery<{ c: number }>(
-      `SELECT COUNT(*) AS c
-       FROM ims_sales_orders
-       WHERE business_id = ?
-         AND is_staff_preview_test = 0
-         AND so_type = 'online'
-         AND (is_historical IS NULL OR is_historical = 0)
-         AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-         AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?`,
-      [business_id, today],
-    ).catch(() => [] as { c: number }[]);
-    if (Number(hasRecentOrders[0]?.c ?? 0) === 0) return;
-
-    // Supported model: one invoice per completed business day.
-      const days = await imsQuery<{ day: string }>(
-        `SELECT DATE_FORMAT(order_date, '%Y-%m-%d') AS day
+    // Supported model: one invoice per exact channel and completed business day.
+      const days = await imsQuery<{ day: string; channel_instance_id: string }>(
+        `SELECT DATE_FORMAT(order_date, '%Y-%m-%d') AS day, channel_instance_id
          FROM ims_sales_orders
          WHERE so_type = 'online' AND business_id = ?
            AND is_staff_preview_test = 0
            AND (is_historical IS NULL OR is_historical = 0)
            AND status != 'cancelled'
+           AND channel_instance_id IS NOT NULL
            AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
            AND DATE_FORMAT(order_date, '%Y-%m-%d') < ?
-         GROUP BY DATE_FORMAT(order_date, '%Y-%m-%d')`,
+         GROUP BY channel_instance_id, DATE_FORMAT(order_date, '%Y-%m-%d')`,
         [business_id, today],
       ).catch(() => [] as { day: string }[]);
 
       if (!days.length) return;
 
-      const detailKeys = days.map(d => `online batch ${d.day}`);
+      const detailKeys = days.map(d => `online batch ${d.channel_instance_id} ${d.day}`);
       const synced = await query<{ batch_key: string }>(
         `SELECT detail AS batch_key FROM xero_sync_log
          WHERE business_id = ? AND sync_type = 'online_batch' AND status = 'success'
            AND detail IN (${detailKeys.map(() => '?').join(',')})`,
         [business_id, ...detailKeys],
       ).catch(() => [] as { batch_key: string }[]);
-      const syncedSet = new Set(synced.map(r => String(r.batch_key).replace('online batch ', '')));
+      const syncedSet = new Set(synced.map(r => String(r.batch_key)));
 
-      for (const { day } of days.filter(d => !syncedSet.has(d.day))) {
+      for (const { day, channel_instance_id } of days.filter(d => enabledChannelIds.has(d.channel_instance_id) && !syncedSet.has(`online batch ${d.channel_instance_id} ${d.day}`))) {
         try {
-          const result = await syncOnlineDailySalesDay(business_id, day);
-          results.push({ businessId: business_id, date: day, success: !!result.xeroId });
+          const result = await syncOnlineDailySalesDay(business_id, day, channel_instance_id);
+          results.push({ businessId: business_id, channelInstanceId: channel_instance_id, date: day, success: !!result.xeroId });
         } catch (e: any) {
-          results.push({ businessId: business_id, date: day, success: false, error: e?.message });
+          results.push({ businessId: business_id, channelInstanceId: channel_instance_id, date: day, success: false, error: e?.message });
         }
     }
 
@@ -121,7 +116,10 @@ export async function POST(req: Request) {
         source: 'xero_sync',
         title: 'Xero Sync Failed — Nightly Online Auto-Sync',
         message: `Nightly auto-sync could not post ${failedDays.length} online batch day${failedDays.length !== 1 ? 's' : ''}: ${failedDays.join(', ')}`,
-        detail: { failed_days: failedDays },
+        detail: {
+          failed_days: failedDays,
+          failed_channels: results.filter(result => result.businessId === business_id && !result.success).map(result => result.channelInstanceId),
+        },
         dedupeKey: `xero:auto-sync-cron:${failedDays.join('|')}`,
         dedupeMinutes: 180,
       }).catch(() => {});

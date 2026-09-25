@@ -56,6 +56,10 @@ function setupDefaultMocks() {
       return [{ business_id: 'biz-1' }];
     }
 
+    if (normalized.includes('from sales_channel_instances')) {
+      return [{ channel_instance_id: 'store-1', provider: 'shopify', settings_json: { shopify: { xero: { dailyAutoSyncEnabled: true } } } }];
+    }
+
     if (normalized.includes('from xero_sync_log')) {
       return [];
     }
@@ -72,12 +76,8 @@ function makeImsQueryForDay() {
       return [];
     }
 
-    if (normalized.includes('select count(*) as c from ims_sales_orders')) {
-      return [{ c: 1 }];
-    }
-
-    if (normalized.includes('group by date_format(order_date')) {
-      return [{ day: '2026-07-24' }];
+    if (normalized.includes('group by channel_instance_id')) {
+      return [{ day: '2026-07-24', channel_instance_id: 'store-1' }];
     }
 
     throw new Error(`Unhandled SQL in imsQuery mock: ${sql}`);
@@ -112,6 +112,10 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
         return [{ business_id: 'biz-1' }];
       }
 
+      if (normalized.includes('from sales_channel_instances')) {
+        return [{ channel_instance_id: 'store-1', provider: 'shopify', settings_json: { shopify: { xero: { dailyAutoSyncEnabled: true } } } }];
+      }
+
       if (normalized.includes('from xero_gateway_mappings')) {
         return [{ gateway_name: 'paypal', clearing_account_code: '777' }];
       }
@@ -131,7 +135,7 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
     expect(json.ok).toBe(true);
     expect(json.synced).toBe(1);
     expect(mockRunImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
-    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24');
+    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24', 'store-1');
   });
 
   it('creates one combined invoice when no gateway mappings exist', async () => {
@@ -143,7 +147,7 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.synced).toBe(1);
-    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24');
+    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24', 'store-1');
   });
 
   it('defers Shopify Payments while paying other gateways on the combined invoice', async () => {
@@ -153,6 +157,9 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
         expect(normalized).toContain('coalesce(automation_paused, 0) = 0');
         return [{ business_id: 'biz-1' }];
       }
+      if (normalized.includes('from sales_channel_instances')) {
+        return [{ channel_instance_id: 'store-1', provider: 'shopify', settings_json: { shopify: { xero: { dailyAutoSyncEnabled: true } } } }];
+      }
       if (normalized.includes('from xero_sync_log')) return [];
       throw new Error(`Unhandled SQL in query mock: ${sql}`);
     });
@@ -161,14 +168,13 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
       if (normalized.includes('from ims_settings')) {
         return [];
       }
-      if (normalized.includes('select count(*) as c from ims_sales_orders')) return [{ c: 2 }];
-      if (normalized.includes('group by date_format(order_date')) return [{ day: '2026-07-24' }];
+      if (normalized.includes('group by channel_instance_id')) return [{ day: '2026-07-24', channel_instance_id: 'store-1' }];
       throw new Error(`Unhandled SQL in imsQuery mock: ${sql}`);
     });
 
     const res = await POST(cronRequest('cron-secret'));
 
     expect(res.status).toBe(200);
-    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24');
+    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24', 'store-1');
   });
 });

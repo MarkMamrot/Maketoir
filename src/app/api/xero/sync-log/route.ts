@@ -232,14 +232,16 @@ export async function GET(req: Request) {
     const todayForBusiness = new Date().toLocaleDateString('sv-SE', { timeZone });
     const onlineBatches = await imsQuery<any>(
       `SELECT DATE(so.order_date) AS batch_date,
+              so.channel_instance_id,
               COUNT(*) AS sale_count,
               SUM(so.total_amount) AS total_amount
          FROM ims_sales_orders so
         WHERE so.so_type = 'online'
           AND (so.is_historical = 0 OR so.is_historical IS NULL)
           AND so.status NOT IN ('cancelled','draft')
+          AND so.channel_instance_id IS NOT NULL
           AND DATE_FORMAT(so.order_date, '%Y-%m-%d') < ?
-        GROUP BY DATE(so.order_date)
+        GROUP BY so.channel_instance_id, DATE(so.order_date)
         ORDER BY batch_date DESC
         LIMIT ${limit}`,
       [todayForBusiness],
@@ -253,7 +255,7 @@ export async function GET(req: Request) {
     const scnIds = scns.map((scn: any) => scn.id as number);
     const onlineBatchDates = onlineBatches.map((b: any) => batchDateStr(b.batch_date));
     // Keys must match xero_sync_log.detail format: 'online batch YYYY-MM-DD'
-    const onlineBatchKeys = onlineBatches.map((b: any) => `online batch ${batchDateStr(b.batch_date)}`);
+    const onlineBatchKeys = onlineBatches.map((b: any) => `online batch ${b.channel_instance_id} ${batchDateStr(b.batch_date)}`);
 
     // ── 5. Sync log lookups (main DB) ───────────────────────────────────────────────
     let poLogs: any[] = [];
@@ -358,10 +360,14 @@ export async function GET(req: Request) {
         );
 
         onlineBatchRows = await query<any>(
-          `SELECT batch_date, xero_invoice_id, payout_managed
-             FROM xero_online_batches
-            WHERE business_id = ?
-              AND batch_date IN (${onlineBatchDates.map(() => '?').join(',')})`,
+          `SELECT batch.channel_instance_id, batch.batch_date, batch.xero_invoice_id, batch.payout_managed,
+                  instance.display_name AS channel_display_name
+             FROM xero_online_batches batch
+             LEFT JOIN sales_channel_instances instance
+               ON instance.business_id = batch.business_id
+              AND instance.channel_instance_id = batch.channel_instance_id
+            WHERE batch.business_id = ?
+              AND batch.batch_date IN (${onlineBatchDates.map(() => '?').join(',')})`,
           [databaseId, ...onlineBatchDates],
         );
 
@@ -373,7 +379,7 @@ export async function GET(req: Request) {
         ));
         if (payoutManagedInvoiceIds.length > 0) {
           onlineBatchPayoutLinks = await query<any>(
-            `SELECT a.target_xero_document_id AS xero_invoice_id,
+                `SELECT a.channel_instance_id, a.target_xero_document_id AS xero_invoice_id,
                     p.shopify_payout_id,
                     p.reconciliation_status,
                     p.error_detail,
@@ -382,11 +388,12 @@ export async function GET(req: Request) {
                FROM shopify_payment_xero_actions a
                JOIN shopify_payment_payouts p
                  ON p.business_id = a.business_id
+                AND p.channel_instance_id = a.channel_instance_id
                 AND p.shopify_payout_id = a.shopify_payout_id
               WHERE a.business_id = ?
                 AND a.action_type = 'invoice_payment'
                 AND a.target_xero_document_id IN (${payoutManagedInvoiceIds.map(() => '?').join(',')})
-              GROUP BY a.target_xero_document_id,
+              GROUP BY a.channel_instance_id, a.target_xero_document_id,
                        p.shopify_payout_id,
                        p.reconciliation_status,
                        p.error_detail,
@@ -477,27 +484,34 @@ export async function GET(req: Request) {
 
     try {
       shopifyPayouts = await query<any>(
-        `SELECT p.id, p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
+        `SELECT p.id, p.channel_instance_id, instance.display_name AS channel_display_name,
+          p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
                 p.transaction_net_total, p.reconciliation_status, p.error_detail,
                 p.reconciled_at, p.updated_at,
                 (SELECT MIN(t.business_date)
                    FROM shopify_payment_payout_transactions t
                   WHERE t.business_id = p.business_id
+                    AND t.channel_instance_id = p.channel_instance_id
                     AND t.shopify_payout_id = p.shopify_payout_id
                     AND LOWER(t.transaction_type) != 'payout') AS transaction_date_from,
                 (SELECT MAX(t.business_date)
                    FROM shopify_payment_payout_transactions t
                   WHERE t.business_id = p.business_id
+                    AND t.channel_instance_id = p.channel_instance_id
                     AND t.shopify_payout_id = p.shopify_payout_id
                     AND LOWER(t.transaction_type) != 'payout') AS transaction_date_to,
                 COUNT(a.id) AS action_count,
                 SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) AS completed_action_count
            FROM shopify_payment_payouts p
+           JOIN sales_channel_instances instance
+             ON instance.business_id = p.business_id
+            AND instance.channel_instance_id = p.channel_instance_id
            LEFT JOIN shopify_payment_xero_actions a
              ON a.business_id = p.business_id
+            AND a.channel_instance_id = p.channel_instance_id
             AND a.shopify_payout_id = p.shopify_payout_id
           WHERE p.business_id = ?
-          GROUP BY p.id, p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
+          GROUP BY p.id, p.channel_instance_id, instance.display_name, p.shopify_payout_id, p.payout_date, p.currency, p.payout_amount,
                    p.transaction_net_total, p.reconciliation_status, p.error_detail,
                    p.reconciled_at, p.updated_at
           ORDER BY p.payout_date DESC, p.id DESC
@@ -515,7 +529,7 @@ export async function GET(req: Request) {
     const scnLogByRef = new Map(scnLogs.map((r: any) => [r.reference_id, r]));
     // batchLogByKey is keyed by 'online batch YYYY-MM-DD'; look up by the same format
     const batchLogByKey = new Map(batchLogs.map((r: any) => [r.batch_key, r]));
-    const onlineBatchByDate = new Map(onlineBatchRows.map((row: any) => [batchDateStr(row.batch_date), row]));
+    const onlineBatchByOwnerDate = new Map(onlineBatchRows.map((row: any) => [`${row.channel_instance_id}|${batchDateStr(row.batch_date)}`, row]));
     const eodCashActionByInvoice = new Map(
       eodCashActions.map((action: any) => [String(action.xero_invoice_id), action]),
     );
@@ -528,7 +542,7 @@ export async function GET(req: Request) {
       payoutLinksByInvoice.set(invoiceId, rows);
     }
     // Helper to get log for a batch date
-    const getBatchLog = (dateStr: string) => batchLogByKey.get(`online batch ${dateStr}`);
+    const getBatchLog = (channelInstanceId: string, dateStr: string) => batchLogByKey.get(`online batch ${channelInstanceId} ${dateStr}`);
 
     const payoutStatusPriority: Record<string, number> = {
       reconciled: 0,
@@ -674,8 +688,9 @@ export async function GET(req: Request) {
 
     const onlineBatchEntries = onlineBatches.map((b: any) => {
       const dateStr = batchDateStr(b.batch_date);
-      const log = getBatchLog(dateStr);
-      const batch = onlineBatchByDate.get(dateStr);
+      const channelInstanceId = String(b.channel_instance_id);
+      const log = getBatchLog(channelInstanceId, dateStr);
+      const batch = onlineBatchByOwnerDate.get(`${channelInstanceId}|${dateStr}`);
       const payoutManaged = Number(batch?.payout_managed ?? 0) === 1;
       const invoiceId = String(batch?.xero_invoice_id ?? '').trim() || null;
       const payoutMatch = invoiceId ? pickBatchPayout(payoutLinksByInvoice.get(invoiceId) ?? []) : null;
@@ -700,6 +715,8 @@ export async function GET(req: Request) {
               : `Payout ${String(payoutMatch.shopify_payout_id)} status: ${payoutStatus || 'unknown'}`;
       return {
         sync_type: 'online_batch',
+        channel_instance_id: channelInstanceId,
+        channel_display_name: batch?.channel_display_name ?? 'Unknown channel',
         reference_id: null,
         reference: `Online ${dateStr} (${b.sale_count} orders)`,
         contact_name: null,
@@ -816,6 +833,8 @@ export async function GET(req: Request) {
           : 'pending';
       return {
         sync_type: 'shopify_payout',
+        channel_instance_id: String(payout.channel_instance_id),
+        channel_display_name: String(payout.channel_display_name),
         payout_id: String(payout.shopify_payout_id),
         payout_status: status,
         payout_transaction_date_from: batchDateStr(payout.transaction_date_from),

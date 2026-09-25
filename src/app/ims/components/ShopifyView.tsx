@@ -42,6 +42,20 @@ async function readApiResponse(res: Response) {
   throw new Error(res.status === 524 ? 'The request timed out before the server could return JSON. Customer pull now runs in smaller batches, so retry the sync.' : message);
 }
 
+type ShopifyInstanceOption = { channelInstanceId: string; displayName: string };
+
+function useShopifyInstanceOptions() {
+  const [instances, setInstances] = useState<ShopifyInstanceOption[]>([]);
+  const [channelInstanceId, setChannelInstanceId] = useState('');
+  useEffect(() => {
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      setInstances((data.instances ?? []).filter((instance: any) =>
+        instance.provider === 'shopify' && instance.enabled && instance.runtimeStatus === 'active' && instance.readinessStatus === 'ready'));
+    }).catch(() => setInstances([]));
+  }, []);
+  return { instances, channelInstanceId, setChannelInstanceId };
+}
+
 // ─── Main ShopifyView ─────────────────────────────────────────────────────────
 export default function ShopifyView({ businessId, xeroAccountingEnabled = false }: { businessId?: string; xeroAccountingEnabled?: boolean }) {
   const [status, setStatus]   = useState<any>(null);
@@ -93,7 +107,7 @@ export default function ShopifyView({ businessId, xeroAccountingEnabled = false 
           {tab === 'overview'   && <ShopifyOverviewTab status={status} onReload={reload} />}
           {tab === 'products'   && <ShopifyProductsTab />}
           {tab === 'log'        && <ShopifyLogTab />}
-          {tab === 'orders'     && <ShopifyOrdersTab businessId={businessId ?? ''} xeroAccountingEnabled={xeroAccountingEnabled} />}
+          {tab === 'orders'     && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} />}
           {tab === 'gift-cards' && <ShopifyGiftCardsTab />}
         </>
       )}
@@ -229,6 +243,7 @@ function ShopifyProductsTab() {
   } | null>(null);
   const [openingStockResult, setOpeningStockResult] = useState<string | null>(null);
   const [openingStockError, setOpeningStockError] = useState<string | null>(null);
+  const shopifySelection = useShopifyInstanceOptions();
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -410,6 +425,7 @@ function ShopifyProductsTab() {
   /** Sync prices for a list of IMS product IDs, batching into ≤30-product calls
    *  so each HTTP request finishes well within Cloudflare's proxy timeout.       */
   const batchSyncPrices = async (productIds: string[], label: string) => {
+    if (!shopifySelection.channelInstanceId) { setOpError('Select a Shopify storefront for price sync.'); return; }
     setSyncing(true); setOpResult(null); setOpError(null); setOpProgress(null);
     const BATCH = 30;
     let totalSynced = 0;
@@ -424,7 +440,7 @@ function ShopifyProductsTab() {
         const r = await fetch('/api/ims/shopify/sync-prices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_ids: batch }),
+          body: JSON.stringify({ product_ids: batch, channelInstanceId: shopifySelection.channelInstanceId }),
         });
         if (!r.ok) throw new Error(`Server error ${r.status}`);
         const d = await r.json();
@@ -455,7 +471,8 @@ function ShopifyProductsTab() {
     setSyncing(true); setOpResult(null); setOpError(null); setOpProgress(null);
     try {
       // Discover ALL product IDs that have Shopify links (fast DB-only GET)
-      const r = await fetch('/api/ims/shopify/sync-prices');
+      if (!shopifySelection.channelInstanceId) throw new Error('Select a Shopify storefront for price sync.');
+      const r = await fetch(`/api/ims/shopify/sync-prices?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`);
       if (!r.ok) throw new Error(`Server error ${r.status}`);
       const { productIds, variantCount } = await r.json();
       if (!productIds?.length) { setOpResult('No linked products found.'); setSyncing(false); return; }
@@ -618,6 +635,15 @@ function ShopifyProductsTab() {
           onChange={e => setSearch(e.target.value)}
           style={{ flex: 1, minWidth: 160, height: 34, padding: '0 10px', fontSize: 13, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)' }}
         />
+        <select
+          value={shopifySelection.channelInstanceId}
+          onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
+          aria-label="Shopify storefront for price synchronization"
+          style={{ height: 34, padding: '0 10px', fontSize: 13, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)' }}
+        >
+          <option value="">Select price sync store</option>
+          {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
+        </select>
         <button
           onClick={runUpload} disabled={uploading || syncing || importingCatalogue}
           style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: uploading ? 0.7 : 1 }}
@@ -625,13 +651,13 @@ function ShopifyProductsTab() {
           {uploading ? 'Uploading…' : '⬆ Upload Selected'}
         </button>
         <button
-          onClick={runSyncPrices} disabled={syncing || uploading || importingCatalogue}
+          onClick={runSyncPrices} disabled={syncing || uploading || importingCatalogue || !shopifySelection.channelInstanceId}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '💲 Sync Prices'}
         </button>
         <button
-          onClick={runResync} disabled={syncing || uploading || importingCatalogue}
+          onClick={runResync} disabled={syncing || uploading || importingCatalogue || !shopifySelection.channelInstanceId}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '🔄 Full Resync'}
@@ -802,7 +828,8 @@ function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: string; xeroAccountingEnabled: boolean }) {
+function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: boolean }) {
+  const shopifySelection = useShopifyInstanceOptions();
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
   const [webhookSecret,  setWebhookSecret]  = useState('');
@@ -810,42 +837,54 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
   const [saving,         setSaving]         = useState(false);
   const [saveMsg,        setSaveMsg]        = useState<string | null>(null);
   const [syncEnabled,    setSyncEnabled]    = useState(false);
-  const [xeroAutoSyncEnabled, setXeroAutoSyncEnabled] = useState(true);
+  const [xeroAutoSyncEnabled, setXeroAutoSyncEnabled] = useState(false);
   const [importing,      setImporting]      = useState(false);
   const [importResult,   setImportResult]   = useState<any>(null);
   const [importError,    setImportError]    = useState<string | null>(null);
 
   useEffect(() => {
-    // Load current settings
-    fetch('/api/ims/settings').then(r => r.json()).then(d => {
-      if (d.data) {
-        if (d.data.shopify_order_sync_from) setSyncFrom(d.data.shopify_order_sync_from);
-        if (d.data.online_sales_location_id) setLocationId(d.data.online_sales_location_id);
-        if (d.data.shopify_webhook_secret) setWebhookSecret(d.data.shopify_webhook_secret);
-        setSyncEnabled(d.data.shopify_order_sync_enabled === '1');
-        setXeroAutoSyncEnabled(d.data.shopify_xero_auto_sync_enabled !== '0');
-      }
-    }).catch(() => {});
-    // Load locations
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (d.success) setLocations(d.data ?? []);
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const channelInstanceId = shopifySelection.channelInstanceId;
+    setSaveMsg(null);
+    setImportResult(null);
+    setImportError(null);
+    if (!channelInstanceId) {
+      setSyncEnabled(false);
+      setXeroAutoSyncEnabled(false);
+      setLocationId('');
+      return;
+    }
+    fetch(`/api/ims/shopify/instance-settings?channelInstanceId=${encodeURIComponent(channelInstanceId)}`)
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) throw new Error(data.error || 'Settings could not be loaded.');
+        setSyncEnabled(Boolean(data.settings?.orders?.enabled));
+        setSyncFrom(data.settings?.orders?.syncFrom ?? '2026-07-01');
+        setLocationId(data.settings?.orders?.locationId ? String(data.settings.orders.locationId) : '');
+        setXeroAutoSyncEnabled(Boolean(data.settings?.xero?.dailyAutoSyncEnabled));
+      })
+      .catch(error => setSaveMsg(`Error: ${error instanceof Error ? error.message : 'Settings could not be loaded.'}`));
+  }, [shopifySelection.channelInstanceId]);
+
   async function saveSettings() {
     setSaving(true); setSaveMsg(null);
     try {
-      await fetch('/api/ims/settings', {
+      if (!shopifySelection.channelInstanceId) throw new Error('Select a Shopify storefront.');
+      const response = await fetch(`/api/ims/shopify/instance-settings?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: {
-          shopify_order_sync_enabled: syncEnabled ? '1' : '0',
-          ...(xeroAccountingEnabled ? { shopify_xero_auto_sync_enabled: xeroAutoSyncEnabled ? '1' : '0' } : {}),
-          shopify_order_sync_from: syncFrom,
-          online_sales_location_id: locationId,
-          shopify_webhook_secret: webhookSecret,
-        }}),
+        body: JSON.stringify({
+          orders: { enabled: syncEnabled, syncFrom, locationId: locationId ? Number(locationId) : null },
+          xero: { dailyAutoSyncEnabled: xeroAccountingEnabled && xeroAutoSyncEnabled },
+        }),
       });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Settings could not be saved.');
       setSaveMsg('Settings saved.');
     } catch (e: any) { setSaveMsg(`Error: ${e.message}`); }
     setSaving(false);
@@ -854,7 +893,11 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
   async function runImport() {
     setImporting(true); setImportResult(null); setImportError(null);
     try {
-      const r = await fetch('/api/ims/shopify/import-orders', { method: 'POST' });
+      if (!shopifySelection.channelInstanceId) throw new Error('Select a Shopify storefront.');
+      const r = await fetch('/api/ims/shopify/import-orders', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId }),
+      });
       const d = await r.json();
       if (!r.ok || !d.success) throw new Error(d.error ?? 'Import failed');
       setImportResult(d);
@@ -867,19 +910,27 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
   const input: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%', boxSizing: 'border-box' as const };
   const btn = (primary?: boolean): React.CSSProperties => ({ padding: '8px 20px', background: primary ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: primary ? '#fff' : 'var(--sv-text-main)', border: `1px solid ${primary ? 'transparent' : 'var(--sv-etch)'}`, borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
 
-  const webhookUrl = (typeof window !== 'undefined' ? window.location.origin : '') + `/api/webhooks/shopify/orders/${businessId}`;
+  const webhookUrl = shopifySelection.channelInstanceId
+    ? (typeof window !== 'undefined' ? window.location.origin : '') + `/api/webhooks/shopify/channels/${shopifySelection.channelInstanceId}`
+    : '';
 
   return (
     <div>
+      <div style={{ ...card, display: 'grid', gridTemplateColumns: 'minmax(220px, 420px) 1fr', gap: 16, alignItems: 'end' }}>
+        <div>
+          <label style={label}>Shopify storefront</label>
+          <select value={shopifySelection.channelInstanceId} onChange={event => shopifySelection.setChannelInstanceId(event.target.value)} style={input}>
+            <option value="">Select storefront</option>
+            {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
+          </select>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>All settings, imports, webhooks, and Xero batches below apply only to this storefront.</div>
+      </div>
       {/* Enable/Disable toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '14px 18px', background: syncEnabled ? 'rgba(16,185,129,.08)' : 'var(--sv-bg-2)', border: `1px solid ${syncEnabled ? 'rgba(16,185,129,.3)' : 'var(--sv-etch)'}`, borderRadius: 10 }}>
         <div
-          onClick={async () => {
-            const next = !syncEnabled;
-            setSyncEnabled(next);
-            await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { shopify_order_sync_enabled: next ? '1' : '0' } }) }).catch(() => {});
-          }}
-          style={{ width: 48, height: 26, borderRadius: 99, background: syncEnabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}
+          onClick={() => shopifySelection.channelInstanceId && setSyncEnabled(current => !current)}
+          style={{ width: 48, height: 26, borderRadius: 99, background: syncEnabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: shopifySelection.channelInstanceId ? 'pointer' : 'not-allowed', transition: 'background .2s', flexShrink: 0, opacity: shopifySelection.channelInstanceId ? 1 : .55 }}
         >
           <div style={{ position: 'absolute', top: 3, left: syncEnabled ? 25 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }} />
         </div>
@@ -899,15 +950,7 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
         {xeroAccountingEnabled && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
-              onClick={async () => {
-                const next = !xeroAutoSyncEnabled;
-                setXeroAutoSyncEnabled(next);
-                await fetch('/api/ims/settings', {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ settings: { shopify_xero_auto_sync_enabled: next ? '1' : '0' } }),
-                }).catch(() => {});
-              }}
+              onClick={() => shopifySelection.channelInstanceId && setXeroAutoSyncEnabled(current => !current)}
               style={{ width: 42, height: 22, borderRadius: 99, background: xeroAutoSyncEnabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}
               title="Controls the automatic daily online-sales batch sync from IMS to Xero"
             >
@@ -938,13 +981,8 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
             <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>Which location's stock is committed/deducted for online orders.</div>
           </div>
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={label}>Shopify Webhook Signing Secret</label>
-          <input type="password" value={webhookSecret} onChange={e => setWebhookSecret(e.target.value)} placeholder="shpss_…" style={input} autoComplete="new-password" />
-          <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 4 }}>Found in Shopify Admin → Settings → Notifications → Webhooks → your webhook → Signing secret.</div>
-        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="submit" disabled={saving} style={btn(true)}>{saving ? 'Saving…' : 'Save Settings'}</button>
+          <button type="submit" disabled={saving || !shopifySelection.channelInstanceId} style={btn(true)}>{saving ? 'Saving…' : 'Save Settings'}</button>
           {saveMsg && <span style={{ fontSize: 13, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{saveMsg}</span>}
         </div>
       </form>
@@ -984,11 +1022,11 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
           <button onClick={() => navigator.clipboard?.writeText(webhookUrl)} style={btn()}>Copy</button>
         </div>
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-          After adding each webhook in Shopify, paste the <strong>Signing secret</strong> (shown per-webhook in Shopify) into the Settings field above. All webhooks registered at the same URL share one secret.
+          Client-credential connections use the saved app secret. For legacy access-token connections, enter the storefront's webhook signing secret when registering.
         </div>
 
         {/* Webhook status checker */}
-        <WebhookStatusChecker btn={btn} />
+        <WebhookStatusChecker btn={btn} channelInstanceId={shopifySelection.channelInstanceId} signingSecret={webhookSecret} onSigningSecretChange={setWebhookSecret} input={input} />
       </div>
 
       {/* Manual import */}
@@ -1034,7 +1072,13 @@ function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: s
 }
 
 // ─── Webhook Status Checker ───────────────────────────────────────────────────
-function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperties }) {
+function WebhookStatusChecker({ btn, channelInstanceId, signingSecret, onSigningSecretChange, input }: {
+  btn: (p?: boolean) => React.CSSProperties;
+  channelInstanceId: string;
+  signingSecret: string;
+  onSigningSecretChange: (value: string) => void;
+  input: React.CSSProperties;
+}) {
   const [checking, setChecking]     = useState(false);
   const [registering, setRegistering] = useState(false);
   const [result, setResult]         = useState<any>(null);
@@ -1042,7 +1086,8 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
   const check = async () => {
     setChecking(true); setResult(null);
     try {
-      const r = await fetch('/api/ims/shopify/webhook-status');
+      if (!channelInstanceId) throw new Error('Select a Shopify storefront.');
+      const r = await fetch(`/api/ims/shopify/webhook-status?channelInstanceId=${encodeURIComponent(channelInstanceId)}`);
       setResult(await r.json());
     } catch (e: any) { setResult({ success: false, error: e.message }); }
     setChecking(false);
@@ -1051,31 +1096,30 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
   const register = async () => {
     setRegistering(true); setResult(null);
     try {
-      const r = await fetch('/api/ims/shopify/webhook-status', { method: 'POST' });
+      if (!channelInstanceId) throw new Error('Select a Shopify storefront.');
+      const r = await fetch(`/api/ims/shopify/webhook-status?channelInstanceId=${encodeURIComponent(channelInstanceId)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signingSecret }),
+      });
       const d = await r.json();
       if (!d.success) throw new Error(d.error);
-      // After registration, re-check so the status table refreshes
-      const r2 = await fetch('/api/ims/shopify/webhook-status');
-      setResult({ ...(await r2.json()), registerResults: d.results });
+      setResult(d);
     } catch (e: any) { setResult({ success: false, error: e.message }); }
     setRegistering(false);
   };
 
-  const statusIcon = (s: string) =>
-    s === 'ok'        ? <span style={{ color: '#34d399', fontWeight: 700 }}>✓</span>
-    : s === 'wrong_url' ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>⚠</span>
-    :                    <span style={{ color: '#f87171', fontWeight: 700 }}>✗</span>;
-
-  const actionColor = (a: string) =>
-    a === 'created' ? '#34d399' : a === 'updated' ? '#60a5fa' : a === 'error' ? '#f87171' : 'var(--sv-text-dim)';
+  const statusIcon = (status: string) => status === 'registered'
+    ? <span style={{ color: '#34d399', fontWeight: 700 }}>✓</span>
+    : <span style={{ color: '#f87171', fontWeight: 700 }}>✗</span>;
 
   return (
     <div style={{ marginTop: 14 }}>
+      <input type="password" value={signingSecret} onChange={event => onSigningSecretChange(event.target.value)} placeholder="Legacy-token signing secret (only if required)" style={{ ...input, marginBottom: 8 }} autoComplete="new-password" />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button onClick={check} disabled={checking || registering} style={btn()}>
+        <button onClick={check} disabled={checking || registering || !channelInstanceId} style={btn()}>
           {checking ? 'Checking…' : '🔍 Check webhook registration'}
         </button>
-        <button onClick={register} disabled={checking || registering} style={btn(true)}>
+        <button onClick={register} disabled={checking || registering || !channelInstanceId} style={btn(true)}>
           {registering ? 'Registering…' : '⚡ Register webhooks via API'}
         </button>
       </div>
@@ -1094,25 +1138,8 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
             <span style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>
               {result.allOk ? '✅ All webhooks registered' : 'Webhook status'}
             </span>
-            <span style={{ color: result.hasSecret ? '#34d399' : '#f87171' }}>
-              {result.hasSecret ? '✓ Signing secret saved' : '✗ Signing secret missing — paste it into Settings above'}
-            </span>
-            <span style={{ color: result.syncEnabled ? '#34d399' : '#fbbf24' }}>
-              {result.syncEnabled ? '✓ Order sync enabled' : '⚠ Order sync disabled'}
-            </span>
+            {result.result && <span style={{ color: result.result.failed?.length ? '#fbbf24' : '#34d399' }}>{result.result.registered} added, {result.result.updated} updated{result.result.failed?.length ? `, ${result.result.failed.length} optional unavailable` : ''}</span>}
           </div>
-
-          {/* Registration action results */}
-          {result.registerResults && (
-            <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              {result.registerResults.map((r: any) => (
-                <span key={r.topic} style={{ fontSize: 11, color: actionColor(r.action) }}>
-                  {r.action === 'created' ? '+ ' : r.action === 'updated' ? '↻ ' : r.action === 'error' ? '✗ ' : '✓ '}{r.topic}
-                  {r.error ? ` (${r.error})` : ''}
-                </span>
-              ))}
-            </div>
-          )}
 
           {/* Per-topic rows */}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1122,11 +1149,9 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
                   <td style={{ padding: '7px 14px', width: 24 }}>{statusIcon(t.status)}</td>
                   <td style={{ padding: '7px 6px', fontFamily: 'monospace', color: 'var(--sv-mint)', whiteSpace: 'nowrap' }}>{t.topic}</td>
                   <td style={{ padding: '7px 6px 7px 12px', color: 'var(--sv-text-dim)' }}>
-                    {t.status === 'ok'
-                      ? <span style={{ color: '#34d399' }}>Registered via API ✓</span>
-                      : t.status === 'wrong_url'
-                      ? <span style={{ color: '#f59e0b' }}>Registered but wrong URL — click Register to fix</span>
-                      : <span style={{ color: '#f87171' }}>Not registered via API — click Register, or check Shopify Admin if you added it there</span>}
+                    {t.status === 'registered'
+                      ? <span style={{ color: '#34d399' }}>Registered for this storefront</span>
+                      : <span style={{ color: '#f87171' }}>{t.error || 'Missing for this storefront'}</span>}
                   </td>
                 </tr>
               ))}
@@ -1135,16 +1160,7 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
 
           <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.5 }}>
             Expected URL: <code style={{ fontSize: 10, background: 'var(--sv-bg-0)', padding: '1px 6px', borderRadius: 3, color: 'var(--sv-mint)' }}>{result.expectedUrl}</code>
-            {result.allRegisteredViaApi === 0 && !result.registerResults && (
-              <span style={{ marginLeft: 12, color: '#fbbf24' }}>⚠ No API-registered webhooks found. If you added them via the Shopify Admin UI, click <em>Register webhooks via API</em> — the UI ones won't conflict (Shopify fires both).</span>
-            )}
           </div>
-
-          {result.otherTopicsAtOurUrl?.length > 0 && (
-            <div style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', fontSize: 11, color: '#fbbf24' }}>
-              ⚠ Other topics at this URL: {result.otherTopicsAtOurUrl.join(', ')} (not required, harmless)
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1153,6 +1169,7 @@ function WebhookStatusChecker({ btn }: { btn: (p?: boolean) => React.CSSProperti
 
 // ─── Inventory Sync Card (IMS → Shopify) ──────────────────────────────────────
 function InventorySyncCard({ card, label, input, btn }: { card: React.CSSProperties; label: React.CSSProperties; input: React.CSSProperties; btn: (p?: boolean) => React.CSSProperties }) {
+  const shopifySelection = useShopifyInstanceOptions();
   const [enabled, setEnabled]           = useState(false);
   const [loaded, setLoaded]             = useState(false);
   const [imsLocations, setImsLocations] = useState<{ id: number; name: string }[]>([]);
@@ -1166,8 +1183,10 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
   const [preview, setPreview]           = useState<any>(null);
   const [search, setSearch]             = useState('');
 
-  const load = () => {
-    fetch('/api/ims/shopify/sync-inventory').then(r => r.json()).then(d => {
+  const load = useCallback(() => {
+    if (!shopifySelection.channelInstanceId) { setLoaded(true); return; }
+    setLoaded(false);
+    fetch(`/api/ims/shopify/sync-inventory?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`).then(r => r.json()).then(d => {
       if (d.success) {
         setEnabled(!!d.enabled);
         setImsLocations(d.imsLocations ?? []);
@@ -1179,11 +1198,15 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       }
       setLoaded(true);
     }).catch(() => setLoaded(true));
-  };
-  useEffect(() => { load(); }, []);
+  }, [shopifySelection.channelInstanceId]);
+  useEffect(() => { load(); }, [load]);
 
-  const saveSetting = async (patch: Record<string, string>) => {
-    await fetch('/api/ims/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: patch }) }).catch(() => {});
+  const saveSetting = async (patch: Record<string, unknown>) => {
+    if (!shopifySelection.channelInstanceId) return;
+    await fetch('/api/ims/shopify/sync-inventory', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId, inventory: patch }),
+    }).catch(() => {});
   };
 
   const togglePickLocation = async (id: number) => {
@@ -1191,7 +1214,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       ? pickLocationIds.filter(x => x !== id)
       : [...pickLocationIds, id];
     setPickIds(next);
-    await saveSetting({ online_pick_priority: JSON.stringify(next) });
+    await saveSetting({ pickLocationIds: next });
   };
 
   const run = async (mode: 'preview' | 'all' | 'queue') => {
@@ -1201,7 +1224,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Manual "Sync Queue Now" drains a big batch on demand (bulk GraphQL is fast).
-        body: JSON.stringify(mode === 'queue' ? { mode, limit: 5000 } : { mode }),
+        body: JSON.stringify(mode === 'queue' ? { mode, limit: 5000 } : { mode, channelInstanceId: shopifySelection.channelInstanceId }),
       });
       const d = await r.json();
       if (!d.success && d.error && mode !== 'preview') throw new Error(d.error);
@@ -1242,10 +1265,19 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
         Tick the IMS branches whose stock should count toward the Shopify available number. Set a safety buffer to deduct from the total. The combined result is pushed to Shopify automatically every {intervalMinutes} minute{intervalMinutes === 1 ? '' : 's'}.
       </p>
+      <select
+        value={shopifySelection.channelInstanceId}
+        onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
+        aria-label="Shopify storefront for inventory synchronization"
+        style={{ ...input, width: 'min(100%, 360px)', marginBottom: 16 }}
+      >
+        <option value="">Select inventory sync store</option>
+        {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
+      </select>
 
       {/* Enable toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-        <div onClick={async () => { const next = !enabled; setEnabled(next); await saveSetting({ shopify_inventory_sync_enabled: next ? '1' : '0' }); }}
+        <div onClick={async () => { if (!shopifySelection.channelInstanceId) return; const next = !enabled; setEnabled(next); await saveSetting({ enabled: next }); }}
           style={{ width: 46, height: 25, borderRadius: 99, background: enabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
           <div style={{ position: 'absolute', top: 3, left: enabled ? 24 : 3, width: 19, height: 19, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
         </div>
@@ -1281,7 +1313,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
           <input
             type="number" min="0" step="1" value={buffer}
             onChange={e => setBuffer(Math.max(0, parseInt(e.target.value || '0', 10)))}
-            onBlur={async () => saveSetting({ shopify_inventory_buffer: String(buffer) })}
+            onBlur={async () => saveSetting({ buffer })}
             style={{ ...input, width: 90 }}
           />
         </div>
@@ -1290,7 +1322,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
           <input
             type="number" min="1" step="1" value={intervalMinutes}
             onChange={e => setIntervalMinutes(Math.max(1, parseInt(e.target.value || '15', 10)))}
-            onBlur={async () => saveSetting({ shopify_inventory_sync_interval_minutes: String(intervalMinutes) })}
+            onBlur={async () => saveSetting({ intervalMinutes })}
             style={{ ...input, width: 110 }}
           />
         </div>
@@ -1314,9 +1346,9 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button onClick={() => run('preview')} disabled={!!busy || pickLocationIds.length === 0} style={btn()}>{busy === 'preview' ? 'Loading…' : '🔍 Preview what will be pushed'}</button>
+        <button onClick={() => run('preview')} disabled={!!busy || !shopifySelection.channelInstanceId || pickLocationIds.length === 0} style={btn()}>{busy === 'preview' ? 'Loading…' : '🔍 Preview what will be pushed'}</button>
         <button onClick={() => run('queue')} disabled={!!busy} style={btn()}>{busy === 'queue' ? 'Syncing…' : '↻ Sync Queue Now'}</button>
-        <button onClick={() => run('all')} disabled={!!busy || pickLocationIds.length === 0} style={btn(true)}>{busy === 'all' ? 'Pushing…' : '⬆ Push All to Shopify'}</button>
+        <button onClick={() => run('all')} disabled={!!busy || !shopifySelection.channelInstanceId || pickLocationIds.length === 0} style={btn(true)}>{busy === 'all' ? 'Pushing…' : '⬆ Push All to Shopify'}</button>
       </div>
 
       {queued > 0 && !msg && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>{queued} variant(s) queued for next sync.</div>}
@@ -1392,6 +1424,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 
 // ─── Gift Cards Tab ───────────────────────────────────────────────────────────
 function ShopifyGiftCardsTab() {
+  const shopifySelection = useShopifyInstanceSelection();
   const [gcMode,    setGcMode]    = useState<'off' | 'combined'>('off');
   const [saving,    setSaving]    = useState(false);
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null);
@@ -1425,6 +1458,7 @@ function ShopifyGiftCardsTab() {
   const [customerSyncError, setCustomerSyncError] = useState<string | null>(null);
   const [customerSyncProgress, setCustomerSyncProgress] = useState<string | null>(null);
   const [customerInactiveMonths, setCustomerInactiveMonths] = useState('60');
+  const [customerOutboundEnabled, setCustomerOutboundEnabled] = useState(false);
   const [loyaltySyncing, setLoyaltySyncing] = useState(false);
   const [loyaltySyncProgress, setLoyaltySyncProgress] = useState<string | null>(null);
   const [loyaltySyncError, setLoyaltySyncError] = useState<string | null>(null);
@@ -1441,6 +1475,32 @@ function ShopifyGiftCardsTab() {
       if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!shopifySelection.channelInstanceId) {
+      setCustomerOutboundEnabled(false);
+      return;
+    }
+    fetch(`/api/ims/shopify/sync-customers?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`)
+      .then(response => response.json())
+      .then(data => setCustomerOutboundEnabled(Boolean(data.outboundEnabled)))
+      .catch(() => setCustomerOutboundEnabled(false));
+  }, [shopifySelection.channelInstanceId]);
+
+  async function setOutboundCustomerSync(enabled: boolean) {
+    if (!shopifySelection.channelInstanceId) return;
+    setCustomerOutboundEnabled(enabled);
+    const response = await fetch('/api/ims/shopify/sync-customers', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId, outboundEnabled: enabled }),
+    });
+    if (!response.ok) {
+      setCustomerOutboundEnabled(!enabled);
+      const data = await readApiResponse(response);
+      setCustomerSyncError(data.error ?? 'Customer sync setting could not be saved.');
+    }
+  }
 
   async function saveMode(next: 'off' | 'combined') {
     setGcMode(next); setSaving(true); setSaveMsg(null);
@@ -1495,7 +1555,7 @@ function ShopifyGiftCardsTab() {
         const r = await fetch('/api/ims/shopify/sync-customers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'pull', pageInfo: nextPageInfo, batchLimit: 100, inactiveAfterMonths: Number(customerInactiveMonths) || 60 }),
+          body: JSON.stringify({ mode: 'pull', channelInstanceId: shopifySelection.channelInstanceId, pageInfo: nextPageInfo, batchLimit: 100, inactiveAfterMonths: Number(customerInactiveMonths) || 60 }),
         });
         const d = await readApiResponse(r);
         if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
@@ -1525,7 +1585,7 @@ function ShopifyGiftCardsTab() {
   async function runCustomerPush() {
     setCustomerSyncing(true); setCustomerSyncResult(null); setCustomerSyncError(null); setCustomerSyncProgress(null);
     try {
-      const r = await fetch('/api/ims/shopify/sync-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'push' }) });
+      const r = await fetch('/api/ims/shopify/sync-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'push', channelInstanceId: shopifySelection.channelInstanceId }) });
       const d = await readApiResponse(r);
       if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
       setCustomerSyncResult(d);
@@ -1548,7 +1608,7 @@ function ShopifyGiftCardsTab() {
         const response = await fetch('/api/ims/loyalty/shopify-metafields', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ afterId, limit: 50 }),
+          body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId, afterId, limit: 50 }),
         });
         const data = await readApiResponse(response);
         if (!response.ok) throw new Error(data.error ?? 'Loyalty customer sync failed');
@@ -1644,12 +1704,29 @@ function ShopifyGiftCardsTab() {
           Pull Shopify customers into IMS contacts and push IMS retail customers back to Shopify so Shopify-linked gift cards can resolve to real retail customers in IMS.
         </p>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-          Pull mode links by Shopify customer ID first, then email fallback, and only fills blank IMS fields. Push mode syncs retail customers from IMS on demand, and retail customer saves also attempt a non-blocking Shopify sync. Requires <code style={{ fontFamily: 'monospace', fontSize: 11 }}>read_customers</code> and <code style={{ fontFamily: 'monospace', fontSize: 11 }}>write_customers</code> scopes.
+          Pull mode links exact-store customer identities, then uses an unambiguous email match and only fills blank IMS fields. Push mode updates existing mappings only and is off by default per storefront. Requires <code style={{ fontFamily: 'monospace', fontSize: 11 }}>read_customers</code> and <code style={{ fontFamily: 'monospace', fontSize: 11 }}>write_customers</code> scopes.
         </p>
+        <select
+          value={shopifySelection.channelInstanceId}
+          onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
+          style={{ ...inputStyle, marginBottom: 12, maxWidth: 360 }}
+        >
+          <option value="">Select Shopify storefront</option>
+          {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
+        </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, color: 'var(--sv-text-main)' }}>
+          <input
+            type="checkbox"
+            checked={customerOutboundEnabled}
+            disabled={!shopifySelection.channelInstanceId}
+            onChange={event => void setOutboundCustomerSync(event.target.checked)}
+          />
+          Update existing mapped customers in this storefront
+        </label>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
             onClick={runCustomerSync}
-            disabled={customerSyncing || loyaltySyncing}
+            disabled={customerSyncing || loyaltySyncing || !shopifySelection.channelInstanceId}
             style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: customerSyncing || loyaltySyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing || loyaltySyncing ? 0.7 : 1 }}
           >
             {customerSyncing ? 'Syncing Customers…' : 'Pull Customers From Shopify'}
@@ -1669,14 +1746,14 @@ function ShopifyGiftCardsTab() {
           </label>
           <button
             onClick={runCustomerPush}
-            disabled={customerSyncing || loyaltySyncing}
+            disabled={customerSyncing || loyaltySyncing || !shopifySelection.channelInstanceId}
             style={{ padding: '8px 20px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: customerSyncing || loyaltySyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing || loyaltySyncing ? 0.7 : 1 }}
           >
             {customerSyncing ? 'Syncing Customers…' : 'Push IMS Retail Customers'}
           </button>
           <button
             onClick={runLoyaltyMetafieldSync}
-            disabled={customerSyncing || loyaltySyncing}
+            disabled={customerSyncing || loyaltySyncing || !shopifySelection.channelInstanceId}
             style={{ padding: '8px 20px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: customerSyncing || loyaltySyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing || loyaltySyncing ? 0.7 : 1 }}
           >
             {loyaltySyncing ? 'Publishing Loyalty…' : 'Publish Loyalty to Shopify'}

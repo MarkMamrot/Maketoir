@@ -5,6 +5,7 @@ export const LOYALTY_PORTAL_SESSION_MAX_AGE = 30 * 24 * 60 * 60;
 
 export interface LoyaltyPortalSession {
   businessId: string;
+  channelInstanceId: string;
   contactId: number;
   email: string;
   portalSlug: string;
@@ -32,7 +33,7 @@ export function verifyLoyaltyPortalSession(token: string, now = Date.now()): Loy
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   try {
     const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as LoyaltyPortalSession;
-    if (!session.businessId || !Number.isSafeInteger(session.contactId) || session.contactId <= 0
+    if (!session.businessId || !session.channelInstanceId || !Number.isSafeInteger(session.contactId) || session.contactId <= 0
       || !session.email || !session.portalSlug || session.expiresAt <= now) return null;
     return session;
   } catch { return null; }

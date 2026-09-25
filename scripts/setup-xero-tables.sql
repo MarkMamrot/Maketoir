@@ -473,6 +473,7 @@ CREATE TABLE IF NOT EXISTS xero_cash_deposit_actions (
 CREATE TABLE IF NOT EXISTS xero_online_batches (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(255) NOT NULL,
+  channel_instance_id VARCHAR(36)  DEFAULT NULL,
   batch_date          DATE         NOT NULL,
   xero_invoice_id     VARCHAR(100) DEFAULT NULL,
   xero_invoice_number VARCHAR(100) DEFAULT NULL,
@@ -483,8 +484,8 @@ CREATE TABLE IF NOT EXISTS xero_online_batches (
   error_detail        TEXT         DEFAULT NULL,
   created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_xero_online_batch (business_id, batch_date),
-  INDEX idx_xero_online_batch_status (business_id, payout_managed, invoice_status)
+  UNIQUE KEY uq_xero_online_batch_instance (business_id, channel_instance_id, batch_date),
+  INDEX idx_xero_online_batch_status (business_id, channel_instance_id, payout_managed, invoice_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Durable per-order payments applied to a combined daily online invoice.
@@ -493,6 +494,7 @@ CREATE TABLE IF NOT EXISTS xero_online_batches (
 CREATE TABLE IF NOT EXISTS xero_online_order_payments (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(255) NOT NULL,
+  channel_instance_id VARCHAR(36)  DEFAULT NULL,
   payment_key         VARCHAR(255) NOT NULL,
   batch_date          DATE NOT NULL,
   xero_invoice_id     VARCHAR(100) NOT NULL,
@@ -504,14 +506,15 @@ CREATE TABLE IF NOT EXISTS xero_online_order_payments (
   error_detail        TEXT DEFAULT NULL,
   created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_xero_online_order_payment (business_id, payment_key),
-  INDEX idx_xero_online_order_payment_batch (business_id, batch_date, status)
+  UNIQUE KEY uq_xero_online_order_payment_instance (business_id, channel_instance_id, payment_key),
+  INDEX idx_xero_online_order_payment_batch (business_id, channel_instance_id, batch_date, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Durable calculated gateway fee spends posted after gross order payments.
 CREATE TABLE IF NOT EXISTS xero_online_order_fees (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(255) NOT NULL,
+  channel_instance_id VARCHAR(36)  DEFAULT NULL,
   fee_key             VARCHAR(255) NOT NULL,
   payment_key         VARCHAR(255) NOT NULL,
   batch_date          DATE NOT NULL,
@@ -526,8 +529,8 @@ CREATE TABLE IF NOT EXISTS xero_online_order_fees (
   error_detail        TEXT DEFAULT NULL,
   created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_xero_online_order_fee (business_id, fee_key),
-  INDEX idx_xero_online_order_fee_batch (business_id, batch_date, status)
+  UNIQUE KEY uq_xero_online_order_fee_instance (business_id, channel_instance_id, fee_key),
+  INDEX idx_xero_online_order_fee_batch (business_id, channel_instance_id, batch_date, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Shopify's paid payout is the settlement header. Reconciliation remains
@@ -535,6 +538,7 @@ CREATE TABLE IF NOT EXISTS xero_online_order_fees (
 CREATE TABLE IF NOT EXISTS shopify_payment_payouts (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(255) NOT NULL,
+  channel_instance_id   VARCHAR(36)  DEFAULT NULL,
   shopify_payout_id     VARCHAR(100) NOT NULL,
   payout_date           DATE         DEFAULT NULL,
   shopify_status        VARCHAR(30)  NOT NULL,
@@ -547,8 +551,8 @@ CREATE TABLE IF NOT EXISTS shopify_payment_payouts (
   reconciled_at         DATETIME     DEFAULT NULL,
   created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shopify_payment_payout (business_id, shopify_payout_id),
-  INDEX idx_shopify_payment_payout_status (business_id, reconciliation_status, payout_date)
+  UNIQUE KEY uq_shopify_payment_payout_instance (business_id, channel_instance_id, shopify_payout_id),
+  INDEX idx_shopify_payment_payout_status (business_id, channel_instance_id, reconciliation_status, payout_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Canonical Shopify Payments balance transactions. The transaction-level
@@ -556,6 +560,7 @@ CREATE TABLE IF NOT EXISTS shopify_payment_payouts (
 CREATE TABLE IF NOT EXISTS shopify_payment_payout_transactions (
   id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id                 VARCHAR(255) NOT NULL,
+  channel_instance_id         VARCHAR(36)  DEFAULT NULL,
   shopify_transaction_id      VARCHAR(100) NOT NULL,
   shopify_payout_id           VARCHAR(100) NOT NULL,
   transaction_type            VARCHAR(50)  NOT NULL,
@@ -572,9 +577,9 @@ CREATE TABLE IF NOT EXISTS shopify_payment_payout_transactions (
   raw_payload                 LONGTEXT      DEFAULT NULL,
   created_at                  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at                  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shopify_payment_transaction (business_id, shopify_transaction_id),
-  INDEX idx_shopify_payment_transaction_payout (business_id, shopify_payout_id),
-  INDEX idx_shopify_payment_transaction_order (business_id, source_order_id)
+  UNIQUE KEY uq_shopify_payment_transaction_instance (business_id, channel_instance_id, shopify_transaction_id),
+  INDEX idx_shopify_payment_transaction_payout (business_id, channel_instance_id, shopify_payout_id),
+  INDEX idx_shopify_payment_transaction_order (business_id, channel_instance_id, source_order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Every external Xero mutation has a stable action key and independent retry
@@ -582,6 +587,7 @@ CREATE TABLE IF NOT EXISTS shopify_payment_payout_transactions (
 CREATE TABLE IF NOT EXISTS shopify_payment_xero_actions (
   id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id            VARCHAR(255) NOT NULL,
+  channel_instance_id    VARCHAR(36)  DEFAULT NULL,
   shopify_payout_id      VARCHAR(100) NOT NULL,
   action_key             VARCHAR(255) NOT NULL,
   action_type            VARCHAR(40)  NOT NULL,
@@ -602,6 +608,6 @@ CREATE TABLE IF NOT EXISTS shopify_payment_xero_actions (
   completed_at           DATETIME     DEFAULT NULL,
   created_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at             DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_shopify_payment_xero_action (business_id, action_key),
-  INDEX idx_shopify_payment_xero_action_payout (business_id, shopify_payout_id, status)
+  UNIQUE KEY uq_shopify_payment_xero_action_instance (business_id, channel_instance_id, action_key),
+  INDEX idx_shopify_payment_xero_action_payout (business_id, channel_instance_id, shopify_payout_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

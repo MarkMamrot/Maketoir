@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
-import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
+import { syncRetailCustomerToMappedShopifyInstances } from '@/lib/ims/shopifyCustomerSync';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { validateContactChannels } from '@/lib/ims/contactDataQuality';
@@ -55,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     await ImsContactsRepo.update(Number(params.id), body);
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
-    const shopifySync = updated ? await syncRetailCustomerToShopify(updated, businessId) : null;
+    const shopifySync = updated ? await syncRetailCustomerToMappedShopifyInstances(updated, businessId) : null;
     if (updated) {
       await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({ businessId, contactId: Number(params.id) });
     }

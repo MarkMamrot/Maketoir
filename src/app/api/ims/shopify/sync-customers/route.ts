@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { getShopifyOperationContext, ShopifyOperationContextError } from '@/lib/channels/shopifyOperationContext';
+import { getContactChannelMapping, recordInboundContactChannelMapping } from '@/lib/ims/contactChannelMappings';
 import { ensureContactShopifyCustomerSchema } from '@/lib/ims/ensureContactShopifyCustomerSchema';
 import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -113,7 +115,6 @@ function buildUpdate(existing: ImsContactRow, customer: ShopifyCustomer, activeM
   const activeByWindow = hasRecentActivity || (createdAt != null && !Number.isNaN(createdAt) && createdAt >= activeMonthsCutoff.getTime());
 
   const update: Record<string, string | number | null> = {
-    shopify_customer_id: String(customer.id),
     is_active: customerActive(customer) === 0 ? 0 : (activeByWindow ? 1 : 0),
   };
 
@@ -142,19 +143,25 @@ async function updateContact(id: number, patch: Record<string, string | number |
   return true;
 }
 
-async function getGiftCardLinkStats() {
+async function getGiftCardLinkStats(businessId: string, channelInstanceId: string) {
   const [matched] = await imsQuery<{ total: number }>(
     `SELECT COUNT(*) AS total
      FROM gift_cards gc
-     JOIN ims_contacts c ON c.shopify_customer_id = gc.customer_id
+     JOIN ims_contact_channel_mappings mapping
+       ON mapping.business_id = ? AND mapping.channel_instance_id = ?
+      AND mapping.external_customer_id = gc.customer_id AND mapping.mapping_status = 'linked'
      WHERE gc.customer_id IS NOT NULL AND gc.customer_id <> ''`,
+    [businessId, channelInstanceId],
   ).catch(() => [{ total: 0 }]);
 
   const [missing] = await imsQuery<{ total: number }>(
     `SELECT COUNT(*) AS total
      FROM gift_cards gc
-     LEFT JOIN ims_contacts c ON c.shopify_customer_id = gc.customer_id
-     WHERE gc.customer_id IS NOT NULL AND gc.customer_id <> '' AND c.id IS NULL`,
+     LEFT JOIN ims_contact_channel_mappings mapping
+       ON mapping.business_id = ? AND mapping.channel_instance_id = ?
+      AND mapping.external_customer_id = gc.customer_id AND mapping.mapping_status = 'linked'
+     WHERE gc.customer_id IS NOT NULL AND gc.customer_id <> '' AND mapping.id IS NULL`,
+    [businessId, channelInstanceId],
   ).catch(() => [{ total: 0 }]);
 
   const missingRows = await imsQuery<{
@@ -165,10 +172,13 @@ async function getGiftCardLinkStats() {
   }>(
     `SELECT gc.code, gc.customer_id, gc.recipient_email, gc.created_at
      FROM gift_cards gc
-     LEFT JOIN ims_contacts c ON c.shopify_customer_id = gc.customer_id
-     WHERE gc.customer_id IS NOT NULL AND gc.customer_id <> '' AND c.id IS NULL
+     LEFT JOIN ims_contact_channel_mappings mapping
+       ON mapping.business_id = ? AND mapping.channel_instance_id = ?
+      AND mapping.external_customer_id = gc.customer_id AND mapping.mapping_status = 'linked'
+     WHERE gc.customer_id IS NOT NULL AND gc.customer_id <> '' AND mapping.id IS NULL
      ORDER BY gc.created_at DESC
      LIMIT 12`,
+    [businessId, channelInstanceId],
   ).catch(() => []);
 
   return {
@@ -183,18 +193,69 @@ async function getGiftCardLinkStats() {
   };
 }
 
+export async function GET(request: Request) {
+  const session = await getImsSession();
+  if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const channelInstanceId = new URL(request.url).searchParams.get('channelInstanceId')?.trim() ?? '';
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required.' }, { status: 400 });
+  try {
+    const context = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
+    return NextResponse.json({ success: true, outboundEnabled: shopifyInstanceSettings(context.instance.settings).customers.outboundEnabled });
+  } catch (error) {
+    const message = error instanceof ShopifyOperationContextError ? error.message : 'Shopify storefront is unavailable.';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  const session = await getImsSession();
+  if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const body = await request.json().catch(() => ({}));
+  const channelInstanceId = typeof body.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+  if (!channelInstanceId || typeof body.outboundEnabled !== 'boolean') {
+    return NextResponse.json({ error: 'channelInstanceId and outboundEnabled are required.' }, { status: 400 });
+  }
+  try {
+    const context = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
+    const settings = shopifyInstanceSettings(context.instance.settings);
+    settings.customers.outboundEnabled = body.outboundEnabled;
+    const updated = await SalesChannelInstanceRepository.setShopifySettingsForBusiness({
+      businessId: session.businessId,
+      channelInstanceId,
+      settings,
+    });
+    if (!updated) return NextResponse.json({ error: 'Shopify storefront was not found.' }, { status: 404 });
+    return NextResponse.json({ success: true, outboundEnabled: body.outboundEnabled });
+  } catch (error) {
+    const message = error instanceof ShopifyOperationContextError ? error.message : 'Shopify customer settings could not be saved.';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   const body = await req.json().catch(() => ({}));
+  const channelInstanceId = typeof body?.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+  if (!channelInstanceId) {
+    return NextResponse.json({ error: 'channelInstanceId is required.' }, { status: 400 });
+  }
   const mode = body?.mode === 'push' ? 'push' : 'pull';
   const pageInfo = typeof body?.pageInfo === 'string' && body.pageInfo.trim() ? body.pageInfo.trim() : null;
   const batchLimit = Math.min(250, Math.max(1, Number(body?.batchLimit) || 100));
   const inactiveAfterMonths = Math.max(0, Number(body?.inactiveAfterMonths) || 60);
 
   await ensureContactShopifyCustomerSchema();
+
+  let context;
+  try {
+    context = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
+  } catch (error) {
+    const message = error instanceof ShopifyOperationContextError ? error.message : 'Shopify storefront is unavailable.';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   if (mode === 'push') {
     const contacts = await imsQuery<ImsContactRow>(
@@ -213,7 +274,7 @@ export async function POST(req: Request) {
     let errors = 0;
 
     for (const contact of contacts) {
-      const result = await syncRetailCustomerToShopify(contact, session.businessId);
+      const result = await syncRetailCustomerToShopify(contact, { businessId: session.businessId, channelInstanceId });
       if (!result.success) {
         if (result.action === 'skipped') skipped++;
         else errors++;
@@ -235,17 +296,11 @@ export async function POST(req: Request) {
       skipped,
       errors,
       total: contacts.length,
-      ...(await getGiftCardLinkStats()),
+      ...(await getGiftCardLinkStats(session.businessId, channelInstanceId)),
     });
   }
 
-  const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-  const credentials = await getShopifyAdminCredentials(session.businessId);
-  if (!credentials) {
-    return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
-  }
-
-  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
+  const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
   const activeCustomerIds = new Set<string>();
   const activeMonthsCutoff = new Date();
   activeMonthsCutoff.setMonth(activeMonthsCutoff.getMonth() - inactiveAfterMonths);
@@ -288,7 +343,7 @@ export async function POST(req: Request) {
       batchCount: 0,
       hasMore: Boolean(nextPageInfo),
       nextPageInfo,
-      ...(!nextPageInfo ? await getGiftCardLinkStats() : {}),
+      ...(!nextPageInfo ? await getGiftCardLinkStats(session.businessId, channelInstanceId) : {}),
     });
   }
 
@@ -311,10 +366,17 @@ export async function POST(req: Request) {
     const isActive = customerActive(customer) === 0 ? 0 : (activeByWindow ? 1 : 0);
 
     try {
-      const byShopifyId = await imsQuery<ImsContactRow>(
-        'SELECT id, type, name, first_name, last_name, customer_code, notes, email, phone, mobile, is_active, promo_email, promo_sms, shopify_customer_id FROM ims_contacts WHERE business_id = ? AND shopify_customer_id = ? LIMIT 1',
-        [session.businessId, shopifyCustomerId],
-      );
+      const existingMapping = await getContactChannelMapping({
+        businessId: session.businessId,
+        channelInstanceId,
+        externalCustomerId: shopifyCustomerId,
+      });
+      const byShopifyId = existingMapping?.mappingStatus === 'linked'
+        ? await imsQuery<ImsContactRow>(
+            'SELECT id, type, name, first_name, last_name, customer_code, notes, email, phone, mobile, is_active, promo_email, promo_sms, shopify_customer_id FROM ims_contacts WHERE business_id = ? AND id = ? LIMIT 1',
+            [session.businessId, existingMapping.contactId],
+          )
+        : [];
 
       if (byShopifyId[0]) {
         const changed = await updateContact(byShopifyId[0].id, buildUpdate(byShopifyId[0], customer, activeMonthsCutoff, activeCustomerIds));
@@ -331,18 +393,28 @@ export async function POST(req: Request) {
            FROM ims_contacts
            WHERE business_id = ? AND type <> 'supplier' AND LOWER(email) = LOWER(?)
            ORDER BY id
-           LIMIT 1`,
+           LIMIT 2`,
           [session.businessId, email],
         );
+        if (byEmail.length > 1) {
+          skipped++;
+          continue;
+        }
         emailMatch = byEmail[0];
       }
 
       if (emailMatch) {
-        if (emailMatch.shopify_customer_id && emailMatch.shopify_customer_id !== shopifyCustomerId) {
-          skipped++;
+        const changed = await updateContact(emailMatch.id, buildUpdate(emailMatch, customer, activeMonthsCutoff, activeCustomerIds));
+        const mapping = await recordInboundContactChannelMapping({
+          businessId: session.businessId,
+          channelInstanceId,
+          contactId: emailMatch.id,
+          externalCustomerId: shopifyCustomerId,
+        });
+        if (mapping.mappingStatus !== 'linked') {
+          errors++;
           continue;
         }
-        const changed = await updateContact(emailMatch.id, buildUpdate(emailMatch, customer, activeMonthsCutoff, activeCustomerIds));
         synced++;
         linked++;
         if (changed) updated++;
@@ -350,12 +422,18 @@ export async function POST(req: Request) {
         continue;
       }
 
-      await imsExecute(
+      const createdContact = await imsExecute(
         `INSERT INTO ims_contacts
-           (business_id, type, name, first_name, last_name, customer_code, notes, email, phone, mobile, is_active, promo_email, promo_sms, price_tier, shopify_customer_id)
-         VALUES (?, 'retail_customer', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', ?)` ,
-        [session.businessId, name, firstName, lastName, extractCustomerCode(customer), normalizeString(customer.note), email, phone, phone, isActive, marketingEmailFlag(customer) ?? 0, marketingSmsFlag(customer) ?? 0, shopifyCustomerId],
+           (business_id, type, name, first_name, last_name, customer_code, notes, email, phone, mobile, is_active, promo_email, promo_sms, price_tier)
+         VALUES (?, 'retail_customer', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail')` ,
+        [session.businessId, name, firstName, lastName, extractCustomerCode(customer), normalizeString(customer.note), email, phone, phone, isActive, marketingEmailFlag(customer) ?? 0, marketingSmsFlag(customer) ?? 0],
       );
+      await recordInboundContactChannelMapping({
+        businessId: session.businessId,
+        channelInstanceId,
+        contactId: Number(createdContact.insertId),
+        externalCustomerId: shopifyCustomerId,
+      });
       synced++;
       created++;
     } catch {
@@ -376,6 +454,6 @@ export async function POST(req: Request) {
     batchCount: customers.length,
     hasMore: Boolean(nextPageInfo),
     nextPageInfo,
-    ...(!nextPageInfo ? await getGiftCardLinkStats() : {}),
+    ...(!nextPageInfo ? await getGiftCardLinkStats(session.businessId, channelInstanceId) : {}),
   });
 }

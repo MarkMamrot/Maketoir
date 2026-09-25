@@ -22,6 +22,7 @@ export interface ShopifyLoyaltyRedemptionUseResult {
 export const ShopifyLoyaltyService = {
   async markPaidOrderRedemptionsUsed(input: {
     businessId: string;
+    channelInstanceId?: string;
     shopifyOrderId: string;
     shopifyCustomerId: string;
     discountCodes: string[];
@@ -31,7 +32,12 @@ export const ShopifyLoyaltyService = {
     try {
       let used = 0;
       for (const code of codes) {
-        if (await LoyaltyRepository.markShopifyVoucherUsed(input.businessId, code, input.shopifyCustomerId)) used += 1;
+        const marked = input.channelInstanceId
+          ? await LoyaltyRepository.markShopifyVoucherUsed(
+            input.businessId, code, input.shopifyCustomerId, input.channelInstanceId,
+          )
+          : await LoyaltyRepository.markShopifyVoucherUsed(input.businessId, code, input.shopifyCustomerId);
+        if (marked) used += 1;
       }
       return { used };
     } catch (error) {
@@ -50,11 +56,17 @@ export const ShopifyLoyaltyService = {
 
   async awardPaidOrder(input: {
     businessId: string;
+    channelInstanceId?: string;
     shopifyOrderId: string;
     paidDate: string;
     eligibleSpend: number;
   }): Promise<ShopifyLoyaltyAwardResult> {
-    const idempotencyKey = `shopify:order:${input.shopifyOrderId}:earn`;
+    const sourceOrderId = input.channelInstanceId
+      ? `${input.channelInstanceId}:${input.shopifyOrderId}`
+      : input.shopifyOrderId;
+    const idempotencyKey = input.channelInstanceId
+      ? `shopify:${input.channelInstanceId}:order:${input.shopifyOrderId}:earn`
+      : `shopify:order:${input.shopifyOrderId}:earn`;
     const existing = await LoyaltyRepository.getMutationByIdempotencyKey(input.businessId, idempotencyKey);
     if (existing) return { status: 'awarded', points: null, mutation: existing };
 
@@ -63,14 +75,22 @@ export const ShopifyLoyaltyService = {
     let released = false;
     try {
       await connection.beginTransaction();
-      const [orders] = await connection.execute<RowDataPacket[]>(
-        `SELECT id, customer_id, financial_status
-           FROM ims_sales_orders
-          WHERE business_id = ? AND shopify_order_id = ?
-          LIMIT 1
-          FOR UPDATE`,
-        [input.businessId, input.shopifyOrderId],
-      );
+      const [orders] = input.channelInstanceId
+        ? await connection.execute<RowDataPacket[]>(
+          `SELECT id, customer_id, financial_status
+             FROM ims_sales_orders
+            WHERE business_id = ? AND sales_channel = 'shopify'
+              AND channel_instance_id = ? AND external_order_id = ?
+            LIMIT 1 FOR UPDATE`,
+          [input.businessId, input.channelInstanceId, input.shopifyOrderId],
+        )
+        : await connection.execute<RowDataPacket[]>(
+          `SELECT id, customer_id, financial_status
+             FROM ims_sales_orders
+            WHERE business_id = ? AND shopify_order_id = ?
+            LIMIT 1 FOR UPDATE`,
+          [input.businessId, input.shopifyOrderId],
+        );
       const order = orders[0];
       if (!order) {
         await connection.commit();
@@ -127,7 +147,7 @@ export const ShopifyLoyaltyService = {
         eligibleSpendCents: Math.round(input.eligibleSpend * 100),
         channel: 'shopify',
         sourceType: 'shopify_order',
-        sourceId: input.shopifyOrderId,
+        sourceId: sourceOrderId,
         idempotencyKey,
         reason: `Shopify order ${input.shopifyOrderId} paid`,
       });
@@ -137,6 +157,7 @@ export const ShopifyLoyaltyService = {
       await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
         businessId: input.businessId,
         contactId,
+        ...(input.channelInstanceId ? { channelInstanceId: input.channelInstanceId } : {}),
       });
       return { status: 'awarded', points, mutation };
     } catch (error) {
@@ -161,11 +182,17 @@ export const ShopifyLoyaltyService = {
 
   async reverseRefund(input: {
     businessId: string;
+    channelInstanceId?: string;
     shopifyOrderId: string;
     shopifyRefundId: string;
     eligibleRefundSpend: number;
   }): Promise<ShopifyLoyaltyRefundResult> {
-    const idempotencyKey = `shopify:refund:${input.shopifyRefundId}:earn`;
+    const sourceOrderId = input.channelInstanceId
+      ? `${input.channelInstanceId}:${input.shopifyOrderId}`
+      : input.shopifyOrderId;
+    const idempotencyKey = input.channelInstanceId
+      ? `shopify:${input.channelInstanceId}:refund:${input.shopifyRefundId}:earn`
+      : `shopify:refund:${input.shopifyRefundId}:earn`;
     const existing = await LoyaltyRepository.getMutationByIdempotencyKey(input.businessId, idempotencyKey);
     if (existing) return { status: 'reversed', points: null, mutation: existing };
 
@@ -177,21 +204,34 @@ export const ShopifyLoyaltyService = {
     let released = false;
     try {
       await connection.beginTransaction();
-      const [earns] = await connection.execute<RowDataPacket[]>(
-        `SELECT t.id, t.account_id, a.contact_id, t.points_delta, t.eligible_spend_cents
-           FROM ims_sales_orders so
-           JOIN loyalty_transactions t
-             ON BINARY t.business_id = BINARY so.business_id
-            AND t.type = 'earn'
-            AND t.source_type = 'shopify_order'
-            AND BINARY t.source_id = BINARY so.shopify_order_id
-           JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
-          WHERE so.business_id = ? AND so.shopify_order_id = ?
-          ORDER BY t.id
-          LIMIT 1
-          FOR UPDATE`,
-        [input.businessId, input.shopifyOrderId],
-      );
+      const [earns] = input.channelInstanceId
+        ? await connection.execute<RowDataPacket[]>(
+          `SELECT t.id, t.account_id, a.contact_id, t.points_delta, t.eligible_spend_cents
+             FROM ims_sales_orders so
+             JOIN loyalty_transactions t
+               ON BINARY t.business_id = BINARY so.business_id
+              AND t.type = 'earn'
+              AND t.source_type = 'shopify_order'
+              AND BINARY t.source_id = BINARY ?
+             JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
+            WHERE so.business_id = ? AND so.sales_channel = 'shopify'
+              AND so.channel_instance_id = ? AND so.external_order_id = ?
+            ORDER BY t.id LIMIT 1 FOR UPDATE`,
+          [sourceOrderId, input.businessId, input.channelInstanceId, input.shopifyOrderId],
+        )
+        : await connection.execute<RowDataPacket[]>(
+          `SELECT t.id, t.account_id, a.contact_id, t.points_delta, t.eligible_spend_cents
+             FROM ims_sales_orders so
+             JOIN loyalty_transactions t
+               ON BINARY t.business_id = BINARY so.business_id
+              AND t.type = 'earn'
+              AND t.source_type = 'shopify_order'
+              AND BINARY t.source_id = BINARY so.shopify_order_id
+             JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
+            WHERE so.business_id = ? AND so.shopify_order_id = ?
+            ORDER BY t.id LIMIT 1 FOR UPDATE`,
+          [input.businessId, input.shopifyOrderId],
+        );
       const earn = earns[0];
       if (!earn) {
         await connection.commit();
@@ -209,7 +249,7 @@ export const ShopifyLoyaltyService = {
             AND source_type = 'shopify_order_refund' AND source_id = ?
           ORDER BY id
           FOR UPDATE`,
-        [input.businessId, input.shopifyOrderId],
+        [input.businessId, sourceOrderId],
       );
       const replay = priorRows.find(row => String(row.idempotency_key) === idempotencyKey);
       if (replay) {
@@ -247,7 +287,7 @@ export const ShopifyLoyaltyService = {
         eligibleSpendCents: eligibleRefundCents,
         channel: 'shopify',
         sourceType: 'shopify_order_refund',
-        sourceId: input.shopifyOrderId,
+        sourceId: sourceOrderId,
         idempotencyKey,
         reason: `Shopify refund ${input.shopifyRefundId} for order ${input.shopifyOrderId}`,
         allowNegativeBalance: true,
@@ -258,6 +298,7 @@ export const ShopifyLoyaltyService = {
       await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
         businessId: input.businessId,
         contactId: Number(earn.contact_id),
+        ...(input.channelInstanceId ? { channelInstanceId: input.channelInstanceId } : {}),
       });
       return { status: 'reversed', points, mutation };
     } catch (error) {

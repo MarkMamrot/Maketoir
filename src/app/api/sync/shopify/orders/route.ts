@@ -4,6 +4,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 
 const SHEET_NAME = 'Shopify_Orders';
 const LAST_SYNC_CONFIG_KEY = 'WebsiteOrdersLastSync';
@@ -51,8 +52,9 @@ export async function POST(req: Request) {
   const session = cookies().get('marketoir_session');
   if (!session?.value) return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
 
-  const { databaseId, monthsBack = 24 } = await req.json();
+  const { databaseId, channelInstanceId, monthsBack = 24 } = await req.json();
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  if (!String(channelInstanceId ?? '').trim()) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
   const _u = JSON.parse(session.value);
   if (databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
@@ -72,11 +74,7 @@ export async function POST(req: Request) {
     const [hdrs, vals] = connRows as string[][];
     const get = (k: string) => vals[hdrs.indexOf(k)] ?? '';
 
-    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const credentials = await getShopifyAdminCredentials(databaseId);
-    if (!credentials) {
-      return NextResponse.json({ success: false, error: 'Shopify credentials not configured. Go to Setup → Connections.' }, { status: 400 });
-    }
+    const { credentials } = await getShopifyOperationContext({ businessId: databaseId, channelInstanceId });
 
     // ── 2. Fetch orders ─────────────────────────────────────────────────────
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);

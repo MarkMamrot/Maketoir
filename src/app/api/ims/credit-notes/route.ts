@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsCNRepo } from '@/lib/ims/ImsRepository';
+import { query } from '@/services/MySQLService';
 
 function normalizeAndValidateCNItems(rawItems: any[]) {
   const items = (rawItems ?? []).map((item: any) => ({
@@ -32,8 +33,21 @@ export async function GET(req: NextRequest) {
   const businessId = session.businessId as string;
   try {
     const status = req.nextUrl.searchParams.get('status') as 'draft' | 'complete' | undefined ?? undefined;
+    const channelInstanceId = (req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
     const data = await ImsCNRepo.list(businessId, status || undefined);
-    return NextResponse.json({ success: true, data });
+    const channels = await query<{ channel_instance_id: string; display_name: string }>(
+      `SELECT channel_instance_id, display_name FROM sales_channel_instances
+        WHERE business_id = ? AND provider = 'shopify' ORDER BY display_name`,
+      [businessId],
+    );
+    const channelNames = new Map(channels.map(channel => [channel.channel_instance_id, channel.display_name]));
+    return NextResponse.json({
+      success: true,
+      data: data
+        .filter(note => !channelInstanceId || note.channel_instance_id === channelInstanceId)
+        .map(note => ({ ...note, channel_display_name: channelNames.get(String(note.channel_instance_id ?? '')) ?? null })),
+      channels: channels.map(channel => ({ channelInstanceId: channel.channel_instance_id, displayName: channel.display_name })),
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

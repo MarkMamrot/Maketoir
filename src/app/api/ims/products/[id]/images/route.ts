@@ -3,24 +3,13 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
-import { imsQuery } from '@/services/IMSMySQLService';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyProductOperationContext } from '@/lib/channels/shopifyProductOperationContext';
 
-
-async function getShopifyClient(businessId: string) {
+async function getShopifyClient(businessId: string, productId: string, channelInstanceId?: string | null) {
   try {
-    const credentials = await getShopifyAdminCredentials(businessId);
-    return credentials ? { token: credentials.token, shop: credentials.shopName } : null;
+    const context = await getShopifyProductOperationContext({ businessId, productId, channelInstanceId });
+    return { token: context.credentials.token, shop: context.credentials.shopName, shopifyProductId: context.externalProductId };
   } catch { return null; }
-}
-
-async function getProductShopifyId(productId: string): Promise<string | null> {
-  const rows = await imsQuery<{ shopify_product_id: string | null }>(
-    'SELECT shopify_product_id FROM ims_products WHERE product_id = ?', [productId],
-  );
-  return rows[0]?.shopify_product_id ?? null;
 }
 
 /** GET /api/ims/products/[id]/images */
@@ -66,14 +55,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
       // Sync featured image to Shopify
       try {
-        const shopifyProductId = await getProductShopifyId(params.id);
-        const shopify = await getShopifyClient(session.businessId);
-        if (shopifyProductId && shopify) {
+        const shopify = await getShopifyClient(session.businessId, params.id, body.channelInstanceId);
+        if (shopify) {
           const record = await ImsImagesRepo.get(Number(body.image_id));
           if (record) {
             // Find the Shopify image ID by looking up images list and matching URL
             const listRes = await fetch(
-              `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images.json`,
+              `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopify.shopifyProductId}/images.json`,
               { headers: { 'X-Shopify-Access-Token': shopify.token } },
             );
             if (listRes.ok) {
@@ -85,7 +73,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 // Set as the product's first (featured) image by reordering
                 const orderedIds = [matched.id, ...shopifyImages.filter(si => si.id !== matched.id).map(si => si.id)];
                 await fetch(
-                  `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images/reorder.json`,
+                  `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopify.shopifyProductId}/images/reorder.json`,
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': shopify.token },
@@ -118,6 +106,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     const url = new URL(req.url);
     const imageId = Number(url.searchParams.get('imageId'));
     const deleteFromShopify = url.searchParams.get('deleteFromShopify') === 'true';
+    const channelInstanceId = url.searchParams.get('channelInstanceId');
     if (!imageId) return NextResponse.json({ success: false, error: 'imageId required' }, { status: 400 });
 
     const record = await ImsImagesRepo.get(imageId);
@@ -125,12 +114,11 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     // Delete from Shopify if requested
     if (deleteFromShopify && record?.source === 'shopify') {
       try {
-        const shopifyProductId = await getProductShopifyId(params.id);
-        const shopify = await getShopifyClient(session.businessId);
-        if (shopifyProductId && shopify) {
+        const shopify = await getShopifyClient(session.businessId, params.id, channelInstanceId);
+        if (shopify) {
           // The Shopify image ID isn't stored locally — look it up by matching URL
           const listRes = await fetch(
-            `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images.json`,
+            `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopify.shopifyProductId}/images.json`,
             { headers: { 'X-Shopify-Access-Token': shopify.token } },
           );
           if (listRes.ok) {
@@ -141,7 +129,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
             const matched = shopifyImages.find(si => si.src.split('?')[0] === recordUrlBase);
             if (matched) {
               await fetch(
-                `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopifyProductId}/images/${matched.id}.json`,
+                `https://${shopify.shop}.myshopify.com/admin/api/2024-01/products/${shopify.shopifyProductId}/images/${matched.id}.json`,
                 { method: 'DELETE', headers: { 'X-Shopify-Access-Token': shopify.token } },
               );
             }

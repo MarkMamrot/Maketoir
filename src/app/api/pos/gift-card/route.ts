@@ -2,10 +2,10 @@
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { ShopifyService } from '@/services/ShopifyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import {
   findUniqueUnusedShopifyGiftCard,
   isShopifyGiftCardCodeTakenError,
@@ -17,22 +17,12 @@ function getPosSession() {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-async function getShopify(businessId: string): Promise<ShopifyService | null> {
-  try {
-    const credentials = await getShopifyAdminCredentials(businessId);
-    return credentials ? new ShopifyService(credentials.shopDomain, credentials.token) : null;
-  } catch { return null; }
-}
-
-async function getGcMode(businessId: string): Promise<string> {
-  try {
-    const capabilities = await getOnlineChannelCapabilities(businessId);
-    if (!capabilities.shopifyEnabled) return 'off';
-    const rows = await imsQuery<{ value: string }>(
-      "SELECT value FROM ims_settings WHERE `key` = 'shopify_gc_mode' LIMIT 1",
-    );
-    return rows[0]?.value ?? 'off';
-  } catch { return 'off'; }
+async function getShopify(businessId: string, channelInstanceId: string): Promise<ShopifyService> {
+  const context = await getShopifyOperationContext({ businessId, channelInstanceId });
+  if (shopifyInstanceSettings(context.instance.settings).giftCards.mode !== 'combined') {
+    throw new Error('Gift cards are disabled for the selected Shopify store.');
+  }
+  return new ShopifyService(context.credentials.shopDomain, context.credentials.token);
 }
 
 // GET /api/pos/gift-card?code=XXXX
@@ -45,38 +35,52 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code')?.trim();
+  const channelInstanceId = searchParams.get('channelInstanceId')?.trim() ?? '';
   if (!code) return NextResponse.json({ error: 'code is required.' }, { status: 400 });
 
-  const gcMode = await getGcMode(session.businessId);
-
   // ── Local IMS lookup ──────────────────────────────────────────────────────
-  const rows = await imsQuery<{ id: number; code: string; balance: string; status: string; shopify_gc_id: number | null }>(
-    'SELECT id, code, balance, status, shopify_gc_id FROM gift_cards WHERE code = ? LIMIT 1',
+  const rows = await imsQuery<{ id: number; code: string; balance: string; status: string; shopify_gc_id: number | null; channel_instance_id: string | null }>(
+    'SELECT id, code, balance, status, shopify_gc_id, channel_instance_id FROM gift_cards WHERE code = ? ORDER BY id',
     [code],
   );
 
   if (rows.length) {
-    const card = rows[0];
+    const activeCards = rows.filter(card => card.status === 'active' && Number(card.balance) > 0);
+    const selectedActiveCards = activeCards.length > 1 && channelInstanceId
+      ? activeCards.filter(card => card.channel_instance_id === channelInstanceId)
+      : activeCards;
+    if (selectedActiveCards.length > 1 || (activeCards.length > 1 && selectedActiveCards.length !== 1)) {
+      return NextResponse.json({ error: 'This code matches multiple active gift cards. Select the exact gift card before continuing.' }, { status: 409 });
+    }
+    const card = selectedActiveCards[0] ?? rows[0];
     if (card.status !== 'active')
       return NextResponse.json({ error: `Gift card is ${card.status}.` }, { status: 422 });
     if (Number(card.balance) <= 0)
       return NextResponse.json({ error: 'Gift card has no remaining balance.' }, { status: 422 });
     return NextResponse.json({
       id: card.id, code: card.code, balance: Number(card.balance),
-      status: card.status, shopify_gc_id: card.shopify_gc_id ?? null, source: 'ims',
+      status: card.status, shopify_gc_id: card.shopify_gc_id ?? null,
+      channel_instance_id: card.channel_instance_id, source: 'ims',
     });
   }
 
   // ── Also check for placeholder code (imported Shopify card, code not yet resolved) ──
   if (code.length >= 4) {
     const last4 = code.slice(-4);
-    const placeholderRows = await imsQuery<{ id: number; code: string; balance: string; status: string; shopify_gc_id: number | null }>(
-      "SELECT id, code, balance, status, shopify_gc_id FROM gift_cards WHERE code LIKE ? AND shopify_gc_id IS NOT NULL LIMIT 5",
+    const placeholderRows = await imsQuery<{ id: number; code: string; balance: string; status: string; shopify_gc_id: number | null; channel_instance_id: string | null }>(
+      "SELECT id, code, balance, status, shopify_gc_id, channel_instance_id FROM gift_cards WHERE code LIKE ? AND shopify_gc_id IS NOT NULL ORDER BY id LIMIT 5",
       [`SHOPIFY:%${last4}`],
     );
     if (placeholderRows.length) {
+      const activeCards = placeholderRows.filter(card => card.status === 'active' && Number(card.balance) > 0);
+      const selectedActiveCards = activeCards.length > 1 && channelInstanceId
+        ? activeCards.filter(card => card.channel_instance_id === channelInstanceId)
+        : activeCards;
+      if (selectedActiveCards.length > 1 || (activeCards.length > 1 && selectedActiveCards.length !== 1)) {
+        return NextResponse.json({ error: 'This code matches multiple active Shopify gift cards. Select the exact gift card before continuing.' }, { status: 409 });
+      }
       // Resolve to correct card — update placeholder code to full code
-      const card = placeholderRows[0];
+      const card = selectedActiveCards[0] ?? placeholderRows[0];
       if (card.status !== 'active')
         return NextResponse.json({ error: `Gift card is ${card.status}.` }, { status: 422 });
       if (Number(card.balance) <= 0)
@@ -85,32 +89,44 @@ export async function GET(req: Request) {
       await imsExecute('UPDATE gift_cards SET code = ? WHERE id = ?', [code, card.id]).catch(() => {});
       return NextResponse.json({
         id: card.id, code, balance: Number(card.balance),
-        status: card.status, shopify_gc_id: card.shopify_gc_id ?? null, source: 'ims',
+        status: card.status, shopify_gc_id: card.shopify_gc_id ?? null,
+        channel_instance_id: card.channel_instance_id, source: 'ims',
       });
     }
   }
 
   // ── Shopify fallback (combined mode only) ─────────────────────────────────
-  if (gcMode === 'combined' && code.length >= 4) {
+  if (code.length >= 4) {
+    if (!channelInstanceId) {
+      return NextResponse.json({ error: 'Select a Shopify store to search for this gift card.' }, { status: 409 });
+    }
     try {
-      const shopify = await getShopify(session.businessId);
-      if (shopify) {
-        const last4 = code.slice(-4);
-        const candidates = await shopify.findGiftCardsByLastChars(last4);
-        const match = candidates.find(c =>
-          code.toLowerCase().endsWith((c.last_characters ?? '').toLowerCase())
-        );
-        if (match) {
-          const balance = Number(match.balance);
-          if (balance <= 0)
-            return NextResponse.json({ error: 'Gift card has no remaining balance.' }, { status: 422 });
-          return NextResponse.json({
-            id: null, code, balance, status: 'active',
-            shopify_gc_id: match.id, source: 'shopify',
-          });
-        }
+      const shopify = await getShopify(session.businessId, channelInstanceId);
+      const last4 = code.slice(-4);
+      const candidates = await shopify.findGiftCardsByLastChars(last4);
+      const match = candidates.find(c =>
+        code.toLowerCase().endsWith((c.last_characters ?? '').toLowerCase())
+      );
+      if (match) {
+        const balance = Number(match.balance);
+        if (balance <= 0)
+          return NextResponse.json({ error: 'Gift card has no remaining balance.' }, { status: 422 });
+        return NextResponse.json({
+          id: null, code, balance, status: 'active', channel_instance_id: channelInstanceId,
+          shopify_gc_id: match.id, source: 'shopify',
+        });
       }
-    } catch { /* Shopify unreachable — don't block POS */ }
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'shopify',
+        operation: 'gift_card_pos_lookup',
+        title: 'POS could not look up a Shopify gift card',
+        error,
+        context: { channelInstanceId, code_last_four: code.slice(-4) },
+      });
+      return NextResponse.json({ error: 'The selected Shopify store could not be searched. Try again or choose another store.' }, { status: 502 });
+    }
   }
 
   return NextResponse.json({ error: 'Gift card not found.' }, { status: 404 });
@@ -127,15 +143,17 @@ export async function POST(req: Request) {
   if (!body) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 });
 
   const { code: rawCode, amount, pos_sale_id, recipient_email, notes } = body;
+  const channelInstanceId = typeof body.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
   const amt = Number(amount);
   if (!amt || amt <= 0)
     return NextResponse.json({ error: 'A positive amount is required.' }, { status: 400 });
 
-  const gcMode   = await getGcMode(session.businessId);
   const inputCode = rawCode?.trim() ?? null;
 
   if (inputCode) {
-    const dup = await imsQuery('SELECT id FROM gift_cards WHERE code = ? LIMIT 1', [inputCode]);
+    const dup = channelInstanceId
+      ? await imsQuery('SELECT id FROM gift_cards WHERE channel_instance_id = ? AND code = ? LIMIT 1', [channelInstanceId, inputCode])
+      : await imsQuery('SELECT id FROM gift_cards WHERE code = ? LIMIT 1', [inputCode]);
     if (dup.length) return NextResponse.json({ error: 'Gift card code already exists.' }, { status: 409 });
   }
 
@@ -145,21 +163,19 @@ export async function POST(req: Request) {
   let expiresOn:   string | null = null;
   let currency                   = 'AUD';
 
-  if (gcMode === 'combined') {
+  if (channelInstanceId) {
     let shopify: ShopifyService | null = null;
     try {
-      shopify = await getShopify(session.businessId);
-      if (shopify) {
-        const gc = await shopify.createGiftCard({
-          initial_value: amt,
-          ...(inputCode ? { code: inputCode } : {}),
-          ...(notes ? { note: notes } : {}),
-        });
-        shopifyGcId = gc.id;
-        shopifyCode = gc.code;
-        expiresOn   = gc.expires_on ?? null;
-        currency    = gc.currency ?? 'AUD';
-      }
+      shopify = await getShopify(session.businessId, channelInstanceId);
+      const gc = await shopify.createGiftCard({
+        initial_value: amt,
+        ...(inputCode ? { code: inputCode } : {}),
+        ...(notes ? { note: notes } : {}),
+      });
+      shopifyGcId = gc.id;
+      shopifyCode = gc.code;
+      expiresOn   = gc.expires_on ?? null;
+      currency    = gc.currency ?? 'AUD';
     } catch (e: any) {
       let recovered = false;
       if (shopify && inputCode && isShopifyGiftCardCodeTakenError(e)) {
@@ -178,16 +194,16 @@ export async function POST(req: Request) {
       }
 
       if (!recovered) {
-        console.error('[POS gift-card] Shopify create failed:', e.message);
         await reportRuntimeIssue({
           businessId: session.businessId,
           source: 'shopify',
           operation: 'gift_card_pos_issue',
           title: 'POS could not create Shopify gift card',
           error: e,
-          context: { pos_sale_id: pos_sale_id ?? null, amount: amt },
+          context: { channelInstanceId, pos_sale_id: pos_sale_id ?? null, amount: amt },
           reference: pos_sale_id ? { type: 'pos_sale', id: pos_sale_id } : undefined,
         });
+        return NextResponse.json({ error: 'The gift card could not be created in the selected Shopify store.' }, { status: 502 });
       }
     }
   }
@@ -198,9 +214,9 @@ export async function POST(req: Request) {
 
   const result = await imsExecute(
     `INSERT INTO gift_cards
-       (shopify_gc_id, code, initial_balance, balance, status, currency, expires_on, order_id, recipient_email, notes)
-     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
-    [shopifyGcId, finalCode, amt, amt, currency, expiresOn,
+       (channel_instance_id, shopify_gc_id, code, initial_balance, balance, status, currency, expires_on, order_id, recipient_email, notes)
+     VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
+    [shopifyGcId ? channelInstanceId : null, shopifyGcId, finalCode, amt, amt, currency, expiresOn,
      pos_sale_id ? String(pos_sale_id) : null, recipient_email ?? null, notes ?? null],
   );
   const cardId = (result as any).insertId;

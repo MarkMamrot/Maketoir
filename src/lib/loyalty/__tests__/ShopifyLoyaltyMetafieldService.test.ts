@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockImsQuery, mockGetSettings, mockGetAccount, mockListRewards, mockReportRuntimeIssue, mockConnectionsGet } = vi.hoisted(() => ({
+const { mockImsQuery, mockGetSettings, mockGetAccount, mockListRewards, mockReportRuntimeIssue,
+  mockGetOperationContext, mockListMappings, mockSetCustomerMetafields } = vi.hoisted(() => ({
   mockImsQuery: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetAccount: vi.fn(),
   mockListRewards: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
-  mockConnectionsGet: vi.fn(),
+  mockGetOperationContext: vi.fn(),
+  mockListMappings: vi.fn(),
+  mockSetCustomerMetafields: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
@@ -15,11 +18,11 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
   LoyaltyRepository: { getAccount: mockGetAccount, listRewards: mockListRewards },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
-vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockConnectionsGet } }));
-vi.mock('@/lib/ims/businessOperations', () => ({
-  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mockGetOperationContext }));
+vi.mock('@/lib/ims/contactChannelMappings', () => ({ listContactChannelMappingsForContact: mockListMappings }));
+vi.mock('@/services/ShopifyService', () => ({
+  ShopifyService: vi.fn(function () { return { setCustomerMetafields: mockSetCustomerMetafields }; }),
 }));
-vi.mock('@/lib/encryption', () => ({ decrypt: vi.fn(value => value) }));
 
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 
@@ -35,15 +38,32 @@ describe('ShopifyLoyaltyMetafieldService', () => {
       id: 3, rewardCode: 'ten-off', displayName: '$10 off', pointsCost: 100, valueAud: 10,
     }]);
     mockReportRuntimeIssue.mockResolvedValue(null);
-    mockConnectionsGet.mockResolvedValue(null);
+    mockListMappings.mockResolvedValue([{ channelInstanceId: 'instance-2' }]);
+    mockGetOperationContext.mockResolvedValue({
+      credentials: { shopDomain: 'store-2.myshopify.com', token: 'token' },
+    });
+    mockSetCustomerMetafields.mockResolvedValue(undefined);
   });
 
-  it('skips configured sync cleanly when the tenant has no Shopify connection', async () => {
+  it('skips configured sync cleanly when the customer has no exact Shopify mapping', async () => {
+    mockListMappings.mockResolvedValue([]);
     await expect(ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
       businessId: 'business-1', contactId: 42,
-    })).resolves.toEqual({ status: 'skipped', contactId: 42, reason: 'shopify_not_configured' });
+    })).resolves.toEqual({ status: 'skipped', contactId: 42, reason: 'shopify_not_linked' });
     expect(mockImsQuery).not.toHaveBeenCalled();
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a configured sync could target multiple Shopify stores', async () => {
+    mockListMappings.mockResolvedValue([
+      { channelInstanceId: 'instance-1' },
+      { channelInstanceId: 'instance-2' },
+    ]);
+
+    await expect(ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+      businessId: 'business-1', contactId: 42,
+    })).resolves.toEqual({ status: 'skipped', contactId: 42, reason: 'shopify_instance_ambiguous' });
+    expect(mockGetOperationContext).not.toHaveBeenCalled();
   });
 
   it('publishes the current member balance, labels, and active rewards', async () => {
@@ -76,6 +96,35 @@ describe('ShopifyLoyaltyMetafieldService', () => {
       expect.objectContaining({ key: 'rewards', value: '[]' }),
     ]));
     expect(mockGetAccount).not.toHaveBeenCalled();
+  });
+
+  it('uses the exact channel customer mapping instead of the legacy contact identity', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ external_customer_id: 'store-2-customer' }])
+      .mockResolvedValueOnce([{ id: 42, loyalty_member: 1, shopify_customer_id: 'legacy-customer' }]);
+    const shopify = { setCustomerMetafields: vi.fn().mockResolvedValue(undefined) };
+
+    await ShopifyLoyaltyMetafieldService.syncCustomer({
+      businessId: 'business-1', channelInstanceId: 'instance-2', contactId: 42, shopify,
+    });
+
+    expect(mockImsQuery.mock.calls[0][1]).toEqual(['business-1', 'instance-2', 42]);
+    expect(shopify.setCustomerMetafields).toHaveBeenCalledWith('store-2-customer', expect.any(Array));
+  });
+
+  it('loads exact credentials and mapping for configured instance sync', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ external_customer_id: 'store-2-customer' }])
+      .mockResolvedValueOnce([{ id: 42, loyalty_member: 1, shopify_customer_id: 'legacy-customer' }]);
+
+    await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+      businessId: 'business-1', channelInstanceId: 'instance-2', contactId: 42,
+    });
+
+    expect(mockGetOperationContext).toHaveBeenCalledWith({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+    });
+    expect(mockSetCustomerMetafields).toHaveBeenCalledWith('store-2-customer', expect.any(Array));
   });
 
   it('reports Shopify failures without throwing into the completed loyalty operation', async () => {

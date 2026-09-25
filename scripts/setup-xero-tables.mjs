@@ -26,6 +26,136 @@ async function main() {
   const sql = readFileSync(join(__dirname, 'setup-xero-tables.sql'), 'utf8');
   await conn.query(sql);
 
+  const exactInstanceTables = [
+    'xero_online_batches',
+    'xero_online_order_payments',
+    'xero_online_order_fees',
+    'shopify_payment_payouts',
+    'shopify_payment_payout_transactions',
+    'shopify_payment_xero_actions',
+  ];
+  const [gatewayTableRows] = await conn.query(
+    `SELECT 1 FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_gateway_mappings' LIMIT 1`,
+  );
+  if (gatewayTableRows.length > 0) exactInstanceTables.push('xero_gateway_mappings');
+
+  for (const tableName of exactInstanceTables) {
+    const [columns] = await conn.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'channel_instance_id' LIMIT 1`,
+      [tableName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE \`${tableName}\` ADD COLUMN channel_instance_id VARCHAR(36) NULL AFTER business_id`);
+    }
+  }
+
+  const soleShopifyInstance = `
+    SELECT business_id, MIN(channel_instance_id) AS channel_instance_id
+      FROM sales_channel_instances
+     WHERE provider = 'shopify'
+     GROUP BY business_id
+    HAVING COUNT(*) = 1`;
+  for (const tableName of ['shopify_payment_payouts', 'xero_gateway_mappings']) {
+    if (!exactInstanceTables.includes(tableName)) continue;
+    await conn.query(
+      `UPDATE \`${tableName}\` target
+       JOIN (${soleShopifyInstance}) owner ON owner.business_id = target.business_id
+          SET target.channel_instance_id = owner.channel_instance_id
+        WHERE target.channel_instance_id IS NULL`,
+    );
+  }
+  await conn.query(`
+    UPDATE shopify_payment_payout_transactions transaction_row
+    JOIN (
+      SELECT business_id, shopify_payout_id, MIN(channel_instance_id) AS channel_instance_id
+        FROM shopify_payment_payouts
+       WHERE channel_instance_id IS NOT NULL
+       GROUP BY business_id, shopify_payout_id
+      HAVING COUNT(DISTINCT channel_instance_id) = 1
+    ) owner ON owner.business_id = transaction_row.business_id
+           AND owner.shopify_payout_id = transaction_row.shopify_payout_id
+       SET transaction_row.channel_instance_id = owner.channel_instance_id
+     WHERE transaction_row.channel_instance_id IS NULL`);
+  await conn.query(`
+    UPDATE shopify_payment_xero_actions action_row
+    JOIN (
+      SELECT business_id, shopify_payout_id, MIN(channel_instance_id) AS channel_instance_id
+        FROM shopify_payment_payouts
+       WHERE channel_instance_id IS NOT NULL
+       GROUP BY business_id, shopify_payout_id
+      HAVING COUNT(DISTINCT channel_instance_id) = 1
+    ) owner ON owner.business_id = action_row.business_id
+           AND owner.shopify_payout_id = action_row.shopify_payout_id
+       SET action_row.channel_instance_id = owner.channel_instance_id
+     WHERE action_row.channel_instance_id IS NULL`);
+  await conn.query(`
+    UPDATE xero_online_batches batch
+    JOIN (${soleShopifyInstance}) owner ON owner.business_id = batch.business_id
+       SET batch.channel_instance_id = owner.channel_instance_id
+     WHERE batch.channel_instance_id IS NULL AND batch.payout_managed = 1`);
+  await conn.query(`
+    UPDATE xero_online_order_payments payment
+    JOIN (
+      SELECT business_id, batch_date, MIN(channel_instance_id) AS channel_instance_id
+        FROM xero_online_batches
+       WHERE channel_instance_id IS NOT NULL
+       GROUP BY business_id, batch_date
+      HAVING COUNT(DISTINCT channel_instance_id) = 1
+    ) owner ON owner.business_id = payment.business_id AND owner.batch_date = payment.batch_date
+       SET payment.channel_instance_id = owner.channel_instance_id
+     WHERE payment.channel_instance_id IS NULL`);
+  await conn.query(`
+    UPDATE xero_online_order_fees fee
+    JOIN (
+      SELECT business_id, payment_key, MIN(channel_instance_id) AS channel_instance_id
+        FROM xero_online_order_payments
+       WHERE channel_instance_id IS NOT NULL
+       GROUP BY business_id, payment_key
+      HAVING COUNT(DISTINCT channel_instance_id) = 1
+    ) owner ON owner.business_id = fee.business_id AND owner.payment_key = fee.payment_key
+       SET fee.channel_instance_id = owner.channel_instance_id
+     WHERE fee.channel_instance_id IS NULL`);
+
+  const exactIndexes = [
+    ['xero_online_batches', 'uq_xero_online_batch_instance', 'business_id, channel_instance_id, batch_date'],
+    ['xero_online_order_payments', 'uq_xero_online_order_payment_instance', 'business_id, channel_instance_id, payment_key'],
+    ['xero_online_order_fees', 'uq_xero_online_order_fee_instance', 'business_id, channel_instance_id, fee_key'],
+    ['shopify_payment_payouts', 'uq_shopify_payment_payout_instance', 'business_id, channel_instance_id, shopify_payout_id'],
+    ['shopify_payment_payout_transactions', 'uq_shopify_payment_transaction_instance', 'business_id, channel_instance_id, shopify_transaction_id'],
+    ['shopify_payment_xero_actions', 'uq_shopify_payment_xero_action_instance', 'business_id, channel_instance_id, action_key'],
+    ['xero_gateway_mappings', 'uq_biz_instance_gateway', 'business_id, channel_instance_id, gateway_name'],
+  ];
+  for (const [tableName, indexName, columns] of exactIndexes) {
+    if (!exactInstanceTables.includes(tableName)) continue;
+    const [indexes] = await conn.query(
+      `SELECT 1 FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+      [tableName, indexName],
+    );
+    if (indexes.length === 0) await conn.query(`ALTER TABLE \`${tableName}\` ADD UNIQUE KEY \`${indexName}\` (${columns})`);
+  }
+
+  const legacyIndexes = [
+    ['xero_online_batches', 'uq_xero_online_batch'],
+    ['xero_online_order_payments', 'uq_xero_online_order_payment'],
+    ['xero_online_order_fees', 'uq_xero_online_order_fee'],
+    ['shopify_payment_payouts', 'uq_shopify_payment_payout'],
+    ['shopify_payment_payout_transactions', 'uq_shopify_payment_transaction'],
+    ['shopify_payment_xero_actions', 'uq_shopify_payment_xero_action'],
+    ['xero_gateway_mappings', 'uq_biz_gateway'],
+  ];
+  for (const [tableName, indexName] of legacyIndexes) {
+    if (!exactInstanceTables.includes(tableName)) continue;
+    const [indexes] = await conn.query(
+      `SELECT 1 FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+      [tableName, indexName],
+    );
+    if (indexes.length > 0) await conn.query(`ALTER TABLE \`${tableName}\` DROP INDEX \`${indexName}\``);
+  }
+
   const [[businessIdColumn]] = await conn.query(
     `SELECT COLLATION_NAME AS collationName
        FROM information_schema.COLUMNS

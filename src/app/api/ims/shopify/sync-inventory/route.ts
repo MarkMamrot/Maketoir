@@ -14,16 +14,15 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
-import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { enterImsForBusiness, runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import {
   drainInventoryQueue,
-  pushInventoryForBusiness,
-  getOnlinePickLocationIds,
-  getShopifyForBusiness,
-  getShopifyInventoryLocationId,
-  shouldRunInventorySync,
+  pushInventoryForShopifyInstance,
 } from '@/lib/ims/shopifyInventorySync';
 
 export const runtime = 'nodejs';
@@ -31,20 +30,18 @@ export const maxDuration = 300;
 
 
 /** GET — inventory-sync settings + IMS pick locations for the UI. */
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
+  const channelInstanceId = new URL(req.url).searchParams.get('channelInstanceId')?.trim();
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
 
   try {
     await enterImsForBusiness(businessId);
-    const rows = await imsQuery<{ key: string; value: string }>(
-      `SELECT \`key\`, value FROM ims_settings WHERE business_id = ?
-         AND \`key\` IN ('shopify_inventory_sync_enabled','online_pick_priority','shopify_inventory_buffer','shopify_inventory_sync_interval_minutes','shopify_inventory_sync_last_run_at')`,
-      [businessId],
-    ).catch(() => [] as { key: string; value: string }[]);
-    const get = (k: string) => rows.find(r => r.key === k)?.value ?? '';
+    const context = await getShopifyOperationContext({ businessId, channelInstanceId });
+    const inventory = shopifyInstanceSettings(context.instance.settings).inventory;
 
     // IMS locations for display (active only)
     const imsLocs = await imsQuery<{ id: number; name: string }>(
@@ -52,37 +49,31 @@ export async function GET() {
       [businessId],
     ).catch(() => [] as { id: number; name: string }[]);
 
-    // Resolve configured pick location ids from setting
-    let pickLocationIds: number[] = [];
-    try {
-      const arr = JSON.parse(get('online_pick_priority') || '[]');
-      if (Array.isArray(arr) && arr.length) pickLocationIds = arr.map(Number).filter(Boolean);
-    } catch {}
-
     const queued = await imsQuery<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM ims_shopify_inventory_queue q
-         JOIN ims_product_variants v ON v.variant_id = q.variant_id
-         JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ?`,
-      [businessId],
+      `SELECT COUNT(*) AS n FROM ims_sales_channel_jobs
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'shopify'
+          AND operation = 'shopify_inventory' AND status IN ('pending','processing','failed')`,
+      [businessId, channelInstanceId],
     ).catch(() => [{ n: 0 }]);
 
     // Count of Shopify-linked variants (for the preview button state)
     const linked = await imsQuery<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM ims_product_variants v
-         JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
-      [businessId],
+      `SELECT COUNT(*) AS n FROM ims_sales_channel_product_mappings
+        WHERE business_id = ? AND channel_instance_id = ? AND mapping_status = 'linked'
+          AND external_inventory_id IS NOT NULL AND external_inventory_id <> ''`,
+      [businessId, channelInstanceId],
     ).catch(() => [{ n: 0 }]);
 
     return NextResponse.json({
       success: true,
-      enabled: get('shopify_inventory_sync_enabled') === '1',
+      channelInstanceId,
+      enabled: inventory.enabled,
       imsLocations: imsLocs,
-      pickLocationIds,
-      buffer: parseInt(get('shopify_inventory_buffer') || '0', 10) || 0,
-      intervalMinutes: Math.max(1, parseInt(get('shopify_inventory_sync_interval_minutes') || '15', 10) || 15),
-      lastRunAt: get('shopify_inventory_sync_last_run_at') || null,
+      pickLocationIds: inventory.pickLocationIds,
+      shopifyLocationId: inventory.locationId,
+      buffer: inventory.buffer,
+      intervalMinutes: inventory.intervalMinutes,
+      lastRunAt: inventory.lastRunAt,
       queuedCount: queued[0]?.n ?? 0,
       linkedVariants: linked[0]?.n ?? 0,
     });
@@ -98,6 +89,27 @@ export async function POST(req: Request) {
     console.error('[sync-inventory] POST error:', e?.message, e?.stack);
     return NextResponse.json({ success: false, error: e?.message ?? 'Internal error' }, { status: 500 });
   }
+}
+
+export async function PATCH(req: Request) {
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = String(session.businessId);
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
+  const body = await req.json().catch(() => ({}));
+  const channelInstanceId = typeof body?.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
+  const instance = await SalesChannelInstanceRepository.getForBusiness(businessId, channelInstanceId);
+  if (!instance || instance.provider !== 'shopify') {
+    return NextResponse.json({ error: 'Shopify channel instance was not found' }, { status: 404 });
+  }
+  const current = shopifyInstanceSettings(instance.settings);
+  const inventoryPatch = body?.inventory && typeof body.inventory === 'object' ? body.inventory : {};
+  const updated = shopifyInstanceSettings({
+    shopify: { ...current, inventory: { ...current.inventory, ...inventoryPatch } },
+  });
+  await SalesChannelInstanceRepository.setShopifySettingsForBusiness({ businessId, channelInstanceId, settings: updated });
+  return NextResponse.json({ success: true, inventory: updated.inventory });
 }
 
 async function handlePost(req: Request) {
@@ -126,23 +138,7 @@ async function handlePost(req: Request) {
           continue;
         }
         const res = await runImsForBusiness(business_id, async () => {
-          const settingsRows = await imsQuery<{ key: string; value: string }>(
-            `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` IN ('shopify_inventory_sync_interval_minutes','shopify_inventory_sync_last_run_at')`,
-            [business_id],
-          ).catch(() => [] as { key: string; value: string }[]);
-          const intervalMinutes = Math.max(1, parseInt(settingsRows.find(r => r.key === 'shopify_inventory_sync_interval_minutes')?.value || '15', 10) || 15);
-          const lastRunAt = settingsRows.find(r => r.key === 'shopify_inventory_sync_last_run_at')?.value ?? null;
-          if (!shouldRunInventorySync(lastRunAt, intervalMinutes, new Date())) {
-            return { skipped: true, processed: 0, pushed: 0, businesses: 0, errors: [] as string[] };
-          }
           const result = await drainInventoryQueue(Number(body?.limit ?? 250), business_id);
-          if (result.errors.length === 0) {
-            await imsExecute(
-              `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'shopify_inventory_sync_last_run_at', ?)
-               ON DUPLICATE KEY UPDATE value = VALUES(value)`,
-              [business_id, new Date().toISOString()],
-            );
-          }
           return { skipped: false, ...result };
         });
         if (res.skipped) {
@@ -171,77 +167,36 @@ async function handlePost(req: Request) {
   await enterImsForBusiness(businessId);
 
   if (mode === 'queue') {
-    const res = await drainInventoryQueue(Number(body?.limit ?? 250));
+    const res = await drainInventoryQueue(Number(body?.limit ?? 250), businessId);
     return NextResponse.json({ success: true, ...res });
   }
 
+  const channelInstanceId = typeof body?.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+  if (!channelInstanceId) {
+    return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
+  }
+
   if (mode === 'all') {
-    // Fetch every Shopify-linked variant for this business.
-    const linked = await imsQuery<{ variant_id: string }>(
-      `SELECT v.variant_id
-         FROM ims_product_variants v
-         JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
-      [businessId],
-    );
-    const allIds = linked.map(r => r.variant_id);
-    if (!allIds.length) {
-      return NextResponse.json({ success: false, error: 'No Shopify-linked variants found. Run Reconcile Products first.' });
-    }
-
-    // Push a bounded first batch inline (keeps the request well under proxy timeouts);
-    // enqueue the remainder for the 15-minute background cron. Bulk GraphQL pushes
-    // 250 variants per call (~1.5s), so ~5000 inline (~40s) stays under the ~90s
-    // proxy limit. Larger catalogs drain the rest via the cron / "Sync Queue Now".
-    const BATCH = 5000;
-    const firstBatch = allIds.slice(0, BATCH);
-    const remainder  = allIds.slice(BATCH);
-
-    const res = await pushInventoryForBusiness(businessId, { variantIds: firstBatch, force: true });
-
-    // If the first batch failed with a scope/permission error, don't queue the rest —
-    // they'd all fail too. Surface the error immediately.
-    const hadScopeError = res.errors.some(e => /write_inventory|forbidden|403/i.test(e));
-
-    let queuedRemainder = 0;
-    if (remainder.length && !hadScopeError) {
-      // INSERT IGNORE into the dirty queue so the cron drains them.
-      const values = remainder.map(() => '(?, NOW())').join(',');
-      await imsExecute(
-        `INSERT IGNORE INTO ims_shopify_inventory_queue (variant_id, queued_at) VALUES ${values}`,
-        remainder,
-      ).catch(() => {});
-      queuedRemainder = remainder.length;
-    }
-
+    const res = await pushInventoryForShopifyInstance({ businessId, channelInstanceId, all: true, force: true });
     return NextResponse.json({
       success: res.pushed > 0,
       ...res,
-      totalLinked: allIds.length,
-      queuedRemainder,
+      totalLinked: res.pushed + res.skipped,
+      queuedRemainder: 0,
     });
   }
 
   if (mode === 'preview') {
-    const pickLocs = await getOnlinePickLocationIds(businessId);
-    const buffer = parseInt(
-      (await imsQuery<{ value: string }>(
-        `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'shopify_inventory_buffer' LIMIT 1`,
-        [businessId],
-      ).catch(() => []))[0]?.value || '0', 10) || 0;
-
-    // Resolve the Shopify location (best-effort — not required to preview stock).
-    let shopifyLocationId: number | null = null;
-    try {
-      const shopify = await getShopifyForBusiness(businessId);
-      if (shopify) shopifyLocationId = await getShopifyInventoryLocationId(businessId, shopify);
-    } catch {}
+    const context = await getShopifyOperationContext({ businessId, channelInstanceId });
+    const inventory = shopifyInstanceSettings(context.instance.settings).inventory;
+    const pickLocs = inventory.pickLocationIds;
+    const buffer = inventory.buffer;
 
     const linked = await imsQuery<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM ims_product_variants v
-         JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
-      [businessId],
+      `SELECT COUNT(*) AS n FROM ims_sales_channel_product_mappings
+        WHERE business_id = ? AND channel_instance_id = ? AND mapping_status = 'linked'
+          AND external_inventory_id IS NOT NULL AND external_inventory_id <> ''`,
+      [businessId, channelInstanceId],
     ).catch(() => [{ n: 0 }]);
 
     // Full computed list (bounded) of what would be pushed.
@@ -252,10 +207,14 @@ async function handlePost(req: Request) {
               GREATEST(0, SUM(GREATEST(0, s.qty_on_hand - s.qty_committed)) - ${Math.max(0, buffer)}) AS available
          FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
+         JOIN ims_sales_channel_product_mappings mapping
+           ON mapping.business_id = p.business_id AND mapping.variant_id = v.variant_id
          LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id IN (${locFilter})
-        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''
+        WHERE p.business_id = ? AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+          AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
+          AND COALESCE(p.is_stock_item, 1) = 1
         GROUP BY v.variant_id ORDER BY available DESC, p.name LIMIT 500`,
-      [...pickLocs, businessId],
+      [...pickLocs, businessId, channelInstanceId],
     ).catch(() => [] as any[]);
 
     const inStock = rows.filter(r => Number(r.available) > 0).length;
@@ -264,7 +223,7 @@ async function handlePost(req: Request) {
     return NextResponse.json({
       success: true,
       pickLocationIds: pickLocs,
-      shopifyLocationId,
+      shopifyLocationId: inventory.locationId,
       linkedVariants: linked[0]?.n ?? 0,
       buffer,
       inStock,

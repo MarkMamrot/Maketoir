@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { assertShopifyExternalProductOwnership } from '@/lib/channels/shopifyProductOperationContext';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 /**
@@ -26,11 +25,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { databaseId, productId, variantId, productUpdates = {}, variantUpdates = {} } = body;
+  const { databaseId, channelInstanceId, productId, variantId, productUpdates = {}, variantUpdates = {} } = body;
 
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   }
+  if (!String(channelInstanceId ?? '').trim()) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
   const user = JSON.parse(session.value);
   if (databaseId !== user.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
@@ -50,13 +50,13 @@ export async function POST(req: Request) {
 
   try {
     // ── Read Shopify credentials ────────────────────────────────────────────
-    const credentials = await getShopifyAdminCredentials(databaseId);
-    if (!credentials) {
-      return NextResponse.json(
-        { success: false, error: 'Shopify credentials not configured.' },
-        { status: 400 },
-      );
-    }
+    const { credentials } = await getShopifyOperationContext({ businessId: databaseId, channelInstanceId });
+    await assertShopifyExternalProductOwnership({
+      businessId: databaseId,
+      channelInstanceId,
+      externalProductId: String(productId),
+      externalVariantId: hasVariantChanges && variantId ? String(variantId) : null,
+    });
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     // ── Apply updates ───────────────────────────────────────────────────────

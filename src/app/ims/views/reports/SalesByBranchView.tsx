@@ -38,6 +38,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   const [page,     setPage]    = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
+  const [channelFilter, setChannelFilter] = useState('');
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string }>>([]);
 
   const [sortCol, setSortCol] = useState<string>('sales_qty');
   const [sortAsc, setSortAsc] = useState(false);
@@ -60,6 +62,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         params.set('to', dr.to);
       }
       if (bid) params.set('locationIds', String(bid));
+      if (channelFilter) params.set('channelInstanceId', channelFilter);
       const data = await apiFetch(`/api/ims/reports/sales-by-branch?${params}`);
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
@@ -74,7 +77,13 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
     } finally {
       setLoading(false);
     }
-  }, [apiFetch]);
+  }, [apiFetch, channelFilter]);
+
+  useEffect(() => {
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      setShopifyChannels((data.instances ?? []).filter((instance: any) => instance.provider === 'shopify'));
+    }).catch(() => setShopifyChannels([]));
+  }, []);
 
   useEffect(() => { load(1, '', '', '', '', { kind: 'window', window: 90, label: '90 Days' }, 25, null); }, [load]);
 
@@ -231,6 +240,14 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
           <option value="">All Branches</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
+        <select
+          value={channelFilter}
+          onChange={event => { setChannelFilter(event.target.value); setPage(1); }}
+          style={{ height: 34, padding: '0 8px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: channelFilter ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 170, cursor: 'pointer' }}
+        >
+          <option value="">All channels</option>
+          {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+        </select>
         <input
           placeholder="Search product or SKU…"
           value={filterText}
@@ -264,8 +281,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
           </span>
         )}
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
-        {(filterText || filterBrand || filterSupplier || filterType || branchFilter !== null) && (
-          <button onClick={() => { setFilterText(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setBranchFilter(null); setPage(1); load(1, '', '', '', '', dateRange, pageSize, null); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
+        {(filterText || filterBrand || filterSupplier || filterType || branchFilter !== null || channelFilter) && (
+          <button onClick={() => { setFilterText(''); setFilterBrand(''); setFilterSupplier(''); setFilterType(''); setBranchFilter(null); setChannelFilter(''); setPage(1); }} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
             Clear filters
           </button>
         )}

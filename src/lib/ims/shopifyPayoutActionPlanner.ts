@@ -58,49 +58,51 @@ function placeholders(values: unknown[]): string {
 async function blockPayout(
   deps: ShopifyPayoutPlannerDependencies,
   businessId: string,
+  channelInstanceId: string,
   payoutId: string,
   error: string,
 ): Promise<ShopifyPayoutPlanResult> {
   await deps.mainExecute(
     `UPDATE shopify_payment_payouts
         SET reconciliation_status = 'blocked', error_detail = ?
-      WHERE business_id = ? AND shopify_payout_id = ?`,
-    [error, businessId, payoutId],
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+    [error, businessId, channelInstanceId, payoutId],
   );
   return { status: 'blocked', error, actions: [] };
 }
 
 export async function planShopifyPayoutActions(
   businessId: string,
+  channelInstanceId: string,
   payoutId: string,
   deps: ShopifyPayoutPlannerDependencies = defaultDependencies,
 ): Promise<ShopifyPayoutPlanResult> {
   const payoutRows = await deps.mainQuery(
-    `SELECT shopify_payout_id, payout_date, shopify_status, currency, payout_amount
+    `SELECT channel_instance_id, shopify_payout_id, payout_date, shopify_status, currency, payout_amount
        FROM shopify_payment_payouts
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       LIMIT 1`,
-    [businessId, payoutId],
+    [businessId, channelInstanceId, payoutId],
   );
   const payout = payoutRows[0];
-  if (!payout) return blockPayout(deps, businessId, payoutId, `Payout ${payoutId} was not found`);
+  if (!payout) return blockPayout(deps, businessId, channelInstanceId, payoutId, `Payout ${payoutId} was not found for this Shopify store`);
   if (String(payout.shopify_status).toLowerCase() !== 'paid') {
-    return blockPayout(deps, businessId, payoutId, `Payout ${payoutId} is not paid`);
+    return blockPayout(deps, businessId, channelInstanceId, payoutId, `Payout ${payoutId} is not paid`);
   }
 
   const payoutDate = toDateString(payout.payout_date);
-  if (!payoutDate) return blockPayout(deps, businessId, payoutId, `Payout ${payoutId} has no payout date`);
+  if (!payoutDate) return blockPayout(deps, businessId, channelInstanceId, payoutId, `Payout ${payoutId} has no payout date`);
 
   const transactionRows = await deps.mainQuery(
     `SELECT shopify_transaction_id, transaction_type, amount, fee, net, currency,
             source_order_id, business_date
        FROM shopify_payment_payout_transactions
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       ORDER BY shopify_transaction_id`,
-    [businessId, payoutId],
+    [businessId, channelInstanceId, payoutId],
   );
   if (transactionRows.length === 0) {
-    return blockPayout(deps, businessId, payoutId, `Payout ${payoutId} has no balance transactions`);
+    return blockPayout(deps, businessId, channelInstanceId, payoutId, `Payout ${payoutId} has no balance transactions`);
   }
 
   const orderIds = Array.from(new Set(transactionRows
@@ -108,13 +110,14 @@ export async function planShopifyPayoutActions(
     .filter(Boolean)));
   const orderRows = orderIds.length > 0
     ? await deps.tenantQuery(
-        `SELECT id, shopify_order_id, order_date
+        `SELECT id, external_order_id, order_date
            FROM ims_sales_orders
-          WHERE business_id = ? AND shopify_order_id IN (${placeholders(orderIds)})`,
-        [businessId, ...orderIds],
+          WHERE business_id = ? AND sales_channel = 'shopify' AND channel_instance_id = ?
+            AND external_order_id IN (${placeholders(orderIds)})`,
+        [businessId, channelInstanceId, ...orderIds],
       )
     : [];
-  const ordersByShopifyId = new Map(orderRows.map(row => [String(row.shopify_order_id), row]));
+  const ordersByShopifyId = new Map(orderRows.map(row => [String(row.external_order_id), row]));
   const transactionDates = new Map<string, string>();
   for (const row of transactionRows) {
     if (classifyShopifyPayoutTransaction(String(row.transaction_type)) !== 'charge') continue;
@@ -127,8 +130,9 @@ export async function planShopifyPayoutActions(
     ? await deps.mainQuery(
         `SELECT batch_date, xero_invoice_id, payout_managed
            FROM xero_online_batches
-          WHERE business_id = ? AND batch_date IN (${placeholders(invoiceDates)})`,
-        [businessId, ...invoiceDates],
+          WHERE business_id = ? AND channel_instance_id = ?
+            AND batch_date IN (${placeholders(invoiceDates)})`,
+        [businessId, channelInstanceId, ...invoiceDates],
       )
     : [];
   const batchesByDate = new Map(batchRows.map(row => [toDateString(row.batch_date), row]));
@@ -143,7 +147,7 @@ export async function planShopifyPayoutActions(
   });
   const preSettledByDate = new Map<string, string>(); // date → xero_invoice_id
   if (missingDates.length > 0) {
-    const syncLogKeys = missingDates.map(d => `online batch ${d}`);
+    const syncLogKeys = missingDates.map(d => `online batch ${d}|shopify:${channelInstanceId}`);
     const preSettledRows = await deps.mainQuery(
       `SELECT detail, xero_id
          FROM xero_sync_log
@@ -153,7 +157,7 @@ export async function planShopifyPayoutActions(
       [businessId, ...syncLogKeys],
     );
     for (const row of preSettledRows) {
-      const m = String(row.detail ?? '').match(/online batch (\d{4}-\d{2}-\d{2})/);
+      const m = String(row.detail ?? '').match(/online batch (\d{4}-\d{2}-\d{2})\|shopify:/);
       if (m && row.xero_id) preSettledByDate.set(m[1], String(row.xero_id));
     }
   }
@@ -189,29 +193,29 @@ export async function planShopifyPayoutActions(
       transactions: reconciliationTransactions,
     });
   } catch (error: any) {
-    return blockPayout(deps, businessId, payoutId, error.message);
+    return blockPayout(deps, businessId, channelInstanceId, payoutId, error.message);
   }
   if (!reconciliation.balanced) {
     const error = reconciliation.unresolvedChargeIds.length > 0
       ? `Unresolved payout charges: ${reconciliation.unresolvedChargeIds.join(', ')}`
       : `Payout differs from balance transactions by ${reconciliation.difference.toFixed(2)}`;
-    return blockPayout(deps, businessId, payoutId, error);
+    return blockPayout(deps, businessId, channelInstanceId, payoutId, error);
   }
 
   const mappingRows = await deps.mainQuery(
     `SELECT gateway_name, clearing_account_code, fee_account_code, fee_tax_type
        FROM xero_gateway_mappings
-      WHERE business_id = ?`,
-    [businessId],
+      WHERE business_id = ? AND channel_instance_id = ?`,
+    [businessId, channelInstanceId],
   );
   const mapping = mappingRows.find(row => isShopifyPaymentsGateway(row.gateway_name));
   const clearingAccountCode = String(mapping?.clearing_account_code ?? '').trim();
   if (!clearingAccountCode) {
-    return blockPayout(deps, businessId, payoutId, 'Shopify Payments clearing account is not configured');
+    return blockPayout(deps, businessId, channelInstanceId, payoutId, 'Shopify Payments clearing account is not configured for this store');
   }
 
   const actions: PlannedShopifyPayoutAction[] = reconciliation.invoiceAllocations.map(allocation => ({
-    actionKey: `payout:${payoutId}:invoice:${allocation.invoiceId}`,
+    actionKey: `shopify:${channelInstanceId}:payout:${payoutId}:invoice:${allocation.invoiceId}`,
     actionType: 'invoice_payment',
     targetXeroDocumentId: allocation.invoiceId,
     actionDate: payoutDate,
@@ -231,12 +235,12 @@ export async function planShopifyPayoutActions(
   ));
   if (signedFeeMovement !== 0 || reconciliation.adjustments !== 0) {
     if (!feeAccountCode) {
-      return blockPayout(deps, businessId, payoutId, 'Shopify fee expense account is not configured');
+      return blockPayout(deps, businessId, channelInstanceId, payoutId, 'Shopify fee expense account is not configured for this store');
     }
   }
   if (signedFeeMovement !== 0) {
     actions.push({
-      actionKey: `payout:${payoutId}:fees`,
+      actionKey: `shopify:${channelInstanceId}:payout:${payoutId}:fees`,
       actionType: signedFeeMovement < 0 ? 'fee_spend' : 'fee_receive',
       targetXeroDocumentId: null,
       actionDate: payoutDate,
@@ -259,14 +263,16 @@ export async function planShopifyPayoutActions(
     .filter(Boolean)));
   const creditNoteRows = refundOrderIds.length > 0
     ? await deps.tenantQuery(
-        `SELECT so.shopify_order_id, cn.xero_credit_note_id, cn.total_amount
+        `SELECT so.external_order_id AS shopify_order_id, cn.xero_credit_note_id, cn.total_amount
            FROM ims_credit_notes cn
            JOIN ims_sales_orders so ON so.id = cn.so_id
           WHERE cn.business_id = ?
+          AND cn.channel_instance_id = ?
+          AND so.channel_instance_id = ?
             AND cn.source = 'shopify'
             AND cn.status = 'complete'
-            AND so.shopify_order_id IN (${placeholders(refundOrderIds)})`,
-        [businessId, ...refundOrderIds],
+          AND so.external_order_id IN (${placeholders(refundOrderIds)})`,
+        [businessId, channelInstanceId, channelInstanceId, ...refundOrderIds],
       )
     : [];
   const creditNotesByOrder = new Map<string, any[]>();
@@ -279,7 +285,7 @@ export async function planShopifyPayoutActions(
     const orderId = String(transactionRow?.source_order_id ?? '');
     const creditNotes = creditNotesByOrder.get(orderId) ?? [];
     if (creditNotes.length !== 1 || !creditNotes[0]?.xero_credit_note_id) {
-      return blockPayout(deps, businessId, payoutId, `Refund ${transaction.id} does not have one completed Xero credit note`);
+      return blockPayout(deps, businessId, channelInstanceId, payoutId, `Refund ${transaction.id} does not have one completed Xero credit note in this Shopify store`);
     }
     const refundAmount = Math.abs(roundCurrency(Number(transaction.amount)));
     const creditNoteAmount = roundCurrency(Number(creditNotes[0].total_amount));
@@ -287,12 +293,13 @@ export async function planShopifyPayoutActions(
       return blockPayout(
         deps,
         businessId,
+        channelInstanceId,
         payoutId,
         `Refund ${transaction.id} amount ${refundAmount.toFixed(2)} does not match completed credit note ${creditNoteAmount.toFixed(2)}`,
       );
     }
     actions.push({
-      actionKey: `payout:${payoutId}:refund:${transaction.id}`,
+      actionKey: `shopify:${channelInstanceId}:payout:${payoutId}:refund:${transaction.id}`,
       actionType: 'credit_note_refund',
       targetXeroDocumentId: String(creditNotes[0].xero_credit_note_id),
       actionDate: payoutDate,
@@ -311,7 +318,7 @@ export async function planShopifyPayoutActions(
     const amount = roundCurrency(Number(transaction.amount));
     if (amount === 0) continue;
     actions.push({
-      actionKey: `payout:${payoutId}:adjustment:${transaction.id}`,
+      actionKey: `shopify:${channelInstanceId}:payout:${payoutId}:adjustment:${transaction.id}`,
       actionType: amount > 0 ? 'adjustment_receive' : 'adjustment_spend',
       targetXeroDocumentId: null,
       actionDate: payoutDate,
@@ -327,16 +334,16 @@ export async function planShopifyPayoutActions(
 
   await deps.mainExecute(
     `DELETE FROM shopify_payment_xero_actions
-      WHERE business_id = ? AND shopify_payout_id = ? AND status != 'completed'`,
-    [businessId, payoutId],
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ? AND status != 'completed'`,
+    [businessId, channelInstanceId, payoutId],
   );
   for (const action of actions) {
     await deps.mainExecute(
       `INSERT INTO shopify_payment_xero_actions
-         (business_id, shopify_payout_id, action_key, action_type, target_xero_document_id,
+        (business_id, channel_instance_id, shopify_payout_id, action_key, action_type, target_xero_document_id,
           action_date, amount, currency, account_code, offset_account_code, tax_type,
           reference, status, transaction_ids)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
        ON DUPLICATE KEY UPDATE
          action_type = VALUES(action_type), target_xero_document_id = VALUES(target_xero_document_id),
          action_date = VALUES(action_date), amount = VALUES(amount), currency = VALUES(currency),
@@ -344,7 +351,7 @@ export async function planShopifyPayoutActions(
          tax_type = VALUES(tax_type), reference = VALUES(reference),
          transaction_ids = VALUES(transaction_ids)`,
       [
-        businessId, payoutId, action.actionKey, action.actionType, action.targetXeroDocumentId,
+        businessId, channelInstanceId, payoutId, action.actionKey, action.actionType, action.targetXeroDocumentId,
         action.actionDate, action.amount, action.currency, action.accountCode,
         action.offsetAccountCode, action.taxType, action.reference,
         JSON.stringify(action.transactionIds),
@@ -354,8 +361,8 @@ export async function planShopifyPayoutActions(
   await deps.mainExecute(
     `UPDATE shopify_payment_payouts
         SET reconciliation_status = 'planned', error_detail = NULL
-      WHERE business_id = ? AND shopify_payout_id = ?`,
-    [businessId, payoutId],
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+    [businessId, channelInstanceId, payoutId],
   );
 
   return { status: 'planned', actions };

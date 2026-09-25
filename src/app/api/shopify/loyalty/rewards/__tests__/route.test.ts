@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   verify: vi.fn(),
-  getByShop: vi.fn(),
+  mainQuery: vi.fn(),
+  operationContext: vi.fn(),
+  getMapping: vi.fn(),
   runIms: vi.fn(async (_businessId: string, work: () => Promise<unknown>) => work()),
-  imsQuery: vi.fn(),
   issue: vi.fn(),
   report: vi.fn(),
   shopifyCtor: vi.fn(),
@@ -14,9 +15,11 @@ vi.mock('@/lib/loyalty/ShopifyCustomerAccountAuth', () => ({
   ShopifyCustomerAccountAuthError: class extends Error {},
   verifyShopifyCustomerAccountToken: mocks.verify,
 }));
-vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { getByShopifyShopDomain: mocks.getByShop } }));
+vi.mock('@/services/MySQLService', () => ({ query: mocks.mainQuery }));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.operationContext }));
+vi.mock('@/lib/ims/contactChannelMappings', () => ({ getContactChannelMapping: mocks.getMapping }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.runIms }));
-vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.imsQuery }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn(), imsExecute: vi.fn() }));
 vi.mock('@/lib/loyalty/ShopifyRewardIssuanceService', () => ({ ShopifyRewardIssuanceService: { issue: mocks.issue } }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/encryption', () => ({ decrypt: vi.fn(value => value) }));
@@ -41,10 +44,9 @@ describe('Shopify customer loyalty reward claim route', () => {
     vi.stubEnv('SHOPIFY_LOYALTY_APP_CLIENT_ID', 'client-id');
     vi.stubEnv('SHOPIFY_LOYALTY_APP_SECRET', 'app-secret');
     mocks.verify.mockReturnValue({ shopDomain: 'example.myshopify.com', shopifyCustomerId: '12345', tokenId: 'token-id' });
-    mocks.getByShop.mockResolvedValue({
-      business_id: 'business-1', shopify_shop_id: 'example.myshopify.com', shopify_access_token: 'admin-token',
-    });
-    mocks.imsQuery.mockResolvedValue([{ id: 42 }]);
+    mocks.mainQuery.mockResolvedValue([{ business_id: 'business-1', channel_instance_id: 'store-1' }]);
+    mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'example.myshopify.com', token: 'admin-token' } });
+    mocks.getMapping.mockResolvedValue({ contactId: 42, mappingStatus: 'linked' });
     mocks.issue.mockResolvedValue({
       redemptionId: 55, status: 'issued', voucherCode: 'SOLV-55-ABC', rewardName: '$10 off',
       rewardValueAud: 10, balanceAfter: 175,
@@ -72,7 +74,7 @@ describe('Shopify customer loyalty reward claim route', () => {
     expect((await POST(wrongType)).status).toBe(415);
     expect((await POST(oversized)).status).toBe(413);
     expect(mocks.verify).not.toHaveBeenCalled();
-    expect(mocks.getByShop).not.toHaveBeenCalled();
+    expect(mocks.mainQuery).not.toHaveBeenCalled();
   });
 
   it('resolves the verified shop and exact customer inside tenant context before issuing', async () => {
@@ -80,19 +82,20 @@ describe('Shopify customer loyalty reward claim route', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mocks.getByShop).toHaveBeenCalledWith('example.myshopify.com');
+    expect(mocks.mainQuery).toHaveBeenCalledWith(expect.stringContaining('external_account_key = ?'), ['example.myshopify.com']);
+    expect(mocks.operationContext).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'store-1' });
     expect(mocks.runIms).toHaveBeenCalledWith('business-1', expect.any(Function));
-    expect(mocks.imsQuery).toHaveBeenCalledWith(expect.stringContaining('shopify_customer_id = ?'), ['business-1', '12345']);
+    expect(mocks.getMapping).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'store-1', externalCustomerId: '12345' });
     expect(mocks.issue).toHaveBeenCalledWith(expect.objectContaining({
-      businessId: 'business-1', contactId: 42, rewardId: 3,
-      idempotencyKey: 'shopify-account:12345:claim_12345678', actorId: 'shopify-customer:12345',
+      businessId: 'business-1', channelInstanceId: 'store-1', contactId: 42, rewardId: 3,
+      idempotencyKey: 'shopify-account:store-1:12345:claim_12345678', actorId: 'shopify-customer:12345',
     }));
     expect(body.redemption).toMatchObject({ voucherCode: 'SOLV-55-ABC', balanceAfter: 175 });
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
   });
 
   it('does not enter a tenant context for an unknown shop', async () => {
-    mocks.getByShop.mockResolvedValue(null);
+    mocks.mainQuery.mockResolvedValue([]);
     const response = await POST(request({ rewardId: 3, idempotencyKey: 'claim_12345678' }));
     expect(response.status).toBe(403);
     expect(mocks.runIms).not.toHaveBeenCalled();
@@ -102,12 +105,12 @@ describe('Shopify customer loyalty reward claim route', () => {
   it('rejects a valid JSON body that is not an object', async () => {
     const response = await POST(request(null));
     expect(response.status).toBe(400);
-    expect(mocks.getByShop).not.toHaveBeenCalled();
+    expect(mocks.mainQuery).not.toHaveBeenCalled();
     expect(mocks.runIms).not.toHaveBeenCalled();
   });
 
   it('rejects ambiguous or missing exact customer linkage', async () => {
-    mocks.imsQuery.mockResolvedValue([{ id: 42 }, { id: 43 }]);
+    mocks.getMapping.mockResolvedValue({ contactId: 42, mappingStatus: 'conflict' });
     const response = await POST(request({ rewardId: 3, idempotencyKey: 'claim_12345678' }));
     expect(response.status).toBe(403);
     expect(mocks.issue).not.toHaveBeenCalled();

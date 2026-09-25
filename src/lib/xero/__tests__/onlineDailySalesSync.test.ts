@@ -40,8 +40,12 @@ vi.mock('@/lib/ims/businessOperations', () => ({
 
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
-import { calculateGatewayFee, syncOnlineDailySalesDay } from '../onlineDailySalesSync';
+import { calculateGatewayFee, syncOnlineDailySalesDay as syncOnlineDailySalesDayExact } from '../onlineDailySalesSync';
 import { getOnlineBatchOrderIdentity } from '../onlineDailySalesSync';
+
+function syncOnlineDailySalesDay(businessId: string, date: string) {
+  return syncOnlineDailySalesDayExact(businessId, date, 'instance-1');
+}
 
 describe('calculateGatewayFee', () => {
   it('rounds a fixed plus percentage fee to cents', () => {
@@ -104,6 +108,7 @@ describe('syncOnlineDailySalesDay', () => {
     expect(mockSyncDailySalesBatch).toHaveBeenCalledWith('biz-1', expect.objectContaining({
       date: '2026-07-25',
       channel: 'online',
+      channelInstanceId: 'instance-1',
       totalSales: 150,
       totalTax: 15,
       payoutManaged: true,

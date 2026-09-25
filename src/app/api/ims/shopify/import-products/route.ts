@@ -16,7 +16,7 @@ import {
   planShopifyVariantImport,
   uniqueShopifyVariantIdentifier,
 } from '@/lib/ims/shopifyProductImport';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -55,14 +55,13 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    const channelInstanceId = text(body?.channelInstanceId);
+    if (!channelInstanceId) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
     const limit = Math.max(1, Math.min(Math.floor(Number(body?.limit ?? DEFAULT_BATCH_SIZE)), MAX_BATCH_SIZE));
     const pageInfo = text(body?.page_info);
     const populateUnknownBrands = body?.populate_unknown_brands === true;
     const populateUnknownSuppliers = body?.populate_unknown_suppliers === true;
-    const credentials = await getShopifyAdminCredentials(businessId);
-    if (!credentials) {
-      return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
-    }
+    const { credentials } = await getShopifyOperationContext({ businessId, channelInstanceId });
 
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
     const page = await shopify.getProductsPage({ limit, pageInfo });

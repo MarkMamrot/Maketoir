@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
+import { syncRetailCustomerToMappedShopifyInstances } from '@/lib/ims/shopifyCustomerSync';
 import { LoyaltyPortalProfileRepository } from '@/lib/loyalty/LoyaltyPortalProfile';
 import { LoyaltyService } from '@/lib/loyalty/LoyaltyService';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
   }
 
   const contact = { id: contactId, type: 'retail_customer', is_active: 1, name, first_name: firstName, last_name: lastName || null, email: email || null, phone: phone || null };
-  const shopifySync = await syncRetailCustomerToShopify(contact, session.businessId);
+  const shopifySync = await syncRetailCustomerToMappedShopifyInstances(contact, session.businessId);
   if (shopifySync.action === 'error') {
     await reportRuntimeIssue({
       businessId: session.businessId,

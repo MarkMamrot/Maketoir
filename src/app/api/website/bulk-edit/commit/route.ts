@@ -11,8 +11,8 @@
 import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ShopifyService } from '@/services/ShopifyService';
-import { decrypt } from '@/lib/encryption';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { assertShopifyExternalProductOwnership } from '@/lib/channels/shopifyProductOperationContext';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 const REVIEW_SHEET  = 'BulkEdit_Review';
@@ -45,20 +45,18 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: 'Not authenticated.' }), { status: 401 });
   }
 
-  const { databaseId, addOptimisedTag = true } = await req.json() as { databaseId: string; addOptimisedTag?: boolean };
+  const { databaseId, channelInstanceId, addOptimisedTag = true } = await req.json() as { databaseId: string; channelInstanceId?: string; addOptimisedTag?: boolean };
   if (!databaseId) {
     return new Response(JSON.stringify({ error: 'databaseId is required.' }), { status: 400 });
   }
+  if (!channelInstanceId?.trim()) return new Response(JSON.stringify({ error: 'Select a Shopify storefront.' }), { status: 400 });
   const user = JSON.parse(session.value);
   if (databaseId !== user.businessId) {
     return new Response(JSON.stringify({ error: 'Not authorised.' }), { status: 403 });
   }
   const disabled = await shopifyDisabledResponse(databaseId);
   if (disabled) return disabled;
-  const credentials = await getShopifyAdminCredentials(databaseId);
-  if (!credentials) {
-    return new Response(JSON.stringify({ error: 'Shopify credentials not configured.' }), { status: 400 });
-  }
+  const { credentials } = await getShopifyOperationContext({ businessId: databaseId, channelInstanceId });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -125,6 +123,16 @@ export async function POST(req: Request) {
           const newTitle = row[COL.new_title]?.trim();
 
           if (!productId) continue;
+
+          try {
+            await assertShopifyExternalProductOwnership({ businessId: databaseId, channelInstanceId, externalProductId: productId });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Product mapping ownership could not be verified.';
+            failed++;
+            details.push({ id: productId, title, status: 'failed', error: message });
+            emit({ status: 'progress', product: title, result: 'error', error: message });
+            continue;
+          }
 
           const updates: Record<string, any> = {};
           if (newTitle) { updates.title    = newTitle; updatedFields.add('title'); }

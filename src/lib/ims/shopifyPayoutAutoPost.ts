@@ -1,4 +1,6 @@
 import { executeShopifyPayoutActions } from '@/lib/ims/shopifyPayoutActionExecutor';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { query } from '@/services/MySQLService';
@@ -7,6 +9,7 @@ import { xeroApiFetch } from '@/services/XeroService';
 type AutoPostStatus = 'skipped_disabled' | 'skipped_not_planned' | 'reconciled' | 'blocked' | 'partial' | 'error';
 
 type AutoPostDependencies = {
+  getShopifyContext: typeof getShopifyOperationContext;
   getPolicy: typeof getXeroDocumentPolicy;
   mainQuery: typeof query;
   xeroFetch: typeof xeroApiFetch;
@@ -15,6 +18,7 @@ type AutoPostDependencies = {
 };
 
 const defaultDependencies: AutoPostDependencies = {
+  getShopifyContext: getShopifyOperationContext,
   getPolicy: getXeroDocumentPolicy,
   mainQuery: query,
   xeroFetch: xeroApiFetch,
@@ -24,17 +28,18 @@ const defaultDependencies: AutoPostDependencies = {
 
 async function authorisePlannedInvoices(
   businessId: string,
+  channelInstanceId: string,
   payoutId: string,
   deps: AutoPostDependencies,
 ): Promise<void> {
   const rows = await deps.mainQuery<{ target_xero_document_id: string }>(
     `SELECT DISTINCT target_xero_document_id
        FROM shopify_payment_xero_actions
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
         AND action_type = 'invoice_payment'
         AND status != 'completed'
         AND target_xero_document_id IS NOT NULL`,
-    [businessId, payoutId],
+    [businessId, channelInstanceId, payoutId],
   );
   for (const row of rows) {
     const invoiceId = String(row.target_xero_document_id).trim();
@@ -55,14 +60,21 @@ async function authorisePlannedInvoices(
 
 export async function autoPostShopifyPayout(
   businessId: string,
+  channelInstanceId: string,
   payoutId: string,
   deps: AutoPostDependencies = defaultDependencies,
 ): Promise<{ status: AutoPostStatus; error?: string }> {
-  const policy = await deps.getPolicy(businessId);
+  const [policy, context] = await Promise.all([
+    deps.getPolicy(businessId),
+    deps.getShopifyContext({ businessId, channelInstanceId }),
+  ]);
+  const instancePolicy = shopifyInstanceSettings(context.instance.settings).xero;
   if (
     !policy.postingEnabled
     || !policy.shopifyPayoutPostingEnabled
     || !policy.shopifyPayoutAutoPostEnabled
+    || !instancePolicy.payoutPostingEnabled
+    || !instancePolicy.payoutAutoPostEnabled
     || !policy.shopifyRefundCreditNoteEnabled
   ) {
     return { status: 'skipped_disabled' };
@@ -71,17 +83,17 @@ export async function autoPostShopifyPayout(
   const payouts = await deps.mainQuery<{ reconciliation_status: string }>(
     `SELECT reconciliation_status
        FROM shopify_payment_payouts
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       LIMIT 1`,
-    [businessId, payoutId],
+    [businessId, channelInstanceId, payoutId],
   );
   if (String(payouts[0]?.reconciliation_status ?? '') !== 'planned') {
     return { status: 'skipped_not_planned' };
   }
 
   try {
-    await authorisePlannedInvoices(businessId, payoutId, deps);
-    const result = await deps.executeActions(businessId, payoutId);
+    await authorisePlannedInvoices(businessId, channelInstanceId, payoutId, deps);
+    const result = await deps.executeActions(businessId, channelInstanceId, payoutId);
     if (result.status !== 'reconciled') {
       const error = result.error ?? `Shopify payout auto-post finished ${result.status}`;
       await deps.reportIssue({
@@ -90,7 +102,7 @@ export async function autoPostShopifyPayout(
         operation: 'shopify_payout_auto_post',
         title: 'Shopify payout auto-post failed',
         error,
-        context: { status: result.status },
+        context: { status: result.status, channelInstanceId },
         reference: { type: 'shopify_payout', id: payoutId },
       });
       return { status: result.status, error };
@@ -104,6 +116,7 @@ export async function autoPostShopifyPayout(
       operation: 'shopify_payout_auto_post',
       title: 'Shopify payout auto-post failed',
       error,
+      context: { channelInstanceId },
       reference: { type: 'shopify_payout', id: payoutId },
     });
     return { status: 'error', error: message };

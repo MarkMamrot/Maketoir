@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService, type ShopifyGiftCardTransaction } from '@/services/ShopifyService';
@@ -17,6 +16,7 @@ interface RetryTransactionRow {
   pos_sale_id: number | null;
   notes: string | null;
   shopify_gc_id: string | number | null;
+  channel_instance_id: string | null;
   currency: string | null;
   card_balance: string | number;
 }
@@ -36,7 +36,8 @@ export async function POST(
   const rows = await imsQuery<RetryTransactionRow>(
     `SELECT transaction_row.id, transaction_row.card_id, transaction_row.type, transaction_row.amount,
             transaction_row.event_source, transaction_row.sync_state, transaction_row.pos_sale_id,
-            transaction_row.notes, card.shopify_gc_id, card.currency, card.balance AS card_balance
+            transaction_row.notes, card.shopify_gc_id, card.channel_instance_id,
+            card.currency, card.balance AS card_balance
        FROM gift_card_transactions transaction_row
        JOIN gift_cards card ON card.id = transaction_row.card_id
       WHERE transaction_row.id = ? AND transaction_row.card_id = ? LIMIT 1`,
@@ -53,6 +54,9 @@ export async function POST(
   if (!transaction.shopify_gc_id || !['adjust', 'redeem'].includes(transaction.type)) {
     return NextResponse.json({ error: 'This transaction cannot be retried in Shopify.' }, { status: 409 });
   }
+  if (!transaction.channel_instance_id) {
+    return NextResponse.json({ error: 'This legacy Shopify gift card has no store owner. Assign an owner before retrying it.' }, { status: 409 });
+  }
 
   const claim = await imsExecute(
     "UPDATE gift_card_transactions SET sync_state = 'retrying', sync_error = NULL WHERE id = ? AND sync_state = 'error'",
@@ -68,10 +72,11 @@ export async function POST(
     : `Solvantis transaction ${transactionId}: ${transaction.notes ?? 'Gift card adjustment'}`;
 
   try {
-    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const credentials = await getShopifyAdminCredentials(session.businessId);
-    if (!credentials) throw new Error('Shopify credentials are not configured.');
-    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
+    const context = await getShopifyOperationContext({
+      businessId: session.businessId,
+      channelInstanceId: transaction.channel_instance_id,
+    });
+    const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
     const history = await shopify.getGiftCardTransactions(transaction.shopify_gc_id);
     const existingProviderTransaction = findProviderTransaction(
       history.transactions,
@@ -105,7 +110,7 @@ export async function POST(
           SET shopify_transaction_id = ?, shopify_processed_at = ?, provider_balance_after = ?,
               sync_state = 'synced', sync_error = NULL
         WHERE id = ?`,
-      [result.transactionId, result.processedAt.slice(0, 19).replace('T', ' '), result.balance, transactionId],
+      [`${transaction.channel_instance_id}:${result.transactionId}`, result.processedAt.slice(0, 19).replace('T', ' '), result.balance, transactionId],
     );
     await imsExecute(
       `UPDATE gift_cards
@@ -137,7 +142,7 @@ export async function POST(
       operation: 'gift_card_transaction_retry',
       title: 'Gift card transaction retry failed',
       error,
-      context: { cardId, transactionId, shopifyGiftCardId: transaction.shopify_gc_id },
+      context: { cardId, transactionId, channelInstanceId: transaction.channel_instance_id, shopifyGiftCardId: transaction.shopify_gc_id },
       reference: { type: 'gift_card_transaction', id: transactionId },
     });
     return NextResponse.json({ error: message }, { status: 502 });

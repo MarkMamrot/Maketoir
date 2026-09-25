@@ -1816,6 +1816,8 @@ interface DailySalesBatch {
   date: string;          // YYYY-MM-DD
   locationId?: number;   // null for online
   channel: 'pos' | 'online';
+  channelInstanceId?: string;
+  channelDisplayName?: string;
   totalSales: number;
   totalTax: number;
   lineDescription: string;
@@ -1851,6 +1853,10 @@ function roundCurrency(value: number): number {
  * Post a single summary invoice for a day's POS or online sales.
  */
 export async function syncDailySalesBatch(businessId: string, batch: DailySalesBatch): Promise<string | null> {
+  const channelInstanceId = String(batch.channelInstanceId ?? '').trim();
+  if (batch.channel === 'online' && !channelInstanceId) {
+    throw new Error('An exact sales channel instance is required for an online daily batch.');
+  }
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
   const revenueAccountCode = batch.channel === 'pos'
@@ -1869,10 +1875,10 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
 
   const invoice: any = {
     Type: 'ACCREC',
-    Contact: { Name: batch.channel === 'pos' ? 'POS Sales (Summary)' : 'Online Sales (Summary)' },
+    Contact: { Name: batch.channel === 'pos' ? 'POS Sales (Summary)' : `${batch.channelDisplayName || 'Online'} Sales (Summary)` },
     Date: batch.date,
     DueDate: batch.date,
-    Reference: `${batch.channel.toUpperCase()}-${batch.date}${batch.locationId ? `-L${batch.locationId}` : ''}${batch.gateway ? `-${batch.gateway.replace(/\s+/g, '').toUpperCase().slice(0, 12)}` : ''}`,
+    Reference: `${batch.channel.toUpperCase()}-${batch.date}${batch.locationId ? `-L${batch.locationId}` : ''}${channelInstanceId ? `-${channelInstanceId.slice(0, 8)}` : ''}${batch.gateway ? `-${batch.gateway.replace(/\s+/g, '').toUpperCase().slice(0, 12)}` : ''}`,
     Status: batch.invoiceStatus ?? 'AUTHORISED',
     LineAmountTypes: 'Exclusive',
     CurrencyCode: 'AUD',
@@ -1888,8 +1894,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
 
   // Derive the dedup key used in xero_sync_log (includes gateway when split by gateway).
   const batchKey = batch.gateway
-    ? `${batch.channel} batch ${batch.date}|${batch.gateway.toLowerCase()}`
-    : `${batch.channel} batch ${batch.date}`;
+    ? `${batch.channel} batch ${channelInstanceId || 'local'} ${batch.date}|${batch.gateway.toLowerCase()}`
+    : `${batch.channel} batch ${channelInstanceId || 'local'} ${batch.date}`;
   const syncType = batch.channel === 'pos' ? 'pos_batch' : 'online_batch';
   const isCanonicalOnlineBatch = batch.channel === 'online' && !batch.gateway;
   let existingOnlineInvoiceId: string | null = null;
@@ -1898,9 +1904,9 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     const existing = await query<{ xero_invoice_id: string | null }>(
       `SELECT xero_invoice_id
          FROM xero_online_batches
-        WHERE business_id = ? AND batch_date = ?
+        WHERE business_id = ? AND channel_instance_id = ? AND batch_date = ?
         LIMIT 1`,
-      [businessId, batch.date],
+      [businessId, channelInstanceId, batch.date],
     );
     existingOnlineInvoiceId = existing[0]?.xero_invoice_id ?? null;
 
@@ -1919,14 +1925,15 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     if (existingOnlineInvoiceId) {
       await execute(
         `INSERT INTO xero_online_batches
-           (business_id, batch_date, xero_invoice_id, invoice_total, invoice_status,
+            (business_id, channel_instance_id, batch_date, xero_invoice_id, invoice_total, invoice_status,
             gateway_allocations, payout_managed)
-         VALUES (?, ?, ?, ?, 'AUTHORISED', ?, ?)
+          VALUES (?, ?, ?, ?, ?, 'AUTHORISED', ?, ?)
          ON DUPLICATE KEY UPDATE
            invoice_status = IF(xero_invoice_id IS NULL, VALUES(invoice_status), invoice_status),
            xero_invoice_id = COALESCE(xero_invoice_id, VALUES(xero_invoice_id))`,
         [
           businessId,
+          channelInstanceId,
           batch.date,
           existingOnlineInvoiceId,
           roundCurrency(batch.totalSales + batch.totalTax),
@@ -1938,10 +1945,11 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
 
     let claim = existingOnlineInvoiceId ? null : await execute(
       `INSERT IGNORE INTO xero_online_batches
-         (business_id, batch_date, invoice_total, invoice_status, gateway_allocations, payout_managed)
-       VALUES (?, ?, ?, 'posting', ?, ?)`,
+         (business_id, channel_instance_id, batch_date, invoice_total, invoice_status, gateway_allocations, payout_managed)
+       VALUES (?, ?, ?, ?, 'posting', ?, ?)`,
       [
         businessId,
+        channelInstanceId,
         batch.date,
         roundCurrency(batch.totalSales + batch.totalTax),
         JSON.stringify(batch.gatewayAllocations ?? []),
@@ -1954,7 +1962,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
         `UPDATE xero_online_batches
             SET invoice_status = 'posting', error_detail = NULL,
                 invoice_total = ?, gateway_allocations = ?, payout_managed = ?
-          WHERE business_id = ? AND batch_date = ? AND xero_invoice_id IS NULL
+          WHERE business_id = ? AND channel_instance_id = ? AND batch_date = ? AND xero_invoice_id IS NULL
             AND (
               invoice_status IN ('pending', 'error') OR
               (invoice_status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
@@ -1964,6 +1972,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
           JSON.stringify(batch.gatewayAllocations ?? []),
           batch.payoutManaged ? 1 : 0,
           businessId,
+          channelInstanceId,
           batch.date,
         ],
       );
@@ -1973,9 +1982,9 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
       const current = await query<{ xero_invoice_id: string | null }>(
         `SELECT xero_invoice_id
            FROM xero_online_batches
-          WHERE business_id = ? AND batch_date = ?
+          WHERE business_id = ? AND channel_instance_id = ? AND batch_date = ?
           LIMIT 1`,
-        [businessId, batch.date],
+        [businessId, channelInstanceId, batch.date],
       );
       return current[0]?.xero_invoice_id ?? null;
     }
@@ -2041,9 +2050,9 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     if (batch.channel === 'online' && !batch.gateway && xeroId) {
       await execute(
         `INSERT INTO xero_online_batches
-           (business_id, batch_date, xero_invoice_id, xero_invoice_number, invoice_total,
+            (business_id, channel_instance_id, batch_date, xero_invoice_id, xero_invoice_number, invoice_total,
             invoice_status, gateway_allocations, payout_managed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            xero_invoice_id = VALUES(xero_invoice_id),
            xero_invoice_number = VALUES(xero_invoice_number),
@@ -2054,6 +2063,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
            error_detail = NULL`,
         [
           businessId,
+          channelInstanceId,
           batch.date,
           xeroId,
           batchInv?.InvoiceNumber ?? null,
@@ -2093,30 +2103,30 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
           if (p.paymentKey) {
             let claim = await execute(
               `INSERT IGNORE INTO xero_online_order_payments
-                 (business_id, payment_key, batch_date, xero_invoice_id, account_code, amount, reference, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'posting')`,
-              [businessId, p.paymentKey, batch.date, xeroId, p.accountCode, amount, p.reference ?? null],
+                 (business_id, channel_instance_id, payment_key, batch_date, xero_invoice_id, account_code, amount, reference, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'posting')`,
+              [businessId, channelInstanceId, p.paymentKey, batch.date, xeroId, p.accountCode, amount, p.reference ?? null],
             );
             if (claim.affectedRows === 0) {
               claim = await execute(
                 `UPDATE xero_online_order_payments
                     SET status = 'posting', error_detail = NULL,
                         xero_invoice_id = ?, account_code = ?, amount = ?, reference = ?
-                  WHERE business_id = ? AND payment_key = ?
+                  WHERE business_id = ? AND channel_instance_id = ? AND payment_key = ?
                     AND (
                       status IN ('pending', 'error') OR
                       (status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
                     )`,
-                [xeroId, p.accountCode, amount, p.reference ?? null, businessId, p.paymentKey],
+                [xeroId, p.accountCode, amount, p.reference ?? null, businessId, channelInstanceId, p.paymentKey],
               );
             }
             if (claim.affectedRows === 0) {
               const existingPayment = await query<{ status: string }>(
                 `SELECT status
                    FROM xero_online_order_payments
-                  WHERE business_id = ? AND payment_key = ?
+                  WHERE business_id = ? AND channel_instance_id = ? AND payment_key = ?
                   LIMIT 1`,
-                [businessId, p.paymentKey],
+                [businessId, channelInstanceId, p.paymentKey],
               );
               if (existingPayment[0]?.status !== 'completed') continue;
               paymentCompleted = true;
@@ -2143,8 +2153,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
               await execute(
                 `UPDATE xero_online_order_payments
                     SET status = 'completed', xero_payment_id = ?, error_detail = NULL
-                  WHERE business_id = ? AND payment_key = ?`,
-                [paymentResult?.Payments?.[0]?.PaymentID ?? null, businessId, p.paymentKey],
+                  WHERE business_id = ? AND channel_instance_id = ? AND payment_key = ?`,
+                [paymentResult?.Payments?.[0]?.PaymentID ?? null, businessId, channelInstanceId, p.paymentKey],
               );
             }
             paymentCompleted = true;
@@ -2155,22 +2165,22 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
               const feeKey = `${p.paymentKey}-fee`;
               let feeClaim = await execute(
                 `INSERT IGNORE INTO xero_online_order_fees
-                   (business_id, fee_key, payment_key, batch_date, gateway_name,
+                   (business_id, channel_instance_id, fee_key, payment_key, batch_date, gateway_name,
                     bank_account_code, fee_account_code, fee_tax_type, fee_amount, reference, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posting')`,
-                [businessId, feeKey, p.paymentKey, batch.date, p.fee.gatewayName,
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posting')`,
+                 [businessId, channelInstanceId, feeKey, p.paymentKey, batch.date, p.fee.gatewayName,
                  p.accountCode, p.fee.accountCode, p.fee.taxType, feeAmount, p.reference ?? null],
               );
               if (feeClaim.affectedRows === 0) {
                 feeClaim = await execute(
                   `UPDATE xero_online_order_fees
                       SET status = 'posting', error_detail = NULL, fee_amount = ?, reference = ?
-                    WHERE business_id = ? AND fee_key = ?
+                    WHERE business_id = ? AND channel_instance_id = ? AND fee_key = ?
                       AND (
                         status IN ('pending', 'error') OR
                         (status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
                       )`,
-                  [feeAmount, p.reference ?? null, businessId, feeKey],
+                  [feeAmount, p.reference ?? null, businessId, channelInstanceId, feeKey],
                 );
               }
               if (feeClaim.affectedRows > 0) {
@@ -2200,15 +2210,15 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                   await execute(
                     `UPDATE xero_online_order_fees
                         SET status = 'completed', xero_bank_transaction_id = ?, error_detail = NULL
-                      WHERE business_id = ? AND fee_key = ?`,
-                    [feeResult?.BankTransactions?.[0]?.BankTransactionID ?? null, businessId, feeKey],
+                      WHERE business_id = ? AND channel_instance_id = ? AND fee_key = ?`,
+                    [feeResult?.BankTransactions?.[0]?.BankTransactionID ?? null, businessId, channelInstanceId, feeKey],
                   );
                 } catch (feeError: any) {
                   await execute(
                     `UPDATE xero_online_order_fees
                         SET status = 'error', error_detail = ?
-                      WHERE business_id = ? AND fee_key = ?`,
-                    [feeError?.message ?? 'Fee posting failed', businessId, feeKey],
+                      WHERE business_id = ? AND channel_instance_id = ? AND fee_key = ?`,
+                    [feeError?.message ?? 'Fee posting failed', businessId, channelInstanceId, feeKey],
                   ).catch(() => {});
                   throw feeError;
                 }
@@ -2219,8 +2229,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
               await execute(
                 `UPDATE xero_online_order_payments
                     SET status = 'error', error_detail = ?
-                  WHERE business_id = ? AND payment_key = ?`,
-                [paymentError?.message ?? 'Payment failed', businessId, p.paymentKey],
+                  WHERE business_id = ? AND channel_instance_id = ? AND payment_key = ?`,
+                [paymentError?.message ?? 'Payment failed', businessId, channelInstanceId, p.paymentKey],
               ).catch(() => {});
             }
             throw paymentError;
@@ -2260,8 +2270,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
       await execute(
         `UPDATE xero_online_batches
             SET invoice_status = 'error', error_detail = ?
-          WHERE business_id = ? AND batch_date = ? AND xero_invoice_id IS NULL`,
-        [err.message, businessId, batch.date],
+          WHERE business_id = ? AND channel_instance_id = ? AND batch_date = ? AND xero_invoice_id IS NULL`,
+        [err.message, businessId, channelInstanceId, batch.date],
       ).catch(() => {});
     }
     await logSync(businessId, syncType, null, null, 'error', `${batchKey}: ${err.message}`);

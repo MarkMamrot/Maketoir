@@ -19,15 +19,17 @@ function authenticate(req: NextRequest) {
 export async function GET(req: NextRequest, { params }: { params: { payoutId: string } }) {
   const auth = authenticate(req);
   if (auth.response) return auth.response;
+  const channelInstanceId = String(req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
 
   const payoutRows = await query(
     `SELECT shopify_payout_id, payout_date, shopify_status, currency, payout_amount,
             transaction_net_total, reconciliation_status, error_detail, reconciled_at,
             created_at, updated_at
        FROM shopify_payment_payouts
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       LIMIT 1`,
-    [auth.businessId, params.payoutId],
+    [auth.businessId, channelInstanceId, params.payoutId],
   );
   if (payoutRows.length === 0) {
     return NextResponse.json({ error: 'Payout not found' }, { status: 404 });
@@ -37,17 +39,17 @@ export async function GET(req: NextRequest, { params }: { params: { payoutId: st
             currency, account_code, offset_account_code, tax_type, reference, status,
             xero_id, transaction_ids, error_detail, attempt_count, last_attempt_at, completed_at
        FROM shopify_payment_xero_actions
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       ORDER BY id`,
-    [auth.businessId, params.payoutId],
+    [auth.businessId, channelInstanceId, params.payoutId],
   );
   const transactions = await query(
     `SELECT shopify_transaction_id, transaction_type, amount, fee, net, currency,
             source_order_id, processed_at, business_date
        FROM shopify_payment_payout_transactions
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       ORDER BY processed_at, shopify_transaction_id`,
-    [auth.businessId, params.payoutId],
+    [auth.businessId, channelInstanceId, params.payoutId],
   );
 
   return NextResponse.json({ payout: payoutRows[0], actions, transactions });
@@ -61,17 +63,19 @@ export async function POST(req: NextRequest, { params }: { params: { payoutId: s
   }
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? 'plan');
+  const channelInstanceId = String(body.channelInstanceId ?? req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
 
   if (action === 'plan') {
     const result = await runImsForBusiness(auth.businessId, () =>
-      planShopifyPayoutActions(auth.businessId, params.payoutId),
+      planShopifyPayoutActions(auth.businessId, channelInstanceId, params.payoutId),
     );
     return NextResponse.json(result, { status: result.status === 'blocked' ? 409 : 200 });
   }
   if (action === 'execute') {
     try {
       await assertXeroWorkflowEnabled(auth.businessId, 'shopifyPayoutPostingEnabled');
-      const result = await executeShopifyPayoutActions(auth.businessId, params.payoutId);
+      const result = await executeShopifyPayoutActions(auth.businessId, channelInstanceId, params.payoutId);
       return NextResponse.json(result, { status: result.status === 'reconciled' ? 200 : 409 });
     } catch (error) {
       if (isXeroPolicyDisabledError(error)) {
@@ -87,10 +91,11 @@ export async function POST(req: NextRequest, { params }: { params: { payoutId: s
          FROM shopify_payment_payouts p
          LEFT JOIN shopify_payment_xero_actions a
            ON a.business_id = p.business_id
+          AND a.channel_instance_id = p.channel_instance_id
           AND a.shopify_payout_id = p.shopify_payout_id
-        WHERE p.business_id = ? AND p.shopify_payout_id = ?
+        WHERE p.business_id = ? AND p.channel_instance_id = ? AND p.shopify_payout_id = ?
         GROUP BY p.reconciliation_status`,
-      [auth.businessId, params.payoutId],
+      [auth.businessId, channelInstanceId, params.payoutId],
     );
     const payout = payoutRows[0];
     if (!payout) return NextResponse.json({ error: 'Payout not found' }, { status: 404 });
@@ -106,11 +111,12 @@ export async function POST(req: NextRequest, { params }: { params: { payoutId: s
          FROM shopify_payment_xero_actions a
          JOIN xero_online_batches b
            ON b.business_id = a.business_id
+          AND b.channel_instance_id = a.channel_instance_id
           AND b.xero_invoice_id = a.target_xero_document_id
-        WHERE a.business_id = ? AND a.shopify_payout_id = ?
+        WHERE a.business_id = ? AND a.channel_instance_id = ? AND a.shopify_payout_id = ?
           AND a.action_type = 'invoice_payment'
         ORDER BY batch_date`,
-      [auth.businessId, params.payoutId],
+      [auth.businessId, channelInstanceId, params.payoutId],
     );
     const dates = batchRows.map(row => String(row.batch_date)).filter(Boolean);
     if (dates.length === 0) {
@@ -119,11 +125,11 @@ export async function POST(req: NextRequest, { params }: { params: { payoutId: s
 
     const refreshed = [];
     for (const date of dates) {
-      const result = await syncOnlineDailySalesDay(auth.businessId, date);
+      const result = await syncOnlineDailySalesDay(auth.businessId, date, channelInstanceId);
       refreshed.push({ date, xeroId: result.xeroId, totalSales: result.totalSales, orderCount: result.orderCount });
     }
     const plan = await runImsForBusiness(auth.businessId, () =>
-      planShopifyPayoutActions(auth.businessId, params.payoutId),
+      planShopifyPayoutActions(auth.businessId, channelInstanceId, params.payoutId),
     );
     return NextResponse.json({ status: plan.status, error: plan.error, refreshed, actions: plan.actions }, {
       status: plan.status === 'blocked' ? 409 : 200,

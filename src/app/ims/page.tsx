@@ -2746,12 +2746,8 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
               <textarea value={form.notes} onChange={sf('notes') as any} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Internal notes…" />
             </Field>
 
-            {f.shopify_customer_id && (
-              <ContactOnlineStoreSection shopifyCustomerId={f.shopify_customer_id} />
-            )}
-            {f.shopify_customer_id && (
-              <ContactGiftCardsSection shopifyCustomerId={f.shopify_customer_id} />
-            )}
+            {modal.edit?.id && <ContactOnlineStoreSection contactId={Number(modal.edit.id)} />}
+            {modal.edit?.id && <ContactGiftCardsSection contactId={Number(modal.edit.id)} />}
 
             <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} createLabel="Save" />
           </form>
@@ -4440,30 +4436,28 @@ const DEFAULT_LABEL: LabelSettings = {
 // ─────────────────────────────────────────────────────────────────────────────
 // ContactOnlineStoreSection — Shopify link panel inside the contact edit modal
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactOnlineStoreSection({ shopifyCustomerId }: { shopifyCustomerId: string }) {
-  const [shopDomain, setShopDomain] = React.useState<string | null>(null);
+function ContactOnlineStoreSection({ contactId }: { contactId: number }) {
+  const [mappings, setMappings] = React.useState<Array<{ channelInstanceId: string; displayName: string; shopDomain: string | null; externalCustomerId: string }> | null>(null);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
-    fetch('/api/ims/shopify/status')
+    fetch(`/api/ims/contacts/${contactId}/channel-mappings`)
       .then(r => r.json())
-      .then(d => { if (d.success) setShopDomain(d.shop_domain ?? null); })
-      .catch(() => {});
-  }, []);
-
-  const adminUrl = shopDomain
-    ? `https://${shopDomain}/admin/customers/${shopifyCustomerId}`
-    : null;
+      .then(d => setMappings(d.success ? d.mappings ?? [] : []))
+      .catch(() => setMappings([]));
+  }, [contactId]);
 
   const chip = (text: string, bg: string, color: string) => (
     <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: bg, color }}>{text}</span>
   );
 
-  const copyId = () => {
-    navigator.clipboard.writeText(shopifyCustomerId).catch(() => {});
+  const copyId = (externalCustomerId: string) => {
+    navigator.clipboard.writeText(externalCustomerId).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  if (!mappings?.length) return null;
 
   return (
     <>
@@ -4472,27 +4466,18 @@ function ContactOnlineStoreSection({ shopifyCustomerId }: { shopifyCustomerId: s
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
       </div>
-      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Sync status:</span>
-          {chip('🛙 Linked to Shopify', 'rgba(16,185,129,.15)', '#10b981')}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 600, flexShrink: 0 }}>Shopify ID:</span>
-          <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)', userSelect: 'all' }}>{shopifyCustomerId}</span>
-          <button
-            type="button"
-            onClick={copyId}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: copied ? '#10b981' : 'var(--sv-text-dim)', padding: '2px 6px' }}
-          >
-            {copied ? '✓ Copied' : '⎘ Copy'}
-          </button>
-        </div>
-        {adminUrl && (
-          <a href={adminUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>
-            Open in Shopify admin ↗
-          </a>
-        )}
+      <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+        {mappings.map(mapping => (
+          <div key={mapping.channelInstanceId} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 12, color: 'var(--sv-text-strong)' }}>{mapping.displayName}</strong>
+              {chip('Linked', 'rgba(16,185,129,.15)', '#10b981')}
+              <span style={{ marginLeft: 'auto', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-text-dim)' }}>{mapping.externalCustomerId}</span>
+              <button type="button" onClick={() => copyId(mapping.externalCustomerId)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: copied ? '#10b981' : 'var(--sv-text-dim)', padding: '2px 4px' }}>{copied ? 'Copied' : 'Copy ID'}</button>
+              {mapping.shopDomain && <a href={`https://${mapping.shopDomain}/admin/customers/${mapping.externalCustomerId}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', fontWeight: 600 }}>Open in Shopify</a>}
+            </div>
+          </div>
+        ))}
       </div>
     </>
   );
@@ -4501,15 +4486,15 @@ function ContactOnlineStoreSection({ shopifyCustomerId }: { shopifyCustomerId: s
 // ─────────────────────────────────────────────────────────────────────────────
 // ContactGiftCardsSection — linked gift cards inside the contact edit modal
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactGiftCardsSection({ shopifyCustomerId }: { shopifyCustomerId: string }) {
+function ContactGiftCardsSection({ contactId }: { contactId: number }) {
   const [cards, setCards] = React.useState<any[] | null>(null);
 
   React.useEffect(() => {
-    fetch(`/api/ims/gift-cards?contact_shopify_id=${encodeURIComponent(shopifyCustomerId)}&limit=20`)
+    fetch(`/api/ims/gift-cards?contact_id=${contactId}&limit=20`)
       .then(r => r.json())
       .then(d => { if (d.success) setCards(d.data ?? []); })
       .catch(() => setCards([]));
-  }, [shopifyCustomerId]);
+  }, [contactId]);
 
   if (cards === null) return null;
 
@@ -4531,6 +4516,7 @@ function ContactGiftCardsSection({ shopifyCustomerId }: { shopifyCustomerId: str
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                 <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Code</th>
+                <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Store</th>
                 <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Balance</th>
                 <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)' }}>Status</th>
               </tr>
@@ -4541,6 +4527,7 @@ function ContactGiftCardsSection({ shopifyCustomerId }: { shopifyCustomerId: str
                   <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: 'var(--sv-text-main)' }}>
                     {'****' + String(card.code ?? '').slice(-4)}
                   </td>
+                  <td style={{ padding: '7px 12px', color: 'var(--sv-text-main)' }}>{card.channel_display_name ?? 'Local / legacy'}</td>
                   <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: Number(card.balance) > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
                     ${Number(card.balance ?? 0).toFixed(2)}
                   </td>
@@ -12114,6 +12101,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const [statusFilter, setStatusFilter] = useState('');
   const [recordType, setRecordType] = useState<'credit_notes' | 'pos_returns'>('credit_notes');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopify' | 'amazon'>('all');
+  const [channelFilter, setChannelFilter] = useState('');
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string }>>([]);
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterReference, setFilterReference] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -12135,10 +12124,15 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch('/api/ims/credit-notes').then(r => r.json()).then(d => {
-      if (d.success) setCns(d.data);
+    const params = new URLSearchParams();
+    if (channelFilter) params.set('channelInstanceId', channelFilter);
+    fetch(`/api/ims/credit-notes?${params}`).then(r => r.json()).then(d => {
+      if (d.success) {
+        setCns(d.data);
+        setShopifyChannels(d.channels ?? []);
+      }
     }).finally(() => setLoading(false));
-  }, []);
+  }, [channelFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -12443,7 +12437,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   });
   const customerOptions = [...new Set(cns.map((cn: any) => cn.customer_name).filter(Boolean))].sort() as string[];
   const dateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
-  const creditNoteFiltersActive = recordType !== 'credit_notes' || sourceFilter !== 'all' || statusFilter !== '' || dateFilterActive || !!filterCustomer.trim() || !!filterReference.trim();
+  const creditNoteFiltersActive = recordType !== 'credit_notes' || sourceFilter !== 'all' || channelFilter !== '' || statusFilter !== '' || dateFilterActive || !!filterCustomer.trim() || !!filterReference.trim();
 
   const getCnActionOptions = (cn: any) => {
     const actions = [{ value: 'view', label: 'View' }];
@@ -12491,7 +12485,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
         : { label: 'Manual', background: 'rgba(156,163,175,.12)', color: 'var(--sv-text-dim)' };
     return <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: meta.background, color: meta.color, marginLeft: 6 }}>{meta.label}</span>;
   };
-  const cnColumnWidths = [150, 220, 120, 140, 110, 110, ...(xeroAccountingEnabled ? [110] : []), 220];
+  const cnColumnWidths = [150, 220, 150, 120, 140, 110, 110, ...(xeroAccountingEnabled ? [110] : []), 220];
   const cnTableWidth = cnColumnWidths.reduce((sum, width) => sum + width, 0);
   const renderCnColGroup = () => (
     <colgroup>
@@ -12565,6 +12559,15 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     </select>
                   </div>
                 )}
+                {recordType === 'credit_notes' && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Shopify Store</label>
+                    <select value={channelFilter} onChange={event => setChannelFilter(event.target.value)} style={{ ...inputStyle, width: '100%' }}>
+                      <option value="">All Stores</option>
+                      {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div style={{ marginBottom: 4 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
                   <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
@@ -12578,6 +12581,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
                   <div>Type: <strong style={{ color: 'var(--sv-text-main)' }}>{recordType === 'pos_returns' ? 'POS Returns / Exchanges' : 'Customer Credit Notes'}</strong></div>
                   {recordType === 'credit_notes' && <div>Source: <strong style={{ color: 'var(--sv-text-main)' }}>{sourceFilter === 'all' ? 'All Sources' : sourceFilter === 'manual' ? 'Manual / IMS' : sourceFilter === 'amazon' ? 'Amazon' : 'Shopify'}</strong></div>}
+                  {recordType === 'credit_notes' && <div>Store: <strong style={{ color: 'var(--sv-text-main)' }}>{shopifyChannels.find(channel => channel.channelInstanceId === channelFilter)?.displayName ?? 'All Stores'}</strong></div>}
                   <div>Status: <strong style={{ color: 'var(--sv-text-main)', textTransform: 'capitalize' }}>{statusFilter ? statusFilter.replace('_', ' ') : 'All'}</strong></div>
                   <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
                 </div>
@@ -12586,7 +12590,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
           )}
         </div>
         {creditNoteFiltersActive && (
-          <button onClick={() => { setRecordType('credit_notes'); setSourceFilter('all'); setStatusFilter(''); setFilterCustomer(''); setFilterReference(''); setDateRange(DEFAULT_DATE_RANGE); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+          <button onClick={() => { setRecordType('credit_notes'); setSourceFilter('all'); setChannelFilter(''); setStatusFilter(''); setFilterCustomer(''); setFilterReference(''); setDateRange(DEFAULT_DATE_RANGE); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
 
@@ -12598,7 +12602,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
             {renderCnColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
-                {['CN #', 'Customer', 'Date', 'Location', 'Status', 'Total', ...(xeroAccountingEnabled ? ['Xero'] : []), 'Actions'].map((h, index) => (
+                {['CN #', 'Customer', 'Store / Channel', 'Date', 'Location', 'Status', 'Total', ...(xeroAccountingEnabled ? ['Xero'] : []), 'Actions'].map((h, index) => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .8, position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>{h}</th>
                 ))}
               </tr>
@@ -12619,6 +12623,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                       {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 150, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.channel_display_name ?? (cn.source === 'shopify' ? 'Shopify (legacy)' : cn.source === 'amazon' ? 'Amazon' : cn.source === 'pos' ? 'POS' : 'Manual')}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{cn.cn_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.location_name}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={cn.status} /></td>
@@ -14098,11 +14103,13 @@ function ImportSOsModal({ locations, onClose, onDone }: {
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled, businessId = '' }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void; businessId?: string } = {}) {
   const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string }>>([]);
+  const shopifyChannelNames = useMemo(() => new Map(shopifyChannels.map(channel => [channel.channelInstanceId, channel.displayName])), [shopifyChannels]);
   const soDisplayFields = useMemo<readonly OrderDisplayField[]>(() => [
     { id: 'so_number', label: 'SO #', width: 110, group: 'Order', required: true, render: order => order.so_number },
     { id: 'customer_name', label: 'Customer', width: 190, group: 'Order', required: true, render: order => order.customer_name || '—' },
     { id: 'channel_order_number', label: 'Channel Order #', width: 145, group: 'Order', render: order => getChannelOrderNumber(order) || '—' },
-    { id: 'sales_channel', label: 'Channel', width: 105, group: 'Order', render: order => order.sales_channel || (order.shopify_order_name ? 'Shopify' : order.so_type || 'B2B') },
+    { id: 'sales_channel', label: 'Store / Channel', width: 150, group: 'Order', render: order => order.channel_display_name || (order.channel_instance_id ? (shopifyChannelNames.get(String(order.channel_instance_id)) ?? 'Shopify (unmapped)') : order.sales_channel || (order.shopify_order_name ? 'Shopify (legacy)' : order.so_type || 'B2B')) },
     { id: 'channel_shipping_method', label: 'Shipping Method', width: 210, group: 'Delivery', render: order => order.channel_delivery_type === 'pickup' && order.channel_shipping_method && !/pickup|collect/i.test(order.channel_shipping_method) ? `Pickup in store at ${order.channel_shipping_method}` : order.channel_shipping_method || '—' },
     { id: 'location_name', label: 'Location', width: 145, group: 'Order', render: order => order.location_name || '—' },
     { id: 'status', label: 'Status', width: 120, group: 'Order', render: order => <StatusBadge status={order.status} orderKind="sales_order" /> },
@@ -14122,11 +14129,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     { id: 'balance', label: 'Balance', width: 105, group: 'Financial', render: order => fmtCurrency(order.balance) },
     { id: 'currency_code', label: 'Currency', width: 90, group: 'Financial', render: order => order.currency_code || 'AUD' },
     { id: 'delivery_address', label: 'Delivery Address', width: 260, group: 'Delivery', render: order => [order.delivery_address, order.delivery_address2, order.delivery_suburb || order.delivery_city, order.delivery_state, order.delivery_postcode, order.delivery_country].filter(Boolean).join(', ') || '—' },
-  ], []);
+  ], [shopifyChannelNames]);
   const { selectedIds: selectedSoFieldIds, setSelectedIds: setSelectedSoFieldIds, selectedFields: selectedSoFields } = useOrderDisplayFields(
     `solvantis:${businessId || 'unknown'}:sales-orders:display-fields`,
     soDisplayFields,
-    ['so_number', 'customer_name', 'channel_order_number', 'location_name', 'order_date', 'total_amount', 'status'],
+    ['so_number', 'customer_name', 'channel_order_number', 'sales_channel', 'location_name', 'order_date', 'total_amount', 'status'],
   );
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
@@ -14137,11 +14144,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [loadError, setLoadError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [channelFilter, setChannelFilter] = useState<'all' | 'b2b' | 'online' | 'pos'>(() => {
+  const [channelFilter, setChannelFilter] = useState<string>(() => {
     if (typeof window === 'undefined') return 'b2b';
     try {
       const saved = (localStorage.getItem(SO_CHANNEL_FILTER_KEY) ?? '').toLowerCase();
-      return (saved === 'all' || saved === 'b2b' || saved === 'online' || saved === 'pos') ? saved : 'b2b';
+      return (saved === 'all' || saved === 'b2b' || saved === 'online' || saved === 'pos' || saved.startsWith('shopify:')) ? saved : 'b2b';
     } catch {
       return 'b2b';
     }
@@ -14206,7 +14213,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     setLoading(true);
     setLoadError('');
     const sp = new URLSearchParams();
-    sp.set('channel', channelFilter);
+    const exactShopifyChannel = channelFilter.startsWith('shopify:') ? channelFilter.slice('shopify:'.length) : '';
+    sp.set('channel', exactShopifyChannel ? 'online' : channelFilter);
+    if (exactShopifyChannel) sp.set('channelInstanceId', exactShopifyChannel);
     if (statusFilter) sp.set('status', statusFilter);
     if (filterCustomer.trim()) sp.set('customer', filterCustomer.trim());
     if (filterProduct.trim()) sp.set('product', filterProduct.trim());
@@ -14240,6 +14249,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
     fetch('/api/ims/payment-methods?type=so').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
     fetch('/api/ims/early-payment-discount-rules').then(r => r.json()).then(d => { if (d.success) setSoEarlyPaymentRules((d.data ?? []).filter((rule: any) => Number(rule.is_active))); });
+    fetch('/api/ims/channels').then(r => r.json()).then(d => {
+      if (d.success) setShopifyChannels((d.instances ?? []).filter((instance: any) => instance.provider === 'shopify'));
+    }).catch(() => setShopifyChannels([]));
   }, []);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
@@ -14754,12 +14766,15 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
   const dateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
   const salesFiltersActive = statusFilter !== '' || channelFilter !== 'b2b' || dateFilterActive || !!filterCustomer.trim() || !!filterProduct.trim();
-  const channelFilterLabel: Record<'all' | 'b2b' | 'online' | 'pos', string> = {
+  const broadChannelFilterLabels: Record<string, string> = {
     all: 'All Orders',
     b2b: 'Wholesale / B2B',
     online: 'Online',
     pos: 'POS',
   };
+  const channelFilterLabel = channelFilter.startsWith('shopify:')
+    ? shopifyChannelNames.get(channelFilter.slice('shopify:'.length)) ?? 'Shopify storefront'
+    : broadChannelFilterLabels[channelFilter] ?? 'All Orders';
   const statusFilterLabel: Record<string, string> = {
     '': 'All',
     draft: 'Draft',
@@ -14956,12 +14971,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Order Channel</label>
                   <select
                     value={channelFilter}
-                    onChange={e => { setChannelFilter(e.target.value as 'all' | 'b2b' | 'online' | 'pos'); setPage(1); }}
+                    onChange={e => { setChannelFilter(e.target.value); setPage(1); }}
                     style={{ ...inputStyle, width: '100%' }}
                   >
                     <option value="b2b">Wholesale / B2B</option>
                     <option value="all">All Orders</option>
                     <option value="online">Online</option>
+                    {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={`shopify:${channel.channelInstanceId}`}>Shopify · {channel.displayName}</option>)}
                     <option value="pos">POS</option>
                   </select>
                 </div>
@@ -14983,7 +14999,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 </div>
 
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
-                  <div>Channel: <strong style={{ color: 'var(--sv-text-main)' }}>{channelFilterLabel[channelFilter]}</strong></div>
+                  <div>Channel: <strong style={{ color: 'var(--sv-text-main)' }}>{channelFilterLabel}</strong></div>
                   <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilterLabel[statusFilter] ?? 'All'}</strong></div>
                   <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
                 </div>
@@ -15429,7 +15445,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div><div style={labelStyle}>Price Tier</div><div>{viewModal.so.price_tier === 'wholesale' ? 'Wholesale' : 'Retail'}</div></div>
             <div><div style={labelStyle}>Amounts Entered</div><div>{viewModal.so.tax_treatment === 'inc_tax' ? 'Tax inclusive' : viewModal.so.tax_treatment === 'no_tax' ? 'No tax' : 'Tax exclusive'}</div></div>
             {viewModal.so.saleType === 'online' && <div><div style={labelStyle}>Sale Type</div><div style={{ color: 'var(--sv-mint)', fontWeight: 700 }}>Online Sale</div></div>}
-            {viewModal.so.sourceSystem === 'shopify' && <div><div style={labelStyle}>Source</div><div>Shopify {viewModal.so.shopify_order_name || viewModal.so.shopify_order_id}</div></div>}
+            {viewModal.so.sourceSystem === 'shopify' && <div><div style={labelStyle}>Source</div><div>{viewModal.so.channel_display_name || 'Shopify'} {viewModal.so.shopify_order_name || viewModal.so.shopify_order_id}</div></div>}
           </div>
           {viewModal.so.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.so.notes}</div>}
           {Array.isArray(viewModal.so.shipments) && viewModal.so.shipments.length > 0 && (
@@ -16177,6 +16193,9 @@ function BrandsView() {
 
 interface GiftCard {
   id: number;
+  channel_instance_id: string | null;
+  channel_display_name?: string | null;
+  channel_shop_domain?: string | null;
   code: string;
   initial_balance: number | null;
   balance: number;
@@ -16200,6 +16219,7 @@ const GC_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 const EMPTY_GC: Omit<GiftCard, 'id' | 'created_at' | 'updated_at' | 'shopify_gc_id'> = {
+  channel_instance_id: null, channel_display_name: null, channel_shop_domain: null,
   code: '', initial_balance: null, balance: 0, currency: 'AUD', status: 'active',
   expires_on: null, customer_id: null, order_id: null,
   recipient_email: null, notes: null, last_used_at: null,
@@ -16212,6 +16232,8 @@ function GiftCardsView() {
   const [page, setPage]         = useState(1);
   const PAGE_SIZE = 100;
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [channelFilter, setChannelFilter] = useState('all');
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string; shopDomain: string | null }>>([]);
   const [search, setSearch]     = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -16225,12 +16247,10 @@ function GiftCardsView() {
   const [gcHistoryLoading, setGcHistoryLoading] = useState(false);
   // shopify config (for admin link)
   const [gcMode, setGcMode]         = useState<'off' | 'combined'>('off');
-  const [shopDomain, setShopDomain] = useState('');
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
       if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
-      if (d.shopDomain) setShopDomain(d.shopDomain);
     }).catch(() => {});
   }, []);
 
@@ -16239,6 +16259,7 @@ function GiftCardsView() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting]   = useState(false);
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number; errors: string[] } | null>(null);
+  const [importOwner, setImportOwner] = useState('');
 
   // debounce search
   useEffect(() => {
@@ -16250,14 +16271,23 @@ function GiftCardsView() {
     setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
+    if (channelFilter !== 'all' && channelFilter !== 'local') params.set('channelInstanceId', channelFilter);
+    if (channelFilter === 'local') params.set('unassigned', '1');
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String((page - 1) * PAGE_SIZE));
     fetch(`/api/ims/gift-cards?${params}`)
       .then(r => r.json())
-      .then(d => { if (d.success) { setCards(d.data); setTotal(d.total); } })
+      .then(d => {
+        if (d.success) {
+          const rows = Array.isArray(d.data) ? d.data : [];
+          setShopifyChannels(Array.isArray(d.channels) ? d.channels : []);
+          setCards(rows);
+          setTotal(Number(d.total ?? rows.length));
+        }
+      })
       .finally(() => setLoading(false));
-  }, [statusFilter, debouncedSearch, page]);
+  }, [statusFilter, channelFilter, debouncedSearch, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -16270,6 +16300,9 @@ function GiftCardsView() {
   const openEdit = (card: GiftCard) => {
     setEditing(card);
     setForm({
+      channel_instance_id: card.channel_instance_id,
+      channel_display_name: card.channel_display_name,
+      channel_shop_domain: card.channel_shop_domain,
       code: card.code,
       initial_balance: card.initial_balance,
       balance: card.balance,
@@ -16359,6 +16392,7 @@ function GiftCardsView() {
 
   const handleImport = async () => {
     if (!importFile) { alert('Choose a CSV file first.'); return; }
+    if (!importOwner) { alert('Choose the gift-card source.'); return; }
     setImporting(true);
     setImportResult(null);
     try {
@@ -16384,7 +16418,7 @@ function GiftCardsView() {
       const res = await fetch('/api/ims/gift-cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bulk: true, rows }),
+        body: JSON.stringify({ bulk: true, rows, channelInstanceId: importOwner === 'local' ? null : importOwner }),
       });
       const d = await res.json();
       if (d.success) {
@@ -16426,7 +16460,12 @@ function GiftCardsView() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <input type="file" accept=".csv" onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }}
               style={{ fontSize: 13 }} />
-            <button onClick={handleImport} disabled={importing || !importFile} style={btnStyle('action', 'sm')}>
+            <select value={importOwner} onChange={event => setImportOwner(event.target.value)} style={{ ...inputStyle, width: 230 }}>
+              <option value="">Choose source</option>
+              <option value="local">Local / legacy import</option>
+              {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>Shopify · {channel.displayName}</option>)}
+            </select>
+            <button onClick={handleImport} disabled={importing || !importFile || !importOwner} style={btnStyle('action', 'sm')}>
               {importing ? 'Importing…' : 'Import'}
             </button>
           </div>
@@ -16464,6 +16503,11 @@ function GiftCardsView() {
           <option value="cancelled">Cancelled</option>
           <option value="expired">Expired</option>
         </select>
+        <select value={channelFilter} onChange={event => { setChannelFilter(event.target.value); setPage(1); }} style={{ ...inputStyle, width: 210 }}>
+          <option value="all">All stores</option>
+          <option value="local">Local / unassigned</option>
+          {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+        </select>
         {total > 0 && <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>{total} card{total !== 1 ? 's' : ''}</span>}
       </div>
 
@@ -16476,7 +16520,7 @@ function GiftCardsView() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                {['Code', 'Balance', 'Status', 'Expires', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
+                {['Code', 'Store', 'Balance', 'Status', 'Expires', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -16485,6 +16529,7 @@ function GiftCardsView() {
               {cards.map((card, i) => (
                 <tr key={card.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                   <td style={{ padding: '8px 14px', fontWeight: 600, fontSize: 13, fontFamily: 'monospace', letterSpacing: .5 }}>{card.code}</td>
+                  <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-main)' }}>{card.channel_display_name ?? (card.channel_instance_id ? 'Unknown Shopify store' : 'Local / legacy')}</td>
                   <td style={{ padding: '8px 14px', fontSize: 13 }}>{fmtCurrency(card.balance)}</td>
                   <td style={{ padding: '8px 14px' }}>{statusBadge(card.status)}</td>
                   <td style={{ padding: '8px 14px', fontSize: 12, color: card.expires_on ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
@@ -16608,13 +16653,13 @@ function GiftCardsView() {
               </label>
 
               {/* Shopify admin link (combined mode only) */}
-              {editing && editing.shopify_gc_id && gcMode === 'combined' && shopDomain && (
+              {editing && editing.shopify_gc_id && gcMode === 'combined' && editing.channel_shop_domain && (
                 <div style={{ paddingTop: 16, borderTop: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
                     <path d="M10.5 3H17v6.5M17 3l-9 9M8 5H4a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   <a
-                    href={`https://${shopDomain}/admin/gift_cards/${editing.shopify_gc_id}`}
+                    href={`https://${editing.channel_shop_domain}/admin/gift_cards/${editing.shopify_gc_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: 12, color: 'var(--sv-action)', textDecoration: 'none' }}
@@ -17361,6 +17406,8 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: { businessId: string; xeroAccountingEnabled: boolean; onReturnOrder?: (prefill: any) => void }) {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string }>>([]);
+  const [channelInstanceId, setChannelInstanceId] = useState('');
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [days, setDays]             = useState<any[]>([]);
   const [daysLoading, setDaysLoading] = useState(false);
@@ -17379,12 +17426,19 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (d.success) setLocations(d.data ?? []);
     }).catch(() => {});
+    fetch('/api/ims/channels').then(r => r.json()).then(d => {
+      const channels = (d.instances ?? []).filter((instance: any) => instance.provider === 'shopify' && instance.enabled && instance.runtimeStatus === 'active' && instance.readinessStatus === 'ready');
+      setShopifyChannels(channels);
+      setChannelInstanceId(current => current || (channels.length === 1 ? channels[0].channelInstanceId : ''));
+    }).catch(() => setShopifyChannels([]));
   }, []);
 
   const loadDays = useCallback(() => {
+    if (!channelInstanceId) { setDays([]); setDaysLoading(false); return; }
     setDaysLoading(true);
-    const qs = locationId ? `?location_id=${locationId}` : '';
-    fetch(`/api/ims/online-sales${qs}`)
+    const params = new URLSearchParams({ channelInstanceId });
+    if (locationId) params.set('location_id', String(locationId));
+    fetch(`/api/ims/online-sales?${params}`)
       .then(r => r.json())
       .then(d => {
         if (d.success) {
@@ -17397,7 +17451,7 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
       })
       .catch(() => {})
       .finally(() => setDaysLoading(false));
-  }, [locationId]);
+  }, [channelInstanceId, locationId]);
 
   useEffect(() => {
     loadDays();
@@ -17413,9 +17467,10 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
     setExpandedDays(next);
     if (!dayData[date]) {
       setDayLoading(prev => new Set(prev).add(date));
-      const qs = locationId ? `&location_id=${locationId}` : '';
+      const qs = new URLSearchParams({ date, channelInstanceId });
+      if (locationId) qs.set('location_id', String(locationId));
       try {
-        const d = await fetch(`/api/ims/online-sales/day?date=${date}${qs}`).then(r => r.json());
+        const d = await fetch(`/api/ims/online-sales/day?${qs}`).then(r => r.json());
         if (d.success) { setDayData(prev => ({ ...prev, [date]: d.orders ?? [] })); if (d.shopDomain) setShopDomain(d.shopDomain); }
       } catch {}
       setDayLoading(prev => { const s = new Set(prev); s.delete(date); return s; });
@@ -17516,6 +17571,13 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Online Sales</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Store:</span>
+          <select value={channelInstanceId} onChange={event => setChannelInstanceId(event.target.value)} style={selStyle}>
+            <option value="">Select storefront</option>
+            {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Branch:</span>
           <select value={locationId} onChange={e => setLocationId(e.target.value ? Number(e.target.value) : '')} style={selStyle}>
             <option value=''>All branches</option>
@@ -17527,13 +17589,17 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
           onClick={async () => {
             setImporting(true); setImportResult(null);
             try {
-              const r = await apiFetch('/api/ims/shopify/import-orders', { method: 'POST' });
+              if (!channelInstanceId) throw new Error('Select a Shopify storefront.');
+              const r = await apiFetch('/api/ims/shopify/import-orders', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channelInstanceId }),
+              });
               setImportResult(r.error ? `✗ ${r.error}` : `✓ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''}${r.confirmed_drafts > 0 ? `, fixed ${r.confirmed_drafts} stuck draft${r.confirmed_drafts !== 1 ? 's' : ''}` : ''} (${r.skipped_existing} already existed)`);
               if (r.imported > 0 || r.confirmed_drafts > 0) loadDays();
             } catch (e: any) { setImportResult(`✗ ${e.message}`); }
             setImporting(false);
           }}
-          disabled={importing}
+          disabled={importing || !channelInstanceId}
           style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--sv-accent)', color: 'var(--sv-accent)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importing ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
         >{importing ? 'Importing…' : '📦 Import from Shopify'}</button>
       </div>
@@ -17631,7 +17697,7 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
                         const r = await apiFetch('/api/xero/sync/daily-sales', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online' }),
+                          body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online', channelInstanceId }),
                         });
                         setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
                       } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
@@ -20625,6 +20691,8 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
 
 function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any[]; getBusinessId: () => string }) {
   const [mappings, setMappings] = useState<any[]>([]);
+  const [onlineChannels, setOnlineChannels] = useState<Array<{ channelInstanceId: string; displayName: string; provider: string; providerDisplayName: string }>>([]);
+  const [channelInstanceId, setChannelInstanceId] = useState('');
   const [adding, setAdding]     = useState(false);
   const [newForm, setNewForm]   = useState({ gateway_name: '', display_name: '', clearing_account_code: '', clearing_account_name: '', fee_account_code: '', fee_account_name: '', fee_tax_type: 'NONE', deduct_fee_enabled: false, fixed_fee_amount: '0', percentage_fee_rate: '0' });
   const [editingGatewayName, setEditingGatewayName] = useState<string | null>(null);
@@ -20646,17 +20714,30 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
   const supportsCalculatedFees = !normalizedFormGateway.includes('shopify_payment') && !normalizedFormGateway.includes('paypal');
 
   const load = () => {
-    if (!bid) return;
-    fetch(`/api/xero/gateway-mappings?databaseId=${encodeURIComponent(bid)}`).then(r => r.json()).then(d => { if (d.success) setMappings(d.mappings ?? []); }).catch(() => {});
+    if (!bid || !channelInstanceId) { setMappings([]); return; }
+    fetch(`/api/xero/gateway-mappings?databaseId=${encodeURIComponent(bid)}&channelInstanceId=${encodeURIComponent(channelInstanceId)}`).then(r => r.json()).then(d => { if (d.success) setMappings(d.mappings ?? []); }).catch(() => {});
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [bid, channelInstanceId]);
+
+  useEffect(() => {
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      const channels = (data.instances ?? []).filter((instance: any) => ['shopify', 'native_shop'].includes(instance.provider));
+      setOnlineChannels(channels);
+      setChannelInstanceId(current => current || (channels.length === 1 ? channels[0].channelInstanceId : ''));
+    }).catch(() => setOnlineChannels([]));
+  }, []);
 
   const loadDiscoveredMethods = async () => {
-    if (!bid) return;
+    if (!bid || !channelInstanceId) return;
     setLoadingMethods(true);
     setMethodError(null);
     try {
-      const res = await fetch('/api/ims/shopify/payment-methods');
+      const selectedChannel = onlineChannels.find(channel => channel.channelInstanceId === channelInstanceId);
+      if (!selectedChannel || selectedChannel.provider !== 'shopify') {
+        setDiscoveredMethods([]);
+        return;
+      }
+      const res = await fetch(`/api/ims/shopify/payment-methods?channelInstanceId=${encodeURIComponent(channelInstanceId)}`);
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || `Failed to load gateway methods (${res.status})`);
       setDiscoveredMethods(Array.isArray(data.methods) ? data.methods : []);
@@ -20668,15 +20749,15 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
     }
   };
 
-  useEffect(() => { loadDiscoveredMethods(); }, [bid]);
+  useEffect(() => { loadDiscoveredMethods(); }, [bid, channelInstanceId, onlineChannels.length]);
 
   const save = async () => {
-    if (!newForm.gateway_name || !newForm.clearing_account_code) return alert('Gateway name and clearing account are required.');
+    if (!channelInstanceId || !newForm.gateway_name || !newForm.clearing_account_code) return alert('Sales channel, gateway name and clearing account are required.');
     setSaving(true);
     try {
       const res = await fetch('/api/xero/gateway-mappings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newForm }),
+        body: JSON.stringify({ ...newForm, channelInstanceId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unable to save gateway mapping');
@@ -20714,7 +20795,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 
   const del = async (gateway_name: string, label: string) => {
     if (!confirm(`Remove gateway mapping for "${label}"?`)) return;
-    await fetch(`/api/xero/gateway-mappings?gateway_name=${encodeURIComponent(gateway_name)}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`/api/xero/gateway-mappings?channelInstanceId=${encodeURIComponent(channelInstanceId)}&gateway_name=${encodeURIComponent(gateway_name)}`, { method: 'DELETE' }).catch(() => {});
     if (editingGatewayName === gateway_name) cancelEdit();
     load();
   };
@@ -20746,8 +20827,12 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
     <div style={{ marginTop: 28 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online Gateway Clearing Accounts</h3>
-        <button onClick={() => { setAdding(p => !p); if (adding) cancelEdit(); }} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>+ Add gateway</button>
-        <button onClick={loadDiscoveredMethods} disabled={loadingMethods} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: loadingMethods ? 'not-allowed' : 'pointer' }}>
+        <select value={channelInstanceId} onChange={event => { setChannelInstanceId(event.target.value); cancelEdit(); }} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+          <option value="">Select sales channel</option>
+          {onlineChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.providerDisplayName} · {channel.displayName}</option>)}
+        </select>
+        <button disabled={!channelInstanceId} onClick={() => { setAdding(p => !p); if (adding) cancelEdit(); }} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: channelInstanceId ? 'pointer' : 'not-allowed', opacity: channelInstanceId ? 1 : .55 }}>+ Add gateway</button>
+        <button onClick={loadDiscoveredMethods} disabled={loadingMethods || !channelInstanceId} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: loadingMethods || !channelInstanceId ? 'not-allowed' : 'pointer' }}>
           {loadingMethods ? 'Refreshing…' : 'Refresh Shopify gateways'}
         </button>
       </div>
@@ -20801,7 +20886,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
           </thead>
           <tbody>
             {mappings.map((m: any) => (
-              <tr key={m.gateway_name} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <tr key={`${m.channel_instance_id}-${m.gateway_name}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                 <td style={{ padding: '8px 12px' }}>
                   <span style={{ fontWeight: 600, color: 'var(--sv-text-strong)' }}>{m.display_name}</span>
                   <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--sv-text-dim)', fontFamily: 'monospace' }}>{m.gateway_name}</span>
@@ -20915,6 +21000,7 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
   payout_id?: string; payout_status?: string;
+  channel_instance_id?: string; channel_display_name?: string;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   source?: string | null; pos_sale_id?: number | null;
@@ -20995,6 +21081,8 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
   const [catchupRunning, setCatchupRunning] = useState(false);
   const [catchupResult, setCatchupResult] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [channelFilter, setChannelFilter] = useState('all');
+  const [shopifyChannels, setShopifyChannels] = useState<Array<{ channelInstanceId: string; displayName: string }>>([]);
   const pageSize = 200;
 
   function fmtDate(d: string) {
@@ -21029,9 +21117,15 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
 
   useEffect(() => {
     loadData();
+    fetch('/api/ims/channels').then(response => response.json()).then(data => {
+      const channels = (data.instances ?? []).filter((instance: any) => instance.provider === 'shopify');
+      setShopifyChannels(channels);
+      setChannelFilter(current => current !== 'all' ? current : (channels.length === 1 ? channels[0].channelInstanceId : 'all'));
+    }).catch(() => setShopifyChannels([]));
   }, []);
 
-  const payoutEntries = entries.filter(entry => entry.sync_type === 'shopify_payout');
+  const payoutEntries = entries.filter(entry => entry.sync_type === 'shopify_payout'
+    && (channelFilter === 'all' || entry.channel_instance_id === channelFilter));
   const totalPages = Math.max(1, Math.ceil(payoutEntries.length / pageSize));
 
   useEffect(() => {
@@ -21040,16 +21134,16 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
 
   const pageEntries = payoutEntries.slice((page - 1) * pageSize, page * pageSize);
 
-  const processShopifyPayout = async (payoutId: string, action: 'plan' | 'repair' | 'execute', key: string, amount: number | null) => {
+  const processShopifyPayout = async (payoutId: string, channelInstanceId: string, action: 'plan' | 'repair' | 'execute', key: string, amount: number | null) => {
     if (action === 'execute' && !confirm(`Post the planned Xero actions for Shopify payout ${payoutId}${amount != null ? ` (${fmtMoney(amount)})` : ''}?`)) return;
     if (action === 'repair' && !confirm(`Validate and repair linked daily Xero invoices for payout ${payoutId}? This may update understated invoices but will not post the payout.`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
     setPayoutErrorText(null);
     try {
-      const res = await fetch(`/api/xero/shopify-payouts/${encodeURIComponent(payoutId)}?databaseId=${encodeURIComponent(getBusinessId())}`, {
+      const res = await fetch(`/api/xero/shopify-payouts/${encodeURIComponent(payoutId)}?databaseId=${encodeURIComponent(getBusinessId())}&channelInstanceId=${encodeURIComponent(channelInstanceId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, channelInstanceId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || `Payout ${action} failed`);
@@ -21063,6 +21157,7 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
   };
 
   const syncMissedPayouts = async () => {
+    if (channelFilter === 'all') { setPayoutErrorText('Choose one Shopify storefront before syncing payouts.'); return; }
     setCatchupRunning(true);
     setCatchupResult(null);
     setPayoutErrorText(null);
@@ -21070,7 +21165,7 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
       const res = await fetch('/api/xero/shopify-payouts/catchup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), days: catchupDays }),
+        body: JSON.stringify({ databaseId: getBusinessId(), channelInstanceId: channelFilter, days: catchupDays }),
       });
       const data = await res.json();
       if (!res.ok && res.status !== 207) throw new Error(data.error || 'Payout sync failed');
@@ -21122,6 +21217,13 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Payouts</span>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+              Store
+              <select value={channelFilter} onChange={event => { setChannelFilter(event.target.value); setPage(1); }} style={{ height: 30, border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: '0 8px', fontSize: 12 }}>
+                <option value="all">All stores</option>
+                {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+              </select>
+            </label>
             {catchupResult && <span style={{ fontSize: 12, color: '#34d399' }}>{catchupResult}</span>}
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--sv-text-dim)' }}>
               Lookback
@@ -21133,7 +21235,7 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
                 <option value={90}>90 days</option>
               </select>
             </label>
-            {!readOnly && <button title="Poll Shopify for paid payouts in the selected period and ingest any missing records" onClick={syncMissedPayouts} disabled={catchupRunning} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning ? 'wait' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>}
+            {!readOnly && <button title="Poll the selected Shopify storefront for paid payouts" onClick={syncMissedPayouts} disabled={catchupRunning || channelFilter === 'all'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning || channelFilter === 'all' ? 'not-allowed' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600, opacity: channelFilter === 'all' ? .55 : 1 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>}
             <button title="Reload payout records" onClick={loadData} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
           </div>
         </div>
@@ -21157,6 +21259,7 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
               <thead>
                 <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
                   <th style={th}>Payout Date</th>
+                  <th style={th}>Store</th>
                   <th style={th}>Reference</th>
                   <th style={th}>Progress / Detail</th>
                   <th style={{ ...th, textAlign: 'right' }}>Amount</th>
@@ -21167,13 +21270,14 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
               </thead>
               <tbody>
                 {pageEntries.map((entry, ei) => {
-                  const retryKey = `payout-${entry.payout_id ?? `${page}-${ei}`}`;
+                  const retryKey = `payout-${entry.channel_instance_id}-${entry.payout_id ?? `${page}-${ei}`}`;
                   const payoutStatus = entry.payout_status ?? '';
                   const statusColor = payoutStatus === 'reconciled' ? '#34d399' : payoutStatus === 'blocked' ? '#f87171' : payoutStatus === 'partial' ? '#fb923c' : payoutStatus === 'planned' ? '#38bdf8' : payoutStatus === 'ready_to_allocate' ? '#fbbf24' : 'var(--sv-text-dim)';
                   const statusBg = payoutStatus === 'reconciled' ? 'rgba(16,185,129,.13)' : payoutStatus === 'blocked' ? 'rgba(248,113,113,.13)' : payoutStatus === 'partial' ? 'rgba(251,146,60,.13)' : payoutStatus === 'planned' ? 'rgba(56,189,248,.13)' : payoutStatus === 'ready_to_allocate' ? 'rgba(251,191,36,.13)' : 'rgba(156,163,175,.13)';
                   return (
                     <tr key={entry.payout_id ?? `${page}-${ei}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(entry.item_date)}</td>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>{entry.channel_display_name ?? 'Unknown store'}</td>
                       <td style={{ ...td, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{entry.reference}</td>
                       <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.contact_name ?? '—'}</td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
@@ -21182,13 +21286,13 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
                       <td style={{ ...td, textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                           {!readOnly && entry.payout_id && ['blocked', 'ready_to_allocate'].includes(payoutStatus) && (
-                            <button title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero." onClick={() => processShopifyPayout(entry.payout_id!, 'plan', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}>{retrying[retryKey] ? '…' : '↻ Replan'}</button>
+                            <button title="Rebuild the payout plan after fixing a missing invoice, credit note, mapping, or other blocker. This does not post to Xero." onClick={() => processShopifyPayout(entry.payout_id!, entry.channel_instance_id!, 'plan', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#f87171', fontWeight: 600 }}>{retrying[retryKey] ? '…' : '↻ Replan'}</button>
                           )}
                           {!readOnly && entry.payout_id && payoutStatus === 'blocked' && (
-                            <button title="Validate linked completed-day invoices against current Shopify orders, repair safely understated invoices, then rebuild the payout plan. This does not post the payout." onClick={() => processShopifyPayout(entry.payout_id!, 'repair', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}><Wrench size={13} />{retrying[retryKey] ? '…' : 'Validate & Repair'}</button>
+                            <button title="Validate linked completed-day invoices against current Shopify orders, repair safely understated invoices, then rebuild the payout plan. This does not post the payout." onClick={() => processShopifyPayout(entry.payout_id!, entry.channel_instance_id!, 'repair', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}><Wrench size={13} />{retrying[retryKey] ? '…' : 'Validate & Repair'}</button>
                           )}
                           {!readOnly && entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
-                            <button title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'} onClick={() => processShopifyPayout(entry.payout_id!, 'execute', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}>{retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}</button>
+                            <button title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'} onClick={() => processShopifyPayout(entry.payout_id!, entry.channel_instance_id!, 'execute', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}>{retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}</button>
                           )}
                         </div>
                       </td>
@@ -21456,6 +21560,7 @@ function XeroSyncTab({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [filterSyncType, setFilterSyncType] = useState('');
   const [filterXeroState, setFilterXeroState] = useState('');
+  const [filterChannelInstanceId, setFilterChannelInstanceId] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -21506,13 +21611,13 @@ function XeroSyncTab({
     setPushAll(false);
   };
 
-  const syncOnlineBatch = async (date: string, key: string) => {
+  const syncOnlineBatch = async (date: string, channelInstanceId: string, key: string) => {
     setRetrying(r => ({ ...r, [key]: true }));
     try {
       await fetch('/api/xero/sync/daily-sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), date, channel: 'online' }),
+        body: JSON.stringify({ databaseId: getBusinessId(), date, channel: 'online', channelInstanceId }),
       });
       await loadData();
     } catch {}
@@ -21583,12 +21688,17 @@ function XeroSyncTab({
   const xeroStateOptions = Array.from(
     new Set(nonPayoutEntries.map(e => e.last_xero_state).filter(Boolean) as string[])
   ).sort();
+  const channelOptions = Array.from(new Map(nonPayoutEntries
+    .filter(entry => entry.channel_instance_id && entry.channel_display_name)
+    .map(entry => [entry.channel_instance_id!, entry.channel_display_name!])).entries())
+    .map(([channelInstanceId, displayName]) => ({ channelInstanceId, displayName }));
 
   const visibleEntries = nonPayoutEntries.filter(entry => {
     const matchesType = !filterSyncType || entry.sync_type === filterSyncType;
     const matchesState = !filterXeroState
       || (filterXeroState === '__none' ? !entry.last_xero_state : entry.last_xero_state === filterXeroState);
-    return matchesType && matchesState;
+    const matchesChannel = !filterChannelInstanceId || entry.channel_instance_id === filterChannelInstanceId;
+    return matchesType && matchesState && matchesChannel;
   });
 
   if (loading) return <div style={{ padding: 20, color: 'var(--sv-text-dim)' }}>Loading…</div>;
@@ -21676,6 +21786,12 @@ function XeroSyncTab({
                 {nonPayoutEntries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
               </select>
             )}
+            {channelOptions.length > 0 && (
+              <select value={filterChannelInstanceId} onChange={event => setFilterChannelInstanceId(event.target.value)} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '4px 8px', fontSize: 12, color: filterChannelInstanceId ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', cursor: 'pointer' }}>
+                <option value="">All Stores</option>
+                {channelOptions.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
+              </select>
+            )}
             <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
           </div>
         </div>
@@ -21692,6 +21808,7 @@ function XeroSyncTab({
                 <th style={th}>Type</th>
                 <th style={th}>Date</th>
                 <th style={th}>Reference</th>
+                <th style={th}>Store / Channel</th>
                 <th style={th}>Contact / Detail</th>
                 <th style={{ ...th, textAlign: 'right' }}>Amount</th>
                 <th style={th}>Synced</th>
@@ -21758,6 +21875,7 @@ function XeroSyncTab({
                         )}
                         {isPosCn && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 500 }}>POS / EOD</div>}
                       </td>
+                      <td style={{ ...td, color: 'var(--sv-text-main)', whiteSpace: 'nowrap' }}>{entry.channel_display_name ?? '—'}</td>
                       <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
                         {entry.xero_id && (
@@ -21823,8 +21941,8 @@ function XeroSyncTab({
                         )}
                         {entry.sync_type === 'online_batch' && !entry.last_sync_status && entry.item_date && (
                           <button
-                            onClick={() => syncOnlineBatch(String(entry.item_date).slice(0, 10), retryKey)}
-                            disabled={retrying[retryKey]}
+                            onClick={() => syncOnlineBatch(String(entry.item_date).slice(0, 10), String(entry.channel_instance_id ?? ''), retryKey)}
+                            disabled={!entry.channel_instance_id || retrying[retryKey]}
                             style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
                           >
                             {retrying[retryKey] ? '…' : '↑ Sync Now'}
@@ -21848,6 +21966,7 @@ function XeroSyncTab({
                             <span style={{ color: 'var(--sv-etch)', marginRight: 6 }}>└</span>
                             {pay.notes ?? pay.detail ?? '—'}
                           </td>
+                          <td style={{ ...td, color: 'var(--sv-text-dim)' }}>—</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12 }}>{pay.notes ?? pay.detail ?? '—'}</td>
                           <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{payAmt}</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDate(pay.synced_at)}</td>

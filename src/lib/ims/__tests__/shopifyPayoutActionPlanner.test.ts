@@ -5,6 +5,8 @@ import {
   type ShopifyPayoutPlannerDependencies,
 } from '../shopifyPayoutActionPlanner';
 
+const channelInstanceId = 'shopify-store-1';
+
 function createDependencies(): ShopifyPayoutPlannerDependencies & {
   mainQuery: ShopifyPayoutPlannerDependencies['mainQuery'] & ReturnType<typeof vi.fn>;
   mainExecute: ShopifyPayoutPlannerDependencies['mainExecute'] & ReturnType<typeof vi.fn>;
@@ -46,8 +48,8 @@ function setupPaidPayout(deps: ReturnType<typeof createDependencies>) {
   deps.tenantQuery.mockImplementation(async (sql: string) => {
     if (sql.includes('FROM ims_sales_orders')) {
       return [
-        { id: 1, shopify_order_id: 'order-sat', order_date: '2026-07-25' },
-        { id: 2, shopify_order_id: 'order-sun', order_date: '2026-07-26' },
+        { id: 1, external_order_id: 'order-sat', order_date: '2026-07-25' },
+        { id: 2, external_order_id: 'order-sun', order_date: '2026-07-26' },
       ];
     }
     if (sql.includes('FROM ims_credit_notes')) return [];
@@ -64,7 +66,7 @@ describe('planShopifyPayoutActions', () => {
   });
 
   it('plans gross payments across actual daily invoices plus one fee spend', async () => {
-    const result = await planShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await planShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result.status).toBe('planned');
     expect(result.actions).toEqual([
@@ -94,7 +96,7 @@ describe('planShopifyPayoutActions', () => {
       throw new Error(`Unhandled main query: ${sql}`);
     });
 
-    const result = await planShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await planShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     expect(result).toMatchObject({ status: 'blocked', error: 'Unresolved payout charges: sat' });
     expect(deps.mainExecute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO shopify_payment_xero_actions'))).toBe(false);
@@ -114,7 +116,7 @@ describe('planShopifyPayoutActions', () => {
       }
       if (sql.includes('FROM xero_sync_log')) {
         // The old flow wrote a successful sync-log entry for this date → pre-settled
-        return [{ detail: 'online batch 2026-07-25', xero_id: 'legacy-inv' }];
+        return [{ detail: `online batch 2026-07-25|shopify:${channelInstanceId}`, xero_id: 'legacy-inv' }];
       }
       if (sql.includes('FROM xero_gateway_mappings')) {
         return [{ gateway_name: 'shopify_payments', clearing_account_code: '091', fee_account_code: '404', fee_tax_type: 'INPUT' }];
@@ -122,7 +124,7 @@ describe('planShopifyPayoutActions', () => {
       throw new Error(`Unhandled main query: ${sql}`);
     });
 
-    const result = await planShopifyPayoutActions('biz-1', 'pay-1', deps);
+    const result = await planShopifyPayoutActions('biz-1', channelInstanceId, 'pay-1', deps);
 
     // Pre-settled charge is not unresolved → balanced → planned with just fee_spend (no invoice_payment)
     expect(result.status).toBe('planned');
@@ -144,14 +146,14 @@ describe('planShopifyPayoutActions', () => {
       throw new Error(`Unhandled main query: ${sql}`);
     });
     deps.tenantQuery.mockImplementation(async (sql: string) => {
-      if (sql.includes('FROM ims_sales_orders')) return [{ id: 1, shopify_order_id: 'order-sat', order_date: '2026-07-25' }];
+      if (sql.includes('FROM ims_sales_orders')) return [{ id: 1, external_order_id: 'order-sat', order_date: '2026-07-25' }];
       if (sql.includes('FROM ims_credit_notes')) return [];
       throw new Error(`Unhandled tenant query: ${sql}`);
     });
 
-    const result = await planShopifyPayoutActions('biz-1', 'pay-2', deps);
+    const result = await planShopifyPayoutActions('biz-1', channelInstanceId, 'pay-2', deps);
 
-    expect(result).toMatchObject({ status: 'blocked', error: 'Refund refund-1 does not have one completed Xero credit note' });
+    expect(result).toMatchObject({ status: 'blocked', error: 'Refund refund-1 does not have one completed Xero credit note in this Shopify store' });
   });
 
   it('blocks refunds when the completed credit note amount does not match', async () => {
@@ -168,12 +170,12 @@ describe('planShopifyPayoutActions', () => {
       throw new Error(`Unhandled main query: ${sql}`);
     });
     deps.tenantQuery.mockImplementation(async (sql: string) => {
-      if (sql.includes('FROM ims_sales_orders')) return [{ id: 1, shopify_order_id: 'order-sat', order_date: '2026-07-25' }];
+      if (sql.includes('FROM ims_sales_orders')) return [{ id: 1, external_order_id: 'order-sat', order_date: '2026-07-25' }];
       if (sql.includes('FROM ims_credit_notes')) return [{ shopify_order_id: 'order-sat', xero_credit_note_id: 'cn-1', total_amount: 0 }];
       throw new Error(`Unhandled tenant query: ${sql}`);
     });
 
-    const result = await planShopifyPayoutActions('biz-1', 'pay-2', deps);
+    const result = await planShopifyPayoutActions('biz-1', channelInstanceId, 'pay-2', deps);
 
     expect(result).toMatchObject({
       status: 'blocked',
@@ -199,7 +201,7 @@ describe('planShopifyPayoutActions', () => {
       throw new Error(`Unhandled main query: ${sql}`);
     });
 
-    const result = await planShopifyPayoutActions('biz-1', 'pay-3', deps);
+    const result = await planShopifyPayoutActions('biz-1', channelInstanceId, 'pay-3', deps);
 
     expect(result.actions).toContainEqual(expect.objectContaining({
       actionType: 'fee_receive',

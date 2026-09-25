@@ -7,6 +7,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 
 const API_LABELS: Record<string, string> = {
   shopify:      'Shopify Admin REST API',
@@ -54,12 +55,13 @@ async function getStoredSummary(sheets: GoogleSheetsService, inventorySystemId: 
   return '';
 }
 
-async function getCredentials(databaseId: string): Promise<Record<string, string>> {
+async function getCredentials(databaseId: string, channelInstanceId?: string): Promise<Record<string, string>> {
   try {
     const conn = await ConnectionsRepository.get(databaseId);
     if (!conn) return {};
-    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const shopify = await getShopifyAdminCredentials(databaseId);
+    const shopify = channelInstanceId
+      ? (await getShopifyOperationContext({ businessId: databaseId, channelInstanceId })).credentials
+      : null;
     const data: Record<string, string> = {
       ShopifyShopId:         shopify?.shopDomain            ?? '',
       ShopifyAccessToken:    shopify?.token                 ?? '',
@@ -359,13 +361,16 @@ export async function POST(req: Request) {
   const { user, response: authResponse } = requireAdminSession();
   if (authResponse) return authResponse;
 
-  const { api, databaseId } = await req.json();
+  const { api, databaseId, channelInstanceId } = await req.json();
   if (!api || !databaseId) return NextResponse.json({ error: 'Missing api or databaseId.' }, { status: 400 });
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
   const apiLabel = API_LABELS[api];
   if (!apiLabel) return NextResponse.json({ error: `Unknown API: ${api}` }, { status: 400 });
+  if (api === 'shopify' && !String(channelInstanceId ?? '').trim()) {
+    return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
+  }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
@@ -374,7 +379,7 @@ export async function POST(req: Request) {
 
   // Resolve inventorySystemId (for credentials only) and the global specs sheet
   const [creds, inventorySystemId] = await Promise.all([
-    getCredentials(databaseId),
+    getCredentials(databaseId, api === 'shopify' ? channelInstanceId : undefined),
     resolveInventorySystemId(databaseId).catch(() => databaseId),
   ]);
 

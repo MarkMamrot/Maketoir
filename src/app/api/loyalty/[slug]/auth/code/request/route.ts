@@ -2,9 +2,10 @@ import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { createAuthRateLimitSubject, getAuthRateLimit, recordAuthFailure } from '@/lib/auth/authRateLimit';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
-import { decrypt } from '@/lib/encryption';
+import { recordInboundContactChannelMapping } from '@/lib/ims/contactChannelMappings';
+import { resolveLoyaltyPortalShopifyInstance } from '@/lib/loyalty/loyaltyPortalShopifyInstance';
 import { upsertLoyaltyPortalCustomer } from '@/lib/loyalty/LoyaltyPortalIdentity';
 import { LoyaltyPortalProfileRepository } from '@/lib/loyalty/LoyaltyPortalProfile';
 import { createCustomerOtp, ONLINE_SHOP_OTP_EXPIRES_SECONDS } from '@/lib/onlineShop/onlineShopOtp';
@@ -28,15 +29,27 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     const subject = createAuthRateLimitSubject('loyalty-portal-otp-request', businessId, email, clientIp(request));
     if ((await getAuthRateLimit('loyalty-portal-otp-request', subject)).locked) return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fallback });
     await recordAuthFailure({ action: 'loyalty-portal-otp-request', subjectHash: subject, threshold: 3, windowSeconds: 600, lockSeconds: 600 });
-    stage = 'resolve_shopify_credentials';
-    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const credentials = await getShopifyAdminCredentials(businessId);
-    if (!credentials) throw new Error('Shopify is not configured for this loyalty portal.');
+    stage = 'resolve_shopify_instance';
+    const channelInstanceId = await resolveLoyaltyPortalShopifyInstance({
+      businessId,
+      shopifyReturnUrl: profile.shopifyReturnUrl,
+    });
+    if (!channelInstanceId) throw new Error('This loyalty portal is not bound to one active Shopify storefront.');
+    const context = await getShopifyOperationContext({ businessId, channelInstanceId });
     stage = 'find_shopify_customer';
-    const customers = await new ShopifyService(credentials.shopDomain, credentials.token).findCustomersByExactEmail(email);
+    const customers = await new ShopifyService(context.credentials.shopDomain, context.credentials.token).findCustomersByExactEmail(email);
     if (customers.length !== 1) return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fallback });
     stage = 'link_ims_contact';
-    const contactId = await runImsForBusiness(businessId, () => upsertLoyaltyPortalCustomer(businessId!, customers[0]));
+    const contactId = await runImsForBusiness(businessId, async () => {
+      const resolvedContactId = await upsertLoyaltyPortalCustomer(businessId!, customers[0]);
+      await recordInboundContactChannelMapping({
+        businessId: businessId!,
+        channelInstanceId,
+        contactId: resolvedContactId,
+        externalCustomerId: String(customers[0].id),
+      });
+      return resolvedContactId;
+    });
     stage = 'create_challenge';
     const challenge = await createCustomerOtp({ businessId, contactId, email, purpose: 'loyalty_portal' });
     stage = 'configure_email';

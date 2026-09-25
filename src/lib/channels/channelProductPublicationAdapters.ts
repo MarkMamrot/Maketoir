@@ -1,10 +1,10 @@
 import { getAmazonChannelAccess } from '@/lib/channels/amazonCredentials';
 import { deleteAmazonListingOffer, putAmazonExistingAsinOffer } from '@/lib/channels/amazonSpApi';
 import type { ChannelProductPublicationAdapter } from '@/lib/channels/channelProductPublication';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import type { SalesChannelProvider } from '@/lib/channels/types';
 import { getOnlinePickLocationIds } from '@/lib/ims/shopifyInventorySync';
 import { normalizeOnlineShopPageSlug } from '@/lib/onlineShop/onlineShopPages';
-import { getShopifyChannelAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -98,8 +98,10 @@ export const publishShopifyProduct: ChannelProductPublicationAdapter = async inp
       : blocked('Upload or link this product to the exact Shopify storefront first.');
   }
   if (productIds.length > 1) return blocked('The product maps to more than one Shopify product in this storefront.');
-  const credentials = await getShopifyChannelAdminCredentials(input.businessId, input.channelInstanceId);
-  if (!credentials) throw new Error('Shopify credentials are not configured for this storefront.');
+  const { credentials } = await getShopifyOperationContext({
+    businessId: input.businessId,
+    channelInstanceId: input.channelInstanceId,
+  });
   const service = new ShopifyService(credentials.shopDomain, credentials.token);
   await service.updateProduct(productIds[0], { status: input.desiredState === 'published' ? 'active' : 'draft' });
   return { outcome: 'applied', providerState: input.desiredState, externalProductId: productIds[0] };

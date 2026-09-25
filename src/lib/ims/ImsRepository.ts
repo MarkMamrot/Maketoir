@@ -369,6 +369,7 @@ export interface ImsSO {
 export interface ImsSOItem {
   id: number; so_id: number; variant_id: string | null;
   shopify_line_item_id?: number | string | null;
+  external_order_item_id?: number | string | null;
   code?: string; name?: string;
   qty_ordered: number;
   qty_fulfilled: number; unit_price: number; unit_cost?: number;
@@ -3231,7 +3232,7 @@ export const ImsSORepo = {
       let existingItems: any[] = [];
       if (items || locationChanged) {
         [existingItems] = await conn.execute<any[]>(
-          `SELECT id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, unit_cost,
+          `SELECT id, shopify_line_item_id, external_order_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, unit_cost,
                   discount_pct, tax_rate, line_total, notes
              FROM ims_sales_order_items WHERE so_id = ? ORDER BY id FOR UPDATE`,
           [id],
@@ -3294,10 +3295,11 @@ export const ImsSORepo = {
           if (existingId != null) {
             await conn.execute(
               `UPDATE ims_sales_order_items
-                  SET business_id = ?, shopify_line_item_id = ?, variant_id = ?, qty_ordered = ?, unit_price = ?,
+                  SET business_id = ?, shopify_line_item_id = ?, external_order_item_id = ?, variant_id = ?, qty_ordered = ?, unit_price = ?,
                       discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?
                 WHERE id = ? AND so_id = ?`,
-              [preEdit.business_id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+                [preEdit.business_id, item.shopify_line_item_id ?? null, item.external_order_item_id ?? null,
+                 item.variant_id, item.qty_ordered, item.unit_price,
                item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null, existingId, id],
             );
             amendmentLines.push({
@@ -3307,7 +3309,8 @@ export const ImsSORepo = {
           } else {
             amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
             newRows.push({
-              values: [preEdit.business_id, id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+              values: [preEdit.business_id, id, item.shopify_line_item_id ?? null, item.external_order_item_id ?? null,
+                item.variant_id, item.qty_ordered, item.unit_price,
                 item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null],
               amendmentIndex: amendmentLines.length - 1,
             });
@@ -3322,8 +3325,8 @@ export const ImsSORepo = {
         for (const newItem of newRows) {
           const [insertResult] = await conn.execute<any>(
             `INSERT INTO ims_sales_order_items
-               (business_id,so_id,shopify_line_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+               (business_id,so_id,shopify_line_item_id,external_order_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             newItem.values,
           );
           amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);
@@ -3681,8 +3684,8 @@ export const ImsSORepo = {
 
   /**
    * Process a Shopify refund against an existing sales order.
-   * Idempotent (keyed on shopify_refund_id). Restocks returned line items into
-   * the SO's location and records the refunded $ against the order.
+  * Idempotent by exact channel instance and refund ID when the order is owned,
+  * with legacy business-level identity retained for unmigrated callers.
    *
    * `restockLines[].shopifyVariantId` maps back to the IMS variant via
    * ims_product_variants.shopify_variant_id. Lines with restock=false (Shopify
@@ -3692,6 +3695,7 @@ export const ImsSORepo = {
     businessId: string,
     opts: {
       soId: number;
+      channelInstanceId?: string;
       shopifyRefundId: string;
       shopifyReturnId?: string | null;  // if present, complete an existing awaiting_product CN
       gateway?: string | null;
@@ -3699,6 +3703,7 @@ export const ImsSORepo = {
       taxAmount?: number;
       note?: string;
       restockLines: {
+        externalOrderItemId?: string;
         shopifyVariantId: string;
         quantity: number;
         restock: boolean;
@@ -3708,9 +3713,9 @@ export const ImsSORepo = {
         sku?: string | null;
       }[];
     },
-  ): Promise<{ processed: boolean; restocked: number }> {
+  ): Promise<{ processed: boolean; restocked: number; creditNoteId: number | null }> {
     // A Shopify refund becomes a source='shopify', status='complete' credit note
-    // linked to the sales order. Idempotent on shopify_refund_id (unique key).
+    // linked to the sales order. Exact callers use channel_instance_id plus external_refund_id.
     // Xero posting is triggered by webhook/import orchestrators after this write,
     // so the DB transaction here stays focused on inventory and source-of-truth data.
     const pool = getIMSPool();
@@ -3720,10 +3725,18 @@ export const ImsSORepo = {
       const costingState = await lockInventoryCostState(conn, businessId);
 
       const [[so]] = await conn.execute<any[]>(
-        `SELECT id, location_id, so_type, so_number, customer_id FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
+        `SELECT id, location_id, so_type, so_number, customer_id, sales_channel, channel_instance_id
+           FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
         [opts.soId, businessId],
       );
-      if (!so) { await conn.rollback(); return { processed: false, restocked: 0 }; }
+      if (!so) { await conn.rollback(); return { processed: false, restocked: 0, creditNoteId: null }; }
+      const ownedChannelInstanceId = String(so.channel_instance_id ?? '').trim();
+      if (opts.channelInstanceId && (
+        so.sales_channel !== 'shopify' || ownedChannelInstanceId !== opts.channelInstanceId
+      )) {
+        throw new Error('Shopify refund channel instance does not own this sales order.');
+      }
+      const channelInstanceId = opts.channelInstanceId || ownedChannelInstanceId || null;
 
       // Resolve Shopify variants → IMS variants and build credit-note line items.
       const cnItems: {
@@ -3735,7 +3748,16 @@ export const ImsSORepo = {
         if (!(qty > 0)) continue;
         let variantId: string | null = null;
         let sku: string | null = line.sku ?? null;
-        if (line.shopifyVariantId) {
+        if (channelInstanceId && line.externalOrderItemId) {
+          const [[item]] = await conn.execute<any[]>(
+            `SELECT soi.variant_id, pv.sku
+               FROM ims_sales_order_items soi
+               LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
+              WHERE soi.business_id = ? AND soi.so_id = ? AND soi.external_order_item_id = ? LIMIT 1`,
+            [businessId, so.id, String(line.externalOrderItemId)],
+          );
+          if (item) { variantId = item.variant_id; sku = sku ?? item.sku; }
+        } else if (line.shopifyVariantId) {
           const [[v]] = await conn.execute<any[]>(
             `SELECT v.variant_id, v.sku FROM ims_product_variants v
                JOIN ims_products p ON p.product_id = v.product_id
@@ -3743,6 +3765,9 @@ export const ImsSORepo = {
             [businessId, String(line.shopifyVariantId)],
           );
           if (v) { variantId = v.variant_id; sku = sku ?? v.sku; }
+        }
+        if (channelInstanceId && line.restock && !variantId) {
+          throw new Error(`Shopify refund line ${line.externalOrderItemId || '(missing ID)'} is not mapped to this sales order.`);
         }
         const unitPrice = Number(line.unitPrice ?? 0);
         const lineBase = unitPrice * qty;
@@ -3784,11 +3809,19 @@ export const ImsSORepo = {
       // If there's an awaiting_product CN created from a returns/approve webhook,
       // complete it with the actual refund amounts rather than creating a duplicate.
       if (opts.shopifyReturnId) {
-        const [pending] = await conn.execute<any[]>(
-          `SELECT id, location_id FROM ims_credit_notes
-            WHERE business_id = ? AND shopify_return_id = ? AND status = 'awaiting_product' LIMIT 1`,
-          [businessId, String(opts.shopifyReturnId)],
-        );
+        const [pending] = channelInstanceId
+          ? await conn.execute<any[]>(
+            `SELECT id, location_id FROM ims_credit_notes
+              WHERE business_id = ? AND channel_instance_id = ? AND external_return_id = ?
+                AND status = 'awaiting_product' LIMIT 1`,
+            [businessId, channelInstanceId, String(opts.shopifyReturnId)],
+          )
+          : await conn.execute<any[]>(
+            `SELECT id, location_id FROM ims_credit_notes
+              WHERE business_id = ? AND channel_instance_id IS NULL AND shopify_return_id = ?
+                AND status = 'awaiting_product' LIMIT 1`,
+            [businessId, String(opts.shopifyReturnId)],
+          );
         const existingCn = (pending as any[])[0];
         if (existingCn) {
           // Update the CN amounts from the refund (authoritative), link to refund id, and complete.
@@ -3797,10 +3830,12 @@ export const ImsSORepo = {
           const subtotal = Math.round((total - tax) * 100) / 100;
           await conn.execute(
             `UPDATE ims_credit_notes
-                SET shopify_refund_id = ?, subtotal = ?, tax_amount = ?, total_amount = ?,
+                SET channel_instance_id = ?, external_refund_id = ?, shopify_refund_id = ?,
+                    subtotal = ?, tax_amount = ?, total_amount = ?,
                     tax_treatment = 'ex_tax', status = 'complete', completed_at = NOW()
               WHERE id = ?`,
-            [String(opts.shopifyRefundId), subtotal, tax, total, existingCn.id],
+            [channelInstanceId, String(opts.shopifyRefundId), String(opts.shopifyRefundId),
+              subtotal, tax, total, existingCn.id],
           );
           // Delete old items and re-insert from actual refund data.
           await conn.execute(`DELETE FROM ims_credit_note_items WHERE cn_id = ?`, [existingCn.id]);
@@ -3822,7 +3857,7 @@ export const ImsSORepo = {
             [total, restocked, opts.soId],
           );
           await conn.commit();
-          return { processed: true, restocked };
+          return { processed: true, restocked, creditNoteId: Number(existingCn.id) };
         }
       }
 
@@ -3834,19 +3869,38 @@ export const ImsSORepo = {
       const cnNumber = `CN-${String(Number(mx?.m ?? 0) + 1).padStart(5, '0')}`;
       const cnDate = new Date().toISOString().slice(0, 10);
 
-      // Idempotency: INSERT IGNORE on the unique (business_id, shopify_refund_id).
+      const [existingRefunds] = await conn.execute<any[]>(
+        `SELECT id FROM ims_credit_notes
+          WHERE business_id = ? AND ((channel_instance_id = ? AND external_refund_id = ?)
+            OR (channel_instance_id IS NULL AND shopify_refund_id = ?))
+          LIMIT 1 FOR UPDATE`,
+        [businessId, channelInstanceId, String(opts.shopifyRefundId), String(opts.shopifyRefundId)],
+      );
+      if ((existingRefunds as any[]).length) {
+        await conn.rollback();
+        return { processed: false, restocked: 0, creditNoteId: Number((existingRefunds as any[])[0].id) };
+      }
       const [ins] = await conn.execute<any>(
         `INSERT IGNORE INTO ims_credit_notes
            (business_id, cn_number, customer_id, so_id, original_so_number, location_id,
-            status, source, shopify_refund_id, cn_date, completed_at, reference,
+            status, source, shopify_refund_id, channel_instance_id, external_refund_id,
+            cn_date, completed_at, reference,
             tax_treatment, subtotal, tax_amount, total_amount, notes)
-         VALUES (?,?,?,?,?,?, 'complete','shopify',?, ?, NOW(), ?, 'ex_tax', ?, ?, ?, ?)`,
+         VALUES (?,?,?,?,?,?, 'complete','shopify',?,?,?, ?, NOW(), ?, 'ex_tax', ?, ?, ?, ?)`,
         [businessId, cnNumber, so.customer_id ?? null, so.id, so.so_number ?? null, so.location_id,
-         String(opts.shopifyRefundId), cnDate,
+         String(opts.shopifyRefundId), channelInstanceId, String(opts.shopifyRefundId), cnDate,
          `Shopify refund ${opts.shopifyRefundId}`, subtotal, tax, total,
          opts.note ?? `Shopify refund${opts.gateway ? ` via ${opts.gateway}` : ''}`],
       );
-      if (!ins.affectedRows) { await conn.rollback(); return { processed: false, restocked: 0 }; }
+      if (!ins.affectedRows) {
+        const [concurrent] = await conn.execute<any[]>(
+          `SELECT id FROM ims_credit_notes
+            WHERE business_id = ? AND channel_instance_id = ? AND external_refund_id = ? LIMIT 1`,
+          [businessId, channelInstanceId, String(opts.shopifyRefundId)],
+        );
+        await conn.rollback();
+        return { processed: false, restocked: 0, creditNoteId: Number((concurrent as any[])[0]?.id ?? 0) || null };
+      }
       const cnId = ins.insertId;
 
       const cnItemRows: ImsCNItem[] = [];
@@ -3878,7 +3932,7 @@ export const ImsSORepo = {
       );
 
       await conn.commit();
-      return { processed: true, restocked };
+      return { processed: true, restocked, creditNoteId: Number(cnId) };
     } catch (err) {
       await conn.rollback();
       throw err;

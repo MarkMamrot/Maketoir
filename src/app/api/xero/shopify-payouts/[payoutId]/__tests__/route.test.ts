@@ -42,12 +42,14 @@ vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
 import { GET, POST } from '../route';
 
 const context = { params: { payoutId: 'pay-1' } };
+const channelInstanceId = 'shopify-store-1';
 
 function request(method = 'GET', body?: unknown) {
-  return new NextRequest('http://localhost/api/xero/shopify-payouts/pay-1?databaseId=biz-1', {
+  const requestBody = body ? { ...(body as Record<string, unknown>), channelInstanceId } : undefined;
+  return new NextRequest(`http://localhost/api/xero/shopify-payouts/pay-1?databaseId=biz-1&channelInstanceId=${channelInstanceId}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    headers: requestBody ? { 'Content-Type': 'application/json' } : undefined,
+    body: requestBody ? JSON.stringify(requestBody) : undefined,
   });
 }
 
@@ -84,14 +86,14 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
 
     expect(response.status).toBe(200);
     expect(mockRunImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
-    expect(mockPlan).toHaveBeenCalledWith('biz-1', 'pay-1');
+    expect(mockPlan).toHaveBeenCalledWith('biz-1', channelInstanceId, 'pay-1');
   });
 
   it('executes planned actions without tenant IMS access', async () => {
     const response = await POST(request('POST', { action: 'execute' }), context);
 
     expect(response.status).toBe(200);
-    expect(mockExecute).toHaveBeenCalledWith('biz-1', 'pay-1');
+    expect(mockExecute).toHaveBeenCalledWith('biz-1', channelInstanceId, 'pay-1');
     expect(mockRunImsForBusiness).not.toHaveBeenCalled();
   });
 
@@ -133,8 +135,8 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-27');
-    expect(mockPlan).toHaveBeenCalledWith('biz-1', 'pay-1');
+    expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-27', channelInstanceId);
+    expect(mockPlan).toHaveBeenCalledWith('biz-1', channelInstanceId, 'pay-1');
     expect(mockExecute).not.toHaveBeenCalled();
     expect(body).toMatchObject({ status: 'planned', refreshed: [{ date: '2026-07-27', xeroId: 'invoice-1' }] });
   });

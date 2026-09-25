@@ -1,6 +1,6 @@
 /**
  * POST /api/xero/sync/daily-sales
- * Body: { databaseId, date, channel: 'online' }
+ * Body: { databaseId, date, channel: 'online', channelInstanceId }
  *
  * Posts the canonical summary invoice for a day's online sales.
  * POS revenue is posted exclusively by the per-method EOD flow.
@@ -15,7 +15,8 @@ export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
 
-  const { databaseId, date, channel } = await req.json();
+  const { databaseId, date, channel, channelInstanceId: rawChannelInstanceId } = await req.json();
+  const channelInstanceId = String(rawChannelInstanceId ?? '').trim();
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
@@ -27,6 +28,9 @@ export async function POST(req: Request) {
       error: 'Daily sales sync supports online sales only. POS revenue is synced through POS end-of-day reconciliation.',
     }, { status: 400 });
   }
+  if (!channelInstanceId) {
+    return NextResponse.json({ error: 'channelInstanceId is required for online daily sales.' }, { status: 400 });
+  }
 
   try {
     let preflightImport: { attempted: boolean; success: boolean; imported?: number; confirmedDrafts?: number; error?: string } = { attempted: false, success: false };
@@ -37,7 +41,8 @@ export async function POST(req: Request) {
       const cookie = req.headers.get('cookie') ?? '';
       const importRes = await fetch(`${origin}/api/ims/shopify/import-orders`, {
         method: 'POST',
-        headers: cookie ? { cookie } : undefined,
+        headers: { ...(cookie ? { cookie } : {}), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelInstanceId }),
         cache: 'no-store',
       });
       const importJson = await importRes.json().catch(() => ({}));
@@ -59,14 +64,14 @@ export async function POST(req: Request) {
           source: 'shopify_sync',
           title: 'Shopify Sync Failed — Order Import Preflight',
           message: `Shopify import preflight failed before Xero online batch ${date}. ${preflightImport.error ?? 'Unknown error'}`,
-          detail: { date, channel, error: preflightImport.error ?? null },
-          dedupeKey: `shopify:preflight:${date}`,
+          detail: { date, channel, channelInstanceId, error: preflightImport.error ?? null },
+          dedupeKey: `shopify:preflight:${channelInstanceId}:${date}`,
           dedupeMinutes: 120,
         }).catch(() => {});
       }).catch(() => {});
     }
 
-    const result = await syncOnlineDailySalesDay(databaseId, date);
+    const result = await syncOnlineDailySalesDay(databaseId, date, channelInstanceId);
     if (result.totalSales === 0) {
       return NextResponse.json({ success: false, message: 'No sales found for this date/channel.' });
     }
@@ -85,8 +90,8 @@ export async function POST(req: Request) {
         source: 'xero_sync',
         title: 'Xero Sync Failed — Online Daily Batch',
         message: `Online daily sales batch ${date} failed. ${err?.message ?? 'Unknown error'}`,
-        detail: { date, channel, error: err?.message ?? String(err) },
-        dedupeKey: `xero:online-batch:${date}`,
+        detail: { date, channel, channelInstanceId, error: err?.message ?? String(err) },
+        dedupeKey: `xero:online-batch:${channelInstanceId}:${date}`,
         dedupeMinutes: 60,
       }).catch(() => {});
     }).catch(() => {});

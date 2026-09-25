@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
-import { decrypt } from '@/lib/encryption';
+import { getContactChannelMapping } from '@/lib/ims/contactChannelMappings';
 import { LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 import {
   ShopifyCustomerAccountAuthError,
@@ -10,7 +10,7 @@ import {
 } from '@/lib/loyalty/ShopifyCustomerAccountAuth';
 import { ShopifyRewardIssuanceService } from '@/lib/loyalty/ShopifyRewardIssuanceService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 import { ShopifyAdminUserError, ShopifyService } from '@/services/ShopifyService';
 
 const CORS_HEADERS = {
@@ -81,9 +81,17 @@ export async function POST(request: Request) {
     return json({ error: 'Invalid Shopify session token.' }, 401);
   }
 
-  let connection;
+  let instance;
   try {
-    connection = await ConnectionsRepository.getByShopifyShopDomain(identity.shopDomain);
+    const instances = await query<{ business_id: string; channel_instance_id: string }>(
+      `SELECT business_id, channel_instance_id
+         FROM sales_channel_instances
+        WHERE provider = 'shopify' AND external_account_key = ?
+          AND is_enabled = 1 AND runtime_status = 'active' AND readiness_status = 'ready'
+        LIMIT 2`,
+      [identity.shopDomain],
+    );
+    instance = instances.length === 1 ? instances[0] : null;
   } catch (error) {
     await reportRuntimeIssue({
       source: 'shopify_loyalty',
@@ -94,34 +102,32 @@ export async function POST(request: Request) {
     });
     return json({ error: 'The Shopify store could not be resolved.' }, 500);
   }
-  if (!connection?.shopify_shop_id) {
+  if (!instance) {
     return json({ error: 'This Shopify store is not connected to Solvantis.' }, 403);
   }
 
-  const businessId = connection.business_id;
+  const businessId = instance.business_id;
+  const channelInstanceId = instance.channel_instance_id;
   try {
-    const { resolveShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const credentials = await resolveShopifyAdminCredentials(businessId, connection);
+    const context = await getShopifyOperationContext({ businessId, channelInstanceId });
     return await runImsForBusiness(businessId, async () => {
-      const contacts = await imsQuery<{ id: number }>(
-        `SELECT id
-           FROM ims_contacts
-          WHERE business_id = ? AND shopify_customer_id = ? AND is_active = 1
-            AND loyalty_member = 1 AND type IN ('retail_customer','b2b_customer','both')
-          LIMIT 2`,
-        [businessId, identity.shopifyCustomerId],
-      );
-      if (contacts.length !== 1) {
+      const mapping = await getContactChannelMapping({
+        businessId,
+        channelInstanceId,
+        externalCustomerId: identity.shopifyCustomerId,
+      });
+      if (!mapping || mapping.mappingStatus !== 'linked') {
         return json({ error: 'An enrolled loyalty customer could not be resolved.' }, 403);
       }
 
       const result = await ShopifyRewardIssuanceService.issue({
         businessId,
-        contactId: Number(contacts[0].id),
+        channelInstanceId,
+        contactId: mapping.contactId,
         rewardId,
-        idempotencyKey: `shopify-account:${identity.shopifyCustomerId}:${requestKey}`,
+        idempotencyKey: `shopify-account:${channelInstanceId}:${identity.shopifyCustomerId}:${requestKey}`,
         actorId: `shopify-customer:${identity.shopifyCustomerId}`,
-        shopify: new ShopifyService(credentials.shopDomain, credentials.token),
+        shopify: new ShopifyService(context.credentials.shopDomain, context.credentials.token),
       });
       return json({
         success: true,
@@ -144,7 +150,7 @@ export async function POST(request: Request) {
       operation: 'customer_account_claim_reward',
       title: 'Shopify customer reward claim failed',
       error,
-      context: { shopDomain: identity.shopDomain, shopifyCustomerId: identity.shopifyCustomerId, rewardId },
+      context: { channelInstanceId, shopDomain: identity.shopDomain, shopifyCustomerId: identity.shopifyCustomerId, rewardId },
       reference: { type: 'shopify_customer', id: identity.shopifyCustomerId },
     });
     return json({ error: 'The reward could not be issued. Retry using the same request.' }, 502);

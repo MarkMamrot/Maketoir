@@ -4,6 +4,8 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { assertShopifyExternalProductOwnership } from '@/lib/channels/shopifyProductOperationContext';
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +17,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       databaseId,
+      channelInstanceId,
       sku,
       title,
       websiteDescription,
@@ -22,6 +25,7 @@ export async function POST(req: Request) {
       images = [],
     }: {
       databaseId: string;
+      channelInstanceId: string;
       sku: string;
       title: string;
       websiteDescription: string;
@@ -32,6 +36,7 @@ export async function POST(req: Request) {
     if (!databaseId || !sku) {
       return NextResponse.json({ error: 'Missing databaseId or sku' }, { status: 400 });
     }
+    if (!String(channelInstanceId ?? '').trim()) return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
     const user = JSON.parse(session.value);
     if (databaseId !== user.businessId) {
       return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
@@ -48,11 +53,7 @@ export async function POST(req: Request) {
     }
     const hdrs = connRows[0] as string[];
     const vals = connRows[1] as string[];
-    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const credentials = await getShopifyAdminCredentials(databaseId);
-    if (!credentials) {
-      return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
-    }
+    const { credentials } = await getShopifyOperationContext({ businessId: databaseId, channelInstanceId });
     const shopName = credentials.shopName;
     const accessToken = credentials.token;
     const shopifyAdminBase = `https://${credentials.shopDomain}/admin/api/2024-01`;
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
       );
     }
     const shopifyProductId = String(matchedEdge.node.product.legacyResourceId);
+    await assertShopifyExternalProductOwnership({ businessId: databaseId, channelInstanceId, externalProductId: shopifyProductId });
 
     const shopify = new ShopifyService(shopName, accessToken);
 

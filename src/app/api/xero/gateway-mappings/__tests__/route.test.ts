@@ -33,7 +33,7 @@ function postRequest(body: unknown): Request {
   return new Request('http://localhost/api/xero/gateway-mappings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...(body as Record<string, unknown>), channelInstanceId: 'store-1' }),
   });
 }
 
@@ -43,7 +43,7 @@ describe('/api/xero/gateway-mappings', () => {
     mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1' }, response: null });
     mockAssertBusinessAccess.mockReturnValue(null);
     mockExecute.mockResolvedValue({ affectedRows: 1 });
-    mockQuery.mockResolvedValue([]);
+    mockQuery.mockResolvedValue([{ channel_instance_id: 'store-1' }]);
     mockXeroApiFetch.mockResolvedValue({ Accounts: [
       { AccountID: 'bank-91', Code: '091', Name: null, Status: 'ACTIVE', Type: 'BANK' },
       { AccountID: 'bank-92', Code: '092', Name: null, Status: 'ACTIVE', Type: 'BANK' },
@@ -54,7 +54,7 @@ describe('/api/xero/gateway-mappings', () => {
   it('returns fee tax treatment with each mapping', async () => {
     mockQuery.mockResolvedValueOnce([{ gateway_name: 'shopify_payments', fee_tax_type: 'INPUT' }]);
 
-    const response = await GET(new NextRequest('http://localhost/api/xero/gateway-mappings?databaseId=biz-1'));
+    const response = await GET(new NextRequest('http://localhost/api/xero/gateway-mappings?databaseId=biz-1&channelInstanceId=store-1'));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -73,7 +73,7 @@ describe('/api/xero/gateway-mappings', () => {
 
     expect(response.status).toBe(200);
     expect(mockExecute.mock.calls[0][1]).toEqual([
-      'biz-1', 'shopify_payments', 'Shopify Payments', '091', null, '404', null, 'INPUT', 0, 0, 0,
+      'biz-1', 'store-1', 'shopify_payments', 'Shopify Payments', '091', null, '404', null, 'INPUT', 0, 0, 0,
     ]);
   });
 
@@ -91,7 +91,7 @@ describe('/api/xero/gateway-mappings', () => {
 
     expect(response.status).toBe(200);
     expect(mockExecute.mock.calls[0][1]).toEqual([
-      'biz-1', 'afterpay', 'Afterpay', '092', null, '404', null, 'NONE', 1, 0.3, 1,
+      'biz-1', 'store-1', 'afterpay', 'Afterpay', '092', null, '404', null, 'NONE', 1, 0.3, 1,
     ]);
   });
 
@@ -107,7 +107,7 @@ describe('/api/xero/gateway-mappings', () => {
 
     expect(response.status).toBe(200);
     expect(mockExecute.mock.calls[0][1]).toEqual([
-      'biz-1', 'paypal', 'paypal', '092', null, '404', null, null, 0, 0.3, 1,
+      'biz-1', 'store-1', 'paypal', 'paypal', '092', null, '404', null, null, 0, 0.3, 1,
     ]);
   });
 
@@ -150,7 +150,7 @@ describe('/api/xero/gateway-mappings', () => {
       headers: { 'Content-Type': 'application/json' },
     }));
 
-    const response = await GET(new NextRequest('http://localhost/api/xero/gateway-mappings?databaseId=other'));
+    const response = await GET(new NextRequest('http://localhost/api/xero/gateway-mappings?databaseId=other&channelInstanceId=store-1'));
 
     expect(response.status).toBe(403);
     expect(mockQuery).not.toHaveBeenCalled();

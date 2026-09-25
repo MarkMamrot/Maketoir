@@ -10,7 +10,7 @@ vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/loyalty/LoyaltyService', () => ({ LoyaltyService: { getSettings: mocks.getSettings } }));
 vi.mock('@/lib/loyalty/LoyaltyPortalProfile', () => ({ LoyaltyPortalProfileRepository: { getByBusinessId: mocks.getProfile } }));
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mocks.getPool }));
-vi.mock('@/lib/ims/shopifyCustomerSync', () => ({ syncRetailCustomerToShopify: mocks.syncShopify }));
+vi.mock('@/lib/ims/shopifyCustomerSync', () => ({ syncRetailCustomerToMappedShopifyInstances: mocks.syncShopify }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({ ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mocks.syncMetafields } }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
@@ -30,7 +30,7 @@ describe('/api/pos/customers', () => {
     mocks.getConnection.mockResolvedValue({ execute: mocks.execute, beginTransaction: mocks.begin, commit: mocks.commit, rollback: mocks.rollback, release: mocks.release });
     mocks.getPool.mockReturnValue({ getConnection: mocks.getConnection });
     mocks.execute.mockResolvedValueOnce([[]]).mockResolvedValueOnce([{ insertId: 42 }]).mockResolvedValue([{ affectedRows: 1 }]);
-    mocks.syncShopify.mockResolvedValue({ success: false, action: 'skipped', reason: 'Shopify credentials not configured.' });
+    mocks.syncShopify.mockResolvedValue({ action: 'skipped', attempted: 0, updated: 0, failed: 0 });
     mocks.syncMetafields.mockResolvedValue({ status: 'skipped' });
   });
 

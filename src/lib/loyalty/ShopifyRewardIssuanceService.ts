@@ -67,6 +67,7 @@ function issuedResult(
 export const ShopifyRewardIssuanceService = {
   async issue(input: {
     businessId: string;
+    channelInstanceId?: string;
     contactId: number;
     rewardId: number;
     idempotencyKey: string;
@@ -102,15 +103,28 @@ export const ShopifyRewardIssuanceService = {
       if (String(settings[0]?.value ?? '0') !== '1') {
         throw new LoyaltyValidationError('The loyalty program is switched off.');
       }
-      const [contacts] = await connection.execute<RowDataPacket[]>(
-        `SELECT shopify_customer_id
-           FROM ims_contacts
-          WHERE id = ? AND business_id = ? AND is_active = 1 AND loyalty_member = 1
-            AND type IN ('retail_customer','b2b_customer','both')
-          LIMIT 1
-          FOR UPDATE`,
-        [input.contactId, input.businessId],
-      );
+      const [contacts] = input.channelInstanceId
+        ? await connection.execute<RowDataPacket[]>(
+            `SELECT mapping.external_customer_id AS shopify_customer_id
+               FROM ims_contacts contact
+               JOIN ims_contact_channel_mappings mapping
+                 ON mapping.business_id = contact.business_id AND mapping.contact_id = contact.id
+                AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+              WHERE contact.id = ? AND contact.business_id = ? AND contact.is_active = 1 AND contact.loyalty_member = 1
+                AND contact.type IN ('retail_customer','b2b_customer','both')
+              LIMIT 1
+              FOR UPDATE`,
+            [input.channelInstanceId, input.contactId, input.businessId],
+          )
+        : await connection.execute<RowDataPacket[]>(
+            `SELECT shopify_customer_id
+               FROM ims_contacts
+              WHERE id = ? AND business_id = ? AND is_active = 1 AND loyalty_member = 1
+                AND type IN ('retail_customer','b2b_customer','both')
+              LIMIT 1
+              FOR UPDATE`,
+            [input.contactId, input.businessId],
+          );
       const shopifyCustomerId = String(contacts[0]?.shopify_customer_id ?? '').trim();
       if (!shopifyCustomerId) {
         throw new LoyaltyValidationError('This loyalty customer is not linked to a Shopify customer.');
@@ -164,7 +178,7 @@ export const ShopifyRewardIssuanceService = {
         operation: 'issue_reward_code',
         title: 'Shopify loyalty reward code issuance failed',
         error,
-        context: { contactId: input.contactId, rewardId: input.rewardId, redemptionId: prepared.reservation.redemptionId },
+        context: { channelInstanceId: input.channelInstanceId ?? null, contactId: input.contactId, rewardId: input.rewardId, redemptionId: prepared.reservation.redemptionId },
         reference: { type: 'loyalty_redemption', id: prepared.reservation.redemptionId },
       });
       let recovered: { id: string; code: string } | null = null;
@@ -173,6 +187,7 @@ export const ShopifyRewardIssuanceService = {
       } catch {
         await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
           businessId: input.businessId,
+          channelInstanceId: input.channelInstanceId,
           contactId: input.contactId,
         });
         throw error;
@@ -188,12 +203,14 @@ export const ShopifyRewardIssuanceService = {
         }));
         await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
           businessId: input.businessId,
+          channelInstanceId: input.channelInstanceId,
           contactId: input.contactId,
         });
         throw error;
       } else {
         await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
           businessId: input.businessId,
+          channelInstanceId: input.channelInstanceId,
           contactId: input.contactId,
         });
         throw error;
@@ -209,6 +226,7 @@ export const ShopifyRewardIssuanceService = {
     }));
     await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
       businessId: input.businessId,
+      channelInstanceId: input.channelInstanceId,
       contactId: input.contactId,
     });
     return issuedResult(base, discount);

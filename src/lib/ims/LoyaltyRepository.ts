@@ -277,16 +277,29 @@ export const LoyaltyRepository = {
     businessId: string,
     voucherCode: string,
     shopifyCustomerId: string,
+    channelInstanceId?: string,
   ): Promise<boolean> {
-    const result = await imsExecute(
-      `UPDATE loyalty_redemptions r
-         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
-         JOIN ims_contacts c ON c.id = a.contact_id AND c.business_id = r.business_id
-          SET r.status = 'used', r.used_at = COALESCE(r.used_at, NOW())
-        WHERE r.business_id = ? AND r.status = 'issued' AND r.voucher_code = ?
-          AND c.shopify_customer_id = ?`,
-      [businessId, voucherCode.trim().toUpperCase(), shopifyCustomerId],
-    );
+    const result = channelInstanceId
+      ? await imsExecute(
+        `UPDATE loyalty_redemptions r
+           JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+           JOIN ims_contact_channel_mappings mapping
+             ON mapping.business_id = r.business_id AND mapping.contact_id = a.contact_id
+            AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+            AND mapping.external_customer_id = ?
+            SET r.status = 'used', r.used_at = COALESCE(r.used_at, NOW())
+          WHERE r.business_id = ? AND r.status = 'issued' AND r.voucher_code = ?`,
+        [channelInstanceId, shopifyCustomerId, businessId, voucherCode.trim().toUpperCase()],
+      )
+      : await imsExecute(
+        `UPDATE loyalty_redemptions r
+           JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+           JOIN ims_contacts c ON c.id = a.contact_id AND c.business_id = r.business_id
+            SET r.status = 'used', r.used_at = COALESCE(r.used_at, NOW())
+          WHERE r.business_id = ? AND r.status = 'issued' AND r.voucher_code = ?
+            AND c.shopify_customer_id = ?`,
+        [businessId, voucherCode.trim().toUpperCase(), shopifyCustomerId],
+      );
     return Number(result.affectedRows) > 0;
   },
 

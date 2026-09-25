@@ -32,16 +32,16 @@ function auth(req: NextRequest) {
   return { response: denied, businessId };
 }
 
-async function getOnlineBatchMeta(businessId: string, batchDate: string): Promise<{
+async function getOnlineBatchMeta(businessId: string, channelInstanceId: string, batchDate: string): Promise<{
   xero_invoice_id: string | null;
   payout_managed: boolean;
 }> {
   const rows = await query<any>(
     `SELECT xero_invoice_id, payout_managed
        FROM xero_online_batches
-      WHERE business_id = ? AND batch_date = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND batch_date = ?
       LIMIT 1`,
-    [businessId, batchDate],
+    [businessId, channelInstanceId, batchDate],
   );
   const row = rows[0];
   return {
@@ -60,18 +60,23 @@ const statusPriority: Record<string, number> = {
   reconciled: 6,
 };
 
-async function findLinkedPayoutByInvoice(businessId: string, xeroInvoiceId: string): Promise<LinkedPayout | null> {
+async function findLinkedPayoutByInvoice(
+  businessId: string,
+  channelInstanceId: string,
+  xeroInvoiceId: string,
+): Promise<LinkedPayout | null> {
   const rows = await query<any>(
     `SELECT p.shopify_payout_id, p.reconciliation_status, p.error_detail, p.updated_at, p.reconciled_at
        FROM shopify_payment_xero_actions a
        JOIN shopify_payment_payouts p
          ON p.business_id = a.business_id
+        AND p.channel_instance_id = a.channel_instance_id
         AND p.shopify_payout_id = a.shopify_payout_id
-      WHERE a.business_id = ?
+      WHERE a.business_id = ? AND a.channel_instance_id = ?
         AND a.action_type = 'invoice_payment'
         AND a.target_xero_document_id = ?
       GROUP BY p.shopify_payout_id, p.reconciliation_status, p.error_detail, p.updated_at, p.reconciled_at`,
-    [businessId, xeroInvoiceId],
+    [businessId, channelInstanceId, xeroInvoiceId],
   );
   if (!rows.length) return null;
 
@@ -95,14 +100,18 @@ function dayLookbackMin(batchDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-async function discoverPayoutForBatch(businessId: string, batchDate: string): Promise<{
+async function discoverPayoutForBatch(
+  businessId: string,
+  channelInstanceId: string,
+  batchDate: string,
+): Promise<{
   discovered: number;
   processed: number;
   failed: number;
   payout: LinkedPayout | null;
   invoiceId: string | null;
 }> {
-  const meta = await getOnlineBatchMeta(businessId, batchDate);
+  const meta = await getOnlineBatchMeta(businessId, channelInstanceId, batchDate);
   if (!meta.payout_managed || !meta.xero_invoice_id) {
     return {
       discovered: 0,
@@ -113,7 +122,7 @@ async function discoverPayoutForBatch(businessId: string, batchDate: string): Pr
     };
   }
 
-  let payout = await findLinkedPayoutByInvoice(businessId, meta.xero_invoice_id);
+  let payout = await findLinkedPayoutByInvoice(businessId, channelInstanceId, meta.xero_invoice_id);
   if (payout) {
     return {
       discovered: 0,
@@ -124,10 +133,7 @@ async function discoverPayoutForBatch(businessId: string, batchDate: string): Pr
     };
   }
 
-  const creds = await getShopifyApiCreds(businessId);
-  if (!creds) {
-    throw new Error('Shopify credentials are unavailable. Configure Shopify connection first.');
-  }
+  const creds = await getShopifyApiCreds(businessId, channelInstanceId);
 
   let discovered = 0;
   let processed = 0;
@@ -138,7 +144,7 @@ async function discoverPayoutForBatch(businessId: string, batchDate: string): Pr
     discovered = payouts.length;
     for (const payoutPayload of payouts) {
       try {
-        await ingestShopifyPayout(businessId, payoutPayload, creds);
+        await ingestShopifyPayout(businessId, channelInstanceId, payoutPayload, creds);
         processed += 1;
       } catch {
         failed += 1;
@@ -146,7 +152,7 @@ async function discoverPayoutForBatch(businessId: string, batchDate: string): Pr
     }
   });
 
-  payout = await findLinkedPayoutByInvoice(businessId, meta.xero_invoice_id);
+  payout = await findLinkedPayoutByInvoice(businessId, channelInstanceId, meta.xero_invoice_id);
   return {
     discovered,
     processed,
@@ -167,11 +173,15 @@ export async function POST(req: NextRequest, { params }: { params: { batchDate: 
 
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? 'sync').toLowerCase();
+  const channelInstanceId = String(body.channelInstanceId ?? req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
+  if (!channelInstanceId) {
+    return NextResponse.json({ error: 'channelInstanceId is required.' }, { status: 400 });
+  }
   if (!['sync', 'process'].includes(action)) {
     return NextResponse.json({ error: 'action must be sync or process.' }, { status: 400 });
   }
 
-  const meta = await getOnlineBatchMeta(authn.businessId, batchDate);
+  const meta = await getOnlineBatchMeta(authn.businessId, channelInstanceId, batchDate);
   if (!meta.payout_managed) {
     return NextResponse.json({
       success: false,
@@ -187,7 +197,7 @@ export async function POST(req: NextRequest, { params }: { params: { batchDate: 
     }, { status: 409 });
   }
 
-  const discovery = await discoverPayoutForBatch(authn.businessId, batchDate);
+  const discovery = await discoverPayoutForBatch(authn.businessId, channelInstanceId, batchDate);
   if (!discovery.payout) {
     return NextResponse.json({
       success: false,
@@ -224,7 +234,7 @@ export async function POST(req: NextRequest, { params }: { params: { batchDate: 
   let effectiveStatus = payoutStatus;
   if (['blocked', 'ready_to_allocate', 'ingesting', 'waiting_for_paid'].includes(effectiveStatus)) {
     const plan = await runImsForBusiness(authn.businessId, () =>
-      planShopifyPayoutActions(authn.businessId, payoutId),
+      planShopifyPayoutActions(authn.businessId, channelInstanceId, payoutId),
     );
     if (plan.status === 'blocked') {
       return NextResponse.json({
@@ -250,7 +260,7 @@ export async function POST(req: NextRequest, { params }: { params: { batchDate: 
 
   try {
     await assertXeroWorkflowEnabled(authn.businessId, 'shopifyPayoutPostingEnabled');
-    const exec = await executeShopifyPayoutActions(authn.businessId, payoutId);
+    const exec = await executeShopifyPayoutActions(authn.businessId, channelInstanceId, payoutId);
     return NextResponse.json({
       success: exec.status === 'reconciled',
       settlementStatus: exec.status === 'reconciled' ? 'success' : 'non_success',

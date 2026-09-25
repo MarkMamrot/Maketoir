@@ -13,8 +13,10 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const locationId = searchParams.get('location_id');
+  const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
+  if (!channelInstanceId) return NextResponse.json({ success: false, error: 'Select a sales channel.' }, { status: 400 });
 
-  const params: any[] = [businessId];
+  const params: any[] = [businessId, channelInstanceId];
   const locWhere = locationId ? 'AND so.location_id = ?' : '';
   if (locationId) params.push(Number(locationId));
 
@@ -50,13 +52,13 @@ export async function GET(req: NextRequest) {
          GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') AS locations
        FROM ims_sales_orders so
        LEFT JOIN ims_locations l ON l.id = so.location_id
-       WHERE so.so_type = 'online' AND so.business_id = ? ${locWhere}
+      WHERE so.so_type = 'online' AND so.business_id = ? AND so.channel_instance_id = ? ${locWhere}
        GROUP BY DATE_FORMAT(so.order_date, '%Y-%m-%d')
        ORDER BY day DESC`,
       params,
     );
 
-    const refundParams: any[] = [businessId];
+    const refundParams: any[] = [businessId, channelInstanceId];
     const refundLocWhere = locationId ? 'AND cn.location_id = ?' : '';
     if (locationId) refundParams.push(Number(locationId));
     const refundRows = await imsQuery<{ day: string; total: string }>(
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest) {
              FROM ims_credit_note_items
             GROUP BY cn_id
          ) items ON items.cn_id = cn.id
-        WHERE cn.business_id = ? AND cn.source = 'shopify' AND cn.status = 'complete' ${refundLocWhere}
+        WHERE cn.business_id = ? AND cn.channel_instance_id = ? AND cn.source = 'shopify' AND cn.status = 'complete' ${refundLocWhere}
         GROUP BY DATE_FORMAT(cn.cn_date, '%Y-%m-%d')`,
       refundParams,
     );
@@ -90,7 +92,7 @@ export async function GET(req: NextRequest) {
     const xeroSyncMap: Record<string, 'ok' | 'err'> = {};
     if (rows.length > 0) {
       const dates = rows.map((r: any) => String(r.day).slice(0, 10));
-      const detailKeys = dates.map((d: string) => `online batch ${d}`);
+      const detailKeys = dates.map((d: string) => `online batch ${channelInstanceId} ${d}`);
       const syncRows = await query<{ batch_key: string; status: string }>(
         `SELECT detail AS batch_key, status
          FROM xero_sync_log
@@ -105,7 +107,7 @@ export async function GET(req: NextRequest) {
       ).catch(() => []);
       for (const r of syncRows) {
         // Strip the 'online batch ' prefix to get the date key
-        const dateKey = String(r.batch_key).replace('online batch ', '').slice(0, 10);
+        const dateKey = String(r.batch_key).replace(`online batch ${channelInstanceId} `, '').slice(0, 10);
         xeroSyncMap[dateKey] = r.status === 'success' ? 'ok' : 'err';
       }
     }

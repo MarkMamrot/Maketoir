@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetImsSession, mockConnectionsGet, mockDecrypt, mockImsQuery, mockSyncCustomer, mockShopifyCtor, mockReportRuntimeIssue } = vi.hoisted(() => ({
+const { mockGetImsSession, mockGetOperationContext, mockImsQuery, mockSyncCustomer, mockShopifyCtor, mockReportRuntimeIssue } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
-  mockConnectionsGet: vi.fn(),
-  mockDecrypt: vi.fn(),
+  mockGetOperationContext: vi.fn(),
   mockImsQuery: vi.fn(),
   mockSyncCustomer: vi.fn(),
   mockShopifyCtor: vi.fn(),
@@ -11,11 +10,10 @@ const { mockGetImsSession, mockConnectionsGet, mockDecrypt, mockImsQuery, mockSy
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
-vi.mock('@/lib/ims/businessOperations', () => ({
-  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({
+  getShopifyOperationContext: mockGetOperationContext,
+  ShopifyOperationContextError: class ShopifyOperationContextError extends Error {},
 }));
-vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockConnectionsGet } }));
-vi.mock('@/lib/encryption', () => ({ decrypt: mockDecrypt }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
   ShopifyLoyaltyMetafieldService: { syncCustomer: mockSyncCustomer },
@@ -39,10 +37,9 @@ describe('POST /api/ims/loyalty/shopify-metafields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetImsSession.mockResolvedValue({ businessId: 'business-1' });
-    mockConnectionsGet.mockResolvedValue({
-      shopify_shop_id: 'example.myshopify.com', shopify_access_token: 'encrypted',
+    mockGetOperationContext.mockResolvedValue({
+      credentials: { shopDomain: 'example.myshopify.com', token: 'plain-token' },
     });
-    mockDecrypt.mockReturnValue('plain-token');
     mockSyncCustomer.mockImplementation(async ({ contactId }: { contactId: number }) => ({
       status: 'synced', contactId, shopifyCustomerId: String(contactId), balancePoints: 10,
     }));
@@ -51,35 +48,43 @@ describe('POST /api/ims/loyalty/shopify-metafields', () => {
 
   it('requires an authenticated IMS session', async () => {
     mockGetImsSession.mockResolvedValue(null);
-    const response = await POST(request({ contactId: 42 }));
+    const response = await POST(request({ channelInstanceId: 'instance-1', contactId: 42 }));
     expect(response.status).toBe(401);
     expect(mockSyncCustomer).not.toHaveBeenCalled();
   });
 
-  it('syncs one customer using tenant Shopify credentials', async () => {
+  it('requires an explicit Shopify storefront', async () => {
     const response = await POST(request({ contactId: 42 }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'channelInstanceId is required.' });
+    expect(mockGetOperationContext).not.toHaveBeenCalled();
+  });
+
+  it('syncs one customer using exact storefront credentials', async () => {
+    const response = await POST(request({ channelInstanceId: 'instance-1', contactId: 42 }));
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ success: true, processed: 1, synced: 1, hasMore: false });
     expect(mockShopifyCtor).toHaveBeenCalledWith('example.myshopify.com', 'plain-token');
-    expect(mockSyncCustomer).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'business-1', contactId: 42 }));
+    expect(mockGetOperationContext).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'instance-1' });
+    expect(mockSyncCustomer).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'business-1', channelInstanceId: 'instance-1', contactId: 42 }));
     expect(mockImsQuery).not.toHaveBeenCalled();
   });
 
   it('returns a stable cursor for a bounded bulk catch-up page', async () => {
     mockImsQuery.mockResolvedValue([{ id: 10 }, { id: 11 }, { id: 12 }]);
-    const response = await POST(request({ afterId: 5, limit: 2 }));
+    const response = await POST(request({ channelInstanceId: 'instance-1', afterId: 5, limit: 2 }));
     const body = await response.json();
 
-    expect(mockImsQuery).toHaveBeenCalledWith(expect.stringMatching(/business_id = \?[\s\S]*is_active = 1[\s\S]*LIMIT 3/), ['business-1', 5]);
+    expect(mockImsQuery).toHaveBeenCalledWith(expect.stringMatching(/business_id = \?[\s\S]*is_active = 1[\s\S]*LIMIT 3/), ['instance-1', 'business-1', 5]);
     expect(mockSyncCustomer.mock.calls.map(call => call[0].contactId)).toEqual([10, 11]);
     expect(body).toMatchObject({ processed: 2, synced: 2, nextAfterId: 11, hasMore: true });
   });
 
   it('reports unexpected batch discovery failures without exposing their details', async () => {
     mockImsQuery.mockRejectedValue(new Error('database unavailable'));
-    const response = await POST(request({ afterId: 5, limit: 2 }));
+    const response = await POST(request({ channelInstanceId: 'instance-1', afterId: 5, limit: 2 }));
     const body = await response.json();
 
     expect(response.status).toBe(500);

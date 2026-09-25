@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
 
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { XeroWorkflowDisabledError } from '@/lib/xero/postingPolicy';
 import { execute, query } from '@/services/MySQLService';
@@ -14,6 +16,7 @@ type XeroFetchFn = (businessId: string, path: string, options?: {
 }) => Promise<any>;
 
 export interface ShopifyPayoutExecutorDependencies {
+  getShopifyContext: typeof getShopifyOperationContext;
   getPolicy: typeof getXeroDocumentPolicy;
   mainQuery: QueryFn;
   mainExecute: ExecuteFn;
@@ -22,6 +25,8 @@ export interface ShopifyPayoutExecutorDependencies {
 
 interface PayoutActionRow {
   id: number;
+  channel_instance_id: string;
+  payout_channel_instance_id: string;
   action_key: string;
   action_type: 'invoice_payment' | 'fee_spend' | 'fee_receive' | 'credit_note_refund' | 'adjustment_spend' | 'adjustment_receive';
   target_xero_document_id: string | null;
@@ -43,6 +48,7 @@ export interface ShopifyPayoutExecutionResult {
 }
 
 const defaultDependencies: ShopifyPayoutExecutorDependencies = {
+  getShopifyContext: getShopifyOperationContext,
   getPolicy: getXeroDocumentPolicy,
   mainQuery: (sql, params) => query(sql, params as any[]),
   mainExecute: (sql, params) => execute(sql, params as any[]),
@@ -63,8 +69,8 @@ function stableStringify(value: unknown): string {
   return `{${Object.keys(value as Record<string, unknown>).sort().map(key => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`).join(',')}}`;
 }
 
-function idempotencyKey(businessId: string, actionKey: string, path: string, body: unknown): string {
-  return createHash('sha256').update(`${businessId}|${actionKey}|${path}|${stableStringify(body)}`).digest('hex');
+function idempotencyKey(businessId: string, channelInstanceId: string, actionKey: string, path: string, body: unknown): string {
+  return createHash('sha256').update(`${businessId}|${channelInstanceId}|${actionKey}|${path}|${stableStringify(body)}`).digest('hex');
 }
 
 async function preflightActions(
@@ -140,6 +146,7 @@ async function preflightActions(
 
 async function postAction(
   businessId: string,
+  channelInstanceId: string,
   action: PayoutActionRow,
   deps: ShopifyPayoutExecutorDependencies,
 ): Promise<string> {
@@ -158,7 +165,7 @@ async function postAction(
     }] };
     const response = await deps.xeroFetch(businessId, '/Payments', {
       method: 'POST',
-      idempotencyKey: idempotencyKey(businessId, action.action_key, '/Payments', body),
+      idempotencyKey: idempotencyKey(businessId, channelInstanceId, action.action_key, '/Payments', body),
       body,
     });
     const paymentId = response?.Payments?.[0]?.PaymentID;
@@ -183,7 +190,7 @@ async function postAction(
   }] };
   const response = await deps.xeroFetch(businessId, '/BankTransactions', {
     method: 'POST',
-    idempotencyKey: idempotencyKey(businessId, action.action_key, '/BankTransactions', body),
+    idempotencyKey: idempotencyKey(businessId, channelInstanceId, action.action_key, '/BankTransactions', body),
     body,
   });
   const bankTransactionId = response?.BankTransactions?.[0]?.BankTransactionID;
@@ -193,28 +200,49 @@ async function postAction(
 
 export async function executeShopifyPayoutActions(
   businessId: string,
+  channelInstanceId: string,
   payoutId: string,
   deps: ShopifyPayoutExecutorDependencies = defaultDependencies,
 ): Promise<ShopifyPayoutExecutionResult> {
+  const context = await deps.getShopifyContext({ businessId, channelInstanceId });
+  const policy = await deps.getPolicy(businessId);
+  if (
+    !policy.postingEnabled
+    || !policy.shopifyPayoutPostingEnabled
+    || !shopifyInstanceSettings(context.instance.settings).xero.payoutPostingEnabled
+  ) {
+    throw new XeroWorkflowDisabledError('shopifyPayoutPostingEnabled');
+  }
+
   const actions = await deps.mainQuery(
-    `SELECT id, action_key, action_type, target_xero_document_id, action_date, amount,
-            currency, account_code, offset_account_code, tax_type, reference, status, xero_id
-       FROM shopify_payment_xero_actions
-      WHERE business_id = ? AND shopify_payout_id = ?
+    `SELECT a.id, a.channel_instance_id, p.channel_instance_id AS payout_channel_instance_id,
+            a.action_key, a.action_type, a.target_xero_document_id, a.action_date, a.amount,
+            a.currency, a.account_code, a.offset_account_code, a.tax_type, a.reference, a.status, a.xero_id
+       FROM shopify_payment_xero_actions a
+       JOIN shopify_payment_payouts p
+         ON p.business_id = a.business_id
+        AND p.channel_instance_id = a.channel_instance_id
+        AND p.shopify_payout_id = a.shopify_payout_id
+      WHERE a.business_id = ? AND a.channel_instance_id = ? AND a.shopify_payout_id = ?
       ORDER BY CASE action_type
         WHEN 'invoice_payment' THEN 1
         WHEN 'credit_note_refund' THEN 2
         WHEN 'fee_spend' THEN 3
         ELSE 4 END, id`,
-    [businessId, payoutId],
+    [businessId, channelInstanceId, payoutId],
   ) as PayoutActionRow[];
   if (actions.length === 0) {
-    return { status: 'blocked', completedActionIds: [], error: `Payout ${payoutId} has no planned Xero actions` };
+    return { status: 'blocked', completedActionIds: [], error: `Payout ${payoutId} has no planned Xero actions for this Shopify store` };
+  }
+  if (actions.some(action => (
+    String(action.channel_instance_id) !== channelInstanceId
+    || String(action.payout_channel_instance_id) !== channelInstanceId
+  ))) {
+    return { status: 'blocked', completedActionIds: [], error: `Payout ${payoutId} has mismatched Shopify store ownership` };
   }
 
   const pendingActions = actions.filter(action => action.status !== 'completed');
   if (pendingActions.some(action => action.action_type === 'credit_note_refund')) {
-    const policy = await deps.getPolicy(businessId);
     if (!policy.shopifyRefundCreditNoteEnabled) {
       throw new XeroWorkflowDisabledError('shopifyRefundCreditNoteEnabled');
     }
@@ -225,8 +253,8 @@ export async function executeShopifyPayoutActions(
     await deps.mainExecute(
       `UPDATE shopify_payment_payouts
           SET reconciliation_status = 'blocked', error_detail = ?
-        WHERE business_id = ? AND shopify_payout_id = ?`,
-      [error.message, businessId, payoutId],
+        WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+      [error.message, businessId, channelInstanceId, payoutId],
     );
     return { status: 'blocked', completedActionIds: [], error: error.message };
   }
@@ -238,30 +266,30 @@ export async function executeShopifyPayoutActions(
         `UPDATE shopify_payment_xero_actions
             SET status = 'posting', attempt_count = attempt_count + 1,
                 last_attempt_at = NOW(), error_detail = NULL
-          WHERE id = ? AND business_id = ?`,
-        [action.id, businessId],
+          WHERE id = ? AND business_id = ? AND channel_instance_id = ?`,
+        [action.id, businessId, channelInstanceId],
       );
-      const xeroId = await postAction(businessId, action, deps);
+      const xeroId = await postAction(businessId, channelInstanceId, action, deps);
       await deps.mainExecute(
         `UPDATE shopify_payment_xero_actions
             SET status = 'completed', xero_id = ?, completed_at = NOW(), error_detail = NULL
-          WHERE id = ? AND business_id = ?`,
-        [xeroId, action.id, businessId],
+          WHERE id = ? AND business_id = ? AND channel_instance_id = ?`,
+        [xeroId, action.id, businessId, channelInstanceId],
       );
       completedActionIds.push(action.id);
     } catch (error: any) {
       await deps.mainExecute(
         `UPDATE shopify_payment_xero_actions
             SET status = 'error', error_detail = ?
-          WHERE id = ? AND business_id = ?`,
-        [error.message, action.id, businessId],
+          WHERE id = ? AND business_id = ? AND channel_instance_id = ?`,
+        [error.message, action.id, businessId, channelInstanceId],
       );
       const status = completedActionIds.length > 0 ? 'partial' : 'blocked';
       await deps.mainExecute(
         `UPDATE shopify_payment_payouts
             SET reconciliation_status = ?, error_detail = ?
-          WHERE business_id = ? AND shopify_payout_id = ?`,
-        [status, error.message, businessId, payoutId],
+          WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+        [status, error.message, businessId, channelInstanceId, payoutId],
       );
       return { status, completedActionIds, error: error.message };
     }
@@ -270,8 +298,8 @@ export async function executeShopifyPayoutActions(
   await deps.mainExecute(
     `UPDATE shopify_payment_payouts
         SET reconciliation_status = 'reconciled', error_detail = NULL, reconciled_at = NOW()
-      WHERE business_id = ? AND shopify_payout_id = ?`,
-    [businessId, payoutId],
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+    [businessId, channelInstanceId, payoutId],
   );
   return { status: 'reconciled', completedActionIds };
 }

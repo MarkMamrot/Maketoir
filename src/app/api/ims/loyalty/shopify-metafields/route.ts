@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext, ShopifyOperationContextError } from '@/lib/channels/shopifyOperationContext';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -14,6 +14,8 @@ export async function POST(request: Request) {
   let body: Record<string, unknown> = {};
   try { body = await request.json(); } catch { /* Empty body starts a bulk sync. */ }
   const requestedContactId = body.contactId == null ? null : Number(body.contactId);
+  const channelInstanceId = typeof body.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required.' }, { status: 400 });
   if (requestedContactId != null && (!Number.isInteger(requestedContactId) || requestedContactId <= 0)) {
     return NextResponse.json({ error: 'A valid customer is required.' }, { status: 400 });
   }
@@ -22,22 +24,22 @@ export async function POST(request: Request) {
   const queryLimit = limit + 1;
 
   try {
-    const credentials = await getShopifyAdminCredentials(session.businessId);
-    if (!credentials) {
-      return NextResponse.json({ error: 'Shopify credentials are not configured.' }, { status: 400 });
-    }
-    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
+    const context = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
+    const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
 
     const contactIds = requestedContactId != null
       ? [requestedContactId]
       : (await imsQuery<{ id: number }>(
-          `SELECT id
+           `SELECT ims_contacts.id
              FROM ims_contacts
-            WHERE business_id = ? AND is_active = 1 AND shopify_customer_id IS NOT NULL
-              AND shopify_customer_id <> '' AND type IN ('retail_customer','b2b_customer','both') AND id > ?
-            ORDER BY id
+            JOIN ims_contact_channel_mappings mapping
+              ON mapping.business_id = ims_contacts.business_id AND mapping.contact_id = ims_contacts.id
+             AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+            WHERE ims_contacts.business_id = ? AND ims_contacts.is_active = 1
+              AND ims_contacts.type IN ('retail_customer','b2b_customer','both') AND ims_contacts.id > ?
+            ORDER BY ims_contacts.id
             LIMIT ${queryLimit}`,
-          [session.businessId, afterId],
+          [channelInstanceId, session.businessId, afterId],
         )).map(row => Number(row.id));
     const hasMore = requestedContactId == null && contactIds.length > limit;
     const batch = contactIds.slice(0, requestedContactId == null ? limit : 1);
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
     for (const contactId of batch) {
       results.push(await ShopifyLoyaltyMetafieldService.syncCustomer({
         businessId: session.businessId,
+        channelInstanceId,
         contactId,
         shopify,
       }));
@@ -70,6 +73,9 @@ export async function POST(request: Request) {
       context: { requestedContactId, afterId, limit },
       reference: requestedContactId == null ? undefined : { type: 'ims_contact', id: requestedContactId },
     });
+    if (error instanceof ShopifyOperationContextError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Shopify loyalty catch-up failed.' }, { status: 500 });
   }
 }

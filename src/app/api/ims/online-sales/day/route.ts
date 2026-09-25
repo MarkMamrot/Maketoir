@@ -15,10 +15,11 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date');
   const locationId = searchParams.get('location_id');
+  const channelInstanceId = (searchParams.get('channelInstanceId') ?? '').trim();
 
-  if (!date) return NextResponse.json({ success: false, error: 'date is required' }, { status: 400 });
+  if (!date || !channelInstanceId) return NextResponse.json({ success: false, error: 'date and channelInstanceId are required' }, { status: 400 });
 
-  const params: any[] = [date];
+  const params: any[] = [businessId, channelInstanceId, date];
   const locWhere = locationId ? 'AND so.location_id = ?' : '';
   if (locationId) params.push(Number(locationId));
 
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
        FROM ims_sales_orders so
        LEFT JOIN ims_contacts c ON c.id = so.customer_id
        LEFT JOIN ims_locations l ON l.id = so.location_id
-       WHERE so.so_type = 'online' AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
+      WHERE so.business_id = ? AND so.channel_instance_id = ? AND so.so_type = 'online' AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
        ${locWhere}
        ORDER BY so.order_date ASC, so.id ASC`,
       params,
@@ -220,12 +221,12 @@ export async function GET(req: NextRequest) {
     // Shop domain for building Shopify admin order links (returns are initiated there).
     let shopDomain: string | null = null;
     try {
-      const conn = await query<{ shopify_shop_id: string | null }>(
-        `SELECT shopify_shop_id FROM connections WHERE business_id = ? LIMIT 1`,
-        [businessId],
+      const channels = await query<{ external_account_key: string | null }>(
+        `SELECT external_account_key FROM sales_channel_instances
+          WHERE business_id = ? AND channel_instance_id = ? LIMIT 1`,
+        [businessId, channelInstanceId],
       );
-      const raw = conn[0]?.shopify_shop_id;
-      if (raw) shopDomain = String(raw).replace(/\.myshopify\.com$/, '') + '.myshopify.com';
+      shopDomain = channels[0]?.external_account_key ?? null;
     } catch {}
 
     return NextResponse.json({ success: true, orders: result, shopDomain });

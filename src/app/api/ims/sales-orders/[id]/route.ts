@@ -15,6 +15,7 @@ import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
+import { query } from '@/services/MySQLService';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -24,6 +25,15 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const data = await ImsSORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    let channelDisplayName: string | null = null;
+    if (data.channel_instance_id) {
+      const channels = await query<{ display_name: string }>(
+        `SELECT display_name FROM sales_channel_instances
+          WHERE business_id = ? AND channel_instance_id = ? LIMIT 1`,
+        [businessId, data.channel_instance_id],
+      );
+      channelDisplayName = channels[0]?.display_name ?? null;
+    }
     const shipments = await imsQuery<any>(
       `SELECT id, shopify_fulfilment_id, status, fulfilled_at, shopify_updated_at, 'shopify' AS source
          FROM ims_so_shipments
@@ -166,6 +176,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       success: true,
       data: {
         ...data,
+        channel_display_name: channelDisplayName,
         saleType: data.so_type === 'online' ? 'online' : data.so_type,
         sourceSystem: data.shopify_order_id ? 'shopify' : null,
         shipments,

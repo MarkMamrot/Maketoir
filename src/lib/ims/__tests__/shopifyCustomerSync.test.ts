@@ -1,49 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  mockGetConnection,
-  mockDecrypt,
-  mockImsExecute,
+  mockGetOperationContext,
+  mockGetMapping,
+  mockReportRuntimeIssue,
   mockEnableCustomer,
   mockDisableCustomer,
   mockUpdateCustomer,
-  mockFindCustomerByEmail,
-  mockCreateCustomer,
 } = vi.hoisted(() => ({
-  mockGetConnection: vi.fn(),
-  mockDecrypt: vi.fn((value: string) => value),
-  mockImsExecute: vi.fn(),
+  mockGetOperationContext: vi.fn(),
+  mockGetMapping: vi.fn(),
+  mockReportRuntimeIssue: vi.fn(),
   mockEnableCustomer: vi.fn(),
   mockDisableCustomer: vi.fn(),
   mockUpdateCustomer: vi.fn(),
-  mockFindCustomerByEmail: vi.fn(),
-  mockCreateCustomer: vi.fn(),
 }));
 
-vi.mock('@/lib/db/ConnectionsRepository', () => ({
-  ConnectionsRepository: {
-    get: mockGetConnection,
-  },
-}));
-vi.mock('@/lib/ims/businessOperations', () => ({
-  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
-}));
-
-vi.mock('@/lib/encryption', () => ({
-  decrypt: mockDecrypt,
-}));
-
-vi.mock('@/services/IMSMySQLService', () => ({
-  imsExecute: mockImsExecute,
-}));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mockGetOperationContext }));
+vi.mock('@/lib/ims/contactChannelMappings', () => ({ getContactChannelMappingForContact: mockGetMapping }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 
 vi.mock('@/services/ShopifyService', () => ({
   ShopifyService: class {
     enableCustomer = mockEnableCustomer;
     disableCustomer = mockDisableCustomer;
     updateCustomer = mockUpdateCustomer;
-    findCustomerByEmail = mockFindCustomerByEmail;
-    createCustomer = mockCreateCustomer;
   },
 }));
 
@@ -56,15 +37,22 @@ import {
 describe('shopifyCustomerSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetConnection.mockResolvedValue({
-      shopify_shop_id: 'test-shop',
-      shopify_access_token: 'token-raw',
+    mockGetMapping.mockResolvedValue({
+      id: 1,
+      businessId: 'biz-1',
+      channelInstanceId: 'store-1',
+      contactId: 101,
+      externalCustomerId: '12345',
+      mappingStatus: 'linked',
+    });
+    mockGetOperationContext.mockResolvedValue({
+      instance: { settings: { shopify: { customers: { outboundEnabled: true } } } },
+      credentials: { shopDomain: 'test-shop.myshopify.com', token: 'token-raw' },
     });
     mockEnableCustomer.mockResolvedValue(undefined);
     mockDisableCustomer.mockResolvedValue(undefined);
     mockUpdateCustomer.mockResolvedValue({});
-    mockFindCustomerByEmail.mockResolvedValue(null);
-    mockCreateCustomer.mockResolvedValue({ id: 999 });
+    mockReportRuntimeIssue.mockResolvedValue(null);
   });
 
   describe('shouldSyncRetailCustomer', () => {
@@ -134,7 +122,7 @@ describe('shopifyCustomerSync', () => {
         first_name: 'Mia',
         last_name: 'Chen',
         email: 'mia@example.com',
-      }, 'biz-1');
+      }, { businessId: 'biz-1', channelInstanceId: 'store-1' });
 
       expect(result).toEqual({ success: true, action: 'updated', shopifyCustomerId: '12345' });
       expect(mockEnableCustomer).toHaveBeenCalledWith('12345');
@@ -154,11 +142,11 @@ describe('shopifyCustomerSync', () => {
         is_active: 1,
         shopify_customer_id: '54321',
         first_name: 'Alex',
-      }, 'biz-1');
+      }, { businessId: 'biz-1', channelInstanceId: 'store-1' });
 
-      expect(result).toEqual({ success: true, action: 'updated', shopifyCustomerId: '54321' });
-      expect(mockEnableCustomer).toHaveBeenCalledWith('54321');
-      expect(mockUpdateCustomer).toHaveBeenCalledWith('54321', { first_name: 'Alex' });
+      expect(result).toEqual({ success: true, action: 'updated', shopifyCustomerId: '12345' });
+      expect(mockEnableCustomer).toHaveBeenCalledWith('12345');
+      expect(mockUpdateCustomer).toHaveBeenCalledWith('12345', { first_name: 'Alex' });
     });
 
     it('disables linked inactive retail customers', async () => {
@@ -167,11 +155,53 @@ describe('shopifyCustomerSync', () => {
         type: 'retail_customer',
         is_active: 0,
         shopify_customer_id: '777',
-      }, 'biz-1');
+      }, { businessId: 'biz-1', channelInstanceId: 'store-1' });
 
-      expect(result).toEqual({ success: true, action: 'updated', shopifyCustomerId: '777' });
-      expect(mockDisableCustomer).toHaveBeenCalledWith('777');
+      expect(result).toEqual({ success: true, action: 'updated', shopifyCustomerId: '12345' });
+      expect(mockDisableCustomer).toHaveBeenCalledWith('12345');
       expect(mockEnableCustomer).not.toHaveBeenCalled();
+      expect(mockUpdateCustomer).not.toHaveBeenCalled();
+    });
+
+    it('updates the distinct customer mapped to each exact store', async () => {
+      mockGetMapping
+        .mockResolvedValueOnce({ businessId: 'biz-1', channelInstanceId: 'store-1', contactId: 101, externalCustomerId: 'customer-a', mappingStatus: 'linked' })
+        .mockResolvedValueOnce({ businessId: 'biz-1', channelInstanceId: 'store-2', contactId: 101, externalCustomerId: 'customer-b', mappingStatus: 'linked' });
+
+      const contact = { id: 101, type: 'retail_customer', first_name: 'Mia' };
+      await syncRetailCustomerToShopify(contact, { businessId: 'biz-1', channelInstanceId: 'store-1' });
+      await syncRetailCustomerToShopify(contact, { businessId: 'biz-1', channelInstanceId: 'store-2' });
+
+      expect(mockUpdateCustomer).toHaveBeenNthCalledWith(1, 'customer-a', { first_name: 'Mia' });
+      expect(mockUpdateCustomer).toHaveBeenNthCalledWith(2, 'customer-b', { first_name: 'Mia' });
+    });
+
+    it('does not call Shopify when outbound sync uses its disabled default', async () => {
+      mockGetOperationContext.mockResolvedValue({
+        instance: { settings: {} },
+        credentials: { shopDomain: 'test-shop.myshopify.com', token: 'token-raw' },
+      });
+
+      const result = await syncRetailCustomerToShopify(
+        { id: 101, type: 'retail_customer', first_name: 'Mia' },
+        { businessId: 'biz-1', channelInstanceId: 'store-1' },
+      );
+
+      expect(result).toMatchObject({ success: false, action: 'skipped', reason: expect.stringContaining('disabled') });
+      expect(mockUpdateCustomer).not.toHaveBeenCalled();
+      expect(mockDisableCustomer).not.toHaveBeenCalled();
+    });
+
+    it('does not create or update an unmapped customer', async () => {
+      mockGetMapping.mockResolvedValue(null);
+
+      const result = await syncRetailCustomerToShopify(
+        { id: 101, type: 'retail_customer', shopify_customer_id: 'legacy-id', first_name: 'Mia' },
+        { businessId: 'biz-1', channelInstanceId: 'store-1' },
+      );
+
+      expect(result).toMatchObject({ success: false, action: 'skipped', reason: expect.stringContaining('not linked') });
+      expect(mockGetOperationContext).not.toHaveBeenCalled();
       expect(mockUpdateCustomer).not.toHaveBeenCalled();
     });
   });

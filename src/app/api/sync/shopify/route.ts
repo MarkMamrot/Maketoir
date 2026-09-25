@@ -4,7 +4,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 const SHEET_NAME = 'Shopify_Products';
@@ -61,10 +61,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
   }
 
-  const { databaseId, inStockOnly = false } = await req.json();
+  const { databaseId, channelInstanceId, inStockOnly = false } = await req.json();
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   }
+  if (!String(channelInstanceId ?? '').trim()) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
   const _u = JSON.parse(session.value);
   if (databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
@@ -74,13 +75,7 @@ export async function POST(req: Request) {
 
   try {
     // ── 1. Read Shopify credentials ─────────────────────────────────────────
-    const credentials = await getShopifyAdminCredentials(databaseId);
-    if (!credentials) {
-      return NextResponse.json(
-        { success: false, error: 'Shopify credentials not configured. Go to Setup → Connections.' },
-        { status: 400 },
-      );
-    }
+    const { credentials } = await getShopifyOperationContext({ businessId: databaseId, channelInstanceId });
 
     // ── 2. Fetch all products from Shopify ──────────────────────────────────
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);

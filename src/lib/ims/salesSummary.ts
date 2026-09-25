@@ -1,4 +1,5 @@
 export const SALES_SUMMARY_DIMENSIONS = [
+  'channel',
   'location',
   'supplier',
   'brand',
@@ -23,6 +24,7 @@ export function parseSalesSummaryDimensions(value: string | string[]): SalesSumm
 
 export function salesSummaryDimensionLabel(dimension: SalesSummaryDimension): string {
   return {
+    channel: 'Store / Channel',
     location: 'Location',
     supplier: 'Supplier',
     brand: 'Brand',

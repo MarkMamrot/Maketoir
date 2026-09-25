@@ -1,27 +1,24 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { ShopifyService } from '@/services/ShopifyService';
-import { imsQuery } from '@/services/IMSMySQLService';
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId = session.businessId;
   const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) {
-    return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
-  }
+  const channelInstanceId = new URL(req.url).searchParams.get('channelInstanceId')?.trim() ?? '';
+  if (!channelInstanceId) return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
+  const context = await getShopifyOperationContext({ businessId, channelInstanceId });
+  const credentials = context.credentials;
 
   const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
-  const syncFromRows = await imsQuery<{ value: string }>(
-    "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_order_sync_from' LIMIT 1",
-    [businessId],
-  ).catch(() => [] as { value: string }[]);
-  const syncFrom = syncFromRows[0]?.value || new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const syncFrom = shopifyInstanceSettings(context.instance.settings).orders.syncFrom
+    || new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
   try {
     const orders = await shopify.getAllOrders(syncFrom);
@@ -39,7 +36,7 @@ export async function GET() {
         methods.set(gateway_name, existing);
       }
     }
-    return NextResponse.json({ success: true, methods: Array.from(methods.values()).sort((a, b) => a.display_name.localeCompare(b.display_name)) });
+    return NextResponse.json({ success: true, channelInstanceId, methods: Array.from(methods.values()).sort((a, b) => a.display_name.localeCompare(b.display_name)) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

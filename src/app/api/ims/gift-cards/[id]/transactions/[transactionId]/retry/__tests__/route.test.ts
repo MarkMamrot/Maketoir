@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   giftCardCredit: vi.fn(),
   giftCardDebit: vi.fn(),
   reportRuntimeIssue: vi.fn(),
+  getShopifyOperationContext: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getImsSession }));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.getShopifyOperationContext }));
 vi.mock('@/lib/ims/businessOperations', () => ({
   getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
 }));
@@ -37,6 +39,9 @@ describe('gift-card transaction retry route', () => {
       shopify_shop_id: 'example.myshopify.com',
       shopify_access_token: 'token',
     });
+    mocks.getShopifyOperationContext.mockResolvedValue({
+      credentials: { shopDomain: 'store-one.myshopify.com', token: 'store-one-token' },
+    });
     mocks.imsExecute.mockResolvedValue({ affectedRows: 1 });
   });
 
@@ -51,6 +56,7 @@ describe('gift-card transaction retry route', () => {
       pos_sale_id: 55,
       notes: 'Redeemed at POS',
       shopify_gc_id: '100',
+      channel_instance_id: 'shopify-store-1',
       currency: 'AUD',
       card_balance: '90.00',
     }]);
@@ -76,6 +82,10 @@ describe('gift-card transaction retry route', () => {
     expect(body).toMatchObject({ success: true, recoveredFromHistory: true, providerBalance: 140 });
     expect(mocks.giftCardDebit).not.toHaveBeenCalled();
     expect(mocks.imsExecute).toHaveBeenCalledTimes(3);
-    expect(mocks.imsExecute.mock.calls[1][1]).toEqual(['debit-1', '2026-08-27 01:00:00', 140, 44]);
+    expect(mocks.getShopifyOperationContext).toHaveBeenCalledWith({
+      businessId: 'business-1',
+      channelInstanceId: 'shopify-store-1',
+    });
+    expect(mocks.imsExecute.mock.calls[1][1]).toEqual(['shopify-store-1:debit-1', '2026-08-27 01:00:00', 140, 44]);
   });
 });

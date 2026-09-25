@@ -213,3 +213,25 @@ export async function getShopifyChannelAdminCredentials(
     },
   });
 }
+
+export async function getShopifyChannelWebhookSigningSecret(
+  businessIdInput: string,
+  channelInstanceIdInput: string,
+): Promise<string | null> {
+  const businessId = businessIdInput.trim();
+  const channelInstanceId = channelInstanceIdInput.trim();
+  if (!businessId || !channelInstanceId) return null;
+  const rows = await query<ShopifyChannelCredentialRow & { business_id: string }>(
+    `SELECT instance.business_id, credential.encrypted_payload
+       FROM sales_channel_instances instance
+       JOIN sales_channel_credentials credential
+         ON credential.channel_instance_id = instance.channel_instance_id
+        AND credential.credential_type = 'shopify_admin_api'
+      WHERE instance.business_id = ? AND instance.channel_instance_id = ? AND instance.provider = 'shopify'
+      LIMIT 1`,
+    [businessId, channelInstanceId],
+  );
+  if (!rows[0]) return null;
+  const envelope = parseShopifyChannelCredentialEnvelope(rows[0].encrypted_payload);
+  return envelope.authMode === 'client_credentials' ? envelope.clientSecret.trim() || null : null;
+}

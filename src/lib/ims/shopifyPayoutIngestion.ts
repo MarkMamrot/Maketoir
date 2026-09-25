@@ -1,5 +1,5 @@
 import { planShopifyPayoutActions } from '@/lib/ims/shopifyPayoutActionPlanner';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { toBusinessDate } from '@/lib/shopifyDate';
 import { classifyShopifyPayoutTransaction } from '@/lib/xero/shopifyPayoutReconciliation';
 import { execute, query } from '@/services/MySQLService';
@@ -50,9 +50,11 @@ async function fetchShopifyPages(creds: ShopifyApiCreds, initialUrl: string, key
   return results;
 }
 
-export async function getShopifyApiCreds(businessId: string): Promise<ShopifyApiCreds | null> {
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) return null;
+export async function getShopifyApiCreds(
+  businessId: string,
+  channelInstanceId: string,
+): Promise<ShopifyApiCreds> {
+  const { credentials } = await getShopifyOperationContext({ businessId, channelInstanceId });
   return {
     shopName: credentials.shopName,
     token: credentials.token,
@@ -84,6 +86,7 @@ export async function fetchPaidShopifyPayouts(
 
 export async function ingestShopifyPayout(
   businessId: string,
+  channelInstanceId: string,
   payload: any,
   creds: ShopifyApiCreds | null,
   deps: PayoutIngestionDependencies = defaultDependencies,
@@ -95,9 +98,9 @@ export async function ingestShopifyPayout(
   const existing = await deps.mainQuery<{ reconciliation_status: string }>(
     `SELECT reconciliation_status
        FROM shopify_payment_payouts
-      WHERE business_id = ? AND shopify_payout_id = ?
+      WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?
       LIMIT 1`,
-    [businessId, payoutId],
+    [businessId, channelInstanceId, payoutId],
   );
   const existingStatus = String(existing[0]?.reconciliation_status ?? '').toLowerCase();
   if (payoutStatus === 'paid' && PROTECTED_STATUSES.has(existingStatus)) {
@@ -109,14 +112,14 @@ export async function ingestShopifyPayout(
   const payoutDate = String(payload?.date ?? payload?.payout?.date ?? '').slice(0, 10) || null;
   await deps.mainExecute(
     `INSERT INTO shopify_payment_payouts
-       (business_id, shopify_payout_id, payout_date, shopify_status, currency,
+       (business_id, channel_instance_id, shopify_payout_id, payout_date, shopify_status, currency,
         payout_amount, reconciliation_status, raw_payload)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        payout_date = VALUES(payout_date), shopify_status = VALUES(shopify_status),
        currency = VALUES(currency), payout_amount = VALUES(payout_amount),
        reconciliation_status = VALUES(reconciliation_status), raw_payload = VALUES(raw_payload)`,
-    [businessId, payoutId, payoutDate, payoutStatus || 'unknown', payoutCurrency, payoutAmount,
+    [businessId, channelInstanceId, payoutId, payoutDate, payoutStatus || 'unknown', payoutCurrency, payoutAmount,
       payoutStatus === 'paid' ? 'ingesting' : 'waiting_for_paid', JSON.stringify(payload)],
   );
   if (payoutStatus !== 'paid') return { payoutId, status: 'waiting_for_paid' };
@@ -130,10 +133,10 @@ export async function ingestShopifyPayout(
       const processedAt = String(transaction?.processed_at ?? transaction?.created_at ?? '').trim() || null;
       await deps.mainExecute(
         `INSERT INTO shopify_payment_payout_transactions
-           (business_id, shopify_transaction_id, shopify_payout_id, transaction_type,
+            (business_id, channel_instance_id, shopify_transaction_id, shopify_payout_id, transaction_type,
             amount, fee, net, currency, source_id, source_type, source_order_id,
             source_order_transaction_id, processed_at, business_date, raw_payload)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            shopify_payout_id = VALUES(shopify_payout_id), transaction_type = VALUES(transaction_type),
            amount = VALUES(amount), fee = VALUES(fee), net = VALUES(net), currency = VALUES(currency),
@@ -143,7 +146,7 @@ export async function ingestShopifyPayout(
            processed_at = VALUES(processed_at), business_date = VALUES(business_date),
            raw_payload = VALUES(raw_payload)`,
         [
-          businessId, transactionId, payoutId, String(transaction?.type ?? 'unknown'),
+          businessId, channelInstanceId, transactionId, payoutId, String(transaction?.type ?? 'unknown'),
           Number(transaction?.amount ?? 0), Number(transaction?.fee ?? 0), Number(transaction?.net ?? 0),
           String(transaction?.currency ?? payoutCurrency).toUpperCase(),
           transaction?.source_id != null ? String(transaction.source_id) : null,
@@ -168,8 +171,8 @@ export async function ingestShopifyPayout(
       await deps.mainExecute(
         `UPDATE shopify_payment_payouts
             SET transaction_net_total = ?, reconciliation_status = 'blocked', error_detail = ?
-          WHERE business_id = ? AND shopify_payout_id = ?`,
-        [transactionNet, error, businessId, payoutId],
+          WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+        [transactionNet, error, businessId, channelInstanceId, payoutId],
       );
       return { payoutId, status: 'blocked' };
     }
@@ -177,18 +180,18 @@ export async function ingestShopifyPayout(
     await deps.mainExecute(
       `UPDATE shopify_payment_payouts
           SET transaction_net_total = ?, reconciliation_status = 'ready_to_allocate', error_detail = NULL
-        WHERE business_id = ? AND shopify_payout_id = ?`,
-      [transactionNet, businessId, payoutId],
+        WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+      [transactionNet, businessId, channelInstanceId, payoutId],
     );
-    const plan = await deps.planActions(businessId, payoutId);
+    const plan = await deps.planActions(businessId, channelInstanceId, payoutId);
     return { payoutId, status: plan.status };
   } catch (error: any) {
     const message = error?.message ?? String(error);
     await deps.mainExecute(
       `UPDATE shopify_payment_payouts
           SET reconciliation_status = 'blocked', error_detail = ?
-        WHERE business_id = ? AND shopify_payout_id = ?`,
-      [message, businessId, payoutId],
+        WHERE business_id = ? AND channel_instance_id = ? AND shopify_payout_id = ?`,
+      [message, businessId, channelInstanceId, payoutId],
     ).catch(() => {});
     throw error;
   }

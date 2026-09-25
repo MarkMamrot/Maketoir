@@ -6,7 +6,7 @@ import {
   ContactMergeValidationError,
   mergeCustomerContacts,
 } from '@/lib/ims/contactDataQualityService';
-import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
+import { syncRetailCustomerToMappedShopifyInstances } from '@/lib/ims/shopifyCustomerSync';
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       actor: { id: session.userId == null ? null : Number(session.userId), name: String(session.name || session.email || 'Unknown user') },
     });
     const target = await ImsContactsRepo.get(result.targetContactId, businessId);
-    const shopifySync = target ? await syncRetailCustomerToShopify(target, businessId) : null;
+    const shopifySync = target ? await syncRetailCustomerToMappedShopifyInstances(target, businessId) : null;
     await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({ businessId, contactId: result.targetContactId });
     return NextResponse.json({ success: true, data: result, shopifySync });
   } catch (error) {

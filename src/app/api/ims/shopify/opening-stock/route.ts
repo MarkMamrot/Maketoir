@@ -7,7 +7,7 @@ import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecyc
 import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations } from '@/lib/ims/shopifyOpeningStock';
 import { signOpeningStockSnapshot, verifyOpeningStockSnapshot } from '@/lib/ims/shopifyOpeningStockSnapshot';
 import { applyStocktake, transitionStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -28,9 +28,8 @@ function validRunId(value: unknown): string | null {
   return /^[a-zA-Z0-9-]{8,64}$/.test(runId) ? runId : null;
 }
 
-async function loadPreviewContext(businessId: string) {
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) throw new Error('Shopify not connected.');
+async function loadPreviewContext(businessId: string, channelInstanceId: string) {
+  const { credentials } = await getShopifyOperationContext({ businessId, channelInstanceId });
   const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
   const [shopifyLocations, solvantisLocations] = await Promise.all([
     shopify.listLocations(),
@@ -85,11 +84,13 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    const channelInstanceId = String(body?.channelInstanceId ?? '').trim();
+    if (!channelInstanceId) return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
     const mode = body?.mode === 'apply' ? 'apply' : 'preview';
 
     if (mode === 'preview') {
       const offset = Math.max(0, Math.floor(Number(body?.offset ?? 0)));
-      const context = await loadPreviewContext(businessId);
+      const context = await loadPreviewContext(businessId, channelInstanceId);
       const batch = context.variants.slice(offset, offset + PREVIEW_BATCH_SIZE);
       const lines = await loadLines(context.shopify, context.locations, batch);
       const locationIds = context.locations.map(location => location.solvantisLocationId);

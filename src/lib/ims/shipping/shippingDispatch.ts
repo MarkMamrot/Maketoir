@@ -2,10 +2,10 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getAmazonChannelAccess } from '@/lib/channels/amazonCredentials';
 import { confirmAmazonShipment, type AmazonShipmentConfirmation } from '@/lib/channels/amazonSpApi';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 import { fulfilSalesOrderPartialInTransaction } from '@/lib/ims/orderResolution/customerFulfilment';
 import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
-import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
@@ -184,13 +184,20 @@ export async function dispatchShippingShipment(input: {
           needsChannel ? 'channel_pending' : 'complete', input.businessId, row.id],
       );
       if (needsShopify) {
+        if (!row.channel_instance_id) {
+          throw new Error('The Shopify store owner is missing from this sales order. Assign the exact channel instance before dispatch.');
+        }
         await connection.execute(
           `INSERT INTO ims_shipping_channel_jobs
              (business_id, shipment_id, sales_channel, operation_key, status, request_json)
            VALUES (?, ?, 'shopify', ?, 'pending', ?)
            ON DUPLICATE KEY UPDATE shipment_id = VALUES(shipment_id), status = IF(status = 'complete', status, 'pending'),
              next_attempt_at = NULL, safe_error = NULL`,
-          [input.businessId, row.id, `shipping-channel:${row.id}`, JSON.stringify({ shipmentId: row.id, shopifyOrderId: row.shopify_order_id })],
+          [input.businessId, row.id, `shipping-channel:${row.id}`, JSON.stringify({
+            shipmentId: row.id,
+            channelInstanceId: row.channel_instance_id,
+            shopifyOrderId: row.external_order_id ?? row.shopify_order_id,
+          })],
         );
       }
       if (needsAmazon) {
@@ -257,7 +264,12 @@ export async function dispatchShippingShipment(input: {
     if (channel === 'amazon') {
       await confirmAmazonShipmentJobs(input.businessId, row.id);
     } else {
-      await createShopifyFulfilment(input.businessId, row.id, row.shopify_order_id);
+      await createShopifyFulfilment(
+        input.businessId,
+        row.channel_instance_id,
+        row.id,
+        row.external_order_id ?? row.shopify_order_id,
+      );
     }
     await imsExecute(
       `UPDATE ims_shipping_shipments SET status = 'complete', completed_at = NOW(), safe_error = NULL
@@ -391,10 +403,15 @@ export async function retryAmazonShipmentConfirmationsForChannel(input: {
   });
 }
 
-async function createShopifyFulfilment(businessId: string, shipmentId: number, shopifyOrderId: string | null): Promise<void> {
+export async function createShopifyFulfilment(
+  businessId: string,
+  channelInstanceId: string | null,
+  shipmentId: number,
+  shopifyOrderId: string | null,
+): Promise<void> {
+  if (!channelInstanceId) throw new Error('The Shopify store owner is missing from this sales order.');
   if (!shopifyOrderId) throw new Error('The Shopify order ID is missing.');
-  const credentials = await getShopifyAdminCredentials(businessId);
-  if (!credentials) throw new Error('Shopify credentials are unavailable.');
+  const { credentials } = await getShopifyOperationContext({ businessId, channelInstanceId });
   const lines = await imsQuery<{ so_id: number; shopify_line_item_id: string | null; quantity: number }>(
     `SELECT MAX(order_item.so_id) AS so_id, order_item.shopify_line_item_id, SUM(parcel_item.quantity) AS quantity
        FROM ims_shipping_parcel_items parcel_item

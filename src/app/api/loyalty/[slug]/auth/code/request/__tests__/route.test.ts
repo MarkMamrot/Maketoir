@@ -4,7 +4,9 @@ const mocks = vi.hoisted(() => ({
   getActiveBySlug: vi.fn(),
   getAuthRateLimit: vi.fn(),
   recordAuthFailure: vi.fn(),
-  getShopifyAdminCredentials: vi.fn(),
+  resolveShopifyInstance: vi.fn(),
+  getShopifyOperationContext: vi.fn(),
+  recordMapping: vi.fn(),
   findCustomersByExactEmail: vi.fn(),
   runImsForBusiness: vi.fn(),
   upsertLoyaltyPortalCustomer: vi.fn(),
@@ -19,7 +21,9 @@ vi.mock('@/lib/auth/authRateLimit', () => ({
   getAuthRateLimit: mocks.getAuthRateLimit,
   recordAuthFailure: mocks.recordAuthFailure,
 }));
-vi.mock('@/lib/shopifyCredentials', () => ({ getShopifyAdminCredentials: mocks.getShopifyAdminCredentials }));
+vi.mock('@/lib/loyalty/loyaltyPortalShopifyInstance', () => ({ resolveLoyaltyPortalShopifyInstance: mocks.resolveShopifyInstance }));
+vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.getShopifyOperationContext }));
+vi.mock('@/lib/ims/contactChannelMappings', () => ({ recordInboundContactChannelMapping: mocks.recordMapping }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.runImsForBusiness }));
 vi.mock('@/lib/loyalty/LoyaltyPortalIdentity', () => ({ upsertLoyaltyPortalCustomer: mocks.upsertLoyaltyPortalCustomer }));
 vi.mock('@/lib/onlineShop/onlineShopOtp', () => ({
@@ -47,12 +51,14 @@ describe('loyalty portal code request', () => {
     vi.clearAllMocks();
     vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
     vi.stubEnv('RESEND_FROM_EMAIL', 'Solvantis <rewards@solvantis.example>');
-    mocks.getActiveBySlug.mockResolvedValue({ businessId: 'business-1', displayName: 'Monsterthreads Rewards' });
+    mocks.getActiveBySlug.mockResolvedValue({ businessId: 'business-1', displayName: 'Monsterthreads Rewards', shopifyReturnUrl: 'https://example.myshopify.com' });
     mocks.getAuthRateLimit.mockResolvedValue({ locked: false });
-    mocks.getShopifyAdminCredentials.mockResolvedValue({ shopDomain: 'example.myshopify.com', token: 'secret' });
+    mocks.resolveShopifyInstance.mockResolvedValue('instance-1');
+    mocks.getShopifyOperationContext.mockResolvedValue({ credentials: { shopDomain: 'example.myshopify.com', token: 'secret' } });
     mocks.findCustomersByExactEmail.mockResolvedValue([{ id: 99, email: 'customer@example.com', firstName: 'Ada', lastName: null, phone: null }]);
     mocks.runImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
     mocks.upsertLoyaltyPortalCustomer.mockResolvedValue(42);
+    mocks.recordMapping.mockResolvedValue({ mappingStatus: 'linked' });
     mocks.createCustomerOtp.mockResolvedValue({ challengeToken: 'challenge-token', code: '123456' });
     mocks.send.mockResolvedValue({ data: { id: 'email-1' }, error: null });
     mocks.reportRuntimeIssue.mockResolvedValue(null);
@@ -63,11 +69,24 @@ describe('loyalty portal code request', () => {
 
     expect(await response.json()).toMatchObject({ success: true, challengeToken: 'challenge-token', expiresInSeconds: 600 });
     expect(mocks.createCustomerOtp).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42, email: 'customer@example.com', purpose: 'loyalty_portal' });
+    expect(mocks.recordMapping).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'instance-1', contactId: 42, externalCustomerId: '99' });
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
       from: 'Solvantis <rewards@solvantis.example>',
       to: 'customer@example.com',
       subject: expect.stringContaining('123456'),
     }), { idempotencyKey: 'loyalty-portal-otp-challenge-token' });
+  });
+
+  it('fails closed without one storefront bound to the loyalty profile', async () => {
+    mocks.resolveShopifyInstance.mockResolvedValue(null);
+
+    const response = await POST(request(), { params: { slug: 'monsterthreads-rewards' } });
+
+    expect((await response.json()).challengeToken).not.toBe('challenge-token');
+    expect(mocks.findCustomersByExactEmail).not.toHaveBeenCalled();
+    expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      context: { stage: 'resolve_shopify_instance' },
+    }));
   });
 
   it('records a contact-link failure without exposing the email in context', async () => {

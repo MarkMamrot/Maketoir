@@ -31,7 +31,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
       ] : []),
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result).toMatchObject({ success: true, inserted: 2, synced: 2, errors: 0 });
     expect(mockImsExecute.mock.calls[0][1]).toContain('SHOPIFY:7215');
@@ -46,7 +46,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
         : []),
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result.reviewRequired).toBe(1);
     expect(mockImsExecute.mock.calls[0][1][2]).toBe(0);
@@ -74,20 +74,23 @@ describe('syncShopifyGiftCardSnapshots', () => {
       })),
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result).toMatchObject({ reviewRequired: 0, importedTransactions: 1 });
     expect(mockImsExecute.mock.calls[1][1][2]).toBe(1);
     expect(mockImsExecute.mock.calls[1][1][3]).toBe(90);
     expect(mockImsExecute.mock.calls[0][1]).toEqual([
-      7, 'redeem', -10, 90, 'debit-1', '2026-08-27 01:00:00', 90, 'Used online',
+      7, 'redeem', -10, 90, 'shopify-store-1:debit-1', '2026-08-27 01:00:00', 90, 'Used online',
     ]);
   });
 
   it('does not duplicate provider transactions already recorded locally', async () => {
     mockImsQuery
       .mockResolvedValueOnce([{ id: 7, balance: '90.00', shopify_observed_balance: '90.00' }])
-      .mockResolvedValueOnce([{ shopify_transaction_id: 'credit-1' }, { shopify_transaction_id: 'debit-1' }]);
+      .mockResolvedValueOnce([
+        { shopify_transaction_id: 'shopify-store-1:credit-1' },
+        { shopify_transaction_id: 'shopify-store-1:debit-1' },
+      ]);
     const shopify = {
       getAllGiftCards: vi.fn(async (status: 'enabled' | 'disabled') => status === 'enabled'
         ? [{ id: 100, last_characters: '7215', balance: '90.00' }]
@@ -101,7 +104,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
       })),
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result.importedTransactions).toBe(0);
     expect(mockImsExecute).toHaveBeenCalledTimes(1);
@@ -121,7 +124,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
       })),
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result).toMatchObject({ reviewRequired: 1, importedTransactions: 1 });
     expect(mockImsExecute.mock.calls[1][1][2]).toBe(0);
@@ -142,7 +145,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
       })),
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result).toMatchObject({ reviewRequired: 1, importedTransactions: 1 });
     expect(mockImsExecute.mock.calls[1][1][2]).toBe(0);
@@ -165,7 +168,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
       getGiftCardTransactions,
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result).toMatchObject({ synced: 1, importedTransactions: 0, reviewRequired: 0 });
     expect(getGiftCardTransactions).not.toHaveBeenCalled();
@@ -189,7 +192,7 @@ describe('syncShopifyGiftCardSnapshots', () => {
       getGiftCardTransactions,
     };
 
-    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+    const result = await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
 
     expect(result).toMatchObject({ success: true, inserted: 2, errors: 0, transactionHistoryAvailable: false });
     expect(getGiftCardTransactions).toHaveBeenCalledTimes(1);
@@ -199,5 +202,22 @@ describe('syncShopifyGiftCardSnapshots', () => {
     expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
       operation: 'gift_card_transaction_history_scope',
     }));
+  });
+
+  it('scopes the same Shopify gift-card identity to each exact store', async () => {
+    mockImsQuery.mockResolvedValue([]);
+    const shopify = {
+      getAllGiftCards: vi.fn(async (status: 'enabled' | 'disabled') => status === 'enabled'
+        ? [{ id: 100, last_characters: '7215', balance: '10.00' }]
+        : []),
+    };
+
+    await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-1', shopify);
+    await syncShopifyGiftCardSnapshots('business-1', 'shopify-store-2', shopify);
+
+    expect(mockImsQuery.mock.calls[0][1]).toEqual(['shopify-store-1', '100']);
+    expect(mockImsQuery.mock.calls[2][1]).toEqual(['shopify-store-2', '100']);
+    expect(mockImsExecute.mock.calls[0][1][0]).toBe('shopify-store-1');
+    expect(mockImsExecute.mock.calls[1][1][0]).toBe('shopify-store-2');
   });
 });
