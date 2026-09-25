@@ -28,8 +28,10 @@ export async function POST(request: Request) {
     `SELECT b.business_id, instance.channel_instance_id
        FROM businesses b
        JOIN sales_channel_instances instance ON BINARY instance.business_id = BINARY b.business_id
+       JOIN business_online_channels capability ON BINARY capability.business_id = BINARY b.business_id
       WHERE b.deleted_at IS NULL
         AND COALESCE(b.automation_paused, 0) = 0
+        AND capability.shopify_enabled = 1
         AND instance.provider = 'shopify'
         AND instance.is_enabled = 1
         AND instance.runtime_status = 'active'

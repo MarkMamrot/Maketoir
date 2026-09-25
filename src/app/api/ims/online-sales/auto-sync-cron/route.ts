@@ -18,6 +18,7 @@ import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 
 export const runtime = 'nodejs';
 
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
   // propagates across awaits).
   const processBusiness = async (business_id: string) => {
     const timeZone = await getBusinessTimeZone(business_id);
+    const capabilities = await getOnlineChannelCapabilities(business_id);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });
     const channelRows = await query<{ channel_instance_id: string; provider: string; settings_json: string | Record<string, unknown> | null }>(
       `SELECT channel_instance_id, provider, settings_json FROM sales_channel_instances
@@ -65,7 +67,8 @@ export async function POST(req: Request) {
       [business_id],
     );
     const enabledChannelIds = new Set(channelRows.filter(instance => {
-      if (instance.provider !== 'shopify') return true;
+      if (instance.provider === 'native_shop') return capabilities.nativeShopEnabled;
+      if (!capabilities.shopifyEnabled) return false;
       let raw: Record<string, unknown> = {};
       try { raw = typeof instance.settings_json === 'string' ? JSON.parse(instance.settings_json) : instance.settings_json ?? {}; } catch {}
       return shopifyInstanceSettings(raw).xero.dailyAutoSyncEnabled;

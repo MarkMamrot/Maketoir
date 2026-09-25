@@ -65,6 +65,7 @@ describe('POST /api/xero/shopify-payouts/catchup-cron', () => {
     expect(mockQuery.mock.calls[0]?.[0]).toContain(
       'ON BINARY instance.business_id = BINARY b.business_id',
     );
+    expect(mockQuery.mock.calls[0]?.[0]).toContain('capability.shopify_enabled = 1');
     expect(mockRunImsForBusiness.mock.calls.map(call => call[0])).toEqual(['biz-1', 'biz-1']);
     expect(mockIngest.mock.calls.map(call => [call[0], call[1], call[2].id])).toEqual([
       ['biz-1', 'store-1', 'payout-1'],

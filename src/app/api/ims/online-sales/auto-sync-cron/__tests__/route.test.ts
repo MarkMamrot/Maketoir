@@ -6,12 +6,14 @@ const {
   mockSyncOnlineDailySalesDay,
   mockRunImsForBusiness,
   mockGetBusinessTimeZone,
+  mockGetOnlineChannelCapabilities,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockImsQuery: vi.fn(),
   mockSyncOnlineDailySalesDay: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
+  mockGetOnlineChannelCapabilities: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({
@@ -34,6 +36,10 @@ vi.mock('@/lib/ims/businessTimeZone', () => ({
   getBusinessTimeZone: mockGetBusinessTimeZone,
 }));
 
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: mockGetOnlineChannelCapabilities,
+}));
+
 import { POST } from '../route';
 
 function cronRequest(secret?: string): Request {
@@ -48,6 +54,7 @@ function setupDefaultMocks() {
   process.env.BUSINESS_TIMEZONE = 'Australia/Sydney';
   mockRunImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<void>) => callback());
   mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
+  mockGetOnlineChannelCapabilities.mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: true });
   mockQuery.mockImplementation(async (sql: string) => {
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -159,6 +166,16 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
 
     expect(res.status).toBe(207);
     expect(json).toMatchObject({ ok: false, synced: 0, failed: 1 });
+  });
+
+  it('does not sync an exact Shopify instance when the business capability is disabled', async () => {
+    makeImsQueryForDay();
+    mockGetOnlineChannelCapabilities.mockResolvedValue({ shopifyEnabled: false, nativeShopEnabled: false });
+
+    const res = await POST(cronRequest('cron-secret'));
+
+    expect(res.status).toBe(200);
+    expect(mockSyncOnlineDailySalesDay).not.toHaveBeenCalled();
   });
 
   it('defers Shopify Payments while paying other gateways on the combined invoice', async () => {
