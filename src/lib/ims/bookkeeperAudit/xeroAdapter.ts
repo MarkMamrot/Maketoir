@@ -35,7 +35,10 @@ export function adaptXeroAuditIssues(
   items: XeroReconciliationIssueListItem[],
   sourceDetails = new Map<string, XeroReconciliationSourceDetails>(),
 ): { findings: AuditFinding[]; reviews: AuditReview[] } {
-  const findings = items.filter(item => item.status !== 'resolved').map(item => {
+  const findings = items.filter(item => {
+    if (item.status === 'resolved') return false;
+    return item.targetType === 'mapping' || sourceDetails.has(`${item.targetType}:${item.referenceId}`);
+  }).map(item => {
     const expected = numericValue(item.expected);
     const actual = numericValue(item.actual);
     const details = sourceDetails.get(`${item.targetType}:${item.referenceId}`);
@@ -49,9 +52,6 @@ export function adaptXeroAuditIssues(
       : typeof item.expected?.status === 'string' ? item.expected.status : null;
     const localState = details?.status
       ?? (recordedLocalState ? `Source unavailable (recorded lifecycle: ${recordedLocalState})` : 'Source record unavailable');
-    const xeroHref = item.ruleKey.startsWith('mapping_') || !item.xeroId
-      ? null
-      : xeroDocumentHref(item.targetType, item.xeroId);
     const lifecycleDetail = item.ruleKey === 'lifecycle_state' ? {
       localState,
       xeroState,
@@ -70,10 +70,10 @@ export function adaptXeroAuditIssues(
       sourceType: item.targetType,
       sourceId: item.referenceId,
       sourceReference: details?.reference ?? `${TARGET_LABELS[item.targetType] ?? item.targetType} #${item.referenceId}`,
-      sourceContext: details?.contactName ?? (xeroHref ? 'Local source unavailable - opens Xero' : null),
-      sourceHref: item.ruleKey.startsWith('mapping_') ? '#xero/setup/ledger' : details && sourceView ? `#${sourceView}/${item.referenceId}` : xeroHref,
+      sourceContext: details?.contactName ?? null,
+      sourceHref: item.ruleKey.startsWith('mapping_') ? '#xero/setup/ledger' : details && sourceView ? `#${sourceView}/${item.referenceId}` : null,
       xeroHistoryHref: item.ruleKey.startsWith('mapping_') ? null : '#xero/activity/history',
-      xeroHref,
+      xeroHref: item.ruleKey.startsWith('mapping_') ? null : xeroDocumentHref(item.targetType, item.xeroId),
       detail: lifecycleDetail,
       occurredAt: details?.itemDate ? new Date(details.itemDate).toISOString() : new Date(item.lastSeenAt).toISOString(),
       detectedAt: new Date(item.firstSeenAt).toISOString(),

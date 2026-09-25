@@ -27,21 +27,14 @@ describe('adaptXeroAuditIssues', () => {
     expect(result.reviews).toEqual([]);
   });
 
-  it('explains lifecycle mismatches and links an unavailable local source to its surviving Xero document', () => {
+  it('omits an orphaned reconciliation issue when its local source no longer exists', () => {
     const result = adaptXeroAuditIssues([issue({
       ruleKey: 'lifecycle_state', xeroId: 'invoice-42',
       expected: { status: 'AUTHORISED', compatibleStatuses: ['AUTHORISED', 'PAID'] },
       targetExpected: { status: 'AUTHORISED' },
       actual: { status: 'VOIDED' },
     })]);
-    expect(result.findings[0]).toMatchObject({
-      sourceHref: 'https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=invoice-42',
-      sourceContext: 'Local source unavailable - opens Xero',
-      detail: {
-        localState: 'Source unavailable (recorded lifecycle: AUTHORISED)', xeroState: 'VOIDED',
-        explanation: expect.stringContaining('source record is no longer available'),
-      },
-    });
+    expect(result.findings).toEqual([]);
   });
 
   it('maps an unchanged ignored issue to an accepted review', () => {

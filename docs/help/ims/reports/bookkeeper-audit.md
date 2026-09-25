@@ -52,7 +52,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 
 Select **Filters** to combine source type, date, severity, and value-at-risk conditions. Source types include the available document, mapping, transaction, and stock-position types in the current queue. Date filtering uses the shared report presets or a custom range. Enter a minimum, maximum, or both for value at risk. The filter badge shows how many conditions are active, and **Clear filters** restores the complete Open or Accepted queue.
 
-For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document, **View in Xero** opens the linked Xero document, and **Xero Sync History** opens the separate Xero activity record. If the local source is no longer available, the source reference is labelled **Local source unavailable - opens Xero** and opens the surviving Xero document instead.
+For Xero findings, **Date** is the source document date rather than the date the discrepancy was scanned. The source reference opens the Solvantis document, **View in Xero** opens the linked Xero document, and **Xero Sync History** opens the separate Xero activity record. Reconciliation evidence whose local source no longer exists remains available in Xero history but is not shown as an actionable Bookkeeper Audit finding.
 
 For a lifecycle-state finding, expand **Why these states are incompatible**. It shows the current Solvantis source state, the current Xero state, the Xero states expected for that workflow, and why the current combination does not agree.
 
