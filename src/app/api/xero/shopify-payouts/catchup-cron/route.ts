@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const instances = await query<{ business_id: string; channel_instance_id: string }>(
     `SELECT b.business_id, instance.channel_instance_id
        FROM businesses b
-       JOIN sales_channel_instances instance ON instance.business_id = b.business_id
+       JOIN sales_channel_instances instance ON BINARY instance.business_id = BINARY b.business_id
       WHERE b.deleted_at IS NULL
         AND COALESCE(b.automation_paused, 0) = 0
         AND instance.provider = 'shopify'
