@@ -1,3 +1,9 @@
+## 2026-09-25 - Exact-instance Shopify control-plane rollout
+
+- The existing main-database sales-channel schema was reapplied and verified at 39 required columns and 13 indexes across four tables. The compatibility backfill then migrated and verified exact-instance Shopify credentials and local mappings for Monsterthreads, Monsterthreads DEV SANDBOX and Sage without calling Shopify.
+- Monsterthreads verified with 5,441 unambiguous product mappings, 6,993 variant mappings, 5,443 selections, one encrypted exact-instance credential and one primary Shopify role. Two duplicate legacy product owners and two duplicate variant owners remain deliberately excluded from mappings and represented as local conflict selections.
+- A second guarded backfill was a complete no-op. Final direct readback found `Monsterthreads Shopify` active and ready for `monsterthreads.myshopify.com`, while `productPublicationEnabled` remains unset with zero product-publication jobs and zero publication assignment rows. Existing Shopify product statuses were not changed and automatic publication remains dormant.
+
 ## 2026-09-24 - Bookkeeper Audit operational queue
 
 - Finances > Accounting Audit now presents a newest-first queue for overdue operational documents, negative stock, inventory-tracked sales with invalid captured COGS, and existing Xero reconciliation differences. Findings use evidence fingerprints so accepted exceptions reopen when their underlying evidence changes.

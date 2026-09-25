@@ -131,8 +131,15 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [orderSettingsLoading, setOrderSettingsLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [addChannelDialogOpen, setAddChannelDialogOpen] = useState(false);
-  const [addChannelProvider, setAddChannelProvider] = useState<'choose' | 'amazon'>('choose');
+  const [addChannelProvider, setAddChannelProvider] = useState<'choose' | 'amazon' | 'shopify'>('choose');
   const [amazonDisplayName, setAmazonDisplayName] = useState('Amazon Australia');
+  const [shopifyEditingId, setShopifyEditingId] = useState<string | null>(null);
+  const [shopifyDisplayName, setShopifyDisplayName] = useState('Shopify');
+  const [shopifyDomain, setShopifyDomain] = useState('');
+  const [shopifyAuthMode, setShopifyAuthMode] = useState<'client_credentials' | 'legacy_token'>('client_credentials');
+  const [shopifyClientId, setShopifyClientId] = useState('');
+  const [shopifySecret, setShopifySecret] = useState('');
+  const [shopifySaving, setShopifySaving] = useState(false);
   const [mappingInstance, setMappingInstance] = useState<ChannelInstance | null>(null);
   const [mappings, setMappings] = useState<AmazonMapping[]>([]);
   const [mappingIds, setMappingIds] = useState<Set<number>>(new Set());
@@ -211,6 +218,77 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
       await load();
     } finally {
       setTestingId(null);
+    }
+  };
+
+  const openShopifyConfiguration = async (instance?: ChannelInstance) => {
+    setError('');
+    setShopifyEditingId(instance?.channelInstanceId ?? null);
+    setShopifyDisplayName(instance?.displayName ?? 'Shopify');
+    setShopifyDomain(instance?.externalAccountKey ?? '');
+    setShopifyAuthMode('client_credentials');
+    setShopifyClientId('');
+    setShopifySecret('');
+    setAddChannelProvider('shopify');
+    setAddChannelDialogOpen(true);
+    if (!instance) return;
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/shopify`);
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Shopify configuration could not be loaded.');
+      setShopifyDisplayName(body.configuration.displayName);
+      setShopifyDomain(body.configuration.shopDomain);
+      setShopifyAuthMode(body.configuration.authMode);
+      setShopifyClientId(body.configuration.clientId ?? '');
+    } catch (configurationError) {
+      setError(configurationError instanceof Error ? configurationError.message : 'Shopify configuration could not be loaded.');
+      setAddChannelDialogOpen(false);
+    }
+  };
+
+  const saveShopifyConfiguration = async () => {
+    setShopifySaving(true);
+    setError('');
+    try {
+      const url = shopifyEditingId
+        ? `/api/ims/channels/${encodeURIComponent(shopifyEditingId)}/shopify`
+        : '/api/ims/channels/shopify';
+      const response = await fetch(url, {
+        method: shopifyEditingId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName: shopifyDisplayName, shopDomain: shopifyDomain,
+          authMode: shopifyAuthMode, clientId: shopifyClientId,
+          clientSecret: shopifyAuthMode === 'client_credentials' ? shopifySecret : '',
+          accessToken: shopifyAuthMode === 'legacy_token' ? shopifySecret : '' }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Shopify configuration could not be saved.');
+      setAddChannelDialogOpen(false);
+      setNotice(`${shopifyDisplayName.trim()} was saved. Test the connection before activation.`);
+      await load();
+    } catch (configurationError) {
+      setError(configurationError instanceof Error ? configurationError.message : 'Shopify configuration could not be saved.');
+    } finally {
+      setShopifySaving(false);
+    }
+  };
+
+  const changeShopifyActivation = async (instance: ChannelInstance) => {
+    const active = !instance.enabled;
+    if (!window.confirm(`${active ? 'Activate' : 'Deactivate'} ${instance.displayName}?`)) return;
+    setActivationChangingId(instance.channelInstanceId);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/shopify/activation`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Shopify activation could not be changed.');
+      setNotice(`${instance.displayName} was ${active ? 'activated' : 'deactivated'}.`);
+      await load();
+    } catch (activationError) {
+      setError(activationError instanceof Error ? activationError.message : 'Shopify activation could not be changed.');
+    } finally {
+      setActivationChangingId(null);
     }
   };
 
@@ -760,6 +838,17 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                       {testingId === instance.channelInstanceId ? 'Testing...' : 'Test connection'}
                     </button>
                   )}
+                  {canManage && instance.provider === 'shopify' && (
+                    <button type="button" onClick={() => void openShopifyConfiguration(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      <Pencil size={14} aria-hidden="true" /> Configure
+                    </button>
+                  )}
+                  {canManage && instance.provider === 'shopify' && (instance.enabled || instance.readinessStatus === 'ready') && (
+                    <button type="button" disabled={activationChangingId === instance.channelInstanceId} onClick={() => void changeShopifyActivation(instance)} style={{ minHeight: 29, padding: '4px 9px', border: `1px solid ${instance.enabled ? '#fecaca' : '#86efac'}`, borderRadius: 4, color: instance.enabled ? '#991b1b' : '#166534', background: instance.enabled ? '#fff' : '#f0fdf4', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 750, cursor: activationChangingId === instance.channelInstanceId ? 'wait' : 'pointer' }}>
+                      {instance.enabled ? <PauseCircle size={14} aria-hidden="true" /> : <Power size={14} aria-hidden="true" />}
+                      {activationChangingId === instance.channelInstanceId ? 'Saving...' : instance.enabled ? 'Deactivate' : 'Activate'}
+                    </button>
+                  )}
                   {canManage && (
                     <button type="button" onClick={() => setProductRulesInstance(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       <SlidersHorizontal size={14} aria-hidden="true" /> Product rules
@@ -886,10 +975,10 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 18 }}>
               <button type="button" onClick={() => setAddChannelProvider('amazon')} style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', textAlign: 'left', cursor: 'pointer' }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Amazon Australia</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>Connect another Seller Central account.</span></button>
-              <button type="button" onClick={() => window.location.assign('/setup?section=connections')} style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', textAlign: 'left', cursor: 'pointer' }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Shopify</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>Configure the current Shopify connection in Setup.</span></button>
+              <button type="button" onClick={() => void openShopifyConfiguration()} style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#fff', color: 'var(--sv-text)', textAlign: 'left', cursor: 'pointer' }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Shopify</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>Connect another Shopify store with its own credentials.</span></button>
               <button type="button" disabled style={{ minHeight: 104, padding: 14, border: '1px solid var(--sv-border)', borderRadius: 6, background: '#f8fafc', color: 'var(--sv-text)', textAlign: 'left', opacity: .65 }}><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14 }}>Native Store</strong><span style={{ display: 'block', marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>{instances.some(instance => instance.provider === 'native_shop') ? 'The native store is already configured.' : 'Enable the native store in Online Channels settings.'}</span></button>
             </div>
-          </div> : <form
+          </div> : addChannelProvider === 'amazon' ? <form
             role="dialog"
             aria-modal="true"
             aria-labelledby="connect-amazon-title"
@@ -913,6 +1002,22 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
               <button type="button" onClick={() => setAddChannelProvider('choose')} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Back</button>
               <button type="submit" disabled={!amazonDisplayName.trim()} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750, cursor: amazonDisplayName.trim() ? 'pointer' : 'not-allowed', opacity: amazonDisplayName.trim() ? 1 : .55 }}>Continue to Amazon</button>
+            </div>
+          </form> : <form role="dialog" aria-modal="true" aria-labelledby="configure-shopify-title" onSubmit={event => { event.preventDefault(); void saveShopifyConfiguration(); }} style={{ width: 'min(520px, 100%)', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.24)', padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div><h2 id="configure-shopify-title" style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 17 }}>{shopifyEditingId ? 'Configure Shopify' : 'Connect Shopify'}</h2><p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 12 }}>Credentials apply only to this exact Shopify store.</p></div>
+              <button type="button" onClick={() => setAddChannelDialogOpen(false)} title="Close" aria-label="Close Shopify configuration" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+              <label style={{ color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Channel name<input autoFocus maxLength={120} value={shopifyDisplayName} onChange={event => setShopifyDisplayName(event.target.value)} style={{ display: 'block', width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, boxSizing: 'border-box' }} /></label>
+              <label style={{ color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Permanent store domain<input placeholder="store.myshopify.com" value={shopifyDomain} onChange={event => setShopifyDomain(event.target.value)} style={{ display: 'block', width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, boxSizing: 'border-box' }} /></label>
+              <label style={{ color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Authentication<select value={shopifyAuthMode} onChange={event => { setShopifyAuthMode(event.target.value as 'client_credentials' | 'legacy_token'); setShopifySecret(''); }} style={{ display: 'block', width: '100%', height: 38, marginTop: 6, border: '1px solid var(--sv-border)', borderRadius: 5 }}><option value="client_credentials">Client credentials</option><option value="legacy_token">Legacy Admin API token</option></select></label>
+              {shopifyAuthMode === 'client_credentials' && <label style={{ color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Client ID<input value={shopifyClientId} onChange={event => setShopifyClientId(event.target.value)} style={{ display: 'block', width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, boxSizing: 'border-box' }} /></label>}
+              <label style={{ color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>{shopifyAuthMode === 'client_credentials' ? 'Client secret' : 'Admin API access token'}<input type="password" value={shopifySecret} onChange={event => setShopifySecret(event.target.value)} placeholder={shopifyEditingId ? 'Leave blank to keep the saved secret' : ''} style={{ display: 'block', width: '100%', height: 38, marginTop: 6, padding: '0 10px', border: '1px solid var(--sv-border)', borderRadius: 5, boxSizing: 'border-box' }} /></label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" onClick={() => setAddChannelProvider('choose')} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', color: 'var(--sv-text)', fontSize: 12, fontWeight: 700 }}>Back</button>
+              <button type="submit" disabled={shopifySaving || !shopifyDisplayName.trim() || !shopifyDomain.trim()} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750, opacity: shopifySaving ? .55 : 1 }}>{shopifySaving ? 'Saving...' : 'Save Shopify channel'}</button>
             </div>
           </form>}
         </div>

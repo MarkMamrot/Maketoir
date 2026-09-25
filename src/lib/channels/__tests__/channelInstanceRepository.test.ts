@@ -266,4 +266,18 @@ describe('SalesChannelInstanceRepository', () => {
     })).resolves.toBeNull();
     expect(mockQuery).not.toHaveBeenCalled();
   });
+
+  it('activates only a ready exact Shopify instance', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockQuery.mockResolvedValue([]);
+
+    await SalesChannelInstanceRepository.setShopifyActivationForBusiness({
+      businessId: ' business-1 ', channelInstanceId: ' instance-1 ', active: true,
+    });
+
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("provider = 'shopify'"), [
+      1, 'active', 'business-1', 'instance-1', 1,
+    ]);
+    expect(mockExecute.mock.calls[0][0]).toContain("readiness_status = 'ready'");
+  });
 });

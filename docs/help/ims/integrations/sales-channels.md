@@ -20,6 +20,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Keep assignment **Manual** by default, or opt an exact channel into **Add matches** or **Full sync**.
 - Include or exclude products from **All Products** or an individual product, and allow automation again when appropriate.
 - Enable automatic publication for a prepared channel and reconcile confirmed assignment differences.
+- Connect and configure multiple Shopify stores with separate credentials.
 - Test a Shopify instance against its exact saved store and credentials.
 - Connect an Amazon Australia Seller Central account through Amazon's authorization page.
 - Test the saved authorization for one Amazon seller account.
@@ -72,11 +73,23 @@ Provider behavior differs:
 
 Assignment intent and provider state are separate. **Include** means Solvantis should publish when the channel is eligible; it does not prove that the provider has accepted the change. Review blocked or failed results before relying on an offer being live.
 
-Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments.
+Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments. After a successful test, choose **Activate** to make that exact store eligible for its enabled channel workflows. Choose **Deactivate** to pause it while retaining credentials, mappings, assignments, and history.
 
 ### Add a sales channel
 
-Choose **Add Sales Channel**, then choose a provider. Amazon continues to Seller Central authorization for a new seller account. Shopify opens its connection settings. Enable the single Solvantis Online Store channel in Online Channels settings.
+Choose **Add Sales Channel**, then choose a provider. Amazon continues to Seller Central authorization for a new seller account. Shopify opens an exact-store configuration form. Enable the single Solvantis Online Store channel in Online Channels settings.
+
+### Connect Shopify
+
+1. Choose **Add Sales Channel**, then **Shopify**.
+2. Enter a staff-facing channel name and the permanent domain ending in `.myshopify.com`.
+3. Choose client credentials or a legacy Admin API token, then enter the credentials for that exact store.
+4. Save the channel, choose **Test connection**, and correct any reported credential or domain mismatch.
+5. After the test succeeds, choose **Activate**.
+
+Repeat these steps for another Shopify store. Use **Configure** on a Shopify row to change that instance. A blank secret field keeps the saved secret; stored secrets are never displayed.
+
+Exact-instance Shopify credentials currently control connection testing and channel product publication. Existing Shopify order, customer, gift-card, and other legacy synchronization work continues to use the business's default Shopify connection until that operation is shown on the exact channel row. Do not assume activating a second Shopify channel redirects those legacy jobs.
 
 ### Connect Amazon Australia
 
