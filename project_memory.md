@@ -1,3 +1,10 @@
+## 2026-09-26 - Monsterthreads exact Shopify cutover completed
+
+- Migrated Monsterthreads' existing Shopify connection in place to exact instance `43e53831-ad2c-4bc7-9bd2-d443974a3b45`. The instance remains enabled, active and ready with the same permanent shop domain and credential. All legacy order, inventory, gift-card and automatic Xero settings match the exact instance; product publication remains disabled/unset.
+- Applied exact owner schema to shared Xero/gateway tables and only the Monsterthreads tenant. Backfilled exact ownership for 546 orders, 898 order lines, 10 credit notes, 592 gift cards and existing linked customer identities. Final audit reports zero unresolved Shopify orders, credit notes, gift cards or shipments and zero canonical product-mapping mismatches.
+- Registered eight supported core Shopify topics against the exact instance callback and removed all four old business-level registrations. Shopify rejected optional `returns/update` and Shopify Payments payout topics with HTTP 422 because the current app/plan scopes do not expose them; core order, update, cancellation, fulfilment and refund delivery is active. A signed no-side-effect return observation verified exact HMAC, tenant routing and event processing end to end.
+- Removed both legacy Shopify orders webhook routes after provider cutover. Sage remains disabled/paused and was not migrated or contacted. Validation passed the production build, Help indexes, 3,147 tests with five intentional skips, and all exact-instance focused suites.
+
 ## 2026-09-25 - Multi-Shopify end-to-end audit and rollout readiness
 
 - Completed an adversarial audit of Shopify runtime routing, orders, fulfilment, refunds, loyalty, gift cards, inventory, reports, daily Xero batches, payouts, gateway mappings, diagnostics, webhooks and migration scripts. Fixed missed exact-instance paths in customer-account loyalty rewards, loyalty portal sessions, gift-card customer linkage, daily Xero batches/payments/fees, gateway mappings, online-sales automatic sync and support diagnostics. Removed the unreachable business-global order importer.

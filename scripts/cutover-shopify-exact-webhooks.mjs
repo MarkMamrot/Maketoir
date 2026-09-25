@@ -76,7 +76,7 @@ try {
   if (!token || !shopDomain) throw new Error('Exact Shopify credentials are incomplete.');
 
   const callbackUrl = `${origin}/api/webhooks/shopify/channels/${row.channel_instance_id}`;
-  const legacyFragment = `/api/webhooks/shopify/orders/${row.business_id}`;
+  const legacyFragment = '/api/webhooks/shopify/orders';
   const probe = await fetch(callbackUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   if (probe.status !== 400) throw new Error(`Exact endpoint is not live: expected HTTP 400 for unsigned input, received ${probe.status}.`);
 
@@ -129,7 +129,16 @@ try {
     if ((final.webhooks ?? []).some(webhook => String(webhook.address ?? '').includes(legacyFragment))) throw new Error('Legacy Shopify webhook registrations remain.');
   }
 
-  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', business: row.name, channelInstanceId: row.channel_instance_id, callbackUrl, plan, failures }, null, 2));
+  console.log(JSON.stringify({
+    mode: apply ? 'apply' : 'dry-run',
+    business: row.name,
+    channelInstanceId: row.channel_instance_id,
+    callbackUrl,
+    legacyRegistrations: existing.filter(webhook => String(webhook.address ?? '').includes(legacyFragment))
+      .map(webhook => ({ id: String(webhook.id), topic: webhook.topic, address: webhook.address })),
+    plan,
+    failures,
+  }, null, 2));
 } finally {
   await connection.end();
 }

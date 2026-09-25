@@ -97,7 +97,7 @@ In **Shopify > Orders**, choose the intended storefront before importing orders 
 
 The same storefront choice owns its order start date, online-orders location, order-sync switch, and automatic daily Xero batch switch. When only one active Shopify store exists it is selected automatically; when more than one exists, choose the store before changing settings or running an action. Each store creates separate daily Xero batches, gateway mappings and payout records.
 
-Webhook health is tracked separately for every storefront and topic. A missing or failed topic does not fall back to another Shopify connection. The old business-level callback is only a compatibility path for a delivery that can be matched to exactly one active, ready storefront with an existing exact registration; otherwise it is rejected as retired. Registering webhooks or importing orders does not change product publication state.
+Webhook health is tracked separately for every storefront and topic. A missing or failed topic does not fall back to another Shopify connection. Every Shopify webhook uses the exact storefront callback shown on the Orders tab; business-level callback URLs are not supported. Registering webhooks or importing orders does not change product publication state.
 
 ### Connect Amazon Australia
 

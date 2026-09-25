@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
+import { createDecipheriv } from 'node:crypto';
 
 const requestedBusiness = process.argv.find(argument => argument.startsWith('--business='))?.slice('--business='.length).trim();
 if (!requestedBusiness) throw new Error('Usage: node scripts/audit-shopify-exact-cutover.mjs --business=<business-id-or-name>');
@@ -23,6 +24,17 @@ function object(value) {
   return typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function decrypt(value) {
+  const stored = String(value ?? '');
+  const parts = stored.split(':');
+  if (parts.length !== 3) return stored;
+  const keyHex = process.env.ENCRYPTION_KEY ?? '';
+  if (!/^[0-9a-f]{64}$/i.test(keyHex)) throw new Error('ENCRYPTION_KEY is invalid.');
+  const decipher = createDecipheriv('aes-256-gcm', Buffer.from(keyHex, 'hex'), Buffer.from(parts[0], 'hex'));
+  decipher.setAuthTag(Buffer.from(parts[1], 'hex'));
+  return Buffer.concat([decipher.update(Buffer.from(parts[2], 'hex')), decipher.final()]).toString('utf8');
+}
+
 async function tableExists(schema, table) {
   const [rows] = await connection.query(
     'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? LIMIT 1',
@@ -42,7 +54,8 @@ async function columnExists(schema, table, column) {
 try {
   const [businesses] = await connection.query(
     `SELECT business.business_id, business.name, business.ims_db_name,
-            capability.shopify_enabled, legacy.shopify_shop_id, legacy.shopify_auth_mode
+            capability.shopify_enabled, legacy.shopify_shop_id, legacy.shopify_auth_mode,
+            legacy.shopify_client_secret
        FROM businesses business
        LEFT JOIN business_online_channels capability ON BINARY capability.business_id = BINARY business.business_id
        LEFT JOIN connections legacy ON BINARY legacy.business_id = BINARY business.business_id
@@ -91,6 +104,8 @@ try {
     [business.business_id],
   );
   const legacy = new Map(legacyRows.map(row => [String(row.key), row.value]));
+  const legacyWebhookSecret = String(legacy.get('shopify_webhook_secret') ?? '').trim();
+  const appClientSecret = decrypt(business.shopify_client_secret).trim();
   const exact = object(object(instances[0]?.settings_json).shopify);
   const exactOrders = object(exact.orders);
   const exactInventory = object(exact.inventory);
@@ -143,7 +158,9 @@ try {
     legacy: {
       shopDomain: business.shopify_shop_id,
       authMode: business.shopify_auth_mode,
-      webhookSecretConfigured: Boolean(String(legacy.get('shopify_webhook_secret') ?? '').trim()),
+      webhookSecretConfigured: Boolean(legacyWebhookSecret),
+      appClientSecretConfigured: Boolean(appClientSecret),
+      webhookSecretMatchesAppSecret: Boolean(legacyWebhookSecret && appClientSecret && legacyWebhookSecret === appClientSecret),
     },
     instances: instances.map(instance => ({
       channelInstanceId: instance.channel_instance_id,
