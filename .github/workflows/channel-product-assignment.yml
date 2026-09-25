@@ -1,0 +1,28 @@
+name: Sales Channel Product Assignment
+
+on:
+  schedule:
+    - cron: '11 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sales-channel-product-assignment
+  cancel-in-progress: false
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply opted-in channel product rules
+        run: |
+          BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"batchSize":500}' \
+            "${{ secrets.APP_URL }}/api/ims/channels/product-assignment/cron")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
+          echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
+          [ "$RESPONSE" = "200" ] || exit 1

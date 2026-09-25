@@ -142,5 +142,9 @@ export async function POST(req: Request) {
   }
 
   console.log('[auto-sync-cron]', results);
-  return NextResponse.json({ ok: true, synced: results.filter(r => r.success).length, results });
+  const failed = results.filter(result => !result.success).length;
+  return NextResponse.json(
+    { ok: failed === 0, synced: results.filter(result => result.success).length, failed, results },
+    { status: failed === 0 ? 200 : 207 },
+  );
 }

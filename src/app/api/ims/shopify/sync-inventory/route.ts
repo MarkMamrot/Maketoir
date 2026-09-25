@@ -20,6 +20,7 @@ import { enterImsForBusiness, runImsForBusiness } from '@/lib/db/BusinessRegistr
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
   drainInventoryQueue,
   pushInventoryForShopifyInstance,
@@ -151,6 +152,13 @@ async function handlePost(req: Request) {
         totals.errors.push(...res.errors);
       } catch (e: any) {
         totals.errors.push(`${business_id}: ${e?.message ?? 'drain failed'}`);
+        await reportRuntimeIssue({
+          businessId: business_id,
+          source: 'shopify_inventory',
+          operation: 'drain_business_queue',
+          title: 'Shopify inventory queue drain failed for organisation',
+          error: e,
+        }).catch(() => null);
       }
     }
     return NextResponse.json(

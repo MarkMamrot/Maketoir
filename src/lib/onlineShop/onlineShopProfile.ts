@@ -59,15 +59,15 @@ function mapProfile(row: OnlineShopProfileRow): OnlineShopProfile {
 
 export const OnlineSalesChannelRepository = {
   async getCapabilities(businessId: string): Promise<OnlineChannelCapabilities> {
-    const rows = await query<{ active_channel: string; shopify_enabled: number; native_shop_enabled: number }>(
+    const rows = await query<{ active_channel: string; shopify_enabled: number | null; native_shop_enabled: number | null }>(
       `SELECT active_channel, shopify_enabled, native_shop_enabled
          FROM business_online_channels WHERE business_id = ? LIMIT 1`,
       [businessId],
     );
     const row = rows[0];
     return {
-      shopifyEnabled: row?.shopify_enabled === 1 || row?.active_channel === 'shopify',
-      nativeShopEnabled: row?.native_shop_enabled === 1 || row?.active_channel === 'native_shop',
+      shopifyEnabled: row?.shopify_enabled == null ? row?.active_channel === 'shopify' : row.shopify_enabled === 1,
+      nativeShopEnabled: row?.native_shop_enabled == null ? row?.active_channel === 'native_shop' : row.native_shop_enabled === 1,
     };
   },
 

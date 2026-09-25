@@ -32,11 +32,19 @@ describe('online shop profile control plane', () => {
     await expect(OnlineSalesChannelRepository.get('business-1')).resolves.toBe('none');
   });
 
-  it('resolves Shopify and native capabilities independently with legacy fallback', async () => {
+  it('treats explicit capability flags as authoritative over legacy channel state', async () => {
     mockQuery.mockResolvedValueOnce([{ active_channel: 'shopify', shopify_enabled: 0, native_shop_enabled: 1 }]);
     await expect(OnlineSalesChannelRepository.getCapabilities('business-1')).resolves.toEqual({
-      shopifyEnabled: true,
+      shopifyEnabled: false,
       nativeShopEnabled: true,
+    });
+  });
+
+  it('uses legacy channel state only when explicit capability flags are unavailable', async () => {
+    mockQuery.mockResolvedValueOnce([{ active_channel: 'shopify', shopify_enabled: null, native_shop_enabled: null }]);
+    await expect(OnlineSalesChannelRepository.getCapabilities('business-1')).resolves.toEqual({
+      shopifyEnabled: true,
+      nativeShopEnabled: false,
     });
   });
 

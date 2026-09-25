@@ -199,7 +199,11 @@ const INVENTORY_OPERATION = 'shopify_inventory';
 /** Expand legacy variant-only queue rows through exact linked mappings. */
 export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Promise<number> {
   const shopifyInstanceIds = (await SalesChannelInstanceRepository.listForBusiness(businessId))
-    .filter(instance => instance.provider === 'shopify')
+    .filter(instance => instance.provider === 'shopify'
+      && instance.enabled
+      && instance.runtimeStatus === 'active'
+      && instance.readinessStatus === 'ready'
+      && shopifyInstanceSettings(instance.settings).inventory.enabled)
     .map(instance => instance.channelInstanceId);
   if (shopifyInstanceIds.length === 0) return 0;
   const instancePlaceholders = shopifyInstanceIds.map(() => '?').join(',');
@@ -212,7 +216,8 @@ export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Pro
        JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
        JOIN ims_products product ON product.product_id = variant.product_id
        JOIN ims_sales_channel_product_mappings mapping
-         ON mapping.business_id = product.business_id AND mapping.variant_id = variant.variant_id
+         ON BINARY mapping.business_id = BINARY product.business_id
+        AND BINARY mapping.variant_id = BINARY variant.variant_id
       WHERE product.business_id = ? AND mapping.channel_instance_id IN (${instancePlaceholders})
         AND mapping.mapping_status = 'linked'
         AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
@@ -231,8 +236,9 @@ export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Pro
       JOIN ims_products product ON product.product_id = variant.product_id
     WHERE product.business_id = ? AND EXISTS (
        SELECT 1 FROM ims_sales_channel_product_mappings mapping
-        WHERE mapping.business_id = product.business_id AND mapping.variant_id = variant.variant_id
-      AND mapping.channel_instance_id IN (${instancePlaceholders})
+        WHERE BINARY mapping.business_id = BINARY product.business_id
+          AND BINARY mapping.variant_id = BINARY variant.variant_id
+          AND mapping.channel_instance_id IN (${instancePlaceholders})
           AND mapping.mapping_status = 'linked' AND mapping.external_inventory_id IS NOT NULL
           AND mapping.external_inventory_id <> ''
      )`,

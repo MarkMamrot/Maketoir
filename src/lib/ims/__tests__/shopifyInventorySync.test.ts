@@ -24,6 +24,7 @@ vi.mock('@/lib/channels/channelInstanceRepository', () => ({
 
 import {
   drainInventoryQueue,
+  fanOutLegacyShopifyInventoryQueue,
   pushInventoryForShopifyInstance,
   shopifyInventoryPolicyPayload,
   shouldRunInventorySync,
@@ -72,8 +73,8 @@ describe('exact-instance Shopify inventory', () => {
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue({ affectedRows: 1 });
     mocks.listInstances.mockResolvedValue([
-      { provider: 'shopify', channelInstanceId: 'store-a' },
-      { provider: 'shopify', channelInstanceId: 'store-b' },
+      { provider: 'shopify', channelInstanceId: 'store-a', enabled: true, runtimeStatus: 'active', readinessStatus: 'ready', settings: operationContext('store-a').instance.settings },
+      { provider: 'shopify', channelInstanceId: 'store-b', enabled: true, runtimeStatus: 'active', readinessStatus: 'ready', settings: operationContext('store-b').instance.settings },
     ]);
     mocks.report.mockResolvedValue(undefined);
     mocks.notify.mockResolvedValue(undefined);
@@ -100,6 +101,23 @@ describe('exact-instance Shopify inventory', () => {
     expect(mocks.setInventory).toHaveBeenNthCalledWith(
       2, 'store-b.myshopify.com', [{ inventoryItemId: 'inventory-b', available: 18 }], 102,
     );
+  });
+
+  it('fans out legacy jobs only to eligible instances with collation-safe joins', async () => {
+    mocks.listInstances.mockResolvedValue([
+      { provider: 'shopify', channelInstanceId: 'store-a', enabled: true, runtimeStatus: 'active', readinessStatus: 'ready', settings: operationContext('store-a').instance.settings },
+      { provider: 'shopify', channelInstanceId: 'store-disabled', enabled: false, runtimeStatus: 'paused', readinessStatus: 'ready', settings: operationContext('store-b').instance.settings },
+    ]);
+
+    await fanOutLegacyShopifyInventoryQueue('biz-1');
+
+    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    for (const [sql, params] of mocks.execute.mock.calls) {
+      expect(sql).toContain('BINARY mapping.business_id = BINARY product.business_id');
+      expect(sql).toContain('BINARY mapping.variant_id = BINARY variant.variant_id');
+      expect(params).toContain('store-a');
+      expect(params).not.toContain('store-disabled');
+    }
   });
 
   it('completes one store when another store fails', async () => {

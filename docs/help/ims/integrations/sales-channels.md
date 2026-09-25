@@ -53,6 +53,8 @@ Choose the assignment mode on the exact channel row:
 - **Add matches** includes unprotected products that match the rules but does not remove products that stop matching.
 - **Full sync** includes matching unprotected products and removes unprotected products that stop matching.
 
+Automatic assignment modes re-evaluate product rules hourly. They update Solvantis destination intent only; provider publication remains controlled separately.
+
 An explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Allow automation** to remove that protection while preserving the current inclusion until the selected automation mode runs.
 
 For one saved product, open **Products > All Products > Channels**, choose **Include in Channels**, review configured destinations and recommendations, then apply the checked channels. For several products, choose their rows in **All Products**, choose **Include in Sales Channels**, check one or more exact channel instances, and choose **Always include**, **Always exclude**, or **Allow automation**.

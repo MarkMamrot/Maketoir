@@ -150,6 +150,17 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
     expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24', 'store-1');
   });
 
+  it('returns a non-200 response when an online batch fails to sync', async () => {
+    makeImsQueryForDay();
+    mockSyncOnlineDailySalesDay.mockRejectedValue(new Error('Xero unavailable'));
+
+    const res = await POST(cronRequest('cron-secret'));
+    const json = await res.json();
+
+    expect(res.status).toBe(207);
+    expect(json).toMatchObject({ ok: false, synced: 0, failed: 1 });
+  });
+
   it('defers Shopify Payments while paying other gateways on the combined invoice', async () => {
     mockQuery.mockImplementation(async (sql: string) => {
       const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
