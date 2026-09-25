@@ -35,16 +35,20 @@ export class ShopifyChannelValidationError extends Error {}
 
 function parseEnvelope(payload: string | null): ShopifyCredentialEnvelope | null {
   if (!payload) return null;
-  const parsed = JSON.parse(decrypt(payload)) as Partial<ShopifyCredentialEnvelope>;
-  if (parsed.authMode !== 'legacy_token' && parsed.authMode !== 'client_credentials') return null;
-  return {
-    authMode: parsed.authMode,
-    shopDomain: normalizeShopifyShopDomain(String(parsed.shopDomain ?? '')),
-    accessToken: String(parsed.accessToken ?? ''),
-    clientId: String(parsed.clientId ?? ''),
-    clientSecret: String(parsed.clientSecret ?? ''),
-    tokenExpiresAt: parsed.tokenExpiresAt == null ? null : Number(parsed.tokenExpiresAt),
-  };
+  try {
+    const parsed = JSON.parse(decrypt(payload)) as Partial<ShopifyCredentialEnvelope>;
+    if (parsed.authMode !== 'legacy_token' && parsed.authMode !== 'client_credentials') return null;
+    return {
+      authMode: parsed.authMode,
+      shopDomain: normalizeShopifyShopDomain(String(parsed.shopDomain ?? '')),
+      accessToken: String(parsed.accessToken ?? ''),
+      clientId: String(parsed.clientId ?? ''),
+      clientSecret: String(parsed.clientSecret ?? ''),
+      tokenExpiresAt: parsed.tokenExpiresAt == null ? null : Number(parsed.tokenExpiresAt),
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function loadInstance(connection: PoolConnection, channelInstanceId: string): Promise<ShopifyInstanceRow | null> {
@@ -100,7 +104,7 @@ export async function saveShopifyChannel(input: {
   const shopDomain = normalizeShopifyShopDomain(input.shopDomain);
   if (!businessId) throw new ShopifyChannelValidationError('Business ID is required.');
   if (!displayName || displayName.length > 120) throw new ShopifyChannelValidationError('Channel name must be 1-120 characters.');
-  if (!shopDomain.endsWith('.myshopify.com')) {
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com$/.test(shopDomain)) {
     throw new ShopifyChannelValidationError('Enter the permanent Shopify store domain ending in .myshopify.com.');
   }
   if (input.authMode !== 'legacy_token' && input.authMode !== 'client_credentials') {
@@ -123,11 +127,12 @@ export async function saveShopifyChannel(input: {
     if (domainRows[0]) throw new ShopifyChannelValidationError('This Shopify store is already connected.');
 
     const previous = parseEnvelope(existing?.encrypted_payload ?? null);
+    const canRetainSecret = previous?.authMode === input.authMode && previous.shopDomain === shopDomain;
     const accessToken = input.authMode === 'legacy_token'
-      ? (input.accessToken?.trim() || (previous?.authMode === 'legacy_token' ? previous.accessToken : '')) : '';
+      ? (input.accessToken?.trim() || (canRetainSecret ? previous.accessToken : '')) : '';
     const clientId = input.authMode === 'client_credentials' ? String(input.clientId ?? '').trim() : '';
     const clientSecret = input.authMode === 'client_credentials'
-      ? (input.clientSecret?.trim() || (previous?.authMode === 'client_credentials' ? previous.clientSecret : '')) : '';
+      ? (input.clientSecret?.trim() || (canRetainSecret ? previous.clientSecret : '')) : '';
     if (input.authMode === 'legacy_token' && !accessToken) {
       throw new ShopifyChannelValidationError('Enter the Shopify Admin API access token.');
     }
@@ -136,8 +141,10 @@ export async function saveShopifyChannel(input: {
     }
 
     const credentialsChanged = !previous || previous.authMode !== input.authMode
-      || previous.shopDomain !== shopDomain || previous.accessToken !== accessToken
-      || previous.clientId !== clientId || previous.clientSecret !== clientSecret;
+      || previous.shopDomain !== shopDomain
+      || (input.authMode === 'legacy_token' && previous.accessToken !== accessToken)
+      || (input.authMode === 'client_credentials'
+        && (previous.clientId !== clientId || previous.clientSecret !== clientSecret));
     const envelope: ShopifyCredentialEnvelope = {
       authMode: input.authMode,
       shopDomain,
@@ -149,11 +156,15 @@ export async function saveShopifyChannel(input: {
     if (existing) {
       await connection.execute(
         `UPDATE sales_channel_instances
-            SET display_name = ?, external_account_key = ?, readiness_status = 'not_tested',
-                runtime_status = IF(is_enabled = 1, 'paused', runtime_status), safe_error = NULL,
+            SET display_name = ?, external_account_key = ?,
+                is_enabled = IF(? = 1, 0, is_enabled),
+                readiness_status = IF(? = 1, 'not_tested', readiness_status),
+                runtime_status = IF(? = 1, 'paused', runtime_status),
+                safe_error = IF(? = 1, NULL, safe_error),
                 updated_at = CURRENT_TIMESTAMP(3)
           WHERE business_id = ? AND channel_instance_id = ? AND provider = 'shopify'`,
-        [displayName, shopDomain, businessId, channelInstanceId],
+        [displayName, shopDomain, credentialsChanged ? 1 : 0, credentialsChanged ? 1 : 0,
+          credentialsChanged ? 1 : 0, credentialsChanged ? 1 : 0, businessId, channelInstanceId],
       );
     } else {
       await connection.execute(

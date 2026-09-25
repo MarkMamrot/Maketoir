@@ -70,6 +70,15 @@ export const publishNativeShopProduct: ChannelProductPublicationAdapter = async 
 };
 
 export const publishShopifyProduct: ChannelProductPublicationAdapter = async input => {
+  const assignments = await imsQuery<{ external_product_id: string | null; readiness_status: string }>(
+    `SELECT external_product_id, readiness_status
+       FROM ims_sales_channel_product_assignments
+      WHERE business_id = ? AND channel_instance_id = ? AND product_id = ? LIMIT 1`,
+    [input.businessId, input.channelInstanceId, input.productId],
+  );
+  if (assignments[0]?.readiness_status === 'blocked') {
+    return blocked('Resolve this product publication blocker before changing Shopify status.');
+  }
   const mappings = await imsQuery<ShopifyMappingRow>(
     `SELECT DISTINCT mapping.external_product_id
        FROM ims_sales_channel_product_mappings mapping
@@ -79,7 +88,10 @@ export const publishShopifyProduct: ChannelProductPublicationAdapter = async inp
         AND mapping.mapping_status = 'linked' AND mapping.external_product_id IS NOT NULL`,
     [input.businessId, input.channelInstanceId, input.productId],
   );
-  const productIds = [...new Set(mappings.map(row => String(row.external_product_id).trim()).filter(Boolean))];
+  const productIds = [...new Set([
+    ...mappings.map(row => String(row.external_product_id).trim()),
+    String(assignments[0]?.external_product_id ?? '').trim(),
+  ].filter(Boolean))];
   if (productIds.length === 0) {
     return input.desiredState === 'unpublished'
       ? { outcome: 'applied', providerState: 'unpublished' }

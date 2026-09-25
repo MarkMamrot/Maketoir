@@ -27,6 +27,16 @@ describe('channel product links', () => {
     expect(mocks.query.mock.calls[0][1]).toEqual(['business-1', 'channel-1', 'product-1']);
   });
 
+  it('builds Shopify links from a ready product-level fallback when no variant mapping exists', async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ external_product_id: '456' }]);
+    mocks.credentials.mockResolvedValue({ shopDomain: 'example.myshopify.com', shopName: 'example', token: 'secret' });
+    mocks.getProduct.mockResolvedValue({ handle: 'gift-card' });
+    await expect(getChannelProductLinks({ businessId: 'business-1', productId: 'product-2', instance: instance('shopify') }))
+      .resolves.toEqual({ storefrontUrl: 'https://example.myshopify.com/products/gift-card',
+        adminUrl: 'https://admin.shopify.com/store/example/products/456' });
+    expect(mocks.query.mock.calls[1][0]).toContain("readiness_status <> 'blocked'");
+  });
+
   it('builds an Amazon product link only from an exact-instance ASIN mapping', async () => {
     mocks.query.mockResolvedValue([{ external_product_id: 'B012345678' }]);
     await expect(getChannelProductLinks({ businessId: 'business-1', productId: 'product-1', instance: instance('amazon') }))

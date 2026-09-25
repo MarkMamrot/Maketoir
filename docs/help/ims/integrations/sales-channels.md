@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-15","owner":"integrations","quickSections":["Main operations"]}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-25","owner":"integrations","quickSections":["Main operations"]}
 ---
 # Sales Channels
 
@@ -87,7 +87,7 @@ Choose **Add Sales Channel**, then choose a provider. Amazon continues to Seller
 4. Save the channel, choose **Test connection**, and correct any reported credential or domain mismatch.
 5. After the test succeeds, choose **Activate**.
 
-Repeat these steps for another Shopify store. Use **Configure** on a Shopify row to change that instance. A blank secret field keeps the saved secret; stored secrets are never displayed.
+Repeat these steps for another Shopify store. Use **Configure** on a Shopify row to change that instance. A blank secret field keeps the saved secret only while the authentication mode and permanent store domain remain unchanged; stored secrets are never displayed. Changing the store domain, authentication mode, client ID, token, or secret deactivates the instance. Test the changed connection successfully, then choose **Activate** explicitly. Changing only the channel name or saving unchanged credentials preserves the current state.
 
 Exact-instance Shopify credentials currently control connection testing and channel product publication. Existing Shopify order, customer, gift-card, and other legacy synchronization work continues to use the business's default Shopify connection until that operation is shown on the exact channel row. Do not assume activating a second Shopify channel redirects those legacy jobs.
 

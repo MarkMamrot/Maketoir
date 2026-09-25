@@ -142,7 +142,12 @@ export async function getShopifyAdminCredentials(businessId: string): Promise<Sh
 }
 
 function parseShopifyChannelCredentialEnvelope(encryptedPayload: string): ShopifyChannelCredentialEnvelope {
-  const parsed = JSON.parse(decrypt(encryptedPayload)) as Partial<ShopifyChannelCredentialEnvelope>;
+  let parsed: Partial<ShopifyChannelCredentialEnvelope>;
+  try {
+    parsed = JSON.parse(decrypt(encryptedPayload)) as Partial<ShopifyChannelCredentialEnvelope>;
+  } catch {
+    throw new Error('Shopify channel credentials could not be decrypted. Re-enter the credentials for this storefront.');
+  }
   if (parsed.authMode !== 'legacy_token' && parsed.authMode !== 'client_credentials') {
     throw new Error('Shopify channel authentication mode is invalid.');
   }

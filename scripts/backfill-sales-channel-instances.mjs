@@ -104,7 +104,8 @@ async function migrateShopify(business) {
     enabled: business.shopify_enabled === 1,
     ready,
   });
-  const counts = { products: 0, variants: 0, selections: 0, credentials: 0, productConflictOwners: 0, variantConflictOwners: 0 };
+  const counts = { products: 0, variants: 0, selections: 0, canonicalMappings: 0, assignments: 0,
+    credentials: 0, productConflictOwners: 0, variantConflictOwners: 0 };
   const [[productConflictRows], [variantConflictRows]] = await Promise.all([
     connection.query(
       `SELECT COALESCE(SUM(owner_count), 0) AS owner_count
@@ -129,18 +130,41 @@ async function migrateShopify(business) {
   ]);
   counts.productConflictOwners = Number(productConflictRows[0]?.owner_count ?? 0);
   counts.variantConflictOwners = Number(variantConflictRows[0]?.owner_count ?? 0);
-  const [[productCountRows], [variantCountRows]] = await Promise.all([
+  const [[productCountRows], [variantCountRows], [canonicalMappingCountRows]] = await Promise.all([
     connection.query(`SELECT COUNT(*) AS count FROM \`${business.ims_db_name}\`.ims_products
       WHERE business_id = ? AND shopify_product_id IS NOT NULL AND shopify_product_id <> ''`, [business.business_id]),
     connection.query(`SELECT COUNT(*) AS count FROM \`${business.ims_db_name}\`.ims_product_variants
       WHERE business_id = ? AND shopify_variant_id IS NOT NULL AND shopify_variant_id <> ''`, [business.business_id]),
+    connection.query(
+      `SELECT COUNT(*) AS count
+         FROM \`${business.ims_db_name}\`.ims_product_variants variant
+         JOIN \`${business.ims_db_name}\`.ims_products product
+           ON BINARY product.business_id = BINARY variant.business_id AND product.product_id = variant.product_id
+        WHERE variant.business_id = ?
+          AND product.shopify_product_id IS NOT NULL AND product.shopify_product_id <> ''
+          AND variant.shopify_variant_id IS NOT NULL AND variant.shopify_variant_id <> ''
+          AND NOT EXISTS (
+            SELECT 1 FROM \`${business.ims_db_name}\`.ims_products duplicate
+             WHERE BINARY duplicate.business_id = BINARY product.business_id
+               AND duplicate.shopify_product_id = product.shopify_product_id
+               AND duplicate.product_id <> product.product_id)
+          AND NOT EXISTS (
+            SELECT 1 FROM \`${business.ims_db_name}\`.ims_product_variants duplicate
+             WHERE BINARY duplicate.business_id = BINARY variant.business_id
+               AND duplicate.shopify_variant_id = variant.shopify_variant_id
+               AND duplicate.variant_id <> variant.variant_id)`,
+      [business.business_id],
+    ),
   ]);
   const sourceProducts = Number(productCountRows[0]?.count ?? 0);
   const sourceVariants = Number(variantCountRows[0]?.count ?? 0);
+  const expectedCanonicalMappings = Number(canonicalMappingCountRows[0]?.count ?? 0);
   if (!apply) {
     counts.products = sourceProducts;
     counts.variants = sourceVariants;
     counts.selections = counts.products;
+    counts.canonicalMappings = expectedCanonicalMappings;
+    counts.assignments = sourceProducts;
     counts.credentials = ready ? 1 : 0;
     return { ...instance, domain, counts };
   }
@@ -207,6 +231,73 @@ async function migrateShopify(business) {
     [instance.channelInstanceId, business.business_id],
   );
   counts.selections = selectionResult.affectedRows;
+  const [canonicalMappingResult] = await connection.query(
+    `INSERT IGNORE INTO \`${business.ims_db_name}\`.ims_sales_channel_product_mappings
+       (business_id, channel_instance_id, variant_id, external_product_id, external_variant_id,
+        external_inventory_id, mapping_status, metadata_json, last_seen_at)
+     SELECT variant.business_id, ?, variant.variant_id, product.shopify_product_id,
+            variant.shopify_variant_id, variant.shopify_inventory_item_id, 'linked',
+            JSON_OBJECT('migrationSource', 'legacy_shopify', 'sku', COALESCE(variant.sku, '')), NOW(3)
+       FROM \`${business.ims_db_name}\`.ims_product_variants variant
+       JOIN \`${business.ims_db_name}\`.ims_products product
+         ON BINARY product.business_id = BINARY variant.business_id AND product.product_id = variant.product_id
+      WHERE variant.business_id = ?
+        AND product.shopify_product_id IS NOT NULL AND product.shopify_product_id <> ''
+        AND variant.shopify_variant_id IS NOT NULL AND variant.shopify_variant_id <> ''
+        AND NOT EXISTS (
+          SELECT 1 FROM \`${business.ims_db_name}\`.ims_products duplicate
+           WHERE BINARY duplicate.business_id = BINARY product.business_id
+             AND duplicate.shopify_product_id = product.shopify_product_id
+             AND duplicate.product_id <> product.product_id)
+        AND NOT EXISTS (
+          SELECT 1 FROM \`${business.ims_db_name}\`.ims_product_variants duplicate
+           WHERE BINARY duplicate.business_id = BINARY variant.business_id
+             AND duplicate.shopify_variant_id = variant.shopify_variant_id
+             AND duplicate.variant_id <> variant.variant_id)`,
+    [instance.channelInstanceId, business.business_id],
+  );
+  counts.canonicalMappings = canonicalMappingResult.affectedRows;
+  const [assignmentResult] = await connection.query(
+    `INSERT IGNORE INTO \`${business.ims_db_name}\`.ims_sales_channel_product_assignments
+       (business_id, channel_instance_id, product_id, rule_decision, override_mode, desired_state,
+        readiness_status, readiness_issues_json, provider_state, external_product_id, evaluated_at, last_observed_at)
+     SELECT product.business_id, ?, product.product_id, 'include', 'include', 'published',
+            CASE WHEN EXISTS (
+              SELECT 1 FROM \`${business.ims_db_name}\`.ims_products duplicate
+               WHERE BINARY duplicate.business_id = BINARY product.business_id
+                 AND duplicate.shopify_product_id = product.shopify_product_id
+                 AND duplicate.product_id <> product.product_id
+            ) OR EXISTS (
+              SELECT 1 FROM \`${business.ims_db_name}\`.ims_product_variants variant
+              JOIN \`${business.ims_db_name}\`.ims_product_variants duplicate
+                ON BINARY duplicate.business_id = BINARY variant.business_id
+               AND duplicate.shopify_variant_id = variant.shopify_variant_id
+               AND duplicate.variant_id <> variant.variant_id
+             WHERE BINARY variant.business_id = BINARY product.business_id
+               AND variant.product_id = product.product_id
+               AND variant.shopify_variant_id IS NOT NULL AND variant.shopify_variant_id <> ''
+            ) THEN 'blocked' ELSE 'ready' END,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM \`${business.ims_db_name}\`.ims_products duplicate
+               WHERE BINARY duplicate.business_id = BINARY product.business_id
+                 AND duplicate.shopify_product_id = product.shopify_product_id
+                 AND duplicate.product_id <> product.product_id
+            ) OR EXISTS (
+              SELECT 1 FROM \`${business.ims_db_name}\`.ims_product_variants variant
+              JOIN \`${business.ims_db_name}\`.ims_product_variants duplicate
+                ON BINARY duplicate.business_id = BINARY variant.business_id
+               AND duplicate.shopify_variant_id = variant.shopify_variant_id
+               AND duplicate.variant_id <> variant.variant_id
+             WHERE BINARY variant.business_id = BINARY product.business_id
+               AND variant.product_id = product.product_id
+               AND variant.shopify_variant_id IS NOT NULL AND variant.shopify_variant_id <> ''
+            ) THEN JSON_ARRAY('Resolve duplicate legacy Shopify IDs before changing publication.') ELSE NULL END,
+            'published', product.shopify_product_id, NOW(3), NOW(3)
+       FROM \`${business.ims_db_name}\`.ims_products product
+      WHERE product.business_id = ? AND product.shopify_product_id IS NOT NULL AND product.shopify_product_id <> ''`,
+    [instance.channelInstanceId, business.business_id],
+  );
+  counts.assignments = assignmentResult.affectedRows;
   await connection.query(
     `DELETE mapping FROM \`${business.ims_db_name}\`.ims_channel_product_mappings mapping
       JOIN \`${business.ims_db_name}\`.ims_products product
@@ -261,7 +352,7 @@ async function migrateShopify(business) {
        )`,
     [business.business_id, instance.channelInstanceId],
   );
-  const [[mappingRows], [selectionRows], [credentialRows], [roleRows], [ambiguousProductRows], [ambiguousVariantRows]] = await Promise.all([
+  const [[mappingRows], [selectionRows], [canonicalMappingRows], [canonicalMismatchRows], [assignmentRows], [credentialRows], [roleRows], [ambiguousProductRows], [ambiguousVariantRows]] = await Promise.all([
     connection.query(
       `SELECT
          (SELECT COUNT(*) FROM \`${business.ims_db_name}\`.ims_channel_product_mappings
@@ -273,6 +364,36 @@ async function migrateShopify(business) {
     connection.query(
       `SELECT COUNT(*) AS count FROM \`${business.ims_db_name}\`.ims_channel_product_selections
         WHERE business_id = ? AND channel_instance_id = ?`,
+      [business.business_id, instance.channelInstanceId],
+    ),
+    connection.query(
+      `SELECT COUNT(*) AS count FROM \`${business.ims_db_name}\`.ims_sales_channel_product_mappings
+        WHERE business_id = ? AND channel_instance_id = ? AND mapping_status = 'linked'`,
+      [business.business_id, instance.channelInstanceId],
+    ),
+    connection.query(
+      `SELECT COUNT(*) AS count
+         FROM \`${business.ims_db_name}\`.ims_sales_channel_product_mappings mapping
+         JOIN \`${business.ims_db_name}\`.ims_product_variants variant
+           ON BINARY variant.business_id = BINARY mapping.business_id
+          AND BINARY variant.variant_id = BINARY mapping.variant_id
+         JOIN \`${business.ims_db_name}\`.ims_products product
+           ON BINARY product.business_id = BINARY variant.business_id
+          AND BINARY product.product_id = BINARY variant.product_id
+        WHERE mapping.business_id = ? AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+          AND (BINARY mapping.external_product_id <> BINARY product.shopify_product_id
+            OR BINARY mapping.external_variant_id <> BINARY variant.shopify_variant_id
+            OR NOT (BINARY mapping.external_inventory_id <=> BINARY variant.shopify_inventory_item_id))`,
+      [business.business_id, instance.channelInstanceId],
+    ),
+    connection.query(
+      `SELECT COUNT(*) AS count
+         FROM \`${business.ims_db_name}\`.ims_sales_channel_product_assignments assignment
+         JOIN \`${business.ims_db_name}\`.ims_products product
+           ON BINARY product.business_id = BINARY assignment.business_id
+          AND BINARY product.product_id = BINARY assignment.product_id
+        WHERE assignment.business_id = ? AND assignment.channel_instance_id = ?
+          AND product.shopify_product_id IS NOT NULL AND product.shopify_product_id <> ''`,
       [business.business_id, instance.channelInstanceId],
     ),
     connection.query(
@@ -318,6 +439,9 @@ async function migrateShopify(business) {
     products: Number(mappingRows[0]?.products ?? 0),
     variants: Number(mappingRows[0]?.variants ?? 0),
     selections: Number(selectionRows[0]?.count ?? 0),
+    canonicalMappings: Number(canonicalMappingRows[0]?.count ?? 0),
+    canonicalMismatches: Number(canonicalMismatchRows[0]?.count ?? 0),
+    assignments: Number(assignmentRows[0]?.count ?? 0),
     credentials: Number(credentialRows[0]?.count ?? 0),
     primaryRole: Number(roleRows[0]?.count ?? 0),
     ambiguousProducts: Number(ambiguousProductRows[0]?.count ?? 0),
@@ -326,10 +450,13 @@ async function migrateShopify(business) {
   const expectedProducts = sourceProducts - counts.productConflictOwners;
   const expectedVariants = sourceVariants - counts.variantConflictOwners;
   if (verified.products !== expectedProducts || verified.variants !== expectedVariants
-    || verified.selections !== sourceProducts || verified.credentials !== (ready ? 1 : 0)
-    || verified.primaryRole !== 1 || verified.ambiguousProducts !== 0 || verified.ambiguousVariants !== 0) {
+    || verified.selections !== sourceProducts || verified.canonicalMappings !== expectedCanonicalMappings
+    || verified.assignments !== sourceProducts || verified.credentials !== (ready ? 1 : 0)
+    || verified.primaryRole !== 1 || verified.canonicalMismatches !== 0
+    || verified.ambiguousProducts !== 0 || verified.ambiguousVariants !== 0) {
     throw new Error(`Shopify compatibility verification failed for ${business.name}: ${JSON.stringify({
-      expectedProducts, expectedVariants, expectedSelections: sourceProducts, expectedCredentials: ready ? 1 : 0, verified,
+      expectedProducts, expectedVariants, expectedSelections: sourceProducts, expectedCanonicalMappings,
+      expectedAssignments: sourceProducts, expectedCredentials: ready ? 1 : 0, verified,
     })}`);
   }
   return { ...instance, domain, counts, verified };

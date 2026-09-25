@@ -22,10 +22,14 @@ export async function GET(_: Request, { params }: Context) {
   if (auth.response) return auth.response;
   const businessId = auth.businessId!;
   try {
+    await assertShopifyEnabled(businessId);
     const configuration = await getShopifyChannelConfiguration({ businessId, channelInstanceId: params.id });
     if (!configuration) return NextResponse.json({ success: false, error: 'Shopify channel not found.' }, { status: 404 });
     return NextResponse.json({ success: true, configuration });
   } catch (error) {
+    if (isOnlineChannelDisabledError(error)) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     await reportRuntimeIssue({ businessId, source: 'ims.channels', operation: 'load_shopify_channel',
       title: 'Shopify channel configuration could not be loaded', error, context: {},
       reference: { type: 'sales_channel_instance', id: params.id } }).catch(() => null);

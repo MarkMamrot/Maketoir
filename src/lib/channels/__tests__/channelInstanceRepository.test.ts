@@ -280,4 +280,13 @@ describe('SalesChannelInstanceRepository', () => {
     ]);
     expect(mockExecute.mock.calls[0][0]).toContain("readiness_status = 'ready'");
   });
+
+  it('does not report Shopify activation when readiness changes concurrently', async () => {
+    mockExecute.mockResolvedValue({ affectedRows: 0 });
+
+    await expect(SalesChannelInstanceRepository.setShopifyActivationForBusiness({
+      businessId: 'business-1', channelInstanceId: 'instance-1', active: true,
+    })).resolves.toBeNull();
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
 });

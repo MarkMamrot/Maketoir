@@ -39,6 +39,13 @@ describe('getShopifyChannelAdminCredentials', () => {
     await expect(getShopifyChannelAdminCredentials('business-1', 'instance-1')).resolves.toBeNull();
   });
 
+  it('returns a stable recovery message for a corrupt credential envelope', async () => {
+    mocks.query.mockResolvedValue([{ encrypted_payload: 'corrupt' }]);
+    mocks.decrypt.mockImplementationOnce(() => { throw new Error('crypto internals'); });
+    await expect(getShopifyChannelAdminCredentials('business-1', 'instance-1'))
+      .rejects.toThrow('Re-enter the credentials for this storefront');
+  });
+
   it('renews client credentials into the same encrypted instance envelope', async () => {
     mocks.query.mockResolvedValue([{ encrypted_payload: JSON.stringify({
       authMode: 'client_credentials', shopDomain: 'retail.myshopify.com', accessToken: 'expired-token',

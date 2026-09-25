@@ -24,7 +24,18 @@ async function externalProductIds(input: {
         AND mapping.mapping_status = 'linked' AND mapping.external_product_id IS NOT NULL`,
     [input.businessId, input.channelInstanceId, input.productId],
   );
-  return [...new Set(rows.map(row => String(row.external_product_id ?? '').trim()).filter(Boolean))];
+  if (rows.length > 0) {
+    return [...new Set(rows.map(row => String(row.external_product_id ?? '').trim()).filter(Boolean))];
+  }
+  const assignments = await imsQuery<{ external_product_id: string | null }>(
+    `SELECT external_product_id
+       FROM ims_sales_channel_product_assignments
+      WHERE business_id = ? AND channel_instance_id = ? AND product_id = ?
+        AND readiness_status <> 'blocked' AND external_product_id IS NOT NULL
+      LIMIT 1`,
+    [input.businessId, input.channelInstanceId, input.productId],
+  );
+  return [...new Set(assignments.map(row => String(row.external_product_id ?? '').trim()).filter(Boolean))];
 }
 
 export async function getChannelProductLinks(input: {

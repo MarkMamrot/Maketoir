@@ -41,7 +41,9 @@ describe('channel product publication adapters', () => {
   });
 
   it('updates only an exact-instance Shopify mapping', async () => {
-    mocks.query.mockResolvedValue([{ external_product_id: '9988' }]);
+    mocks.query
+      .mockResolvedValueOnce([{ external_product_id: '9988', readiness_status: 'ready' }])
+      .mockResolvedValueOnce([{ external_product_id: '9988' }]);
     mocks.credentials.mockResolvedValue({ shopDomain: 'sandbox.myshopify.com', token: 'token' });
     await expect(publishShopifyProduct({
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'unpublished',
@@ -59,6 +61,25 @@ describe('channel product publication adapters', () => {
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'unpublished',
     })).resolves.toEqual({ outcome: 'applied', providerState: 'unpublished' });
     expect(mocks.credentials).not.toHaveBeenCalled();
+  });
+
+  it('uses a ready product-level Shopify ID when no variant mapping exists', async () => {
+    mocks.query
+      .mockResolvedValueOnce([{ external_product_id: '7766', readiness_status: 'ready' }])
+      .mockResolvedValueOnce([]);
+    mocks.credentials.mockResolvedValue({ shopDomain: 'sandbox.myshopify.com', token: 'token' });
+    await expect(publishShopifyProduct({ businessId: 'business-1', channelInstanceId: 'shopify-2',
+      productId: 'product-1', desiredState: 'published' }))
+      .resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '7766' });
+    expect(mocks.shopifyUpdate).toHaveBeenCalledWith('7766', { status: 'active' });
+  });
+
+  it('never changes Shopify status for a blocked duplicate-ID assignment', async () => {
+    mocks.query.mockResolvedValueOnce([{ external_product_id: '7766', readiness_status: 'blocked' }]);
+    await expect(publishShopifyProduct({ businessId: 'business-1', channelInstanceId: 'shopify-2',
+      productId: 'product-1', desiredState: 'unpublished' }))
+      .resolves.toEqual({ outcome: 'blocked', issues: ['Resolve this product publication blocker before changing Shopify status.'] });
+    expect(mocks.shopifyUpdate).not.toHaveBeenCalled();
   });
 
   it('blocks Amazon publication until every offer has safe existing-ASIN inputs', async () => {
