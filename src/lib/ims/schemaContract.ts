@@ -95,6 +95,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_daybook_task_instances',
   'pos_daybook_task_signoffs',
   'pos_daybook_communications',
+  'pos_daybook_communication_attachments',
   'pos_daybook_communication_targets',
   'pos_daybook_communication_reads',
   'pos_daybook_records',
