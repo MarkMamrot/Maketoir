@@ -261,15 +261,18 @@ function jobVariantId(payload: string | Record<string, unknown> | null): string 
 export async function drainInventoryQueue(
   limit = 250,
   businessId: string,
+  channelInstanceId?: string,
 ): Promise<{ processed: number; pushed: number; businesses: number; errors: string[] }> {
   await fanOutLegacyShopifyInventoryQueue(businessId);
+  const instanceClause = channelInstanceId ? ' AND channel_instance_id = ?' : '';
+  const scopeParams = channelInstanceId ? [businessId, INVENTORY_OPERATION, channelInstanceId] : [businessId, INVENTORY_OPERATION];
   await imsExecute(
     `UPDATE ims_sales_channel_jobs
         SET status = 'pending', locked_at = NULL, available_at = CURRENT_TIMESTAMP(3),
             safe_error = 'Recovered after an interrupted Shopify inventory worker.'
       WHERE business_id = ? AND provider = 'shopify' AND operation = ? AND status = 'processing'
-        AND locked_at < DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 10 MINUTE)`,
-    [businessId, INVENTORY_OPERATION],
+        AND locked_at < DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 10 MINUTE)${instanceClause}`,
+    scopeParams,
   );
   const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)), 10000));
   const jobs = await imsQuery<{ id: number; channel_instance_id: string; payload_json: string | Record<string, unknown> | null; attempts: number }>(
@@ -277,8 +280,9 @@ export async function drainInventoryQueue(
        FROM ims_sales_channel_jobs
       WHERE business_id = ? AND provider = 'shopify' AND operation = ?
         AND status = 'pending' AND available_at <= CURRENT_TIMESTAMP(3)
+        ${instanceClause}
       ORDER BY available_at, id LIMIT ${safeLimit}`,
-    [businessId, INVENTORY_OPERATION],
+    scopeParams,
   );
   const claimedJobs: typeof jobs = [];
   for (const job of jobs) {
@@ -314,7 +318,7 @@ export async function drainInventoryQueue(
             WHERE business_id = ? AND channel_instance_id = ? AND id IN (${instanceJobs.map(() => '?').join(',')})`,
           [businessId, channelInstanceId, ...instanceJobs.map(job => job.id)],
         );
-        await ImsShopifyRepo.logAction('upload', 'success', `Inventory sync pushed ${res.pushed} variant(s) to Shopify`, businessId, { variant_ids: variantIds, pushed: res.pushed }).catch(() => {});
+        await ImsShopifyRepo.logAction('upload', 'success', `Inventory sync pushed ${res.pushed} variant(s) to Shopify`, businessId, { variant_ids: variantIds, pushed: res.pushed }, channelInstanceId).catch(() => {});
       }
     } catch (e: any) {
       const msg = e?.message ?? 'unknown error';

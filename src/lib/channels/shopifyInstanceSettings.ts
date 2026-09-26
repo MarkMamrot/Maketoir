@@ -1,5 +1,4 @@
 export type ShopifyGiftCardMode = 'off' | 'combined';
-export type ShopifyOnlineBatchAction = 'none' | 'draft' | 'authorised';
 
 export type ShopifyInstanceSettings = {
   orders: {
@@ -24,12 +23,20 @@ export type ShopifyInstanceSettings = {
   };
   xero: {
     dailyAutoSyncEnabled: boolean;
-    onlineBatchAction: ShopifyOnlineBatchAction;
-    paymentSyncEnabled: boolean;
     payoutPostingEnabled: boolean;
     payoutAutoPostEnabled: boolean;
   };
 };
+
+export type ShopifyInstanceSettingsPatch = {
+  orders?: Partial<ShopifyInstanceSettings['orders']>;
+  inventory?: Partial<ShopifyInstanceSettings['inventory']>;
+  customers?: Partial<ShopifyInstanceSettings['customers']>;
+  giftCards?: Partial<ShopifyInstanceSettings['giftCards']>;
+  xero?: Partial<ShopifyInstanceSettings['xero']>;
+};
+
+export class ShopifyInstanceSettingsValidationError extends Error {}
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -68,9 +75,6 @@ export function shopifyInstanceSettings(settings: Record<string, unknown>): Shop
   const giftCards = record(shopify.giftCards);
   const xero = record(shopify.xero);
   const giftCardMode = giftCards.mode === 'combined' ? 'combined' : 'off';
-  const onlineBatchAction = xero.onlineBatchAction === 'draft' || xero.onlineBatchAction === 'authorised'
-    ? xero.onlineBatchAction
-    : 'none';
 
   return {
     orders: {
@@ -95,10 +99,83 @@ export function shopifyInstanceSettings(settings: Record<string, unknown>): Shop
     },
     xero: {
       dailyAutoSyncEnabled: enabled(xero.dailyAutoSyncEnabled),
-      onlineBatchAction,
-      paymentSyncEnabled: enabled(xero.paymentSyncEnabled),
       payoutPostingEnabled: enabled(xero.payoutPostingEnabled),
       payoutAutoPostEnabled: enabled(xero.payoutAutoPostEnabled),
     },
   };
+}
+
+function assertBoolean(value: unknown, label: string): asserts value is boolean {
+  if (typeof value !== 'boolean') throw new ShopifyInstanceSettingsValidationError(`${label} must be true or false.`);
+}
+
+function assertNullablePositiveInteger(value: unknown, label: string): asserts value is number | null {
+  if (value !== null && (!Number.isInteger(value) || Number(value) <= 0)) {
+    throw new ShopifyInstanceSettingsValidationError(`${label} must be a positive whole number or empty.`);
+  }
+}
+
+export function mergeShopifyInstanceSettings(
+  currentSettings: Record<string, unknown>,
+  patch: ShopifyInstanceSettingsPatch,
+): ShopifyInstanceSettings {
+  const current = shopifyInstanceSettings(currentSettings);
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new ShopifyInstanceSettingsValidationError('Shopify settings must be an object.');
+  }
+
+  const orders = patch.orders ?? {};
+  if (orders.enabled !== undefined) assertBoolean(orders.enabled, 'Order sync enabled');
+  if (orders.syncFrom !== undefined && orders.syncFrom !== null
+    && (typeof orders.syncFrom !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(orders.syncFrom))) {
+    throw new ShopifyInstanceSettingsValidationError('Order sync start date must use YYYY-MM-DD or be empty.');
+  }
+  if (orders.locationId !== undefined) assertNullablePositiveInteger(orders.locationId, 'Order location');
+
+  const inventory = patch.inventory ?? {};
+  if (inventory.enabled !== undefined) assertBoolean(inventory.enabled, 'Inventory sync enabled');
+  if (inventory.buffer !== undefined && (!Number.isInteger(inventory.buffer) || Number(inventory.buffer) < 0)) {
+    throw new ShopifyInstanceSettingsValidationError('Inventory buffer must be a non-negative whole number.');
+  }
+  if (inventory.intervalMinutes !== undefined
+    && (!Number.isInteger(inventory.intervalMinutes) || Number(inventory.intervalMinutes) <= 0)) {
+    throw new ShopifyInstanceSettingsValidationError('Inventory interval must be a positive whole number.');
+  }
+  if (inventory.locationId !== undefined) assertNullablePositiveInteger(inventory.locationId, 'Inventory location');
+  if (inventory.pickLocationIds !== undefined
+    && (!Array.isArray(inventory.pickLocationIds)
+      || inventory.pickLocationIds.some(id => !Number.isInteger(id) || Number(id) <= 0))) {
+    throw new ShopifyInstanceSettingsValidationError('Inventory source locations must contain positive whole numbers.');
+  }
+
+  const customers = patch.customers ?? {};
+  if (customers.outboundEnabled !== undefined) assertBoolean(customers.outboundEnabled, 'Outbound customer sync enabled');
+
+  const giftCards = patch.giftCards ?? {};
+  if (giftCards.mode !== undefined && giftCards.mode !== 'off' && giftCards.mode !== 'combined') {
+    throw new ShopifyInstanceSettingsValidationError('Gift-card mode must be off or combined.');
+  }
+
+  const xero = patch.xero ?? {};
+  if (xero.dailyAutoSyncEnabled !== undefined) assertBoolean(xero.dailyAutoSyncEnabled, 'Daily Xero sync enabled');
+  if (xero.payoutPostingEnabled !== undefined) assertBoolean(xero.payoutPostingEnabled, 'Payout posting enabled');
+  if (xero.payoutAutoPostEnabled !== undefined) assertBoolean(xero.payoutAutoPostEnabled, 'Payout auto-post enabled');
+
+  const merged = shopifyInstanceSettings({
+    shopify: {
+      ...current,
+      orders: { ...current.orders, ...orders },
+      inventory: { ...current.inventory, ...inventory },
+      customers: { ...current.customers, ...customers },
+      giftCards: { ...current.giftCards, ...giftCards },
+      xero: { ...current.xero, ...xero },
+    },
+  });
+  if (merged.orders.enabled && (!merged.orders.syncFrom || !merged.orders.locationId)) {
+    throw new ShopifyInstanceSettingsValidationError('Enabled order sync requires a start date and online orders location.');
+  }
+  if (merged.xero.payoutAutoPostEnabled && !merged.xero.payoutPostingEnabled) {
+    throw new ShopifyInstanceSettingsValidationError('Automatic payout posting requires payout posting to be enabled.');
+  }
+  return merged;
 }

@@ -14,7 +14,7 @@ type ImsView =
   | 'receive-transfers'
   | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
-  | 'xero' | 'sales-channels' | 'shopify' | 'online-shop';
+  | 'xero' | 'sales-channels' | 'online-shop';
 
 interface MainSectionsProps {
   view: ImsView;
@@ -87,7 +87,6 @@ interface MainSectionsProps {
   StockAvailabilityManagementView: any;
   BookkeeperAuditView: any;
   XeroView: any;
-  ShopifyView: any;
   OrderPlannerView: any;
 }
 
@@ -169,7 +168,6 @@ export function MainSections(props: MainSectionsProps) {
     StockAvailabilityManagementView,
     BookkeeperAuditView,
     XeroView,
-    ShopifyView,
     OrderPlannerView,
   } = props;
 
@@ -306,7 +304,10 @@ export function MainSections(props: MainSectionsProps) {
 
       {/* Integrations */}
       {view === 'sales-channels' && (
-        <SalesChannelsView canManage={userTier === 'Admin' || userTier === 'SuperAdmin'} />
+        <SalesChannelsView
+          canManage={userTier === 'Admin' || userTier === 'SuperAdmin'}
+          xeroAccountingEnabled={xeroAccountingEnabled}
+        />
       )}
       {view === 'xero' && xeroAccountingEnabled && (
         <XeroView
@@ -320,7 +321,6 @@ export function MainSections(props: MainSectionsProps) {
           onOpenPosSalesDay={(date: string) => { setView('pos-sales'); setPendingOpenPosDay(date); }}
         />
       )}
-      {view === 'shopify' && shopifyEnabled && <ShopifyView businessId={businessId} xeroAccountingEnabled={xeroAccountingEnabled} />}
       {view === 'online-shop' && nativeShopEnabled && <OnlineShopView />}
     </>
   );

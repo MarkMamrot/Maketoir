@@ -160,7 +160,7 @@
     {
       "id": "public-capability:ims-sales-channels",
       "title": "Sales Channels",
-      "summary": "Review each connected online storefront and its current operating state.",
+      "summary": "Review and configure each connected online storefront separately.",
       "capabilities": [
         "ims",
         "integrations"
@@ -171,7 +171,7 @@
     {
       "id": "public-capability:ims-shopify-sync",
       "title": "Shopify Sync and Product Mapping",
-      "summary": "Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.",
+      "summary": "Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.",
       "capabilities": [
         "ims",
         "integrations",

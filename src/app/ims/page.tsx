@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, ExternalLink, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
-import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
 import AccountAiCreditsSection from './components/AccountAiCreditsSection';
@@ -108,7 +107,7 @@ type ImsView =
   | 'receive-transfers'
   | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
-  | 'xero' | 'sales-channels' | 'shopify' | 'online-shop';
+  | 'xero' | 'sales-channels' | 'online-shop';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
 
@@ -160,7 +159,6 @@ const NAV = [
   ]},
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'sales-channels', label: 'Sales Channels' },
-    { id: 'shopify',        label: 'Shopify' },
     { id: 'online-shop',    label: 'Online Shop' },
   ]},
 ] as const;
@@ -629,7 +627,6 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
   const showLocationDaybooks = sidebarSettings.business_requires_pos !== 'no' || capabilities.hasPosLocations;
   const showXero = capabilities.xeroAccountingEnabled;
-  const showShopify = capabilities.shopifyEnabled;
   const showNativeShop = capabilities.nativeShopEnabled;
   const showLocations = showMultipleLocations || showLocationDaybooks;
   const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
@@ -738,7 +735,6 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
             if (child.id === 'xero' || child.id === 'cash-banking') return showXero;
             if (child.id === 'sales-channels') return true;
-            if (child.id === 'shopify') return showShopify;
             if (child.id === 'online-shop') return showNativeShop;
             return true;
           })
@@ -16304,15 +16300,6 @@ function GiftCardsView() {
   // history state
   const [gcHistory, setGcHistory]         = useState<any[]>([]);
   const [gcHistoryLoading, setGcHistoryLoading] = useState(false);
-  // shopify config (for admin link)
-  const [gcMode, setGcMode]         = useState<'off' | 'combined'>('off');
-
-  useEffect(() => {
-    fetch('/api/ims/settings').then(r => r.json()).then(d => {
-      if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
-    }).catch(() => {});
-  }, []);
-
   // import state
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -16712,7 +16699,7 @@ function GiftCardsView() {
               </label>
 
               {/* Shopify admin link (combined mode only) */}
-              {editing && editing.shopify_gc_id && gcMode === 'combined' && editing.channel_shop_domain && (
+              {editing && editing.shopify_gc_id && editing.channel_shop_domain && (
                 <div style={{ paddingTop: 16, borderTop: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
                     <path d="M10.5 3H17v6.5M17 3l-9 9M8 5H4a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -22962,13 +22949,17 @@ export default function ImsPage() {
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking','report-stock-availability','report-bookkeeper-audit',
-    'xero','shopify',
+    'xero','sales-channels','online-shop',
   ]), []);
 
   // On mount: restore view from hash; wire up browser back/forward.
   useEffect(() => {
     const readHash = () => {
       const h = window.location.hash.replace(/^#/, '');
+      if (h === 'settings-shopify') {
+        window.history.replaceState(window.history.state, '', '#sales-channels');
+        return 'sales-channels' as ImsView;
+      }
       if (h.startsWith('settings-')) {
         const section = h.replace(/^settings-/, '') as SettingsSection;
         setSettingsSection(section);
@@ -22976,6 +22967,11 @@ export default function ImsPage() {
         return 'dashboard' as ImsView;
       }
       if (isXeroHash(`#${h}`)) return 'xero' as ImsView;
+      if (h === 'shopify') {
+        window.history.replaceState(window.history.state, '', '#sales-channels');
+        return 'sales-channels' as ImsView;
+      }
+      if (h.startsWith('sales-channels/shopify/')) return 'sales-channels' as ImsView;
       const [documentView, documentIdValue] = h.split('/');
       const documentId = Number(documentIdValue);
       if (Number.isInteger(documentId) && documentId > 0) {
@@ -23044,8 +23040,7 @@ export default function ImsPage() {
 
   useEffect(() => {
     if (!hasRestoredInitialHash || !settingsLoaded) return;
-    const disabledView = (view === 'shopify' && !pageCapabilities.shopifyEnabled)
-      || (view === 'online-shop' && !pageCapabilities.nativeShopEnabled);
+    const disabledView = view === 'online-shop' && !pageCapabilities.nativeShopEnabled;
     if (!disabledView) return;
     window.history.replaceState(window.history.state, '', '#dashboard');
     setViewSafe('dashboard');
@@ -23503,7 +23498,6 @@ export default function ImsPage() {
               StockAvailabilityManagementView={StockAvailabilityManagementView}
               BookkeeperAuditView={BookkeeperAuditView}
               XeroView={XeroView}
-              ShopifyView={ShopifyView}
               OrderPlannerView={OrderPlannerView}
             />
           </main>

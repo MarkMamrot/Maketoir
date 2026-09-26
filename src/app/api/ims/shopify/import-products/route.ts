@@ -52,10 +52,11 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = String(session.businessId);
   const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
+  let channelInstanceId: string | null = null;
 
   try {
     const body = await req.json().catch(() => ({}));
-    const channelInstanceId = text(body?.channelInstanceId);
+    channelInstanceId = text(body?.channelInstanceId);
     if (!channelInstanceId) return NextResponse.json({ success: false, error: 'Select a Shopify storefront.' }, { status: 400 });
     const limit = Math.max(1, Math.min(Math.floor(Number(body?.limit ?? DEFAULT_BATCH_SIZE)), MAX_BATCH_SIZE));
     const pageInfo = text(body?.page_info);
@@ -280,6 +281,7 @@ export async function POST(req: Request) {
       summary,
       businessId,
       { createdProducts, updatedProducts, createdVariants, updatedVariants, imagesCollected, createdBrands, createdSuppliers, warnings, identifierAdjustments },
+      channelInstanceId,
     );
 
     return NextResponse.json({
@@ -298,7 +300,7 @@ export async function POST(req: Request) {
       has_more: page.hasMore,
     });
   } catch (error: any) {
-    await ImsShopifyRepo.logAction('reconcile', 'error', `Shopify product import failed: ${error.message}`, businessId).catch(() => {});
+    await ImsShopifyRepo.logAction('reconcile', 'error', `Shopify product import failed: ${error.message}`, businessId, undefined, channelInstanceId).catch(() => {});
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -917,13 +917,15 @@ CREATE TABLE IF NOT EXISTS ims_product_images (
 CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   business_id VARCHAR(100) NOT NULL DEFAULT '',
+  channel_instance_id VARCHAR(36) NULL,
   action      ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
   status      ENUM('success','error','partial') NOT NULL,
   summary     TEXT NOT NULL,
   detail      JSON NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_ssl_created (created_at),
-  INDEX idx_ssl_biz_created (business_id, created_at)
+  INDEX idx_ssl_biz_created (business_id, created_at),
+  INDEX idx_ssl_channel_created (channel_instance_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Website Content Attempts ────────────────────────────────

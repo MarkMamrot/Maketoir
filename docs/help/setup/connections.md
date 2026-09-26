@@ -1,5 +1,5 @@
 ---
-{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-08-29","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"]}
+{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"]}
 ---
 # Connections and Setup
 
@@ -23,7 +23,8 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |
 | Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |
 | Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |
-| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
+| Connect Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
+| Connect or configure a Shopify store | IMS > Integrations > Sales Channels | One exact store with its own credentials, settings, and status |
 
 > **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.
 
@@ -47,10 +48,10 @@ Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use *
 
 1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.
 2. Install that app on the intended store.
-3. In **Setup > Connections > Shopify**, select **Dev Dashboard**.
-4. Enter the permanent `myshopify.com` store domain, Client ID, and Client secret from the app's Settings area.
-5. Select **Save**, then **Test Connection**.
-6. Open **IMS > Shopify > Orders & Webhooks** and register or verify the required webhooks.
+3. Open **IMS > Integrations > Sales Channels** and choose **Add Sales Channel > Shopify**.
+4. Choose **Dev Dashboard**, then enter the permanent `myshopify.com` store domain, Client ID, and Client secret shown in the app's Settings area.
+5. Save the channel, choose **Test connection**, then activate the store when readiness succeeds.
+6. Choose **Configure** on that store and use **Orders & Inventory** to register or verify its required webhooks.
 
 Solvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.
 

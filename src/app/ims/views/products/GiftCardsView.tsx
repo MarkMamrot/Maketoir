@@ -11,6 +11,9 @@ interface GiftCard {
   status: 'active' | 'redeemed' | 'cancelled' | 'expired';
   expires_on: string | null;
   shopify_gc_id: number | null;
+  channel_instance_id: string | null;
+  channel_display_name: string | null;
+  channel_shop_domain: string | null;
   customer_id: string | null;
   order_id: string | null;
   recipient_email: string | null;
@@ -65,8 +68,6 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
   const [actionReason, setActionReason] = useState('');
   const [commandBusy, setCommandBusy] = useState<string | null>(null);
-  const [gcMode, setGcMode]         = useState<'off' | 'combined'>('off');
-  const [shopDomain, setShopDomain] = useState('');
   const [businessTimeZone, setBusinessTimeZone] = useState(DEFAULT_BUSINESS_TIME_ZONE);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
@@ -74,9 +75,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
-      if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
       if (d.data?.business_timezone) setBusinessTimeZone(d.data.business_timezone);
-      if (d.shopDomain) setShopDomain(d.shopDomain);
     }).catch(() => {});
   }, []);
 
@@ -611,13 +610,13 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                 </div>
               )}
 
-              {editing && editing.shopify_gc_id && gcMode === 'combined' && shopDomain && (
+              {editing && editing.shopify_gc_id && editing.channel_shop_domain && (
                 <div style={{ paddingTop: 16, borderTop: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
                     <path d="M10.5 3H17v6.5M17 3l-9 9M8 5H4a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   <a
-                    href={`https://${shopDomain}/admin/gift_cards/${editing.shopify_gc_id}`}
+                    href={`https://${editing.channel_shop_domain}/admin/gift_cards/${editing.shopify_gc_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: 12, color: 'var(--sv-action)', textDecoration: 'none' }}

@@ -175,6 +175,15 @@ describe('/api/ims/settings loyalty settings', () => {
     expect(mockImsExecute).not.toHaveBeenCalled();
   });
 
+  it('rejects deprecated global Shopify operational settings', async () => {
+    const response = await PUT(putRequest({ shopify_inventory_buffer: '5' }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('selected store in Sales Channels');
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
   it('accepts curated Website AI models and rejects retired model IDs', async () => {
     const retiredResponse = await PUT(putRequest({ ai_website_content_model: 'gemini-2.5-flash' }));
     expect(retiredResponse.status).toBe(400);

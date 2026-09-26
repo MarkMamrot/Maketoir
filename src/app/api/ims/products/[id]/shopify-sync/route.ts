@@ -15,7 +15,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { getShopifyProductOperationContext } from '@/lib/channels/shopifyProductOperationContext';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
-import { shopifyInventoryPolicyPayload, shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
+import { shopifyInventoryPolicyPayload, shopifyVariantPricePayload, pushInventoryForShopifyInstance } from '@/lib/ims/shopifyInventorySync';
 import { matchShopifyVariants, parseShopifyProductId } from '@/lib/ims/shopifyManualLink';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -238,13 +238,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  let channelInstanceId: string | null = null;
 
   try {
     const body = await req.json().catch(() => ({}));
+    channelInstanceId = String(body?.channelInstanceId ?? '').trim() || null;
     const product = await ImsProductsRepo.get(params.id, session.businessId);
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
-    const shop = await getShopify(session.businessId, params.id, body?.channelInstanceId);
+    const shop = await getShopify(session.businessId, params.id, channelInstanceId);
+    channelInstanceId = shop.channelInstanceId;
 
     const images = await ImsImagesRepo.list(params.id);
     const variants = product.variants ?? [];
@@ -315,8 +318,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
       // Push inventory quantities using the same pick-location + buffer logic as the live sync
       const variantIds = variants.map(v => v.variant_id);
-      const invResult = await pushInventoryForBusiness(session.businessId, { variantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
-      await ImsShopifyRepo.logAction('upload', 'success', `Created "${product.name}" on Shopify (inventory pushed: ${invResult.pushed}, images: ${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }).catch(() => {});
+      const invResult = await pushInventoryForShopifyInstance({ businessId: session.businessId, channelInstanceId: shop.channelInstanceId, variantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
+      await ImsShopifyRepo.logAction('upload', 'success', `Created "${product.name}" on Shopify (inventory pushed: ${invResult.pushed}, images: ${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }, channelInstanceId).catch(() => {});
       return NextResponse.json({ success: true, created: true, shopifyProductId: String(created.id), inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors, imagesAdded, imageErrors });
     }
 
@@ -388,11 +391,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch {}
 
-    await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices/sku/barcode: ${pricesUpdated}${variantErrors.length ? `, ${variantErrors.length} variant error(s)` : ''}, images: +${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }).catch(() => {});
+    await ImsShopifyRepo.logAction('resync', 'success', `Pushed "${product.name}" to Shopify (prices/sku/barcode: ${pricesUpdated}${variantErrors.length ? `, ${variantErrors.length} variant error(s)` : ''}, images: +${imagesAdded}${imageErrors.length ? `, ${imageErrors.length} image error(s)` : ''})`, session.businessId, { product_id: params.id }, channelInstanceId).catch(() => {});
 
     // Push inventory quantities using the same pick-location + buffer logic as the live sync
     const linkedVariantIds = variants.filter(v => v.shopify_variant_id).map(v => v.variant_id);
-    const invResult = await pushInventoryForBusiness(session.businessId, { variantIds: linkedVariantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
+    const invResult = await pushInventoryForShopifyInstance({ businessId: session.businessId, channelInstanceId: shop.channelInstanceId, variantIds: linkedVariantIds, force: true }).catch(() => ({ pushed: 0, skipped: 0, errors: ['Inventory push failed'], locationId: null }));
 
     return NextResponse.json({ success: true, updated: true, pricesUpdated, variantErrors, imagesAdded, imageErrors, inventoryPushed: invResult.pushed, inventoryErrors: invResult.errors });
   } catch (e: any) {
@@ -401,7 +404,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const detail = shopifyErrors
       ? `${e.message}: ${JSON.stringify(shopifyErrors).slice(0, 400)}`
       : (e.message ?? 'Shopify push failed');
-    await ImsShopifyRepo.logAction('resync', 'error', detail, session.businessId, { product_id: params.id }).catch(() => {});
+    await ImsShopifyRepo.logAction('resync', 'error', detail, session.businessId, { product_id: params.id }, channelInstanceId).catch(() => {});
     return NextResponse.json({ error: detail }, { status: 500 });
   }
 }

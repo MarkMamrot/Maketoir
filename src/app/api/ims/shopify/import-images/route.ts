@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     }
 
     await ImsShopifyRepo.logAction('upload', 'success',
-      `Imported images for ${imported} products from Shopify`, session.businessId, { imported, skipped });
+      `Imported images for ${imported} products from Shopify`, session.businessId, { imported, skipped }, channelInstanceId);
 
     return NextResponse.json({ success: true, channelInstanceId, imported, skipped, total: linked.length });
   } catch (e: any) {

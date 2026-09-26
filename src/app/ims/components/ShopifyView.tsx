@@ -1,15 +1,7 @@
 'use client';
-import { Fragment, useEffect, useState, useCallback } from 'react';
+import { createContext, Fragment, useContext, useEffect, useState, useCallback } from 'react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-function tabBtnStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer',
-    fontSize: 13, fontWeight: active ? 600 : 400,
-    background: active ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-    color: active ? '#fff' : 'var(--sv-text-main)',
-  };
-}
 function statusBadge(s: 'success' | 'error' | 'partial' | string) {
   const colours: Record<string, { bg: string; fg: string }> = {
     success: { bg: 'rgba(16,185,129,.15)', fg: '#34d399' },
@@ -44,184 +36,37 @@ async function readApiResponse(res: Response) {
 
 type ShopifyInstanceOption = { channelInstanceId: string; displayName: string };
 
+const ShopifyInstanceContext = createContext<ShopifyInstanceOption | null>(null);
+
+export function ShopifyInstanceScope({ instance, children }: { instance: ShopifyInstanceOption; children: React.ReactNode }) {
+  return <ShopifyInstanceContext.Provider value={instance}>{children}</ShopifyInstanceContext.Provider>;
+}
+
 function useShopifyInstanceOptions() {
+  const lockedInstance = useContext(ShopifyInstanceContext);
   const [instances, setInstances] = useState<ShopifyInstanceOption[]>([]);
-  const [channelInstanceId, setChannelInstanceId] = useState('');
+  const [channelInstanceId, setChannelInstanceId] = useState(lockedInstance?.channelInstanceId ?? '');
   useEffect(() => {
+    if (lockedInstance) {
+      setInstances([lockedInstance]);
+      setChannelInstanceId(lockedInstance.channelInstanceId);
+      return;
+    }
     fetch('/api/ims/channels').then(response => response.json()).then(data => {
       setInstances((data.instances ?? []).filter((instance: any) =>
         instance.provider === 'shopify' && instance.enabled && instance.runtimeStatus === 'active' && instance.readinessStatus === 'ready'));
     }).catch(() => setInstances([]));
-  }, []);
-  return { instances, channelInstanceId, setChannelInstanceId };
-}
-
-// ─── Main ShopifyView ─────────────────────────────────────────────────────────
-export default function ShopifyView({ businessId, xeroAccountingEnabled = false }: { businessId?: string; xeroAccountingEnabled?: boolean }) {
-  const [status, setStatus]   = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState<'overview' | 'products' | 'log' | 'orders' | 'gift-cards'>('overview');
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await fetch('/api/ims/shopify/status');
-      setStatus(await r.json());
-    } catch {}
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Shopify status…</div>;
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Integration</h1>
-        <span style={{
-          padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
-          background: status?.connected ? 'rgba(16,185,129,.15)' : 'rgba(248,113,113,.15)',
-          color: status?.connected ? '#34d399' : '#f87171',
-        }}>
-          {status?.connected ? `Connected — ${status.shop_domain}` : 'Not Connected'}
-        </span>
-      </div>
-
-      {!status?.connected ? (
-        <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-          <p style={{ color: 'var(--sv-text-main)', margin: '0 0 16px', lineHeight: 1.6 }}>
-            Shopify credentials are not configured. Go to <strong>Setup → Connections</strong> and enter your Shopify Store URL and Access Token.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button style={tabBtnStyle(tab === 'overview')}    onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'products')}    onClick={() => setTab('products')}>Products</button>
-            <button style={tabBtnStyle(tab === 'log')}         onClick={() => setTab('log')}>Sync Log</button>
-            <button style={tabBtnStyle(tab === 'orders')}      onClick={() => setTab('orders')}>Orders & Webhooks</button>
-            <button style={tabBtnStyle(tab === 'gift-cards')}  onClick={() => setTab('gift-cards')}>Gift Cards</button>
-          </div>
-          {tab === 'overview'   && <ShopifyOverviewTab status={status} onReload={reload} />}
-          {tab === 'products'   && <ShopifyProductsTab />}
-          {tab === 'log'        && <ShopifyLogTab />}
-          {tab === 'orders'     && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} />}
-          {tab === 'gift-cards' && <ShopifyGiftCardsTab />}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
-function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () => void }) {
-  const [reconciling, setReconciling] = useState(false);
-  const [reconcileResult, setReconcileResult] = useState<any>(null);
-  const [reconcileError, setReconcileError]   = useState<string | null>(null);
-
-  const runReconcile = async () => {
-    setReconciling(true);
-    setReconcileResult(null);
-    setReconcileError(null);
-    try {
-      const r = await fetch('/api/ims/shopify/reconcile', { method: 'POST' });
-      const data = await r.json();
-      if (!data.success) throw new Error(data.error);
-      setReconcileResult(data);
-      onReload();
-    } catch (e: any) {
-      setReconcileError(e.message);
-    }
-    setReconciling(false);
-  };
-
-  const card: React.CSSProperties = {
-    padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10,
-    border: '1px solid var(--sv-etch)',
-  };
-  const label: React.CSSProperties = { fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4 };
-  const value: React.CSSProperties = { fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)' };
-
-  return (
-    <div>
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
-        <div style={card}>
-          <div style={label}>Linked to Shopify</div>
-          <div style={value}>{status.linked ?? 0}</div>
-        </div>
-        <div style={card}>
-          <div style={label}>Not yet in Shopify</div>
-          <div style={{ ...value, color: status.notInShopify > 0 ? '#fbbf24' : 'var(--sv-text-strong)' }}>
-            {status.notInShopify ?? 0}
-          </div>
-        </div>
-        <div style={card}>
-          <div style={label}>Total IMS Products</div>
-          <div style={value}>{status.total ?? 0}</div>
-        </div>
-      </div>
-
-      {/* Reconcile card */}
-      <div style={card}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Reconcile Existing Products</h3>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Matches IMS products to your existing Shopify catalog by SKU or barcode.
-          This links them so price syncs work correctly. Run this once to connect products already in Shopify.
-        </p>
-        <button
-          onClick={runReconcile}
-          disabled={reconciling}
-          style={{
-            padding: '9px 20px', background: 'var(--sv-action)', color: '#fff',
-            border: 'none', borderRadius: 6, cursor: reconciling ? 'not-allowed' : 'pointer',
-            fontWeight: 600, fontSize: 14, opacity: reconciling ? 0.7 : 1,
-          }}
-        >
-          {reconciling ? 'Reconciling…' : '🔗 Reconcile Now'}
-        </button>
-
-        {reconcileResult && (
-          <div style={{ marginTop: 16, padding: 14, background: 'rgba(16,185,129,.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,.25)', fontSize: 13 }}>
-            <strong style={{ color: '#34d399' }}>✓ Reconcile complete</strong>
-            <div style={{ marginTop: 6, color: 'var(--sv-text-main)', lineHeight: 1.8 }}>
-              <div>Shopify products fetched: <strong>{reconcileResult.shopify_products_fetched}</strong></div>
-              <div>Matched: <strong>{reconcileResult.matched}</strong> variants</div>
-              <div>IMS with no Shopify match: <strong>{reconcileResult.unmatched_ims}</strong></div>
-              <div>Shopify with no IMS match: <strong>{reconcileResult.unmatched_shopify}</strong></div>
-              {reconcileResult.unmatched_ims_samples?.length > 0 && (
-                <details style={{ marginTop: 8 }}>
-                  <summary style={{ cursor: 'pointer', color: 'var(--sv-text-dim)' }}>Unmatched IMS SKUs (first 20)</summary>
-                  <pre style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'pre-wrap' }}>
-                    {reconcileResult.unmatched_ims_samples.join('\n')}
-                  </pre>
-                </details>
-              )}
-            </div>
-          </div>
-        )}
-
-        {reconcileError && (
-          <div style={{ marginTop: 16, padding: 12, background: 'rgba(248,113,113,.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,.3)', color: '#f87171', fontSize: 13 }}>
-            ✗ {reconcileError}
-          </div>
-        )}
-      </div>
-
-    </div>
-  );
+  }, [lockedInstance]);
+  return { instances, channelInstanceId, setChannelInstanceId, locked: Boolean(lockedInstance) };
 }
 
 // ─── Products Tab ─────────────────────────────────────────────────────────────
-function ShopifyProductsTab() {
+export function ShopifyProductsTab() {
   const [products, setProducts]   = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [segment, setSegment]     = useState<'not_in_shopify' | 'linked' | 'all'>('not_in_shopify');
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [search, setSearch]       = useState('');
-  const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing]     = useState(false);
   const [opResult, setOpResult]   = useState<string | null>(null);
   const [opError, setOpError]     = useState<string | null>(null);
@@ -248,7 +93,8 @@ function ShopifyProductsTab() {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/ims/shopify/products');
+      if (!shopifySelection.channelInstanceId) return;
+      const r = await fetch(`/api/ims/shopify/products?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`);
       const d = await r.json();
       if (d.success) {
         setProducts(d.data ?? []);
@@ -258,7 +104,7 @@ function ShopifyProductsTab() {
       }
     } catch {}
     setLoading(false);
-  }, []);
+  }, [shopifySelection.channelInstanceId]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
@@ -282,20 +128,6 @@ function ShopifyProductsTab() {
     }
   };
 
-  const runUpload = async () => {
-    const ids = [...selected].filter(id => products.find(p => p.product_id === id && p.shopify_status === 'not_in_shopify'));
-    if (!ids.length) { setOpError('No unlinked products selected.'); return; }
-    setUploading(true); setOpResult(null); setOpError(null);
-    try {
-      const r = await fetch('/api/ims/shopify/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_ids: ids }) });
-      const d = await r.json();
-      if (!d.success) throw new Error(d.error);
-      setOpResult(`Uploaded ${d.uploaded}/${d.total} products to Shopify.`);
-      await fetchProducts();
-    } catch (e: any) { setOpError(e.message); }
-    setUploading(false);
-  };
-
   const runCatalogueImport = async () => {
     setImportingCatalogue(true); setOpResult(null); setOpError(null);
     let pageInfo: string | null = null;
@@ -313,6 +145,7 @@ function ShopifyProductsTab() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            channelInstanceId: shopifySelection.channelInstanceId,
             page_info: pageInfo,
             limit: 25,
             populate_unknown_brands: populateUnknownBrands,
@@ -364,7 +197,7 @@ function ShopifyProductsTab() {
       while (hasMore) {
         const response = await fetch('/api/ims/shopify/opening-stock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'preview', offset }),
+          body: JSON.stringify({ mode: 'preview', offset, channelInstanceId: shopifySelection.channelInstanceId }),
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock preview failed.');
@@ -403,7 +236,7 @@ function ShopifyProductsTab() {
       for (const batch of openingStockPreview.batches) {
         const response = await fetch('/api/ims/shopify/opening-stock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'apply', run_id: runId, snapshot: batch.snapshot }),
+          body: JSON.stringify({ mode: 'apply', run_id: runId, snapshot: batch.snapshot, channelInstanceId: shopifySelection.channelInstanceId }),
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock apply failed.');
@@ -537,7 +370,7 @@ function ShopifyProductsTab() {
           </div>
           <button
             onClick={runCatalogueImport}
-            disabled={importingCatalogue || uploading || syncing}
+            disabled={importingCatalogue || syncing}
             style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: importingCatalogue ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: importingCatalogue ? 0.7 : 1 }}
           >
             {importingCatalogue ? 'Importing…' : 'Import from Shopify'}
@@ -570,7 +403,7 @@ function ShopifyProductsTab() {
           </div>
           <button
             onClick={previewOpeningStock}
-            disabled={openingStockBusy !== null || importingCatalogue || uploading || syncing}
+            disabled={openingStockBusy !== null || importingCatalogue || syncing}
             style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: openingStockBusy ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: openingStockBusy ? 0.7 : 1 }}
           >
             {openingStockBusy === 'preview' ? 'Building preview…' : 'Preview Opening Stock'}
@@ -635,7 +468,7 @@ function ShopifyProductsTab() {
           onChange={e => setSearch(e.target.value)}
           style={{ flex: 1, minWidth: 160, height: 34, padding: '0 10px', fontSize: 13, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)' }}
         />
-        <select
+        {!shopifySelection.locked && <select
           value={shopifySelection.channelInstanceId}
           onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
           aria-label="Shopify storefront for price synchronization"
@@ -643,21 +476,15 @@ function ShopifyProductsTab() {
         >
           <option value="">Select price sync store</option>
           {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
-        </select>
+        </select>}
         <button
-          onClick={runUpload} disabled={uploading || syncing || importingCatalogue}
-          style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: uploading ? 0.7 : 1 }}
-        >
-          {uploading ? 'Uploading…' : '⬆ Upload Selected'}
-        </button>
-        <button
-          onClick={runSyncPrices} disabled={syncing || uploading || importingCatalogue || !shopifySelection.channelInstanceId}
+          onClick={runSyncPrices} disabled={syncing || importingCatalogue || !shopifySelection.channelInstanceId}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '💲 Sync Prices'}
         </button>
         <button
-          onClick={runResync} disabled={syncing || uploading || importingCatalogue || !shopifySelection.channelInstanceId}
+          onClick={runResync} disabled={syncing || importingCatalogue || !shopifySelection.channelInstanceId}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '🔄 Full Resync'}
@@ -756,7 +583,8 @@ function ShopifyProductsTab() {
 }
 
 // ─── Sync Log Tab ─────────────────────────────────────────────────────────────
-function ShopifyLogTab() {
+export function ShopifyLogTab() {
+  const shopifySelection = useShopifyInstanceOptions();
   const [log, setLog]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -764,13 +592,14 @@ function ShopifyLogTab() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('/api/ims/shopify/sync-log');
+        if (!shopifySelection.channelInstanceId) return;
+        const r = await fetch(`/api/ims/shopify/sync-log?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`);
         const d = await r.json();
         if (d.success) setLog(d.data ?? []);
       } catch {}
       setLoading(false);
     })();
-  }, []);
+  }, [shopifySelection.channelInstanceId]);
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading log…</div>;
 
@@ -828,7 +657,7 @@ function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: boolean }) {
+export function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: boolean }) {
   const shopifySelection = useShopifyInstanceOptions();
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
@@ -859,7 +688,7 @@ function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: bo
       setLocationId('');
       return;
     }
-    fetch(`/api/ims/shopify/instance-settings?channelInstanceId=${encodeURIComponent(channelInstanceId)}`)
+    fetch(`/api/ims/channels/${encodeURIComponent(channelInstanceId)}/shopify/settings`)
       .then(response => response.json())
       .then(data => {
         if (!data.success) throw new Error(data.error || 'Settings could not be loaded.');
@@ -875,12 +704,14 @@ function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: bo
     setSaving(true); setSaveMsg(null);
     try {
       if (!shopifySelection.channelInstanceId) throw new Error('Select a Shopify storefront.');
-      const response = await fetch(`/api/ims/shopify/instance-settings?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(shopifySelection.channelInstanceId)}/shopify/settings`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orders: { enabled: syncEnabled, syncFrom, locationId: locationId ? Number(locationId) : null },
-          xero: { dailyAutoSyncEnabled: xeroAccountingEnabled && xeroAutoSyncEnabled },
+          settings: {
+            orders: { enabled: syncEnabled, syncFrom, locationId: locationId ? Number(locationId) : null },
+            xero: { dailyAutoSyncEnabled: xeroAccountingEnabled && xeroAutoSyncEnabled },
+          },
         }),
       });
       const data = await response.json();
@@ -916,7 +747,7 @@ function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: bo
 
   return (
     <div>
-      <div style={{ ...card, display: 'grid', gridTemplateColumns: 'minmax(220px, 420px) 1fr', gap: 16, alignItems: 'end' }}>
+      {!shopifySelection.locked && <div style={{ ...card, display: 'grid', gridTemplateColumns: 'minmax(220px, 420px) 1fr', gap: 16, alignItems: 'end' }}>
         <div>
           <label style={label}>Shopify storefront</label>
           <select value={shopifySelection.channelInstanceId} onChange={event => shopifySelection.setChannelInstanceId(event.target.value)} style={input}>
@@ -925,7 +756,7 @@ function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: bo
           </select>
         </div>
         <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>All settings, imports, webhooks, and Xero batches below apply only to this storefront.</div>
-      </div>
+      </div>}
       {/* Enable/Disable toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '14px 18px', background: syncEnabled ? 'rgba(16,185,129,.08)' : 'var(--sv-bg-2)', border: `1px solid ${syncEnabled ? 'rgba(16,185,129,.3)' : 'var(--sv-etch)'}`, borderRadius: 10 }}>
         <div
@@ -1203,9 +1034,9 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 
   const saveSetting = async (patch: Record<string, unknown>) => {
     if (!shopifySelection.channelInstanceId) return;
-    await fetch('/api/ims/shopify/sync-inventory', {
+    await fetch(`/api/ims/channels/${encodeURIComponent(shopifySelection.channelInstanceId)}/shopify/settings`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId, inventory: patch }),
+      body: JSON.stringify({ settings: { inventory: patch } }),
     }).catch(() => {});
   };
 
@@ -1224,7 +1055,9 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Manual "Sync Queue Now" drains a big batch on demand (bulk GraphQL is fast).
-        body: JSON.stringify(mode === 'queue' ? { mode, limit: 5000 } : { mode, channelInstanceId: shopifySelection.channelInstanceId }),
+        body: JSON.stringify(mode === 'queue'
+          ? { mode, limit: 5000, channelInstanceId: shopifySelection.channelInstanceId }
+          : { mode, channelInstanceId: shopifySelection.channelInstanceId }),
       });
       const d = await r.json();
       if (!d.success && d.error && mode !== 'preview') throw new Error(d.error);
@@ -1265,7 +1098,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
         Tick the IMS branches whose stock should count toward the Shopify available number. Set a safety buffer to deduct from the total. The combined result is pushed to Shopify automatically every {intervalMinutes} minute{intervalMinutes === 1 ? '' : 's'}.
       </p>
-      <select
+      {!shopifySelection.locked && <select
         value={shopifySelection.channelInstanceId}
         onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
         aria-label="Shopify storefront for inventory synchronization"
@@ -1273,7 +1106,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
       >
         <option value="">Select inventory sync store</option>
         {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
-      </select>
+      </select>}
 
       {/* Enable toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
@@ -1423,8 +1256,8 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 }
 
 // ─── Gift Cards Tab ───────────────────────────────────────────────────────────
-function ShopifyGiftCardsTab() {
-  const shopifySelection = useShopifyInstanceSelection();
+export function ShopifyGiftCardsTab() {
+  const shopifySelection = useShopifyInstanceOptions();
   const [gcMode,    setGcMode]    = useState<'off' | 'combined'>('off');
   const [saving,    setSaving]    = useState(false);
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null);
@@ -1471,29 +1304,31 @@ function ShopifyGiftCardsTab() {
   } | null>(null);
 
   useEffect(() => {
-    fetch('/api/ims/settings').then(r => r.json()).then(d => {
-      if (d.data?.shopify_gc_mode) setGcMode(d.data.shopify_gc_mode as 'off' | 'combined');
-    }).catch(() => {});
-  }, []);
+    if (!shopifySelection.channelInstanceId) return;
+    fetch(`/api/ims/channels/${encodeURIComponent(shopifySelection.channelInstanceId)}/shopify/settings`)
+      .then(r => r.json()).then(d => {
+        if (d.settings?.giftCards?.mode) setGcMode(d.settings.giftCards.mode as 'off' | 'combined');
+      }).catch(() => {});
+  }, [shopifySelection.channelInstanceId]);
 
   useEffect(() => {
     if (!shopifySelection.channelInstanceId) {
       setCustomerOutboundEnabled(false);
       return;
     }
-    fetch(`/api/ims/shopify/sync-customers?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`)
+    fetch(`/api/ims/channels/${encodeURIComponent(shopifySelection.channelInstanceId)}/shopify/settings`)
       .then(response => response.json())
-      .then(data => setCustomerOutboundEnabled(Boolean(data.outboundEnabled)))
+      .then(data => setCustomerOutboundEnabled(Boolean(data.settings?.customers?.outboundEnabled)))
       .catch(() => setCustomerOutboundEnabled(false));
   }, [shopifySelection.channelInstanceId]);
 
   async function setOutboundCustomerSync(enabled: boolean) {
     if (!shopifySelection.channelInstanceId) return;
     setCustomerOutboundEnabled(enabled);
-    const response = await fetch('/api/ims/shopify/sync-customers', {
+    const response = await fetch(`/api/ims/channels/${encodeURIComponent(shopifySelection.channelInstanceId)}/shopify/settings`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId, outboundEnabled: enabled }),
+      body: JSON.stringify({ settings: { customers: { outboundEnabled: enabled } } }),
     });
     if (!response.ok) {
       setCustomerOutboundEnabled(!enabled);
@@ -1505,10 +1340,13 @@ function ShopifyGiftCardsTab() {
   async function saveMode(next: 'off' | 'combined') {
     setGcMode(next); setSaving(true); setSaveMsg(null);
     try {
-      await fetch('/api/ims/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { shopify_gc_mode: next } }),
+      if (!shopifySelection.channelInstanceId) throw new Error('Select a Shopify storefront.');
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(shopifySelection.channelInstanceId)}/shopify/settings`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { giftCards: { mode: next } } }),
       });
+      const data = await readApiResponse(response);
+      if (!response.ok || !data.success) throw new Error(data.error ?? 'Gift-card mode could not be saved.');
       setSaveMsg('Saved.');
     } catch (e: any) { setSaveMsg(`Error: ${e.message}`); }
     setSaving(false);
@@ -1517,7 +1355,10 @@ function ShopifyGiftCardsTab() {
   async function runSync() {
     setSyncing(true); setSyncResult(null); setSyncError(null);
     try {
-      const r = await fetch('/api/ims/shopify/sync-gift-cards', { method: 'POST' });
+      const r = await fetch('/api/ims/shopify/sync-gift-cards', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelInstanceId: shopifySelection.channelInstanceId }),
+      });
       const d = await readApiResponse(r);
       if (!r.ok || !d.success) throw new Error(d.error ?? 'Sync failed');
       setSyncResult(d);
@@ -1706,14 +1547,14 @@ function ShopifyGiftCardsTab() {
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
           Pull mode links exact-store customer identities, then uses an unambiguous email match and only fills blank IMS fields. Push mode updates existing mappings only and is off by default per storefront. Requires <code style={{ fontFamily: 'monospace', fontSize: 11 }}>read_customers</code> and <code style={{ fontFamily: 'monospace', fontSize: 11 }}>write_customers</code> scopes.
         </p>
-        <select
+        {!shopifySelection.locked && <select
           value={shopifySelection.channelInstanceId}
           onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
           style={{ ...inputStyle, marginBottom: 12, maxWidth: 360 }}
         >
           <option value="">Select Shopify storefront</option>
           {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
-        </select>
+        </select>}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, color: 'var(--sv-text-main)' }}>
           <input
             type="checkbox"

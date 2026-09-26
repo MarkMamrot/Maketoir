@@ -4,6 +4,7 @@ import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin,
 import { useEffect, useState } from 'react';
 
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
+import ShopifyChannelDetailView from './ShopifyChannelDetailView';
 
 interface ChannelCapabilities {
   catalogue: boolean;
@@ -108,7 +109,7 @@ function formatLastSync(value: string | null): string {
   }).format(date);
 }
 
-export default function SalesChannelsView({ canManage = false }: { canManage?: boolean }) {
+export default function SalesChannelsView({ canManage = false, xeroAccountingEnabled = false }: { canManage?: boolean; xeroAccountingEnabled?: boolean }) {
   const [instances, setInstances] = useState<ChannelInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -156,6 +157,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
   const [refundResolutionRefundId, setRefundResolutionRefundId] = useState('');
   const [refundResolutionLoading, setRefundResolutionLoading] = useState(false);
   const [productRulesInstance, setProductRulesInstance] = useState<ChannelInstance | null>(null);
+  const [shopifyDetailId, setShopifyDetailId] = useState<string | null>(null);
 
   const load = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -184,6 +186,26 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     if (success || failure) window.history.replaceState(window.history.state, '', `${window.location.pathname}#sales-channels`);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const readDetailId = () => {
+      const match = window.location.hash.match(/^#sales-channels\/shopify\/(.+)$/);
+      setShopifyDetailId(match ? decodeURIComponent(match[1]) : null);
+    };
+    readDetailId();
+    window.addEventListener('hashchange', readDetailId);
+    return () => window.removeEventListener('hashchange', readDetailId);
+  }, []);
+
+  const openShopifyDetail = (instance: ChannelInstance) => {
+    setShopifyDetailId(instance.channelInstanceId);
+    window.history.pushState(window.history.state, '', `#sales-channels/shopify/${encodeURIComponent(instance.channelInstanceId)}`);
+  };
+
+  const closeShopifyDetail = () => {
+    setShopifyDetailId(null);
+    window.history.pushState(window.history.state, '', '#sales-channels');
+  };
 
   const renameInstance = async (instance: ChannelInstance) => {
     setSavingId(instance.channelInstanceId);
@@ -720,6 +742,24 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     }
   };
 
+  const shopifyDetailInstance = shopifyDetailId
+    ? instances.find(instance => instance.channelInstanceId === shopifyDetailId && instance.provider === 'shopify')
+    : null;
+
+  if (shopifyDetailInstance?.provider === 'shopify') {
+    return (
+      <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
+        <ShopifyChannelDetailView
+          instance={{ ...shopifyDetailInstance, provider: 'shopify' }}
+          canManage={canManage}
+          xeroAccountingEnabled={xeroAccountingEnabled}
+          onBack={closeShopifyDetail}
+          onChanged={() => load()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
@@ -839,7 +879,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                     </button>
                   )}
                   {canManage && instance.provider === 'shopify' && (
-                    <button type="button" onClick={() => void openShopifyConfiguration(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    <button type="button" onClick={() => openShopifyDetail(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       <Pencil size={14} aria-hidden="true" /> Configure
                     </button>
                   )}

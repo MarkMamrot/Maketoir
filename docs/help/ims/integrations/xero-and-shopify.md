@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-sales-channels","ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-09-09","owner":"integrations","quickSections":["Main operations","Choose an integration","Safe retry rule"]}
+{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-sales-channels","ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations","Choose an integration","Safe retry rule"]}
 ---
 # Xero and Shopify
 
@@ -20,9 +20,11 @@ Xero handles supported accounting work. Shopify exchanges supported catalogue, c
 | Configure Xero accounts, tracking, payments, or sync rules | **Xero > Setup** | **Xero Sync and Reconciliation** |
 | Investigate an accounting warning | **Xero > Sync History** | **Xero Sync and Reconciliation** |
 | Review COGS or Shopify payouts in Xero | **Xero > Activity** | **Xero Sync and Reconciliation** |
-| Sync products or check Shopify linkage | **Shopify** | **Shopify Sync and Product Mapping** |
-| Investigate a stale order, inventory update, or webhook | **Shopify > Sync History** | **Shopify Sync and Product Mapping** |
+| Sync products or check Shopify linkage | **Sales Channels > Shopify store > Configure > Products** | **Shopify Sync and Product Mapping** |
+| Investigate a stale order, inventory update, or webhook | **Sales Channels > Shopify store > Configure > Activity** | **Shopify Sync and Product Mapping** |
 | Publish through Solvantis instead of Shopify | **Online Shop** | **Online Shop** |
+
+Xero Settings owns the business-wide accounting policy. Each Shopify store's **Accounting** tab only opts that store into eligible daily sales and payout workflows; it cannot weaken the global Xero policy.
 
 ## Safe retry rule
 

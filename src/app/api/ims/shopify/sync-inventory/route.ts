@@ -19,7 +19,6 @@ import { query } from '@/services/MySQLService';
 import { enterImsForBusiness, runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
-import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
   drainInventoryQueue,
@@ -92,27 +91,6 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PATCH(req: Request) {
-  const session = await getImsSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const businessId = String(session.businessId);
-  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
-  const body = await req.json().catch(() => ({}));
-  const channelInstanceId = typeof body?.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
-  if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
-  const instance = await SalesChannelInstanceRepository.getForBusiness(businessId, channelInstanceId);
-  if (!instance || instance.provider !== 'shopify') {
-    return NextResponse.json({ error: 'Shopify channel instance was not found' }, { status: 404 });
-  }
-  const current = shopifyInstanceSettings(instance.settings);
-  const inventoryPatch = body?.inventory && typeof body.inventory === 'object' ? body.inventory : {};
-  const updated = shopifyInstanceSettings({
-    shopify: { ...current, inventory: { ...current.inventory, ...inventoryPatch } },
-  });
-  await SalesChannelInstanceRepository.setShopifySettingsForBusiness({ businessId, channelInstanceId, settings: updated });
-  return NextResponse.json({ success: true, inventory: updated.inventory });
-}
-
 async function handlePost(req: Request) {
   const body = await req.json().catch(() => ({}));
   const mode = body?.mode ?? 'queue';
@@ -175,7 +153,10 @@ async function handlePost(req: Request) {
   await enterImsForBusiness(businessId);
 
   if (mode === 'queue') {
-    const res = await drainInventoryQueue(Number(body?.limit ?? 250), businessId);
+    const channelInstanceId = typeof body?.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
+    if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
+    await getShopifyOperationContext({ businessId, channelInstanceId });
+    const res = await drainInventoryQueue(Number(body?.limit ?? 250), businessId, channelInstanceId);
     return NextResponse.json({ success: true, ...res });
   }
 

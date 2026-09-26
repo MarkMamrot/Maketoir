@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Shopify","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["shopify"],"contextSections":{"shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.","lastReviewed":"2026-09-09","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Shopify Sync and Product Mapping
 
@@ -44,7 +44,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 
 Assistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.
 
-This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Shopify > Webhooks** when live registration must be verified, and use **Sync History** for the complete operational record.
+This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Integrations > Sales Channels**, configure the exact Shopify store, and use its Orders & Inventory and Activity tabs for live registration and operational history.
 
 For products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.
 
@@ -54,7 +54,7 @@ Failed Shopify quantity updates remain queued and are retried by the next schedu
 
 ### Import products from Shopify
 
-1. Open **Integrations > Shopify** and choose **Products**.
+1. Open **Integrations > Sales Channels**, choose **Configure** on the intended Shopify store, then choose **Products**.
 2. Turn on **Create missing brands from Shopify vendor** when new Shopify vendor names should be added to the Solvantis brand list.
 3. Turn on **Create and assign missing suppliers from Shopify vendor** when new Shopify vendor names should be created as supplier contacts and assigned as each product's default supplier.
 4. Choose **Import from Shopify**.
@@ -73,7 +73,7 @@ Shopify supplies one standard **vendor** value rather than separate brand and su
 
 ### Synchronize Shopify customers
 
-1. Open **Integrations > Shopify** and find **Customer Sync**.
+1. Open **Integrations > Sales Channels**, configure the intended Shopify store, then open **Customers & Gift Cards**.
 2. Set **Inactive after** to the number of months of Shopify order history that should keep a customer active.
 3. Choose **Pull Customers From Shopify** and keep the page open while all batches complete.
 4. Review the created, linked, updated, skipped, and error totals.
@@ -87,7 +87,7 @@ Pull matches the Shopify customer ID first and then uses an exact email match wh
 
 1. Complete the Shopify product import so variants retain their Shopify inventory links.
 2. Confirm there is one active location named **Warehouse** and one named **Kotara** in both Shopify and Solvantis.
-3. Under **Shopify > Products**, choose **Preview Opening Stock**.
+3. In the store's **Products** tab, choose **Preview Opening Stock**.
 4. Keep the page open while Solvantis reads linked variants in paced batches.
 5. Review the target unit totals, number of adjustments, and any negative quantities for each location.
 6. Choose **Apply Opening Stock** and confirm the change.
@@ -106,7 +106,7 @@ When opening stock was partly applied before an interruption, run Preview again.
 
 ### Check or repair product linkage
 
-1. Open **Integrations > Shopify** and choose the product area.
+1. Open **Integrations > Sales Channels**, configure the intended Shopify store, and choose **Products**.
 2. Filter for products not in Shopify, linked products, or all products as required.
 3. Search IMS for the intended product and inspect its variants.
 4. Confirm the Shopify product and variant identifiers are linked to the matching IMS variants.

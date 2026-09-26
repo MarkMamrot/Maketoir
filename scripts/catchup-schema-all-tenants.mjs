@@ -112,13 +112,15 @@ const TABLE_DDLS = [
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',
+    channel_instance_id VARCHAR(36) NULL,
     action ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
     status ENUM('success','error','partial') NOT NULL,
     summary TEXT NOT NULL,
     detail JSON NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_ssl_created (created_at),
-    INDEX idx_ssl_biz_created (business_id, created_at)
+    INDEX idx_ssl_biz_created (business_id, created_at),
+    INDEX idx_ssl_channel_created (channel_instance_id, created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS pos_training_sales (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1223,6 +1225,7 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_shopify_sync_log', 'channel_instance_id', 'VARCHAR(36) NULL AFTER business_id'],
   ['ims_sales_channel_product_mappings', 'external_inventory_id', 'VARCHAR(191) NULL AFTER external_variant_id'],
   ['ims_stock_movements', 'cost_method_snapshot', "ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost' AFTER unit_cost"],
   ['ims_stock_movements', 'cost_epoch_id', 'BIGINT NULL AFTER cost_method_snapshot'],
@@ -1519,6 +1522,7 @@ if (
 }
 
 const INDEXES = [
+  ['ims_shopify_sync_log', 'idx_ssl_channel_created', 'INDEX `idx_ssl_channel_created` (`channel_instance_id`, `created_at`)'],
   ['ims_stock_movements', 'idx_sm_cost_epoch', 'INDEX `idx_sm_cost_epoch` (`business_id`, `cost_epoch_id`, `id`)'],
   ['ims_stock_movements', 'idx_sm_source_line', 'INDEX `idx_sm_source_line` (`business_id`, `reference_type`, `reference_id`, `source_line_id`, `id`)'],
   ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],

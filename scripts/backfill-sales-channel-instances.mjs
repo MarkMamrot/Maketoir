@@ -217,10 +217,21 @@ async function migrateShopify(business) {
     enabled: business.shopify_enabled === 1,
     ready,
   });
-  const settingsMigrated = await migrateShopifySettings(business, instance.channelInstanceId);
-  const webhooksPrepared = await prepareShopifyWebhookCutover(business, instance.channelInstanceId);
+  const [shopifyInstanceRows] = await connection.query(
+    `SELECT COUNT(*) AS count FROM sales_channel_instances WHERE business_id = ? AND provider = 'shopify'`,
+    [business.business_id],
+  );
+  const shopifyInstanceCount = Number(shopifyInstanceRows[0]?.count ?? 0) + (!apply && instance.created ? 1 : 0);
+  const legacyOwnershipIsUnambiguous = shopifyInstanceCount === 1;
+  const settingsMigrated = legacyOwnershipIsUnambiguous
+    ? await migrateShopifySettings(business, instance.channelInstanceId)
+    : false;
+  const webhooksPrepared = legacyOwnershipIsUnambiguous
+    ? await prepareShopifyWebhookCutover(business, instance.channelInstanceId)
+    : 0;
   const counts = { products: 0, variants: 0, selections: 0, canonicalMappings: 0, assignments: 0,
     credentials: 0, settings: settingsMigrated ? 1 : 0, webhooksPrepared,
+    settingsReviewRequired: legacyOwnershipIsUnambiguous ? 0 : 1,
     productConflictOwners: 0, variantConflictOwners: 0 };
   const [[productConflictRows], [variantConflictRows]] = await Promise.all([
     connection.query(

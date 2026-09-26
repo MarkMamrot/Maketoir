@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { mergeShopifyInstanceSettings, shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 
 describe('shopifyInstanceSettings', () => {
   it('defaults all provider mutations and outbound sync off', () => {
@@ -12,8 +12,7 @@ describe('shopifyInstanceSettings', () => {
       customers: { outboundEnabled: false },
       giftCards: { mode: 'off' },
       xero: {
-        dailyAutoSyncEnabled: false, onlineBatchAction: 'none', paymentSyncEnabled: false,
-        payoutPostingEnabled: false, payoutAutoPostEnabled: false,
+        dailyAutoSyncEnabled: false, payoutPostingEnabled: false, payoutAutoPostEnabled: false,
       },
     });
   });
@@ -28,8 +27,7 @@ describe('shopifyInstanceSettings', () => {
       customers: { outboundEnabled: true },
       giftCards: { mode: 'combined' },
       xero: {
-        dailyAutoSyncEnabled: true, onlineBatchAction: 'authorised', paymentSyncEnabled: 1,
-        payoutPostingEnabled: true, payoutAutoPostEnabled: '1',
+        dailyAutoSyncEnabled: true, payoutPostingEnabled: true, payoutAutoPostEnabled: '1',
       },
     } })).toEqual({
       orders: { enabled: true, syncFrom: '2026-09-01', lastUpdatedAt: '2026-09-25T00:00:00Z', locationId: 7 },
@@ -40,8 +38,7 @@ describe('shopifyInstanceSettings', () => {
       customers: { outboundEnabled: true },
       giftCards: { mode: 'combined' },
       xero: {
-        dailyAutoSyncEnabled: true, onlineBatchAction: 'authorised', paymentSyncEnabled: true,
-        payoutPostingEnabled: true, payoutAutoPostEnabled: true,
+        dailyAutoSyncEnabled: true, payoutPostingEnabled: true, payoutAutoPostEnabled: true,
       },
     });
   });
@@ -58,5 +55,33 @@ describe('shopifyInstanceSettings', () => {
       customers: { outboundEnabled: false },
       giftCards: { mode: 'off' },
     });
+  });
+
+  it('merges a validated partial update without resetting other groups', () => {
+    const current = { shopify: {
+      orders: { enabled: true, syncFrom: '2026-09-01', locationId: 7 },
+      inventory: { enabled: true, buffer: 2, intervalMinutes: 30, pickLocationIds: [7] },
+      giftCards: { mode: 'off' },
+      xero: { payoutPostingEnabled: true },
+    } };
+
+    expect(mergeShopifyInstanceSettings(current, {
+      inventory: { buffer: 5, pickLocationIds: [7, 8] },
+      giftCards: { mode: 'combined' },
+    })).toMatchObject({
+      orders: { enabled: true, syncFrom: '2026-09-01', locationId: 7 },
+      inventory: { enabled: true, buffer: 5, intervalMinutes: 30, pickLocationIds: [7, 8] },
+      giftCards: { mode: 'combined' },
+      xero: { payoutPostingEnabled: true },
+    });
+  });
+
+  it('rejects invalid writes and inconsistent payout automation', () => {
+    expect(() => mergeShopifyInstanceSettings({}, { inventory: { intervalMinutes: 0 } }))
+      .toThrow('Inventory interval must be a positive whole number.');
+    expect(() => mergeShopifyInstanceSettings({}, { giftCards: { mode: 'invalid' as 'off' } }))
+      .toThrow('Gift-card mode must be off or combined.');
+    expect(() => mergeShopifyInstanceSettings({}, { xero: { payoutAutoPostEnabled: true } }))
+      .toThrow('Automatic payout posting requires payout posting to be enabled.');
   });
 });

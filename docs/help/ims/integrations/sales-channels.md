@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review each connected online storefront and its current operating state.","lastReviewed":"2026-09-25","owner":"integrations","quickSections":["Main operations"]}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review and configure each connected online storefront separately.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations"]}
 ---
 # Sales Channels
 
@@ -11,6 +11,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Check whether a channel is active, paused, waiting for setup, or needs attention.
 - Review the external account identity and last successful synchronization time.
 - Compare the operations supported by each provider.
+- Choose **Configure** on a Shopify row to manage that exact store's connection, products, orders, inventory, customers, gift cards, accounting opt-ins, and activity.
 
 ## Publishing and provider operations
 
@@ -37,7 +38,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 
 Open **Integrations > Sales Channels**. Each row identifies the storefront, provider, operating state, account identity, last synchronization time, and supported operations.
 
-Administrators can use the pencil button beside a channel name to rename it. Other IMS users can review the same status information but cannot change it.
+Administrators can use the pencil button beside a channel name to rename it. Choose **Configure** on a Shopify row to open that store's dedicated detail view. Other IMS users can review the same status information but cannot change it.
 
 ### Assign products with channel rules
 
@@ -92,7 +93,7 @@ Exact-instance Shopify credentials control connection testing, channel product p
 
 Inventory writes set Shopify's absolute available quantity rather than adding or subtracting a delta. Products with **Tracks inventory** off do not receive quantity updates. Price and variant updates use only the selected or mapped storefront identity and do not publish, activate, draft, or otherwise change product publication state.
 
-In **Shopify > Orders**, choose the intended storefront before importing orders or checking webhooks. **Register webhooks via API** creates or repairs that store's supported order, fulfilment, refund, return-observation, and Shopify Payments payout subscriptions using its exact callback URL. Client-credential connections use the saved app secret for delivery verification. A legacy Admin API token connection also needs that storefront's webhook signing secret when it is first registered; the secret is encrypted and is not displayed later.
+Under **Integrations > Sales Channels**, choose **Configure** for the intended store, then open **Orders & Inventory** before importing orders or checking webhooks. **Register webhooks via API** creates or repairs that store's supported order, fulfilment, refund, return-observation, and Shopify Payments payout subscriptions using its exact callback URL. Client-credential connections use the saved app secret for delivery verification. A legacy Admin API token connection also needs that storefront's webhook signing secret when it is first registered; the secret is encrypted and is not displayed later.
 
 The same storefront choice owns its order start date, online-orders location, order-sync switch, and automatic daily Xero batch switch. When only one active Shopify store exists it is selected automatically; when more than one exists, choose the store before changing settings or running an action. Each store creates separate daily Xero batches, gateway mappings and payout records.
 

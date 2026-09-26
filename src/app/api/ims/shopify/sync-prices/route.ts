@@ -54,10 +54,11 @@ export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
+  let channelInstanceId: string | null = null;
 
   try {
     const body: { product_ids?: string[]; channelInstanceId?: string } = await req.json().catch(() => ({}));
-    const channelInstanceId = body.channelInstanceId?.trim();
+    channelInstanceId = body.channelInstanceId?.trim() ?? null;
     if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
     const { credentials } = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, synced, total: variants.length, errors });
   } catch (e: any) {
-    await ImsShopifyRepo.logAction('sync_prices', 'error', e.message, session?.businessId ?? '').catch(() => {});
+    await ImsShopifyRepo.logAction('sync_prices', 'error', e.message, session?.businessId ?? '', undefined, channelInstanceId).catch(() => {});
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

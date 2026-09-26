@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
-import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { getShopifyOperationContext, ShopifyOperationContextError } from '@/lib/channels/shopifyOperationContext';
 import { getContactChannelMapping, recordInboundContactChannelMapping } from '@/lib/ims/contactChannelMappings';
@@ -203,31 +202,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, outboundEnabled: shopifyInstanceSettings(context.instance.settings).customers.outboundEnabled });
   } catch (error) {
     const message = error instanceof ShopifyOperationContextError ? error.message : 'Shopify storefront is unavailable.';
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-}
-
-export async function PATCH(request: Request) {
-  const session = await getImsSession();
-  if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  const body = await request.json().catch(() => ({}));
-  const channelInstanceId = typeof body.channelInstanceId === 'string' ? body.channelInstanceId.trim() : '';
-  if (!channelInstanceId || typeof body.outboundEnabled !== 'boolean') {
-    return NextResponse.json({ error: 'channelInstanceId and outboundEnabled are required.' }, { status: 400 });
-  }
-  try {
-    const context = await getShopifyOperationContext({ businessId: session.businessId, channelInstanceId });
-    const settings = shopifyInstanceSettings(context.instance.settings);
-    settings.customers.outboundEnabled = body.outboundEnabled;
-    const updated = await SalesChannelInstanceRepository.setShopifySettingsForBusiness({
-      businessId: session.businessId,
-      channelInstanceId,
-      settings,
-    });
-    if (!updated) return NextResponse.json({ error: 'Shopify storefront was not found.' }, { status: 404 });
-    return NextResponse.json({ success: true, outboundEnabled: body.outboundEnabled });
-  } catch (error) {
-    const message = error instanceof ShopifyOperationContextError ? error.message : 'Shopify customer settings could not be saved.';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -33,7 +33,7 @@ describe('ImsShopifyRepo.listWithShopifyStatus', () => {
   it('uses explicit collations when joining website attempts to products', async () => {
     mockImsQuery.mockResolvedValue([]);
 
-    await ImsShopifyRepo.listWithShopifyStatus('business-1');
+    await ImsShopifyRepo.listWithShopifyStatus('business-1', 'store-1');
 
     expectCollationSafeAttemptJoin(mockImsQuery.mock.calls[0][0]);
   });
@@ -43,7 +43,7 @@ describe('ImsShopifyRepo.listWithShopifyStatus', () => {
       .mockRejectedValueOnce(new Error('Unknown column p.supplier_contact_id'))
       .mockResolvedValue([]);
 
-    await ImsShopifyRepo.listWithShopifyStatus('business-1');
+    await ImsShopifyRepo.listWithShopifyStatus('business-1', 'store-1');
 
     expectCollationSafeAttemptJoin(mockImsQuery.mock.calls[1][0]);
   });

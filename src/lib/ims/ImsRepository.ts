@@ -5183,6 +5183,7 @@ export const ImsBTRepo = {
 
 export interface ImsShopifySyncLog {
   id: number;
+  channel_instance_id: string | null;
   action: 'reconcile' | 'upload' | 'sync_prices' | 'resync';
   status: 'success' | 'error' | 'partial';
   summary: string;
@@ -5196,19 +5197,33 @@ async function ensureShopifySyncLogSchema(): Promise<void> {
   const schema = getCurrentImsDb();
   let promise = shopifySyncLogSchemaPromises.get(schema);
   if (!promise) {
-    promise = imsExecute(`
-      CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        business_id VARCHAR(100) NOT NULL DEFAULT '',
-        action ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
-        status ENUM('success','error','partial') NOT NULL,
-        summary TEXT NOT NULL,
-        detail JSON NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_ssl_created (created_at),
-        INDEX idx_ssl_biz_created (business_id, created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `).then(() => undefined).catch(error => {
+    promise = (async () => {
+      await imsExecute(`
+        CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          business_id VARCHAR(100) NOT NULL DEFAULT '',
+          channel_instance_id VARCHAR(36) NULL,
+          action ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
+          status ENUM('success','error','partial') NOT NULL,
+          summary TEXT NOT NULL,
+          detail JSON NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_ssl_created (created_at),
+          INDEX idx_ssl_biz_created (business_id, created_at),
+          INDEX idx_ssl_channel_created (channel_instance_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+      const columns = await imsQuery<{ COLUMN_NAME: string }>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ims_shopify_sync_log'
+            AND COLUMN_NAME = 'channel_instance_id'`,
+      );
+      if (!columns.length) {
+        await imsExecute(`ALTER TABLE ims_shopify_sync_log
+          ADD COLUMN channel_instance_id VARCHAR(36) NULL AFTER business_id,
+          ADD INDEX idx_ssl_channel_created (channel_instance_id, created_at)`);
+      }
+    })().catch(error => {
       shopifySyncLogSchemaPromises.delete(schema);
       throw error;
     });
@@ -5363,11 +5378,12 @@ export const ImsShopifyRepo = {
     summary: string,
     businessId: string,
     detail?: object,
+    channelInstanceId?: string | null,
   ): Promise<void> {
     await ensureShopifySyncLogSchema();
     await imsExecute(
-      `INSERT INTO ims_shopify_sync_log (business_id, action, status, summary, detail) VALUES (?, ?, ?, ?, ?)`,
-      [businessId, action, status, summary, detail ? JSON.stringify(detail) : null],
+      `INSERT INTO ims_shopify_sync_log (business_id, channel_instance_id, action, status, summary, detail) VALUES (?, ?, ?, ?, ?, ?)`,
+      [businessId, channelInstanceId ?? null, action, status, summary, detail ? JSON.stringify(detail) : null],
     );
     if (status === 'error' || status === 'partial') {
       await reportRuntimeIssue({
@@ -5382,9 +5398,16 @@ export const ImsShopifyRepo = {
     }
   },
 
-  async getLog(limit = 50, businessId?: string): Promise<ImsShopifySyncLog[]> {
+  async getLog(limit = 50, businessId?: string, channelInstanceId?: string): Promise<ImsShopifySyncLog[]> {
     await ensureShopifySyncLogSchema();
     const n = Math.max(1, Math.min(Math.floor(Number(limit)), 500));
+    if (businessId && channelInstanceId) {
+      return imsQuery<ImsShopifySyncLog>(
+        `SELECT * FROM ims_shopify_sync_log
+          WHERE business_id = ? AND channel_instance_id = ? ORDER BY created_at DESC LIMIT ${n}`,
+        [businessId, channelInstanceId],
+      );
+    }
     if (businessId) {
       return imsQuery<ImsShopifySyncLog>(
         `SELECT * FROM ims_shopify_sync_log WHERE business_id = ? ORDER BY created_at DESC LIMIT ${n}`,
@@ -5432,12 +5455,19 @@ export const ImsShopifyRepo = {
   },
 
   // ── Products list with link status ───────────────────────────────────────
-  async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify'; soh: number; last_invalid_url_attempt_at: string | null }>> {
+  async listWithShopifyStatus(businessId: string, channelInstanceId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify'; soh: number; last_invalid_url_attempt_at: string | null }>> {
     const baseQuery = (withSupplier: boolean) => withSupplier
       ? `SELECT p.*, c.name AS supplier_name, wa.last_invalid_url_attempt_at,
-           IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
+           IF(channel_link.product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
          FROM ims_products p
          LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
+         LEFT JOIN (
+           SELECT DISTINCT mapping.business_id, variant.product_id
+             FROM ims_sales_channel_product_mappings mapping
+             JOIN ims_product_variants variant
+               ON BINARY variant.business_id = BINARY mapping.business_id AND variant.variant_id = mapping.variant_id
+            WHERE mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+         ) channel_link ON BINARY channel_link.business_id = BINARY p.business_id AND channel_link.product_id = p.product_id
          LEFT JOIN (
            SELECT business_id, product_id, MAX(attempted_at) AS last_invalid_url_attempt_at
            FROM ims_website_content_attempts
@@ -5450,8 +5480,15 @@ export const ImsShopifyRepo = {
       : `SELECT p.*,
            NULL AS supplier_name,
            wa.last_invalid_url_attempt_at,
-           IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
+           IF(channel_link.product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
          FROM ims_products p
+         LEFT JOIN (
+           SELECT DISTINCT mapping.business_id, variant.product_id
+             FROM ims_sales_channel_product_mappings mapping
+             JOIN ims_product_variants variant
+               ON BINARY variant.business_id = BINARY mapping.business_id AND variant.variant_id = mapping.variant_id
+            WHERE mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+         ) channel_link ON BINARY channel_link.business_id = BINARY p.business_id AND channel_link.product_id = p.product_id
          LEFT JOIN (
            SELECT business_id, product_id, MAX(attempted_at) AS last_invalid_url_attempt_at
            FROM ims_website_content_attempts
@@ -5464,11 +5501,11 @@ export const ImsShopifyRepo = {
 
     let products: any[];
     try {
-      products = await imsQuery<any>(baseQuery(true), [businessId]);
+      products = await imsQuery<any>(baseQuery(true), [channelInstanceId, businessId]);
     } catch (e: any) {
       // supplier_contact_id column not yet added to this tenant schema — fall back
       if (/supplier_contact_id/.test(e?.message ?? '')) {
-        products = await imsQuery<any>(baseQuery(false), [businessId]);
+        products = await imsQuery<any>(baseQuery(false), [channelInstanceId, businessId]);
       } else {
         throw e;
       }

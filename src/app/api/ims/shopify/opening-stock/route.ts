@@ -250,7 +250,7 @@ export async function POST(req: Request) {
     refreshVariantCache(variantIds).catch(error => console.error('Failed to refresh Shopify opening stock cache:', error));
     await ImsShopifyRepo.logAction('reconcile', 'success', `Applied Shopify opening stock batch ${offset}`, businessId, {
       runId, offset, variants: variantIds.length, stocktakes,
-    });
+    }, channelInstanceId);
     return NextResponse.json({ success: true, mode, stocktakes, variants: variantIds.length });
   } catch (error: any) {
     await reportRuntimeIssue({

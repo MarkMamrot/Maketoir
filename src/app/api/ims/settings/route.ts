@@ -36,12 +36,17 @@ import {
 } from '@/lib/ims/builds/buildFromSalePolicy';
 import { INVENTORY_COST_METHOD_SETTING_KEY } from '@/lib/ims/costing/inventoryCostSwitch';
 
-// Settings whose changes affect the inventory qty pushed to Shopify.
-// When any of these keys change we must re-enqueue every linked variant so the
-// next cron run re-syncs them with the new buffer / new pick-location set.
-const INVENTORY_SENSITIVE_KEYS = new Set([
+const DEPRECATED_SHOPIFY_SETTING_KEYS = new Set([
+  'shopify_order_sync_enabled',
+  'shopify_order_sync_from',
+  'online_sales_location_id',
+  'shopify_inventory_sync_enabled',
+  'shopify_inventory_sync_interval_minutes',
+  'shopify_inventory_sync_last_run_at',
+  'shopify_inventory_location_id',
   'shopify_inventory_buffer',
-  'online_pick_priority',
+  'shopify_gc_mode',
+  'shopify_xero_auto_sync_enabled',
 ]);
 
 /** GET /api/ims/settings — returns all settings for the business as { key: value } */
@@ -126,6 +131,13 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : onlineChannels ? {} : body);
+
+    if (Object.keys(pairs).some(key => DEPRECATED_SHOPIFY_SETTING_KEYS.has(key))) {
+      return NextResponse.json({
+        success: false,
+        error: 'Shopify operational settings must be changed from the selected store in Sales Channels.',
+      }, { status: 400 });
+    }
 
     if (pairs[INVENTORY_COST_METHOD_SETTING_KEY] !== undefined) {
       return NextResponse.json({
@@ -254,22 +266,6 @@ export async function PUT(req: Request) {
       await WholesaleSupplierProfileRepository.ensureForBusiness(businessId);
     } else if (pairs[SELLS_WHOLESALE_SETTING_KEY] === 'no') {
       await WholesaleSupplierProfileRepository.deactivate(businessId);
-    }
-
-    // If any inventory-sync setting changed, re-enqueue all Shopify-linked variants
-    // so the next cron run applies the new buffer / pick-locations immediately.
-    const inventoryAffected = Object.keys(pairs).some(k => INVENTORY_SENSITIVE_KEYS.has(k));
-    if (inventoryAffected) {
-      await imsExecute(
-        `INSERT IGNORE INTO ims_shopify_inventory_queue (variant_id, queued_at)
-         SELECT v.variant_id, NOW()
-           FROM ims_product_variants v
-           JOIN ims_products p ON p.product_id = v.product_id
-          WHERE p.business_id = ?
-            AND v.shopify_inventory_item_id IS NOT NULL
-            AND v.shopify_inventory_item_id <> ''`,
-        [businessId],
-      );
     }
 
     return NextResponse.json({ success: true });
