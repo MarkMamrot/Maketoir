@@ -51,7 +51,10 @@ async function main() {
             AND operation = 'shopify_inventory' AND status = 'failed' AND safe_error LIKE ?`,
         [businessId, channelInstanceId, collationError],
       );
+      console.log(JSON.stringify({ stage: 'reset_complete', resetFailedJobs: Number(reset.affectedRows ?? 0) }));
+      console.log(JSON.stringify({ stage: 'drain_start' }));
       const drain = await drainInventoryQueue(4000, businessId, channelInstanceId);
+      console.log(JSON.stringify({ stage: 'drain_complete', drain }));
       if (drain.errors.length > 0) throw new Error(`Inventory recovery failed: ${drain.errors.join('; ')}`);
 
       const jobs = await imsQuery<JobCount>(
@@ -124,7 +127,7 @@ async function main() {
   }
 }
 
-main().catch(error => {
+main().then(() => process.exit(0)).catch(error => {
   console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
+  process.exit(1);
 });
