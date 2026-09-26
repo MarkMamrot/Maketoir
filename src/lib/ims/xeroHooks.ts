@@ -43,6 +43,10 @@ async function loadDocumentPolicy(businessId: string) {
   }
 }
 
+function isDailyBatchedOnlineOrder(order: unknown): boolean {
+  return String((order as { so_type?: unknown } | null)?.so_type ?? '').toLowerCase() === 'online';
+}
+
 /** Retry a sync function once after 2s. Marks as queued if both attempts fail. */
 async function withRetry<T>(
   fn: () => Promise<T | null>,
@@ -312,6 +316,9 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
   if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) {
     return failOrderPaymentXeroPost('so', businessId, paymentId, 'This sales order is not eligible for Xero payment posting.');
   }
+  if (isDailyBatchedOnlineOrder(so)) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'Online sales are posted to Xero through their daily sales batch.');
+  }
 
   const payment = (so as any).payments?.find((p: any) => p.id === paymentId);
   if (!payment?.payment_method_id) {
@@ -355,6 +362,9 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
  */
 export async function triggerSOXeroSync(businessId: string, soId: number, newStatus: string): Promise<void> {
   if (!isOrderXeroEligible(newStatus)) return;
+
+  const so = await ImsSORepo.get(soId, businessId);
+  if (!so || isDailyBatchedOnlineOrder(so) || !isOrderXeroEligible(String((so as any).status ?? newStatus))) return;
   if (!await isXeroConnected(businessId)) return;
 
   const policy = await loadDocumentPolicy(businessId);
@@ -362,8 +372,6 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
   const action = resolveSODocumentAction(policy, newStatus);
   if (action === 'none') return;
 
-  const so = await ImsSORepo.get(soId, businessId);
-  if (!so || !isOrderXeroEligible(String((so as any).status ?? newStatus))) return;
   let xeroInvoiceId = (so as any).xero_invoice_id ?? null;
   if (xeroInvoiceId) {
     await updateXeroDraftInvoice(businessId, so as any, xeroInvoiceId);
@@ -388,7 +396,7 @@ export async function triggerSOXeroUpdate(businessId: string, soId: number): Pro
   try {
     if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
     const so = await ImsSORepo.get(soId, businessId);
-    if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) return { attempted: false, updated: false, warning: null };
+    if (!so || isDailyBatchedOnlineOrder(so) || !isOrderXeroEligible(String((so as any).status ?? ''))) return { attempted: false, updated: false, warning: null };
     const xeroId = (so as any).xero_invoice_id ?? null;
     if (!xeroId) return { attempted: false, updated: false, warning: null };
     const updated = await updateXeroDraftInvoice(businessId, so as any, xeroId);

@@ -96,7 +96,9 @@ vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 import {
   triggerPOPaymentXeroSync,
   triggerPOXeroSync,
+  triggerSOPaymentXeroSync,
   triggerSOXeroSync,
+  triggerSOXeroUpdate,
   triggerCNXeroUpdate,
   triggerCNXeroSync,
   triggerSupplierCNXeroSync,
@@ -212,7 +214,7 @@ describe('PO and SO Xero document policies', () => {
   });
 
   it('updates then authorises an existing SO when configured', async () => {
-    const so = { id: 8, so_number: 'SO-00008', xero_invoice_id: 'xero-so-8' };
+    const so = { id: 8, so_number: 'SO-00008', so_type: 'wholesale', xero_invoice_id: 'xero-so-8' };
     mockSOGet.mockResolvedValue(so);
     mockGetPolicy.mockResolvedValue({
       ...DEFAULT_XERO_DOCUMENT_POLICY,
@@ -223,6 +225,55 @@ describe('PO and SO Xero document policies', () => {
 
     expect(mockUpdateXeroDraftInvoice).toHaveBeenCalledWith('biz-1', so, 'xero-so-8');
     expect(mockApproveInvoice).toHaveBeenCalledWith('biz-1', 'xero-so-8', 8);
+  });
+
+  it('does not create or authorise an individual invoice for an online sale', async () => {
+    mockSOGet.mockResolvedValue({
+      id: 8,
+      so_number: 'ONL-00008',
+      so_type: 'online',
+      status: 'fulfilled',
+      xero_invoice_id: null,
+    });
+
+    await triggerSOXeroSync('biz-1', 8, 'fulfilled');
+
+    expect(mockConnectionsGet).not.toHaveBeenCalled();
+    expect(mockGetPolicy).not.toHaveBeenCalled();
+    expect(mockSyncSOAsInvoice).not.toHaveBeenCalled();
+    expect(mockApproveInvoice).not.toHaveBeenCalled();
+  });
+
+  it('does not update an individual linked invoice for an online sale', async () => {
+    mockSOGet.mockResolvedValue({
+      id: 8,
+      so_number: 'ONL-00008',
+      so_type: 'online',
+      status: 'fulfilled',
+      xero_invoice_id: 'xero-online-8',
+    });
+
+    const result = await triggerSOXeroUpdate('biz-1', 8);
+
+    expect(result).toEqual({ attempted: false, updated: false, warning: null });
+    expect(mockUpdateXeroDraftInvoice).not.toHaveBeenCalled();
+  });
+
+  it('does not create an individual invoice when posting an online sale payment', async () => {
+    mockSOGet.mockResolvedValue({
+      id: 8,
+      so_number: 'ONL-00008',
+      so_type: 'online',
+      status: 'fulfilled',
+      xero_invoice_id: null,
+      payments: [{ id: 31, payment_method_id: 5, amount: 10, payment_date: '2026-09-24' }],
+    });
+
+    const result = await triggerSOPaymentXeroSync('biz-1', 8, 31);
+
+    expect(result).toEqual(expect.objectContaining({ posted: false }));
+    expect(mockSyncSOAsInvoice).not.toHaveBeenCalled();
+    expect(mockApproveInvoice).not.toHaveBeenCalled();
   });
 
   it('posts the received journal only after bill authorisation succeeds', async () => {

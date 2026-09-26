@@ -58,6 +58,8 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 7. Save the mappings and run a normal source workflow.
 8. Open **Sync History** and confirm the resulting status before enabling broader automation.
 
+Online Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.
+
 ### Recover a failed accounting action
 
 1. Confirm the IMS source is complete and note its reference.
