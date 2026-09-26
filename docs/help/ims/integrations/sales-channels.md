@@ -57,21 +57,21 @@ Automatic assignment runs only for an enabled, active and ready channel that has
 
 An explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Follow channel mode** to remove that protection while preserving the current inclusion unless the channel is Automatic and the product matches an Include rule.
 
-For one saved product, open **Products > All Products > Channels**, choose **Include in Channels**, review configured destinations and recommendations, then apply the checked channels. For several products, open **Products > All Products**, choose the exact sales channel and one of its saved Include rules, then select some products or use **Select all matching**. Choose **Include in Sales Channels**, confirm the exact channel, and use **Always include**. Filtering, previewing, selecting and saving rules do not change inclusion by themselves.
+For one saved product, open **Products > All Products > Channels**, choose **Include in Channels**, review configured destinations and recommendations, then choose **Apply and publish**. Solvantis immediately sends the selected product to each active, ready channel and shows a provider link after success. For several products, open **Products > All Products**, choose the exact sales channel and one of its saved Include rules, then select some products or use **Select all matching**. Choose **Include in Sales Channels**, confirm the exact channel, and use **Always include**. Filtering, previewing, selecting and saving rules do not change inclusion by themselves.
 
 ### Publish assigned products
 
-Product publication is off by default for every channel. An administrator must first complete the provider setup and readiness checks, activate the channel, then choose **Automatic publication** for that exact storefront. Enabling the setting does not immediately change provider products.
+Explicit **Apply and publish** actions run immediately for an active, ready channel. **Automatic publication** is off by default and controls later background reconciliation of assignment differences; enabling it does not immediately change provider products.
 
 Choose **Reconcile products** to review how many assignments differ from their observed provider state. Confirm that count to queue and process the current differences. Solvantis rechecks each product's latest assignment before contacting the provider, so a queued item whose intent has changed is skipped. Blocked products retain their assignment and show an issue that must be corrected before reconciliation is retried. Automatic scheduled reconciliation uses the same safeguards and does not run for disabled, paused, unready, or opted-out channels.
 
 Provider behavior differs:
 
 - The Solvantis Online Store publishes or unpublishes the local online product after confirming the product is active and has an active variant with a positive price.
-- Shopify changes an exactly linked product between Active and Draft. A product without an exact link to that Shopify store is blocked rather than guessed.
+- Shopify changes an exactly linked product between Active and Draft. When an explicitly included product has no link, Solvantis creates it as a Draft in the selected Shopify store, saves the exact product and variant links, sends its images and inventory, then makes it Active. Existing ambiguous or conflicting links remain blocked rather than guessed.
 - Amazon creates or removes seller-fulfilled offers only for variants mapped to an existing ASIN and seller SKU in that exact seller account. The product must be active, have a positive tax-inclusive AUD price, and use tracked inventory. Full Amazon parent/child catalogue creation is not supported by this workflow.
 
-Assignment intent and provider state are separate. **Include** means Solvantis should publish when the channel is eligible; it does not prove that the provider has accepted the change. Review blocked or failed results before relying on an offer being live.
+Assignment intent and provider state are separate. After **Apply and publish**, confirm the Provider column says **Published** and use **View listing** or **Manage listing**. A blocked or failed result means the inclusion was retained but the product is not live; correct the displayed issue and retry.
 
 Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments. After a successful test, choose **Activate** to make that exact store eligible for its enabled channel workflows. Choose **Deactivate** to pause it while retaining credentials, mappings, assignments, and history.
 

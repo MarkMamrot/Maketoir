@@ -76,6 +76,7 @@ export function ProductChannelDestinations({ productId, isReadOnly = false }: {
       await load();
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Channel assignments could not be saved.');
+      await load();
     } finally {
       setUpdatingId(null);
     }
@@ -120,7 +121,7 @@ export function ProductChannelDestinations({ productId, isReadOnly = false }: {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
       <div>
         <h4 style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-strong)' }}>Channels</h4>
-        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Inclusion, rule recommendation, and provider status are tracked separately.</span>
+        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Including a product publishes it to the selected ready channel.</span>
       </div>
       <div style={{ display: 'flex', gap: 7 }}>
         {!isReadOnly && <button type="button" onClick={() => setPickerOpen(true)} disabled={loading || destinations.length === 0} style={{ height: 30, padding: '0 10px', border: 'none', borderRadius: 4, background: 'var(--sv-action)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Include in Channels</button>}
@@ -158,7 +159,7 @@ export function ProductChannelDestinations({ productId, isReadOnly = false }: {
     {pickerOpen && <div role="dialog" aria-modal="true" aria-label="Include in Channels" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(15,23,42,.48)', display: 'grid', placeItems: 'center', padding: 20 }}>
       <div style={{ width: 'min(540px, 100%)', maxHeight: '80vh', overflowY: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 18, boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Include in Channels</h3>
-        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Checked channels reflect saved inclusion. Rule recommendations are shown separately.</p>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Apply publishes checked products and removes unchecked products from each selected channel. Rule recommendations are shown separately.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {destinations.map(destination => {
             const available = destination.enabled && destination.runtimeStatus === 'active' && destination.readinessStatus === 'ready';
@@ -174,7 +175,7 @@ export function ProductChannelDestinations({ productId, isReadOnly = false }: {
           <button type="button" onClick={applyRecommendations} style={{ padding: '7px 10px', border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 11, fontWeight: 700 }}>Apply rule recommendations</button>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={() => { setSelectedChannels(new Set(destinations.filter(item => item.desiredState === 'published').map(item => item.channelInstanceId))); setPickerOpen(false); }} style={{ padding: '7px 10px', border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}>Cancel</button>
-            <button type="button" onClick={() => void applySelection()} disabled={updatingId === 'bulk'} style={{ padding: '7px 12px', border: 0, borderRadius: 4, background: 'var(--sv-action)', color: '#fff', fontWeight: 700 }}>{updatingId === 'bulk' ? 'Saving...' : 'Apply'}</button>
+            <button type="button" onClick={() => void applySelection()} disabled={updatingId === 'bulk'} style={{ padding: '7px 12px', border: 0, borderRadius: 4, background: 'var(--sv-action)', color: '#fff', fontWeight: 700 }}>{updatingId === 'bulk' ? 'Publishing...' : 'Apply and publish'}</button>
           </div>
         </div>
       </div>

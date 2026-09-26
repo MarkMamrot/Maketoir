@@ -1,9 +1,13 @@
+import fs from 'fs';
+import path from 'path';
+
 import { getAmazonChannelAccess } from '@/lib/channels/amazonCredentials';
 import { deleteAmazonListingOffer, putAmazonExistingAsinOffer } from '@/lib/channels/amazonSpApi';
 import type { ChannelProductPublicationAdapter } from '@/lib/channels/channelProductPublication';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import type { SalesChannelProvider } from '@/lib/channels/types';
-import { getOnlinePickLocationIds } from '@/lib/ims/shopifyInventorySync';
+import { ImsImagesRepo, ImsProductsRepo } from '@/lib/ims/ImsRepository';
+import { getOnlinePickLocationIds, pushInventoryForShopifyInstance, shopifyInventoryPolicyPayload, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 import { normalizeOnlineShopPageSlug } from '@/lib/onlineShop/onlineShopPages';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -31,6 +35,92 @@ interface AmazonOfferRow {
 
 function blocked(...issues: string[]) {
   return { outcome: 'blocked' as const, issues };
+}
+
+function shopifyImagePayload(image: { url: string; source: string; drive_file_id?: string | null; alt_text?: string | null }, businessId: string) {
+  if (/\.(mp4|mov|webm)(\?|$)/i.test(`${image.url} ${image.drive_file_id ?? ''}`)) return null;
+  if (/^https?:\/\//i.test(image.url)) return { src: image.url, alt: image.alt_text ?? '' };
+  if (image.source !== 'volume' || !image.drive_file_id) return null;
+  const filePath = path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', businessId, 'product-images', image.drive_file_id);
+  if (!fs.existsSync(filePath)) return null;
+  return { attachment: fs.readFileSync(filePath).toString('base64'), alt: image.alt_text ?? '' };
+}
+
+async function createShopifyProduct(input: Parameters<ChannelProductPublicationAdapter>[0]) {
+  const product = await ImsProductsRepo.get(input.productId, input.businessId);
+  if (!product) return blocked('Product not found.');
+  if (product.is_active !== 1) return blocked('Product is inactive.');
+  const variants = (product.variants ?? []).filter(variant => variant.is_active !== 0);
+  if (variants.length === 0) return blocked('At least one active variant is required.');
+  if (variants.some(variant => Number(variant.price_rrp ?? 0) <= 0)) {
+    return blocked('Every active variant requires a positive retail price.');
+  }
+
+  const { credentials } = await getShopifyOperationContext({
+    businessId: input.businessId,
+    channelInstanceId: input.channelInstanceId,
+  });
+  const service = new ShopifyService(credentials.shopDomain, credentials.token);
+  const optionNames = [1, 2, 3].flatMap(position => {
+    const key = `option${position}_name` as const;
+    const name = variants.find(variant => String(variant[key] ?? '').trim())?.[key];
+    return name ? [{ name }] : [];
+  });
+  const shopifyVariants = variants.map(variant => {
+    const prices = shopifyVariantPricePayload(variant.price_rrp, variant.price_rrp_sale);
+    const payload: Record<string, unknown> = {
+      sku: variant.sku ?? '', barcode: variant.barcode ?? undefined,
+      ...prices, ...shopifyInventoryPolicyPayload(product.is_stock_item),
+      weight: variant.weight_kg ? variant.weight_kg * 1000 : undefined, weight_unit: 'g',
+      option1: optionNames.length > 0 ? (variant.option1_value?.trim() || 'Default') : 'Default Title',
+    };
+    if (optionNames.length > 1) payload.option2 = variant.option2_value?.trim() || 'Default';
+    if (optionNames.length > 2) payload.option3 = variant.option3_value?.trim() || 'Default';
+    return payload;
+  });
+  const created = await service.createProduct({
+    title: product.website_title?.trim() || product.name,
+    body_html: product.description ?? '', vendor: product.brand ?? '', product_type: product.product_type ?? '',
+    tags: product.tags ?? '', status: 'draft', variants: shopifyVariants,
+    options: optionNames.length > 0 ? optionNames : undefined,
+  });
+  const externalProductId = String(created?.id ?? '').trim();
+  if (!externalProductId || (created?.variants?.length ?? 0) < variants.length) {
+    throw new Error('Shopify created an incomplete product response; the Draft listing requires review.');
+  }
+
+  for (const [index, variant] of variants.entries()) {
+    const externalVariant = created.variants[index];
+    await imsExecute(
+      `INSERT INTO ims_sales_channel_product_mappings
+         (business_id, channel_instance_id, variant_id, external_product_id, external_variant_id,
+          external_inventory_id, mapping_status, metadata_json, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'linked', ?, CURRENT_TIMESTAMP(3))
+       ON DUPLICATE KEY UPDATE external_product_id = VALUES(external_product_id),
+         external_variant_id = VALUES(external_variant_id), external_inventory_id = VALUES(external_inventory_id),
+         mapping_status = 'linked', metadata_json = VALUES(metadata_json), last_seen_at = CURRENT_TIMESTAMP(3),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [input.businessId, input.channelInstanceId, variant.variant_id, externalProductId,
+        String(externalVariant.id), String(externalVariant.inventory_item_id ?? '') || null,
+        JSON.stringify({ source: 'solvantis_product_publication' })],
+    );
+  }
+
+  const images = await ImsImagesRepo.list(input.productId);
+  for (const image of images) {
+    const payload = shopifyImagePayload(image, input.businessId);
+    if (!payload) continue;
+    try {
+      const createdImage = await service.createProductImage(externalProductId, payload);
+      if (createdImage?.src) await ImsImagesRepo.updateUrl(image.id, createdImage.src).catch(() => {});
+    } catch { /* The product remains linked; a later product sync can retry individual images. */ }
+  }
+  await pushInventoryForShopifyInstance({
+    businessId: input.businessId, channelInstanceId: input.channelInstanceId,
+    variantIds: variants.map(variant => variant.variant_id), force: true,
+  });
+  await service.updateProduct(externalProductId, { status: 'active' });
+  return { outcome: 'applied' as const, providerState: 'published' as const, externalProductId };
 }
 
 export const publishNativeShopProduct: ChannelProductPublicationAdapter = async input => {
@@ -95,7 +185,7 @@ export const publishShopifyProduct: ChannelProductPublicationAdapter = async inp
   if (productIds.length === 0) {
     return input.desiredState === 'unpublished'
       ? { outcome: 'applied', providerState: 'unpublished' }
-      : blocked('Upload or link this product to the exact Shopify storefront first.');
+      : createShopifyProduct(input);
   }
   if (productIds.length > 1) return blocked('The product maps to more than one Shopify product in this storefront.');
   const { credentials } = await getShopifyOperationContext({

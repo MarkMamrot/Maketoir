@@ -63,7 +63,12 @@ export async function enqueueChannelProductPublicationJobs(input: {
   businessId: string;
   channelInstanceId: string;
   provider: SalesChannelProvider;
+  productIds?: string[];
 }): Promise<number> {
+  const productIds = [...new Set((input.productIds ?? []).map(productId => String(productId).trim()).filter(Boolean))];
+  const productFilter = productIds.length > 0
+    ? ` AND assignment.product_id IN (${productIds.map(() => '?').join(',')})`
+    : '';
   const result = await imsExecute(
     `INSERT IGNORE INTO ims_sales_channel_jobs
        (business_id, channel_instance_id, provider, operation, operation_key, payload_json)
@@ -73,9 +78,10 @@ export async function enqueueChannelProductPublicationJobs(input: {
             JSON_OBJECT('productId', assignment.product_id, 'desiredState', assignment.desired_state)
        FROM ims_sales_channel_product_assignments assignment
       WHERE assignment.business_id = ? AND assignment.channel_instance_id = ?
+        ${productFilter}
         AND ((assignment.desired_state = 'published' AND assignment.provider_state <> 'published')
           OR (assignment.desired_state = 'unpublished' AND assignment.provider_state IN ('published', 'pending', 'error')))` ,
-    [input.provider, CHANNEL_PRODUCT_PUBLICATION_OPERATION, input.businessId, input.channelInstanceId],
+    [input.provider, CHANNEL_PRODUCT_PUBLICATION_OPERATION, input.businessId, input.channelInstanceId, ...productIds],
   );
   return Number(result.affectedRows ?? 0);
 }
@@ -86,6 +92,7 @@ export async function processChannelProductPublicationJobs(input: {
   provider: SalesChannelProvider;
   adapter: ChannelProductPublicationAdapter;
   limit?: number;
+  productIds?: string[];
 }): Promise<{ processed: number; applied: number; blocked: number; skipped: number; failed: number }> {
   const result = { processed: 0, applied: 0, blocked: 0, skipped: 0, failed: 0 };
   await imsExecute(
@@ -97,13 +104,18 @@ export async function processChannelProductPublicationJobs(input: {
     [input.businessId, input.channelInstanceId, input.provider, CHANNEL_PRODUCT_PUBLICATION_OPERATION, STALE_LOCK_MINUTES],
   );
   const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 25)));
+  const productIds = [...new Set((input.productIds ?? []).map(productId => String(productId).trim()).filter(Boolean))];
+  const productFilter = productIds.length > 0
+    ? ` AND JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.productId')) IN (${productIds.map(() => '?').join(',')})`
+    : '';
   const jobs = await imsQuery<PublicationJobRow>(
     `SELECT id, payload_json, attempts
        FROM ims_sales_channel_jobs
       WHERE business_id = ? AND channel_instance_id = ? AND provider = ? AND operation = ?
         AND status = 'pending' AND available_at <= CURRENT_TIMESTAMP(3)
+        ${productFilter}
       ORDER BY available_at, id LIMIT ${limit}`,
-    [input.businessId, input.channelInstanceId, input.provider, CHANNEL_PRODUCT_PUBLICATION_OPERATION],
+    [input.businessId, input.channelInstanceId, input.provider, CHANNEL_PRODUCT_PUBLICATION_OPERATION, ...productIds],
   );
   for (const job of jobs) {
     const claimed = await imsExecute(
@@ -207,6 +219,7 @@ export async function syncChannelProductPublications(input: {
   adapter: ChannelProductPublicationAdapter;
   enqueue?: boolean;
   limit?: number;
+  productIds?: string[];
 }): Promise<{ queued: number; processed: number; applied: number; blocked: number; skipped: number; failed: number }> {
   return runImsForBusiness(input.businessId, async () => {
     const queued = input.enqueue === false ? 0 : await enqueueChannelProductPublicationJobs(input);

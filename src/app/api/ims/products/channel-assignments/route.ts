@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { setChannelProductOverrides } from '@/lib/channels/channelProductAssignmentRepository';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
+import { syncChannelProductPublications } from '@/lib/channels/channelProductPublication';
+import { channelProductPublicationAdapter } from '@/lib/channels/channelProductPublicationAdapters';
 import type { ChannelProductOverrideMode } from '@/lib/channels/channelProductRules';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -41,18 +43,38 @@ export async function POST(request: Request) {
       [businessId, ...productIds],
     ),
   ]);
-  const ownedChannels = new Set(instances.map(instance => instance.channelInstanceId));
+  const channelsById = new Map(instances.map(instance => [instance.channelInstanceId, instance]));
+  const ownedChannels = new Set(channelsById.keys());
   const ownedProducts = new Set(productRows.map(row => row.product_id));
   if (channelInstanceIds.some(id => !ownedChannels.has(id)) || productIds.some(id => !ownedProducts.has(id))) {
     return NextResponse.json({ error: 'One or more products or sales channels could not be found.' }, { status: 404 });
   }
 
   const overrideMode = ACTION_TO_OVERRIDE[action];
-  const results = [] as Array<{ channelInstanceId: string; applied: number; success: boolean; error?: string }>;
+  const results = [] as Array<{ channelInstanceId: string; applied: number; success: boolean; error?: string;
+    publication?: { queued: number; processed: number; applied: number; blocked: number; skipped: number; failed: number } }>;
   for (const channelInstanceId of channelInstanceIds) {
     try {
       const applied = await setChannelProductOverrides({ businessId, channelInstanceId, productIds, overrideMode });
-      results.push({ channelInstanceId, applied, success: true });
+      const instance = channelsById.get(channelInstanceId)!;
+      if (action === 'allow_automation') {
+        results.push({ channelInstanceId, applied, success: true });
+        continue;
+      }
+      if (!instance.enabled || instance.runtimeStatus !== 'active' || instance.readinessStatus !== 'ready') {
+        results.push({ channelInstanceId, applied, success: false,
+          error: 'Inclusion was saved, but the channel is not active and ready for publication.' });
+        continue;
+      }
+      const publication = await syncChannelProductPublications({
+        businessId, channelInstanceId, provider: instance.provider,
+        adapter: channelProductPublicationAdapter(instance.provider), productIds, limit: productIds.length,
+      });
+      const publicationSucceeded = publication.blocked === 0 && publication.failed === 0;
+      results.push({
+        channelInstanceId, applied, publication, success: publicationSucceeded,
+        ...(!publicationSucceeded ? { error: `Inclusion was saved, but ${publication.blocked + publication.failed} product publication action${publication.blocked + publication.failed === 1 ? '' : 's'} require attention.` } : {}),
+      });
     } catch (error) {
       await reportRuntimeIssue({
         businessId,
@@ -66,9 +88,11 @@ export async function POST(request: Request) {
       results.push({ channelInstanceId, applied: 0, success: false, error: 'Assignment could not be saved.' });
     }
   }
+  const success = results.every(result => result.success);
   return NextResponse.json({
-    success: results.every(result => result.success),
+    success,
     partial: results.some(result => result.success) && results.some(result => !result.success),
+    ...(!success ? { error: results.find(result => !result.success)?.error ?? 'One or more channel publications require attention.' } : {}),
     results,
   });
 }

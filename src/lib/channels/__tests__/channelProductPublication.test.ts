@@ -38,6 +38,27 @@ describe('channel product publication jobs', () => {
     expect(params).toEqual(['shopify', CHANNEL_PRODUCT_PUBLICATION_OPERATION, 'business-1', 'instance-1']);
   });
 
+  it('queues and processes only explicitly selected products for a targeted run', async () => {
+    mocks.execute.mockResolvedValueOnce({ affectedRows: 1 });
+    await enqueueChannelProductPublicationJobs({
+      businessId: 'business-1', channelInstanceId: 'instance-1', provider: 'shopify', productIds: ['product-2'],
+    });
+    expect(mocks.execute.mock.calls[0][0]).toContain('assignment.product_id IN (?)');
+    expect(mocks.execute.mock.calls[0][1]).toEqual([
+      'shopify', CHANNEL_PRODUCT_PUBLICATION_OPERATION, 'business-1', 'instance-1', 'product-2',
+    ]);
+
+    mocks.query.mockResolvedValue([]);
+    await processChannelProductPublicationJobs({
+      businessId: 'business-1', channelInstanceId: 'instance-1', provider: 'shopify',
+      adapter: vi.fn(), productIds: ['product-2'],
+    });
+    expect(mocks.query.mock.calls[0][0]).toContain("JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.productId')) IN (?)");
+    expect(mocks.query.mock.calls[0][1]).toEqual([
+      'business-1', 'instance-1', 'shopify', CHANNEL_PRODUCT_PUBLICATION_OPERATION, 'product-2',
+    ]);
+  });
+
   it('revalidates current intent before applying and skips a stale job', async () => {
     mocks.query
       .mockResolvedValueOnce([{ id: 7, payload_json: { productId: 'product-1', desiredState: 'published' }, attempts: 0 }])

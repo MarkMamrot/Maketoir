@@ -1,16 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  query: vi.fn(), execute: vi.fn(), operationContext: vi.fn(), shopifyUpdate: vi.fn(),
+  query: vi.fn(), execute: vi.fn(), operationContext: vi.fn(), shopifyUpdate: vi.fn(), shopifyCreate: vi.fn(),
+  shopifyCreateImage: vi.fn(), productGet: vi.fn(), imageList: vi.fn(), imageUpdate: vi.fn(), inventoryPush: vi.fn(),
   amazonAccess: vi.fn(), amazonPut: vi.fn(), amazonDelete: vi.fn(), locations: vi.fn(),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute }));
 vi.mock('@/lib/onlineShop/onlineShopPages', () => ({ normalizeOnlineShopPageSlug: (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-') }));
 vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.operationContext }));
-vi.mock('@/services/ShopifyService', () => ({ ShopifyService: class { updateProduct = mocks.shopifyUpdate; } }));
+vi.mock('@/services/ShopifyService', () => ({ ShopifyService: class {
+  updateProduct = mocks.shopifyUpdate;
+  createProduct = mocks.shopifyCreate;
+  createProductImage = mocks.shopifyCreateImage;
+} }));
+vi.mock('@/lib/ims/ImsRepository', () => ({
+  ImsProductsRepo: { get: mocks.productGet },
+  ImsImagesRepo: { list: mocks.imageList, updateUrl: mocks.imageUpdate },
+}));
 vi.mock('../amazonCredentials', () => ({ getAmazonChannelAccess: mocks.amazonAccess }));
 vi.mock('../amazonSpApi', () => ({ putAmazonExistingAsinOffer: mocks.amazonPut, deleteAmazonListingOffer: mocks.amazonDelete }));
-vi.mock('@/lib/ims/shopifyInventorySync', () => ({ getOnlinePickLocationIds: mocks.locations }));
+vi.mock('@/lib/ims/shopifyInventorySync', () => ({
+  getOnlinePickLocationIds: mocks.locations,
+  pushInventoryForShopifyInstance: mocks.inventoryPush,
+  shopifyInventoryPolicyPayload: () => ({ inventory_management: 'shopify' }),
+  shopifyVariantPricePayload: (price: unknown) => ({ price: String(price) }),
+}));
 
 import {
   publishAmazonExistingAsinOffers,
@@ -22,6 +36,8 @@ describe('channel product publication adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue({ affectedRows: 1 });
+    mocks.imageList.mockResolvedValue([]);
+    mocks.inventoryPush.mockResolvedValue({ pushed: 1, skipped: 0, errors: [], locationId: 1 });
   });
 
   it('publishes a ready product to the native storefront', async () => {
@@ -53,11 +69,28 @@ describe('channel product publication adapters', () => {
     expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'draft' });
   });
 
-  it('blocks an unmapped Shopify publish but treats an unmapped unpublish as complete', async () => {
+  it('creates and exactly maps an unmapped Shopify product before publishing it', async () => {
     mocks.query.mockResolvedValue([]);
+    mocks.productGet.mockResolvedValue({
+      product_id: 'product-1', name: 'Blue Vase', website_title: 'Blue Vase', description: 'Glazed vase',
+      brand: 'Example', product_type: 'Homewares', tags: 'blue', is_active: 1, is_stock_item: 1,
+      variants: [{ variant_id: 'variant-1', is_active: 1, sku: 'BLUE-1', barcode: null, price_rrp: 29.95,
+        price_rrp_sale: null, weight_kg: 0.5, option1_name: null, option1_value: null }],
+    });
+    mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
+    mocks.shopifyCreate.mockResolvedValue({ id: 9988, variants: [{ id: 7766, inventory_item_id: 5544 }] });
     await expect(publishShopifyProduct({
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'published',
-    })).resolves.toEqual({ outcome: 'blocked', issues: ['Upload or link this product to the exact Shopify storefront first.'] });
+    })).resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '9988' });
+    expect(mocks.shopifyCreate).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
+    expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('ims_sales_channel_product_mappings'),
+      expect.arrayContaining(['business-1', 'shopify-2', 'variant-1', '9988', '7766', '5544']));
+    expect(mocks.inventoryPush).toHaveBeenCalledWith(expect.objectContaining({ channelInstanceId: 'shopify-2' }));
+    expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'active' });
+  });
+
+  it('treats an unmapped Shopify unpublish as complete without provider mutation', async () => {
+    mocks.query.mockResolvedValue([]);
     await expect(publishShopifyProduct({
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'unpublished',
     })).resolves.toEqual({ outcome: 'applied', providerState: 'unpublished' });
