@@ -22,6 +22,7 @@ interface NativeProductRow {
 
 interface ShopifyMappingRow {
   external_product_id: string;
+  variant_id: string;
 }
 
 interface AmazonOfferRow {
@@ -170,10 +171,11 @@ export const publishShopifyProduct: ChannelProductPublicationAdapter = async inp
     return blocked('Resolve this product publication blocker before changing Shopify status.');
   }
   const mappings = await imsQuery<ShopifyMappingRow>(
-    `SELECT DISTINCT mapping.external_product_id
+    `SELECT mapping.external_product_id, mapping.variant_id
        FROM ims_sales_channel_product_mappings mapping
        JOIN ims_product_variants variant
-         ON BINARY variant.business_id = BINARY mapping.business_id AND variant.variant_id = mapping.variant_id
+         ON BINARY variant.business_id = BINARY mapping.business_id
+        AND BINARY variant.variant_id = BINARY mapping.variant_id
       WHERE mapping.business_id = ? AND mapping.channel_instance_id = ? AND variant.product_id = ?
         AND mapping.mapping_status = 'linked' AND mapping.external_product_id IS NOT NULL`,
     [input.businessId, input.channelInstanceId, input.productId],
@@ -193,6 +195,15 @@ export const publishShopifyProduct: ChannelProductPublicationAdapter = async inp
     channelInstanceId: input.channelInstanceId,
   });
   const service = new ShopifyService(credentials.shopDomain, credentials.token);
+  if (input.desiredState === 'published' && mappings.length > 0) {
+    const inventory = await pushInventoryForShopifyInstance({
+      businessId: input.businessId,
+      channelInstanceId: input.channelInstanceId,
+      variantIds: [...new Set(mappings.map(mapping => mapping.variant_id))],
+      force: true,
+    });
+    if (inventory.errors.length > 0) throw new Error(inventory.errors.join('; '));
+  }
   await service.updateProduct(productIds[0], { status: input.desiredState === 'published' ? 'active' : 'draft' });
   return { outcome: 'applied', providerState: input.desiredState, externalProductId: productIds[0] };
 };

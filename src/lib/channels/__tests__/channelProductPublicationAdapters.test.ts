@@ -59,14 +59,17 @@ describe('channel product publication adapters', () => {
   it('updates only an exact-instance Shopify mapping', async () => {
     mocks.query
       .mockResolvedValueOnce([{ external_product_id: '9988', readiness_status: 'ready' }])
-      .mockResolvedValueOnce([{ external_product_id: '9988' }]);
+      .mockResolvedValueOnce([{ external_product_id: '9988', variant_id: 'variant-1' }]);
     mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
     await expect(publishShopifyProduct({
-      businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'unpublished',
-    })).resolves.toEqual({ outcome: 'applied', providerState: 'unpublished', externalProductId: '9988' });
+      businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'published',
+    })).resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '9988' });
     expect(mocks.query.mock.calls[0][1]).toEqual(['business-1', 'shopify-2', 'product-1']);
     expect(mocks.operationContext).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'shopify-2' });
-    expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'draft' });
+    expect(mocks.inventoryPush).toHaveBeenCalledWith(expect.objectContaining({
+      channelInstanceId: 'shopify-2', variantIds: ['variant-1'], force: true,
+    }));
+    expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'active' });
   });
 
   it('creates and exactly maps an unmapped Shopify product before publishing it', async () => {
@@ -82,6 +85,7 @@ describe('channel product publication adapters', () => {
     await expect(publishShopifyProduct({
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'published',
     })).resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '9988' });
+    expect(mocks.query.mock.calls[1]?.[0]).toContain('BINARY variant.variant_id = BINARY mapping.variant_id');
     expect(mocks.shopifyCreate).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
     expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('ims_sales_channel_product_mappings'),
       expect.arrayContaining(['business-1', 'shopify-2', 'variant-1', '9988', '7766', '5544']));

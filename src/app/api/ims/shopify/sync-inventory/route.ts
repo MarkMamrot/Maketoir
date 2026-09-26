@@ -195,10 +195,11 @@ async function handlePost(req: Request) {
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label,
               GREATEST(0, SUM(GREATEST(0, s.qty_on_hand - s.qty_committed)) - ${Math.max(0, buffer)}) AS available
          FROM ims_product_variants v
-         JOIN ims_products p ON p.product_id = v.product_id
+         JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id
          JOIN ims_sales_channel_product_mappings mapping
-           ON mapping.business_id = p.business_id AND mapping.variant_id = v.variant_id
-         LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id IN (${locFilter})
+           ON BINARY mapping.business_id = BINARY p.business_id
+          AND BINARY mapping.variant_id = BINARY v.variant_id
+         LEFT JOIN ims_stock s ON BINARY s.variant_id = BINARY v.variant_id AND s.location_id IN (${locFilter})
         WHERE p.business_id = ? AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
           AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
           AND COALESCE(p.is_stock_item, 1) = 1

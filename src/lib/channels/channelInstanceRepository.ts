@@ -537,6 +537,25 @@ export const SalesChannelInstanceRepository = {
     return this.getForBusiness(businessId, channelInstanceId);
   },
 
+  async markShopifyInventorySyncedForBusiness(input: {
+    businessId: string;
+    channelInstanceId: string;
+    completedAt?: string;
+  }): Promise<void> {
+    const businessId = input.businessId.trim();
+    const channelInstanceId = input.channelInstanceId.trim();
+    const completedAt = (input.completedAt ?? new Date().toISOString()).trim();
+    if (!businessId || !channelInstanceId || !completedAt) return;
+    await execute(
+      `UPDATE sales_channel_instances
+          SET settings_json = JSON_SET(COALESCE(settings_json, JSON_OBJECT()),
+                '$.shopify.inventory.lastRunAt', ?),
+              last_sync_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE business_id = ? AND channel_instance_id = ? AND provider = 'shopify'`,
+      [completedAt, businessId, channelInstanceId],
+    );
+  },
+
   async markSyncedForBusiness(businessIdInput: string, channelInstanceIdInput: string): Promise<void> {
     const businessId = businessIdInput.trim();
     const channelInstanceId = channelInstanceIdInput.trim();

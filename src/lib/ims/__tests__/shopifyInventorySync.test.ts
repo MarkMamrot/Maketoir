@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(), execute: vi.fn(), query: vi.fn(), setInventory: vi.fn(), report: vi.fn(), notify: vi.fn(),
-  listInstances: vi.fn(),
+  listInstances: vi.fn(), markInventorySynced: vi.fn(),
 }));
 
 vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.context }));
@@ -19,7 +19,10 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/ims/createNotification', () => ({ createNotification: mocks.notify }));
 vi.mock('@/lib/ims/ImsRepository', () => ({ ImsShopifyRepo: { logAction: vi.fn() } }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({
-  SalesChannelInstanceRepository: { listForBusiness: mocks.listInstances },
+  SalesChannelInstanceRepository: {
+    listForBusiness: mocks.listInstances,
+    markShopifyInventorySyncedForBusiness: mocks.markInventorySynced,
+  },
 }));
 
 import {
@@ -72,6 +75,7 @@ describe('exact-instance Shopify inventory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue({ affectedRows: 1 });
+    mocks.markInventorySynced.mockResolvedValue(undefined);
     mocks.listInstances.mockResolvedValue([
       { provider: 'shopify', channelInstanceId: 'store-a', enabled: true, runtimeStatus: 'active', readinessStatus: 'ready', settings: operationContext('store-a').instance.settings },
       { provider: 'shopify', channelInstanceId: 'store-b', enabled: true, runtimeStatus: 'active', readinessStatus: 'ready', settings: operationContext('store-b').instance.settings },
@@ -101,6 +105,8 @@ describe('exact-instance Shopify inventory', () => {
     expect(mocks.setInventory).toHaveBeenNthCalledWith(
       2, 'store-b.myshopify.com', [{ inventoryItemId: 'inventory-b', available: 18 }], 102,
     );
+    expect(mocks.markInventorySynced).toHaveBeenCalledWith({ businessId: 'biz-1', channelInstanceId: 'store-a' });
+    expect(mocks.markInventorySynced).toHaveBeenCalledWith({ businessId: 'biz-1', channelInstanceId: 'store-b' });
   });
 
   it('fans out legacy jobs only to eligible instances with collation-safe joins', async () => {
@@ -113,6 +119,8 @@ describe('exact-instance Shopify inventory', () => {
 
     expect(mocks.execute).toHaveBeenCalledTimes(2);
     for (const [sql, params] of mocks.execute.mock.calls) {
+      expect(sql).toContain('BINARY variant.variant_id = BINARY queue_item.variant_id');
+      expect(sql).toContain('BINARY product.product_id = BINARY variant.product_id');
       expect(sql).toContain('BINARY mapping.business_id = BINARY product.business_id');
       expect(sql).toContain('BINARY mapping.variant_id = BINARY variant.variant_id');
       expect(params).toContain('store-a');

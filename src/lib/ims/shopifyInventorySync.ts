@@ -125,8 +125,8 @@ export async function pushInventoryForShopifyInstance(
     linkRows = await imsQuery(
       `SELECT mapping.variant_id, mapping.external_inventory_id
          FROM ims_sales_channel_product_mappings mapping
-         JOIN ims_product_variants variant ON variant.variant_id = mapping.variant_id
-         JOIN ims_products product ON product.product_id = variant.product_id
+        JOIN ims_product_variants variant ON BINARY variant.variant_id = BINARY mapping.variant_id
+        JOIN ims_products product ON BINARY product.product_id = BINARY variant.product_id
         WHERE mapping.business_id = ? AND mapping.channel_instance_id = ?
           AND mapping.mapping_status = 'linked' AND mapping.variant_id IS NOT NULL
           AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
@@ -140,8 +140,8 @@ export async function pushInventoryForShopifyInstance(
     linkRows = await imsQuery(
       `SELECT mapping.variant_id, mapping.external_inventory_id
          FROM ims_sales_channel_product_mappings mapping
-         JOIN ims_product_variants variant ON variant.variant_id = mapping.variant_id
-         JOIN ims_products product ON product.product_id = variant.product_id
+        JOIN ims_product_variants variant ON BINARY variant.variant_id = BINARY mapping.variant_id
+        JOIN ims_products product ON BINARY product.product_id = BINARY variant.product_id
         WHERE mapping.business_id = ? AND mapping.channel_instance_id = ?
           AND mapping.mapping_status = 'linked' AND mapping.variant_id IN (${ph})
           AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
@@ -191,6 +191,19 @@ export async function pushInventoryForShopifyInstance(
     }
     await sleep(250); // gentle pacing between GraphQL calls
   }
+  if (result.pushed > 0 && result.errors.length === 0) {
+    await SalesChannelInstanceRepository.markShopifyInventorySyncedForBusiness({
+      businessId: input.businessId,
+      channelInstanceId: input.channelInstanceId,
+    }).catch(error => reportRuntimeIssue({
+      businessId: input.businessId,
+      source: 'shopify_inventory',
+      operation: 'record_success',
+      title: 'Shopify inventory succeeded but its last-run marker could not be saved',
+      error,
+      context: { channelInstanceId: input.channelInstanceId, pushed: result.pushed },
+    }).catch(() => null));
+  }
   return result;
 }
 
@@ -213,8 +226,8 @@ export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Pro
      SELECT mapping.business_id, mapping.channel_instance_id, 'shopify', ?,
             CONCAT('shopify_inventory:', mapping.variant_id), JSON_OBJECT('variantId', mapping.variant_id)
        FROM ims_shopify_inventory_queue queue_item
-       JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
-       JOIN ims_products product ON product.product_id = variant.product_id
+      JOIN ims_product_variants variant ON BINARY variant.variant_id = BINARY queue_item.variant_id
+      JOIN ims_products product ON BINARY product.product_id = BINARY variant.product_id
        JOIN ims_sales_channel_product_mappings mapping
          ON BINARY mapping.business_id = BINARY product.business_id
         AND BINARY mapping.variant_id = BINARY variant.variant_id
@@ -232,8 +245,8 @@ export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Pro
   );
   await imsExecute(
     `DELETE queue_item FROM ims_shopify_inventory_queue queue_item
-      JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
-      JOIN ims_products product ON product.product_id = variant.product_id
+      JOIN ims_product_variants variant ON BINARY variant.variant_id = BINARY queue_item.variant_id
+      JOIN ims_products product ON BINARY product.product_id = BINARY variant.product_id
     WHERE product.business_id = ? AND EXISTS (
        SELECT 1 FROM ims_sales_channel_product_mappings mapping
         WHERE BINARY mapping.business_id = BINARY product.business_id
