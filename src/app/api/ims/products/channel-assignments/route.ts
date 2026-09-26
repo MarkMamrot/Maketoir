@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       const publicationSucceeded = publication.blocked === 0 && publication.failed === 0;
       results.push({
         channelInstanceId, applied, publication, success: publicationSucceeded,
-        ...(!publicationSucceeded ? { error: `Inclusion was saved, but ${publication.blocked + publication.failed} product publication action${publication.blocked + publication.failed === 1 ? '' : 's'} require attention.` } : {}),
+        ...(!publicationSucceeded ? { error: `Inclusion was saved, but ${publication.blocked + publication.failed} product publication action${publication.blocked + publication.failed === 1 ? ' requires' : 's require'} attention.` } : {}),
       });
     } catch (error) {
       await reportRuntimeIssue({
