@@ -8,6 +8,7 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:
 import mysql from 'mysql2/promise';
 
 const apply = process.argv.includes('--apply');
+const settingsOnly = process.argv.includes('--settings-only');
 const requestedBusinessId = process.argv.find(argument => argument.startsWith('--business='))?.slice('--business='.length).trim() || null;
 const database = process.env.MYSQL_DATABASE;
 if (!database) throw new Error('MYSQL_DATABASE is required.');
@@ -111,8 +112,30 @@ function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalJson(value[key])]));
+}
+
+function changedJsonPaths(current, next, prefix = '') {
+  const currentObject = objectValue(current);
+  const nextObject = objectValue(next);
+  const keys = [...new Set([...Object.keys(currentObject), ...Object.keys(nextObject)])].sort();
+  return keys.flatMap(key => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    const before = currentObject[key];
+    const after = nextObject[key];
+    if (before && after && typeof before === 'object' && typeof after === 'object'
+      && !Array.isArray(before) && !Array.isArray(after)) {
+      return changedJsonPaths(before, after, path);
+    }
+    return JSON.stringify(canonicalJson(before)) === JSON.stringify(canonicalJson(after)) ? [] : [path];
+  });
+}
+
 async function migrateShopifySettings(business, channelInstanceId) {
-  const [[instance], [legacyRows], [policyRows]] = await Promise.all([
+  const [[instanceRows], [legacyRows]] = await Promise.all([
     connection.query('SELECT settings_json FROM sales_channel_instances WHERE channel_instance_id = ? LIMIT 1', [channelInstanceId]),
     connection.query(
       `SELECT \`key\`, value FROM \`${business.ims_db_name}\`.ims_settings
@@ -124,13 +147,8 @@ async function migrateShopifySettings(business, channelInstanceId) {
         )`,
       [business.business_id],
     ).catch(() => [[]]),
-    connection.query(
-      `SELECT online_batch_action, online_batch_payment_sync_enabled,
-              shopify_payout_posting_enabled, shopify_payout_auto_post_enabled
-         FROM xero_document_policies WHERE business_id = ? LIMIT 1`,
-      [business.business_id],
-    ).catch(() => [[]]),
   ]);
+  const instance = instanceRows[0];
   const current = objectValue(typeof instance?.settings_json === 'string'
     ? JSON.parse(instance.settings_json || '{}')
     : instance?.settings_json);
@@ -140,7 +158,6 @@ async function migrateShopifySettings(business, channelInstanceId) {
   const giftCards = { ...objectValue(shopify.giftCards) };
   const xero = { ...objectValue(shopify.xero) };
   const legacy = new Map(legacyRows.map(row => [String(row.key), row.value]));
-  const policy = policyRows[0] ?? {};
 
   if (orders.enabled === undefined && legacy.has('shopify_order_sync_enabled')) orders.enabled = legacy.get('shopify_order_sync_enabled') === '1';
   if (orders.syncFrom === undefined && legacy.get('shopify_order_sync_from')) orders.syncFrom = legacy.get('shopify_order_sync_from');
@@ -158,20 +175,16 @@ async function migrateShopifySettings(business, channelInstanceId) {
   }
   if (giftCards.mode === undefined && legacy.has('shopify_gc_mode')) giftCards.mode = legacy.get('shopify_gc_mode') === 'combined' ? 'combined' : 'off';
   if (xero.dailyAutoSyncEnabled === undefined) xero.dailyAutoSyncEnabled = legacy.get('shopify_xero_auto_sync_enabled') !== '0';
-  if (xero.onlineBatchAction === undefined && policy.online_batch_action) xero.onlineBatchAction = policy.online_batch_action;
-  if (xero.paymentSyncEnabled === undefined && policy.online_batch_payment_sync_enabled != null) xero.paymentSyncEnabled = Boolean(policy.online_batch_payment_sync_enabled);
-  if (xero.payoutPostingEnabled === undefined && policy.shopify_payout_posting_enabled != null) xero.payoutPostingEnabled = Boolean(policy.shopify_payout_posting_enabled);
-  if (xero.payoutAutoPostEnabled === undefined && policy.shopify_payout_auto_post_enabled != null) xero.payoutAutoPostEnabled = Boolean(policy.shopify_payout_auto_post_enabled);
 
   const next = { ...current, shopify: { ...shopify, orders, inventory, giftCards, xero } };
-  const changed = JSON.stringify(next) !== JSON.stringify(current);
+  const changed = JSON.stringify(canonicalJson(next)) !== JSON.stringify(canonicalJson(current));
   if (apply && changed) {
     await connection.query(
       'UPDATE sales_channel_instances SET settings_json = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE channel_instance_id = ?',
       [JSON.stringify(next), channelInstanceId],
     );
   }
-  return changed;
+  return { changed, changedPaths: changedJsonPaths(current, next) };
 }
 
 async function prepareShopifyWebhookCutover(business, channelInstanceId) {
@@ -208,6 +221,29 @@ async function prepareShopifyWebhookCutover(business, channelInstanceId) {
 async function migrateShopify(business) {
   const domain = normalizeShopifyDomain(business.shopify_shop_id);
   if (!domain) return null;
+  if (settingsOnly) {
+    const channelInstanceId = await findInstance(business.business_id, 'shopify', domain);
+    if (!channelInstanceId) {
+      return { created: false, domain, counts: { settings: 0, settingsReviewRequired: 1 } };
+    }
+    const [shopifyInstanceRows] = await connection.query(
+      `SELECT COUNT(*) AS count FROM sales_channel_instances WHERE business_id = ? AND provider = 'shopify'`,
+      [business.business_id],
+    );
+    const legacyOwnershipIsUnambiguous = Number(shopifyInstanceRows[0]?.count ?? 0) === 1;
+    const settingsMigration = legacyOwnershipIsUnambiguous
+      ? await migrateShopifySettings(business, channelInstanceId)
+      : { changed: false, changedPaths: [] };
+    return {
+      created: false,
+      domain,
+      counts: {
+        settings: settingsMigration.changed ? 1 : 0,
+        settingsChangedPaths: settingsMigration.changedPaths,
+        settingsReviewRequired: legacyOwnershipIsUnambiguous ? 0 : 1,
+      },
+    };
+  }
   const ready = hasShopifyCredentials(business);
   const instance = await ensureInstance({
     businessId: business.business_id,
@@ -223,14 +259,15 @@ async function migrateShopify(business) {
   );
   const shopifyInstanceCount = Number(shopifyInstanceRows[0]?.count ?? 0) + (!apply && instance.created ? 1 : 0);
   const legacyOwnershipIsUnambiguous = shopifyInstanceCount === 1;
-  const settingsMigrated = legacyOwnershipIsUnambiguous
+  const settingsMigration = legacyOwnershipIsUnambiguous
     ? await migrateShopifySettings(business, instance.channelInstanceId)
-    : false;
+    : { changed: false, changedPaths: [] };
   const webhooksPrepared = legacyOwnershipIsUnambiguous
     ? await prepareShopifyWebhookCutover(business, instance.channelInstanceId)
     : 0;
   const counts = { products: 0, variants: 0, selections: 0, canonicalMappings: 0, assignments: 0,
-    credentials: 0, settings: settingsMigrated ? 1 : 0, webhooksPrepared,
+    credentials: 0, settings: settingsMigration.changed ? 1 : 0,
+    settingsChangedPaths: settingsMigration.changedPaths, webhooksPrepared,
     settingsReviewRequired: legacyOwnershipIsUnambiguous ? 0 : 1,
     productConflictOwners: 0, variantConflictOwners: 0 };
   const [[productConflictRows], [variantConflictRows]] = await Promise.all([
@@ -658,13 +695,13 @@ try {
   for (const business of businesses) {
     business.ims_db_name = assertSchemaName(String(business.ims_db_name));
     const shopify = await migrateShopify(business);
-    const native = await migrateNative(business);
+    const native = settingsOnly ? null : await migrateNative(business);
     if (!shopify && !native) continue;
     console.log(`  ${business.name}:`);
     if (shopify) console.log(`    Shopify ${shopify.created ? 'instance planned/created' : 'instance exists'}; mappings ${JSON.stringify(shopify.counts)}${shopify.verified ? `; verified ${JSON.stringify(shopify.verified)}` : ''}`);
     if (native) console.log(`    Native ${native.created ? 'instance planned/created' : 'instance exists'}; mappings ${JSON.stringify(native.counts)}`);
   }
-  if (!apply) console.log('Dry run only. Re-run with --apply to create instances and mappings.');
+  if (!apply) console.log(`Dry run only. Re-run with --apply${settingsOnly ? ' --settings-only' : ''} to apply these changes.`);
 } finally {
   await connection.end();
 }

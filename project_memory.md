@@ -1,3 +1,11 @@
+## 2026-09-26 - Per-store Shopify settings migration applied
+
+- Applied the targeted `ims_shopify_sync_log` catch-up to all four registered tenant schemas, adding nullable exact `channel_instance_id` ownership and its `(channel_instance_id, created_at)` index. An immediate rerun added zero columns and zero indexes in every schema.
+- Added and applied a settings-only compatibility mode for the sales-channel backfill. It migrated legacy Shopify operational settings only where exactly one Shopify instance owned the business, did not touch credentials, mappings, webhooks, activation, publication or provider data, and then produced a zero-change dry-run for Monsterthreads, Monsterthreads DEV SANDBOX and Sage.
+- Fixed the backfill's existing settings-row destructuring and made JSON comparison key-order independent. The migration now reports value-free changed paths and reports multi-store settings for administrator review instead of copying ambiguous business-wide values.
+- Exact-cutover readback reports full settings parity for all three Shopify businesses. Monsterthreads remains ready with zero unresolved owned records. The sandbox still has five unrelated legacy credit notes and lacks gift-card/shipment ownership schema; disabled Sage still has 427 legacy orders, 15 credit notes and older missing ownership schema. Those broader historical gaps were not changed.
+- No Shopify API request, webhook registration, credential change, activation change or publication action occurred.
+
 ## 2026-09-26 - Monsterthreads exact Shopify cutover completed
 
 - Migrated Monsterthreads' existing Shopify connection in place to exact instance `43e53831-ad2c-4bc7-9bd2-d443974a3b45`. The instance remains enabled, active and ready with the same permanent shop domain and credential. All legacy order, inventory, gift-card and automatic Xero settings match the exact instance; product publication remains disabled/unset.
