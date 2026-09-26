@@ -8,7 +8,7 @@ export type SalesChannelRuntimeStatus = typeof SALES_CHANNEL_RUNTIME_STATUSES[nu
 export const SALES_CHANNEL_READINESS_STATUSES = ['not_tested', 'ready', 'error'] as const;
 export type SalesChannelReadinessStatus = typeof SALES_CHANNEL_READINESS_STATUSES[number];
 
-export const CHANNEL_PRODUCT_ASSIGNMENT_MODES = ['manual', 'add_matches', 'full_sync'] as const;
+export const CHANNEL_PRODUCT_ASSIGNMENT_MODES = ['manual', 'add_matches'] as const;
 export type ChannelProductAssignmentMode = typeof CHANNEL_PRODUCT_ASSIGNMENT_MODES[number];
 
 export function channelProductAssignmentMode(settings: Record<string, unknown>): ChannelProductAssignmentMode {

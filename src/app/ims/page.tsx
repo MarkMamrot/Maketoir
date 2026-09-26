@@ -5863,6 +5863,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [bulkChannelIds, setBulkChannelIds] = useState<Set<string>>(new Set());
   const [bulkChannelAction, setBulkChannelAction] = useState<'include' | 'exclude' | 'allow_automation'>('include');
   const [bulkChannelError, setBulkChannelError] = useState('');
+  const [ruleFilterChannels, setRuleFilterChannels] = useState<Array<{ channelInstanceId: string; displayName: string; providerDisplayName: string }>>([]);
+  const [ruleFilterChannelId, setRuleFilterChannelId] = useState('');
+  const [ruleFilterRules, setRuleFilterRules] = useState<Array<{ id: number | string; name: string; enabled: boolean; decision: string }>>([]);
+  const [ruleFilterId, setRuleFilterId] = useState('');
+  const [ruleMatchedProductIds, setRuleMatchedProductIds] = useState<Set<string> | null>(null);
+  const [ruleFilterLoading, setRuleFilterLoading] = useState(false);
+  const [ruleFilterError, setRuleFilterError] = useState('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [stockSoh, setStockSoh] = useState<Record<string, number> | null>(null);
   const [stockAvail, setStockAvail] = useState<Record<string, number>>({});
@@ -6040,6 +6047,51 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   }, []);
 
   useEffect(() => { load(); loadBrands(); loadProductTypeOptions(); loadContacts(); loadProductLocations(); }, [load, loadBrands, loadProductTypeOptions, loadContacts, loadProductLocations]);
+
+  useEffect(() => {
+    if (isAdvisor) return;
+    fetch('/api/ims/channels').then(async response => {
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Sales channels could not be loaded.');
+      setRuleFilterChannels(Array.isArray(body.instances) ? body.instances : []);
+    }).catch(() => setRuleFilterChannels([]));
+  }, [isAdvisor]);
+
+  useEffect(() => {
+    setRuleFilterId('');
+    setRuleFilterRules([]);
+    setRuleMatchedProductIds(null);
+    setRuleFilterError('');
+    if (!ruleFilterChannelId) return;
+    const controller = new AbortController();
+    fetch(`/api/ims/channels/${encodeURIComponent(ruleFilterChannelId)}/product-rules?limit=1`, { signal: controller.signal })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Product rules could not be loaded.');
+        setRuleFilterRules((Array.isArray(body.rules) ? body.rules : []).filter((rule: any) => rule.enabled && rule.decision === 'include'));
+      })
+      .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setRuleFilterError(error instanceof Error ? error.message : 'Product rules could not be loaded.'); });
+    return () => controller.abort();
+  }, [ruleFilterChannelId]);
+
+  useEffect(() => {
+    setRuleMatchedProductIds(null);
+    setRuleFilterError('');
+    if (!ruleFilterChannelId || !ruleFilterId) return;
+    const controller = new AbortController();
+    setRuleFilterLoading(true);
+    fetch(`/api/ims/channels/${encodeURIComponent(ruleFilterChannelId)}/product-rules?matchesOnly=1&ruleId=${encodeURIComponent(ruleFilterId)}`, { signal: controller.signal })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Rule matches could not be loaded.');
+        setRuleMatchedProductIds(new Set((Array.isArray(body.productIds) ? body.productIds : []).map(String)));
+        setSelected(new Set());
+        setPage(1);
+      })
+      .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setRuleFilterError(error instanceof Error ? error.message : 'Rule matches could not be loaded.'); })
+      .finally(() => { if (!controller.signal.aborted) setRuleFilterLoading(false); });
+    return () => controller.abort();
+  }, [ruleFilterChannelId, ruleFilterId]);
 
   // Deep-link: auto-open a product when the URL hash is #products/<product_id>
   // Works on first load AND when navigating back/forward.
@@ -6379,6 +6431,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const typeOptions    = [...new Set(products.map((p: any) => p.product_type).filter(Boolean))].sort() as string[];
 
   const filtered = products.filter((p: any) => {
+    if (ruleFilterId && !ruleMatchedProductIds?.has(String(p.product_id))) return false;
     if (filterBrand && !(p.brand || '').toLowerCase().includes(filterBrand.toLowerCase())) return false;
     if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
     if (filterType  && p.product_type !== filterType) return false;
@@ -6453,6 +6506,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const visibleIds = visible.map((p: any) => p.product_id);
   const expandableVisibleIds = visible.filter((p: any) => (p.variants || []).length > 0).map((p: any) => p.product_id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id: string) => selected.has(id));
+  const allFilteredSelected = sortedFiltered.length > 0 && sortedFiltered.every((product: any) => selected.has(String(product.product_id)));
   const allExpandableVisibleExpanded = expandableVisibleIds.length > 0 && expandableVisibleIds.every((id: string) => expandedIds.has(id));
 
   const toggleSort = (col: string) => {
@@ -6498,12 +6552,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const openBulkChannels = async () => {
     setBulkChannelsOpen(true);
     setBulkChannelError('');
+    setBulkChannelAction('include');
     try {
       const response = await fetch('/api/ims/channels');
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || 'Sales channels could not be loaded.');
       setBulkChannels(Array.isArray(body.instances) ? body.instances : []);
-      setBulkChannelIds(new Set());
+      setBulkChannelIds(new Set(ruleFilterChannelId ? [ruleFilterChannelId] : []));
     } catch (error) {
       setBulkChannelError(error instanceof Error ? error.message : 'Sales channels could not be loaded.');
     }
@@ -6729,12 +6784,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           <option value="">All Product Types</option>
           {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+        {!isAdvisor && <select aria-label="Sales channel rule filter" value={ruleFilterChannelId} onChange={event => { setRuleFilterChannelId(event.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(180px, 100%)', maxWidth: '100%', flex: '1 1 180px' }}><option value="">All sales channels</option>{ruleFilterChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName} ({channel.providerDisplayName})</option>)}</select>}
+        {!isAdvisor && <select aria-label="Saved product rule" value={ruleFilterId} disabled={!ruleFilterChannelId || ruleFilterRules.length === 0} onChange={event => { setRuleFilterId(event.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(170px, 100%)', maxWidth: '100%', flex: '1 1 170px', opacity: !ruleFilterChannelId || ruleFilterRules.length === 0 ? .55 : 1 }}><option value="">All products</option>{ruleFilterRules.length > 1 && <option value="all">All Include rules</option>}{ruleFilterRules.map(rule => <option key={String(rule.id)} value={String(rule.id)}>{rule.name}</option>)}</select>}
         {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all' ||
-          filterWebsite !== 'all' || filterShopify !== 'all' || filterSohVal !== '' || filterAvailVal !== '') && (
+          filterWebsite !== 'all' || filterShopify !== 'all' || filterSohVal !== '' || filterAvailVal !== '' || ruleFilterId) && (
           <button onClick={() => {
             setFilter(''); setFilterBrand(''); setFilterSupplier(''); setFilterType('');
             setFilterActive('all'); setFilterWebsite('all'); setFilterShopify('all');
-            setFilterSohVal(''); setFilterAvailVal(''); setPage(1);
+            setFilterSohVal(''); setFilterAvailVal(''); setRuleFilterId(''); setRuleMatchedProductIds(null); setPage(1);
           }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
         {/* ── Filters dropdown ── */}
@@ -6918,6 +6975,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           </div>
         </div>
       </div>
+      {ruleFilterError && <div role="alert" style={{ marginBottom: 10, padding: '8px 10px', background: '#fef2f2', color: '#991b1b', fontSize: 11 }}>{ruleFilterError}</div>}
+      {ruleFilterId && !ruleFilterLoading && !ruleFilterError && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}><span>{sortedFiltered.length} product{sortedFiltered.length === 1 ? '' : 's'} match the selected rule filter.</span><button type="button" disabled={sortedFiltered.length === 0 || sortedFiltered.length > 500 || allFilteredSelected} title={sortedFiltered.length > 500 ? 'Narrow the filters to 500 products or fewer.' : undefined} onClick={() => setSelected(new Set(sortedFiltered.map((product: any) => String(product.product_id))))} style={btnStyle('secondary', 'sm')}>{allFilteredSelected ? 'All matching selected' : `Select all matching${sortedFiltered.length > 500 ? ' (limit 500)' : ''}`}</button></div>}
 
       {/* ── Bulk actions bar ── */}
       {selected.size > 0 && (
@@ -6939,7 +6998,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-dim)', fontSize: 11 }}>
             Operation
             <select value={bulkChannelAction} onChange={event => setBulkChannelAction(event.target.value as 'include' | 'exclude' | 'allow_automation')} style={{ height: 34, border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', padding: '0 8px' }}>
-              <option value="include">Always include</option><option value="exclude">Always exclude</option><option value="allow_automation">Allow automation</option>
+              <option value="include">Always include</option><option value="exclude">Always exclude</option><option value="allow_automation">Follow channel mode</option>
             </select>
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -6959,7 +7018,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         </div>
       </div>}
 
-      {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
+      {loading || ruleFilterLoading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
         <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
           <div ref={productsHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
             <table style={{ width: productsTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>

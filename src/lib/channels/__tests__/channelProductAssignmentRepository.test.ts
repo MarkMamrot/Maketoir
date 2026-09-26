@@ -12,6 +12,7 @@ vi.mock('@/services/IMSMySQLService', () => ({
 
 import {
   evaluateChannelProducts,
+  listChannelRuleMatchedProductIds,
   replaceChannelProductRules,
   setChannelProductOverride,
   setChannelProductOverrides,
@@ -49,6 +50,26 @@ describe('channel product assignment repository', () => {
     expect(mocks.execute.mock.calls[0][0]).not.toContain('provider_state =');
     expect(mocks.execute.mock.calls[0][1].slice(0, 3)).toEqual(['business-1', 'instance-1', 'product-1']);
     expect(result.applied).toBe(1);
+  });
+
+  it('lists read-only include recommendations for one selected rule', async () => {
+    mocks.query
+      .mockResolvedValueOnce([
+        { id: 9, name: 'Online', priority: 10, is_enabled: 1, match_mode: 'all', decision: 'include',
+          conditions_json: '[{"field":"online_candidate","operator":"equals","value":true}]' },
+      ])
+      .mockResolvedValueOnce([
+        { product_id: 'product-1', is_online: 1, is_active: 1, is_stock_item: 1, brand: 'Allowed', tags: '', image_count: 1, variant_count: 1 },
+        { product_id: 'product-2', is_online: 0, is_active: 1, is_stock_item: 1, brand: 'Allowed', tags: '', image_count: 1, variant_count: 1 },
+      ]);
+
+    const productIds = await listChannelRuleMatchedProductIds({
+      businessId: 'business-1', channelInstanceId: 'instance-1', ruleId: 9,
+    });
+
+    expect(productIds).toEqual(['product-1']);
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(mocks.query.mock.calls[1][1]).toEqual(['business-1']);
   });
 
   it('applies rule metadata without publishing a recommendation in manual mode', async () => {

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import {
   evaluateChannelProducts,
+  listChannelRuleMatchedProductIds,
   listChannelProductRules,
   replaceChannelProductRules,
   setChannelProductOverride,
@@ -48,6 +49,15 @@ export async function GET(request: Request, context: Context) {
   const auth = await authorize(context);
   if ('response' in auth) return auth.response;
   try {
+    const searchParams = new URL(request.url).searchParams;
+    if (searchParams.get('matchesOnly') === '1') {
+      const ruleId = String(searchParams.get('ruleId') ?? '').trim();
+      const productIds = await listChannelRuleMatchedProductIds({
+        ...auth,
+        ruleId: ruleId === 'all' ? null : ruleId,
+      });
+      return NextResponse.json({ success: true, productIds });
+    }
     const [rules, evaluation] = await Promise.all([
       listChannelProductRules(auth),
       evaluateChannelProducts({ ...auth, ...pageInput(request.url) }),
@@ -88,30 +98,6 @@ export async function PUT(request: Request, context: Context) {
       reference: { type: 'sales_channel_instance', id: auth.channelInstanceId },
     }).catch(() => null);
     return NextResponse.json({ error: 'Channel product rules could not be saved.' }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request, context: Context) {
-  const auth = await authorize(context);
-  if ('response' in auth) return auth.response;
-  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-  try {
-    const evaluation = await evaluateChannelProducts({
-      ...auth,
-      apply: body.apply === true,
-      search: String(body.search ?? ''),
-      limit: Number(body.limit ?? 100),
-      offset: Number(body.offset ?? 0),
-    });
-    return NextResponse.json({ success: true, ...evaluation });
-  } catch (error) {
-    await reportRuntimeIssue({
-      businessId: auth.businessId, source: 'ims.channels', operation: body.apply === true ? 'apply_product_rules' : 'preview_product_rules',
-      title: 'Channel product rules could not be evaluated', error,
-      context: { channelInstanceId: auth.channelInstanceId },
-      reference: { type: 'sales_channel_instance', id: auth.channelInstanceId },
-    }).catch(() => null);
-    return NextResponse.json({ error: 'Channel product rules could not be evaluated.' }, { status: 500 });
   }
 }
 

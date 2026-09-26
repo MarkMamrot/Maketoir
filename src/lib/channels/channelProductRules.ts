@@ -81,9 +81,6 @@ export function resolveChannelProductDesiredState(input: {
 }): ChannelProductDesiredState {
   if (input.overrideMode === 'include') return 'published';
   if (input.overrideMode === 'exclude') return 'unpublished';
-  if (input.assignmentMode === 'full_sync') {
-    return input.ruleDecision === 'include' ? 'published' : 'unpublished';
-  }
   if (input.assignmentMode === 'add_matches' && input.ruleDecision === 'include') return 'published';
   return input.currentDesiredState ?? 'unpublished';
 }

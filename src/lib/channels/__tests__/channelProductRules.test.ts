@@ -66,14 +66,12 @@ describe('resolveChannelProductDesiredState', () => {
       overrideMode: 'automatic', currentDesiredState: null })).toBe('unpublished');
   });
 
-  it('supports additive and full-sync automation without overriding staff protection', () => {
+  it('supports additive automation without removing existing inclusions or overriding staff protection', () => {
     expect(resolveChannelProductDesiredState({ assignmentMode: 'add_matches', ruleDecision: 'include',
       overrideMode: 'automatic', currentDesiredState: 'unpublished' })).toBe('published');
     expect(resolveChannelProductDesiredState({ assignmentMode: 'add_matches', ruleDecision: 'exclude',
       overrideMode: 'automatic', currentDesiredState: 'published' })).toBe('published');
-    expect(resolveChannelProductDesiredState({ assignmentMode: 'full_sync', ruleDecision: 'exclude',
-      overrideMode: 'automatic', currentDesiredState: 'published' })).toBe('unpublished');
-    expect(resolveChannelProductDesiredState({ assignmentMode: 'full_sync', ruleDecision: 'include',
+    expect(resolveChannelProductDesiredState({ assignmentMode: 'add_matches', ruleDecision: 'include',
       overrideMode: 'exclude', currentDesiredState: 'published' })).toBe('unpublished');
   });
 });

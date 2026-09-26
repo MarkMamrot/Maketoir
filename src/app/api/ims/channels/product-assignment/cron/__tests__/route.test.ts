@@ -32,7 +32,11 @@ describe('channel product assignment cron', () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     const sql = String(mocks.query.mock.calls[0][0]);
-    expect(sql).toContain("'add_matches', 'full_sync'");
+    expect(sql).toContain("= 'add_matches'");
+    expect(sql).not.toContain('full_sync');
+    expect(sql).toContain("instance.runtime_status = 'active'");
+    expect(sql).toContain("instance.readiness_status = 'ready'");
+    expect(sql).toContain('instance.enabled = 1');
     expect(sql).toContain('COALESCE(business.automation_paused, 0) = 0');
     expect(mocks.run).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'channel-1',
       mode: 'add_matches', batchSize: 250 });
@@ -41,7 +45,7 @@ describe('channel product assignment cron', () => {
   it('continues after a channel failure and reports it', async () => {
     mocks.query.mockResolvedValue([
       { business_id: 'business-1', channel_instance_id: 'channel-1', assignment_mode: 'add_matches' },
-      { business_id: 'business-2', channel_instance_id: 'channel-2', assignment_mode: 'full_sync' },
+      { business_id: 'business-2', channel_instance_id: 'channel-2', assignment_mode: 'add_matches' },
     ]);
     mocks.run.mockRejectedValueOnce(new Error('tenant unavailable')).mockResolvedValueOnce({ evaluated: 3, batches: 1 });
     const response = await POST(request());

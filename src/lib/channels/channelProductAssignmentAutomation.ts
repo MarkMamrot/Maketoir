@@ -1,11 +1,10 @@
 import { evaluateChannelProducts } from '@/lib/channels/channelProductAssignmentRepository';
-import type { ChannelProductAssignmentMode } from '@/lib/channels/types';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export async function runChannelProductAssignmentAutomation(input: {
   businessId: string;
   channelInstanceId: string;
-  mode: Exclude<ChannelProductAssignmentMode, 'manual'>;
+  mode: 'add_matches';
   batchSize?: number;
 }): Promise<{ evaluated: number; batches: number }> {
   const batchSize = Math.max(1, Math.min(500, Math.floor(input.batchSize ?? 500)));

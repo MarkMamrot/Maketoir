@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 import { runChannelProductAssignmentAutomation } from '@/lib/channels/channelProductAssignmentAutomation';
-import type { ChannelProductAssignmentMode } from '@/lib/channels/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { query } from '@/services/MySQLService';
 
@@ -11,7 +10,7 @@ export const maxDuration = 300;
 interface AssignmentChannelRow {
   business_id: string;
   channel_instance_id: string;
-  assignment_mode: Exclude<ChannelProductAssignmentMode, 'manual'>;
+  assignment_mode: 'add_matches';
 }
 
 export async function POST(request: Request) {
@@ -25,7 +24,8 @@ export async function POST(request: Request) {
             JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) AS assignment_mode
        FROM sales_channel_instances instance
        JOIN businesses business ON BINARY business.business_id = BINARY instance.business_id
-      WHERE JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) IN ('add_matches', 'full_sync')
+      WHERE JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) = 'add_matches'
+        AND instance.enabled = 1 AND instance.runtime_status = 'active' AND instance.readiness_status = 'ready'
         AND business.deleted_at IS NULL AND COALESCE(business.automation_paused, 0) = 0
       ORDER BY instance.business_id, instance.channel_instance_id`,
   );

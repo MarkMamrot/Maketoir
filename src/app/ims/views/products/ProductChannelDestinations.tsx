@@ -14,7 +14,7 @@ type Destination = {
   runtimeStatus: string;
   readinessStatus: string;
   safeError: string | null;
-  assignmentMode: 'manual' | 'add_matches' | 'full_sync';
+  assignmentMode: 'manual' | 'add_matches';
   ruleDecision: 'include' | 'exclude';
   effectiveDecision: 'include' | 'exclude';
   matchedRuleName: string | null;
@@ -149,7 +149,7 @@ export function ProductChannelDestinations({ productId, isReadOnly = false }: {
               <strong style={{ color: destination.desiredState === 'published' ? '#166534' : '#64748b' }}>{destination.desiredState === 'published' ? 'Included' : 'Not included'}</strong>
               <span style={{ overflowWrap: 'anywhere', color: destination.ruleDecision === 'include' ? '#166534' : 'var(--sv-text-dim)' }}>{destination.ruleDecision === 'include' ? 'Recommended' : 'Not recommended'}{destination.matchedRuleName ? ` · ${destination.matchedRuleName}` : ''}</span>
               <select aria-label={`${destination.displayName} override`} value={destination.overrideMode} disabled={isReadOnly || updatingId === destination.channelInstanceId} onChange={event => void setOverride(destination, event.target.value as OverrideMode)} style={{ width: '100%', height: 29, border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 11 }}>
-                <option value="automatic">Automation allowed</option><option value="include">Always include</option><option value="exclude">Always exclude</option>
+                <option value="automatic">Follow channel mode</option><option value="include">Always include</option><option value="exclude">Always exclude</option>
               </select>
               <span style={{ color: destination.providerState === 'error' ? '#991b1b' : 'var(--sv-text-dim)', textTransform: 'capitalize' }}>{destination.providerState.replaceAll('_', ' ')}</span>
             </div>)}

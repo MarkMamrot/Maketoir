@@ -2,11 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
-import {
-  CHANNEL_PRODUCT_ASSIGNMENT_MODES,
-  channelProductAssignmentMode,
-  type ChannelProductAssignmentMode,
-} from '@/lib/channels/types';
+import { channelProductAssignmentMode } from '@/lib/channels/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 type Context = { params: { id: string } };
@@ -34,8 +30,8 @@ export async function PATCH(request: Request, context: Context) {
   const auth = await authorize(context);
   if ('response' in auth) return auth.response;
   const body = await request.json().catch(() => null) as { mode?: unknown } | null;
-  const mode = String(body?.mode ?? '') as ChannelProductAssignmentMode;
-  if (!CHANNEL_PRODUCT_ASSIGNMENT_MODES.includes(mode)) {
+  const mode = String(body?.mode ?? '') as 'manual' | 'add_matches';
+  if (mode !== 'manual' && mode !== 'add_matches') {
     return NextResponse.json({ error: 'A valid product assignment mode is required.' }, { status: 400 });
   }
   try {

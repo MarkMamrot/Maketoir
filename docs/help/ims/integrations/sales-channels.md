@@ -16,9 +16,9 @@ Sales Channels shows each online storefront separately. A business can connect m
 
 - Rename a channel so staff can distinguish its purpose.
 - Use **Add Sales Channel** to choose the provider-specific connection setup.
-- Define ordered product rules for each exact storefront, preview their destinations, and apply assignment intent.
-- Keep assignment **Manual** by default, or opt an exact channel into **Add matches** or **Full sync**.
-- Include or exclude products from **All Products** or an individual product, and allow automation again when appropriate.
+- Define ordered product rules for each exact storefront and preview their recommendations.
+- Keep **Automatic assignment** off for Manual mode, or explicitly turn it on for one exact channel.
+- Filter **All Products** by a saved rule, select matching products, then include or exclude them explicitly.
 - Enable automatic publication for a prepared channel and reconcile confirmed assignment differences.
 - Connect and configure multiple Shopify stores with separate credentials.
 - Test a Shopify instance against its exact saved store and credentials.
@@ -41,25 +41,22 @@ Administrators can use the pencil button beside a channel name to rename it. Oth
 
 ### Assign products with channel rules
 
-Choose **Product rules** on any channel row to define that exact storefront's default product assignments. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product to every channel.
+Choose **Product rules** on any channel row to define recommendations for that exact storefront. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product or include it in every channel.
 
 Rules run in their displayed order and the first matching enabled rule decides whether to include or exclude the product. A rule can require all of its conditions or any one condition. Conditions can use catalogue facts such as active status, online candidate, product type, category, brand, tags, content, images and variant count. A product that matches no rule is excluded by default.
 
-Use **Save and preview** to store the rules and inspect the result without changing assignments. The preview shows the matched rule, automatic result, effective result and provider state. Rules recommend candidates; they do not include products while assignment mode is **Manual**.
+Use **Save and preview** to store the rules and inspect the result without changing inclusions. Saving a rule never changes a product's channel inclusion. The preview shows the matched rule, recommendation, current control and provider state.
 
-Choose the assignment mode on the exact channel row:
+Use the **Automatic assignment** toggle on the exact channel row:
 
-- **Manual** leaves existing inclusion unchanged. Staff choose every inclusion or exclusion.
-- **Add matches** includes unprotected products that match the rules but does not remove products that stop matching.
-- **Full sync** includes matching unprotected products and removes unprotected products that stop matching.
+- **Off (Manual)** is the default. Rules are filters and recommendations only; staff choose every inclusion or exclusion.
+- **On (Automatic)** checks rules hourly and includes new matching products that are not protected by an explicit choice. It never removes an existing inclusion when a product stops matching.
 
-Automatic assignment modes re-evaluate product rules hourly. They update Solvantis destination intent only; provider publication remains controlled separately.
+Automatic assignment runs only for an enabled, active and ready channel that has been explicitly switched on. It updates Solvantis destination intent only; provider publication remains controlled separately.
 
-An explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Allow automation** to remove that protection while preserving the current inclusion until the selected automation mode runs.
+An explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Follow channel mode** to remove that protection while preserving the current inclusion unless the channel is Automatic and the product matches an Include rule.
 
-For one saved product, open **Products > All Products > Channels**, choose **Include in Channels**, review configured destinations and recommendations, then apply the checked channels. For several products, choose their rows in **All Products**, choose **Include in Sales Channels**, check one or more exact channel instances, and choose **Always include**, **Always exclude**, or **Allow automation**.
-
-Choose **Apply assignments** only after reviewing the preview. Applying records the desired assignment for all products in the channel; it does not create, update, publish or remove anything at Shopify, Amazon or the Solvantis Online Store. Existing provider links and publication continue unchanged until the relevant publication workflow processes that intent.
+For one saved product, open **Products > All Products > Channels**, choose **Include in Channels**, review configured destinations and recommendations, then apply the checked channels. For several products, open **Products > All Products**, choose the exact sales channel and one of its saved Include rules, then select some products or use **Select all matching**. Choose **Include in Sales Channels**, confirm the exact channel, and use **Always include**. Filtering, previewing, selecting and saving rules do not change inclusion by themselves.
 
 ### Publish assigned products
 

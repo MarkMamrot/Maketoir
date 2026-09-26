@@ -46,6 +46,7 @@ describe('channel product assignment settings route', () => {
 
   it('rejects unsupported modes and non-admin users', async () => {
     expect((await PATCH(request('PATCH', { mode: 'sometimes' }), context)).status).toBe(400);
+    expect((await PATCH(request('PATCH', { mode: 'full_sync' }), context)).status).toBe(400);
     mocks.session.mockResolvedValue({ businessId: 'business-1', tier: 'Staff' });
     expect((await PATCH(request('PATCH', { mode: 'manual' }), context)).status).toBe(403);
     expect(mocks.setMode).not.toHaveBeenCalled();

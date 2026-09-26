@@ -49,10 +49,9 @@ function serializedRules(rules: Rule[]) {
   })) }));
 }
 
-export default function ChannelProductRulesDialog({ instance, onClose, onApplied }: {
+export default function ChannelProductRulesDialog({ instance, onClose }: {
   instance: { channelInstanceId: string; displayName: string; providerDisplayName: string };
   onClose: () => void;
-  onApplied: () => Promise<void>;
 }) {
   const [rules, setRules] = useState<Rule[]>([]);
   const [products, setProducts] = useState<ProductEvaluation[]>([]);
@@ -60,7 +59,6 @@ export default function ChannelProductRulesDialog({ instance, onClose, onApplied
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -121,48 +119,11 @@ export default function ChannelProductRulesDialog({ instance, onClose, onApplied
       setRules(Array.isArray(body.rules) ? body.rules : []);
       setProducts(Array.isArray(body.products) ? body.products : []);
       setTotal(Number(body.total ?? 0));
-      setNotice('Rules saved. Review the preview before applying assignments.');
+      setNotice('Rules saved. Use them to filter products in Bulk Add/Edit Products.');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Channel product rules could not be saved.');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const applyAssignments = async () => {
-    setApplying(true);
-    setError('');
-    setNotice('');
-    try {
-      const preflightResponse = await fetch(endpoint, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apply: false, limit: 1, offset: 0 }),
-      });
-      const preflight = await preflightResponse.json();
-      if (!preflightResponse.ok || !preflight.success) throw new Error(preflight.error || 'Channel assignment scope could not be checked.');
-      const fullCatalogueTotal = Number(preflight.total ?? 0);
-      if (!window.confirm(`Apply these rules to all ${fullCatalogueTotal} products for ${instance.displayName}? This records destination intent but does not publish products.`)) return;
-      let offset = 0;
-      let applied = 0;
-      let catalogueTotal: number | null = null;
-      do {
-        const response = await fetch(endpoint, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apply: true, limit: 500, offset }),
-        });
-        const body = await response.json();
-        if (!response.ok || !body.success) throw new Error(body.error || 'Channel assignments could not be applied.');
-        applied += Number(body.applied ?? 0);
-        catalogueTotal = Number(body.total ?? 0);
-        offset += 500;
-      } while (offset < (catalogueTotal ?? 0));
-      setNotice(`${applied} product assignments evaluated. No products were published.`);
-      await load(search);
-      await onApplied();
-    } catch (applyError) {
-      setError(applyError instanceof Error ? applyError.message : 'Channel assignments could not be applied.');
-    } finally {
-      setApplying(false);
     }
   };
 
@@ -184,11 +145,11 @@ export default function ChannelProductRulesDialog({ instance, onClose, onApplied
     }
   };
 
-  return <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving && !applying) onClose(); }} style={{ position: 'fixed', inset: 0, zIndex: 420, background: 'rgba(15,23,42,.5)', display: 'grid', placeItems: 'center', padding: 18 }}>
+  return <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) onClose(); }} style={{ position: 'fixed', inset: 0, zIndex: 420, background: 'rgba(15,23,42,.5)', display: 'grid', placeItems: 'center', padding: 18 }}>
     <div role="dialog" aria-modal="true" aria-labelledby="channel-product-rules-title" style={{ width: 'min(1080px, 100%)', height: 'min(820px, calc(100vh - 36px))', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff', border: '1px solid var(--sv-border)', borderRadius: 8, boxShadow: '0 24px 70px rgba(15,23,42,.28)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '19px 22px', borderBottom: '1px solid var(--sv-border)' }}>
         <div><h2 id="channel-product-rules-title" style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{instance.displayName} product rules</h2><p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Ordered rules set destination intent for {instance.providerDisplayName}. Explicit product overrides always win.</p></div>
-        <button type="button" onClick={onClose} disabled={saving || applying} title="Close" aria-label="Close product rules" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
+        <button type="button" onClick={onClose} disabled={saving} title="Close" aria-label="Close product rules" style={{ width: 30, height: 30, border: 0, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><X size={16} /></button>
       </div>
       {(error || notice) && <div style={{ padding: '9px 22px', background: error ? '#fef2f2' : '#f0fdf4', color: error ? '#991b1b' : '#166534', fontSize: 12 }}>{error || notice}</div>}
       <div style={{ flex: 1, overflow: 'auto', padding: 22 }}>
@@ -224,7 +185,7 @@ export default function ChannelProductRulesDialog({ instance, onClose, onApplied
           </div></div>
         </section>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '12px 22px', borderTop: '1px solid var(--sv-border)', background: '#fff' }}><span style={{ alignSelf: 'center', color: 'var(--sv-text-dim)', fontSize: 11 }}>Applying records intent only. Provider publication remains unchanged.</span><div style={{ display: 'flex', gap: 8 }}><button type="button" onClick={() => void saveRules()} disabled={saving || applying} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', fontSize: 12, fontWeight: 700 }}>{saving ? 'Saving...' : 'Save and preview'}</button><button type="button" onClick={() => void applyAssignments()} disabled={saving || applying} style={{ minHeight: 36, padding: '0 13px', border: 0, borderRadius: 5, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 750 }}>{applying ? 'Applying...' : 'Apply assignments'}</button></div></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '12px 22px', borderTop: '1px solid var(--sv-border)', background: '#fff' }}><span style={{ alignSelf: 'center', color: 'var(--sv-text-dim)', fontSize: 11 }}>Rules provide recommendations and do not change channel inclusions when saved.</span><button type="button" onClick={() => void saveRules()} disabled={saving} style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--sv-border)', borderRadius: 5, background: '#fff', fontSize: 12, fontWeight: 700 }}>{saving ? 'Saving...' : 'Save and preview'}</button></div>
     </div>
   </div>;
 }

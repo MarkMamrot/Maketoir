@@ -162,6 +162,36 @@ function contextFromRow(row: ProductContextRow): ChannelProductRuleContext {
   };
 }
 
+export async function listChannelRuleMatchedProductIds(input: {
+  businessId: string;
+  channelInstanceId: string;
+  ruleId?: number | string | null;
+}): Promise<string[]> {
+  const rules = await listChannelProductRules(input);
+  const selectedRuleId = String(input.ruleId ?? '').trim();
+  const rows = await imsQuery<ProductContextRow>(
+    `SELECT product.product_id, product.name AS product_name, product.is_online, product.is_active,
+            product.is_stock_item, product.description, product.website_title, product.product_type,
+            product.category, product.subcategory, product.brand, product.tags,
+            COALESCE(images.image_count, 0) AS image_count,
+            COALESCE(variants.variant_count, 0) AS variant_count
+       FROM ims_products product
+       LEFT JOIN (SELECT product_id, COUNT(*) AS image_count FROM ims_product_images GROUP BY product_id) images
+         ON BINARY images.product_id = BINARY product.product_id
+       LEFT JOIN (SELECT business_id, product_id, COUNT(*) AS variant_count FROM ims_product_variants
+                   WHERE is_active = 1 GROUP BY business_id, product_id) variants
+         ON BINARY variants.business_id = BINARY product.business_id
+        AND BINARY variants.product_id = BINARY product.product_id
+      WHERE product.business_id = ?`,
+    [input.businessId],
+  );
+  return rows.flatMap(row => {
+    const result = evaluateChannelProductRules({ context: contextFromRow(row), rules });
+    const matchesSelectedRule = !selectedRuleId || String(result.matchedRuleId ?? '') === selectedRuleId;
+    return result.ruleDecision === 'include' && matchesSelectedRule ? [row.product_id] : [];
+  });
+}
+
 export async function evaluateChannelProducts(input: {
   businessId: string;
   channelInstanceId: string;

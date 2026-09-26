@@ -543,14 +543,14 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
     instance.settings?.productPublicationEnabled === true || instance.settings?.productPublicationEnabled === 1
   );
 
-  const productAssignmentMode = (instance: ChannelInstance): 'manual' | 'add_matches' | 'full_sync' => {
+  const productAssignmentMode = (instance: ChannelInstance): 'manual' | 'add_matches' => {
     const mode = instance.settings?.productAssignmentMode;
-    return mode === 'add_matches' || mode === 'full_sync' ? mode : 'manual';
+    return mode === 'add_matches' ? mode : 'manual';
   };
 
-  const changeProductAssignmentMode = async (instance: ChannelInstance, mode: 'manual' | 'add_matches' | 'full_sync') => {
-    if (mode === 'full_sync' && !window.confirm(
-      `Use Full sync for ${instance.displayName}? When automation runs, unprotected products that no longer match its rules will be removed from this channel.`,
+  const changeProductAssignmentMode = async (instance: ChannelInstance, mode: 'manual' | 'add_matches') => {
+    if (mode === 'add_matches' && !window.confirm(
+      `Enable automatic assignment for ${instance.displayName}? Matching products will be included automatically. Existing inclusions will never be removed automatically.`,
     )) return;
     setAssignmentWorkingId(instance.channelInstanceId);
     setError('');
@@ -561,7 +561,7 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
       });
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || 'Product assignment mode could not be saved.');
-      setNotice(`${instance.displayName} product assignment mode is now ${mode === 'manual' ? 'Manual' : mode === 'add_matches' ? 'Add matches' : 'Full sync'}.`);
+      setNotice(`${instance.displayName} product assignment mode is now ${mode === 'manual' ? 'Manual' : 'Automatic'}.`);
       await load();
     } catch (assignmentError) {
       setError(assignmentError instanceof Error ? assignmentError.message : 'Product assignment mode could not be saved.');
@@ -856,18 +856,14 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
                   )}
                   {canManage && (
                     <label style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
-                      Assignment
-                      <select
+                      <input
+                        type="checkbox"
                         aria-label={`${instance.displayName} product assignment mode`}
-                        value={productAssignmentMode(instance)}
+                        checked={productAssignmentMode(instance) === 'add_matches'}
                         disabled={assignmentWorkingId === instance.channelInstanceId}
-                        onChange={event => void changeProductAssignmentMode(instance, event.target.value as 'manual' | 'add_matches' | 'full_sync')}
-                        style={{ height: 23, border: 0, background: 'transparent', color: 'inherit', fontSize: 11, fontWeight: 700 }}
-                      >
-                        <option value="manual">Manual</option>
-                        <option value="add_matches">Add matches</option>
-                        <option value="full_sync">Full sync</option>
-                      </select>
+                        onChange={event => void changeProductAssignmentMode(instance, event.target.checked ? 'add_matches' : 'manual')}
+                      />
+                      Automatic assignment
                     </label>
                   )}
                   {canManage && (
@@ -1162,7 +1158,6 @@ export default function SalesChannelsView({ canManage = false }: { canManage?: b
         <ChannelProductRulesDialog
           instance={productRulesInstance}
           onClose={() => setProductRulesInstance(null)}
-          onApplied={async () => { await load(); }}
         />
       )}
     </div>

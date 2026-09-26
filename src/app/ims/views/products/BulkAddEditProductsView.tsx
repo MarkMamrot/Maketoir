@@ -480,7 +480,7 @@ export function BulkAddEditProductsView({ businessId, isAdvisor = false }: { bus
   const [applyingChannelOverride, setApplyingChannelOverride] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [bulkChannelId, setBulkChannelId] = useState('');
-  const [bulkOverrideMode, setBulkOverrideMode] = useState<'automatic' | 'include' | 'exclude'>('automatic');
+  const [bulkOverrideMode, setBulkOverrideMode] = useState<'include' | 'exclude'>('include');
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -978,7 +978,7 @@ export function BulkAddEditProductsView({ businessId, isAdvisor = false }: { bus
     const channel = salesChannels.find(candidate => candidate.channelInstanceId === bulkChannelId);
     const productIds = [...selectedProductIds];
     if (!channel || productIds.length === 0) return;
-    const action = bulkOverrideMode === 'automatic' ? 'return to automatic rules' : `${bulkOverrideMode} in the destination`;
+    const action = `${bulkOverrideMode} in the destination`;
     if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} for ${productIds.length} selected product${productIds.length === 1 ? '' : 's'} in ${channel.displayName}? This records assignment intent and does not publish products.`)) return;
     setApplyingChannelOverride(true);
     setMessage('');
@@ -1133,7 +1133,7 @@ export function BulkAddEditProductsView({ businessId, isAdvisor = false }: { bus
           }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKUs</button>
           {!isAdvisor && salesChannels.length > 0 && <>
             <select aria-label="Channel for selected products" value={bulkChannelId} onChange={event => setBulkChannelId(event.target.value)} style={{ ...inputStyle, width: 190 }}><option value="">Choose channel...</option>{salesChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName} ({channel.providerDisplayName})</option>)}</select>
-            <select aria-label="Channel override for selected products" value={bulkOverrideMode} onChange={event => setBulkOverrideMode(event.target.value as 'automatic' | 'include' | 'exclude')} style={{ ...inputStyle, width: 145 }}><option value="automatic">Automatic</option><option value="include">Include</option><option value="exclude">Exclude</option></select>
+            <select aria-label="Channel action for selected products" value={bulkOverrideMode} onChange={event => setBulkOverrideMode(event.target.value as 'include' | 'exclude')} style={{ ...inputStyle, width: 120 }}><option value="include">Include</option><option value="exclude">Exclude</option></select>
             <button type="button" disabled={!bulkChannelId || selectedProductIds.size === 0 || applyingChannelOverride} onClick={() => void applyChannelOverride()} style={{ ...buttonStyle, opacity: !bulkChannelId || selectedProductIds.size === 0 || applyingChannelOverride ? .5 : 1 }}><ListChecks size={15} /> {applyingChannelOverride ? 'Applying...' : `Apply to selected${selectedProductIds.size ? ` (${selectedProductIds.size})` : ''}`}</button>
           </>}
         </div>

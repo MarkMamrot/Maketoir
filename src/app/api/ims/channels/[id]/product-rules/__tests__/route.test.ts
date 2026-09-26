@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), getInstance: vi.fn(), listRules: vi.fn(), replaceRules: vi.fn(),
-  evaluate: vi.fn(), setOverride: vi.fn(), setOverrides: vi.fn(), report: vi.fn(),
+  evaluate: vi.fn(), listMatchedIds: vi.fn(), setOverride: vi.fn(), setOverrides: vi.fn(), report: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
@@ -12,12 +12,13 @@ vi.mock('@/lib/channels/channelProductAssignmentRepository', () => ({
   listChannelProductRules: mocks.listRules,
   replaceChannelProductRules: mocks.replaceRules,
   evaluateChannelProducts: mocks.evaluate,
+  listChannelRuleMatchedProductIds: mocks.listMatchedIds,
   setChannelProductOverride: mocks.setOverride,
   setChannelProductOverrides: mocks.setOverrides,
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
-import { GET, PATCH, POST, PUT } from '../route';
+import { GET, PATCH, PUT } from '../route';
 
 const context = { params: { id: 'instance-1' } };
 function request(method: string, body?: unknown, query = '') {
@@ -36,6 +37,7 @@ describe('channel product rules route', () => {
     mocks.listRules.mockResolvedValue([]);
     mocks.replaceRules.mockResolvedValue([]);
     mocks.evaluate.mockResolvedValue({ products: [], total: 0, applied: 0 });
+    mocks.listMatchedIds.mockResolvedValue(['product-1', 'product-2']);
     mocks.setOverrides.mockResolvedValue(2);
     mocks.report.mockResolvedValue(undefined);
   });
@@ -54,19 +56,24 @@ describe('channel product rules route', () => {
     }));
   });
 
+  it('returns read-only product matches for an All Products rule filter', async () => {
+    const response = await GET(request('GET', undefined, '?matchesOnly=1&ruleId=9'), context);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, productIds: ['product-1', 'product-2'] });
+    expect(mocks.listMatchedIds).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', channelInstanceId: 'instance-1', ruleId: '9',
+    }));
+    expect(mocks.evaluate).not.toHaveBeenCalled();
+    expect(mocks.setOverride).not.toHaveBeenCalled();
+    expect(mocks.setOverrides).not.toHaveBeenCalled();
+  });
+
   it('saves ordered rules without applying provider intent', async () => {
     const rules = [{ name: 'Online', conditions: [{ field: 'online_candidate', operator: 'equals', value: true }] }];
     const response = await PUT(request('PUT', { rules }), context);
     expect(response.status).toBe(200);
     expect(mocks.replaceRules).toHaveBeenCalledWith(expect.objectContaining({ rules, actorUserId: 7, actorName: 'Admin' }));
     expect(mocks.evaluate).toHaveBeenCalledWith(expect.not.objectContaining({ apply: true }));
-  });
-
-  it('applies evaluated intent only when explicitly requested', async () => {
-    await POST(request('POST', { apply: true, limit: 500 }), context);
-    expect(mocks.evaluate).toHaveBeenCalledWith(expect.objectContaining({
-      apply: true, limit: 500, assignmentMode: 'manual',
-    }));
   });
 
   it('validates and saves a persistent override', async () => {
