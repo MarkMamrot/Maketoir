@@ -97,6 +97,27 @@ try {
       ORDER BY TABLE_NAME, COLUMN_NAME`,
     [schema],
   );
+  const [processes] = await connection.query(
+    `SELECT ID, TIME, STATE, LEFT(INFO, 500) AS INFO
+       FROM information_schema.PROCESSLIST
+      WHERE DB = ? AND COMMAND <> 'Sleep' ORDER BY TIME DESC`,
+    [schema],
+  );
+  const [fanOutPlan] = await connection.execute(
+    `EXPLAIN SELECT mapping.business_id, mapping.channel_instance_id, mapping.variant_id
+       FROM \`${schema}\`.ims_shopify_inventory_queue queue_item
+       JOIN \`${schema}\`.ims_product_variants variant
+         ON BINARY variant.variant_id = BINARY queue_item.variant_id
+       JOIN \`${schema}\`.ims_products product
+         ON BINARY product.product_id = BINARY variant.product_id
+       JOIN \`${schema}\`.ims_sales_channel_product_mappings mapping
+         ON BINARY mapping.business_id = BINARY product.business_id
+        AND BINARY mapping.variant_id = BINARY variant.variant_id
+      WHERE product.business_id = ? AND mapping.channel_instance_id = ?
+        AND mapping.mapping_status = 'linked'
+        AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''`,
+    [business.business_id, instances[0]?.channel_instance_id ?? ''],
+  );
   console.log(JSON.stringify({
     business: { ...business, business_id: '[redacted]' },
     instances,
@@ -108,6 +129,8 @@ try {
     mappingCounts,
     runtimeIssues,
     collations,
+    processes,
+    fanOutPlan,
   }, null, 2));
 } finally {
   await connection.end();

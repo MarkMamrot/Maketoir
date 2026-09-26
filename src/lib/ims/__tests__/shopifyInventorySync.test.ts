@@ -119,8 +119,8 @@ describe('exact-instance Shopify inventory', () => {
 
     expect(mocks.execute).toHaveBeenCalledTimes(2);
     for (const [sql, params] of mocks.execute.mock.calls) {
-      expect(sql).toContain('BINARY variant.variant_id = BINARY queue_item.variant_id');
-      expect(sql).toContain('BINARY product.product_id = BINARY variant.product_id');
+      expect(sql).toContain('variant.variant_id = queue_item.variant_id');
+      expect(sql).toContain('product.product_id = variant.product_id');
       expect(sql).toContain('BINARY mapping.business_id = BINARY product.business_id');
       expect(sql).toContain('BINARY mapping.variant_id = BINARY variant.variant_id');
       expect(params).toContain('store-a');

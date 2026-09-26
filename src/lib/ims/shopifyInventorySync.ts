@@ -226,8 +226,8 @@ export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Pro
      SELECT mapping.business_id, mapping.channel_instance_id, 'shopify', ?,
             CONCAT('shopify_inventory:', mapping.variant_id), JSON_OBJECT('variantId', mapping.variant_id)
        FROM ims_shopify_inventory_queue queue_item
-      JOIN ims_product_variants variant ON BINARY variant.variant_id = BINARY queue_item.variant_id
-      JOIN ims_products product ON BINARY product.product_id = BINARY variant.product_id
+      JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
+      JOIN ims_products product ON product.product_id = variant.product_id
        JOIN ims_sales_channel_product_mappings mapping
          ON BINARY mapping.business_id = BINARY product.business_id
         AND BINARY mapping.variant_id = BINARY variant.variant_id
@@ -245,8 +245,8 @@ export async function fanOutLegacyShopifyInventoryQueue(businessId: string): Pro
   );
   await imsExecute(
     `DELETE queue_item FROM ims_shopify_inventory_queue queue_item
-      JOIN ims_product_variants variant ON BINARY variant.variant_id = BINARY queue_item.variant_id
-      JOIN ims_products product ON BINARY product.product_id = BINARY variant.product_id
+      JOIN ims_product_variants variant ON variant.variant_id = queue_item.variant_id
+      JOIN ims_products product ON product.product_id = variant.product_id
     WHERE product.business_id = ? AND EXISTS (
        SELECT 1 FROM ims_sales_channel_product_mappings mapping
         WHERE BINARY mapping.business_id = BINARY product.business_id

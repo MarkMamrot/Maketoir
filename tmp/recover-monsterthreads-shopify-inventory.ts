@@ -67,11 +67,12 @@ async function main() {
       if (incomplete.length > 0) throw new Error(`Inventory jobs remain incomplete: ${JSON.stringify(incomplete)}`);
 
       const recentVariants = await imsQuery<{ variant_id: string }>(
-        `SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.variantId')) AS variant_id
+        `SELECT JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.variantId')) AS variant_id
            FROM ims_sales_channel_jobs
           WHERE business_id = ? AND channel_instance_id = ? AND provider = 'shopify'
             AND operation = 'shopify_inventory' AND status = 'complete'
-          ORDER BY completed_at DESC LIMIT 50`,
+          GROUP BY JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.variantId'))
+          ORDER BY MAX(completed_at) DESC LIMIT 50`,
         [businessId, channelInstanceId],
       );
       const variantIds = recentVariants.map(row => row.variant_id).filter(Boolean);
