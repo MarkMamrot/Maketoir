@@ -238,7 +238,7 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
         </div>
         <div className={styles.subsection}>
           <div className={styles.subsectionHeader}><h2>Webhooks</h2><p>Register and monitor event delivery for this exact storefront.</p></div>
-          <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} section="webhooks" />
+          <ShopifyOrdersTab section="webhooks" />
         </div>
       </section>}
 
@@ -252,8 +252,8 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
         </div>
         <ShopifyProductsTab />
       </section>}
-      {tab === 'orders' && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} section="orders" />}
-      {tab === 'inventory' && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} section="inventory" />}
+      {tab === 'orders' && <ShopifyOrdersTab section="orders" />}
+      {tab === 'inventory' && <ShopifyOrdersTab section="inventory" />}
       {tab === 'customers' && <ShopifyGiftCardsTab section="customers" />}
       {tab === 'giftCards' && <ShopifyGiftCardsTab section="giftCards" />}
       {tab === 'accounting' && <section style={{ maxWidth: 760 }}>

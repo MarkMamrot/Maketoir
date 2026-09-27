@@ -673,7 +673,7 @@ export function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { xeroAccountingEnabled: boolean; section?: 'all' | 'orders' | 'inventory' | 'webhooks' }) {
+export function ShopifyOrdersTab({ section = 'all' }: { section?: 'all' | 'orders' | 'inventory' | 'webhooks' }) {
   const shopifySelection = useShopifyInstanceOptions();
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
@@ -682,7 +682,6 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { x
   const [saving,         setSaving]         = useState(false);
   const [saveMsg,        setSaveMsg]        = useState<string | null>(null);
   const [syncEnabled,    setSyncEnabled]    = useState(false);
-  const [xeroAutoSyncEnabled, setXeroAutoSyncEnabled] = useState(false);
   const [importing,      setImporting]      = useState(false);
   const [importResult,   setImportResult]   = useState<any>(null);
   const [importError,    setImportError]    = useState<string | null>(null);
@@ -700,7 +699,6 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { x
     setImportError(null);
     if (!channelInstanceId) {
       setSyncEnabled(false);
-      setXeroAutoSyncEnabled(false);
       setLocationId('');
       return;
     }
@@ -711,7 +709,6 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { x
         setSyncEnabled(Boolean(data.settings?.orders?.enabled));
         setSyncFrom(data.settings?.orders?.syncFrom ?? '2026-07-01');
         setLocationId(data.settings?.orders?.locationId ? String(data.settings.orders.locationId) : '');
-        setXeroAutoSyncEnabled(Boolean(data.settings?.xero?.dailyAutoSyncEnabled));
       })
       .catch(error => setSaveMsg(`Error: ${error instanceof Error ? error.message : 'Settings could not be loaded.'}`));
   }, [shopifySelection.channelInstanceId]);
@@ -726,7 +723,6 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { x
         body: JSON.stringify({
           settings: {
             orders: { enabled: syncEnabled, syncFrom, locationId: locationId ? Number(locationId) : null },
-            xero: { dailyAutoSyncEnabled: xeroAccountingEnabled && xeroAutoSyncEnabled },
           },
         }),
       });
@@ -795,25 +791,6 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { x
       </div>
       <form onSubmit={(e) => { e.preventDefault(); saveSettings(); }} style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
-        {xeroAccountingEnabled && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              onClick={() => shopifySelection.channelInstanceId && setXeroAutoSyncEnabled(current => !current)}
-              style={{ width: 42, height: 22, borderRadius: 99, background: xeroAutoSyncEnabled ? '#10b981' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}
-              title="Controls the automatic daily online-sales batch sync from IMS to Xero"
-            >
-              <div style={{ position: 'absolute', top: 2, left: xeroAutoSyncEnabled ? 22 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: xeroAutoSyncEnabled ? '#10b981' : 'var(--sv-text-dim)' }}>
-                Shopify → Xero Daily Batch Auto-Sync {xeroAutoSyncEnabled ? 'Enabled' : 'Disabled'}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 2, lineHeight: 1.5 }}>
-                When enabled, completed online sales days are posted automatically to Xero (nightly cron + login catch-up). When disabled, only manual sync from Xero settings will post.
-              </div>
-            </div>
-          </div>
-        </div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <label style={label}>Transition Date (sync orders from)</label>
@@ -859,12 +836,6 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { x
               <span style={{ color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.5 }}>{desc}</span>
             </div>
           ))}
-        </div>
-        <div style={{ marginBottom: 10, padding: '7px 10px', background: 'rgba(251,191,36,.07)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-          <strong style={{ color: '#fbbf24' }}>ℹ Returns webhooks</strong> — Shopify's <code style={{ fontFamily: 'monospace', fontSize: 10 }}>returns/*</code> topics require the <code style={{ fontFamily: 'monospace', fontSize: 10 }}>returns</code> access scope, a Shopify/Advanced/Plus plan, and must be registered via the Shopify Admin API (they don't appear in the UI dropdown). <strong>You don't need them</strong> — <code style={{ fontFamily: 'monospace', fontSize: 10 }}>refunds/create</code> already handles every refund and restock scenario. If you want to track a physical return before money is refunded, you can mark a credit note as <em>Awaiting product</em> manually in IMS → Credit Notes / Returns.
-        </div>
-        <div style={{ marginBottom: 10, padding: '7px 10px', background: 'rgba(56,189,248,.07)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-          <strong style={{ color: '#38bdf8' }}>Shopify Payments payouts</strong> require the <code style={{ fontFamily: 'monospace', fontSize: 10 }}>shopify_payments_payouts</code> or <code style={{ fontFamily: 'monospace', fontSize: 10 }}>shopify_payments</code> access scope. Payout webhooks capture and plan settlement; Xero posting is confirmed from <strong>Xero → Sync History</strong>.
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <code style={{ flex: 1, padding: '8px 12px', background: 'var(--sv-bg-1)', borderRadius: 6, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-mint)', overflowX: 'auto' as const }}>{webhookUrl}</code>

@@ -27,29 +27,37 @@
 
 .tabs {
   display: flex;
-  gap: 6px;
+  gap: 20px;
   overflow-x: auto;
-  padding: 4px 0 10px;
-  margin-bottom: 20px;
+  padding: 0;
+  margin-bottom: 24px;
   border-bottom: 1px solid var(--sv-border);
 }
 
 .tab {
-  min-height: 36px;
-  padding: 7px 12px;
+  min-height: 42px;
+  padding: 10px 2px 9px;
   flex: 0 0 auto;
-  border: 1px solid transparent;
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
   background: transparent;
   color: var(--sv-text-dim);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: none !important;
 }
 
 .tab[data-active='true'] {
-  border-color: color-mix(in srgb, var(--sv-action) 30%, var(--sv-border));
-  background: color-mix(in srgb, var(--sv-action) 9%, white);
+  border-bottom-color: var(--sv-action) !important;
+  background: transparent;
   color: var(--sv-action);
+}
+
+.tab:not(:disabled):hover {
+  border-bottom-color: color-mix(in srgb, var(--sv-action) 45%, transparent) !important;
+  background: transparent;
+  box-shadow: none !important;
 }
 
 .connection {

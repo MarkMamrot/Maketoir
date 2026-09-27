@@ -77,5 +77,10 @@ describe('ShopifyChannelDetailView', () => {
     await user.click(screen.getByRole('button', { name: 'Gift Cards' }));
     expect(screen.getByText('giftCards workflow')).toBeTruthy();
     expect(screen.queryByText('customers workflow')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Accounting' }));
+    expect(screen.getByText('Daily online-sales batch sync')).toBeTruthy();
+    expect(screen.getByText('Allow Shopify payout posting')).toBeTruthy();
+    expect(screen.getByText('Automatically post balanced payouts')).toBeTruthy();
   });
 });
