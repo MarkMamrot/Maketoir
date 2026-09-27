@@ -339,12 +339,12 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
       let pageCount = 0;
       const totals = { processed: 0, linked: 0, unmatched: 0, conflicts: 0 };
       do {
-        const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/listings`, {
+        const response: Response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}/amazon/listings`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pageSize: 20, nextToken, syncStartedAt }),
         });
-        const body = await response.json();
-        if (!response.ok || !body.success) throw new Error(body.error || 'Amazon listings could not be synchronized.');
+        const body: Record<string, unknown> = await response.json();
+        if (!response.ok || !body.success) throw new Error(typeof body.error === 'string' ? body.error : 'Amazon listings could not be synchronized.');
         totals.processed += Number(body.processed ?? 0);
         totals.linked += Number(body.linked ?? 0);
         totals.unmatched += Number(body.unmatched ?? 0);
