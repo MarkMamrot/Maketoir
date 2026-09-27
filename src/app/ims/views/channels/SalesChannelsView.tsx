@@ -3,6 +3,7 @@
 import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, Power, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, SlidersHorizontal, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import AmazonChannelDetailView from './AmazonChannelDetailView';
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
 import SalesChannelRow from './SalesChannelRow';
 import ShopifyChannelDetailView from './ShopifyChannelDetailView';
@@ -159,6 +160,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
   const [refundResolutionLoading, setRefundResolutionLoading] = useState(false);
   const [productRulesInstance, setProductRulesInstance] = useState<ChannelInstance | null>(null);
   const [shopifyDetailId, setShopifyDetailId] = useState<string | null>(null);
+  const [amazonDetailId, setAmazonDetailId] = useState<string | null>(null);
 
   const load = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -190,8 +192,10 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
 
   useEffect(() => {
     const readDetailId = () => {
-      const match = window.location.hash.match(/^#sales-channels\/shopify\/(.+)$/);
-      setShopifyDetailId(match ? decodeURIComponent(match[1]) : null);
+      const shopifyMatch = window.location.hash.match(/^#sales-channels\/shopify\/(.+)$/);
+      const amazonMatch = window.location.hash.match(/^#sales-channels\/amazon\/(.+)$/);
+      setShopifyDetailId(shopifyMatch ? decodeURIComponent(shopifyMatch[1]) : null);
+      setAmazonDetailId(amazonMatch ? decodeURIComponent(amazonMatch[1]) : null);
     };
     readDetailId();
     window.addEventListener('hashchange', readDetailId);
@@ -208,14 +212,24 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
     window.history.pushState(window.history.state, '', '#sales-channels');
   };
 
-  const renameInstance = async (instance: ChannelInstance) => {
+  const openAmazonDetail = (instance: ChannelInstance) => {
+    setAmazonDetailId(instance.channelInstanceId);
+    window.history.pushState(window.history.state, '', `#sales-channels/amazon/${encodeURIComponent(instance.channelInstanceId)}`);
+  };
+
+  const closeAmazonDetail = () => {
+    setAmazonDetailId(null);
+    window.history.pushState(window.history.state, '', '#sales-channels');
+  };
+
+  const renameInstance = async (instance: ChannelInstance, displayName = draftName) => {
     setSavingId(instance.channelInstanceId);
     setError('');
     try {
       const response = await fetch(`/api/ims/channels/${encodeURIComponent(instance.channelInstanceId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName: draftName }),
+        body: JSON.stringify({ displayName }),
       });
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || 'Sales channel could not be updated.');
@@ -746,10 +760,13 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
   const shopifyDetailInstance = shopifyDetailId
     ? instances.find(instance => instance.channelInstanceId === shopifyDetailId && instance.provider === 'shopify')
     : null;
+  const amazonDetailInstance = amazonDetailId
+    ? instances.find(instance => instance.channelInstanceId === amazonDetailId && instance.provider === 'amazon')
+    : null;
 
-  if (shopifyDetailInstance?.provider === 'shopify') {
-    return (
-      <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
+  return (
+    <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
+      {shopifyDetailInstance?.provider === 'shopify' ? (
         <ShopifyChannelDetailView
           instance={{ ...shopifyDetailInstance, provider: 'shopify' }}
           canManage={canManage}
@@ -757,12 +774,40 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
           onBack={closeShopifyDetail}
           onChanged={() => load()}
         />
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
+      ) : amazonDetailInstance?.provider === 'amazon' ? (
+        <AmazonChannelDetailView
+          instance={amazonDetailInstance}
+          canManage={canManage}
+          readinessChecks={readinessChecks[amazonDetailInstance.channelInstanceId] ?? []}
+          testing={testingId === amazonDetailInstance.channelInstanceId}
+          syncingListings={syncingId === amazonDetailInstance.channelInstanceId}
+          syncingInventory={inventorySyncingId === amazonDetailInstance.channelInstanceId}
+          syncingOrders={orderSyncingId === amazonDetailInstance.channelInstanceId}
+          syncingReturns={returnSyncingId === amazonDetailInstance.channelInstanceId}
+          checkingReadiness={readinessCheckingId === amazonDetailInstance.channelInstanceId}
+          changingActivation={activationChangingId === amazonDetailInstance.channelInstanceId}
+          assignmentAutomatic={productAssignmentMode(amazonDetailInstance) === 'add_matches'}
+          assignmentWorking={assignmentWorkingId === amazonDetailInstance.channelInstanceId}
+          publicationEnabled={productPublicationEnabled(amazonDetailInstance)}
+          publicationWorking={publicationWorkingId === amazonDetailInstance.channelInstanceId}
+          onBack={closeAmazonDetail}
+          onRename={displayName => renameInstance(amazonDetailInstance, displayName)}
+          onTest={() => void testConnection(amazonDetailInstance)}
+          onChangeActivation={() => void changeAmazonActivation(amazonDetailInstance)}
+          onProductRules={() => setProductRulesInstance(amazonDetailInstance)}
+          onChangeAssignment={enabled => void changeProductAssignmentMode(amazonDetailInstance, enabled ? 'add_matches' : 'manual')}
+          onChangePublication={enabled => void changeProductPublication(amazonDetailInstance, enabled)}
+          onReconcileProducts={() => void runProductPublication(amazonDetailInstance)}
+          onSyncListings={() => void syncAmazonListings(amazonDetailInstance)}
+          onManageListings={() => void openAmazonMappings(amazonDetailInstance)}
+          onSyncInventory={() => void syncAmazonInventory(amazonDetailInstance)}
+          onOrderSetup={() => void openAmazonOrderSettings(amazonDetailInstance)}
+          onSyncOrders={() => void syncAmazonOrders(amazonDetailInstance)}
+          onSyncReturns={() => void syncAmazonReturns(amazonDetailInstance)}
+          onResolveRefunds={() => void openAmazonRefundResolution(amazonDetailInstance)}
+          onCheckReadiness={() => void checkAmazonReadiness(amazonDetailInstance)}
+        />
+      ) : <>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
         <div>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 22, fontWeight: 750 }}>Sales Channels</h1>
@@ -829,6 +874,36 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
                   onChangeActivation={canManage && (instance.enabled || instance.readinessStatus === 'ready')
                     ? () => void changeShopifyActivation(instance)
                     : undefined}
+                />
+              );
+            }
+            if (instance.provider === 'amazon') {
+              return (
+                <SalesChannelRow
+                  key={instance.channelInstanceId}
+                  instance={instance}
+                  capabilityCount={capabilities.length}
+                  canManage={canManage}
+                  testing={testingId === instance.channelInstanceId}
+                  activationChanging={activationChangingId === instance.channelInstanceId}
+                  onConfigure={() => openAmazonDetail(instance)}
+                  onTest={canManage ? () => void testConnection(instance) : undefined}
+                  onChangeActivation={canManage && (instance.enabled || instance.readinessStatus === 'ready')
+                    ? () => void changeAmazonActivation(instance)
+                    : undefined}
+                />
+              );
+            }
+            if (instance.provider === 'native_shop') {
+              return (
+                <SalesChannelRow
+                  key={instance.channelInstanceId}
+                  instance={instance}
+                  capabilityCount={capabilities.length}
+                  canManage={canManage}
+                  testing={false}
+                  activationChanging={false}
+                  onConfigure={() => { window.location.hash = '#online-shop'; }}
                 />
               );
             }
@@ -1019,6 +1094,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
           })}
         </div>
       )}
+      </>}
 
       {addChannelDialogOpen && (
         <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAddChannelDialogOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,.46)', display: 'grid', placeItems: 'center', padding: 18 }}>

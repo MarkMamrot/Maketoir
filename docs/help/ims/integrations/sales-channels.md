@@ -11,7 +11,7 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Check whether a channel is active, paused, waiting for setup, or needs attention.
 - Review the external account identity and last successful synchronization time.
 - Compare the operations supported by each provider.
-- Choose **Configure** on a Shopify row to manage that exact store's connection, products, orders, inventory, customers, gift cards, accounting opt-ins, and activity.
+- Choose **Configure** on a channel row to open that exact storefront or seller account. Shopify and Amazon open dedicated channel details; the Solvantis Online Store opens its existing setup area.
 
 ## Publishing and provider operations
 
@@ -36,19 +36,19 @@ Sales Channels shows each online storefront separately. A business can connect m
 
 ## Review channel instances
 
-Open **Integrations > Sales Channels**. Each row identifies the storefront, provider, operating state, account identity, last synchronization time, and supported operations.
+Open **Integrations > Sales Channels**. Each compact row identifies the storefront, provider, operating state, account identity, last successful synchronization time, and number of supported features. A current safe error appears beneath the affected channel when it needs attention.
 
-Administrators can use the pencil button beside a channel name to rename it. Choose **Configure** on a Shopify row to open that store's dedicated detail view. Other IMS users can review the same status information but cannot change it.
+Administrators choose **Configure** to open the provider details where connection settings and channel workflows belong. Use the three-dot menu for the quick **Test connection** and **Activate** or **Deactivate** commands. Other IMS users choose **View details** and can review the same information without changing it.
 
 ### Assign products with channel rules
 
-Choose **Product rules** on any channel row to define recommendations for that exact storefront. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product or include it in every channel.
+Choose **Configure**, then open **Products** and choose **Product rules** to define recommendations for that exact storefront. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product or include it in every channel.
 
 Rules run in their displayed order and the first matching enabled rule decides whether to include or exclude the product. A rule can require all of its conditions or any one condition. Conditions can use catalogue facts such as active status, online candidate, product type, category, brand, tags, content, images and variant count. A product that matches no rule is excluded by default.
 
 Use **Save and preview** to store the rules and inspect the result without changing inclusions. Saving a rule never changes a product's channel inclusion. The preview shows the matched rule, recommendation, current control and provider state.
 
-Use the **Automatic assignment** toggle on the exact channel row:
+Use the **Automatic assignment** toggle under the exact channel's **Products** section:
 
 - **Off (Manual)** is the default. Rules are filters and recommendations only; staff choose every inclusion or exclusion.
 - **On (Automatic)** checks rules hourly and includes new matching products that are not protected by an explicit choice. It never removes an existing inclusion when a product stops matching.
@@ -73,7 +73,7 @@ Provider behavior differs:
 
 Assignment intent and provider state are separate. After **Apply and publish**, confirm the Provider column says **Published** and use **View listing** or **Manage listing**. A blocked or failed result means the inclusion was retained but the product is not live; correct the displayed issue and retry.
 
-Administrators can choose **Test connection** on a Shopify row. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments. After a successful test, choose **Activate** to make that exact store eligible for its enabled channel workflows. Choose **Deactivate** to pause it while retaining credentials, mappings, assignments, and history.
+Administrators can choose **Test connection** from a Shopify row's three-dot menu or from its **Connection** details. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments. After a successful test, choose **Activate** to make that exact store eligible for its enabled channel workflows. Choose **Deactivate** to pause it while retaining credentials, mappings, assignments, and history.
 
 ### Add a sales channel
 
@@ -109,7 +109,9 @@ Webhook health is tracked separately for every storefront and topic. A missing o
 
 Solvantis verifies that the account actively participates in Amazon Australia and that its listings are not suspended. Each Seller Central account becomes a separate channel, so repeat these steps for another seller account. Authorization alone does not start catalogue, inventory, order, fulfilment, or return synchronization; the channel remains setup pending until every required operation is configured.
 
-Choose **Test connection** on an Amazon row to refresh that account's saved authorization and recheck its Amazon Australia participation.
+Choose **Configure** on an Amazon row to open its dedicated details. **Connection & readiness** contains connection testing, readiness checks, and activation. **Products**, **Listings**, **Orders & inventory**, and **Returns** contain the corresponding exact-seller workflows described below.
+
+Choose **Test connection** from the row's three-dot menu or from **Connection & readiness** to refresh that account's saved authorization and recheck its Amazon Australia participation.
 
 Choose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. After the final page, listings no longer returned by Amazon are archived and stop receiving inventory updates. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.
 
