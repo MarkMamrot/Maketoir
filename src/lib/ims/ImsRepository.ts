@@ -5465,7 +5465,8 @@ export const ImsShopifyRepo = {
            SELECT DISTINCT mapping.business_id, variant.product_id
              FROM ims_sales_channel_product_mappings mapping
              JOIN ims_product_variants variant
-               ON BINARY variant.business_id = BINARY mapping.business_id AND variant.variant_id = mapping.variant_id
+               ON BINARY variant.business_id = BINARY mapping.business_id
+              AND BINARY variant.variant_id = BINARY mapping.variant_id
             WHERE mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
          ) channel_link ON BINARY channel_link.business_id = BINARY p.business_id AND channel_link.product_id = p.product_id
          LEFT JOIN (
@@ -5486,7 +5487,8 @@ export const ImsShopifyRepo = {
            SELECT DISTINCT mapping.business_id, variant.product_id
              FROM ims_sales_channel_product_mappings mapping
              JOIN ims_product_variants variant
-               ON BINARY variant.business_id = BINARY mapping.business_id AND variant.variant_id = mapping.variant_id
+               ON BINARY variant.business_id = BINARY mapping.business_id
+              AND BINARY variant.variant_id = BINARY mapping.variant_id
             WHERE mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
          ) channel_link ON BINARY channel_link.business_id = BINARY p.business_id AND channel_link.product_id = p.product_id
          LEFT JOIN (

@@ -19,6 +19,8 @@ vi.mock('@/services/imsContext', () => ({
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 
 const expectCollationSafeAttemptJoin = (sql: string) => {
+  expect(sql).toContain('BINARY variant.business_id = BINARY mapping.business_id');
+  expect(sql).toContain('BINARY variant.variant_id = BINARY mapping.variant_id');
   expect(sql).toContain('wa.business_id COLLATE utf8mb4_general_ci = p.business_id');
   expect(sql).toContain('wa.product_id COLLATE utf8mb4_general_ci = p.product_id');
 };
@@ -30,7 +32,7 @@ describe('ImsShopifyRepo.listWithShopifyStatus', () => {
     mockImsQuery.mockReset();
   });
 
-  it('uses explicit collations when joining website attempts to products', async () => {
+  it('uses collation-safe joins for channel mappings and website attempts', async () => {
     mockImsQuery.mockResolvedValue([]);
 
     await ImsShopifyRepo.listWithShopifyStatus('business-1', 'store-1');

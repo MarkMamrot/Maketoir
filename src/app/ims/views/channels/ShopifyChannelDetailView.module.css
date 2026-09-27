@@ -1,0 +1,114 @@
+.detail {
+  width: 100%;
+}
+
+.detail button {
+  border-radius: 8px !important;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.detail button:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--sv-action) 45%, var(--sv-border));
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .1);
+}
+
+.detail button:focus-visible,
+.detail a:focus-visible,
+.detail input:focus-visible,
+.detail select:focus-visible {
+  outline: 2px solid var(--sv-action);
+  outline-offset: 2px;
+}
+
+.detail button:disabled {
+  cursor: not-allowed !important;
+  opacity: .55;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--sv-border);
+}
+
+.tab {
+  min-height: 36px;
+  padding: 7px 12px;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--sv-text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab[data-active='true'] {
+  border-color: color-mix(in srgb, var(--sv-action) 30%, var(--sv-border));
+  background: color-mix(in srgb, var(--sv-action) 9%, white);
+  color: var(--sv-action);
+}
+
+.connection {
+  max-width: 900px;
+}
+
+.connectionForm {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+  padding: 18px;
+  border: 1px solid var(--sv-border);
+  border-radius: 8px;
+  background: var(--sv-bg-2);
+}
+
+.subsection {
+  margin-top: 24px;
+}
+
+.subsectionHeader {
+  margin-bottom: 12px;
+}
+
+.subsectionHeader h2 {
+  margin: 0;
+  color: var(--sv-text-strong);
+  font-size: 16px;
+}
+
+.subsectionHeader p {
+  margin: 5px 0 0;
+  color: var(--sv-text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.productControls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--sv-border);
+  border-radius: 8px;
+  background: var(--sv-bg-2);
+}
+
+@media (max-width: 640px) {
+  .connectionForm {
+    padding: 14px;
+  }
+
+  .productControls {
+    align-items: stretch;
+  }
+
+  .productControls > * {
+    flex: 1 1 100%;
+  }
+}

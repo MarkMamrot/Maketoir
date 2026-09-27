@@ -11,6 +11,7 @@ import {
   ShopifyProductsTab,
 } from '../../components/ShopifyView';
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
+import styles from './ShopifyChannelDetailView.module.css';
 
 export interface ShopifyChannelInstance {
   channelInstanceId: string;
@@ -26,7 +27,7 @@ export interface ShopifyChannelInstance {
   settings: Record<string, unknown>;
 }
 
-type Tab = 'connection' | 'products' | 'operations' | 'customers' | 'accounting' | 'activity';
+type Tab = 'connection' | 'products' | 'orders' | 'inventory' | 'customers' | 'giftCards' | 'accounting' | 'activity';
 type AuthMode = 'client_credentials' | 'legacy_token';
 type AccountingSettings = {
   dailyAutoSyncEnabled: boolean;
@@ -202,11 +203,11 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
   }
 
   const tabButton = (value: Tab, label: string) => (
-    <button type="button" onClick={() => setTab(value)} style={{ minHeight: 36, padding: '7px 11px', border: 0, borderBottom: tab === value ? '2px solid #147d92' : '2px solid transparent', background: 'transparent', color: tab === value ? '#0f6170' : 'var(--sv-text-dim)', fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>{label}</button>
+    <button type="button" className={styles.tab} data-active={tab === value} aria-selected={tab === value} onClick={() => setTab(value)}>{label}</button>
   );
 
   return <ShopifyInstanceScope instance={scopedInstance}>
-    <div>
+    <div className={styles.detail}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <button type="button" onClick={onBack} title="Back to Sales Channels" aria-label="Back to Sales Channels" style={{ width: 34, height: 34, border: '1px solid var(--sv-border)', background: '#fff', color: '#334155', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><ArrowLeft size={17} /></button>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -218,12 +219,12 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
 
       {(error || notice) && <div role="status" style={{ marginBottom: 12, padding: '9px 12px', border: `1px solid ${error ? '#fecaca' : '#bbf7d0'}`, background: error ? '#fef2f2' : '#f0fdf4', color: error ? '#991b1b' : '#166534', fontSize: 12 }}>{error || notice}</div>}
 
-      <div style={{ display: 'flex', gap: 3, overflowX: 'auto', borderBottom: '1px solid var(--sv-border)', marginBottom: 18 }}>
-        {tabButton('connection', 'Connection')}{tabButton('products', 'Products')}{tabButton('operations', 'Orders & Inventory')}{tabButton('customers', 'Customers & Gift Cards')}{tabButton('accounting', 'Accounting')}{tabButton('activity', 'Activity')}
+      <div className={styles.tabs} role="tablist" aria-label="Shopify configuration sections">
+        {tabButton('connection', 'Connection')}{tabButton('products', 'Products')}{tabButton('orders', 'Orders')}{tabButton('inventory', 'Inventory')}{tabButton('customers', 'Customers')}{tabButton('giftCards', 'Gift Cards')}{tabButton('accounting', 'Accounting')}{tabButton('activity', 'Activity')}
       </div>
 
-      {tab === 'connection' && <section style={{ maxWidth: 760 }}>
-        <div style={{ display: 'grid', gap: 14 }}>
+      {tab === 'connection' && <section className={styles.connection}>
+        <div className={styles.connectionForm}>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Store name<input value={displayName} onChange={event => setDisplayName(event.target.value)} disabled={!canManage} style={{ ...inputStyle, marginTop: 5 }} /></label>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Shop domain<input value={shopDomain} onChange={event => setShopDomain(event.target.value)} disabled={!canManage} placeholder="example.myshopify.com" style={{ ...inputStyle, marginTop: 5 }} /></label>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Authentication method<select value={authMode} onChange={event => setAuthMode(event.target.value as AuthMode)} disabled={!canManage} style={{ ...inputStyle, marginTop: 5 }}><option value="client_credentials">Client credentials</option><option value="legacy_token">Legacy access token</option></select></label>
@@ -235,10 +236,14 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
             <button type="button" disabled={!canManage || Boolean(busy)} onClick={() => void changeActivation()} style={{ minHeight: 36, padding: '7px 12px', border: '1px solid var(--sv-border)', background: '#fff', color: instance.enabled ? '#991b1b' : '#166534', fontWeight: 700, cursor: 'pointer' }}>{instance.enabled ? 'Deactivate' : 'Activate'}</button>
           </div>
         </div>
+        <div className={styles.subsection}>
+          <div className={styles.subsectionHeader}><h2>Webhooks</h2><p>Register and monitor event delivery for this exact storefront.</p></div>
+          <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} section="webhooks" />
+        </div>
       </section>}
 
       {tab === 'products' && <section>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, padding: 12, border: '1px solid var(--sv-border)', background: '#f8fafc' }}>
+        <div className={styles.productControls}>
           <button type="button" disabled={!canManage} onClick={() => setRulesOpen(true)} style={{ minHeight: 34, padding: '6px 10px', border: '1px solid var(--sv-border)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>Product rules</button>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}><input type="checkbox" checked={assignmentMode === 'add_matches'} disabled={!canManage || Boolean(busy)} onChange={event => void changeAssignmentMode(event.target.checked)} /> Automatic assignment</label>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}><input type="checkbox" checked={publicationEnabled} disabled={!canManage || Boolean(busy)} onChange={event => void changePublication(event.target.checked)} /> Automatic publication</label>
@@ -247,8 +252,10 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
         </div>
         <ShopifyProductsTab />
       </section>}
-      {tab === 'operations' && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} />}
-      {tab === 'customers' && <ShopifyGiftCardsTab />}
+      {tab === 'orders' && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} section="orders" />}
+      {tab === 'inventory' && <ShopifyOrdersTab xeroAccountingEnabled={xeroAccountingEnabled} section="inventory" />}
+      {tab === 'customers' && <ShopifyGiftCardsTab section="customers" />}
+      {tab === 'giftCards' && <ShopifyGiftCardsTab section="giftCards" />}
       {tab === 'accounting' && <section style={{ maxWidth: 760 }}>
         <div style={{ padding: 16, border: '1px solid var(--sv-border)', background: '#f8fafc', marginBottom: 14, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
           These storefront options are additional opt-ins. Business-wide document and posting policy remains authoritative in <a href="#xero" style={{ color: '#0369a1', fontWeight: 700 }}>Xero Settings</a>.

@@ -64,6 +64,7 @@ function useShopifyInstanceOptions() {
 export function ShopifyProductsTab() {
   const [products, setProducts]   = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [segment, setSegment]     = useState<'not_in_shopify' | 'linked' | 'all'>('not_in_shopify');
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [search, setSearch]       = useState('');
@@ -92,18 +93,27 @@ export function ShopifyProductsTab() {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      if (!shopifySelection.channelInstanceId) return;
-      const r = await fetch(`/api/ims/shopify/products?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`);
-      const d = await r.json();
-      if (d.success) {
-        setProducts(d.data ?? []);
-        // Auto-select all not-in-shopify products
-        const ids = new Set<string>((d.data ?? []).filter((p: any) => p.shopify_status === 'not_in_shopify').map((p: any) => p.product_id));
-        setSelected(ids);
+      if (!shopifySelection.channelInstanceId) {
+        setProducts([]);
+        setLoadError('Select a Shopify storefront to load products.');
+        return;
       }
-    } catch {}
-    setLoading(false);
+      const r = await fetch(`/api/ims/shopify/products?channelInstanceId=${encodeURIComponent(shopifySelection.channelInstanceId)}`);
+      const d = await readApiResponse(r);
+      if (!r.ok || !d.success) throw new Error(d.error ?? 'Products could not be loaded.');
+      const data = Array.isArray(d.data) ? d.data : [];
+      setProducts(data);
+      // Auto-select all not-in-shopify products
+      const ids = new Set<string>(data.filter((p: any) => p.shopify_status === 'not_in_shopify').map((p: any) => p.product_id));
+      setSelected(ids);
+    } catch (error) {
+      setProducts([]);
+      setLoadError(error instanceof Error ? error.message : 'Products could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
   }, [shopifySelection.channelInstanceId]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
@@ -337,62 +347,15 @@ export function ShopifyProductsTab() {
   const linkedCount       = products.filter(p => p.shopify_status === 'linked').length;
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading products…</div>;
+  if (loadError) return (
+    <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px solid #fecaca', borderRadius: 8, background: '#fef2f2', color: '#991b1b', fontSize: 12 }}>
+      <span style={{ flex: 1 }}>{loadError}</span>
+      <button type="button" onClick={() => void fetchProducts()} style={{ minHeight: 32, padding: '5px 11px', border: '1px solid #fecaca', borderRadius: 8, background: '#fff', color: '#991b1b', fontWeight: 700, cursor: 'pointer' }}>Retry</button>
+    </div>
+  );
 
   return (
     <div>
-      <div style={{ padding: 18, marginBottom: 16, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 420px' }}>
-            <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Import Products from Shopify</h3>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
-              Creates missing products and variants, refreshes linked catalogue details, and collects Shopify image URLs. Stock quantities are not changed.
-            </p>
-            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'var(--sv-text-main)' }}>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={populateUnknownBrands}
-                  disabled={importingCatalogue}
-                  onChange={event => setPopulateUnknownBrands(event.target.checked)}
-                />
-                Create missing brands from Shopify vendor
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={populateUnknownSuppliers}
-                  disabled={importingCatalogue}
-                  onChange={event => setPopulateUnknownSuppliers(event.target.checked)}
-                />
-                Create and assign missing suppliers from Shopify vendor
-              </label>
-            </div>
-          </div>
-          <button
-            onClick={runCatalogueImport}
-            disabled={importingCatalogue || syncing}
-            style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: importingCatalogue ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: importingCatalogue ? 0.7 : 1 }}
-          >
-            {importingCatalogue ? 'Importing…' : 'Import from Shopify'}
-          </button>
-        </div>
-        {importProgress && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
-            <strong>{importingCatalogue ? 'Import in progress' : 'Last import'}</strong>
-            {' · '}{importProgress.batches} batches · {importProgress.fetched} Shopify products · {importProgress.images} image links
-            {' · '}{importProgress.createdBrands} brands created · {importProgress.createdSuppliers} suppliers created
-            {importProgress.warnings.length > 0 && (
-              <details style={{ marginTop: 6 }}>
-                <summary style={{ cursor: 'pointer', color: '#fbbf24' }}>{importProgress.warnings.length} items need review</summary>
-                <div style={{ marginTop: 4, maxHeight: 120, overflowY: 'auto', color: 'var(--sv-text-dim)' }}>
-                  {importProgress.warnings.map((warning, index) => <div key={`${index}-${warning}`}>{warning}</div>)}
-                </div>
-              </details>
-            )}
-          </div>
-        )}
-      </div>
-
       <div style={{ padding: 18, marginBottom: 16, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 420px' }}>
@@ -578,6 +541,59 @@ export function ShopifyProductsTab() {
       <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-text-dim)' }}>
         {selected.size} selected · {filtered.length} shown
       </div>
+
+      <div style={{ padding: 18, marginTop: 22, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 420px' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Import Products from Shopify</h3>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
+              Creates missing products and variants, refreshes linked catalogue details, and collects Shopify image URLs. Stock quantities are not changed.
+            </p>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'var(--sv-text-main)' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={populateUnknownBrands}
+                  disabled={importingCatalogue}
+                  onChange={event => setPopulateUnknownBrands(event.target.checked)}
+                />
+                Create missing brands from Shopify vendor
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={populateUnknownSuppliers}
+                  disabled={importingCatalogue}
+                  onChange={event => setPopulateUnknownSuppliers(event.target.checked)}
+                />
+                Create and assign missing suppliers from Shopify vendor
+              </label>
+            </div>
+          </div>
+          <button
+            onClick={runCatalogueImport}
+            disabled={importingCatalogue || syncing}
+            style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 8, cursor: importingCatalogue ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: importingCatalogue ? 0.7 : 1 }}
+          >
+            {importingCatalogue ? 'Importing…' : 'Import from Shopify'}
+          </button>
+        </div>
+        {importProgress && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
+            <strong>{importingCatalogue ? 'Import in progress' : 'Last import'}</strong>
+            {' · '}{importProgress.batches} batches · {importProgress.fetched} Shopify products · {importProgress.images} image links
+            {' · '}{importProgress.createdBrands} brands created · {importProgress.createdSuppliers} suppliers created
+            {importProgress.warnings.length > 0 && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: 'pointer', color: '#fbbf24' }}>{importProgress.warnings.length} items need review</summary>
+                <div style={{ marginTop: 4, maxHeight: 120, overflowY: 'auto', color: 'var(--sv-text-dim)' }}>
+                  {importProgress.warnings.map((warning, index) => <div key={`${index}-${warning}`}>{warning}</div>)}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -657,7 +673,7 @@ export function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-export function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnabled: boolean }) {
+export function ShopifyOrdersTab({ xeroAccountingEnabled, section = 'all' }: { xeroAccountingEnabled: boolean; section?: 'all' | 'orders' | 'inventory' | 'webhooks' }) {
   const shopifySelection = useShopifyInstanceOptions();
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
@@ -757,6 +773,7 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnab
         </div>
         <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>All settings, imports, webhooks, and Xero batches below apply only to this storefront.</div>
       </div>}
+      {(section === 'all' || section === 'orders') && <>
       {/* Enable/Disable toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '14px 18px', background: syncEnabled ? 'rgba(16,185,129,.08)' : 'var(--sv-bg-2)', border: `1px solid ${syncEnabled ? 'rgba(16,185,129,.3)' : 'var(--sv-etch)'}`, borderRadius: 10 }}>
         <div
@@ -817,9 +834,10 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnab
           {saveMsg && <span style={{ fontSize: 13, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{saveMsg}</span>}
         </div>
       </form>
+      </>}
 
       {/* Webhook URL */}
-      <div style={card}>
+      {(section === 'all' || section === 'webhooks') && <div style={card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Webhook URL</h3>
         <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
           Add this URL in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong> for <strong>each</strong> of the following events. All should use the same URL and the same signing secret.
@@ -858,10 +876,10 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnab
 
         {/* Webhook status checker */}
         <WebhookStatusChecker btn={btn} channelInstanceId={shopifySelection.channelInstanceId} signingSecret={webhookSecret} onSigningSecretChange={setWebhookSecret} input={input} />
-      </div>
+      </div>}
 
       {/* Manual import */}
-      <div style={card}>
+      {(section === 'all' || section === 'orders') && <div style={card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Manual Order Import</h3>
         <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
           Pulls all Shopify orders from the transition date to now and imports them into IMS. Safe to run multiple times — existing orders are skipped. Also backfills any refunds already recorded on those orders.
@@ -893,10 +911,10 @@ export function ShopifyOrdersTab({ xeroAccountingEnabled }: { xeroAccountingEnab
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Inventory → Shopify sync */}
-      <InventorySyncCard card={card} label={label} input={input} btn={btn} />
+      {(section === 'all' || section === 'inventory') && <InventorySyncCard card={card} label={label} input={input} btn={btn} />}
 
     </div>
   );
@@ -1256,7 +1274,7 @@ function InventorySyncCard({ card, label, input, btn }: { card: React.CSSPropert
 }
 
 // ─── Gift Cards Tab ───────────────────────────────────────────────────────────
-export function ShopifyGiftCardsTab() {
+export function ShopifyGiftCardsTab({ section = 'all' }: { section?: 'all' | 'customers' | 'giftCards' }) {
   const shopifySelection = useShopifyInstanceOptions();
   const [gcMode,    setGcMode]    = useState<'off' | 'combined'>('off');
   const [saving,    setSaving]    = useState(false);
@@ -1482,6 +1500,7 @@ export function ShopifyGiftCardsTab() {
 
   return (
     <div>
+      {(section === 'all' || section === 'giftCards') && <>
       {/* Mode selector */}
       <div style={card}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Gift Card Mode</h3>
@@ -1538,7 +1557,9 @@ export function ShopifyGiftCardsTab() {
           </div>
         )}
       </div>
+      </>}
 
+      {(section === 'all' || section === 'customers') &&
       <div style={card}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Customer Sync</h3>
         <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
@@ -1644,10 +1665,10 @@ export function ShopifyGiftCardsTab() {
             )}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* How combined mode works */}
-      {gcMode === 'combined' && (
+      {(section === 'all' || section === 'giftCards') && gcMode === 'combined' && (
         <div style={{ padding: '12px 16px', background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.25)', borderRadius: 8, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
           <strong style={{ color: '#fbbf24' }}>Combined mode — how it works</strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
