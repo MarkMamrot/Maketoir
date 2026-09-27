@@ -4,6 +4,7 @@ import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin,
 import { useEffect, useState } from 'react';
 
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
+import SalesChannelRow from './SalesChannelRow';
 import ShopifyChannelDetailView from './ShopifyChannelDetailView';
 
 interface ChannelCapabilities {
@@ -814,6 +815,23 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
             const status = statusDetails(instance);
             const StatusIcon = status.icon;
             const capabilities = CAPABILITY_LABELS.filter(([key]) => instance.capabilities[key]);
+            if (instance.provider === 'shopify') {
+              return (
+                <SalesChannelRow
+                  key={instance.channelInstanceId}
+                  instance={instance}
+                  capabilityCount={capabilities.length}
+                  canManage={canManage}
+                  testing={testingId === instance.channelInstanceId}
+                  activationChanging={activationChangingId === instance.channelInstanceId}
+                  onConfigure={() => openShopifyDetail(instance)}
+                  onTest={canManage ? () => void testConnection(instance) : undefined}
+                  onChangeActivation={canManage && (instance.enabled || instance.readinessStatus === 'ready')
+                    ? () => void changeShopifyActivation(instance)
+                    : undefined}
+                />
+              );
+            }
             return (
               <section key={instance.channelInstanceId} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 22, padding: '20px 4px', borderBottom: '1px solid var(--sv-border)', alignItems: 'start' }}>
                 <div style={{ display: 'flex', gap: 11, minWidth: 0 }}>
