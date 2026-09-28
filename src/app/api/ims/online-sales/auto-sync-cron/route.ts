@@ -15,6 +15,7 @@ import { query } from '@/services/MySQLService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
+import { getCompletedOnlineBatchKeys, onlineBatchKey } from '@/lib/xero/onlineBatchSyncState';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
@@ -92,16 +93,9 @@ export async function POST(req: Request) {
 
       if (!days.length) return;
 
-      const detailKeys = days.map(d => `online batch ${d.channel_instance_id} ${d.day}`);
-      const synced = await query<{ batch_key: string }>(
-        `SELECT detail AS batch_key FROM xero_sync_log
-         WHERE business_id = ? AND sync_type = 'online_batch' AND status = 'success'
-           AND detail IN (${detailKeys.map(() => '?').join(',')})`,
-        [business_id, ...detailKeys],
-      ).catch(() => [] as { batch_key: string }[]);
-      const syncedSet = new Set(synced.map(r => String(r.batch_key)));
+      const syncedSet = await getCompletedOnlineBatchKeys(business_id, days).catch(() => new Set<string>());
 
-      for (const { day, channel_instance_id } of days.filter(d => enabledChannelIds.has(d.channel_instance_id) && !syncedSet.has(`online batch ${d.channel_instance_id} ${d.day}`))) {
+      for (const { day, channel_instance_id } of days.filter(d => enabledChannelIds.has(d.channel_instance_id) && !syncedSet.has(onlineBatchKey(d)))) {
         try {
           const result = await syncOnlineDailySalesDay(business_id, day, channel_instance_id);
           results.push({ businessId: business_id, channelInstanceId: channel_instance_id, date: day, success: !!result.xeroId });

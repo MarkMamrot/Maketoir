@@ -1,5 +1,5 @@
 ---
-{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Setup > Team","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance","ims-workspaces"],"order":3,"summary":"Enroll people in one or more businesses with the least access they need and handle sign-in security safely.","lastReviewed":"2026-08-30","owner":"security","quickSections":["Main operations","At a glance"]}
+{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Settings > Users","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance","ims-workspaces"],"order":3,"summary":"Enroll people in one or more businesses, send password reset links, and review recent sign-in security activity.","lastReviewed":"2026-09-28","owner":"security","quickSections":["Main operations","At a glance"]}
 ---
 # Team Access and Security
 SuperAdmins can choose any active business with the top-bar selector while remaining signed in as themselves. Other users who are enrolled in more than one business use the same selector for their enrolled businesses. This is business administration, not staff impersonation. See **Businesses and AI Plans** for the switching workflow and POS Device Setup behaviour.
@@ -12,6 +12,7 @@ Use Team to invite a colleague with the appropriate tier, then let them complete
 - Confirm the selected business and email address.
 - Choose the least privileged tier that covers the person's work in this business.
 - Choose **Set by Email** so the person creates their own password, then check the result.
+- Open **Security** beside a user to send a one-hour password reset link or review their last 90 days of authentication activity.
 - Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.
 - Keep passwords, authenticator codes, and recovery codes private.
 - Export business data only when authorised to handle the file.
@@ -62,6 +63,14 @@ Users enrolled in two or more businesses can choose the active business from the
 8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.
 9. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.
 
+## Password resets and authentication activity
+
+Admins and SuperAdmins can open **Settings > Users**, select **Security** beside a user in the active business, and send that person a password reset email. The administrator never chooses or sees the password. Sending a new link invalidates earlier unused links, and each link expires after one hour.
+
+The Security panel shows successful completed logins, password reset emails sent by an administrator, and completed password changes from the last 90 days. Entries can include the client IP address, browser description, and an approximate city, region, and country when the hosting network supplies that information. Approximate location may be unavailable or inaccurate. Only Admins and SuperAdmins for the active business can view this history, and records older than 90 days are removed automatically.
+
+Changing a password revokes remembered browsers and incomplete authentication challenges. Existing authenticator enrollment and recovery codes remain with the account.
+
 If the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.
 
 The user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.
@@ -81,6 +90,7 @@ The user form stays open if you click outside it. Select **Cancel** or press Esc
 | Symptom | Likely cause | Safe action |
 | --- | --- | --- |
 | Password setup email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before creating or sending another link |
+| Location shows as unavailable | The hosting network did not supply coarse location information | Use the timestamp and IP address when reviewing the event; do not treat location as exact proof |
 | Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |
 | User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |
 | User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |

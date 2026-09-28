@@ -41,6 +41,8 @@ describe('sendPasswordSetupEmail', () => {
       [42],
     ]);
     expect(mocks.execute.mock.calls[1][1][0]).toBe(42);
+    expect(mocks.execute.mock.calls[1][1][1]).toBe('biz-1');
+    expect(mocks.execute.mock.calls[1][1][2]).toMatch(/^[a-f0-9]{64}$/);
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
       from: 'Solvantis <accounts@example.com>',
       to: 'new.user@example.com',
@@ -64,6 +66,8 @@ describe('sendPasswordSetupEmail', () => {
       operation: 'password-setup-email',
       context: expect.objectContaining({ userId: 42, purpose: 'set' }),
     }));
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
+    expect(mocks.execute.mock.calls[2][0]).toContain('UPDATE password_reset_tokens SET used_at');
   });
 
   it('reports missing email configuration', async () => {

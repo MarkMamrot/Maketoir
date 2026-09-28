@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     }
 
     await clearAuthRateLimit('mfa-enroll', subject);
-    const completed = completeAdminLogin({ user, membership, destination: preauth.destination });
+    const completed = await completeAdminLogin({ user, membership, destination: preauth.destination, request: req });
     return NextResponse.json({
       success: true,
       nextRoute: completed.nextRoute,

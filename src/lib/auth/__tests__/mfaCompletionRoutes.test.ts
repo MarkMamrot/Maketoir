@@ -113,6 +113,7 @@ describe('MFA completion routes', () => {
       user: USER,
       membership: MEMBERSHIP,
       destination: 'ims',
+      request: expect.any(Request),
     });
   });
 
@@ -161,6 +162,7 @@ describe('MFA completion routes', () => {
       user: USER,
       membership: MEMBERSHIP,
       destination: 'ims',
+      request: expect.any(Request),
       trustedBrowser,
     });
   });

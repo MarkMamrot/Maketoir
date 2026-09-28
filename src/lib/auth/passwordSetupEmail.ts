@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { execute } from '@/services/MySQLService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -11,6 +11,12 @@ interface SendPasswordSetupEmailInput {
   name?: string | null;
   businessId?: string | null;
   purpose: PasswordSetupPurpose;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[character] as string));
 }
 
 export async function sendPasswordSetupEmail(input: SendPasswordSetupEmailInput): Promise<void> {
@@ -29,6 +35,7 @@ export async function sendPasswordSetupEmail(input: SendPasswordSetupEmailInput)
 
   const email = input.email.toLowerCase().trim();
   const token = randomBytes(32).toString('hex');
+  const tokenHash = createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
   await execute(
@@ -36,8 +43,8 @@ export async function sendPasswordSetupEmail(input: SendPasswordSetupEmailInput)
     [input.userId],
   );
   await execute(
-    'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-    [input.userId, token, expiresAt],
+    'INSERT INTO password_reset_tokens (user_id, business_id, token, expires_at) VALUES (?, ?, ?, ?)',
+    [input.userId, input.businessId ?? null, tokenHash, expiresAt],
   );
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
@@ -58,7 +65,7 @@ export async function sendPasswordSetupEmail(input: SendPasswordSetupEmailInput)
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
           <h2 style="color:#2563eb;margin:0 0 8px;">${action}</h2>
-          <p style="color:#374151;margin:0 0 24px;">Hi${input.name ? ` ${input.name}` : ''}, ${intro}</p>
+          <p style="color:#374151;margin:0 0 24px;">Hi${input.name ? ` ${escapeHtml(input.name)}` : ''}, ${intro}</p>
           <a href="${setupUrl}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;font-weight:700;border-radius:8px;text-decoration:none;">${action}</a>
           <p style="color:#6b7280;font-size:13px;margin:24px 0 0;">This link expires in 1 hour. If you did not expect this email, you can safely ignore it.</p>
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
@@ -68,6 +75,10 @@ export async function sendPasswordSetupEmail(input: SendPasswordSetupEmailInput)
     });
     if (error) throw error;
   } catch (error) {
+    await execute(
+      'UPDATE password_reset_tokens SET used_at = NOW(3) WHERE user_id = ? AND token = ? AND used_at IS NULL',
+      [input.userId, tokenHash],
+    ).catch(() => {});
     await reportRuntimeIssue({
       businessId: input.businessId ?? null,
       source: 'auth',

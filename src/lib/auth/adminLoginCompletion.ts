@@ -6,6 +6,7 @@ import { getLoginDestinationRoute, type LoginDestination } from '@/lib/auth/logi
 import type { BusinessMembership } from '@/lib/auth/businessMemberships';
 import { recordActiveBusiness } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { recordAuthEvent } from '@/lib/auth/authActivity';
 
 export function buildAdminSession(user: UserRow, membership: BusinessMembership) {
   return {
@@ -19,10 +20,11 @@ export function buildAdminSession(user: UserRow, membership: BusinessMembership)
   };
 }
 
-export function completeAdminLogin(input: {
+export async function completeAdminLogin(input: {
   user: UserRow;
   membership: BusinessMembership;
   destination: LoginDestination;
+  request: Request;
   trustedBrowser?: { token: string; expiresAt: Date } | null;
 }) {
   const session = buildAdminSession(input.user, input.membership);
@@ -40,6 +42,12 @@ export function completeAdminLogin(input: {
   if (input.trustedBrowser) {
     setMfaTrustCookie(input.trustedBrowser.token, input.trustedBrowser.expiresAt);
   }
+  await recordAuthEvent({
+    userId: input.user.id,
+    businessId: input.membership.businessId,
+    eventType: 'login_success',
+    request: input.request,
+  });
   refreshVariantCache().catch(err => console.error('Failed background cache refresh on login:', err));
   primeImsDbMap().catch(() => {});
   return { session, nextRoute: getLoginDestinationRoute(input.destination) };

@@ -97,10 +97,11 @@ export async function POST(req: Request) {
       ? await issueTrustedBrowser({ userId: user.id, displayLabel: getBrowserLabel(req) })
       : null;
     await clearAuthRateLimit('mfa-challenge', subject);
-    const completed = completeAdminLogin({
+    const completed = await completeAdminLogin({
       user,
       membership,
       destination: preauth.destination,
+      request: req,
       trustedBrowser,
     });
     return NextResponse.json({ success: true, nextRoute: completed.nextRoute });

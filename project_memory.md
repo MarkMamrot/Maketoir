@@ -1,3 +1,13 @@
+## 2026-09-28 - User authentication activity schema applied
+
+- Applied the main-database password-reset catch-up so new reset tokens retain their originating business, then created `user_auth_events` for Admin-visible successful login and password-reset activity with IP and optional coarse location metadata.
+- Reran both migrations idempotently. Direct migration readback verified `password_reset_tokens.business_id` plus all 11 authentication-event columns and the primary, user-history and retention indexes in `readyedu_Solvantis`.
+
+## 2026-09-28 - Migrated online Xero batch retry repaired
+
+- Fixed login and nightly online auto-sync completion detection so an exact-instance batch is also recognised as complete when its durable batch row links to the same Xero invoice as a successful legacy date-only sync log. The compatibility path requires matching business, date and Xero invoice ID, uses binary comparisons across mixed legacy/exact collations, and cannot suppress an unposted or failed batch.
+- Monsterthreads' 2026-09-18 batch was linked to paid Xero invoice `INV-1519`, but its successful log retained the legacy `online batch 2026-09-18` key after exact-store cutover. Added the missing exact-instance success marker for channel `43e53831-ad2c-4bc7-9bd2-d443974a3b45`, verified it idempotently, and marked the matching Runtime Issue fixed. No Xero invoice, payment, Shopify order, IMS sales order or amount was changed.
+
 ## 2026-09-26 - Per-store Shopify settings migration applied
 
 - Applied the targeted `ims_shopify_sync_log` catch-up to all four registered tenant schemas, adding nullable exact `channel_instance_id` ownership and its `(channel_instance_id, created_at)` index. An immediate rerun added zero columns and zero indexes in every schema.

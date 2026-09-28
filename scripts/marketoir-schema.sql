@@ -531,6 +531,24 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
   INDEX idx_auth_rate_limits_locked (locked_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS user_auth_events (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NULL,
+  user_id       INT NOT NULL,
+  event_type    ENUM('login_success','password_reset_requested','password_reset_completed') NOT NULL,
+  actor_user_id INT NULL,
+  ip_address    VARCHAR(45) NULL,
+  city          VARCHAR(100) NULL,
+  region        VARCHAR(100) NULL,
+  country       CHAR(2) NULL,
+  user_agent    VARCHAR(500) NULL,
+  created_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_user_auth_events_user_created (user_id, created_at),
+  INDEX idx_user_auth_events_retention (created_at),
+  CONSTRAINT fk_user_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_auth_events_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS super_admin_business_context_events (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
   actor_user_id        INT NOT NULL,

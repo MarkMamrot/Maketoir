@@ -132,7 +132,9 @@ export async function POST(req: Request) {
       success: true,
       userId,
       message: setPasswordByEmail
-        ? `User created with ${userTier} tier and a password setup email was sent.`
+        ? existing
+          ? `User enrolled with ${userTier} tier and a password reset email was sent.`
+          : `User created with ${userTier} tier and a password setup email was sent.`
         : `User created with ${userTier} tier.`,
     });
   } catch (err: any) {

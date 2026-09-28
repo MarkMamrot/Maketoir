@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool } from '@/services/MySQLService';
 import bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { recordAuthEvent } from '@/lib/auth/authActivity';
 
 interface ResetTokenRow extends RowDataPacket {
   id: number;
   user_id: number;
+  business_id: string | null;
   expires_at: Date | string;
   used_at: Date | string | null;
 }
@@ -16,6 +19,8 @@ interface ResetTokenRow extends RowDataPacket {
  * Body: { token, password }
  */
 export async function POST(req: Request) {
+  let resetUserId: number | null = null;
+  let resetBusinessId: string | null = null;
   try {
     const { token, password } = await req.json();
 
@@ -28,16 +33,17 @@ export async function POST(req: Request) {
     }
 
     const hash = await bcrypt.hash(password, 12);
+    const tokenHash = createHash('sha256').update(String(token)).digest('hex');
     const connection = await getPool().getConnection();
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute<ResetTokenRow[]>(
-        `SELECT id, user_id, expires_at, used_at
+        `SELECT id, user_id, business_id, expires_at, used_at
            FROM password_reset_tokens
-          WHERE token = ?
+          WHERE token IN (?, ?)
           LIMIT 1
           FOR UPDATE`,
-        [token],
+        [tokenHash, token],
       );
       const row = rows[0];
       if (!row) {
@@ -52,18 +58,18 @@ export async function POST(req: Request) {
         await connection.rollback();
         return NextResponse.json({ success: false, error: 'This reset link has expired. Please request a new one.' }, { status: 400 });
       }
+      resetUserId = row.user_id;
+      resetBusinessId = row.business_id;
 
       const [userResult] = await connection.execute<ResultSetHeader>(
         `UPDATE users
-            SET password_hash = ?, mfa_totp_secret = NULL, mfa_enabled = 0,
-                mfa_enabled_at = NULL, mfa_last_totp_step = NULL
+        SET password_hash = ?
           WHERE id = ? AND deleted_at IS NULL`,
         [hash, row.user_id],
       );
       if (userResult.affectedRows !== 1) {
         throw new Error('Password reset user no longer exists.');
       }
-      await connection.execute('DELETE FROM mfa_recovery_codes WHERE user_id = ?', [row.user_id]);
       await connection.execute(
         'UPDATE mfa_preauth_sessions SET consumed_at = COALESCE(consumed_at, NOW(3)) WHERE user_id = ?',
         [row.user_id],
@@ -82,6 +88,15 @@ export async function POST(req: Request) {
       throw error;
     } finally {
       connection.release();
+    }
+
+    if (resetUserId != null) {
+      await recordAuthEvent({
+        userId: resetUserId,
+        businessId: resetBusinessId,
+        eventType: 'password_reset_completed',
+        request: req,
+      });
     }
 
     return NextResponse.json({ success: true });

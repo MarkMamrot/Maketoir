@@ -26,6 +26,7 @@ import { resolveLoginMembership, recordActiveBusiness } from '@/lib/auth/busines
 import { BusinessApplicationsRepository } from '@/lib/db/BusinessApplicationsRepository';
 import { setPendingApplicantCookie } from '@/lib/auth/pendingApplicantCookies';
 import { query } from '@/services/MySQLService';
+import { recordAuthEvent } from '@/lib/auth/authActivity';
 
 async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: string): Promise<boolean> {
   let hostname = '';
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
       setAdminSessionCookie(userData);
       if (user.tier !== 'SuperAdmin') await recordActiveBusiness(user.id, membership.businessId);
       await clearAuthRateLimit('password-login', rateLimitSubject);
+      await recordAuthEvent({ userId: user.id, businessId: membership.businessId, eventType: 'login_success', request: req });
       refreshVariantCache().catch(err => console.error('Failed background cache refresh on login:', err));
       primeImsDbMap().catch(() => {});
       return NextResponse.json({
@@ -143,6 +145,7 @@ export async function POST(req: Request) {
       if (user.tier !== 'SuperAdmin') await recordActiveBusiness(user.id, membership.businessId);
       setMfaTrustCookie(rotatedTrust.token, rotatedTrust.expiresAt);
       await clearAuthRateLimit('password-login', rateLimitSubject);
+      await recordAuthEvent({ userId: user.id, businessId: membership.businessId, eventType: 'login_success', request: req });
 
       refreshVariantCache().catch(err => console.error('Failed background cache refresh on login:', err));
       primeImsDbMap().catch(() => {});

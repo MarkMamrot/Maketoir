@@ -22643,6 +22643,10 @@ function UsersListView() {
   const [msg, setMsg] = React.useState('');
   const [myTier, setMyTier] = React.useState<string>('');
   const [myEmail, setMyEmail] = React.useState<string>('');
+  const [securityUser, setSecurityUser] = React.useState<any | null>(null);
+  const [authEvents, setAuthEvents] = React.useState<any[]>([]);
+  const [authEventsLoading, setAuthEventsLoading] = React.useState(false);
+  const [resetSending, setResetSending] = React.useState(false);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -22672,6 +22676,38 @@ function UsersListView() {
     const r = await fetch(`/api/admin/users?userId=${id}`, { method: 'DELETE' });
     if (r.ok) { flash('✓ User deleted.'); reload(); }
     else { const e = await r.json(); flash(`Error: ${e.error}`); }
+  };
+
+  const loadAuthActivity = async (user: any) => {
+    setSecurityUser(user);
+    setAuthEvents([]);
+    setAuthEventsLoading(true);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/auth-activity`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to load authentication activity.');
+      setAuthEvents(data.events ?? []);
+    } catch (error: any) {
+      flash(`Error: ${error.message}`);
+    } finally {
+      setAuthEventsLoading(false);
+    }
+  };
+
+  const sendPasswordReset = async () => {
+    if (!securityUser || !window.confirm(`Send a password reset email to ${securityUser.email}?`)) return;
+    setResetSending(true);
+    try {
+      const response = await fetch(`/api/admin/users/${securityUser.id}/auth-activity`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to send password reset email.');
+      flash(`✓ ${data.message}`);
+      await loadAuthActivity(securityUser);
+    } catch (error: any) {
+      flash(`Error: ${error.message}`);
+    } finally {
+      setResetSending(false);
+    }
   };
 
   const createUser = async (e: React.FormEvent) => {
@@ -22722,6 +22758,7 @@ function UsersListView() {
               <td style={{ padding: '10px 12px' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => { setEditingUser(u); setEditForm({ tier: u.tier, username: u.username || '', name: u.name || '', pos_pin: '', clearPin: false }); }} style={{ padding: '4px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-strong)' }}>Edit</button>
+                  <button onClick={() => loadAuthActivity(u)} style={{ padding: '4px 10px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-strong)' }}>Security</button>
                   {u.email !== myEmail && (
                     <button onClick={() => deleteUser(u.id, u.email)} style={{ padding: '4px 10px', background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: '#e05252' }}>Delete</button>
                   )}
@@ -22774,6 +22811,55 @@ function UsersListView() {
               <button onClick={() => setEditingUser(null)} style={{ padding: '8px 16px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--sv-text-dim)' }}>Cancel</button>
               <button onClick={() => saveEdit(editingUser.id)} style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {securityUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setSecurityUser(null)}>
+          <div style={{ background: 'var(--sv-bg-0)', borderRadius: 8, padding: 24, width: 'min(760px, 100%)', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--sv-text-strong)' }}>User Security</h3>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>{securityUser.email}</p>
+              </div>
+              <button onClick={() => setSecurityUser(null)} aria-label="Close user security" title="Close" style={{ width: 30, height: 30, border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', cursor: 'pointer', fontSize: 18 }}>×</button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', padding: '14px 0', borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Password reset</div>
+                <div style={{ marginTop: 3, fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>Sends a one-hour link. Administrators never see or choose the password.</div>
+              </div>
+              <button disabled={resetSending} onClick={sendPasswordReset} style={{ flexShrink: 0, padding: '8px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: resetSending ? 'default' : 'pointer', opacity: resetSending ? .6 : 1, fontSize: 12, fontWeight: 700 }}>{resetSending ? 'Sending…' : 'Send reset email'}</button>
+            </div>
+
+            <h4 style={{ margin: '20px 0 10px', fontSize: 13, color: 'var(--sv-text-strong)' }}>Authentication activity · last 90 days</h4>
+            {authEventsLoading ? (
+              <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</p>
+            ) : authEvents.length === 0 ? (
+              <p style={{ padding: '16px 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>No recorded activity in the last 90 days.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                    {['Date', 'Event', 'IP address', 'Location', 'Browser / initiated by'].map(label => <th key={label} style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 700 }}>{label}</th>)}
+                  </tr></thead>
+                  <tbody>{authEvents.map(event => {
+                    const eventLabel = ({ login_success: 'Successful login', password_reset_requested: 'Reset email sent', password_reset_completed: 'Password changed' } as Record<string, string>)[event.event_type] ?? event.event_type;
+                    const location = [event.city, event.region, event.country].filter(Boolean).join(', ') || 'Not available';
+                    const actor = event.actor_name || event.actor_email;
+                    return <tr key={event.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+                      <td style={{ padding: 8, whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{new Date(event.created_at).toLocaleString()}</td>
+                      <td style={{ padding: 8, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{eventLabel}</td>
+                      <td style={{ padding: 8, color: 'var(--sv-text-dim)', fontFamily: 'monospace' }}>{event.ip_address || 'Not available'}</td>
+                      <td style={{ padding: 8, color: 'var(--sv-text-dim)' }}>{location}</td>
+                      <td style={{ padding: 8, color: 'var(--sv-text-dim)', maxWidth: 220, overflowWrap: 'anywhere' }}>{actor ? `Admin: ${actor}` : (event.user_agent || 'Not available')}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

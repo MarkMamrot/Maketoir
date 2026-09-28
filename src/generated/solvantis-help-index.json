@@ -5421,7 +5421,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Setup > Team",
+      "screen": "Settings > Users",
       "product": "setup",
       "format": "task",
       "parentId": "setup-connections",
@@ -5437,8 +5437,8 @@
         "ims-workspaces"
       ],
       "order": 3,
-      "summary": "Enroll people in one or more businesses with the least access they need and handle sign-in security safely.",
-      "lastReviewed": "2026-08-30",
+      "summary": "Enroll people in one or more businesses, send password reset links, and review recent sign-in security activity.",
+      "lastReviewed": "2026-09-28",
       "owner": "security",
       "quickSections": [
         "Main operations",
@@ -5455,7 +5455,7 @@
         {
           "id": "setup-team-access-security:2",
           "heading": "Main operations",
-          "content": "- Confirm the selected business and email address.\n- Choose the least privileged tier that covers the person's work in this business.\n- Choose **Set by Email** so the person creates their own password, then check the result.\n- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file.",
+          "content": "- Confirm the selected business and email address.\n- Choose the least privileged tier that covers the person's work in this business.\n- Choose **Set by Email** so the person creates their own password, then check the result.\n- Open **Security** beside a user to send a one-hour password reset link or review their last 90 days of authentication activity.\n- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file.",
           "presentation": "quick"
         },
         {
@@ -5485,23 +5485,29 @@
         {
           "id": "setup-team-access-security:7",
           "heading": "Step-by-step",
-          "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. In **Password**, keep **Set by Email** selected. Use **Set Manually** only when an authorised support process specifically requires it.\n6. Select **Create** once.\n7. Read the success or error message before trying again.\n8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.\n9. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.\n\nIf the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.",
+          "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. In **Password**, keep **Set by Email** selected. Use **Set Manually** only when an authorised support process specifically requires it.\n6. Select **Create** once.\n7. Read the success or error message before trying again.\n8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.\n9. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.",
           "presentation": "detail"
         },
         {
           "id": "setup-team-access-security:8",
+          "heading": "Password resets and authentication activity",
+          "content": "Admins and SuperAdmins can open **Settings > Users**, select **Security** beside a user in the active business, and send that person a password reset email. The administrator never chooses or sees the password. Sending a new link invalidates earlier unused links, and each link expires after one hour.\n\nThe Security panel shows successful completed logins, password reset emails sent by an administrator, and completed password changes from the last 90 days. Entries can include the client IP address, browser description, and an approximate city, region, and country when the hosting network supplies that information. Approximate location may be unavailable or inaccurate. Only Admins and SuperAdmins for the active business can view this history, and records older than 90 days are removed automatically.\n\nChanging a password revokes remembered browsers and incomplete authentication challenges. Existing authenticator enrollment and recovery codes remain with the account.\n\nIf the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-team-access-security:9",
           "heading": "Role and security decisions",
           "content": "| Decision | Choose | Reason |\n| --- | --- | --- |\n| Person only needs normal application work | User | Limits team-management access |\n| Person must manage setup and invite others | Admin | Grants full application access and invitation rights |\n| Email address may be wrong | Stop | Confirm it before sending an invitation |\n| Someone asks for a sign-in or recovery code | Do not share | Codes belong only to the account holder |\n| Business export is needed | Use Data Export only when authorised | The downloaded file contains business information even though protected connection details are excluded |",
           "presentation": "detail"
         },
         {
-          "id": "setup-team-access-security:9",
+          "id": "setup-team-access-security:10",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Password setup email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before creating or sending another link |\n| Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |\n| User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |\n| User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |\n| User has different permissions after switching | Their tier differs between businesses | Review the tier assigned in the currently selected business |\n| User loses access to one business | Their enrollment in that business was removed | They can continue using any other business where they remain enrolled |\n| Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |\n| Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |\n| Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |",
+          "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Password setup email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before creating or sending another link |\n| Location shows as unavailable | The hosting network did not supply coarse location information | Use the timestamp and IP address when reviewing the event; do not treat location as exact proof |\n| Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |\n| User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |\n| User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |\n| User has different permissions after switching | Their tier differs between businesses | Review the tier assigned in the currently selected business |\n| User loses access to one business | Their enrollment in that business was removed | They can continue using any other business where they remain enrolled |\n| Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |\n| Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |\n| Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |",
           "presentation": "detail"
         },
         {
-          "id": "setup-team-access-security:10",
+          "id": "setup-team-access-security:11",
           "heading": "Worked examples",
           "content": "### Invite a store coordinator\n\nThe coordinator needs products, reports, and normal workflows but will not manage users. Invite their confirmed work email as **User** and ask them to complete their own sign-in setup.\n\n### Invite an operations administrator\n\nThe operations lead is responsible for connections and team invitations. After confirming that responsibility, invite them as **Admin**. Do not send them another person's password or recovery codes.",
           "presentation": "detail"

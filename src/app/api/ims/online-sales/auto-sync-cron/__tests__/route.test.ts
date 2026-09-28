@@ -157,6 +157,27 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
     expect(mockSyncOnlineDailySalesDay).toHaveBeenCalledWith('biz-1', '2026-07-24', 'store-1');
   });
 
+  it('does not retry a migrated batch linked to its legacy successful invoice', async () => {
+    makeImsQueryForDay();
+    mockQuery.mockImplementation(async (sql: string) => {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+      if (normalized.includes('from businesses where deleted_at is null')) return [{ business_id: 'biz-1' }];
+      if (normalized.includes('from sales_channel_instances')) {
+        return [{ channel_instance_id: 'store-1', provider: 'shopify', settings_json: { shopify: { xero: { dailyAutoSyncEnabled: true } } } }];
+      }
+      if (normalized.includes('from xero_sync_log')) return [];
+      if (normalized.includes('from xero_online_batches')) return [{ batch_key: 'online batch store-1 2026-07-24' }];
+      throw new Error(`Unhandled SQL in query mock: ${sql}`);
+    });
+
+    const res = await POST(cronRequest('cron-secret'));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json).toMatchObject({ ok: true, synced: 0, failed: 0 });
+    expect(mockSyncOnlineDailySalesDay).not.toHaveBeenCalled();
+  });
+
   it('returns a non-200 response when an online batch fails to sync', async () => {
     makeImsQueryForDay();
     mockSyncOnlineDailySalesDay.mockRejectedValue(new Error('Xero unavailable'));
