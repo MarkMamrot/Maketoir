@@ -23,6 +23,31 @@
         "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
       }
     },
+    "contactPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value", "evidence"],
+      "properties": {
+        "type": { "enum": ["email", "phone", "linkedin"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "evidence": { "enum": ["published", "inferred"] },
+        "sourceUrl": { "type": ["string", "null"], "format": "uri", "pattern": "^https?://" },
+        "verificationStatus": { "enum": ["not_checked", "domain_accepts_mail", "domain_no_mail", "provider_valid", "provider_invalid", "provider_unknown"] }
+      }
+    },
+    "person": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["personKey", "fullName", "role", "sourceUrl"],
+      "properties": {
+        "personKey": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "role": { "enum": ["owner", "founder", "director", "manager", "buyer", "other"] },
+        "roleTitle": { "type": ["string", "null"], "maxLength": 255 },
+        "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https?://" },
+        "contacts": { "type": "array", "items": { "$ref": "#/$defs/contactPoint" } }
+      }
+    },
     "candidate": {
       "type": "object",
       "additionalProperties": false,
@@ -52,7 +77,9 @@
         "postcode": { "type": ["string", "null"] },
         "country": { "const": "Australia" },
         "discoveredAt": { "type": "string", "format": "date-time" },
-        "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/source" } }
+        "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/source" } },
+        "people": { "type": "array", "items": { "$ref": "#/$defs/person" } },
+        "businessContacts": { "type": "array", "items": { "$ref": "#/$defs/contactPoint" } }
       }
     }
   }

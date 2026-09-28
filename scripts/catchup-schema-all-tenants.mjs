@@ -263,6 +263,26 @@ const TABLE_DDLS = [
     INDEX idx_crm_lead_discovery_batch (business_id, batch_id, id),
     CONSTRAINT fk_crm_lead_discovery_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_lead_people (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL,
+    idempotency_key CHAR(64) NOT NULL, full_name VARCHAR(255) NOT NULL, role VARCHAR(32) NOT NULL,
+    role_title VARCHAR(255) NULL, source_url TEXT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_crm_lead_person (business_id, idempotency_key),
+    INDEX idx_crm_lead_person_contact (business_id, contact_id, id),
+    CONSTRAINT fk_crm_lead_person_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_lead_contact_points (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL,
+    person_id BIGINT NULL, idempotency_key CHAR(64) NOT NULL, channel_type VARCHAR(16) NOT NULL,
+    channel_value VARCHAR(500) NOT NULL, evidence_status ENUM('published','inferred') NOT NULL,
+    source_url TEXT NULL,
+    verification_status ENUM('not_checked','domain_accepts_mail','domain_no_mail','provider_valid','provider_invalid','provider_unknown') NOT NULL DEFAULT 'not_checked',
+    verified_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_crm_lead_contact_point (business_id, idempotency_key),
+    INDEX idx_crm_lead_contact_point_contact (business_id, contact_id, evidence_status, id),
+    CONSTRAINT fk_crm_lead_contact_point_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_crm_lead_contact_point_person FOREIGN KEY (person_id) REFERENCES ims_crm_lead_people(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', po_id INT NOT NULL,
     payment_date DATE NOT NULL, amount DECIMAL(12,4) NOT NULL, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
@@ -1854,6 +1874,14 @@ async function migrateSchema(schema, businessId) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
   }
+  if (!requestedTable || requestedTable === 'ims_crm_lead_contact_points') {
+    await conn.query(
+      `ALTER TABLE \`${schema}\`.ims_crm_lead_contact_points
+       MODIFY COLUMN verification_status
+       ENUM('not_checked','domain_accepts_mail','domain_no_mail','provider_valid','provider_invalid','provider_unknown')
+       NOT NULL DEFAULT 'not_checked'`,
+    );
+  }
   if (requestedTable) {
     const requestedColumns = COLUMNS.filter(([table]) => table === requestedTable);
     const [columnRows] = await conn.query(
@@ -2122,6 +2150,11 @@ async function migrateSchema(schema, businessId) {
     await ensureColumnCollationMatches(schema, 'ims_crm_contact_merges', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_lead_discoveries', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_lead_discoveries', 'contact_id', 'ims_contacts', 'id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_people', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_people', 'contact_id', 'ims_contacts', 'id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_contact_points', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_contact_points', 'contact_id', 'ims_contacts', 'id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_contact_points', 'person_id', 'ims_crm_lead_people', 'id');
     for (const table of ONLINE_SHOP_TABLES) {
       await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
     }

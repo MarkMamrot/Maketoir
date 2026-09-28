@@ -8,6 +8,7 @@
     "assistant:setup-findings": "node scripts/setup-assistant-findings.mjs",
     "leads:preflight": "tsx scripts/import-solvantis-leads.ts",
     "leads:commit": "tsx scripts/import-solvantis-leads.ts --commit --confirm=IMPORT-SOLVANTIS-LEADS",
+    "leads:check-domains": "tsx scripts/check-lead-email-domains.ts",
     "build": "npm run assistant:index && next build",
     "start": "next start",
     "lint": "next lint",

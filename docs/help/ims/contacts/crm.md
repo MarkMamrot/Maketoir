@@ -40,6 +40,10 @@ A profile combines contact details with supported POS sales, Sales Orders, credi
 
 For researched leads, **Discovery sources** lists the public pages, starting search, discovery date, and confidence retained during import. Finding the same retailer again adds source history without replacing its maintained contact details or qualification.
 
+**Decision-makers and researched contacts** can show publicly identified owners, founders, directors, managers, or buyers. A **Published** contact includes a link to the public source where it appeared. An **Inferred** email is only a possible professional address based on a public name and the business's official website domain; it is not placed in the maintained email field.
+
+Email status distinguishes what was actually checked. **Domain accepts mail** means the domain publishes mail-routing records, not that the individual mailbox exists. Provider valid, invalid, or unknown results come from an approved verification service. Solvantis does not send test messages or probe mail servers to test guessed recipients.
+
 Ask Solvantis can find an active customer by display name, company, or customer code, then check a bounded summary of that customer's sales, orders, credits, store credit, loyalty, and task counts. The live result does not include email, phone, address, free-text interactions, or staff names. Use the customer profile when those maintained details are needed.
 
 The **Contact summary** is a pinned note for important information staff should know about the contact. Use **Edit** to record details such as contact preferences, accessibility requirements, or standing instructions, then select **Save**. Clearing and saving removes the note. Advisor accounts can read the summary but cannot change it.

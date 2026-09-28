@@ -9,6 +9,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_crm_opportunities',
   'ims_crm_contact_merges',
   'ims_crm_lead_discoveries',
+  'ims_crm_lead_people',
+  'ims_crm_lead_contact_points',
   'ims_brands',
   'ims_bulk_product_presets',
   'ims_locations',

@@ -10,6 +10,14 @@ import {
   scoreDuplicateContacts,
   type ContactIdentityInput,
 } from '@/lib/ims/contactDataQuality';
+import {
+  LEAD_CONTACT_EVIDENCE,
+  LEAD_CONTACT_ROLES,
+  LEAD_EMAIL_VERIFICATION,
+  type LeadContactEvidence,
+  type LeadContactRole,
+  type LeadEmailVerification,
+} from '@/lib/ims/leadContactEnrichment';
 import { getIMSPool } from '@/services/IMSMySQLService';
 
 export const SOLVANTIS_LEAD_BUSINESS_ID = 'Solvantis';
@@ -23,6 +31,23 @@ export interface ApprovedLeadSource {
   confidence?: number | null;
 }
 
+export interface ApprovedLeadContactPoint {
+  type: 'email' | 'phone' | 'linkedin';
+  value: string;
+  evidence: LeadContactEvidence;
+  sourceUrl?: string | null;
+  verificationStatus?: LeadEmailVerification;
+}
+
+export interface ApprovedLeadPerson {
+  personKey: string;
+  fullName: string;
+  role: LeadContactRole;
+  roleTitle?: string | null;
+  sourceUrl: string;
+  contacts?: ApprovedLeadContactPoint[];
+}
+
 export interface ApprovedLeadCandidate extends ContactIdentityInput {
   candidateKey: string;
   batchId: string;
@@ -31,6 +56,8 @@ export interface ApprovedLeadCandidate extends ContactIdentityInput {
   country?: string | null;
   discoveredAt: string;
   sources: ApprovedLeadSource[];
+  people?: ApprovedLeadPerson[];
+  businessContacts?: ApprovedLeadContactPoint[];
 }
 
 export interface NormalizedLeadCandidate extends Omit<ApprovedLeadCandidate, 'email' | 'phone' | 'mobile' | 'sources'> {
@@ -41,6 +68,8 @@ export interface NormalizedLeadCandidate extends Omit<ApprovedLeadCandidate, 'em
   website_url: string | null;
   country: 'Australia';
   sources: ApprovedLeadSource[];
+  people: ApprovedLeadPerson[];
+  businessContacts: ApprovedLeadContactPoint[];
 }
 
 interface ExistingContact extends ContactIdentityInput {
@@ -81,6 +110,36 @@ function websiteDomain(value: unknown): string | null {
   return new URL(normalized).hostname.toLowerCase().replace(/^www\./, '');
 }
 
+function normalizeLeadContactPoint(contact: ApprovedLeadContactPoint, officialDomain: string | null): ApprovedLeadContactPoint {
+  if (!['email', 'phone', 'linkedin'].includes(contact.type)) throw new LeadDiscoveryValidationError('Lead contact type is invalid.');
+  if (!LEAD_CONTACT_EVIDENCE.includes(contact.evidence)) throw new LeadDiscoveryValidationError('Contact evidence must be published or inferred.');
+  if (contact.evidence === 'inferred' && contact.type !== 'email') throw new LeadDiscoveryValidationError('Only email addresses may be stored as inferred contacts.');
+  const sourceUrl = contact.sourceUrl == null ? null : normalizePublicUrl(contact.sourceUrl);
+  if (contact.sourceUrl && !sourceUrl) throw new LeadDiscoveryValidationError('Contact source URL must use HTTP or HTTPS.');
+  if (contact.evidence === 'published' && !sourceUrl) throw new LeadDiscoveryValidationError('Published contact details require a source URL.');
+
+  let value: string | null = cleanText(contact.value, 500);
+  if (contact.type === 'email') {
+    value = normalizeEmail(value);
+    if (!value || !isValidEmail(value)) throw new LeadDiscoveryValidationError('Lead email address is invalid.');
+    if (contact.evidence === 'inferred' && (!officialDomain || value.split('@')[1] !== officialDomain)) {
+      throw new LeadDiscoveryValidationError('Inferred email addresses must use the official website domain.');
+    }
+  } else if (contact.type === 'phone') {
+    value = normalizePhone(value);
+    if (!value || !isValidPhone(value)) throw new LeadDiscoveryValidationError('Lead phone number is invalid.');
+  } else {
+    value = normalizePublicUrl(value);
+    if (!value || !new URL(value).hostname.toLowerCase().endsWith('linkedin.com')) {
+      throw new LeadDiscoveryValidationError('LinkedIn contact must use a linkedin.com URL.');
+    }
+  }
+  const verificationStatus = contact.verificationStatus ?? 'not_checked';
+  if (!LEAD_EMAIL_VERIFICATION.includes(verificationStatus)) throw new LeadDiscoveryValidationError('Email verification status is invalid.');
+  if (contact.type !== 'email' && verificationStatus !== 'not_checked') throw new LeadDiscoveryValidationError('Verification status applies only to email addresses.');
+  return { ...contact, value, sourceUrl, verificationStatus };
+}
+
 export function normalizeApprovedLeadCandidate(input: ApprovedLeadCandidate): NormalizedLeadCandidate {
   const name = cleanText(input.name, 255);
   const candidateKey = cleanText(input.candidateKey, 100);
@@ -116,6 +175,18 @@ export function normalizeApprovedLeadCandidate(input: ApprovedLeadCandidate): No
     }
     return { url, kind: source.kind, confidence };
   });
+  const officialDomain = websiteDomain(websiteUrl);
+  const businessContacts = (input.businessContacts ?? []).map(contact => normalizeLeadContactPoint(contact, officialDomain));
+  const people = (input.people ?? []).map(person => {
+    const personKey = cleanText(person.personKey, 100);
+    const fullName = cleanText(person.fullName, 255);
+    const roleTitle = cleanText(person.roleTitle, 255);
+    const sourceUrl = normalizePublicUrl(person.sourceUrl);
+    if (!personKey || !fullName || !sourceUrl) throw new LeadDiscoveryValidationError('Decision-makers require a key, public name, and source URL.');
+    if (!LEAD_CONTACT_ROLES.includes(person.role)) throw new LeadDiscoveryValidationError('Decision-maker role is invalid.');
+    const contacts = (person.contacts ?? []).map(contact => normalizeLeadContactPoint(contact, officialDomain));
+    return { ...person, personKey, fullName, roleTitle, sourceUrl, contacts };
+  });
 
   return {
     ...input,
@@ -137,6 +208,8 @@ export function normalizeApprovedLeadCandidate(input: ApprovedLeadCandidate): No
     country: 'Australia',
     discoveredAt: discoveredAt.toISOString(),
     sources,
+    people,
+    businessContacts,
   };
 }
 
@@ -205,6 +278,48 @@ async function insertEvidence(connection: PoolConnection, contactId: number, can
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [SOLVANTIS_LEAD_BUSINESS_ID, contactId, evidenceKey(candidate, source), candidate.batchId,
         candidate.sourceQuery, source.url, source.kind, candidate.discoveredAt.slice(0, 19).replace('T', ' '), source.confidence ?? null],
+    );
+  }
+  for (const person of candidate.people) {
+    const personKey = createHash('sha256').update([
+      SOLVANTIS_LEAD_BUSINESS_ID, candidate.batchId, candidate.candidateKey, person.personKey,
+    ].join('\n')).digest('hex');
+    const [personResult] = await connection.execute(
+      `INSERT INTO ims_crm_lead_people
+         (business_id, contact_id, idempotency_key, full_name, role, role_title, source_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [SOLVANTIS_LEAD_BUSINESS_ID, contactId, personKey, person.fullName, person.role, person.roleTitle, person.sourceUrl],
+    ) as any;
+    const personId = Number(personResult.insertId);
+    for (const contact of person.contacts ?? []) {
+      const contactKey = createHash('sha256').update([
+        personKey, contact.type, contact.value, contact.evidence,
+      ].join('\n')).digest('hex');
+      await connection.execute(
+        `INSERT IGNORE INTO ims_crm_lead_contact_points
+           (business_id, contact_id, person_id, idempotency_key, channel_type, channel_value,
+            evidence_status, source_url, verification_status, verified_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [SOLVANTIS_LEAD_BUSINESS_ID, contactId, personId, contactKey, contact.type, contact.value,
+          contact.evidence, contact.sourceUrl, contact.verificationStatus,
+          contact.verificationStatus !== 'not_checked' ? new Date() : null],
+      );
+    }
+  }
+  for (const contact of candidate.businessContacts) {
+    const contactKey = createHash('sha256').update([
+      SOLVANTIS_LEAD_BUSINESS_ID, candidate.batchId, candidate.candidateKey,
+      'business', contact.type, contact.value, contact.evidence,
+    ].join('\n')).digest('hex');
+    await connection.execute(
+      `INSERT IGNORE INTO ims_crm_lead_contact_points
+         (business_id, contact_id, person_id, idempotency_key, channel_type, channel_value,
+          evidence_status, source_url, verification_status, verified_at)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+      [SOLVANTIS_LEAD_BUSINESS_ID, contactId, contactKey, contact.type, contact.value,
+        contact.evidence, contact.sourceUrl, contact.verificationStatus,
+        contact.verificationStatus !== 'not_checked' ? new Date() : null],
     );
   }
 }

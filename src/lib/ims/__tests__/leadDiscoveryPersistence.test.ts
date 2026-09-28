@@ -65,4 +65,26 @@ describe('lead discovery persistence', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
   });
+
+  it('stores owner and business email hypotheses only in enrichment tables', async () => {
+    const existing = { id: 42, type: 'lead', name: 'Example Retailer', email: 'sales@example.com' };
+    const connection = connectionWithResults([[], [existing], { affectedRows: 1 }, { insertId: 7 }, { affectedRows: 1 }, { affectedRows: 1 }]);
+    getConnection.mockResolvedValue(connection);
+
+    await importApprovedLeadCandidate({
+      ...candidate,
+      website_url: 'https://example.com',
+      people: [{
+        personKey: 'jane-smith-owner', fullName: 'Jane Smith', role: 'owner', sourceUrl: 'https://example.com/about',
+        contacts: [{ type: 'email', value: 'jane.smith@example.com', evidence: 'inferred' }],
+      }],
+      businessContacts: [{ type: 'email', value: 'info@example.com', evidence: 'inferred' }],
+    });
+
+    const sql = connection.execute.mock.calls.map(call => String(call[0]));
+    expect(sql.some(statement => statement.includes('INSERT INTO ims_crm_lead_people'))).toBe(true);
+    expect(sql.filter(statement => statement.includes('INSERT IGNORE INTO ims_crm_lead_contact_points'))).toHaveLength(2);
+    expect(sql.some(statement => statement.includes('UPDATE ims_contacts'))).toBe(false);
+    expect(sql.some(statement => statement.includes('INSERT INTO ims_contacts'))).toBe(false);
+  });
 });

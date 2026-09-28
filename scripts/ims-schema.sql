@@ -83,6 +83,40 @@ CREATE TABLE IF NOT EXISTS ims_crm_lead_discoveries (
   CONSTRAINT fk_crm_lead_discovery_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_crm_lead_people (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  contact_id INT NOT NULL,
+  idempotency_key CHAR(64) NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  role VARCHAR(32) NOT NULL,
+  role_title VARCHAR(255) DEFAULT NULL,
+  source_url TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_crm_lead_person (business_id, idempotency_key),
+  INDEX idx_crm_lead_person_contact (business_id, contact_id, id),
+  CONSTRAINT fk_crm_lead_person_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_crm_lead_contact_points (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  contact_id INT NOT NULL,
+  person_id BIGINT DEFAULT NULL,
+  idempotency_key CHAR(64) NOT NULL,
+  channel_type VARCHAR(16) NOT NULL,
+  channel_value VARCHAR(500) NOT NULL,
+  evidence_status ENUM('published','inferred') NOT NULL,
+  source_url TEXT DEFAULT NULL,
+  verification_status ENUM('not_checked','domain_accepts_mail','domain_no_mail','provider_valid','provider_invalid','provider_unknown') NOT NULL DEFAULT 'not_checked',
+  verified_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_crm_lead_contact_point (business_id, idempotency_key),
+  INDEX idx_crm_lead_contact_point_contact (business_id, contact_id, evidence_status, id),
+  CONSTRAINT fk_crm_lead_contact_point_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_crm_lead_contact_point_person FOREIGN KEY (person_id) REFERENCES ims_crm_lead_people(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Product brands ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_brands (
   id          INT AUTO_INCREMENT PRIMARY KEY,

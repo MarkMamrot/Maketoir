@@ -37,4 +37,47 @@ describe('lead discovery candidate validation', () => {
     expect(() => normalizeApprovedLeadCandidate({ ...validCandidate, sources: [{ url: 'https://example.com', kind: 'official_website', confidence: 2 }] }))
       .toThrow('between 0 and 1');
   });
+
+  it('keeps inferred owner email separate and tied to the official domain', () => {
+    const normalized = normalizeApprovedLeadCandidate({
+      ...validCandidate,
+      people: [{
+        personKey: 'jane-smith-owner',
+        fullName: 'Jane Smith',
+        role: 'owner',
+        sourceUrl: 'https://example.com/about',
+        contacts: [{ type: 'email', value: 'jane.smith@example.com', evidence: 'inferred' }],
+      }],
+    });
+    expect(normalized.email).toBe('sales@example.com');
+    expect(normalized.people[0].contacts?.[0]).toMatchObject({
+      value: 'jane.smith@example.com',
+      evidence: 'inferred',
+      verificationStatus: 'not_checked',
+    });
+  });
+
+  it('rejects inferred addresses on a domain unrelated to the official website', () => {
+    expect(() => normalizeApprovedLeadCandidate({
+      ...validCandidate,
+      people: [{
+        personKey: 'jane-smith-owner', fullName: 'Jane Smith', role: 'owner',
+        sourceUrl: 'https://example.com/about',
+        contacts: [{ type: 'email', value: 'jane@personal.example', evidence: 'inferred' }],
+      }],
+    })).toThrow('official website domain');
+  });
+
+  it('stores a generic mailbox guess as an unverified business hypothesis', () => {
+    const normalized = normalizeApprovedLeadCandidate({
+      ...validCandidate,
+      businessContacts: [{ type: 'email', value: 'info@example.com', evidence: 'inferred' }],
+    });
+    expect(normalized.businessContacts[0]).toMatchObject({
+      value: 'info@example.com',
+      evidence: 'inferred',
+      verificationStatus: 'not_checked',
+    });
+    expect(normalized.email).toBe('sales@example.com');
+  });
 });

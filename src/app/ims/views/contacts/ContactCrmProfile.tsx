@@ -14,6 +14,8 @@ type ProfileData = {
   summaries: Record<string, any>;
   tags: Array<{ id: number; name: string; color?: string | null }>;
   discoveries: Array<{ batch_id: string; source_query: string; source_url: string; source_kind: string; discovered_at: string; confidence?: number | null }>;
+  leadPeople: Array<{ id: number; full_name: string; role: string; role_title?: string | null; source_url: string }>;
+  leadContactPoints: Array<{ person_id?: number | null; channel_type: string; channel_value: string; evidence_status: 'published' | 'inferred'; source_url?: string | null; verification_status: string; verified_at?: string | null }>;
 };
 
 type TaskRow = {
@@ -328,6 +330,34 @@ export function ContactCrmProfile({
             <span style={{ color: 'var(--sv-text-dim)' }}>{String(item.source_kind).replaceAll('_', ' ')} · {displayDate(item.discovered_at)}{item.confidence != null ? ` · ${Math.round(Number(item.confidence) * 100)}% confidence` : ''}</span>
           </div>)}
         </div>
+      </section>}
+
+      {(profile.leadPeople?.length > 0 || profile.leadContactPoints?.length > 0) && <section aria-labelledby="lead-contacts-heading" style={{ borderBottom: '1px solid var(--sv-etch)', paddingBottom: 16 }}>
+        <h2 id="lead-contacts-heading" style={{ margin: '0 0 9px', fontSize: 14, color: 'var(--sv-text-strong)' }}>Decision-makers and researched contacts</h2>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {profile.leadPeople.map(person => {
+            const contacts = profile.leadContactPoints.filter(item => Number(item.person_id) === Number(person.id));
+            return <div key={person.id} style={{ fontSize: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'baseline' }}>
+                <a href={person.source_url} target="_blank" rel="noreferrer" style={{ color: 'var(--sv-action)', fontWeight: 700 }}>{person.full_name}</a>
+                <span style={{ color: 'var(--sv-text-dim)', textTransform: 'capitalize' }}>{person.role_title || person.role}</span>
+              </div>
+              {contacts.map((item, index) => <div key={`${item.channel_type}-${item.channel_value}-${index}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 4 }}>
+                <span style={{ color: 'var(--sv-text-main)' }}>{item.channel_value}</span>
+                <span style={{ color: item.evidence_status === 'inferred' ? '#b45309' : 'var(--sv-mint)', fontWeight: 700, textTransform: 'capitalize' }}>{item.evidence_status}</span>
+                {item.verification_status !== 'not_checked' && <span style={{ color: 'var(--sv-text-dim)' }}>{String(item.verification_status).replaceAll('_', ' ')}</span>}
+                {item.source_url && <a href={item.source_url} target="_blank" rel="noreferrer" style={{ color: 'var(--sv-action)' }}>Source</a>}
+              </div>)}
+            </div>;
+          })}
+          {profile.leadContactPoints.filter(item => item.person_id == null).map((item, index) => <div key={`business-${item.channel_type}-${item.channel_value}-${index}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 7, fontSize: 12 }}>
+            <span style={{ color: 'var(--sv-text-main)' }}>{item.channel_value}</span>
+            <span style={{ color: item.evidence_status === 'inferred' ? '#b45309' : 'var(--sv-mint)', fontWeight: 700, textTransform: 'capitalize' }}>{item.evidence_status} business contact</span>
+            {item.verification_status !== 'not_checked' && <span style={{ color: 'var(--sv-text-dim)' }}>{String(item.verification_status).replaceAll('_', ' ')}</span>}
+            {item.source_url && <a href={item.source_url} target="_blank" rel="noreferrer" style={{ color: 'var(--sv-action)' }}>Source</a>}
+          </div>)}
+        </div>
+        <p style={{ margin: '9px 0 0', fontSize: 11, color: 'var(--sv-text-dim)' }}>Inferred addresses are unconfirmed hypotheses unless a verification status says otherwise. Domain mail support does not confirm a mailbox exists.</p>
       </section>}
 
       <section aria-labelledby="contact-summary-heading" style={{ border: '1px solid color-mix(in srgb, #d6a928 58%, var(--sv-etch))', borderRadius: 7, background: 'color-mix(in srgb, #f6d96b 18%, var(--sv-bg-1))', padding: '13px 15px', boxShadow: 'inset 4px 0 0 #d6a928' }}>
