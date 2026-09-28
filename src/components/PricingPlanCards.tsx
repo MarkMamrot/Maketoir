@@ -41,6 +41,7 @@ export const pricingPlans: PricingPlan[] = [
     secondaryPrice: '$99/month without Connected Payments',
     pricingNote: 'With eligible Connected Payments volume. Excludes GST.',
     summaryFeatures: [
+      'Annual turnover up to A$600,000',
       '1 location, 1 register and 3 users',
       'POS, inventory, purchasing and CRM',
       'Native online shop included',
@@ -58,6 +59,7 @@ export const pricingPlans: PricingPlan[] = [
     pricingNote: '12-month agreement, billed monthly. Excludes GST.',
     featured: true,
     summaryFeatures: [
+      'Annual turnover up to A$5 million',
       '3 locations, 5 registers and 15 users',
       'Complete operational feature set',
       'Native online shop and wholesale portal',
@@ -74,6 +76,7 @@ export const pricingPlans: PricingPlan[] = [
     priceSuffix: '/month',
     pricingNote: '12-month agreement, billed monthly. Excludes GST.',
     summaryFeatures: [
+      'Annual turnover A$5 million+',
       '10 locations, 20 registers and 50 users',
       'Complete Core operational feature set',
       'Native online shop, wholesale and 3PL',
@@ -109,6 +112,7 @@ export const pricingComparisonSections: ComparisonSection[] = [
   {
     title: 'Plan capacity',
     features: [
+      { label: 'Annual turnover', values: { starter: 'Up to A$600,000', core: 'Up to A$5 million', scale: 'A$5 million+', enterprise: 'Contracted' } },
       { label: 'Retail locations included', values: { starter: '1', core: '3', scale: '10', enterprise: 'Contracted' } },
       { label: 'Registers included', values: { starter: '1', core: '5', scale: '20', enterprise: 'Contracted' } },
       { label: 'Team users included', values: { starter: '3', core: '15', scale: '50', enterprise: 'Contracted' } },

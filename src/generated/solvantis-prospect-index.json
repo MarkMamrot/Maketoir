@@ -646,7 +646,7 @@
     {
       "id": "prospect-pricing-offer",
       "title": "Plans, Pricing and Current Offer",
-      "summary": "Starter is advertised from $59 per month with eligible Connected Payments volume, or $99 per month without Connected Payments. Core is $349 per month, Scale is $749 per month and Enterprise starts from $1,999 per month. Prices are AUD excluding GST. AI Automation is available on every plan and generative or agentic actions use separately purchased credits. The current introductory offer provides Starter for 3 months for a one-time $1 payment, followed by normal Starter pricing unless cancelled.",
+      "summary": "Starter supports annual turnover up to A$600,000 and is advertised from $59 per month with eligible Connected Payments volume, or $99 per month without Connected Payments. Core supports annual turnover up to A$5 million and is $349 per month. Scale is for annual turnover of A$5 million or more and is $749 per month. Enterprise starts from $1,999 per month. Prices exclude GST.",
       "capabilities": [
         "pricing"
       ],
