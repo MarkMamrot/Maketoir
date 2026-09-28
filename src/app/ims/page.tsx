@@ -1864,6 +1864,7 @@ const BLANK_CONTACT = {
   type: 'supplier' as string,
   name: '', first_name: '', last_name: '',
   company: '', customer_code: '', customer_group: '',
+  lead_temperature: 'warm',
   email: '', phone: '', mobile: '',
   address: '', address2: '', suburb: '',
   city: '', state: '', postcode: '', country: 'Australia',
@@ -1878,7 +1879,7 @@ const BLANK_CONTACT = {
   charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '',
 };
 const CONTACT_EXPORT_HEADERS = [
-  'id', 'type', 'name', 'first_name', 'last_name', 'company', 'customer_code', 'customer_group', 'shopify_customer_id',
+  'id', 'type', 'lead_temperature', 'name', 'first_name', 'last_name', 'company', 'customer_code', 'customer_group', 'shopify_customer_id',
   'email', 'phone', 'mobile', 'address', 'address2', 'suburb', 'city', 'state', 'postcode', 'country', 'notes',
   'is_active', 'store_credit', 'on_account_limit', 'date_of_birth', 'gender', 'promo_email', 'promo_sms',
   'price_tier', 'lead_time_days', 'order_frequency_days', 'charges_tax', 'prices_include_tax', 'tax_rate',
@@ -1889,6 +1890,7 @@ type ContactExportHeader = typeof CONTACT_EXPORT_HEADERS[number];
 const CONTACT_FIELD_GUIDE: Array<{ key: ContactExportHeader; label: string; description: string; example: string }> = [
   { key: 'id', label: 'ID', description: 'Leave blank for new rows. When present, the importer updates the matching contact.', example: '1234' },
   { key: 'type', label: 'Type', description: 'Contact role. Use supplier, b2b_customer, retail_customer, lead, or both.', example: 'retail_customer' },
+  { key: 'lead_temperature', label: 'Lead Temperature', description: 'Lead qualification. Use cold, warm, or hot; leave blank for non-leads.', example: 'warm' },
   { key: 'name', label: 'Name', description: 'Display name shown in IMS.', example: 'Jane Smith' },
   { key: 'first_name', label: 'First Name', description: 'First name used for greetings and Shopify sync.', example: 'Jane' },
   { key: 'last_name', label: 'Last Name', description: 'Surname used for greetings and Shopify sync.', example: 'Smith' },
@@ -1973,6 +1975,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   const [crmTagFilter, setCrmTagFilter] = useState('all');
   const [crmFollowUpFilter, setCrmFollowUpFilter] = useState('all');
   const [crmLastTouchFilter, setCrmLastTouchFilter] = useState('all');
+  const [crmLeadTemperatureFilter, setCrmLeadTemperatureFilter] = useState('all');
   const [contactsFiltersOpen, setContactsFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
@@ -2270,7 +2273,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   };
   const filterActive = priceTierFilter !== 'all' || activeFilter !== DEFAULT_STATUS_FILTER || storeCreditFilter !== 'all'
     || promoEmailFilter !== 'all' || promoSmsFilter !== 'all' || (isCrmMode && (crmTagFilter !== 'all'
-    || crmFollowUpFilter !== 'all' || crmLastTouchFilter !== 'all'));
+    || crmFollowUpFilter !== 'all' || crmLastTouchFilter !== 'all' || crmLeadTemperatureFilter !== 'all'));
   const hasTextFilter = filter.trim().length > 0;
   const filtered = contacts.filter(c =>
     (hasTextFilter || typeMatchFn(c)) &&
@@ -2285,6 +2288,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
       || (crmFollowUpFilter === 'open' && Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0)
       || (crmFollowUpFilter === 'overdue' && Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0)
       || (crmFollowUpFilter === 'none' && Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) === 0)) &&
+    (!isCrmMode || crmLeadTemperatureFilter === 'all' || c.lead_temperature === crmLeadTemperatureFilter) &&
     (!isCrmMode || matchesCrmLastTouch(c.id))
   );
   const CONTACTS_PAGE_SIZE = 100;
@@ -2343,6 +2347,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
             setCrmTagFilter('all');
             setCrmFollowUpFilter('all');
             setCrmLastTouchFilter('all');
+            setCrmLeadTemperatureFilter('all');
             setPage(1);
           }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
@@ -2369,6 +2374,15 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                     <option value="open">Has open tasks</option>
                     <option value="overdue">Has overdue tasks</option>
                     <option value="none">No open tasks</option>
+                  </select>
+                </div>}
+                {isCrmMode && <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Lead Qualification</label>
+                  <select value={crmLeadTemperatureFilter} onChange={e => { setCrmLeadTemperatureFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All qualifications</option>
+                    <option value="cold">Cold</option>
+                    <option value="warm">Warm</option>
+                    <option value="hot">Hot</option>
                   </select>
                 </div>}
                 {isCrmMode && <div style={{ marginBottom: 12 }}>
@@ -2449,6 +2463,11 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
             {CONTACT_TYPE_LABEL[c.type] ?? c.type}
           </span>
         );
+        const leadTemperatureBadge = (c: any) => c.type === 'lead' && c.lead_temperature
+          ? <span style={{ display: 'inline-flex', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+            background: c.lead_temperature === 'hot' ? 'rgba(220,38,38,.12)' : c.lead_temperature === 'warm' ? 'rgba(217,119,6,.14)' : 'rgba(37,99,235,.12)',
+            color: c.lead_temperature === 'hot' ? '#dc2626' : c.lead_temperature === 'warm' ? '#b45309' : '#2563eb', textTransform: 'capitalize' }}>{c.lead_temperature}</span>
+          : '—';
         const codeCell = (value: string | number | null | undefined) => (
           <span style={{ display: 'inline-block', minWidth: 108, fontSize: 11, color: 'var(--sv-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{value || '—'}</span>
         );
@@ -2471,12 +2490,12 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                 else visible.forEach(c => next.add(c.id));
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
-              'Name', 'Code', 'Group', 'Type', ...(isCrmMode ? ['Tags', 'Follow-ups', 'Last CRM Touch'] : []), 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
+              'Name', 'Code', 'Group', 'Type', ...(isCrmMode ? ['Qualification', 'Tags', 'Follow-ups', 'Last CRM Touch'] : []), 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
             ]}
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
-            columnWidths={isCrmMode ? [44, 220, 130, 150, 130, 190, 120, 140, 240, 150, 130, 130, 190] : [44, 220, 130, 150, 130, 240, 150, 130, 130, 190]}
+            columnWidths={isCrmMode ? [44, 220, 130, 150, 130, 110, 190, 120, 140, 240, 150, 130, 130, 190] : [44, 220, 130, 150, 130, 240, 150, 130, 130, 190]}
             frozenColumnIndex={1}
             scrollClassName="contacts-table-scroll"
             render={(c) => [
@@ -2485,7 +2504,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
               codeCell(c.customer_code),
               c.customer_group || '—',
               typeBadge(c),
-              ...(isCrmMode ? [(crmWorkspace.contactMeta[c.id]?.tags ?? []).length
+              ...(isCrmMode ? [leadTemperatureBadge(c), (crmWorkspace.contactMeta[c.id]?.tags ?? []).length
                 ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{crmWorkspace.contactMeta[c.id].tags.map(tag => <span key={tag.id} style={{ padding: '2px 5px', borderRadius: 4, background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', color: 'var(--sv-action)', fontSize: 10, fontWeight: 700 }}>{tag.name}</span>)}</div>
                 : '—',
               Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0
@@ -2592,6 +2611,14 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                 </select>
               </Field>
             </Row2>
+
+            {form.type === 'lead' && <Field label="Lead Qualification">
+              <select value={f.lead_temperature ?? 'warm'} onChange={sf('lead_temperature')} style={inputStyle}>
+                <option value="cold">Cold</option>
+                <option value="warm">Warm</option>
+                <option value="hot">Hot</option>
+              </select>
+            </Field>}
 
             <Row2>
               <Field label="First Name"><input value={f.first_name ?? ''} onChange={setContactIdentityField('first_name')} style={inputStyle} /></Field>

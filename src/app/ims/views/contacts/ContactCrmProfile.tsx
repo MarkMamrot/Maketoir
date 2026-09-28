@@ -13,6 +13,7 @@ type ProfileData = {
   contact: Record<string, any>;
   summaries: Record<string, any>;
   tags: Array<{ id: number; name: string; color?: string | null }>;
+  discoveries: Array<{ batch_id: string; source_query: string; source_url: string; source_kind: string; discovered_at: string; confidence?: number | null }>;
 };
 
 type TaskRow = {
@@ -292,6 +293,7 @@ export function ContactCrmProfile({
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <h1 style={{ margin: 0, fontSize: 23, color: 'var(--sv-text-strong)' }}>{contact.name}</h1>
             <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 7px', borderRadius: 4, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{String(contact.type).replaceAll('_', ' ')}</span>
+            {contact.type === 'lead' && contact.lead_temperature && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 7px', borderRadius: 4, background: 'var(--sv-bg-2)', color: 'var(--sv-action)', textTransform: 'capitalize' }}>{contact.lead_temperature}</span>}
             {!contact.is_active && <span style={{ fontSize: 11, color: 'var(--sv-red)', fontWeight: 700 }}>Inactive</span>}
           </div>
           {contact.company && <div style={{ marginTop: 3, fontSize: 13, color: 'var(--sv-text-dim)' }}>{contact.company}</div>}
@@ -317,6 +319,16 @@ export function ContactCrmProfile({
           )}
         </div>
       </header>
+
+      {profile.discoveries?.length > 0 && <section aria-labelledby="lead-sources-heading" style={{ borderBottom: '1px solid var(--sv-etch)', paddingBottom: 16 }}>
+        <h2 id="lead-sources-heading" style={{ margin: '0 0 9px', fontSize: 14, color: 'var(--sv-text-strong)' }}>Discovery sources</h2>
+        <div style={{ display: 'grid', gap: 7 }}>
+          {profile.discoveries.map((item, index) => <div key={`${item.batch_id}-${item.source_url}-${index}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'baseline', fontSize: 12 }}>
+            <a href={item.source_url} target="_blank" rel="noreferrer" style={{ color: 'var(--sv-action)', overflowWrap: 'anywhere' }}>{item.source_query}</a>
+            <span style={{ color: 'var(--sv-text-dim)' }}>{String(item.source_kind).replaceAll('_', ' ')} · {displayDate(item.discovered_at)}{item.confidence != null ? ` · ${Math.round(Number(item.confidence) * 100)}% confidence` : ''}</span>
+          </div>)}
+        </div>
+      </section>}
 
       <section aria-labelledby="contact-summary-heading" style={{ border: '1px solid color-mix(in srgb, #d6a928 58%, var(--sv-etch))', borderRadius: 7, background: 'color-mix(in srgb, #f6d96b 18%, var(--sv-bg-1))', padding: '13px 15px', boxShadow: 'inset 4px 0 0 #d6a928' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>

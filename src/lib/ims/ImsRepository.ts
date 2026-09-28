@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { calculateSupplierCreditTotals } from './supplierCreditTotals';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { resolveLeadTemperature, type LeadTemperature } from '@/lib/ims/leadQualification';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { applyNativeRefundLedgers } from '@/lib/onlineShop/onlineShopRefunds';
@@ -103,6 +104,7 @@ export interface ImsContact {
   name: string; first_name?: string; last_name?: string;
   company?: string; customer_code?: string; customer_group?: string;
   shopify_customer_id?: string | null;
+  lead_temperature?: LeadTemperature | null;
   email?: string; phone?: string; mobile?: string;
   address?: string; address2?: string; suburb?: string;
   city?: string; state?: string; postcode?: string; country?: string;
@@ -504,20 +506,22 @@ export const ImsContactsRepo = {
   },
 
   async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
-     const loyaltyMember = ['retail_customer', 'b2b_customer', 'both'].includes(data.type) && Number(data.loyalty_member) === 1 ? 1 : 0;
+    const loyaltyMember = ['retail_customer', 'b2b_customer', 'both'].includes(data.type) && Number(data.loyalty_member) === 1 ? 1 : 0;
+    const leadTemperature = resolveLeadTemperature(data.type, data.lead_temperature);
     const res = await imsExecute(
       `INSERT INTO ims_contacts
          (business_id,type,name,first_name,last_name,company,customer_code,customer_group,
-         shopify_customer_id,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
+         shopify_customer_id,lead_temperature,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
           store_credit,on_account_limit,date_of_birth,gender,promo_email,promo_sms,
          loyalty_member,loyalty_member_enrolled_at,loyalty_member_opted_out_at,
            cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,wholesale_allowed_brands_json,charges_tax,prices_include_tax,tax_rate,website_url,
            customer_early_payment_discount_rule_id,supplier_early_payment_discount_rule_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.type, data.name,
        data.first_name ?? null, data.last_name ?? null,
        data.company ?? null, data.customer_code ?? null, data.customer_group ?? null,
        data.shopify_customer_id ?? null,
+      leadTemperature,
        data.email ?? null, data.phone ?? null, data.mobile ?? null,
        data.address ?? null, data.address2 ?? null, data.suburb ?? null,
        data.city ?? null, data.state ?? null, data.postcode ?? null, data.country ?? null,
@@ -545,7 +549,7 @@ export const ImsContactsRepo = {
     return newId;
   },
 
-  async update(id: number, data: Partial<ImsContact>): Promise<void> {
+  async update(id: number, data: Partial<ImsContact>, businessId?: string): Promise<void> {
     const fields = [
       'type','name','first_name','last_name','company','customer_code','customer_group','shopify_customer_id',
       'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
@@ -562,10 +566,21 @@ export const ImsContactsRepo = {
       }
     }
 
+    if (data.type !== undefined || data.lead_temperature !== undefined) {
+      const existingRows = await imsQuery<Pick<ImsContact, 'type' | 'lead_temperature'>>(
+        `SELECT type, lead_temperature FROM ims_contacts WHERE id = ?${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
+        businessId ? [id, businessId] : [id],
+      );
+      const existing = existingRows[0];
+      if (!existing) return;
+      sets.push('lead_temperature = ?');
+      vals.push(resolveLeadTemperature(data.type ?? existing.type, data.lead_temperature ?? existing.lead_temperature));
+    }
+
     if (data.loyalty_member !== undefined || data.type !== undefined) {
       const existingRows = await imsQuery<Pick<ImsContact, 'type' | 'loyalty_member'>>(
-        'SELECT type, loyalty_member FROM ims_contacts WHERE id = ? LIMIT 1',
-        [id],
+        `SELECT type, loyalty_member FROM ims_contacts WHERE id = ?${businessId ? ' AND business_id = ?' : ''} LIMIT 1`,
+        businessId ? [id, businessId] : [id],
       );
       const existing = existingRows[0];
       if (!existing) return;
@@ -585,7 +600,8 @@ export const ImsContactsRepo = {
     }
     if (!sets.length) return;
     vals.push(id);
-    await imsExecute(`UPDATE ims_contacts SET ${sets.join(', ')} WHERE id = ?`, vals);
+    if (businessId) vals.push(businessId);
+    await imsExecute(`UPDATE ims_contacts SET ${sets.join(', ')} WHERE id = ?${businessId ? ' AND business_id = ?' : ''}`, vals);
   },
 
   async adjustStoreCredit(

@@ -53,7 +53,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
       body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);
     }
-    await ImsContactsRepo.update(Number(params.id), body);
+    await ImsContactsRepo.update(Number(params.id), body, businessId);
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
     const shopifySync = updated ? await syncRetailCustomerToMappedShopifyInstances(updated, businessId) : null;
     if (updated) {

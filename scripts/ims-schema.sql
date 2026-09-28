@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   customer_code VARCHAR(100) DEFAULT NULL,
   customer_group VARCHAR(100) DEFAULT NULL,
   shopify_customer_id VARCHAR(100) DEFAULT NULL,
+  lead_temperature ENUM('cold','warm','hot') DEFAULT NULL,
   -- Contact
   email       VARCHAR(255),
   phone       VARCHAR(50),
@@ -62,6 +63,24 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_business_id (business_id),
   UNIQUE KEY idx_shopify_customer_id (business_id, shopify_customer_id),
   INDEX idx_customer_code (business_id, customer_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_crm_lead_discoveries (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  contact_id INT NOT NULL,
+  idempotency_key CHAR(64) NOT NULL,
+  batch_id VARCHAR(100) NOT NULL,
+  source_query VARCHAR(255) NOT NULL,
+  source_url TEXT NOT NULL,
+  source_kind VARCHAR(32) NOT NULL,
+  discovered_at DATETIME NOT NULL,
+  confidence DECIMAL(4,3) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_crm_lead_discovery (business_id, idempotency_key),
+  INDEX idx_crm_lead_discovery_contact (business_id, contact_id, discovered_at, id),
+  INDEX idx_crm_lead_discovery_batch (business_id, batch_id, id),
+  CONSTRAINT fk_crm_lead_discovery_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Product brands ─────────────────────────────────────────

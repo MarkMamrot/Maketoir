@@ -6,6 +6,8 @@
     "dev": "next dev",
     "assistant:index": "node scripts/build-solvantis-assistant-index.mjs",
     "assistant:setup-findings": "node scripts/setup-assistant-findings.mjs",
+    "leads:preflight": "tsx scripts/import-solvantis-leads.ts",
+    "leads:commit": "tsx scripts/import-solvantis-leads.ts --commit --confirm=IMPORT-SOLVANTIS-LEADS",
     "build": "npm run assistant:index && next build",
     "start": "next start",
     "lint": "next lint",

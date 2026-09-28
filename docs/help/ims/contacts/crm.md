@@ -1,5 +1,5 @@
 ---
-{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-09-09","owner":"customer","quickSections":["Main operations","Choose the right contact area"]}
+{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-09-28","owner":"customer","quickSections":["Main operations","Choose the right contact area"]}
 ---
 # Contacts and CRM
 
@@ -16,6 +16,7 @@ The Contacts search checks names, companies, customer codes, and email addresses
 - Keep important information in the **Contact summary** pinned at the top of each CRM profile.
 - Open a customer profile to review activity and follow its source links.
 - Use CRM tasks, segments, and pipeline for follow-up and sales development.
+- Qualify leads as **Cold**, **Warm**, or **Hot**, and use the CRM qualification filter to focus follow-up.
 
 ## Choose the right contact area
 
@@ -29,11 +30,15 @@ The Contacts search checks names, companies, customer codes, and email addresses
 
 When adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. After saving a lead or retail customer, Contacts switches to that contact type so the new record is visible. The form closes without saving only when you choose **Cancel** or press Escape.
 
+New leads entered by staff start **Warm**. Leads found through the Solvantis lead-finding workflow start **Cold**. Change qualification manually as the relationship develops: Cold for an uncontacted prospect, Warm for an engaged or known prospect, and Hot for an active near-term opportunity. Qualification is separate from Pipeline stage and clears when the contact is converted from a lead.
+
 Create early-payment rules under **Settings > Payment Discounts** before assigning them to contacts. For a B2B customer, choose a **Customer early-payment default** when new Sales Orders should normally offer that rule. For a supplier, choose a **Supplier early-payment default** for new Purchase Orders. A contact of type **Both** can hold each default independently. The default is copied to a new order when it is saved; changing the contact later does not rewrite existing orders.
 
 ## Customer profiles
 
 A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.
+
+For researched leads, **Discovery sources** lists the public pages, starting search, discovery date, and confidence retained during import. Finding the same retailer again adds source history without replacing its maintained contact details or qualification.
 
 Ask Solvantis can find an active customer by display name, company, or customer code, then check a bounded summary of that customer's sales, orders, credits, store credit, loyalty, and task counts. The live result does not include email, phone, address, free-text interactions, or staff names. Use the customer profile when those maintained details are needed.
 

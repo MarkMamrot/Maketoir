@@ -38,6 +38,7 @@ async function ensureMigration() {
     ['wholesale_allowed_brands_json', 'JSON DEFAULT NULL'],
     ['customer_early_payment_discount_rule_id', 'INT DEFAULT NULL'],
     ['supplier_early_payment_discount_rule_id', 'INT DEFAULT NULL'],
+    ['lead_temperature', "ENUM('cold','warm','hot') DEFAULT NULL"],
   ];
   const existingCols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_contacts').catch(() => [] as { Field: string }[]);
   const colSet = new Set(existingCols.map((c: { Field: string }) => c.Field));

@@ -253,6 +253,16 @@ const TABLE_DDLS = [
     INDEX idx_crm_contact_merge_source (business_id, source_contact_id, merged_at),
     INDEX idx_crm_contact_merge_target (business_id, target_contact_id, merged_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_lead_discoveries (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL,
+    idempotency_key CHAR(64) NOT NULL, batch_id VARCHAR(100) NOT NULL, source_query VARCHAR(255) NOT NULL,
+    source_url TEXT NOT NULL, source_kind VARCHAR(32) NOT NULL, discovered_at DATETIME NOT NULL,
+    confidence DECIMAL(4,3) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_crm_lead_discovery (business_id, idempotency_key),
+    INDEX idx_crm_lead_discovery_contact (business_id, contact_id, discovered_at, id),
+    INDEX idx_crm_lead_discovery_batch (business_id, batch_id, id),
+    CONSTRAINT fk_crm_lead_discovery_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', po_id INT NOT NULL,
     payment_date DATE NOT NULL, amount DECIMAL(12,4) NOT NULL, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
@@ -1225,6 +1235,7 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_contacts', 'lead_temperature', "ENUM('cold','warm','hot') NULL AFTER shopify_customer_id"],
   ['ims_shopify_sync_log', 'channel_instance_id', 'VARCHAR(36) NULL AFTER business_id'],
   ['ims_sales_channel_product_mappings', 'external_inventory_id', 'VARCHAR(191) NULL AFTER external_variant_id'],
   ['ims_stock_movements', 'cost_method_snapshot', "ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost' AFTER unit_cost"],
@@ -1956,6 +1967,17 @@ async function migrateSchema(schema, businessId) {
     }
   }
 
+  try {
+    await conn.query(
+      `UPDATE \`${schema}\`.ims_contacts
+          SET lead_temperature = CASE WHEN type = 'lead' THEN 'warm' ELSE NULL END
+        WHERE (type = 'lead' AND lead_temperature IS NULL)
+           OR (type <> 'lead' AND lead_temperature IS NOT NULL)`,
+    );
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_contacts lead temperature backfill: ${e.message}`);
+  }
+
   if (businessId) {
     try {
       await conn.query(
@@ -2098,6 +2120,8 @@ async function migrateSchema(schema, businessId) {
     await ensureColumnCollationMatches(schema, 'ims_crm_pipeline_stages', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_opportunities', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_contact_merges', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_discoveries', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_lead_discoveries', 'contact_id', 'ims_contacts', 'id');
     for (const table of ONLINE_SHOP_TABLES) {
       await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
     }

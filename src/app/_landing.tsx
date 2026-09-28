@@ -625,31 +625,31 @@ export default function Landing() {
       <section className="bg-slate-50 py-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center mb-12">
-            <Eyebrow>Customer Stories</Eyebrow>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tight">Retailers love Solvantis</h2>
+            <Eyebrow>Retail Outcomes</Eyebrow>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight">Built for multi-store retail teams</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
                 quote: 'We replaced 4 different systems with Solvantis and our team was fully up to speed in a day. The POS is incredibly fast — our customers actually notice the difference.',
-                name: 'Sarah Mitchell',
-                role: 'Owner, Threads & Co.',
-                initials: 'SM',
+                title: 'One connected retail operation',
+                detail: 'POS, inventory and customer data working together',
+                icon: '01',
               },
               {
                 quote: 'The multi-branch stock visibility alone saved us thousands in overstock. The analytics dashboard is something our previous system couldn\'t come close to delivering.',
-                name: 'James Park',
-                role: 'Operations Manager, Pacific Electronics',
-                initials: 'JP',
+                title: 'Clear multi-branch stock control',
+                detail: 'Shared stock visibility across every location',
+                icon: '02',
               },
               {
                 quote: 'The AI product builder cut our new product launch time from hours to minutes. We now publish directly to Shopify with descriptions and images — completely ready to go.',
-                name: 'Priya Nair',
-                role: 'Director, Bloom Cosmetics',
-                initials: 'PN',
+                title: 'Faster product launches',
+                detail: 'AI-assisted content ready for connected channels',
+                icon: '03',
               },
             ].map((t) => (
-              <div key={t.name} className="bg-white rounded-2xl border border-slate-200 p-7 shadow-sm">
+              <div key={t.title} className="bg-white rounded-2xl border border-slate-200 p-7 shadow-sm">
                 <div className="flex gap-0.5 mb-5">
                   {[...Array(5)].map((_, i) => (
                     <svg key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" viewBox="0 0 20 20">
@@ -660,11 +660,11 @@ export default function Landing() {
                 <p className="text-slate-700 text-sm leading-relaxed mb-5 italic">"{t.quote}"</p>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {t.initials}
+                    {t.icon}
                   </div>
                   <div>
-                    <p className="text-slate-900 text-sm font-semibold">{t.name}</p>
-                    <p className="text-slate-400 text-xs">{t.role}</p>
+                    <p className="text-slate-900 text-sm font-semibold">{t.title}</p>
+                    <p className="text-slate-400 text-xs">{t.detail}</p>
                   </div>
                 </div>
               </div>
@@ -682,7 +682,7 @@ export default function Landing() {
             Ready to transform your retail operations?
           </h2>
           <p className="text-blue-100 text-lg mb-10 leading-relaxed">
-            Join some of Australia's top retailers already using Solvantis. Get a personalised demo from our retail experts.
+            See how Solvantis can support your stores, channels and team. Get a personalised demo from our retail experts.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <button

@@ -78,7 +78,7 @@ async function requireContact(businessId: string, contactId: number) {
 export async function getContactCrmProfile(businessId: string, contactId: number) {
   const contact = await requireContact(businessId, contactId);
   const includeRetailData = isRetailCrmType(contact.type);
-  const [posSummary, orderSummary, creditSummary, loyalty, tags, taskSummary] = await Promise.all([
+  const [posSummary, orderSummary, creditSummary, loyalty, tags, taskSummary, discoveries] = await Promise.all([
     includeRetailData ? imsQuery<any>(
       `SELECT COUNT(*) AS transaction_count,
               COALESCE(SUM(CASE WHEN ps.sale_type = 'return' THEN -ABS(ps.total) ELSE ps.total END), 0) AS net_total,
@@ -114,6 +114,14 @@ export async function getContactCrmProfile(businessId: string, contactId: number
          FROM ims_crm_tasks WHERE business_id = ? AND contact_id = ?`,
       [businessId, contactId],
     ),
+    imsQuery<any>(
+      `SELECT batch_id, source_query, source_url, source_kind, discovered_at, confidence
+         FROM ims_crm_lead_discoveries
+        WHERE business_id = ? AND contact_id = ?
+        ORDER BY discovered_at DESC, id DESC
+        LIMIT 100`,
+      [businessId, contactId],
+    ),
   ]);
 
   return {
@@ -127,6 +135,7 @@ export async function getContactCrmProfile(businessId: string, contactId: number
       tasks: taskSummary[0] ?? { open_count: 0, overdue_count: 0 },
     },
     tags,
+    discoveries,
   };
 }
 
