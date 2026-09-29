@@ -1,3 +1,10 @@
+## 2026-09-29 - On-hold orders integrated into SO/PO workflows
+
+- Customer and supplier backorders remain normal Sales Orders and Purchase Orders with internal status `backordered`, now presented consistently as **On hold**. Normal SO/PO filters expose them, status badges use the central lifecycle label, and actions say **Release from hold**.
+- Dedicated Customer/Supplier Backorders navigation entries were removed. Legacy hashes redirect to the corresponding SO/PO list with the On hold filter applied; the old view and API remain temporarily available as a compatibility/rollback path.
+- Resolve Outstanding now describes creating a separate on-hold order for the remainder, shows the live outstanding quantity, and names the final action. Canonical Help and generated Help/Assistant indexes use the same model.
+- Added pure `orderTransfers/domain.ts` foundations for decimal-safe Outstanding, Unavailable now, Ready now, Allocated incoming, and Unallocated shortage rules plus complete source/destination exclusion reasons. These are preview contracts only; transactional item movement, movement history, guided UI, and Ship together remain follow-up phases.
+
 ## 2026-09-29 - Sales-order confirmation stock sourcing review
 
 - Draft manual Sales Orders now run a stock-sourcing review when recorded available stock cannot cover one or more stock-item lines. The review separates ordered quantity, available-now stock, incoming shortage, already protected incoming stock, and the quantity that will remain unsourced; non-stock and native online orders remain outside this workflow.

@@ -129,7 +129,6 @@ const NAV = [
   ]},
   { id: '__sales',         label: 'Sales',            section: 'sales', children: [
     { id: 'sales-orders',     label: 'Sales Orders' },
-    { id: 'customer-backorders', label: 'Customer Backorders' },
     { id: 'stock-availability', label: 'Stock Allocation' },
     { id: 'credit-notes',     label: 'Customer Credit Notes' },
     { id: 'pos-sales',            label: 'POS Sales' },
@@ -138,7 +137,6 @@ const NAV = [
   { id: '__purchasing',    label: 'Purchasing',       section: 'purchasing', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'order-planner',    label: 'Order Planner' },
-    { id: 'supplier-backorders', label: 'Supplier Backorders' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
   ]},
   { id: '__contacts',      label: 'Contacts',         section: 'contacts', children: [
@@ -9595,7 +9593,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   useTableArrowScroll(poBodyScrollRef);
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+    return params.get('status') === 'backordered' ? 'backordered' : '';
+  });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null; editOnly?: boolean }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const poCurrency = String(viewModal.po?.currency_code || 'AUD').toUpperCase();
@@ -10081,7 +10083,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               };
             }), targetStatus);
           if (receivePlan.createBackorderPo && !confirm(
-            `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} are short. Complete this PO and create a held backorder for the outstanding quantities?`,
+            `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} are short. Complete this PO and create an on-hold order for the outstanding quantities?`,
           )) {
             return;
           }
@@ -10298,7 +10300,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       if (fullyReceived) actions.push({ label: 'Mark Complete', value: 'complete' });
     }
     if (!isAdvisor && po.status === 'backordered') {
-      actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
+      actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && po.status === 'complete') {
       actions.push({ label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Supplier Return / Credit', value: 'supplier-return' });
@@ -10423,12 +10425,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
                     <option value="partially_received">In Progress</option>
+                    <option value="backordered">On hold</option>
                     <option value="complete">Complete</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
-                  <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilter ? statusFilter.replace(/_/g, ' ') : 'All'}</strong></div>
+                  <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilter ? getOrderStatusLabel('purchase_order', statusFilter as any) : 'All'}</strong></div>
                   <div>Product / SKU: <strong style={{ color: 'var(--sv-text-main)' }}>{filterProduct.trim() || 'All'}</strong></div>
                   <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
                 </div>
@@ -11422,7 +11425,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
     }
   }
   if (!isAdvisor && po.status === 'backordered') {
-    btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release</button>);
+    btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release from hold</button>);
     btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && po.status === 'complete') {
@@ -14218,7 +14221,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+    return params.get('status') === 'backordered' ? 'backordered' : '';
+  });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string>(() => {
     if (typeof window === 'undefined') return 'b2b';
@@ -14936,6 +14943,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     draft: 'Draft',
     confirmed: 'Confirmed',
     partially_fulfilled: 'In Progress',
+    backordered: 'On hold',
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
@@ -14959,7 +14967,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       }
     }
     if (!isAdvisor && so.status === 'backordered') {
-      actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
+      actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && so.status === 'fulfilled') {
       actions.push({ label: 'Edit Notes', value: 'edit' }, { label: 'Return / Credit', value: 'return' });
@@ -15149,6 +15157,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
                     <option value="partially_fulfilled">In Progress</option>
+                    <option value="backordered">On hold</option>
                     <option value="fulfilled">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -16080,7 +16089,7 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
     }
   }
   if (!isAdvisor && so.status === 'backordered') {
-    btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release</button>);
+    btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release from hold</button>);
     btns.push(<button key="cancel" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && so.status === 'fulfilled') {
@@ -23213,6 +23222,14 @@ export default function ImsPage() {
   useEffect(() => {
     const readHash = () => {
       const h = window.location.hash.replace(/^#/, '');
+      if (h === 'backorders' || h === 'customer-backorders') {
+        window.history.replaceState(window.history.state, '', '#sales-orders?status=backordered');
+        return 'sales-orders' as ImsView;
+      }
+      if (h === 'supplier-backorders') {
+        window.history.replaceState(window.history.state, '', '#purchase-orders?status=backordered');
+        return 'purchase-orders' as ImsView;
+      }
       if (h === 'settings-shopify') {
         window.history.replaceState(window.history.state, '', '#sales-channels');
         return 'sales-channels' as ImsView;
@@ -23264,7 +23281,8 @@ export default function ImsPage() {
         }
       }
       if (h === 'report-sales-by-branch') return 'report-sales-detail' as ImsView;
-      return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
+      const hashView = h.split('?')[0];
+      return VALID_VIEWS.has(hashView) ? hashView as ImsView : 'dashboard';
     };
     const initial = readHash();
     if (initial !== 'dashboard' || window.location.hash) setViewSafe(initial);
@@ -23284,7 +23302,8 @@ export default function ImsPage() {
   useEffect(() => {
     if (!hasRestoredInitialHash) return;
     const current = window.location.hash.replace(/^#/, '');
-    if (!current.startsWith(`${view}/`)) {
+    const currentView = current.split(/[/?]/)[0];
+    if (currentView !== view) {
       window.history.pushState(window.history.state, '', `#${view}`);
     }
   }, [hasRestoredInitialHash, view]);

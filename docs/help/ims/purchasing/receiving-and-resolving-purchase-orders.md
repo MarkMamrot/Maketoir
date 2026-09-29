@@ -10,7 +10,7 @@ Use this guide to record a full or partial delivery once, then make a clear deci
 - Receive the cumulative quantity physically delivered for each line.
 - Leave a partial PO open when the supplier will deliver soon.
 - Cancel an outstanding remainder when it will not arrive.
-- Move a remainder to a held backorder when it should be kept as separate future purchasing work.
+- Move a remainder to a separate on-hold order when it should be kept as future purchasing work.
 - Use Undo Receipt only when the recorded delivery never happened.
 
 ## At a glance
@@ -20,7 +20,7 @@ Use this guide to record a full or partial delivery once, then make a clear deci
 | Everything arrived | Receive all and complete | All entered units are added once |
 | Some arrived; balance is coming soon | Receive actual units and leave partial | Actual units added; balance remains outstanding |
 | Supplier cancelled the balance | Resolve Outstanding > Cancel outstanding remainder | Earlier receipt stays; balance closes |
-| Balance should become a future PO | Resolve Outstanding > Create held backorder | Earlier receipt stays; balance moves without a receipt |
+| Balance should become a future PO | Resolve Outstanding > Create an on-hold order for the remainder | Earlier receipt stays; balance moves without a receipt |
 | Receipt was entered but no goods arrived | Undo Receipt, if checks allow | Exact recorded receipt is removed |
 | A non-stock expense line is complete | Receive the supplied quantity | PO progress updates; stock and inventory value do not change |
 
@@ -48,7 +48,7 @@ Supplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax
 	When continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.
    Use **Edit Details** instead when no new delivery is being recorded. It can increase outstanding quantities, add products, and amend wholly unreceived lines while preserving every quantity and cost already received.
 6. For a short delivery, save the actual receipt and keep the PO Partially Received unless the balance is being resolved now.
-7. To finish with a shortfall during receipt, choose the completion option that creates a held backorder only after reviewing the confirmation.
+7. To finish with a shortfall during receipt, choose the completion option that creates an on-hold order only after reviewing the confirmation.
 8. Enter the supplier invoice number before marking the PO Complete.
 9. Reopen the PO and confirm received, outstanding, stock and Xero status separately.
 
@@ -58,9 +58,9 @@ Supplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax
 |---|---|---|
 | Leave partially open | The supplier expects to deliver soon | Stays on the original PO |
 | Cancel outstanding remainder | The supplier will not deliver it | Original PO closes at the quantity actually received |
-| Create held backorder | The balance should remain as separate future work | Moves to a held child PO; release it when ready |
+| Create an on-hold order for the remainder | The balance should remain as separate future work | Moves to a separate PO; release it from hold when ready |
 
-The earlier receipt is not repeated by any resolution choice. A held backorder starts inactive and does not add another stock movement.
+The earlier receipt is not repeated by any resolution choice. An on-hold PO starts inactive and does not add another stock movement. Find it with the **On hold** status filter in Purchase Orders.
 
 ## Status flow
 
@@ -70,8 +70,8 @@ The earlier receipt is not repeated by any resolution choice. A held backorder s
 | Partially Received | Continue Receiving final units | Complete |
 | Partially Received | Leave partially open | Partially Received |
 | Partially Received | Cancel remainder | Complete at actual received quantity |
-| Partially Received | Create held backorder | Source resolved; child Backordered |
-| Backordered child | Release | Confirmed |
+| Partially Received | Create an on-hold order for the remainder | Source resolved; new order On hold |
+| On hold order | Release from hold | Confirmed |
 
 ## Troubleshooting
 
@@ -92,7 +92,7 @@ A PO orders 10 kettles at $40 each before GST. Six arrive Monday. Staff enter 6 
 
 ### Move a cancelled shipment to a held order
 
-A supplier delivers 18 of 24 towels but cannot send the final 6 until next season. Staff receive 18, choose Resolve Outstanding, and create a held backorder for 6. The 18-unit receipt remains unchanged. The held PO can be released later and does not add stock until those 6 are actually received.
+A supplier delivers 18 of 24 towels but cannot send the final 6 until next season. Staff receive 18, choose Resolve Outstanding, and create an on-hold order for 6. The 18-unit receipt remains unchanged. The on-hold PO can be released later and does not add stock until those 6 are actually received.
 
 ### Receive a non-stock supplier expense
 

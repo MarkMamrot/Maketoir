@@ -53,6 +53,7 @@ export function assertAllowedSOStatusTransition(from: SOStatus, to: SOStatus): v
 }
 
 export function getOrderStatusLabel(kind: OrderKind, status: OrderStatus): string {
+  if (status === 'backordered') return 'On hold';
   if ((kind === 'purchase_order' && status === 'complete') ||
       (kind === 'sales_order' && status === 'fulfilled')) {
     return 'Completed';

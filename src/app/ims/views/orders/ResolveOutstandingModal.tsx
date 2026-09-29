@@ -15,8 +15,8 @@ const outcomeText: { value: Outcome; label: string; help: string }[] = [
   },
   {
     value: "create_backorder",
-    label: "Create held backorder",
-    help: "Move only the outstanding quantity to a clean held child order without another stock movement.",
+    label: "Create an on-hold order for the remainder",
+    help: "Move only the outstanding quantity to a separate order without repeating a shipment or receipt.",
   },
 ];
 const settlementLabels: Record<string, string> = {
@@ -24,7 +24,7 @@ const settlementLabels: Record<string, string> = {
   refund: "Refund customer",
   supplier_refund: "Supplier refunded us",
   leave_unapplied: "Leave credit unapplied",
-  reserve_for_backorder: "Reserve for child backorder",
+  reserve_for_backorder: "Reserve for the new on-hold order",
   reserve_for_new_po: "Reserve for child purchase order",
 };
 export function ResolveOutstandingModal({
@@ -108,6 +108,10 @@ export function ResolveOutstandingModal({
     kind === "supplier" && preview?.accounting?.kind === "create_credit_note";
   const needsBank = settlement === "refund" || settlement === "supplier_refund";
   const blocked = preview?.accounting?.kind === "blocked";
+  const outstandingQuantity = (preview?.lines ?? []).reduce(
+    (total: number, line: any) => total + Number(line.outstandingQuantity ?? 0),
+    0,
+  );
   return (
     <div
       style={{
@@ -264,6 +268,19 @@ export function ResolveOutstandingModal({
                   <span>{money(l.totalAmount)}</span>
                 </div>
               ))}
+              {outcome === "create_backorder" && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    paddingTop: 10,
+                    borderTop: "1px solid var(--sv-border,#364152)",
+                    fontSize: 12,
+                    color: "var(--sv-text-dim,#aab4c2)",
+                  }}
+                >
+                  This order keeps the quantities already {kind === "customer" ? "shipped" : "received"}. A new on-hold order will contain {outstandingQuantity} outstanding unit{outstandingQuantity === 1 ? "" : "s"}.
+                </div>
+              )}
             </div>
             {blocked ? (
               <div style={{ marginTop: 12, color: "#fca5a5" }}>
@@ -391,7 +408,11 @@ export function ResolveOutstandingModal({
               fontWeight: 800,
             }}
           >
-            {saving ? "Resolving…" : "Confirm resolution"}
+            {saving
+              ? "Resolving…"
+              : outcome === "create_backorder"
+                ? "Create on-hold order"
+                : "Confirm resolution"}
           </button>
         </div>
       </div>

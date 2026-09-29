@@ -28,7 +28,7 @@ Use the supplier or order-number search and date-range picker for quick filterin
 
 Use **Presets** to return to a named combination of Purchase Order filters, date range, and sort order. The bookmark button saves the current workspace or deletes the selected preset. Presets belong to the signed-in user and are available when that user opens the business on another device.
 
-Ask Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.
+Ask Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or On hold orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.
 
 An order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.
 
@@ -76,7 +76,7 @@ When a payment requested for Xero is not confirmed there, the PO keeps a visible
 | Draft | The order is being prepared | Edit, confirm or delete |
 | Confirmed | The supplier order is active and quantity is incoming | Receive, edit, revert to Draft or cancel where offered |
 | Partially Received | Some goods arrived and some remain outstanding | Continue Receiving or Resolve Outstanding |
-| Backordered | Outstanding quantity was moved to a held child order | Release when it should become active, or cancel |
+| On hold | Outstanding quantity was moved to a separate Purchase Order and intentionally paused | Release from hold when it should become active, or cancel |
 | Complete | Receiving is finished | Review, return goods, correct a mistaken receipt or create a replacement draft |
 | Cancelled | The order is closed without further receiving | Review or create a replacement draft |
 
