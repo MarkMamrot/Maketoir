@@ -70,6 +70,7 @@ export class ShippingBatchSubmissionError extends Error {
 export async function submitShippingDraftsAndCreateLabels(input: {
   businessId: string;
   shipmentIds: number[];
+  includeAusPostBranding?: boolean;
 }): Promise<ShippingSubmissionResult[]> {
   const shipmentIds = [...new Set(input.shipmentIds.map(Number))];
   if (
@@ -93,7 +94,7 @@ export async function submitShippingDraftsAndCreateLabels(input: {
       : [],
   );
   const labels = shipments.length
-    ? await ensureBatchLabels(input.businessId, shipments)
+    ? await ensureBatchLabels(input.businessId, shipments, input.includeAusPostBranding !== false)
     : new Map<number, { requestId: string; status: string; url?: string }>();
   const results = await Promise.all(
     shipments.map(async (shipment) => {
@@ -267,6 +268,7 @@ async function submitOneShipment(
 async function ensureBatchLabels(
   businessId: string,
   shipments: ShipmentRow[],
+  includeAusPostBranding: boolean,
 ): Promise<Map<number, { requestId: string; status: string; url?: string }>> {
   const accountIds = new Set(
     shipments.map((shipment) => Number(shipment.carrier_account_id)),
@@ -383,7 +385,7 @@ async function ensureBatchLabels(
             groups: [
               {
                 ...batch.preference,
-                branded: true,
+                branded: includeAusPostBranding,
                 left_offset: 0,
                 top_offset: 0,
               },

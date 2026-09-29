@@ -1387,7 +1387,7 @@
       },
       "order": 53,
       "summary": "Connect an Australia Post eParcel account and optionally define reusable package presets.",
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "owner": "sales",
       "quickSections": [
         "Main operations",
@@ -1896,7 +1896,7 @@
       },
       "order": 10,
       "summary": "Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "owner": "retail",
       "quickSections": [
         "Main operations",
@@ -11668,7 +11668,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "Use Shipping Settings to connect an Australia Post eParcel account and optionally define reusable boxes, satchels, pallets or custom packages. Staff can also enter actual parcel measurements directly while preparing Sales Orders.",
       "sectionId": "ims-shipping-settings:1"
     },
@@ -11687,7 +11687,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "- Add or update an Australia Post eParcel account.\n- Test saved credentials against the Australia Post production Shipping API.\n- Keep MyPost Business unavailable until approved partner access is supported.\n- Add package presets with internal dimensions, tare weight and an optional maximum weight.\n- Add selected Australia Post reference packaging to the editable preset list.\n- Create one manifest for each carrier account and physical pickup location, then print its lodgement summary.",
       "sectionId": "ims-shipping-settings:2"
     },
@@ -11706,7 +11706,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "| Setting | Purpose | Practical rule |\n|---|---|---|\n| Dispatch location | Supplies the sender address used for carrier prices and shipments | Keep its street, suburb or city, state and postcode complete |\n| Package dimensions | Determines whether a product can fit | Enter internal length, width and height in millimetres |\n| Tare weight | Adds the empty package weight | Enter kilograms |\n| Maximum weight | Prevents an overweight suggestion | Leave blank only when the package has no configured limit |",
       "sectionId": "ims-shipping-settings:3"
     },
@@ -11725,7 +11725,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "- [ ] Obtain an eParcel account number, API key and API password from Australia Post.\n- [ ] Complete the dispatch location address.\n- [ ] Measure the packages used by the dispatch team.\n\n> **Important:** Carrier credentials are not shown again after saving. Each field shows one masking dot per stored character. Leave those dots unchanged to keep the saved value, or type a replacement.",
       "sectionId": "ims-shipping-settings:4"
     },
@@ -11744,8 +11744,8 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
-      "content": "1. Open **Settings > Shipping**.\n2. Choose **Australia Post eParcel** and enter a recognisable account name.\n3. Enter the production account number, API key, API password, and dispatch location. Solvantis uses Australia Post's production Shipping API address automatically.\n4. Select **Add account** or **Update account**.\n5. Select **Test connection** beside the saved account. The status indicator changes to **Connected** after a successful test, or **Connection failed** when the carrier rejects the connection. Review the reported error before using the account for shipment preparation.\n6. Under Package presets, enter a name, package type, internal length, width and height in millimetres, and tare weight in kilograms.\n7. To start from carrier packaging, select **Australia Post presets**, choose the required satchels, envelopes or boxes, and select **Add selected**. Existing names are skipped rather than overwritten.\n8. Review imported dimensions and enter a measured tare weight where needed. Carrier packaging and service limits can change.\n9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.\n10. Save the preset. It becomes available when preparing selected Sales Orders.\n\n> **Note:** Preparing a shipment saves the selected service, price and parcels locally. The separate confirmed **Submit to Australia Post & create labels** action creates the billable carrier shipment. Neither action reduces stock; use Sales Order fulfilment when goods physically leave.\n\nClose the shipping dialog at any time and use **Shipping Workspace** in Sales Orders to reopen saved work. Local drafts that have not been submitted to the carrier can be selected and deleted, making their Sales Orders available to prepare again. Carrier-submitted shipments cannot be deleted there because postage may already have been charged. Once labelled parcels physically leave, **Mark dispatched** applies the parcel quantities to Sales Order fulfillment and sends tracking to the connected channel. Channel retries do not repeat stock movement or postage.\n\nBefore the carrier pickup, open the **Manifests** tab. Solvantis groups dispatched shipments by carrier account and dispatch location. Choose the shipments in that pickup, then use **Create booking & manifest**. Australia Post requires one Order per pickup and a signed Order Summary when the parcels are lodged. Print the summary immediately or use manifest history when another copy is needed. A completed manifest cannot accept more shipments.\n\n> **Warning:** An unknown manifest outcome may already represent a carrier booking. Check the carrier portal and use **Reconcile** with the confirmed order ID instead of creating another booking.\n\nPackage presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions and final packed weight. Australia Post prices use the current parcel details and the saved account's contract rates. Selected shipments are grouped by label family. Generated PDF labels use four labels per A4 page for Parcel Post, three per A4 page for Express Post, and one customs label per A4 page for International. Each family is returned as a separate PDF. Manifest submission remains a separate later operation.",
+      "lastReviewed": "2026-09-29",
+      "content": "1. Open **Settings > Shipping**.\n2. Choose **Australia Post eParcel** and enter a recognisable account name.\n3. Enter the production account number, API key, API password, and dispatch location. Solvantis uses Australia Post's production Shipping API address automatically.\n4. Select **Add account** or **Update account**.\n5. Select **Test connection** beside the saved account. The status indicator changes to **Connected** after a successful test, or **Connection failed** when the carrier rejects the connection. Review the reported error before using the account for shipment preparation.\n6. Under Package presets, enter a name, package type, internal length, width and height in millimetres, and tare weight in kilograms.\n7. To start from carrier packaging, select **Australia Post presets**, choose the required satchels, envelopes or boxes, and select **Add selected**. Existing names are skipped rather than overwritten.\n8. Review imported dimensions and enter a measured tare weight where needed. Carrier packaging and service limits can change.\n9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.\n10. Save the preset. It becomes available when preparing selected Sales Orders.\n\n> **Note:** Preparing a shipment saves the selected service, price and parcels locally. The separate confirmed **Submit to Australia Post & create labels** action creates the billable carrier shipment. Neither action reduces stock; use Sales Order fulfilment when goods physically leave.\n\nClose the shipping dialog at any time and use **Shipping Workspace** in Sales Orders to reopen saved work. Local drafts that have not been submitted to the carrier can be selected and deleted, making their Sales Orders available to prepare again. Carrier-submitted shipments cannot be deleted there because postage may already have been charged. Once labelled parcels physically leave, **Mark dispatched** applies the parcel quantities to Sales Order fulfillment and sends tracking to the connected channel. Channel retries do not repeat stock movement or postage.\n\nBefore the carrier pickup, open the **Manifests** tab. Solvantis groups dispatched shipments by carrier account and dispatch location. Choose the shipments in that pickup, then use **Create booking & manifest**. Australia Post requires one Order per pickup and a signed Order Summary when the parcels are lodged. Print the summary immediately or use manifest history when another copy is needed. A completed manifest cannot accept more shipments.\n\n> **Warning:** An unknown manifest outcome may already represent a carrier booking. Check the carrier portal and use **Reconcile** with the confirmed order ID instead of creating another booking.\n\nPackage presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions in centimetres and final packed weight in kilograms. Australia Post prices use the current parcel details and the saved account's contract rates. Before creating labels, leave **Print Australia Post header and footer** selected for plain paper, or clear it when the Australia Post label stock already includes that branding. This choice changes only the carrier header and footer; recipient, barcode and shipment fields retain their carrier-defined positions. Selected shipments are grouped by label family. Generated PDF labels use four labels per A4 page for Parcel Post, three per A4 page for Express Post, and one customs label per A4 page for International. Each family is returned as a separate PDF. Manifest submission remains a separate later operation.",
       "sectionId": "ims-shipping-settings:5"
     },
     {
@@ -11763,7 +11763,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Credentials are unavailable | The account was saved without both credential values | Edit it, enter both values, and save again |\n| Connection verification fails | The production credentials or account number do not match | Check the Australia Post details and retry once |\n| Shipping says the dispatch address is incomplete | The selected location is missing one or more sender fields | Follow **Update location** from Ship Orders and complete every field named there |\n| MyPost Business cannot be enabled | Approved ecommerce-partner API access is not available | Use eParcel or leave the MyPost record inactive |\n| A preset is not offered | It is inactive or cannot contain the item | Reactivate it or add a suitable larger package |\n| An Australia Post preset is marked Added | A tenant preset already uses that name | Edit the existing preset; importing will not overwrite it |",
       "sectionId": "ims-shipping-settings:6"
     },
@@ -11782,7 +11782,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "### Create a package preset\n\nA carton has internal dimensions of 300 × 200 × 100 mm, weighs 0.2 kg empty, and can carry 2 kg. Add those measurements to a Box preset. A 0.8 kg product measuring 100 × 100 × 100 mm can be suggested for this carton, while the tare weight is included in the parcel's suggested shipping weight.",
       "sectionId": "ims-shipping-settings:7"
     },
@@ -11801,7 +11801,7 @@
         "settings-shipping"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-11",
+      "lastReviewed": "2026-09-29",
       "content": "A carton has internal dimensions of 300 × 200 × 100 mm, weighs 0.2 kg empty, and can carry 2 kg. Add those measurements to a Box preset. A 0.8 kg product measuring 100 × 100 × 100 mm can be suggested for this carton, while the tare weight is included in the parcel's suggested shipping weight.",
       "sectionId": "ims-shipping-settings:7"
     },
@@ -14623,7 +14623,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "Use this guide to build and complete an ordinary sale, including verified split payments and protected follow-up actions.",
       "sectionId": "pos-selling-payments-manager-approval:1"
     },
@@ -14644,7 +14644,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Find, create, or reactivate and link a retail customer when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt.",
       "sectionId": "pos-selling-payments-manager-approval:2"
     },
@@ -14665,8 +14665,8 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed tracked-product sale reduces stock at the active POS location; untracked products sell without a quantity check or stock movement |\n| Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |\n| Product results | The image, price, and **i** action stay top-aligned while optional product details use the remaining space |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the circled **T** for Team Chat and the available branch and Warehouse avatars; select the **T** for the shared conversation, or an avatar to send that location a direct message; the whole tray can be minimized to a badge icon |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |\n\nPaste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-message box before sending. A message can include up to three attachments of 10 MB each.",
+      "lastReviewed": "2026-09-29",
+      "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed tracked-product sale reduces stock at the active POS location; untracked products sell without a quantity check or stock movement |\n| Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |\n| Product results | The image, price, and **i** action stay top-aligned while optional product details use the remaining space |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents; tendered cash and change are shown on the printed receipt |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the circled **T** for Team Chat and the available branch and Warehouse avatars; select the **T** for the shared conversation, or an avatar to send that location a direct message; the whole tray can be minimized to a badge icon |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |\n\nPaste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-message box before sending. A message can include up to three attachments of 10 MB each.",
       "sectionId": "pos-selling-payments-manager-approval:3"
     },
     {
@@ -14686,7 +14686,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "- [ ] Confirm the header shows the correct location and register.\n- [ ] Confirm the register is open.\n- [ ] Check the online and queue indicators.\n- [ ] Identify the exact size, colour, or other variant before adding it.\n- [ ] Link the customer before selecting store credit or loyalty.\n\n> **Note:** There is no documented discount percentage that automatically triggers manager approval. Apply the business's discount policy, and use the manager PIN whenever POS explicitly asks for it.",
       "sectionId": "pos-selling-payments-manager-approval:4"
     },
@@ -14707,8 +14707,8 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.\n2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.\n3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.\n4. Add the correct variant and set the quantity.\n5. Apply any permitted line discount, price change, or order discount before payment.\n6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.\n7. If the customer does not exist, choose **New**. Enter their first name and at least an email address or phone number; last name is optional. Tick the loyalty option only after the customer agrees to join under the displayed terms, then choose **Create & link**. Loyalty enrolment is separate from marketing consent.\n8. Check the tax-inclusive total and the **GST (incl.)** amount.\n9. Choose **Charge** and choose a payment method.\n10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.\n\nWhen **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.\n\nProducts with **Tracks Inventory** off can be sold in any whole quantity at any POS location. They do not reduce on-hand stock, create a stock warning, or use incoming transfer quantities.\n\nWhen the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.",
+      "lastReviewed": "2026-09-29",
+      "content": "1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.\n2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.\n3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.\n4. Add the correct variant and set the quantity.\n5. Apply any permitted line discount, price change, or order discount before payment.\n6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.\n7. If the customer does not exist, choose **New**. Enter their first name and at least an email address or phone number; last name is optional. Tick the loyalty option only after the customer agrees to join under the displayed terms, then choose **Create & link**. Loyalty enrolment is separate from marketing consent.\n8. Check the tax-inclusive total and the **GST (incl.)** amount.\n9. Choose **Charge** and choose a payment method.\n10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.\n\nThe printed receipt uses the footer saved for the active POS location, falling back to the business footer when the location has no override. A temporary settings-load failure keeps the last valid footer rather than replacing it with blank text.\n\nWhen **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.\n\nProducts with **Tracks Inventory** off can be sold in any whole quantity at any POS location. They do not reduce on-hand stock, create a stock warning, or use incoming transfer quantities.\n\nWhen the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.",
       "sectionId": "pos-selling-payments-manager-approval:5"
     },
     {
@@ -14728,7 +14728,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "1. With products in the cart, choose **Park current sale**.\n2. Enter a useful label, such as the customer's name, or accept the time-based label.\n3. Open **Parked Sales** from the POS menu.\n4. Choose the saved cart to retrieve it. Retrieval removes that entry from Parked Sales.\n5. Recheck the cart, customer, price, stock, and payment before charging.\n\nParked carts are stored on that browser. They are not completed sales and do not reduce stock until checkout finishes.",
       "sectionId": "pos-selling-payments-manager-approval:6"
     },
@@ -14749,7 +14749,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "| Action | Manager PIN behaviour |\n|---|---|\n| Edit a transaction from the current open register session | Required |\n| Delete or void a transaction from the current open register session | Required |\n| Send a branch transfer when POS transfer access is set to Manager | Required |\n| Reactivate an inactive customer from customer search | Not required |\n| Ordinary cart discount or price edit | Follow local policy; POS does not document a universal approval threshold |\n| Change POS appearance or terminal settings | Available only to POS Manager, Standard User, Admin, or SuperAdmin roles |\n\n> **Warning:** A manager should enter their own location manager PIN at the prompt. Do not disclose it to the cashier or leave it written at the till.",
       "sectionId": "pos-selling-payments-manager-approval:7"
     },
@@ -14770,7 +14770,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| Customer search has no matches | No active retail or business customer matches the entered name, email, or phone | Check the details, choose **Show** for inactive matches, or choose **New** to create and link a customer |\n| New customer cannot be created | The email or phone already belongs to an active or inactive customer, required details are missing, or the connection is offline | Search for the existing customer, enter a first name plus email or phone, and retry while online |\n| Customer search is unavailable | POS could not reach the customer search service | Check the connection and retry; if it continues, ask an administrator to review Runtime Issues |\n| Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |\n| Sale says incoming transfer stock was used | Recorded stock was insufficient but a matching transfer is still awaiting receipt | Complete the matching transfer receipt and verify the location quantity; do not create another stock adjustment |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |",
       "sectionId": "pos-selling-payments-manager-approval:8"
     },
@@ -14791,7 +14791,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "### Split a $149.95 sale between gift card and card\n\nVerify the customer's gift card and add $50.00 as the first payment. **Remaining** becomes $99.95. Choose Card and add $99.95. POS completes the sale only after the two payment lines total $149.95, and the receipt records both tenders.\n\n### Read GST correctly\n\nA jacket is displayed at $110.00. That price already includes $10.00 GST. The customer pays $110.00, not $121.00.",
       "sectionId": "pos-selling-payments-manager-approval:9"
     },
@@ -14812,7 +14812,7 @@
         "parked"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "Verify the customer's gift card and add $50.00 as the first payment. **Remaining** becomes $99.95. Choose Card and add $99.95. POS completes the sale only after the two payment lines total $149.95, and the receipt records both tenders.",
       "sectionId": "pos-selling-payments-manager-approval:9"
     },
@@ -14833,7 +14833,7 @@
         "parked"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "A jacket is displayed at $110.00. That price already includes $10.00 GST. The customer pays $110.00, not $121.00.",
       "sectionId": "pos-selling-payments-manager-approval:9"
     },
@@ -14854,7 +14854,7 @@
         "parked"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-29",
       "content": "See **Customers at POS**, **Loyalty Rewards at POS**, **Gift Cards at POS**, and **Store Credit at POS** for customer-value procedures. See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures.",
       "sectionId": "pos-selling-payments-manager-approval:10"
     },

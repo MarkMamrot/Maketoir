@@ -91,6 +91,7 @@ export interface CompletedSale {
   tax_total:     number;
   total:         number;
   cash_rounding?: number;
+  change_due?:   number;
   customer_name?: string | null;
   customer_phone?: string | null;
   notes?: string | null;

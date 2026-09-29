@@ -54,6 +54,23 @@ describe("POST shipping submit", () => {
     const response = await POST(request({ shipmentIds: [48], acknowledgeStockShortfall: true }));
 
     expect(response.status).toBe(200);
-    expect(mockSubmit).toHaveBeenCalledWith({ businessId: "biz-1", shipmentIds: [48] });
+    expect(mockSubmit).toHaveBeenCalledWith({
+      businessId: "biz-1",
+      shipmentIds: [48],
+      includeAusPostBranding: true,
+    });
+  });
+
+  it("passes an explicit unbranded-label choice to Australia Post submission", async () => {
+    mockReadiness.mockResolvedValue({ ready: true, lines: [] });
+
+    const response = await POST(request({ shipmentIds: [48], includeAusPostBranding: false }));
+
+    expect(response.status).toBe(200);
+    expect(mockSubmit).toHaveBeenCalledWith({
+      businessId: "biz-1",
+      shipmentIds: [48],
+      includeAusPostBranding: false,
+    });
   });
 });

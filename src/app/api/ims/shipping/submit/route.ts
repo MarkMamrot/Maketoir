@@ -22,7 +22,11 @@ export async function POST(request: Request) {
         stockReadiness,
       }, { status: 409 });
     }
-    const data = await submitShippingDraftsAndCreateLabels({ businessId: session.businessId, shipmentIds });
+    const data = await submitShippingDraftsAndCreateLabels({
+      businessId: session.businessId,
+      shipmentIds,
+      includeAusPostBranding: body?.includeAusPostBranding !== false,
+    });
     return NextResponse.json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to submit shipments to Australia Post.';

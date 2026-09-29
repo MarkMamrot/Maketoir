@@ -24,6 +24,10 @@ import {
   isAustralianShippingCountry,
 } from "@/lib/ims/shipping/shippingWorkflow";
 import {
+  centimetreInputToMillimetres,
+  millimetresToCentimetreInput,
+} from "@/lib/ims/shipping/parcelDimensions";
+import {
   buildNonSaleDeclaredValueInputs,
   buildWorkspaceCustomsRows,
   getWorkspaceCustomsBlockers,
@@ -92,9 +96,9 @@ type ParcelAllocation = { soItemId: number; quantity: number };
 type EditableParcel = {
   packagePresetId: string;
   packageType: string;
-  lengthMm: string;
-  widthMm: string;
-  heightMm: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
   weightKg: string;
   allocations: ParcelAllocation[];
 };
@@ -228,6 +232,7 @@ export function ShipOrdersWorkspace({
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [includeAusPostBranding, setIncludeAusPostBranding] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMessage, setDispatchMessage] = useState("");
@@ -424,9 +429,9 @@ export function ShipOrdersWorkspace({
           ? Number(parcel.packagePresetId)
           : null,
         packageType: parcel.packageType || "custom",
-        lengthMm: Number(parcel.lengthMm),
-        widthMm: Number(parcel.widthMm),
-        heightMm: Number(parcel.heightMm),
+        lengthMm: centimetreInputToMillimetres(parcel.lengthCm),
+        widthMm: centimetreInputToMillimetres(parcel.widthCm),
+        heightMm: centimetreInputToMillimetres(parcel.heightCm),
         weightKg: Number(parcel.weightKg),
         allocations: parcel.allocations.filter(
           (allocation) => allocation.quantity > 0,
@@ -497,9 +502,9 @@ export function ShipOrdersWorkspace({
         ? {
             packagePresetId: presetId,
             packageType: preset.packageType,
-            lengthMm: String(preset.lengthMm),
-            widthMm: String(preset.widthMm),
-            heightMm: String(preset.heightMm),
+            lengthCm: millimetresToCentimetreInput(preset.lengthMm),
+            widthCm: millimetresToCentimetreInput(preset.widthMm),
+            heightCm: millimetresToCentimetreInput(preset.heightMm),
           }
         : { packagePresetId: "", packageType: "custom" },
     );
@@ -531,9 +536,9 @@ export function ShipOrdersWorkspace({
         {
           packagePresetId: "",
           packageType: "custom",
-          lengthMm: "",
-          widthMm: "",
-          heightMm: "",
+          lengthCm: "",
+          widthCm: "",
+          heightCm: "",
           weightKg: "",
           allocations: remainingAllocations(order, 0),
         },
@@ -654,6 +659,7 @@ export function ShipOrdersWorkspace({
         body: JSON.stringify({
           shipmentIds: created.map((item) => item.shipmentId),
           acknowledgeStockShortfall: stockShortfallAcknowledged,
+          includeAusPostBranding,
         }),
       });
       const result = await readJsonResponse(response);
@@ -1614,29 +1620,32 @@ export function ShipOrdersWorkspace({
                                     </select>
                                   </label>
                                   <ParcelNumberField
-                                    label="Length (mm)"
-                                    value={parcel.lengthMm}
+                                    label="Length (cm)"
+                                    value={parcel.lengthCm}
+                                    step="0.1"
                                     onChange={(value) =>
                                       updateParcel(order.id, parcelIndex, {
-                                        lengthMm: value,
+                                        lengthCm: value,
                                       })
                                     }
                                   />
                                   <ParcelNumberField
-                                    label="Width (mm)"
-                                    value={parcel.widthMm}
+                                    label="Width (cm)"
+                                    value={parcel.widthCm}
+                                    step="0.1"
                                     onChange={(value) =>
                                       updateParcel(order.id, parcelIndex, {
-                                        widthMm: value,
+                                        widthCm: value,
                                       })
                                     }
                                   />
                                   <ParcelNumberField
-                                    label="Height (mm)"
-                                    value={parcel.heightMm}
+                                    label="Height (cm)"
+                                    value={parcel.heightCm}
+                                    step="0.1"
                                     onChange={(value) =>
                                       updateParcel(order.id, parcelIndex, {
-                                        heightMm: value,
+                                        heightCm: value,
                                       })
                                     }
                                   />
@@ -2243,23 +2252,35 @@ export function ShipOrdersWorkspace({
                     </button>
                   )}
                   {created.length > 0 && needsCarrierAction && (
-                    <button
-                      type="button"
-                      disabled={submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
-                      onClick={submitToCarrier}
-                      style={{
-                        ...primaryButtonStyle,
-                        opacity: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? 0.55 : 1,
-                        cursor: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      <Send size={15} />
-                      {submitting
-                        ? "Submitting..."
-                        : labelsPending
-                          ? "Check label status"
-                          : "Submit to Australia Post & create labels"}
-                    </button>
+                    <>
+                      {!labelsPending && (
+                        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--sv-text-dim)" }}>
+                          <input
+                            type="checkbox"
+                            checked={includeAusPostBranding}
+                            onChange={(event) => setIncludeAusPostBranding(event.target.checked)}
+                          />
+                          Print Australia Post header and footer
+                        </label>
+                      )}
+                      <button
+                        type="button"
+                        disabled={submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
+                        onClick={submitToCarrier}
+                        style={{
+                          ...primaryButtonStyle,
+                          opacity: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? 0.55 : 1,
+                          cursor: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        <Send size={15} />
+                        {submitting
+                          ? "Submitting..."
+                          : labelsPending
+                            ? "Check label status"
+                            : "Submit to Australia Post & create labels"}
+                      </button>
+                    </>
                   )}
                   {created.length > 0 &&
                     submissionResults.length === created.length &&
@@ -2918,9 +2939,9 @@ function initialParcels(
     return plan.suggestion.parcels.map((parcel) => ({
       packagePresetId: String(parcel.preset.id),
       packageType: parcel.preset.packageType,
-      lengthMm: String(parcel.preset.lengthMm),
-      widthMm: String(parcel.preset.widthMm),
-      heightMm: String(parcel.preset.heightMm),
+      lengthCm: millimetresToCentimetreInput(parcel.preset.lengthMm),
+      widthCm: millimetresToCentimetreInput(parcel.preset.widthMm),
+      heightCm: millimetresToCentimetreInput(parcel.preset.heightMm),
       weightKg: String(Number(parcel.weightKg.toFixed(3))),
       allocations: aggregateAllocations(parcel.units),
     }));
@@ -2929,9 +2950,9 @@ function initialParcels(
     {
       packagePresetId: "",
       packageType: "custom",
-      lengthMm: "",
-      widthMm: "",
-      heightMm: "",
+      lengthCm: "",
+      widthCm: "",
+      heightCm: "",
       weightKg: "",
       allocations: remainingAllocations(order),
     },
@@ -3137,9 +3158,9 @@ function editableParcelIssue(
   const invalidParcelIndex = parcels.findIndex(
     (parcel) =>
       ![
-        parcel.lengthMm,
-        parcel.widthMm,
-        parcel.heightMm,
+        parcel.lengthCm,
+        parcel.widthCm,
+        parcel.heightCm,
         parcel.weightKg,
       ].every((value) => Number.isFinite(Number(value)) && Number(value) > 0),
   );

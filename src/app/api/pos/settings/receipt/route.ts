@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function getAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -16,10 +17,11 @@ function getPosSession() {
 }
 
 export async function GET(req: Request) {
+  let businessId: string | undefined;
   try {
     const adminSession = getAdminSession();
     const posSession   = getPosSession();
-    const businessId = (adminSession?.businessId ?? posSession?.businessId) as string | undefined;
+    businessId = (adminSession?.businessId ?? posSession?.businessId) as string | undefined;
     if (!businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
     await getImsSession(['marketoir_session', 'pos_session']);
     const rows = await imsQuery<{ key: string; value: string }>(
@@ -80,7 +82,16 @@ export async function GET(req: Request) {
       gift_receipt_message: giftReceiptMsg,
       receipt_logo_url:     settings['pos_receipt_logo'] || '',
     });
-  } catch {
-    return NextResponse.json({ business_name: '', business_address: '', business_phone: '', business_abn: '', pos_receipt_footer: '', gift_receipt_message: '', receipt_logo_url: '' });
+  } catch (error) {
+    if (businessId) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'pos.receipt_settings',
+        operation: 'load',
+        title: 'POS receipt settings could not be loaded',
+        error,
+      }).catch(() => {});
+    }
+    return NextResponse.json({ error: 'Receipt settings could not be loaded.' }, { status: 500 });
   }
 }

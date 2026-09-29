@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Step-by-step"},"order":53,"summary":"Connect an Australia Post eParcel account and optionally define reusable package presets.","lastReviewed":"2026-09-11","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Step-by-step"},"order":53,"summary":"Connect an Australia Post eParcel account and optionally define reusable package presets.","lastReviewed":"2026-09-29","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 # Shipping Settings
 
@@ -52,7 +52,7 @@ Before the carrier pickup, open the **Manifests** tab. Solvantis groups dispatch
 
 > **Warning:** An unknown manifest outcome may already represent a carrier booking. Check the carrier portal and use **Reconcile** with the confirmed order ID instead of creating another booking.
 
-Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions and final packed weight. Australia Post prices use the current parcel details and the saved account's contract rates. Selected shipments are grouped by label family. Generated PDF labels use four labels per A4 page for Parcel Post, three per A4 page for Express Post, and one customs label per A4 page for International. Each family is returned as a separate PDF. Manifest submission remains a separate later operation.
+Package presets are shortcuts, not a requirement. In **Sales > Sales Orders > Ship Orders**, staff can select a preset or manually enter each parcel's dimensions in centimetres and final packed weight in kilograms. Australia Post prices use the current parcel details and the saved account's contract rates. Before creating labels, leave **Print Australia Post header and footer** selected for plain paper, or clear it when the Australia Post label stock already includes that branding. This choice changes only the carrier header and footer; recipient, barcode and shipment fields retain their carrier-defined positions. Selected shipments are grouped by label family. Generated PDF labels use four labels per A4 page for Parcel Post, three per A4 page for Express Post, and one customs label per A4 page for International. Each family is returned as a separate PDF. Manifest submission remains a separate later operation.
 
 ## Troubleshooting
 

@@ -2359,6 +2359,7 @@ function MainPos({
         payments,
         subtotal, discount_total: db_discount_total, tax_total, total,
         cash_rounding:        cashRounding || undefined,
+        change_due:           changeDue > 0.004 ? Math.round(changeDue * 100) / 100 : undefined,
         customer_name:        customerName || null,
         customer_phone:       customerPhone || null,
         created_at:           now,
@@ -2371,8 +2372,8 @@ function MainPos({
       if (!trainingMode) setSaleRefreshTick(t => t + 1);
       clearCart();
       setShowPayment(false);
-      onReceipt(completedSale);
       if (changeDue > 0.004) onChangeDue(Math.round(changeDue * 100) / 100);
+      onReceipt(completedSale);
     } finally {
       submittingRef.current = false;
     }
@@ -8499,7 +8500,6 @@ export default function PosPage() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/pos/settings/receipt').then(r => r.json()).then(d => setPrintSettings(d)).catch(() => {});
     fetch('/api/pos/settings/products').then(r => r.json()).then(d => { setDefaultView(d.defaultView || 'all'); }).catch(() => { setDefaultView('all'); });
   }, []);
 
@@ -8508,8 +8508,11 @@ export default function PosPage() {
   useEffect(() => {
     if (!session?.location_id) return;
     fetch(`/api/pos/settings/receipt?location_id=${session.location_id}`)
-      .then(r => r.json())
-      .then(d => setPrintSettings(d))
+      .then(async response => {
+        if (!response.ok) throw new Error('Receipt settings could not be loaded.');
+        return response.json();
+      })
+      .then(d => setPrintSettings(current => ({ ...current, ...d })))
       .catch(() => {});
   }, [session?.location_id]);
 
@@ -8620,7 +8623,7 @@ export default function PosPage() {
       <ReceiptScreen
         sale={completedSale}
         printSettings={printSettings}
-        changeDue={pendingChangeDue ?? 0}
+        changeDue={completedSale.change_due ?? pendingChangeDue ?? 0}
         onClose={() => { setCompletedSale(null); setPendingChangeDue(null); setReceiptCloseToken(t => t + 1); setScreen('pos'); }}
       />
     );
@@ -8702,7 +8705,7 @@ export default function PosPage() {
       lastSale={lastSale}
       onSaleCompleted={(sale) => setLastSale(sale)}
       onChangeDue={(amount) => setPendingChangeDue(amount)}
-      onReceiptSettingsSaved={(footer, giftMsg) => setPrintSettings(prev => ({ ...prev, pos_receipt_footer: footer || prev.pos_receipt_footer, gift_receipt_message: giftMsg || prev.gift_receipt_message }))}
+      onReceiptSettingsSaved={(footer, giftMsg) => setPrintSettings(prev => ({ ...prev, pos_receipt_footer: footer, gift_receipt_message: giftMsg }))}
       receiptCloseToken={receiptCloseToken}
       onLogout={async () => {
         // Try to flush any queued sales before logging out — never silently abandon them.

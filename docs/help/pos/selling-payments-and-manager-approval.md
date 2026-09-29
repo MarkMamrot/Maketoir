@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-customers","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-customers","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-09-29","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -23,7 +23,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |
 | Product results | The image, price, and **i** action stay top-aligned while optional product details use the remaining space |
 | Split tender | Add payment lines until **Remaining** is zero |
-| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
+| Cash | The remaining balance is rounded to the nearest 5 cents; tendered cash and change are shown on the printed receipt |
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |
 | Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |
 | Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |
@@ -56,6 +56,8 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 9. Choose **Charge** and choose a payment method.
 10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
 11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
+
+The printed receipt uses the footer saved for the active POS location, falling back to the business footer when the location has no override. A temporary settings-load failure keeps the last valid footer rather than replacing it with blank text.
 
 When **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.
 
