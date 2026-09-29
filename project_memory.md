@@ -1,3 +1,10 @@
+## 2026-09-29 - Sales-order confirmation stock sourcing review
+
+- Draft manual Sales Orders now run a stock-sourcing review when recorded available stock cannot cover one or more stock-item lines. The review separates ordered quantity, available-now stock, incoming shortage, already protected incoming stock, and the quantity that will remain unsourced; non-stock and native online orders remain outside this workflow.
+- Eligible Confirmed or Partially Received Purchase Order lines must match the tenant, variant and location. The UI suggests free incoming quantities in earliest expected-date order, but staff must explicitly confirm the protection; remaining shortages require line-level acknowledgement or the order stays Draft.
+- Confirmation and selected incoming allocations are applied in one tenant-scoped, idempotent transaction. The server locks and rechecks the Sales Order revision, stock, Purchase Order supply and active allocations so changed supply aborts without a partial status change or allocation. Existing build-from-sale review still runs before incoming sourcing.
+- Updated Sales Orders and Stock Allocation Help, including the `sales-orders` context mapping, and rebuilt both Help and private Assistant indexes. Validation passed 3,217 tests with five intentional skips, focused sourcing/allocation tests, the production build and diff checks.
+
 ## 2026-09-29 - Purchase-order line tenant ownership repaired
 
 - Fixed every live purchase-order line writer to persist the owning `business_id`, including manual create/edit, Cin7/history import, bulk import, sync, batch-receive backorders, replacement drafts, and supplier shortfall resolution. Existing-line edits also self-heal the tenant stamp.
