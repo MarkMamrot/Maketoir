@@ -47,6 +47,7 @@ const supply = [{
   qty_ordered: 10,
   qty_received: 2,
   po_number: 'PO-20',
+  supplier_name: 'Thread Supply Co',
   expected_date: '2026-09-10',
 }];
 
@@ -83,7 +84,13 @@ describe('sales order sourcing', () => {
       shortage: 6,
       allocatedIncoming: 0,
       unsourced: 6,
-      candidates: [{ poItemId: 21, freeQuantity: 6 }],
+      candidates: [{
+        poItemId: 21,
+        supplierName: 'Thread Supply Co',
+        orderedQuantity: 10,
+        receivedQuantity: 2,
+        freeQuantity: 6,
+      }],
     });
   });
 

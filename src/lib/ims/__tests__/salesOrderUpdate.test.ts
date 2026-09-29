@@ -359,6 +359,27 @@ describe('ImsSORepo.changeStatus partial fulfilment safety', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
+  it('rejects reverting a confirmed sales order while incoming stock is protected', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{ id: 42, status: 'confirmed', location_id: 4, business_id: 'biz-1', is_historical: 0 }]];
+      }
+      if (sql.includes('SELECT * FROM ims_sales_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 1, qty_fulfilled: 0 }]];
+      }
+      if (sql.includes('COALESCE(p.is_stock_item')) return [[{ variant_id: 'v-1', is_stock_item: 1 }]];
+      if (sql.includes('FROM ims_stock_allocations')) return [[{ id: 71 }]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(ImsSORepo.changeStatus(42, 'draft')).rejects.toThrow(
+      'Release or reassign active incoming allocations before reverting this sales order.',
+    );
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes("SET status = 'draft'"))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
   it('rejects an unlisted transition before changing stock or status', async () => {
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_sales_orders')) {

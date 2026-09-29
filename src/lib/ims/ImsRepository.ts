@@ -3483,10 +3483,10 @@ export const ImsSORepo = {
       const from = so.status as SOStatus;
       const to   = newStatus;
       assertAllowedSOStatusTransition(from, to);
-      if (from !== to && to === 'cancelled') {
+      if (from !== to && (to === 'cancelled' || (from === 'confirmed' && to === 'draft'))) {
         await assertNoActiveStockAllocations(conn, {
           businessId: String(so.business_id ?? ''), orderKind: 'sales_order', orderId: id,
-          operation: 'cancelling',
+          operation: to === 'cancelled' ? 'cancelling' : 'reverting',
         });
       }
       if (from === 'partially_fulfilled' && to === 'fulfilled') {

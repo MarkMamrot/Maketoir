@@ -36,9 +36,9 @@ Use Stock Allocation to connect confirmed incoming supply to outstanding custome
 
 ## Confirm with incoming supply
 
-When a Draft Sales Order has less available stock than its ordered quantity, **Confirm** opens a stock sourcing review. **Available now** uses recorded stock on hand after demand already committed to other orders. **Needs incoming** is the remaining shortage. Solvantis suggests free quantities from eligible Purchase Orders in expected-date order.
+When a Draft Sales Order has less available stock than its ordered quantity, **Confirm** opens a stock sourcing review. The review exists to allocate and protect incoming Purchase Order stock for that Sales Order. **Available now** uses recorded stock on hand after demand already committed to other orders, and the review explicitly identifies a line when no stock is currently available. **Needs incoming** is the remaining shortage. Solvantis suggests free quantities from eligible Purchase Orders in expected-date order.
 
-Review and edit the suggested quantities, then choose **Confirm & Allocate** to confirm the order and protect that incoming supply together. If incoming supply covers only part of the shortage, acknowledge the remaining unsourced quantity and choose **Confirm with Unsourced Quantity**. **Return to Draft** closes the review without confirming or allocating anything.
+Each option shows the supplier, expected date, total line quantity ordered and received, free quantity available to allocate, and the quantity to protect for this Sales Order. Select the PO number to open that Purchase Order. Review and edit the suggested quantities, then choose **Confirm & Allocate** to confirm the order and protect that incoming supply together. If incoming supply covers only part of the shortage, acknowledge the remaining unsourced quantity and choose **Confirm with Unsourced Quantity**. **Return to Draft** closes the review without confirming or allocating anything.
 
 Solvantis rechecks the order, stock, Purchase Orders, and existing allocations when you confirm. If supply changed while the review was open, the whole action stops so no partial allocation or status change is left behind.
 
@@ -61,6 +61,7 @@ Solvantis rechecks the order, stock, Purchase Orders, and existing allocations w
 | Some demand remains unsourced | Incoming free quantity is lower than customer demand | Protect what is available and plan the remaining quantity separately |
 | Protected quantity is not ready | The linked PO has not been received | Check its expected date and receipt status |
 | An online order is absent | Native online orders do not use incoming PO allocation | Review the online order and its reserved available stock |
+| Revert to Draft is blocked | The Sales Order still protects incoming Purchase Order stock | Release each active allocation first, then revert the Sales Order |
 
 ## Worked examples
 

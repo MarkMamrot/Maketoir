@@ -14,7 +14,10 @@ export type SalesOrderSourcingCandidate = {
   poItemId: number;
   poId: number;
   poNumber: string;
+  supplierName: string | null;
   expectedDate: string | null;
+  orderedQuantity: number;
+  receivedQuantity: number;
   freeQuantity: number;
 };
 
@@ -82,6 +85,7 @@ type SupplyRow = {
   qty_ordered: number | string;
   qty_received: number | string | null;
   po_number: string;
+  supplier_name: string | null;
   expected_date: string | null;
 };
 
@@ -121,10 +125,12 @@ async function loadSourcingPreview(
   if (variantIds.length > 0) {
     const placeholders = variantIds.map(() => '?').join(',');
     [supplyRows] = await executor.execute(
-      `SELECT item.id AS po_item_id, item.po_id, item.variant_id, item.qty_ordered, item.qty_received,
-              po.po_number, po.expected_date
+            `SELECT item.id AS po_item_id, item.po_id, item.variant_id, item.qty_ordered, item.qty_received,
+              po.po_number, COALESCE(supplier.name, NULLIF(po.supplier_name_raw, '')) AS supplier_name,
+              po.expected_date
          FROM ims_purchase_order_items item
          JOIN ims_purchase_orders po ON po.id = item.po_id AND po.business_id = item.business_id
+         LEFT JOIN ims_contacts supplier ON supplier.id = po.supplier_id AND supplier.business_id = po.business_id
         WHERE item.business_id = ? AND item.variant_id IN (${placeholders})
           AND po.location_id = ? AND po.status IN ('confirmed','partially_received')
         ORDER BY po.expected_date IS NULL, po.expected_date, po.order_date, po.id, item.id${lock}`,
@@ -184,7 +190,10 @@ async function loadSourcingPreview(
         poItemId: Number(supply.po_item_id),
         poId: Number(supply.po_id),
         poNumber: String(supply.po_number),
+        supplierName: supply.supplier_name ?? null,
         expectedDate: supply.expected_date ?? null,
+        orderedQuantity: quantity(supply.qty_ordered),
+        receivedQuantity: quantity(supply.qty_received),
         freeQuantity: quantity(Math.max(0, Number(supply.qty_ordered) - Number(supply.qty_received ?? 0) - (allocatedBySupply.get(Number(supply.po_item_id)) ?? 0))),
       }))
       .filter(candidate => candidate.freeQuantity > 0) : [];

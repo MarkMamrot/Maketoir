@@ -15266,7 +15266,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <Modal title={`Stock sourcing · ${sourcingReview.preview.soNumber}`} onClose={() => setSourcingReview({ open: false, so: null, preview: null })} wide zIndex={1100}>
           <div style={{ display: 'grid', gap: 14 }}>
             <div style={{ padding: '10px 12px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', fontSize: 13, lineHeight: 1.5 }}>
-              Review stock at <strong style={{ color: 'var(--sv-text-main)' }}>{sourcingReview.preview.locationName || 'this location'}</strong>. Suggested quantities use the earliest eligible purchase orders first. Nothing is protected until you confirm.
+              <strong style={{ color: 'var(--sv-text-main)' }}>Allocate and protect incoming stock for this Sales Order.</strong>{' '}
+              Review supply at {sourcingReview.preview.locationName || 'this location'} and choose how much each Purchase Order should reserve. Suggested quantities use the earliest eligible Purchase Orders first. Nothing is protected until you confirm.
             </div>
             {(sourcingReview.preview.lines ?? []).filter((line: any) => Number(line.shortage) > 0).map((line: any) => {
               const selected = (line.candidates ?? []).reduce((sum: number, candidate: any) => sum + Number(sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] || 0), 0);
@@ -15277,6 +15278,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <div><strong style={{ color: 'var(--sv-text-strong)' }}>{line.productName}</strong>{line.sku ? <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>{line.sku}</span> : null}</div>
                     <span style={{ color: remaining > 0 ? '#f59e0b' : 'var(--sv-mint)', fontSize: 12, fontWeight: 700 }}>{fmtQty(remaining)} unsourced</span>
                   </div>
+                  {Number(line.availableNow) <= 0 && (
+                    <div role="status" style={{ padding: '9px 12px', background: 'rgba(245,158,11,.1)', borderBottom: '1px solid rgba(245,158,11,.3)', color: '#b45309', fontSize: 12, fontWeight: 700 }}>
+                      No stock is currently available at {sourcingReview.preview.locationName || 'this location'} for this item.
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)' }}>
                     {[['Ordered', line.ordered], ['Available now', line.availableNow], ['Needs incoming', line.shortage], ['Already protected', line.allocatedIncoming]].map(([label, value]) => (
                       <div key={String(label)}><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{label}</div><strong style={{ color: 'var(--sv-text-main)', fontSize: 14 }}>{fmtQty(value)}</strong></div>
@@ -15284,11 +15290,21 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   </div>
                   <div style={{ display: 'grid', gap: 8, padding: '10px 12px' }}>
                     {(line.candidates ?? []).length === 0 ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>No eligible confirmed incoming purchase order.</span> : (line.candidates ?? []).map((candidate: any) => (
-                      <label key={candidate.poItemId} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) auto minmax(90px, 120px)', alignItems: 'center', gap: 10, fontSize: 12 }}>
-                        <span style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{candidate.poNumber}</span>
-                        <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{candidate.expectedDate ? `Due ${String(candidate.expectedDate).slice(0, 10)}` : 'No due date'} · {fmtQty(candidate.freeQuantity)} free</span>
-                        <input type="number" min="0" max={Math.min(Number(candidate.freeQuantity), Number(line.unsourced))} step="0.0001" aria-label={`Quantity from ${candidate.poNumber} for ${line.productName}`} value={sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] ?? ''} onChange={event => setSourcingChoices(current => ({ ...current, [`${line.soItemId}:${candidate.poItemId}`]: event.target.value }))} style={{ ...inputStyle, width: '100%', textAlign: 'right' }} />
-                      </label>
+                      <div key={candidate.poItemId} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))', alignItems: 'end', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Purchase Order</div>
+                          <a href={`#purchase-orders/${candidate.poId}`} style={{ color: 'var(--sv-mint)', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2 }}>{candidate.poNumber}</a>
+                        </div>
+                        <div><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Supplier</div><span style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{candidate.supplierName || 'Not recorded'}</span></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Expected</div><span style={{ color: 'var(--sv-text-main)' }}>{candidate.expectedDate ? String(candidate.expectedDate).slice(0, 10) : 'No date'}</span></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Total ordered</div><strong style={{ color: 'var(--sv-text-main)' }}>{fmtQty(candidate.orderedQuantity)}</strong></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Received</div><strong style={{ color: 'var(--sv-text-main)' }}>{fmtQty(candidate.receivedQuantity)}</strong></div>
+                        <div><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Free to allocate</div><strong style={{ color: 'var(--sv-text-main)' }}>{fmtQty(candidate.freeQuantity)}</strong></div>
+                        <label>
+                          <span style={{ display: 'block', fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Protect for this SO</span>
+                          <input type="number" min="0" max={Math.min(Number(candidate.freeQuantity), Number(line.unsourced))} step="0.0001" aria-label={`Quantity from ${candidate.poNumber} for ${line.productName}`} value={sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] ?? ''} onChange={event => setSourcingChoices(current => ({ ...current, [`${line.soItemId}:${candidate.poItemId}`]: event.target.value }))} style={{ ...inputStyle, width: '100%', textAlign: 'right' }} />
+                        </label>
+                      </div>
                     ))}
                     {remaining > 0.00005 && (
                       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingTop: 4, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.4 }}>

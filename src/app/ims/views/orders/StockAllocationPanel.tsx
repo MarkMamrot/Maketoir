@@ -67,6 +67,14 @@ export function StockAllocationPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [drafts, setDrafts] = useState<Record<number, { poItemId: string; quantity: string; promisedDate: string; reason: string }>>({});
+  const allocationRefreshKey = allocations.map(allocation => [
+    allocation.id,
+    allocation.revision,
+    allocation.state,
+    allocation.qty_allocated,
+    allocation.qty_received_assigned,
+    allocation.qty_fulfilled,
+  ].join(':')).join('|');
 
   const loadDemand = async () => {
     if (mode !== 'sales_order') return;
@@ -84,7 +92,7 @@ export function StockAllocationPanel({
     }
   };
 
-  useEffect(() => { loadDemand(); }, [mode, orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDemand(); }, [mode, orderId, allocationRefreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const command = async (method: 'POST' | 'PATCH', body: Record<string, unknown>, key: string) => {
     setBusy(key);
