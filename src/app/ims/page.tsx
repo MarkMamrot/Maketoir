@@ -14232,6 +14232,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
   const [soBuildAvailability, setSoBuildAvailability] = useState<{ loading: boolean; data: any | null }>({ loading: false, data: null });
+  const [sourcingReview, setSourcingReview] = useState<{ open: boolean; so: any | null; preview: any | null }>({ open: false, so: null, preview: null });
+  const [sourcingChoices, setSourcingChoices] = useState<Record<string, string>>({});
+  const [sourcingAcknowledged, setSourcingAcknowledged] = useState<Record<number, boolean>>({});
+  const [savingSourcing, setSavingSourcing] = useState(false);
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
@@ -14695,6 +14699,76 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     finally { setSaving(false); }
   };
 
+  const openSourcingReview = async (so: any): Promise<boolean> => {
+    const result = await apiFetch(`/api/ims/sales-orders/${so.id}/sourcing`);
+    const preview = result.data ?? result;
+    if (!preview.requiresReview) return false;
+    const nextChoices: Record<string, string> = {};
+    const remainingByPoItem = new Map<number, number>();
+    for (const line of preview.lines ?? []) {
+      for (const candidate of line.candidates ?? []) {
+        if (!remainingByPoItem.has(Number(candidate.poItemId))) remainingByPoItem.set(Number(candidate.poItemId), Number(candidate.freeQuantity ?? 0));
+      }
+    }
+    for (const line of preview.lines ?? []) {
+      let remaining = Number(line.unsourced ?? 0);
+      for (const candidate of line.candidates ?? []) {
+        if (remaining <= 0) break;
+        const free = remainingByPoItem.get(Number(candidate.poItemId)) ?? 0;
+        const allocated = Math.min(remaining, free);
+        if (allocated > 0) {
+          nextChoices[`${line.soItemId}:${candidate.poItemId}`] = String(allocated);
+          remaining -= allocated;
+          remainingByPoItem.set(Number(candidate.poItemId), free - allocated);
+        }
+      }
+    }
+    setSourcingChoices(nextChoices);
+    setSourcingAcknowledged({});
+    setSourcingReview({ open: true, so, preview });
+    return true;
+  };
+
+  const confirmSourcingReview = async () => {
+    const so = sourcingReview.so;
+    const preview = sourcingReview.preview;
+    if (!so || !preview) return;
+    const choices = Object.entries(sourcingChoices).flatMap(([key, rawQuantity]) => {
+      const quantity = Number(rawQuantity);
+      if (!(quantity > 0)) return [];
+      const [soItemId, poItemId] = key.split(':').map(Number);
+      return [{ soItemId, poItemId, quantity }];
+    });
+    const remainingLines = (preview.lines ?? []).filter((line: any) => {
+      const selected = choices.filter(choice => choice.soItemId === Number(line.soItemId)).reduce((sum, choice) => sum + choice.quantity, 0);
+      return Number(line.unsourced ?? 0) - selected > 0.00005;
+    });
+    if (remainingLines.some((line: any) => !sourcingAcknowledged[Number(line.soItemId)])) {
+      alert('Acknowledge each remaining unsourced quantity before confirming.');
+      return;
+    }
+    setSavingSourcing(true);
+    try {
+      await apiFetch(`/api/ims/sales-orders/${so.id}/sourcing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationKey: buildOrderStatusOperationKey('sales_order', Number(so.id), 'confirmed', so.updated_at),
+          expectedUpdatedAt: so.updated_at ?? null,
+          choices,
+          acknowledgedUnsourcedSoItemIds: remainingLines.map((line: any) => Number(line.soItemId)),
+        }),
+      });
+      setSourcingReview({ open: false, so: null, preview: null });
+      await load();
+      if (viewModal.open && viewModal.so?.id === so.id) await refreshSoView(Number(so.id));
+    } catch (error: any) {
+      alert(error.message || 'Sales order confirmation failed. Refresh the sourcing review and try again.');
+    } finally {
+      setSavingSourcing(false);
+    }
+  };
+
   const changeStatus = async (so: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
     let confirmationAcknowledged = false;
@@ -14729,6 +14803,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         }
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Build preview failed.');
+        return;
+      }
+      try {
+        if (await openSourcingReview(so)) return;
+      } catch (error: any) {
+        alert(error.message || 'Stock sourcing review failed.');
         return;
       }
     }
@@ -15181,6 +15261,60 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       )}
 
       {shipOrdersOpen && <ShipOrdersWorkspace orders={selectedSOs} onClose={() => setShipOrdersOpen(false)} />}
+
+      {sourcingReview.open && sourcingReview.preview && (
+        <Modal title={`Stock sourcing · ${sourcingReview.preview.soNumber}`} onClose={() => setSourcingReview({ open: false, so: null, preview: null })} wide>
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div style={{ padding: '10px 12px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', fontSize: 13, lineHeight: 1.5 }}>
+              Review stock at <strong style={{ color: 'var(--sv-text-main)' }}>{sourcingReview.preview.locationName || 'this location'}</strong>. Suggested quantities use the earliest eligible purchase orders first. Nothing is protected until you confirm.
+            </div>
+            {(sourcingReview.preview.lines ?? []).filter((line: any) => Number(line.shortage) > 0).map((line: any) => {
+              const selected = (line.candidates ?? []).reduce((sum: number, candidate: any) => sum + Number(sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] || 0), 0);
+              const remaining = Math.max(0, Number(line.unsourced ?? 0) - selected);
+              return (
+                <section key={line.soItemId} style={{ border: '1px solid var(--sv-etch)', borderRadius: 7, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 12px', background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div><strong style={{ color: 'var(--sv-text-strong)' }}>{line.productName}</strong>{line.sku ? <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>{line.sku}</span> : null}</div>
+                    <span style={{ color: remaining > 0 ? '#f59e0b' : 'var(--sv-mint)', fontSize: 12, fontWeight: 700 }}>{fmtQty(remaining)} unsourced</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)' }}>
+                    {[['Ordered', line.ordered], ['Available now', line.availableNow], ['Needs incoming', line.shortage], ['Already protected', line.allocatedIncoming]].map(([label, value]) => (
+                      <div key={String(label)}><div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{label}</div><strong style={{ color: 'var(--sv-text-main)', fontSize: 14 }}>{fmtQty(value)}</strong></div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gap: 8, padding: '10px 12px' }}>
+                    {(line.candidates ?? []).length === 0 ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>No eligible confirmed incoming purchase order.</span> : (line.candidates ?? []).map((candidate: any) => (
+                      <label key={candidate.poItemId} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) auto minmax(90px, 120px)', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                        <span style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{candidate.poNumber}</span>
+                        <span style={{ color: 'var(--sv-text-dim)', textAlign: 'right' }}>{candidate.expectedDate ? `Due ${String(candidate.expectedDate).slice(0, 10)}` : 'No due date'} · {fmtQty(candidate.freeQuantity)} free</span>
+                        <input type="number" min="0" max={Math.min(Number(candidate.freeQuantity), Number(line.unsourced))} step="0.0001" aria-label={`Quantity from ${candidate.poNumber} for ${line.productName}`} value={sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] ?? ''} onChange={event => setSourcingChoices(current => ({ ...current, [`${line.soItemId}:${candidate.poItemId}`]: event.target.value }))} style={{ ...inputStyle, width: '100%', textAlign: 'right' }} />
+                      </label>
+                    ))}
+                    {remaining > 0.00005 && (
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingTop: 4, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.4 }}>
+                        <input type="checkbox" checked={!!sourcingAcknowledged[Number(line.soItemId)]} onChange={event => setSourcingAcknowledged(current => ({ ...current, [Number(line.soItemId)]: event.target.checked }))} />
+                        <span>Leave {fmtQty(remaining)} unsourced. It will remain open for planning and cannot be fulfilled until stock becomes available.</span>
+                      </label>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => setSourcingReview({ open: false, so: null, preview: null })} disabled={savingSourcing} style={btnStyle('ghost')}>Return to Draft</button>
+              <button type="button" onClick={confirmSourcingReview} disabled={savingSourcing || (sourcingReview.preview.lines ?? []).some((line: any) => {
+                const selected = (line.candidates ?? []).reduce((sum: number, candidate: any) => sum + Number(sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] || 0), 0);
+                return Number(line.unsourced ?? 0) - selected > 0.00005 && !sourcingAcknowledged[Number(line.soItemId)];
+              })} style={{ ...btnStyle('mint'), opacity: savingSourcing ? .65 : 1 }}>
+                {savingSourcing ? 'Confirming…' : (sourcingReview.preview.lines ?? []).some((line: any) => {
+                  const selected = (line.candidates ?? []).reduce((sum: number, candidate: any) => sum + Number(sourcingChoices[`${line.soItemId}:${candidate.poItemId}`] || 0), 0);
+                  return Number(line.unsourced ?? 0) - selected > 0.00005;
+                }) ? 'Confirm with Unsourced Quantity' : 'Confirm & Allocate'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Create / Edit SO Modal */}
       {modal.open && (

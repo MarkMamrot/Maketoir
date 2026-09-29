@@ -1,5 +1,5 @@
 ---
-{"id":"ims-stock-allocation-backorders","title":"Stock Allocation and Customer Backorders","audiences":["ims"],"capability":"orders","screen":"Sales > Stock Allocation","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-purchase-orders"],"contexts":["stock-availability","backorders","customer-backorders"],"contextSections":{"stock-availability":"Step-by-step","backorders":"At a glance","customer-backorders":"At a glance"},"order":32,"summary":"Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.","lastReviewed":"2026-08-23","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-stock-allocation-backorders","title":"Stock Allocation and Customer Backorders","audiences":["ims"],"capability":"orders","screen":"Sales > Stock Allocation","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-purchase-orders"],"contexts":["stock-availability","backorders","customer-backorders","sales-orders"],"contextSections":{"stock-availability":"Step-by-step","backorders":"At a glance","customer-backorders":"At a glance","sales-orders":"Confirm with incoming supply"},"order":32,"summary":"Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.","lastReviewed":"2026-09-11","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 # Stock Allocation and Customer Backorders
 
@@ -9,6 +9,7 @@ Use Stock Allocation to connect confirmed incoming supply to outstanding custome
 
 - Find customer demand that is ready, incoming, at risk, overdue, or unsourced.
 - Allocate free incoming purchase-order quantity to a customer order.
+- Review and protect eligible incoming supply while confirming a Draft Sales Order.
 - Add an optional customer promise date.
 - Open the customer order when supply arrives and fulfil it separately.
 - Ask Solvantis to check current allocation exceptions by state when you need a read-only summary. The live check can show order, product, location, and quantity evidence, but omits customer and supplier identities.
@@ -32,6 +33,14 @@ Use Stock Allocation to connect confirmed incoming supply to outstanding custome
 - [ ] Remember that native online orders use available stock and do not join this incoming-allocation workflow.
 
 > **Note:** Allocation protects incoming supply. It does not receive the purchase order, increase stock on hand, or fulfil the customer order.
+
+## Confirm with incoming supply
+
+When a Draft Sales Order has less available stock than its ordered quantity, **Confirm** opens a stock sourcing review. **Available now** uses recorded stock on hand after demand already committed to other orders. **Needs incoming** is the remaining shortage. Solvantis suggests free quantities from eligible Purchase Orders in expected-date order.
+
+Review and edit the suggested quantities, then choose **Confirm & Allocate** to confirm the order and protect that incoming supply together. If incoming supply covers only part of the shortage, acknowledge the remaining unsourced quantity and choose **Confirm with Unsourced Quantity**. **Return to Draft** closes the review without confirming or allocating anything.
+
+Solvantis rechecks the order, stock, Purchase Orders, and existing allocations when you confirm. If supply changed while the review was open, the whole action stops so no partial allocation or status change is left behind.
 
 ## Step-by-step
 
