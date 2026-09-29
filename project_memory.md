@@ -4,7 +4,9 @@
 - Eligible Confirmed or Partially Received Purchase Order lines must match the tenant, variant and location. The UI suggests free incoming quantities in earliest expected-date order, but staff must explicitly confirm the protection; remaining shortages require line-level acknowledgement or the order stays Draft.
 - Confirmation and selected incoming allocations are applied in one tenant-scoped, idempotent transaction. The server locks and rechecks the Sales Order revision, stock, Purchase Order supply and active allocations so changed supply aborts without a partial status change or allocation. Existing build-from-sale review still runs before incoming sourcing.
 - Confirmed Sales Orders with active incoming allocations cannot revert to Draft; staff must explicitly release the protection first. The Sales Order allocation panel reloads its demand summary when allocation identity, revision, state or quantities change, preventing fresh allocation rows from appearing beside stale Allocated/Unsourced totals.
-- Updated Sales Orders and Stock Allocation Help, including the `sales-orders` context mapping, and rebuilt both Help and private Assistant indexes. Validation passed 3,219 tests with five intentional skips, focused sourcing/allocation tests, the production build and diff checks.
+- Stock allocation opens automatically in Sales Order and Purchase Order details when active allocations exist, including when the first allocation is created while the detail remains open. The optional allocation date is labelled as the customer promise date and remains distinct from the Purchase Order ETA.
+- Shared IMS dialogs now use wider responsive presets on large monitors: standard 620px, wide 1180px and wider 1360px, constrained within the viewport with border-box sizing.
+- Updated Sales Orders, Purchase Orders and Stock Allocation Help, including the `sales-orders` context mapping, and rebuilt both Help and private Assistant indexes. Validation passed 3,224 tests with five intentional skips, focused sourcing/allocation tests, the production build and diff checks.
 
 ## 2026-09-29 - Purchase-order line tenant ownership repaired
 

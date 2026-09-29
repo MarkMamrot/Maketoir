@@ -10,7 +10,7 @@ Use Stock Allocation to connect confirmed incoming supply to outstanding custome
 - Find customer demand that is ready, incoming, at risk, overdue, or unsourced.
 - Allocate free incoming purchase-order quantity to a customer order.
 - Review and protect eligible incoming supply while confirming a Draft Sales Order.
-- Add an optional customer promise date.
+- Add an optional customer promise date. This is the date communicated to the customer, not the Purchase Order's expected arrival date, and it does not allocate extra stock.
 - Open the customer order when supply arrives and fulfil it separately.
 - Ask Solvantis to check current allocation exceptions by state when you need a read-only summary. The live check can show order, product, location, and quantity evidence, but omits customer and supplier identities.
 
@@ -49,7 +49,7 @@ Solvantis rechecks the order, stock, Purchase Orders, and existing allocations w
 3. Filter by location or supplier, or search by order, customer, SKU, or product.
 4. On an unsourced line, select the allocation action.
 5. Review the first eligible purchase order, expected date, free incoming quantity, and maximum quantity available for this demand.
-6. Enter the quantity to protect and, if useful, a customer promise date.
+6. Enter the quantity to protect and, if useful, a **Customer promise date (optional)**. Use this only for the date communicated to the customer; the Purchase Order ETA remains separate.
 7. Confirm the allocation and check that **Protected**, **Incoming**, and **Unsourced** now show the intended split.
 8. When the goods arrive, receive the Purchase Order. Then open the Sales Order and fulfil only the quantity physically shipped.
 

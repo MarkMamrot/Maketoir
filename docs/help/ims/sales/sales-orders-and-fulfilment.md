@@ -81,7 +81,7 @@ When adding a payment to a Sales Order with saved early-payment terms, Solvantis
 
 When the entered payment reaches the qualifying settlement, turn on **Apply discount and create the customer credit note** before saving. Solvantis records the payment, a stock-neutral customer credit note, and the discount application together. It does not issue store credit because the credit note settles the order balance. An applied settlement payment and its credit note must be corrected together.
 
-The Sales Order detail view separates the order summary, shipments, products and totals, payments, accounting, stock allocation, and activity with labelled dividers. **Stock allocation** appears below Accounting and is collapsed initially. Its header shows active links, allocated and ready quantities, unsourced demand, and at-risk promises; expand it to allocate incoming supply or manage an existing promise.
+The Sales Order detail view separates the order summary, shipments, products and totals, payments, accounting, stock allocation, and activity with labelled dividers. **Stock allocation** appears below Accounting. It opens automatically when the order has active allocations and stays collapsed initially when it has none. Its header shows active links, allocated and ready quantities, unsourced demand, and at-risk promises; expand it to allocate incoming supply or manage an existing promise.
 
 Before reverting a Confirmed Sales Order to Draft, expand **Stock allocation** and release any active incoming allocations. Solvantis blocks the reversion while protected Purchase Order supply remains linked, preventing Draft demand from retaining or hiding an active stock promise.
 

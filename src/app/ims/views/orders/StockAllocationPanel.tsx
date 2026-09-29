@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CalendarClock, ChevronDown, Link2, Link2Off, RefreshCw } from 'lucide-react';
 
 type Allocation = {
@@ -63,10 +63,12 @@ export function StockAllocationPanel({
 }) {
   const [demand, setDemand] = useState<DemandLine[]>([]);
   const [loading, setLoading] = useState(mode === 'sales_order');
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => allocations.some(allocation => allocation.state === 'active'));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [drafts, setDrafts] = useState<Record<number, { poItemId: string; quantity: string; promisedDate: string; reason: string }>>({});
+  const activeAllocationCount = allocations.filter(allocation => allocation.state === 'active').length;
+  const previousActiveAllocationCount = useRef(activeAllocationCount);
   const allocationRefreshKey = allocations.map(allocation => [
     allocation.id,
     allocation.revision,
@@ -93,6 +95,13 @@ export function StockAllocationPanel({
   };
 
   useEffect(() => { loadDemand(); }, [mode, orderId, allocationRefreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setExpanded(allocations.some(allocation => allocation.state === 'active'));
+  }, [mode, orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (previousActiveAllocationCount.current === 0 && activeAllocationCount > 0) setExpanded(true);
+    previousActiveAllocationCount.current = activeAllocationCount;
+  }, [activeAllocationCount]);
 
   const command = async (method: 'POST' | 'PATCH', body: Record<string, unknown>, key: string) => {
     setBusy(key);
@@ -227,13 +236,22 @@ export function StockAllocationPanel({
             {allocation.risk_reason && <div style={{ flexBasis: '100%', color: 'var(--sv-amber)' }}>{allocation.risk_reason}</div>}
           </div>)}
           {!readOnly && line.unsourced > 0 && line.candidates.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 7, marginTop: 9 }}>
-            <select aria-label={`Incoming PO for ${line.sku || line.productName}`} value={draft.poItemId} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, poItemId: event.target.value } }))} style={fieldStyle}>
-              <option value="">Select incoming PO</option>
-              {line.candidates.map((candidate, index) => <option key={candidate.poItemId} value={candidate.poItemId}>{index === 0 ? 'FIFO: ' : ''}{candidate.poNumber} · {qty(candidate.freeQuantity)} free · {date(candidate.expectedDate)}</option>)}
-            </select>
-            <input aria-label={`Allocation quantity for ${line.sku || line.productName}`} type="number" min="0.0001" step="0.0001" placeholder="Quantity" value={draft.quantity} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, quantity: event.target.value } }))} style={fieldStyle} />
-            <input aria-label={`Promise date for ${line.sku || line.productName}`} type="date" value={draft.promisedDate} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, promisedDate: event.target.value } }))} style={fieldStyle} />
-            <button type="button" onClick={() => allocate(line)} disabled={!!busy} style={actionButton}>Allocate</button>
+            <label style={allocationFieldLabel}>
+              <span style={allocationFieldCaption}>Incoming Purchase Order</span>
+              <select aria-label={`Incoming PO for ${line.sku || line.productName}`} value={draft.poItemId} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, poItemId: event.target.value } }))} style={fieldStyle}>
+                <option value="">Select incoming PO</option>
+                {line.candidates.map((candidate, index) => <option key={candidate.poItemId} value={candidate.poItemId}>{index === 0 ? 'FIFO: ' : ''}{candidate.poNumber} · {qty(candidate.freeQuantity)} free · {date(candidate.expectedDate)}</option>)}
+              </select>
+            </label>
+            <label style={allocationFieldLabel}>
+              <span style={allocationFieldCaption}>Quantity to allocate</span>
+              <input aria-label={`Allocation quantity for ${line.sku || line.productName}`} type="number" min="0.0001" step="0.0001" placeholder="Quantity" value={draft.quantity} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, quantity: event.target.value } }))} style={fieldStyle} />
+            </label>
+            <label style={allocationFieldLabel}>
+              <span style={allocationFieldCaption}>Customer promise date (optional)</span>
+              <input aria-label={`Optional customer promise date for ${line.sku || line.productName}`} title="Optional date promised to the customer; this does not change the Purchase Order ETA." type="date" value={draft.promisedDate} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, promisedDate: event.target.value } }))} style={fieldStyle} />
+            </label>
+            <button type="button" onClick={() => allocate(line)} disabled={!!busy} style={{ ...actionButton, alignSelf: 'end' }}>Allocate</button>
             {selectedIndex > 0 && <input aria-label={`FIFO override reason for ${line.sku || line.productName}`} placeholder="Reason for FIFO override" value={draft.reason} onChange={event => setDrafts(current => ({ ...current, [line.soItemId]: { ...draft, reason: event.target.value } }))} style={{ ...fieldStyle, gridColumn: '1 / -1' }} />}
           </div>}
           {line.unsourced > 0 && line.candidates.length === 0 && <div style={{ paddingTop: 7, fontSize: 12, color: 'var(--sv-amber)' }}>No eligible confirmed PO supply at this location. No customer date is promised.</div>}
@@ -254,5 +272,7 @@ export function StockAllocationPanel({
 }
 
 const fieldStyle: React.CSSProperties = { minWidth: 0, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 };
+const allocationFieldLabel: React.CSSProperties = { display: 'grid', gap: 4, minWidth: 0 };
+const allocationFieldCaption: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' };
 const actionButton: React.CSSProperties = { padding: '6px 11px', border: '1px solid var(--sv-mint)', borderRadius: 5, background: 'var(--sv-mint)', color: '#052e2b', fontSize: 12, fontWeight: 750, cursor: 'pointer' };
 const smallButton: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 6px', border: '1px solid var(--sv-etch)', borderRadius: 4, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 11, cursor: 'pointer' };
