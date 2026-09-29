@@ -1,3 +1,9 @@
+## 2026-09-28 - Solvantis lead qualification and enrichment schema applied
+
+- Applied the lead qualification, discovery provenance, decision-maker and researched-contact schema to all four registered tenant schemas. Existing leads were backfilled to Warm; new Copilot-discovered leads remain Cold by application policy.
+- Reran the all-tenant migration idempotently with zero columns or indexes added. Direct readback confirmed the three enrichment tables, required indexes, `lead_temperature` enum and expanded email-verification enum in every tenant.
+- Solvantis has nine leads, all nine Warm, with zero unqualified leads and zero qualified non-leads. Corrected the importer tenant lock from the display label `Solvantis` to registered business ID `1dNtvCAmSU8_QXNpdMsONfzRqNe1UXAzG7j2lKyqdJOQ`; no lead data was imported.
+
 ## 2026-09-28 - User authentication activity schema applied
 
 - Applied the main-database password-reset catch-up so new reset tokens retain their originating business, then created `user_auth_events` for Admin-visible successful login and password-reset activity with IP and optional coarse location metadata.

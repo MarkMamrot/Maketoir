@@ -37,6 +37,10 @@ function connectionWithResults(results: unknown[]) {
 describe('lead discovery persistence', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('is locked to the registered Solvantis business ID', () => {
+    expect(SOLVANTIS_LEAD_BUSINESS_ID).toBe('1dNtvCAmSU8_QXNpdMsONfzRqNe1UXAzG7j2lKyqdJOQ');
+  });
+
   it('fences replay and contact matching to the Solvantis business', async () => {
     const connection = connectionWithResults([[], []]);
 

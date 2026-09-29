@@ -1,5 +1,5 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-09-11","owner":"inventory","quickSections":["Main operations","Purchase order status flow"]}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-09-29","owner":"inventory","quickSections":["Main operations","Purchase order status flow"]}
 ---
 # Purchase Orders
 
@@ -46,6 +46,8 @@ Advisor access is read-only, so an Advisor cannot create or edit a purchase orde
 6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.
 
 Each line shows **Stock** or **Non-stock expense** from the product's **Tracks inventory** setting. Stock lines become incoming when confirmed and affect stock value when received. Non-stock expense lines remain part of the PO and supplier bill, but confirmation and receipt do not change incoming stock, on-hand quantity, allocations, Average Cost, stock movements, or FIFO layers.
+
+Selecting a product prefills its unit cost only when that product has a cost saved for the purchase order currency. An AUD order uses the AUD cost; a foreign-currency order uses the matching foreign cost. When no matching cost is saved, the unit cost stays blank for you to enter from the supplier quote or invoice.
 
 Map **Non-stock Purchases** under **Xero > Chart of Accounts** before syncing a PO that contains a non-stock expense line. Those lines post to that expense account. Stock lines continue to use Inventory Asset, or Inventory in Transit when the PO has a recorded payment.
 

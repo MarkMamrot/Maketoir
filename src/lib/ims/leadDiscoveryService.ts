@@ -20,7 +20,7 @@ import {
 } from '@/lib/ims/leadContactEnrichment';
 import { getIMSPool } from '@/services/IMSMySQLService';
 
-export const SOLVANTIS_LEAD_BUSINESS_ID = 'Solvantis';
+export const SOLVANTIS_LEAD_BUSINESS_ID = '1dNtvCAmSU8_QXNpdMsONfzRqNe1UXAzG7j2lKyqdJOQ';
 
 const SOURCE_KINDS = ['centre_directory', 'official_website', 'web_search', 'maps', 'other'] as const;
 type LeadSourceKind = typeof SOURCE_KINDS[number];

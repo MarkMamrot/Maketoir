@@ -24,6 +24,7 @@ import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
 import { audAmountFromPayment, canonicalExchangeRate, displayedExchangeRate, exchangeRateFromPaymentAmounts, type ExchangeRateDirection } from '@/lib/ims/foreignPaymentMath';
+import { purchaseOrderCurrencyCost } from '@/lib/ims/purchaseOrderCurrencyCost';
 import { sanitizePurchaseOrderWorkspace, type PurchaseOrderWorkspaceSettings } from '@/lib/ims/purchaseOrderWorkspace';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
@@ -9849,14 +9850,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
 
   const selectPOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
-    const cur = form.currency_code ?? 'AUD';
-    let unit_cost = v ? Number(v.cost_aud ?? 0) : 0;
-    if (v && cur !== 'AUD') {
-      try {
-        const foreignCosts = JSON.parse(v.cost_foreign ?? '{}');
-        if (foreignCosts[cur] != null) unit_cost = Number(foreignCosts[cur]);
-      } catch {}
-    }
+    const unit_cost = purchaseOrderCurrencyCost(v, form.currency_code ?? 'AUD');
     const tax_rate = lineItems[i]?.tax_rate ?? poDefaultTaxRate;
     setLineItems(p => p.map((item, j) => j === i ? { ...item, variant_id, unit_cost, tax_rate, is_stock_item: Number(v?.is_stock_item ?? 1), line_total: undefined } : item));
   };
