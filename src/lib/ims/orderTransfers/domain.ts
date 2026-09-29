@@ -29,6 +29,7 @@ export type OrderTransferDocument = {
   taxCode?: string | null;
   paymentTerms?: string | null;
   priceTier?: string | null;
+  externalReference?: string | null;
   status: string;
   hasPayments?: boolean;
   xeroDocumentId?: string | null;
@@ -72,19 +73,37 @@ export function getOrderTransferConflicts(
   if (source.kind === 'sales_order' && normalizedText(source.priceTier) !== normalizedText(target.priceTier)) {
     conflicts.push('Price tier does not match.');
   }
-
-  for (const [role, document] of [['Source', source], ['Destination', target]] as const) {
-    if (!OPEN_STATUSES[document.kind].has(document.status)) {
-      conflicts.push(`${role} order is not open.`);
-    }
-    if (document.hasPayments) conflicts.push(`${role} order has payments.`);
-    if (document.xeroDocumentId && normalizedText(document.xeroDocumentStatus).toUpperCase() !== 'DRAFT') {
-      conflicts.push(`${role} order has a non-Draft Xero document.`);
-    }
-    if (document.hasSubmittedShipment) conflicts.push(`${role} order has a submitted shipment.`);
-    if (document.commerciallyEditable === false) conflicts.push(`${role} order is controlled by an external channel.`);
+  if (normalizedText(source.externalReference) !== normalizedText(target.externalReference)) {
+    conflicts.push(source.kind === 'sales_order'
+      ? 'Customer PO reference does not match.'
+      : 'Supplier reference does not match.');
   }
 
+  conflicts.push(...getOrderTransferDocumentConflicts(source, 'Source'));
+  conflicts.push(...getOrderTransferDocumentConflicts(target, 'Destination'));
+
+  return conflicts;
+}
+
+export function getOrderTransferDocumentConflicts(
+  document: OrderTransferDocument,
+  role = 'Order',
+): string[] {
+  const conflicts: string[] = [];
+  if (!OPEN_STATUSES[document.kind].has(document.status)) {
+    conflicts.push(`${role} order is not open.`);
+  }
+  if (document.hasPayments) conflicts.push(`${role} order has payments.`);
+  if (document.xeroDocumentId) {
+    const xeroStatus = normalizedText(document.xeroDocumentStatus).toUpperCase();
+    if (!xeroStatus || xeroStatus === 'UNKNOWN') {
+      conflicts.push(`${role} order has a Xero document that must be checked.`);
+    } else if (xeroStatus !== 'DRAFT') {
+      conflicts.push(`${role} order has a non-Draft Xero document.`);
+    }
+  }
+  if (document.hasSubmittedShipment) conflicts.push(`${role} order has a submitted shipment.`);
+  if (document.commerciallyEditable === false) conflicts.push(`${role} order is controlled by an external channel.`);
   return conflicts;
 }
 

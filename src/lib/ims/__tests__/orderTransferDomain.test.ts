@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calculateOrderTransferQuantityRules,
+  getOrderTransferDocumentConflicts,
   getOrderTransferConflicts,
   type OrderTransferDocument,
 } from '../orderTransfers/domain';
@@ -86,6 +87,7 @@ describe('order transfer compatibility', () => {
     taxCode: 'OUTPUT',
     paymentTerms: 'Net 30',
     priceTier: 'wholesale',
+    externalReference: 'PO-99',
     status: 'partially_fulfilled',
   };
 
@@ -104,6 +106,7 @@ describe('order transfer compatibility', () => {
       id: 2,
       contactId: 11,
       locationId: 4,
+      externalReference: 'PO-100',
       status: 'fulfilled',
       hasPayments: true,
       xeroDocumentId: 'invoice-1',
@@ -113,6 +116,7 @@ describe('order transfer compatibility', () => {
     })).toEqual([
       'Customer does not match.',
       'Location does not match.',
+      'Customer PO reference does not match.',
       'Destination order is not open.',
       'Destination order has payments.',
       'Destination order has a non-Draft Xero document.',
@@ -132,5 +136,13 @@ describe('order transfer compatibility', () => {
       'Source and destination must be the same order type.',
       'Source and destination belong to different businesses.',
     ]));
+  });
+
+  it('requires a live check when a linked Xero document status is unknown', () => {
+    expect(getOrderTransferDocumentConflicts({
+      ...source,
+      xeroDocumentId: 'invoice-1',
+      xeroDocumentStatus: null,
+    }, 'Source')).toContain('Source order has a Xero document that must be checked.');
   });
 });
