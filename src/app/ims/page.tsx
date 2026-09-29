@@ -533,8 +533,8 @@ function parseStyleStr(s: string): Record<string, string> {
 // Modal
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Modal({ title, onClose, children, wide, wider, width }: {
-  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number;
+function Modal({ title, onClose, children, wide, wider, width, zIndex = 1000 }: {
+  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number; zIndex?: number;
 }) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -545,7 +545,7 @@ function Modal({ title, onClose, children, wide, wider, width }: {
   }, [onClose]);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, paddingBottom: 40, background: 'rgba(0,0,0,.6)', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, paddingBottom: 40, background: 'rgba(0,0,0,.6)', overflowY: 'auto' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: width ?? (wider ? 1120 : wide ? 860 : 560), maxWidth: '97vw', padding: 28, position: 'relative' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{title}</h2>
@@ -15263,7 +15263,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {shipOrdersOpen && <ShipOrdersWorkspace orders={selectedSOs} onClose={() => setShipOrdersOpen(false)} />}
 
       {sourcingReview.open && sourcingReview.preview && (
-        <Modal title={`Stock sourcing · ${sourcingReview.preview.soNumber}`} onClose={() => setSourcingReview({ open: false, so: null, preview: null })} wide>
+        <Modal title={`Stock sourcing · ${sourcingReview.preview.soNumber}`} onClose={() => setSourcingReview({ open: false, so: null, preview: null })} wide zIndex={1100}>
           <div style={{ display: 'grid', gap: 14 }}>
             <div style={{ padding: '10px 12px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', fontSize: 13, lineHeight: 1.5 }}>
               Review stock at <strong style={{ color: 'var(--sv-text-main)' }}>{sourcingReview.preview.locationName || 'this location'}</strong>. Suggested quantities use the earliest eligible purchase orders first. Nothing is protected until you confirm.
