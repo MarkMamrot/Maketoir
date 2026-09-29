@@ -1303,6 +1303,7 @@ const COLUMNS = [
   ['ims_purchase_order_payments', 'xero_payment_id', 'VARCHAR(100) NULL AFTER xero_post_status'],
   ['ims_purchase_order_payments', 'xero_post_error', 'VARCHAR(500) NULL AFTER xero_payment_id'],
   ['ims_purchase_order_payments', 'xero_posted_at', 'DATETIME NULL AFTER xero_post_error'],
+  ['ims_purchase_order_items', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_purchase_order_items', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER notes'],
   ['ims_sales_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_sales_order_payments', 'payment_method_id', 'INT NULL AFTER notes'],
@@ -1864,6 +1865,40 @@ async function assertUniqueGiftCardTransactionIdentities(schema) {
   }
 }
 
+async function repairPurchaseOrderOwnership(schema, businessId) {
+  if (businessId) {
+    const [headerResult] = await conn.query(
+      `UPDATE \`${schema}\`.ims_purchase_orders
+          SET business_id = ?
+        WHERE business_id IS NULL OR business_id = ''`,
+      [businessId],
+    );
+    if (headerResult.affectedRows > 0) {
+      console.log(`  ${schema}.ims_purchase_orders: repaired ${headerResult.affectedRows} blank business owners`);
+    }
+  }
+
+  const [lineResult] = await conn.query(
+    `UPDATE \`${schema}\`.ims_purchase_order_items item
+       JOIN \`${schema}\`.ims_purchase_orders po ON po.id = item.po_id
+        SET item.business_id = po.business_id
+      WHERE NOT (item.business_id <=> po.business_id)`,
+  );
+  const [[verification]] = await conn.query(
+    `SELECT
+       (SELECT COUNT(*) FROM \`${schema}\`.ims_purchase_orders
+         WHERE business_id IS NULL OR business_id = '') AS blank_headers,
+       (SELECT COUNT(*)
+          FROM \`${schema}\`.ims_purchase_order_items item
+          JOIN \`${schema}\`.ims_purchase_orders po ON po.id = item.po_id
+         WHERE NOT (item.business_id <=> po.business_id)) AS mismatched_lines`,
+  );
+  if (Number(verification.blank_headers) > 0 || Number(verification.mismatched_lines) > 0) {
+    throw new Error(`${schema} purchase-order ownership repair incomplete: ${verification.blank_headers} blank headers, ${verification.mismatched_lines} mismatched lines`);
+  }
+  console.log(`  ${schema}.ims_purchase_order_items: repaired ${lineResult.affectedRows} business owners; verified`);
+}
+
 async function migrateSchema(schema, businessId) {
   const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
   for (const ddl of tableDdls) {
@@ -1920,6 +1955,7 @@ async function migrateSchema(schema, businessId) {
     if (requestedTable === 'ims_so_shipments') await migrateExactShopifyShipmentOwnership(schema);
     if (requestedTable === 'ims_credit_notes') await migrateExactShopifyRefundIdentity(schema);
     if (requestedTable === 'gift_cards') await migrateExactShopifyGiftCardOwnership(schema);
+    if (requestedTable === 'ims_purchase_order_items') await repairPurchaseOrderOwnership(schema, businessId);
     console.log(`  ${schema}.${requestedTable}: ${added} columns and ${indexesAdded} indexes added`);
     return;
   }
@@ -1994,6 +2030,8 @@ async function migrateSchema(schema, businessId) {
       console.error(`  ✗ ${schema}.${table}.${col}: ${e.message}`);
     }
   }
+
+  await repairPurchaseOrderOwnership(schema, businessId);
 
   try {
     await conn.query(

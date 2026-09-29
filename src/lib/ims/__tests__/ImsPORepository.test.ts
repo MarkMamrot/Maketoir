@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockImsQuery, mockLockInventoryCostState, mockCreateFifoCostLayer, mockReverseFifoStockMovementLayers } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockImsExecute, mockImsQuery, mockLockInventoryCostState, mockCreateFifoCostLayer, mockReverseFifoStockMovementLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
+  mockImsExecute: vi.fn(),
   mockImsQuery: vi.fn(),
   mockLockInventoryCostState: vi.fn(),
   mockCreateFifoCostLayer: vi.fn(),
@@ -10,7 +11,7 @@ const { mockGetIMSPool, mockImsQuery, mockLockInventoryCostState, mockCreateFifo
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: mockGetIMSPool,
-  imsExecute: vi.fn(),
+  imsExecute: mockImsExecute,
   imsQuery: mockImsQuery,
 }));
 vi.mock('@/services/imsContext', () => ({ getCurrentImsDb: vi.fn() }));
@@ -27,6 +28,26 @@ import { ImsPORepo } from '../ImsRepository';
 beforeEach(() => {
   vi.clearAllMocks();
   mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
+});
+
+describe('ImsPORepo.create', () => {
+  it('stamps new purchase-order lines with the owning business', async () => {
+    mockImsExecute.mockResolvedValueOnce({ insertId: 42 }).mockResolvedValueOnce({ insertId: 11 });
+    mockImsQuery.mockResolvedValueOnce([{ variant_id: 'v-1', is_stock_item: 1 }]);
+
+    await ImsPORepo.create({
+      po_number: 'PO-42', location_id: 4, status: 'draft', order_date: '2026-09-29',
+      tax_treatment: 'ex_tax', freight: 0, discount: 0,
+    } as any, [{
+      variant_id: 'v-1', qty_ordered: 1, unit_cost: 5, discount_pct: 0,
+      tax_rate: 0.1, line_total: 5, notes: null,
+    }], undefined, 'biz-1');
+
+    expect(mockImsExecute).toHaveBeenNthCalledWith(2,
+      expect.stringContaining('(business_id,po_id,variant_id'),
+      ['biz-1', 42, 'v-1', 1, 5, 0, 0.1, 5, null, 1],
+    );
+  });
 });
 
 describe('ImsPORepo.get', () => {
@@ -218,12 +239,12 @@ describe('ImsPORepo.update', () => {
 
     const inserts = execute.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ims_purchase_order_items'));
     expect(inserts).toHaveLength(1);
-    expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?,?)');
-    expect(inserts[0][1]).toHaveLength(9);
-    expect(inserts[0][1]).toEqual([42, 'v-2', 12, 5.68, 10.0059, 0.1, 61.34, 'Second', 0]);
+    expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?,?,?)');
+    expect(inserts[0][1]).toHaveLength(10);
+    expect(inserts[0][1]).toEqual(['biz-1', 42, 'v-2', 12, 5.68, 10.0059, 0.1, 61.34, 'Second', 0]);
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE ims_purchase_order_items'),
-      ['v-1', 2, 5, 0, 0.1, 10, null, 1, 10, 42],
+      ['biz-1', 'v-1', 2, 5, 0, 0.1, 10, null, 1, 10, 42],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
   });

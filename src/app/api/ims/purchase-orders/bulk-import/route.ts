@@ -188,9 +188,9 @@ export async function POST(req: Request) {
             .filter(Boolean).join(' ').slice(0, 500) || null;
           await imsExecute(
             `INSERT INTO ims_purchase_order_items
-               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
-             VALUES (?,?,?,?,?,?,?,?,?,?)`,
-            [poId, variantId, qty, qtyRecv, cost, disc, rate, lineTotal, notes, stockFlagMap.get(String(variantId)) ?? 1]
+               (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            [businessId, poId, variantId, qty, qtyRecv, cost, disc, rate, lineTotal, notes, stockFlagMap.get(String(variantId)) ?? 1]
           );
         }
 

@@ -1,3 +1,9 @@
+## 2026-09-29 - Purchase-order line tenant ownership repaired
+
+- Fixed every live purchase-order line writer to persist the owning `business_id`, including manual create/edit, Cin7/history import, bulk import, sync, batch-receive backorders, replacement drafts, and supplier shortfall resolution. Existing-line edits also self-heal the tenant stamp.
+- Applied the targeted all-tenant catch-up to all four registered IMS schemas. It repaired 29,506 Monsterthreads production lines and 28,816 Monsterthreads sandbox lines; Sage and Solvantis required no changes. A second run made zero changes and verified no blank PO headers or line/header ownership mismatches.
+- Direct sandbox verification confirmed confirmed PO-2026-0045 is now an eligible incoming candidate for SO-2026-0017 at Warehouse Branch, with one free unit of MT-CRFLowerCol. No stock allocation was created automatically.
+
 ## 2026-09-28 - Solvantis lead qualification and enrichment schema applied
 
 - Applied the lead qualification, discovery provenance, decision-maker and researched-contact schema to all four registered tenant schemas. Existing leads were backfilled to Warm; new Copilot-discovered leads remain Cold by application policy.

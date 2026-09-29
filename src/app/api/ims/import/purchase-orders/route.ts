@@ -195,9 +195,9 @@ export async function POST() {
           const skuRaw      = (line.code ?? null) as string | null;
           await imsExecute(
             `INSERT INTO ims_purchase_order_items
-               (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw, is_stock_item)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-            [existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw, stockFlagMap.get(String(variantId)) ?? 1],
+               (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw, is_stock_item)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+            [businessId, existingPoId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw, stockFlagMap.get(String(variantId)) ?? 1],
           );
         }
         skipped++;
@@ -231,12 +231,12 @@ export async function POST() {
 
       const res = await imsExecute(
         `INSERT INTO ims_purchase_orders
-           (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date, received_date,
+           (business_id, po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date, received_date,
             payment_terms, supplier_invoice_number, supplier_invoice_date, currency_code, exchange_rate,
             tax_treatment, tax_code,
             subtotal, tax_amount, freight, discount, total_amount, cin7_order_id, is_historical)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [poNumber, supplierId, supplierNameRaw, locationId, status, orderDate, expectedDate, receivedDate,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, poNumber, supplierId, supplierNameRaw, locationId, status, orderDate, expectedDate, receivedDate,
          paymentTerms, supplierInvNo, supplierInvDate, currencyCode, exchangeRate,
          normalizedMeta.taxTreatment ?? treatmentForSupplier(supplierId),
          normalizedMeta.taxTreatment ? null : purchaseTaxCode,
@@ -263,9 +263,9 @@ export async function POST() {
 
         await imsExecute(
           `INSERT INTO ims_purchase_order_items
-             (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw, is_stock_item)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-          [poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw, stockFlagMap.get(String(variantId)) ?? 1],
+             (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, name_raw, sku_raw, is_stock_item)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          [businessId, poId, variantId, qty, qtyReceived, unitCost, lineDiscount, lineTotal, nameRaw, skuRaw, stockFlagMap.get(String(variantId)) ?? 1],
         );
       }
 

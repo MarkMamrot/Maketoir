@@ -1125,9 +1125,9 @@ export async function POST(req: Request) {
               try {
                 await imsExecute(
                   `INSERT INTO ims_purchase_order_items
-                     (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [poInsertId, poItemVariantId, qty, poStatus === 'complete' ? qty : 0,
+                     (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [businessId, poInsertId, poItemVariantId, qty, poStatus === 'complete' ? qty : 0,
                    unitCost, lineDiscount, lineItemTaxRate, lineTotal, line.name || null, stockFlagByVariant.get(String(poItemVariantId)) ?? 1],
                 );
               } catch { /* skip if variant not in catalog */ }

@@ -566,9 +566,10 @@ export async function POST(req: Request) {
             }
             const [backorderItemResult] = await conn.execute<any>(
               `INSERT INTO ims_purchase_order_items
-                 (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
-               VALUES (?,?,?,0,?,?,?,?,?,?)`,
+                 (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes, is_stock_item)
+               VALUES (?,?,?,?,0,?,?,?,?,?,?)`,
               [
+                businessId,
                 backorderPoId,
                 sf.variant_id,
                 sf.shortfall,

@@ -1691,9 +1691,9 @@ export const ImsPORepo = {
       const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
       await imsExecute(
         `INSERT INTO ims_purchase_order_items
-           (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [po_id, item.variant_id, item.qty_ordered, item.unit_cost,
+           (business_id,po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [businessId ?? '', po_id, item.variant_id, item.qty_ordered, item.unit_cost,
          discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, stockFlags.get(String(item.variant_id)) ?? 1]
       );
     }
@@ -1867,9 +1867,9 @@ export const ImsPORepo = {
           if (existingId != null) {
             await conn.execute(
               `UPDATE ims_purchase_order_items
-                  SET variant_id = ?, qty_ordered = ?, unit_cost = ?, discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?, is_stock_item = ?
+                  SET business_id = ?, variant_id = ?, qty_ordered = ?, unit_cost = ?, discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?, is_stock_item = ?
                 WHERE id = ? AND po_id = ?`,
-              [item.variant_id, item.qty_ordered, item.unit_cost, discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, isStockItem, existingId, id],
+              [currentPo.business_id, item.variant_id, item.qty_ordered, item.unit_cost, discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, isStockItem, existingId, id],
             );
             amendmentLines.push({
               sourceLineId: existingId, resultLineId: existingId, movedFloor: 0,
@@ -1878,7 +1878,7 @@ export const ImsPORepo = {
           } else {
             amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
             newItemRows.push({
-              values: [id, item.variant_id, item.qty_ordered, item.unit_cost,
+              values: [currentPo.business_id, id, item.variant_id, item.qty_ordered, item.unit_cost,
                 discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, isStockItem],
               amendmentIndex: amendmentLines.length - 1,
             });
@@ -1893,8 +1893,8 @@ export const ImsPORepo = {
         for (const newItem of newItemRows) {
           const [insertResult] = await conn.execute<any>(
             `INSERT INTO ims_purchase_order_items
-               (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
+               (business_id,po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
             newItem.values,
           );
           amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);
