@@ -67,6 +67,7 @@ import { BuildRecipeEditor } from './views/products/BuildRecipeEditor';
 import { NewProductChannelChoices, ProductChannelDestinations } from './views/products/ProductChannelDestinations';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
+import { SalesOrderMoveItemsModal } from './views/orders/SalesOrderMoveItemsModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
 import { ContactCrmTaskQueue, type ContactCrmWorkspaceTask } from './views/contacts/ContactCrmTaskQueue';
@@ -9602,6 +9603,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const poCurrency = String(viewModal.po?.currency_code || 'AUD').toUpperCase();
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
+  const [moveItemsOrder, setMoveItemsOrder] = useState<any | null>(null);
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; audAmount: string; rate: string; rateDirection: ExchangeRateDirection; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero'; applyDiscount: boolean; operationKey: string } | null>(null);
   const [poEarlyPaymentPreview, setPoEarlyPaymentPreview] = useState<any | null>(null);
   const [syncingPoPaymentId, setSyncingPoPaymentId] = useState<number | null>(null);
@@ -14969,6 +14971,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     if (!isAdvisor && so.status === 'backordered') {
       actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Cancel', value: 'cancel' });
     }
+    if (!isAdvisor && !so.is_historical && ['draft', 'confirmed', 'partially_fulfilled', 'backordered'].includes(String(so.status))) {
+      actions.push({ label: 'Move items', value: 'move_items' });
+    }
     if (!isAdvisor && so.status === 'fulfilled') {
       actions.push({ label: 'Edit Notes', value: 'edit' }, { label: 'Return / Credit', value: 'return' });
     }
@@ -15003,6 +15008,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         break;
       case 'resolve':
         setResolveOrder(so);
+        break;
+      case 'move_items':
+        setMoveItemsOrder(so);
         break;
       case 'complete':
         changeStatus(so, 'fulfilled');
@@ -15601,7 +15609,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); setSoBuildAvailability({ loading: false, data: null }); }} wide>
           {viewModal.so.is_staff_preview_test ? <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid #e5c66b', borderRadius: 5, background: '#fff3cd', color: '#533f03', fontSize: 12 }}><strong>Staff preview test Draft.</strong> Prepared by {viewModal.so.staff_preview_actor_name || 'an IMS administrator'}. It cannot be confirmed and should be deleted after inspection.</div> : null}
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onReplacement={() => createSoReplacement(viewModal.so)} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onReplacement={() => createSoReplacement(viewModal.so)} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} onMoveItems={() => setMoveItemsOrder(viewModal.so)} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <label style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, overflow: 'hidden' }}>
                 <FileDown size={15} style={{ marginLeft: 10, pointerEvents: 'none' }} />
@@ -16052,6 +16060,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           onResolved={handleSOFulfilmentResolved}
         />
       )}
+      {moveItemsOrder && (
+        <SalesOrderMoveItemsModal
+          order={moveItemsOrder}
+          onClose={() => setMoveItemsOrder(null)}
+        />
+      )}
 
       {importSOsOpen && (
         <ImportSOsModal
@@ -16064,7 +16078,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, onFulfill, onResolve, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onReplacement?: () => void; onFulfill?: () => void; onResolve?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, onFulfill, onResolve, onMoveItems, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onReplacement?: () => void; onFulfill?: () => void; onResolve?: () => void; onMoveItems?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
@@ -16091,6 +16105,9 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
   if (!isAdvisor && so.status === 'backordered') {
     btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release from hold</button>);
     btns.push(<button key="cancel" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+  }
+  if (!isAdvisor && !so.is_historical && ['draft', 'confirmed', 'partially_fulfilled', 'backordered'].includes(String(so.status)) && onMoveItems) {
+    btns.push(<button key="move-items" onClick={onMoveItems} style={btnStyle('ghost', 'xs')}>Move items</button>);
   }
   if (!isAdvisor && so.status === 'fulfilled') {
     btns.push(<button key="notes" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit Notes</button>);
