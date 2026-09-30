@@ -17,7 +17,11 @@ vi.mock('../stockAllocation/service', () => ({
   transferStockAllocationsToBackorderLine: transferAllocation,
 }));
 
-import { SalesOrderTransferConflict, transferSalesOrderItems } from '../orderTransfers/salesOrderTransfer';
+import {
+  SalesOrderTransferConflict,
+  transferSalesOrderItems,
+  transferSalesOrderItemsInTransaction,
+} from '../orderTransfers/salesOrderTransfer';
 
 const sourceOrder = {
   id: 10,
@@ -156,6 +160,21 @@ describe('transferSalesOrderItems', () => {
     expect(transferAllocation).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalledOnce();
     expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('leaves an externally owned transaction open for a multi-source coordinator', async () => {
+    await transferSalesOrderItemsInTransaction(connection, {
+      businessId: 'biz-1',
+      sourceOrderId: 10,
+      targetOrderId: 20,
+      operationKey: 'move-10-to-20-in-batch',
+      lines: [{ sourceItemId: 101, quantity: 2, allocatedIncomingQuantity: 1.25 }],
+    });
+
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).not.toHaveBeenCalled();
   });
 
   it('creates a new compatible destination inside the same transaction', async () => {

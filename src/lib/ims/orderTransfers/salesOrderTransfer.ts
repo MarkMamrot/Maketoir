@@ -26,6 +26,19 @@ export type SalesOrderTransferLineInput = {
   allocatedIncomingQuantity: number;
 };
 
+export type SalesOrderTransferInput = {
+  businessId: string;
+  sourceOrderId: number;
+  targetOrderId?: number | null;
+  createTarget?: boolean;
+  lines: SalesOrderTransferLineInput[];
+  operationKey: string;
+  expectedSourceUpdatedAt?: string | null;
+  expectedTargetUpdatedAt?: string | null;
+  actorId?: number | null;
+  actorName?: string | null;
+};
+
 export type SalesOrderTransferResult = {
   replayed: boolean;
   sourceOrderId: number;
@@ -257,18 +270,10 @@ async function createTransferTarget(
   }
 }
 
-export async function transferSalesOrderItems(input: {
-  businessId: string;
-  sourceOrderId: number;
-  targetOrderId?: number | null;
-  createTarget?: boolean;
-  lines: SalesOrderTransferLineInput[];
-  operationKey: string;
-  expectedSourceUpdatedAt?: string | null;
-  expectedTargetUpdatedAt?: string | null;
-  actorId?: number | null;
-  actorName?: string | null;
-}): Promise<SalesOrderTransferResult> {
+async function applySalesOrderItemsTransfer(
+  input: SalesOrderTransferInput,
+  externalConnection?: any,
+): Promise<SalesOrderTransferResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150) {
     throw new SalesOrderTransferConflict('A valid operation key is required.');
@@ -302,9 +307,10 @@ export async function transferSalesOrderItems(input: {
     lines,
   })).digest('hex');
 
-  const conn = await getIMSPool().getConnection();
+  const ownsConnection = externalConnection == null;
+  const conn = externalConnection ?? await getIMSPool().getConnection();
   try {
-    await conn.beginTransaction();
+    if (ownsConnection) await conn.beginTransaction();
     const [existingRows] = await conn.execute<any[]>(
       `SELECT request_hash, state, after_header_json
          FROM ims_order_amendment_operations
@@ -323,7 +329,7 @@ export async function transferSalesOrderItems(input: {
         ? JSON.parse(existing.after_header_json)
         : existing.after_header_json;
       if (!after?.transferResult) throw new SalesOrderTransferConflict('The completed move result could not be read.');
-      await conn.commit();
+      if (ownsConnection) await conn.commit();
       return { ...after.transferResult, replayed: true } as SalesOrderTransferResult;
     }
 
@@ -567,12 +573,23 @@ export async function transferSalesOrderItems(input: {
         transferSourceOrderNumber: sourceOrder.so_number }),
         input.businessId, Number(targetOperationResult.insertId)],
     );
-    await conn.commit();
+    if (ownsConnection) await conn.commit();
     return result;
   } catch (error) {
-    await conn.rollback();
+    if (ownsConnection) await conn.rollback();
     throw error;
   } finally {
-    conn.release();
+    if (ownsConnection) conn.release();
   }
+}
+
+export function transferSalesOrderItemsInTransaction(
+  connection: any,
+  input: SalesOrderTransferInput,
+): Promise<SalesOrderTransferResult> {
+  return applySalesOrderItemsTransfer(input, connection);
+}
+
+export function transferSalesOrderItems(input: SalesOrderTransferInput): Promise<SalesOrderTransferResult> {
+  return applySalesOrderItemsTransfer(input);
 }
