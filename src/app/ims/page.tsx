@@ -67,6 +67,7 @@ import { BuildRecipeEditor } from './views/products/BuildRecipeEditor';
 import { NewProductChannelChoices, ProductChannelDestinations } from './views/products/ProductChannelDestinations';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
+import { SalesOrderBatchMoveModal } from './views/orders/SalesOrderBatchMoveModal';
 import { SalesOrderMoveItemsModal } from './views/orders/SalesOrderMoveItemsModal';
 import { PurchaseOrderMoveItemsModal } from './views/orders/PurchaseOrderMoveItemsModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
@@ -14292,6 +14293,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [soActionSelections, setSoActionSelections] = useState<Record<string, string>>({});
   const [selectedSoIds, setSelectedSoIds] = useState<Set<number>>(new Set());
   const [shipOrdersOpen, setShipOrdersOpen] = useState(false);
+  const [batchMoveOpen, setBatchMoveOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
@@ -15047,11 +15049,21 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const safePageSO = Math.min(page, totalPagesSO);
   const visibleSOs = sos;
   const selectedSOs = visibleSOs.filter((so: any) => selectedSoIds.has(Number(so.id)));
-  const selectableSOs = visibleSOs.filter((so: any) => !so.is_pos_ledger
+  const shippableSOs = visibleSOs.filter((so: any) => !so.is_pos_ledger
     && so.channel_delivery_type !== 'pickup'
     && ['confirmed', 'partially_fulfilled'].includes(String(so.status))
     && ['b2b', 'online', 'shopify'].includes(String(so.so_type || 'b2b').toLowerCase())
     && Number(so.remaining_quantity ?? 0) > 0);
+  const movableSOs = visibleSOs.filter((so: any) => !so.is_pos_ledger
+    && !so.is_historical
+    && ['draft', 'confirmed', 'partially_fulfilled', 'backordered'].includes(String(so.status))
+    && String(so.so_type || 'b2b').toLowerCase() === 'b2b'
+    && Number(so.remaining_quantity ?? 0) > 0);
+  const shippableIds = new Set(shippableSOs.map((so: any) => Number(so.id)));
+  const movableIds = new Set(movableSOs.map((so: any) => Number(so.id)));
+  const selectableSOs = visibleSOs.filter((so: any) => shippableIds.has(Number(so.id)) || movableIds.has(Number(so.id)));
+  const selectedCanShip = selectedSOs.length > 0 && selectedSOs.every((so: any) => shippableIds.has(Number(so.id)));
+  const selectedCanBatchMove = selectedSOs.length >= 2 && selectedSOs.every((so: any) => movableIds.has(Number(so.id)));
   const allSelectableSelected = selectableSOs.length > 0 && selectableSOs.every((so: any) => selectedSoIds.has(Number(so.id)));
   useEffect(() => {
     if (page > totalPagesSO) setPage(totalPagesSO);
@@ -15205,8 +15217,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <table style={{ width: soTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
               {renderSoColGroup()}
             <thead>
-              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th style={{ padding: '7px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all shippable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th><th colSpan={selectedSoFields.length + 1} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong><button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
-                <th style={{ padding: '10px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all shippable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th>
+              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th style={{ padding: '7px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all actionable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th><th colSpan={selectedSoFields.length + 1} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong><button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor || !selectedCanShip} title={selectedCanShip ? 'Prepare the selected orders for shipping' : 'Shipping requires only Confirmed or In Progress shippable orders'} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button><button type="button" onClick={() => setBatchMoveOpen(true)} disabled={isAdvisor || !selectedCanBatchMove} title={selectedCanBatchMove ? 'Move all outstanding quantities into one selected order' : 'Select at least two ordinary open B2B Sales Orders'} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftRight size={14} />Move into one order</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
+                <th style={{ padding: '10px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all actionable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th>
                 {selectedSoFields.map(field => (
                   <th key={field.id} onClick={() => toggleSort(field.sortKey ?? field.id)}
                     style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === (field.sortKey ?? field.id) ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: field.id === 'so_number' || field.id === 'customer_name' ? 'sticky' : undefined, left: field.id === 'so_number' ? 44 : field.id === 'customer_name' ? 154 : undefined, background: 'var(--sv-bg-2)', zIndex: field.id === 'so_number' || field.id === 'customer_name' ? 3 : 1, boxShadow: field.id === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
@@ -15238,7 +15250,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 const selectedAction = soActionSelections[so.id] ?? soActions[0]?.value ?? 'open';
                 return (
                   <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 8px', textAlign: 'center', position: 'sticky', left: 0, zIndex: 4, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><input type="checkbox" aria-label={`Select ${so.so_number} for shipping`} checked={selectedSoIds.has(Number(so.id))} disabled={!selectableSOs.some((candidate: any) => Number(candidate.id) === Number(so.id))} onChange={event => setSelectedSoIds(current => { const next = new Set(current); if (event.target.checked) next.add(Number(so.id)); else next.delete(Number(so.id)); return next; })} /></td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center', position: 'sticky', left: 0, zIndex: 4, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><input type="checkbox" aria-label={`Select ${so.so_number}`} checked={selectedSoIds.has(Number(so.id))} disabled={!selectableSOs.some((candidate: any) => Number(candidate.id) === Number(so.id))} onChange={event => setSelectedSoIds(current => { const next = new Set(current); if (event.target.checked) next.add(Number(so.id)); else next.delete(Number(so.id)); return next; })} /></td>
                     {selectedSoFields.map(field => {
                       const frozen = field.id === 'so_number' || field.id === 'customer_name';
                       const background = i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)';
@@ -15293,6 +15305,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       )}
 
       {shipOrdersOpen && <ShipOrdersWorkspace orders={selectedSOs} onClose={() => setShipOrdersOpen(false)} />}
+      {batchMoveOpen && <SalesOrderBatchMoveModal orders={selectedSOs} onClose={() => setBatchMoveOpen(false)} onMoved={() => { setSelectedSoIds(new Set()); load(); }} />}
 
       {sourcingReview.open && sourcingReview.preview && (
         <Modal title={`Stock sourcing · ${sourcingReview.preview.soNumber}`} onClose={() => setSourcingReview({ open: false, so: null, preview: null })} wide zIndex={1100}>
