@@ -16064,6 +16064,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <SalesOrderMoveItemsModal
           order={moveItemsOrder}
           onClose={() => setMoveItemsOrder(null)}
+          onMoved={() => load()}
         />
       )}
 

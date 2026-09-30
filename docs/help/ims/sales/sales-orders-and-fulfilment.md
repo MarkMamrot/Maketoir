@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-09-11","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, move outstanding quantities between compatible orders, ship actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-09-11","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 
 # Sales Orders and Fulfilment
@@ -15,7 +15,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - Close dispatched shipments into a carrier manifest and print the lodgement summary.
 - Fulfil only the quantities sent to the customer.
 - Continue a partial fulfilment or resolve the remainder.
-- Preview moving selected outstanding quantities to another compatible Sales Order.
+- Move selected outstanding quantities and their chosen protected incoming supply to another compatible Sales Order.
 
 ## At a glance
 
@@ -72,7 +72,9 @@ For Shopify orders, Solvantis copies the shipping address supplied on the order 
 17. Select the shipments going in the pickup and choose **Create booking & manifest**. For Australia Post this creates one carrier Order and seals those shipments so they cannot enter another manifest.
 18. Manifest history lists the included channel or Solvantis order references. Choose **Print Parcel labels**, **Print Express labels**, or **Print International labels** to retrieve a PDF containing only that label layout, or choose **Print manifest** to print and sign the Australia Post Order Summary. These documents can be printed again from manifest history. International labels are never combined with Parcel Post or Express Post labels.
 
-To plan a commercial order consolidation, choose **Move items** on an open Sales Order. Select a quantity preset or enter a quantity for each outstanding line, then review compatible destination orders. Solvantis separates orders that cannot receive the items and shows the reason, including customer, location, currency, tax, payment, shipment, channel, customer PO reference, or Xero differences. This screen is currently a preview: closing it does not change either order, its stock commitments, incoming allocations, shipments, or accounting records.
+To consolidate or reorganise commercial demand, choose **Move items** on an open Sales Order. Select a quantity preset or enter the quantity to move for each outstanding line. For every selected line, also choose how much of its protected incoming supply should follow; this can be zero and cannot exceed either the moved quantity or the protection currently available. Then choose a compatible destination and review the complete move before confirming it.
+
+Solvantis separates orders that cannot receive the items and shows the reason, including customer, location, currency, tax, payment, shipment, channel, customer PO reference, or Xero differences. On confirmation, the ordered quantities and selected incoming protection move together atomically. Existing fulfilled quantities remain on their original orders, each order keeps its own freight and discount, and no goods are dispatched or stock on hand changed. If either order or its protected supply changed after the review, refresh and review the move again.
 
 > **Important:** If Solvantis reports that the carrier outcome is unknown, do not create another booking. Check the Australia Post portal, then use **Reconcile** with the confirmed carrier order ID. Solvantis verifies that the carrier order contains exactly the expected shipments before enabling the manifest printout.
 

@@ -359,7 +359,7 @@
     {
       "id": "public-capability:ims-sales-orders-fulfilment",
       "title": "Sales Orders and Fulfilment",
-      "summary": "Create customer sales orders, choose visible order fields, ship actual quantities, and resolve an unshipped remainder.",
+      "summary": "Create customer sales orders, move outstanding quantities between compatible orders, ship actual quantities, and resolve an unshipped remainder.",
       "capabilities": [
         "ims",
         "orders"

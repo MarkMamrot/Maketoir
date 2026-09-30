@@ -21,6 +21,7 @@ const preview = {
   eligibleTargets: [{
     id: 8,
     orderNumber: 'SO-8',
+    updatedAt: '2026-09-02T10:00:00.000Z',
     customerName: 'Acme Retail',
     locationName: 'Warehouse',
     orderDate: '2026-09-02',
@@ -48,7 +49,10 @@ function response(data: unknown, status = 200): Response {
 
 describe('SalesOrderMoveItemsModal', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ success: true, data: preview })));
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => init?.method === 'POST'
+      ? response({ success: true, data: { sourceOrderId: 7, targetOrderId: 8 } })
+      : response({ success: true, data: preview })));
+    vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'operation-1') });
   });
 
   afterEach(() => {
@@ -57,25 +61,47 @@ describe('SalesOrderMoveItemsModal', () => {
     vi.unstubAllGlobals();
   });
 
-  it('plans line quantities and a compatible destination without offering a mutation action', async () => {
+  it('reviews and submits quantities with an explicit protected incoming mix', async () => {
     const user = userEvent.setup();
-    render(<SalesOrderMoveItemsModal order={{ id: 7, so_number: 'SO-7' }} onClose={vi.fn()} />);
+    const onClose = vi.fn();
+    const onMoved = vi.fn();
+    render(<SalesOrderMoveItemsModal order={{ id: 7, so_number: 'SO-7' }} onClose={onClose} onMoved={onMoved} />);
 
     expect(await screen.findByText('Blue Shirt')).toBeTruthy();
     expect(fetch).toHaveBeenCalledWith('/api/ims/sales-orders/7/transfers/preview', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     await user.click(screen.getByRole('button', { name: /Ready now/ }));
     expect((screen.getByRole('spinbutton', { name: 'Quantity to move' }) as HTMLInputElement).value).toBe('3');
+    const incomingInput = screen.getByRole('spinbutton', { name: /Protected incoming to move/ });
+    expect((incomingInput as HTMLInputElement).value).toBe('3');
+    await user.clear(incomingInput);
+    await user.type(incomingInput, '1.5');
 
     await user.click(screen.getByRole('button', { name: 'Choose destination' }));
     await user.click(screen.getByRole('radio'));
     expect(screen.getByRole('status').textContent).toContain('SO-7 to SO-8');
-    expect(screen.queryByRole('button', { name: /confirm|move selected/i })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Close preview' })).toBeTruthy();
 
     await user.click(screen.getByText('1 other order(s) cannot receive these items'));
     const excluded = screen.getByText('SO-9').parentElement!;
     expect(within(excluded).getByText(/Location does not match/)).toBeTruthy();
     expect(within(excluded).getByText(/has payments/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Review move' }));
+    expect(screen.getByText('1.5 protected incoming follows')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Move selected items' }));
+
+    expect(fetch).toHaveBeenLastCalledWith('/api/ims/sales-orders/7/transfers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetOrderId: 8,
+        operationKey: 'operation-1',
+        expectedSourceUpdatedAt: null,
+        expectedTargetUpdatedAt: '2026-09-02T10:00:00.000Z',
+        lines: [{ sourceItemId: 11, quantity: 3, allocatedIncomingQuantity: 1.5 }],
+      }),
+    });
+    expect(onMoved).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('keeps the destination step unavailable when the source has blockers', async () => {

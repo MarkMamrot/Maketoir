@@ -56,6 +56,7 @@ export type SalesOrderTransferPreviewLine = {
 export type SalesOrderTransferTarget = {
   id: number;
   orderNumber: string;
+  updatedAt: string | null;
   customerName: string | null;
   locationName: string | null;
   orderDate: string | null;
@@ -105,6 +106,7 @@ function asTarget(row: SalesOrderPreviewRow, conflicts: string[]): SalesOrderTra
   return {
     id: Number(row.id),
     orderNumber: String(row.so_number),
+    updatedAt: row.updated_at ?? null,
     customerName: row.customer_name ?? null,
     locationName: row.location_name ?? null,
     orderDate: row.order_date ?? null,
