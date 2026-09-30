@@ -14,6 +14,7 @@ A purchase order records what you intend to buy from a supplier and where it sho
 | New Purchase Order | You are preparing a supplier order | None while Draft |
 | Confirm | The order is ready to place | Quantity becomes incoming, not on hand |
 | Receive | Goods have physically arrived | Adds the entered quantity to on hand |
+| Move items | Outstanding supply belongs on another compatible Purchase Order | Moves unreceived quantity and selected customer promises; stock on hand is unchanged |
 | Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |
 | Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |
 | Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |
@@ -91,6 +92,12 @@ The **Xero accounting** summary shows the linked bill and any Xero records Solva
 Use the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten.
 
 For a Partially Received order, choose **Edit Details** to increase an ordered quantity, add a product, amend a wholly unreceived line, or update expected date, notes, supplier invoice details, and payment terms. Received quantities remain unchanged. An existing received line cannot change product, cost, discount, or tax, cannot be removed, and cannot be reduced below the quantity already received. Supplier, receiving location, order date, currency, freight, and landed costs remain locked after the first receipt.
+
+Choose **Move items** on an open Purchase Order when selected outstanding supply should belong to another compatible existing Purchase Order. For each line, enter the quantity to move. Solvantis separates free supply from supply already promised to customer Sales Orders. Choose the exact quantity from each named customer promise that should follow the moved supply. **Free only** moves no customer promises; **All outstanding** explicitly selects every unreceived promise on that line.
+
+The destination must match the supplier, receiving location, currency, exchange rate, tax treatment, payment terms, and supplier invoice reference. Orders with payments, controlled external records, or Xero bills that cannot be safely verified are unavailable. A Draft destination cannot receive customer promises.
+
+On confirmation, the outstanding ordered quantity and selected promise links move together. Received quantities remain on the source PO, stock on hand does not change, and each PO keeps its own freight and discount. When both orders already own incoming supply, the business's total incoming quantity is unchanged. If an order or customer promise changed after review, refresh and review the move again.
 
 If the PO has active incoming-stock allocations, release or reassign them before changing its lines. If it has a linked Xero bill, Solvantis checks the live Xero state before saving a financial amendment. An unpaid Draft bill can still be amended when its date falls in a Xero locked period because it has not been posted. Paid, credited, posted locked-period, or unverifiable bills cannot be amended this way.
 

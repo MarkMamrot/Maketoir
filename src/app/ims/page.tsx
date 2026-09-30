@@ -68,6 +68,7 @@ import { NewProductChannelChoices, ProductChannelDestinations } from './views/pr
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { SalesOrderMoveItemsModal } from './views/orders/SalesOrderMoveItemsModal';
+import { PurchaseOrderMoveItemsModal } from './views/orders/PurchaseOrderMoveItemsModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
 import { ContactCrmTaskQueue, type ContactCrmWorkspaceTask } from './views/contacts/ContactCrmTaskQueue';
@@ -10292,17 +10293,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       Number(item.qty_received ?? 0) >= Number(item.qty_ordered),
     ));
     if (!isAdvisor && po.status === 'draft') {
-      actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
+      actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Move items', value: 'move-items' }, { label: 'Delete', value: 'delete' });
     }
     if (!isAdvisor && po.status === 'confirmed') {
-      actions.push({ label: 'Receive', value: 'receive' }, { label: 'Edit', value: 'edit' });
+      actions.push({ label: 'Receive', value: 'receive' }, { label: 'Edit', value: 'edit' }, { label: 'Move items', value: 'move-items' });
     }
     if (!isAdvisor && po.status === 'partially_received') {
-      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Edit Details', value: 'edit' }, { label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Resolve Outstanding', value: 'resolve' });
+      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Edit Details', value: 'edit' }, { label: 'Move items', value: 'move-items' }, { label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Resolve Outstanding', value: 'resolve' });
       if (fullyReceived) actions.push({ label: 'Mark Complete', value: 'complete' });
     }
     if (!isAdvisor && po.status === 'backordered') {
-      actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Cancel', value: 'cancel' });
+      actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Move items', value: 'move-items' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && po.status === 'complete') {
       actions.push({ label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Supplier Return / Credit', value: 'supplier-return' });
@@ -10332,6 +10333,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         break;
       case 'resolve':
         setResolveOrder(po);
+        break;
+      case 'move-items':
+        setMoveItemsOrder(po);
         break;
       case 'complete':
         changeStatus(po, 'complete');
@@ -10922,7 +10926,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} onReplacement={() => createPoReplacement(viewModal.po)} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onMoveItems={() => setMoveItemsOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} onReplacement={() => createPoReplacement(viewModal.po)} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -11380,6 +11384,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
           }}
         />
       )}
+      {moveItemsOrder && (
+        <PurchaseOrderMoveItemsModal
+          order={moveItemsOrder}
+          onClose={() => setMoveItemsOrder(null)}
+          onMoved={() => load()}
+        />
+      )}
       {importPOsOpen && (
         <ImportPOsModal
           locations={locations}
@@ -11392,7 +11403,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   );
 }
 
-function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUndoReceipt, onSupplierReturn, onReplacement, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; onSupplierReturn?: () => void; onReplacement?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
+function POActions({ po, onEdit, onReceive, onResolve, onMoveItems, onDelete, onStatus, onUndoReceipt, onSupplierReturn, onReplacement, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onMoveItems?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; onSupplierReturn?: () => void; onReplacement?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -11429,6 +11440,9 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   if (!isAdvisor && po.status === 'backordered') {
     btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release from hold</button>);
     btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+  }
+  if (!isAdvisor && ['draft', 'confirmed', 'partially_received', 'backordered'].includes(po.status) && onMoveItems) {
+    btns.push(<button key="move-items" onClick={onMoveItems} style={btnStyle('ghost', 'xs')}>Move items</button>);
   }
   if (!isAdvisor && po.status === 'complete') {
     btns.push(<button key="undo-receipt" data-testid={`po-undo-receipt-${po.id}`} onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Receipt</button>);
