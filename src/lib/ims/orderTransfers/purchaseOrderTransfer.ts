@@ -21,6 +21,19 @@ export type PurchaseOrderTransferLineInput = {
   allocations: Array<{ allocationId: number; revision: number; quantity: number }>;
 };
 
+export type PurchaseOrderTransferInput = {
+  businessId: string;
+  sourceOrderId: number;
+  targetOrderId?: number | null;
+  createTarget?: boolean;
+  lines: PurchaseOrderTransferLineInput[];
+  operationKey: string;
+  expectedSourceUpdatedAt?: string | null;
+  expectedTargetUpdatedAt?: string | null;
+  actorId?: number | null;
+  actorName?: string | null;
+};
+
 export type PurchaseOrderTransferResult = {
   replayed: boolean;
   sourceOrderId: number;
@@ -195,18 +208,10 @@ async function createTransferTarget(conn: any, businessId: string, sourceOrder: 
   } as PurchaseOrderRow;
 }
 
-export async function transferPurchaseOrderItems(input: {
-  businessId: string;
-  sourceOrderId: number;
-  targetOrderId?: number | null;
-  createTarget?: boolean;
-  lines: PurchaseOrderTransferLineInput[];
-  operationKey: string;
-  expectedSourceUpdatedAt?: string | null;
-  expectedTargetUpdatedAt?: string | null;
-  actorId?: number | null;
-  actorName?: string | null;
-}): Promise<PurchaseOrderTransferResult> {
+async function applyPurchaseOrderItemsTransfer(
+  input: PurchaseOrderTransferInput,
+  externalConnection?: any,
+): Promise<PurchaseOrderTransferResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150) throw new PurchaseOrderTransferConflict('A valid operation key is required.');
   const createTarget = input.createTarget === true;
@@ -236,11 +241,12 @@ export async function transferPurchaseOrderItems(input: {
   const requestHash = createHash('sha256').update(JSON.stringify({
     sourceOrderId: input.sourceOrderId, destination: createTarget ? 'new' : Number(input.targetOrderId), lines,
   })).digest('hex');
-  const conn = await getIMSPool().getConnection();
+  const ownsConnection = externalConnection == null;
+  const conn = externalConnection ?? await getIMSPool().getConnection();
   const numberLockName = `ims:${input.businessId}:po:number`;
   let numberLockAcquired = false;
   try {
-    await conn.beginTransaction();
+    if (ownsConnection) await conn.beginTransaction();
     const [existingRows] = await conn.execute<any[]>(
       `SELECT request_hash, state, after_header_json FROM ims_order_amendment_operations
         WHERE business_id = ? AND operation_key = ? FOR UPDATE`,
@@ -252,7 +258,7 @@ export async function transferPurchaseOrderItems(input: {
       if (String(existing.state) !== 'complete') throw new PurchaseOrderTransferConflict('This move is already being processed. Refresh before trying again.');
       const after = typeof existing.after_header_json === 'string' ? JSON.parse(existing.after_header_json) : existing.after_header_json;
       if (!after?.transferResult) throw new PurchaseOrderTransferConflict('The completed move result could not be read.');
-      await conn.commit();
+      if (ownsConnection) await conn.commit();
       return { ...after.transferResult, replayed: true };
     }
 
@@ -497,13 +503,24 @@ export async function transferPurchaseOrderItems(input: {
       [JSON.stringify({ ...targetOrder, transferSourceOrderId: input.sourceOrderId,
         transferSourceOrderNumber: sourceOrder.po_number }), input.businessId, Number(targetOperation.insertId)],
     );
-    await conn.commit();
+    if (ownsConnection) await conn.commit();
     return result;
   } catch (error) {
-    await conn.rollback();
+    if (ownsConnection) await conn.rollback();
     throw error;
   } finally {
     if (numberLockAcquired) await conn.execute(`SELECT RELEASE_LOCK(?)`, [numberLockName]);
-    conn.release();
+    if (ownsConnection) conn.release();
   }
+}
+
+export function transferPurchaseOrderItemsInTransaction(
+  connection: any,
+  input: PurchaseOrderTransferInput,
+): Promise<PurchaseOrderTransferResult> {
+  return applyPurchaseOrderItemsTransfer(input, connection);
+}
+
+export function transferPurchaseOrderItems(input: PurchaseOrderTransferInput): Promise<PurchaseOrderTransferResult> {
+  return applyPurchaseOrderItemsTransfer(input);
 }

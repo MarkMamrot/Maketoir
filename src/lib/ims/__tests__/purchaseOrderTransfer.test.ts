@@ -8,7 +8,11 @@ vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
 }));
 
-import { PurchaseOrderTransferConflict, transferPurchaseOrderItems } from '../orderTransfers/purchaseOrderTransfer';
+import {
+  PurchaseOrderTransferConflict,
+  transferPurchaseOrderItems,
+  transferPurchaseOrderItemsInTransaction,
+} from '../orderTransfers/purchaseOrderTransfer';
 
 const sourceOrder = {
   id: 10, po_number: 'PO-10', business_id: 'biz-1', status: 'partially_received', supplier_id: 7,
@@ -90,6 +94,18 @@ describe('transferPurchaseOrderItems', () => {
     })).rejects.toThrow(PurchaseOrderTransferConflict);
 
     expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('leaves an externally owned transaction open for a multi-source coordinator', async () => {
+    await transferPurchaseOrderItemsInTransaction(connection, {
+      businessId: 'biz-1', sourceOrderId: 10, targetOrderId: 20, operationKey: 'move-po-in-batch',
+      lines: [{ sourceItemId: 101, quantity: 4, allocations: [{ allocationId: 501, revision: 2, quantity: 2 }] }],
+    });
+
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).not.toHaveBeenCalled();
   });
 
   it('creates a compatible active destination atomically under the tenant number lock', async () => {
