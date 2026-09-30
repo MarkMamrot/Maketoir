@@ -35,6 +35,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [allocatedIncomingQuantities, setAllocatedIncomingQuantities] = useState<Record<number, number>>({});
   const [targetChoice, setTargetChoice] = useState<number | 'new' | null>(null);
+  const [sourceClosureAcknowledged, setSourceClosureAcknowledged] = useState(false);
   const operationKey = useRef('');
 
   useEffect(() => {
@@ -64,6 +65,9 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
 
   const sourceBlocked = (preview?.source.conflicts.length ?? 0) > 0;
   const selectedLines = (preview?.lines ?? []).filter(line => Number(quantities[line.itemId] ?? 0) > 0);
+  const willCloseSource = (preview?.lines.length ?? 0) > 0 && preview!.lines.every(
+    line => Number(quantities[line.itemId] ?? 0) >= line.rules.outstanding - 0.00005,
+  );
   const selectedTarget = typeof targetChoice === 'number'
     ? preview?.eligibleTargets.find(target => target.id === targetChoice) ?? null
     : null;
@@ -99,7 +103,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
   }
 
   async function submitMove() {
-    if (!preview || targetChoice == null || submitting) return;
+    if (!preview || targetChoice == null || submitting || (willCloseSource && !sourceClosureAcknowledged)) return;
     if (!operationKey.current) operationKey.current = crypto.randomUUID();
     setSubmitting(true);
     setError('');
@@ -250,6 +254,12 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                 </section>
               ))}
               <div style={{ padding: 12, background: 'rgba(52,211,153,.08)', border: '1px solid rgba(52,211,153,.35)', borderRadius: 6, fontSize: 13 }}>Both Sales Orders will keep their existing fulfilled quantities, freight and discounts. This move does not dispatch stock.</div>
+              {willCloseSource && (
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: 12, border: '1px solid #f59e0b', background: 'rgba(245,158,11,.08)', borderRadius: 6, fontSize: 13 }}>
+                  <input type="checkbox" checked={sourceClosureAcknowledged} onChange={event => setSourceClosureAcknowledged(event.target.checked)} />
+                  <span><strong>I understand {preview.source.orderNumber} will close</strong><span style={{ display: 'block', color: 'var(--sv-text-dim,#aab4c2)', marginTop: 3 }}>No outstanding quantity will remain on the source Sales Order after this move.</span></span>
+                </label>
+              )}
             </div>
           )}
         </div>
@@ -261,7 +271,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
           ) : step === 2 ? (
             <button type="button" disabled={targetChoice == null || destinationAllocationConflict} onClick={() => setStep(3)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: targetChoice != null && !destinationAllocationConflict ? 'pointer' : 'not-allowed', opacity: targetChoice != null && !destinationAllocationConflict ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Review move <ArrowRight size={15} /></button>
           ) : (
-            <button type="button" disabled={submitting} onClick={submitMove} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{submitting && <Loader2 size={15} className="spin" />} {submitting ? 'Moving items...' : 'Move selected items'}</button>
+            <button type="button" disabled={submitting || (willCloseSource && !sourceClosureAcknowledged)} onClick={submitMove} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: submitting || (willCloseSource && !sourceClosureAcknowledged) ? 'not-allowed' : 'pointer', opacity: submitting || (willCloseSource && !sourceClosureAcknowledged) ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{submitting && <Loader2 size={15} className="spin" />} {submitting ? 'Moving items...' : 'Move selected items'}</button>
           )}
         </footer>
       </div>

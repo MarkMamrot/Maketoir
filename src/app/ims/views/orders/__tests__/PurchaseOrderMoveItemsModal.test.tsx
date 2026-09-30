@@ -57,6 +57,8 @@ describe('PurchaseOrderMoveItemsModal', () => {
     await user.click(screen.getByRole('button', { name: /Choose destination/ }));
     await user.click(screen.getByRole('radio', { name: /PO-20/ }));
     await user.click(screen.getByRole('button', { name: /Review move/ }));
+    expect((screen.getByRole('button', { name: /Move selected items/ }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole('checkbox', { name: /I understand PO-10 will close/ }));
     await user.click(screen.getByRole('button', { name: /Move selected items/ }));
 
     expect(fetch).toHaveBeenLastCalledWith('/api/ims/purchase-orders/10/transfers', {

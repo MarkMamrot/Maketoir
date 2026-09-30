@@ -14260,6 +14260,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [sourcingAcknowledged, setSourcingAcknowledged] = useState<Record<number, boolean>>({});
   const [savingSourcing, setSavingSourcing] = useState(false);
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
+  const [moveItemsOrder, setMoveItemsOrder] = useState<any | null>(null);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
   const [posVoiding, setPosVoiding] = useState(false);

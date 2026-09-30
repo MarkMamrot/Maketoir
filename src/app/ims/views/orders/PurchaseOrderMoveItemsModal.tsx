@@ -29,6 +29,7 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [promiseQuantities, setPromiseQuantities] = useState<Record<number, number>>({});
   const [targetChoice, setTargetChoice] = useState<number | 'new' | null>(null);
+  const [sourceClosureAcknowledged, setSourceClosureAcknowledged] = useState(false);
   const operationKey = useRef('');
 
   useEffect(() => {
@@ -51,6 +52,9 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
 
   const sourceBlocked = (preview?.source.conflicts.length ?? 0) > 0;
   const selectedLines = (preview?.lines ?? []).filter(line => Number(quantities[line.itemId] ?? 0) > 0);
+  const willCloseSource = (preview?.lines.length ?? 0) > 0 && preview!.lines.every(
+    line => Number(quantities[line.itemId] ?? 0) >= line.outstandingQuantity - 0.00005,
+  );
   const selectedTarget = typeof targetChoice === 'number'
     ? preview?.eligibleTargets.find(target => target.id === targetChoice) ?? null
     : null;
@@ -82,7 +86,7 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
   }
 
   async function submitMove() {
-    if (!preview || targetChoice == null || submitting) return;
+    if (!preview || targetChoice == null || submitting || (willCloseSource && !sourceClosureAcknowledged)) return;
     if (!operationKey.current) operationKey.current = crypto.randomUUID();
     setSubmitting(true);
     setError('');
@@ -180,9 +184,21 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
               {destinationPromiseConflict && <div role="alert" style={{ color: '#fbbf24', fontSize: 12 }}>Customer promises cannot move to a Draft Purchase Order. Choose an active destination or move free supply only.</div>}
             </div>
           )}
-          {preview && !loading && step === 3 && targetChoice != null && <div style={{ display: 'grid', gap: 12 }}><strong>{preview.source.orderNumber} <ArrowRight size={15} /> {selectedTarget?.orderNumber ?? 'New Purchase Order'}</strong>{selectedLines.map(line => <div key={line.itemId} style={{ borderBottom: '1px solid var(--sv-border,#364152)', padding: 10 }}><strong>{line.productName}</strong><div>{formatQuantity(quantities[line.itemId])} supply moves · {formatQuantity(selectedPromises(line).reduce((sum, allocation) => sum + allocation.selectedQuantity, 0))} customer-promised</div>{selectedPromises(line).map(allocation => <div key={allocation.allocationId} style={{ fontSize: 12 }}>{allocation.salesOrderNumber}: {formatQuantity(allocation.selectedQuantity)}</div>)}</div>)}<div style={{ padding: 12, background: 'rgba(52,211,153,.08)', borderRadius: 6 }}>Received quantities and stock on hand stay on the source PO. The destination keeps only the moved lines and starts with no freight or order discount.</div></div>}
+          {preview && !loading && step === 3 && targetChoice != null && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              <strong>{preview.source.orderNumber} <ArrowRight size={15} /> {selectedTarget?.orderNumber ?? 'New Purchase Order'}</strong>
+              {selectedLines.map(line => <div key={line.itemId} style={{ borderBottom: '1px solid var(--sv-border,#364152)', padding: 10 }}><strong>{line.productName}</strong><div>{formatQuantity(quantities[line.itemId])} supply moves · {formatQuantity(selectedPromises(line).reduce((sum, allocation) => sum + allocation.selectedQuantity, 0))} customer-promised</div>{selectedPromises(line).map(allocation => <div key={allocation.allocationId} style={{ fontSize: 12 }}>{allocation.salesOrderNumber}: {formatQuantity(allocation.selectedQuantity)}</div>)}</div>)}
+              <div style={{ padding: 12, background: 'rgba(52,211,153,.08)', borderRadius: 6 }}>Received quantities and stock on hand stay on the source PO. The destination keeps only the moved lines and starts with no freight or order discount.</div>
+              {willCloseSource && (
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: 12, border: '1px solid #f59e0b', background: 'rgba(245,158,11,.08)', borderRadius: 6, fontSize: 13 }}>
+                  <input type="checkbox" checked={sourceClosureAcknowledged} onChange={event => setSourceClosureAcknowledged(event.target.checked)} />
+                  <span><strong>I understand {preview.source.orderNumber} will close</strong><span style={{ display: 'block', color: 'var(--sv-text-dim,#aab4c2)', marginTop: 3 }}>No outstanding quantity will remain on the source Purchase Order after this move.</span></span>
+                </label>
+              )}
+            </div>
+          )}
         </div>
-        <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between' }}><button type="button" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(step === 3 ? 2 : 1)}>{step === 1 ? 'Cancel' : 'Back'}</button>{step === 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep(2)}>Choose destination <ArrowRight size={15} /></button> : step === 2 ? <button type="button" disabled={targetChoice == null || destinationPromiseConflict} onClick={() => setStep(3)}>Review move <ArrowRight size={15} /></button> : <button type="button" disabled={submitting} onClick={submitMove}>{submitting && <Loader2 size={15} />} {submitting ? 'Moving items...' : 'Move selected items'}</button>}</footer>
+        <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between' }}><button type="button" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(step === 3 ? 2 : 1)}>{step === 1 ? 'Cancel' : 'Back'}</button>{step === 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep(2)}>Choose destination <ArrowRight size={15} /></button> : step === 2 ? <button type="button" disabled={targetChoice == null || destinationPromiseConflict} onClick={() => setStep(3)}>Review move <ArrowRight size={15} /></button> : <button type="button" disabled={submitting || (willCloseSource && !sourceClosureAcknowledged)} onClick={submitMove}>{submitting && <Loader2 size={15} />} {submitting ? 'Moving items...' : 'Move selected items'}</button>}</footer>
       </div>
     </div>
   );

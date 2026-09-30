@@ -115,6 +115,8 @@ describe('SalesOrderMoveItemsModal', () => {
     expect(screen.getByRole('status').textContent).toContain('a new Confirmed Sales Order');
     await user.click(screen.getByRole('button', { name: 'Review move' }));
     expect(screen.getByText('New Sales Order')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Move selected items' }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole('checkbox', { name: /I understand SO-7 will close/ }));
     await user.click(screen.getByRole('button', { name: 'Move selected items' }));
 
     const [, init] = vi.mocked(fetch).mock.calls.at(-1)!;
