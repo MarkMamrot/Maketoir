@@ -77,7 +77,7 @@ describe('SalesOrderMoveItemsModal', () => {
     await user.type(incomingInput, '1.5');
 
     await user.click(screen.getByRole('button', { name: 'Choose destination' }));
-    await user.click(screen.getByRole('radio'));
+    await user.click(screen.getByRole('radio', { name: /SO-8/ }));
     expect(screen.getByRole('status').textContent).toContain('SO-7 to SO-8');
 
     await user.click(screen.getByText('1 other order(s) cannot receive these items'));
@@ -93,6 +93,7 @@ describe('SalesOrderMoveItemsModal', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        destinationMode: 'existing',
         targetOrderId: 8,
         operationKey: 'operation-1',
         expectedSourceUpdatedAt: null,
@@ -102,6 +103,26 @@ describe('SalesOrderMoveItemsModal', () => {
     });
     expect(onMoved).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('can create a new destination from the reviewed source terms', async () => {
+    const user = userEvent.setup();
+    render(<SalesOrderMoveItemsModal order={{ id: 7, so_number: 'SO-7' }} onClose={vi.fn()} />);
+
+    expect(await screen.findByText('Blue Shirt')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Choose destination' }));
+    await user.click(screen.getByRole('radio', { name: /Create new Sales Order/ }));
+    expect(screen.getByRole('status').textContent).toContain('a new Confirmed Sales Order');
+    await user.click(screen.getByRole('button', { name: 'Review move' }));
+    expect(screen.getByText('New Sales Order')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Move selected items' }));
+
+    const [, init] = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(JSON.parse(String(init?.body))).toEqual(expect.objectContaining({
+      destinationMode: 'new',
+      targetOrderId: null,
+      expectedTargetUpdatedAt: null,
+    }));
   });
 
   it('keeps the destination step unavailable when the source has blockers', async () => {

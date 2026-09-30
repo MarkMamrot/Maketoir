@@ -53,6 +53,7 @@ describe('POST /api/ims/sales-orders/[id]/transfers', () => {
       businessId: 'biz-1',
       sourceOrderId: 10,
       targetOrderId: 20,
+      createTarget: false,
       operationKey: 'move-1',
       expectedSourceUpdatedAt: '2026-04-01T00:00:00.000Z',
       expectedTargetUpdatedAt: '2026-04-02T00:00:00.000Z',
@@ -69,6 +70,28 @@ describe('POST /api/ims/sales-orders/[id]/transfers', () => {
 
     expect(response.status).toBe(403);
     expect(mockTransfer).not.toHaveBeenCalled();
+  });
+
+  it('requests a new destination without accepting a client-supplied order ID', async () => {
+    mockTransfer.mockResolvedValue({
+      sourceOrderId: 10, targetOrderId: 30, targetOrderNumber: 'SO-2026-0030', variantIds: [], movedLines: [],
+    });
+    const response = await POST(request({
+      destinationMode: 'new',
+      targetOrderId: 999,
+      operationKey: 'move-new-1',
+      expectedSourceUpdatedAt: '2026-04-01T00:00:00.000Z',
+      lines: [{ sourceItemId: 101, quantity: 1, allocatedIncomingQuantity: 0.5 }],
+    }), { params: { id: '10' } });
+
+    expect(response.status).toBe(200);
+    expect(mockTransfer).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      sourceOrderId: 10,
+      targetOrderId: null,
+      createTarget: true,
+      expectedTargetUpdatedAt: null,
+    }));
   });
 
   it('returns expected stale or compatibility failures as conflicts without runtime reporting', async () => {

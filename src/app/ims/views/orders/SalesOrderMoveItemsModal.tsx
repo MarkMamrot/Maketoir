@@ -34,7 +34,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [allocatedIncomingQuantities, setAllocatedIncomingQuantities] = useState<Record<number, number>>({});
-  const [targetId, setTargetId] = useState<number | null>(null);
+  const [targetChoice, setTargetChoice] = useState<number | 'new' | null>(null);
   const operationKey = useRef('');
 
   useEffect(() => {
@@ -64,8 +64,21 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
 
   const sourceBlocked = (preview?.source.conflicts.length ?? 0) > 0;
   const selectedLines = (preview?.lines ?? []).filter(line => Number(quantities[line.itemId] ?? 0) > 0);
-  const selectedTarget = preview?.eligibleTargets.find(target => target.id === targetId) ?? null;
-  const canContinue = !sourceBlocked && selectedLines.length > 0 && preview!.eligibleTargets.length > 0;
+  const selectedTarget = typeof targetChoice === 'number'
+    ? preview?.eligibleTargets.find(target => target.id === targetChoice) ?? null
+    : null;
+  const canContinue = !sourceBlocked && selectedLines.length > 0;
+  const newTargetStatus = preview?.source.status === 'draft'
+    ? 'Draft'
+    : preview?.source.status === 'backordered' ? 'On hold' : 'Confirmed';
+  const selectedIncomingQuantity = selectedLines.reduce(
+    (sum, line) => sum + Number(allocatedIncomingQuantities[line.itemId] ?? 0),
+    0,
+  );
+  const selectedDestinationIsDraft = targetChoice === 'new'
+    ? newTargetStatus === 'Draft'
+    : selectedTarget?.status === 'draft';
+  const destinationAllocationConflict = selectedDestinationIsDraft && selectedIncomingQuantity > 0;
 
   function setPreset(line: SalesOrderTransferPreviewLine, preset: QuantityPreset) {
     const nextQuantity = line.rules[preset];
@@ -86,7 +99,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
   }
 
   async function submitMove() {
-    if (!preview || !selectedTarget || submitting) return;
+    if (!preview || targetChoice == null || submitting) return;
     if (!operationKey.current) operationKey.current = crypto.randomUUID();
     setSubmitting(true);
     setError('');
@@ -95,10 +108,11 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetOrderId: selectedTarget.id,
+          destinationMode: targetChoice === 'new' ? 'new' : 'existing',
+          targetOrderId: selectedTarget?.id ?? null,
           operationKey: operationKey.current,
           expectedSourceUpdatedAt: preview.source.updatedAt,
-          expectedTargetUpdatedAt: selectedTarget.updatedAt,
+          expectedTargetUpdatedAt: selectedTarget?.updatedAt ?? null,
           lines: selectedLines.map(line => ({
             sourceItemId: line.itemId,
             quantity: quantities[line.itemId],
@@ -192,12 +206,18 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
           {preview && !loading && step === 2 && (
             <div style={{ display: 'grid', gap: 16 }}>
               <section>
-                <h3 style={{ margin: '0 0 9px', fontSize: 15 }}>Compatible Sales Orders</h3>
-                {preview.eligibleTargets.length === 0 ? <p style={{ color: 'var(--sv-text-dim,#aab4c2)' }}>No compatible destination orders were found.</p> : preview.eligibleTargets.map(target => (
-                  <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetId === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6, marginBottom: 8, cursor: 'pointer' }}>
-                    <input type="radio" name="move-target" checked={targetId === target.id} onChange={() => setTargetId(target.id)} />
+                <h3 style={{ margin: '0 0 9px', fontSize: 15 }}>Destination</h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === 'new' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6, marginBottom: 12, cursor: 'pointer' }}>
+                  <input type="radio" name="move-target" checked={targetChoice === 'new'} onChange={() => setTargetChoice('new')} />
+                  <span style={{ flex: 1 }}><strong>Create new Sales Order</strong><span style={{ display: 'block', color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12, marginTop: 3 }}>Same customer, location and commercial terms · starts {newTargetStatus}</span></span>
+                  {targetChoice === 'new' && <Check size={16} color="var(--sv-mint,#34d399)" />}
+                </label>
+                {preview.eligibleTargets.length > 0 && <h3 style={{ margin: '14px 0 9px', fontSize: 15 }}>Existing compatible Sales Orders</h3>}
+                {preview.eligibleTargets.map(target => (
+                  <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6, marginBottom: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="move-target" checked={targetChoice === target.id} onChange={() => setTargetChoice(target.id)} />
                     <span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12, marginTop: 3 }}>{formatQuantity(target.outstandingQuantity)} already outstanding · {target.status === 'backordered' ? 'On hold' : target.status.replaceAll('_', ' ')}</span></span>
-                    {targetId === target.id && <Check size={16} color="var(--sv-mint,#34d399)" />}
+                    {targetChoice === target.id && <Check size={16} color="var(--sv-mint,#34d399)" />}
                   </label>
                 ))}
               </section>
@@ -207,17 +227,18 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                   <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>{preview.excludedTargets.map(target => <div key={target.id} style={{ padding: 10, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,.07)', fontSize: 12 }}><strong>{target.orderNumber}</strong><div style={{ color: 'var(--sv-text-dim,#aab4c2)', marginTop: 3 }}>{target.conflicts.join(' ')}</div></div>)}</div>
                 </details>
               )}
-              {selectedTarget && <div role="status" style={{ padding: 12, background: 'var(--sv-bg-2,#111827)', borderRadius: 6, fontSize: 13 }}><strong>Planned move:</strong> {selectedLines.length} line(s) from {preview.source.orderNumber} to {selectedTarget.orderNumber}.</div>}
+              {targetChoice != null && <div role="status" style={{ padding: 12, background: 'var(--sv-bg-2,#111827)', borderRadius: 6, fontSize: 13 }}><strong>Planned move:</strong> {selectedLines.length} line(s) from {preview.source.orderNumber} to {selectedTarget?.orderNumber ?? `a new ${newTargetStatus} Sales Order`}.</div>}
+              {destinationAllocationConflict && <div role="alert" style={{ padding: 12, border: '1px solid #f59e0b', background: 'rgba(245,158,11,.10)', borderRadius: 6, fontSize: 13 }}>Protected incoming supply cannot follow items to a Draft Sales Order. Go back and set protected incoming to zero, or choose a Confirmed destination.</div>}
             </div>
           )}
 
-          {preview && !loading && step === 3 && selectedTarget && (
+          {preview && !loading && step === 3 && targetChoice != null && (
             <div style={{ display: 'grid', gap: 14 }}>
               <section style={{ padding: 14, border: '1px solid var(--sv-border,#364152)', borderRadius: 7 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <strong>{preview.source.orderNumber}</strong><ArrowRight size={16} /><strong>{selectedTarget.orderNumber}</strong>
+                  <strong>{preview.source.orderNumber}</strong><ArrowRight size={16} /><strong>{selectedTarget?.orderNumber ?? 'New Sales Order'}</strong>
                 </div>
-                <div style={{ marginTop: 5, color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12 }}>{targetLabel(selectedTarget)}</div>
+                <div style={{ marginTop: 5, color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12 }}>{selectedTarget ? targetLabel(selectedTarget) : `Created as ${newTargetStatus} with the source order's customer, location and commercial terms`}</div>
               </section>
               {selectedLines.map(line => (
                 <section key={line.itemId} style={{ padding: 14, borderBottom: '1px solid var(--sv-border,#364152)', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 14 }}>
@@ -238,7 +259,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
           {step === 1 ? (
             <button type="button" disabled={!canContinue} onClick={() => setStep(2)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: canContinue ? 'pointer' : 'not-allowed', opacity: canContinue ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Choose destination <ArrowRight size={15} /></button>
           ) : step === 2 ? (
-            <button type="button" disabled={!selectedTarget} onClick={() => setStep(3)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: selectedTarget ? 'pointer' : 'not-allowed', opacity: selectedTarget ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Review move <ArrowRight size={15} /></button>
+            <button type="button" disabled={targetChoice == null || destinationAllocationConflict} onClick={() => setStep(3)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: targetChoice != null && !destinationAllocationConflict ? 'pointer' : 'not-allowed', opacity: targetChoice != null && !destinationAllocationConflict ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Review move <ArrowRight size={15} /></button>
           ) : (
             <button type="button" disabled={submitting} onClick={submitMove} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{submitting && <Loader2 size={15} className="spin" />} {submitting ? 'Moving items...' : 'Move selected items'}</button>
           )}

@@ -9,6 +9,7 @@ import { StockAllocationConflict } from '@/lib/ims/stockAllocation/service';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 type TransferRequest = {
+  destinationMode?: 'existing' | 'new';
   targetOrderId?: number;
   operationKey?: string;
   expectedSourceUpdatedAt?: string | null;
@@ -35,11 +36,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   try {
     const body = await req.json() as TransferRequest;
-    targetOrderId = Number(body.targetOrderId);
+    const createTarget = body.destinationMode === 'new';
+    targetOrderId = createTarget ? null : Number(body.targetOrderId);
     const result = await transferSalesOrderItems({
       businessId,
       sourceOrderId,
       targetOrderId,
+      createTarget,
       operationKey: String(body.operationKey ?? ''),
       expectedSourceUpdatedAt: body.expectedSourceUpdatedAt ?? null,
       expectedTargetUpdatedAt: body.expectedTargetUpdatedAt ?? null,

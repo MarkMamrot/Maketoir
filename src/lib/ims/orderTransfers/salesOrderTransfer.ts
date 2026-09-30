@@ -2,7 +2,11 @@ import { createHash } from 'crypto';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { commercialLineKey } from '../backorders/domain';
 import { transferStockAllocationsToBackorderLine } from '../stockAllocation/service';
-import { getOrderTransferConflicts, type OrderTransferDocument } from './domain';
+import {
+  getOrderTransferConflicts,
+  getOrderTransferDocumentConflicts,
+  type OrderTransferDocument,
+} from './domain';
 
 const QUANTITY_SCALE = 10_000;
 const COMMITTED_STATUSES = new Set(['confirmed', 'partially_fulfilled', 'backordered']);
@@ -26,6 +30,7 @@ export type SalesOrderTransferResult = {
   replayed: boolean;
   sourceOrderId: number;
   targetOrderId: number;
+  targetOrderNumber: string;
   sourceStatus: string;
   targetStatus: string;
   movedLines: Array<{
@@ -40,9 +45,13 @@ export type SalesOrderTransferResult = {
 
 type SalesOrderRow = {
   id: number;
+  so_number: string;
   business_id: string;
   status: string;
   customer_id: number | null;
+  wholesale_company_id?: number | null;
+  wholesale_location_id?: number | null;
+  wholesale_member_id?: number | null;
   location_id: number;
   currency_code: string;
   exchange_rate: number | string | null;
@@ -51,6 +60,17 @@ type SalesOrderRow = {
   payment_terms: string | null;
   price_tier: string | null;
   customer_po_number: string | null;
+  order_date?: string | Date | null;
+  expected_date?: string | Date | null;
+  delivery_address?: string | null;
+  delivery_address2?: string | null;
+  delivery_suburb?: string | null;
+  delivery_city?: string | null;
+  delivery_state?: string | null;
+  delivery_postcode?: string | null;
+  delivery_country?: string | null;
+  channel_shipping_method?: string | null;
+  channel_delivery_type?: string | null;
   so_type: string | null;
   is_historical: number | null;
   xero_invoice_id: string | null;
@@ -171,10 +191,77 @@ function canonicalLines(lines: SalesOrderTransferLineInput[]) {
     .sort((left, right) => left.sourceItemId - right.sourceItemId);
 }
 
+function newTargetStatus(sourceStatus: string): string {
+  if (sourceStatus === 'draft' || sourceStatus === 'backordered') return sourceStatus;
+  return 'confirmed';
+}
+
+async function createTransferTarget(
+  conn: any,
+  businessId: string,
+  sourceOrder: SalesOrderRow,
+): Promise<SalesOrderRow> {
+  const lockName = `ims:${businessId}:so:number`;
+  const [[lockResult]] = await conn.execute<any[]>(`SELECT GET_LOCK(?, 10) AS acquired`, [lockName]);
+  if (Number(lockResult?.acquired) !== 1) {
+    throw new SalesOrderTransferConflict('Could not allocate a new Sales Order number. Please retry.');
+  }
+  try {
+    const year = new Date().getFullYear();
+    const [[numberRow]] = await conn.execute<any[]>(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(so_number, '-', -1) AS UNSIGNED)) AS max_seq
+         FROM ims_sales_orders
+        WHERE business_id = ? AND so_number LIKE ?`,
+      [businessId, `SO-${year}-%`],
+    );
+    const soNumber = `SO-${year}-${String(Number(numberRow?.max_seq ?? 0) + 1).padStart(4, '0')}`;
+    const status = newTargetStatus(String(sourceOrder.status));
+    const [insertResult] = await conn.execute<any>(
+      `INSERT INTO ims_sales_orders
+        (business_id, so_number, so_type, customer_id, wholesale_company_id, wholesale_location_id,
+         wholesale_member_id, customer_po_number, location_id, status, order_date, expected_date,
+         delivery_address, delivery_address2, delivery_suburb, delivery_city, delivery_state,
+         delivery_postcode, delivery_country, channel_shipping_method, channel_delivery_type,
+         payment_terms, price_tier, tax_treatment, tax_code, freight, discount,
+         subtotal, tax_amount, total_amount, currency_code, exchange_rate, notes)
+       VALUES (?, ?, 'b2b', ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?, ?)`,
+      [businessId, soNumber, sourceOrder.customer_id ?? null,
+        sourceOrder.wholesale_company_id ?? null, sourceOrder.wholesale_location_id ?? null,
+        sourceOrder.wholesale_member_id ?? null, sourceOrder.customer_po_number ?? null,
+        sourceOrder.location_id, status, sourceOrder.expected_date ?? null,
+        sourceOrder.delivery_address ?? null, sourceOrder.delivery_address2 ?? null,
+        sourceOrder.delivery_suburb ?? null, sourceOrder.delivery_city ?? null,
+        sourceOrder.delivery_state ?? null, sourceOrder.delivery_postcode ?? null,
+        sourceOrder.delivery_country ?? null, sourceOrder.channel_shipping_method ?? null,
+        sourceOrder.channel_delivery_type ?? null, sourceOrder.payment_terms ?? null,
+        sourceOrder.price_tier ?? 'retail', sourceOrder.tax_treatment ?? 'ex_tax',
+        sourceOrder.tax_code ?? null, sourceOrder.currency_code ?? 'AUD',
+        Number(sourceOrder.exchange_rate ?? 1), `Items moved from ${sourceOrder.so_number}`],
+    );
+    return {
+      ...sourceOrder,
+      id: Number(insertResult.insertId),
+      so_number: soNumber,
+      status,
+      so_type: 'b2b',
+      is_historical: 0,
+      xero_invoice_id: null,
+      has_payments: 0,
+      has_submitted_shipment: 0,
+      freight: 0,
+      discount: 0,
+      updated_at: null,
+    };
+  } finally {
+    await conn.execute(`SELECT RELEASE_LOCK(?)`, [lockName]);
+  }
+}
+
 export async function transferSalesOrderItems(input: {
   businessId: string;
   sourceOrderId: number;
-  targetOrderId: number;
+  targetOrderId?: number | null;
+  createTarget?: boolean;
   lines: SalesOrderTransferLineInput[];
   operationKey: string;
   expectedSourceUpdatedAt?: string | null;
@@ -186,10 +273,13 @@ export async function transferSalesOrderItems(input: {
   if (!operationKey || operationKey.length > 150) {
     throw new SalesOrderTransferConflict('A valid operation key is required.');
   }
-  if (!Number.isInteger(input.sourceOrderId) || input.sourceOrderId <= 0
-    || !Number.isInteger(input.targetOrderId) || input.targetOrderId <= 0
-    || input.sourceOrderId === input.targetOrderId) {
-    throw new SalesOrderTransferConflict('Choose two different valid Sales Orders.');
+  const createTarget = input.createTarget === true;
+  if (!Number.isInteger(input.sourceOrderId) || input.sourceOrderId <= 0) {
+    throw new SalesOrderTransferConflict('Choose a valid source Sales Order.');
+  }
+  if (!createTarget && (!Number.isInteger(input.targetOrderId) || Number(input.targetOrderId) <= 0
+    || input.sourceOrderId === input.targetOrderId)) {
+    throw new SalesOrderTransferConflict('Choose a different valid destination Sales Order.');
   }
   if (!Array.isArray(input.lines) || input.lines.length === 0) {
     throw new SalesOrderTransferConflict('Select at least one quantity to move.');
@@ -208,7 +298,7 @@ export async function transferSalesOrderItems(input: {
   }
   const requestHash = createHash('sha256').update(JSON.stringify({
     sourceOrderId: input.sourceOrderId,
-    targetOrderId: input.targetOrderId,
+    destination: createTarget ? 'new' : Number(input.targetOrderId),
     lines,
   })).digest('hex');
 
@@ -237,7 +327,10 @@ export async function transferSalesOrderItems(input: {
       return { ...after.transferResult, replayed: true } as SalesOrderTransferResult;
     }
 
-    const orderIds = [input.sourceOrderId, input.targetOrderId].sort((left, right) => left - right);
+    const orderIds = createTarget
+      ? [input.sourceOrderId]
+      : [input.sourceOrderId, Number(input.targetOrderId)].sort((left, right) => left - right);
+    const orderPlaceholders = orderIds.map(() => '?').join(', ');
     const [orderRows] = await conn.execute<SalesOrderRow[]>(
       `SELECT so.*,
               EXISTS(SELECT 1 FROM ims_sales_order_payments payment
@@ -247,28 +340,38 @@ export async function transferSalesOrderItems(input: {
                         AND (shipment.provider_shipment_id IS NOT NULL
                              OR shipment.status NOT IN ('draft','quoting','failed'))) AS has_submitted_shipment
          FROM ims_sales_orders so
-        WHERE so.business_id = ? AND so.id IN (?, ?)
+        WHERE so.business_id = ? AND so.id IN (${orderPlaceholders})
         ORDER BY so.id FOR UPDATE`,
       [input.businessId, ...orderIds],
     );
-    if (orderRows.length !== 2) throw new SalesOrderTransferConflict('One or more Sales Orders were not found.');
+    if (orderRows.length !== orderIds.length) throw new SalesOrderTransferConflict('One or more Sales Orders were not found.');
     const sourceOrder = orderRows.find(order => Number(order.id) === input.sourceOrderId)!;
-    const targetOrder = orderRows.find(order => Number(order.id) === input.targetOrderId)!;
     assertRevision(sourceOrder.updated_at, input.expectedSourceUpdatedAt, 'The source Sales Order');
-    assertRevision(targetOrder.updated_at, input.expectedTargetUpdatedAt, 'The destination Sales Order');
+    const sourceConflicts = getOrderTransferDocumentConflicts(asTransferDocument(sourceOrder), 'Source');
+    if (sourceConflicts.length > 0) throw new SalesOrderTransferConflict(sourceConflicts.join(' '));
+    const targetOrder = createTarget
+      ? await createTransferTarget(conn, input.businessId, sourceOrder)
+      : orderRows.find(order => Number(order.id) === Number(input.targetOrderId))!;
+    const targetOrderId = Number(targetOrder.id);
+    if (!createTarget) assertRevision(targetOrder.updated_at, input.expectedTargetUpdatedAt, 'The destination Sales Order');
     const conflicts = getOrderTransferConflicts(asTransferDocument(sourceOrder), asTransferDocument(targetOrder));
     if (conflicts.length > 0) throw new SalesOrderTransferConflict(conflicts.join(' '));
+    if (targetOrder.status === 'draft' && lines.some(line => line.allocatedIncomingQuantity > 0)) {
+      throw new SalesOrderTransferConflict('Protected incoming supply cannot move to a Draft Sales Order. Choose zero protected incoming or use a Confirmed destination.');
+    }
 
+    const itemOrderIds = createTarget ? [input.sourceOrderId] : orderIds;
+    const itemPlaceholders = itemOrderIds.map(() => '?').join(', ');
     const [allItems] = await conn.execute<SalesOrderItemRow[]>(
       `SELECT item.*, COALESCE(variant.is_stock_item, 1) AS is_stock_item
          FROM ims_sales_order_items item
          LEFT JOIN ims_product_variants variant ON variant.variant_id = item.variant_id
-        WHERE item.business_id = ? AND item.so_id IN (?, ?)
+        WHERE item.business_id = ? AND item.so_id IN (${itemPlaceholders})
         ORDER BY item.id FOR UPDATE`,
-      [input.businessId, ...orderIds],
+      [input.businessId, ...itemOrderIds],
     );
     const sourceItems = allItems.filter(item => Number(item.so_id) === input.sourceOrderId);
-    const targetItems = allItems.filter(item => Number(item.so_id) === input.targetOrderId);
+    const targetItems = allItems.filter(item => Number(item.so_id) === targetOrderId);
     const sourceById = new Map(sourceItems.map(item => [Number(item.id), item]));
     const targetByKey = new Map(targetItems.map(item => [lineKey(item), item]));
 
@@ -286,7 +389,7 @@ export async function transferSalesOrderItems(input: {
         (business_id, operation_key, request_hash, order_kind, order_id, order_status, state,
          before_header_json, actor_id, actor_name)
        VALUES (?, ?, ?, 'sales_order', ?, ?, 'processing', ?, ?, ?)`,
-      [input.businessId, destinationOperationKey, requestHash, input.targetOrderId, targetOrder.status,
+      [input.businessId, destinationOperationKey, requestHash, targetOrderId, targetOrder.status,
         JSON.stringify(targetOrder), input.actorId ?? null, input.actorName ?? null],
     );
 
@@ -322,7 +425,7 @@ export async function transferSalesOrderItems(input: {
         await conn.execute(
           `UPDATE ims_sales_order_items SET qty_ordered = ?, line_total = ?
             WHERE business_id = ? AND so_id = ? AND id = ?`,
-          [newTargetQuantity, newTargetLineTotal, input.businessId, input.targetOrderId, targetItem.id],
+            [newTargetQuantity, newTargetLineTotal, input.businessId, targetOrderId, targetItem.id],
         );
         targetItem = { ...targetItem, qty_ordered: newTargetQuantity, line_total: newTargetLineTotal };
         Object.assign(targetByKey.get(lineKey(sourceItem))!, targetItem);
@@ -332,14 +435,14 @@ export async function transferSalesOrderItems(input: {
             (business_id, so_id, variant_id, qty_ordered, qty_fulfilled, unit_price, unit_cost,
              discount_pct, tax_rate, line_total, notes)
            VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-          [input.businessId, input.targetOrderId, sourceItem.variant_id, command.quantity,
+          [input.businessId, targetOrderId, sourceItem.variant_id, command.quantity,
             sourceItem.unit_price, sourceItem.unit_cost ?? null, sourceItem.discount_pct ?? 0,
             sourceItem.tax_rate ?? 0, lineTotal(command.quantity, sourceItem), sourceItem.notes ?? null],
         );
         targetItem = {
           ...sourceItem,
           id: Number(insertResult.insertId),
-          so_id: input.targetOrderId,
+          so_id: targetOrderId,
           qty_ordered: command.quantity,
           qty_fulfilled: 0,
           line_total: lineTotal(command.quantity, sourceItem),
@@ -363,7 +466,7 @@ export async function transferSalesOrderItems(input: {
         const transferred = await transferStockAllocationsToBackorderLine(conn, {
           businessId: input.businessId,
           sourceSoItemId: Number(sourceItem.id),
-          backorderSoId: input.targetOrderId,
+          backorderSoId: targetOrderId,
           backorderSoItemId: Number(targetItem.id),
           quantity: quantity(requestedAllocated),
         });
@@ -378,7 +481,7 @@ export async function transferSalesOrderItems(input: {
            backorder_so_id, backorder_so_item_id, transferred_qty, source_item_snapshot)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [input.businessId, `${operationKey}:${sourceItem.id}`, input.sourceOrderId, sourceItem.id,
-          input.targetOrderId, targetItem.id, command.quantity, JSON.stringify(sourceBefore)],
+          targetOrderId, targetItem.id, command.quantity, JSON.stringify(sourceBefore)],
       );
       await conn.execute(
         `INSERT INTO ims_order_amendment_lines
@@ -436,13 +539,14 @@ export async function transferSalesOrderItems(input: {
           SET subtotal = ?, tax_amount = ?, total_amount = ?
         WHERE business_id = ? AND id = ?`,
       [targetTotals.subtotal, targetTotals.taxAmount, targetTotals.totalAmount,
-        input.businessId, input.targetOrderId],
+        input.businessId, targetOrderId],
     );
 
     const result: SalesOrderTransferResult = {
       replayed: false,
       sourceOrderId: input.sourceOrderId,
-      targetOrderId: input.targetOrderId,
+      targetOrderId,
+      targetOrderNumber: String(targetOrder.so_number),
       sourceStatus,
       targetStatus: String(targetOrder.status),
       movedLines,

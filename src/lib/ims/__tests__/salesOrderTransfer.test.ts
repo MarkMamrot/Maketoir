@@ -157,4 +157,75 @@ describe('transferSalesOrderItems', () => {
     expect(connection.rollback).toHaveBeenCalledOnce();
     expect(connection.commit).not.toHaveBeenCalled();
   });
+
+  it('creates a new compatible destination inside the same transaction', async () => {
+    transferAllocation.mockResolvedValue(1);
+    let amendmentId = 800;
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('FROM ims_sales_orders so')) return [[sourceOrder]];
+      if (sql.includes('SELECT GET_LOCK')) return [[{ acquired: 1 }]];
+      if (sql.includes('MAX(CAST(SUBSTRING_INDEX(so_number')) return [[{ max_seq: 41 }]];
+      if (sql.includes('INSERT INTO ims_sales_orders')) return [{ insertId: 30 }];
+      if (sql.includes('FROM ims_sales_order_items item')) return [[{ ...sourceItem }]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: amendmentId++ }];
+      if (sql.includes('SUM(GREATEST(0, qty_allocated')) return [[{ available: 2 }]];
+      if (sql.includes('INSERT INTO ims_sales_order_items')) return [{ insertId: 301 }];
+      return [{ affectedRows: 1 }];
+    });
+
+    const result = await transferSalesOrderItems({
+      businessId: 'biz-1',
+      sourceOrderId: 10,
+      createTarget: true,
+      operationKey: 'move-10-to-new',
+      expectedSourceUpdatedAt: sourceOrder.updated_at,
+      lines: [{ sourceItemId: 101, quantity: 2, allocatedIncomingQuantity: 1 }],
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      sourceOrderId: 10,
+      targetOrderId: 30,
+      targetOrderNumber: `SO-${new Date().getFullYear()}-0042`,
+      targetStatus: 'confirmed',
+    }));
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_sales_orders'),
+      expect.arrayContaining(['biz-1', `SO-${new Date().getFullYear()}-0042`, 7, 3, 'confirmed']),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_sales_order_items'),
+      ['biz-1', 30, 'variant-1', 2, 11, 4, 0, 0.1, 22, null],
+    );
+    expect(transferAllocation).toHaveBeenCalledWith(connection, expect.objectContaining({
+      sourceSoItemId: 101,
+      backorderSoId: 30,
+      backorderSoItemId: 301,
+      quantity: 1,
+    }));
+    expect(execute).toHaveBeenCalledWith('SELECT RELEASE_LOCK(?)', ['ims:biz-1:so:number']);
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('does not attach protected incoming supply to a Draft destination', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('FROM ims_sales_orders so')) return [[
+        sourceOrder,
+        { ...targetOrder, status: 'draft' },
+      ]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(transferSalesOrderItems({
+      businessId: 'biz-1',
+      sourceOrderId: 10,
+      targetOrderId: 20,
+      operationKey: 'move-protection-to-draft',
+      lines: [{ sourceItemId: 101, quantity: 1, allocatedIncomingQuantity: 0.5 }],
+    })).rejects.toThrow('Protected incoming supply cannot move to a Draft Sales Order.');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
 });
