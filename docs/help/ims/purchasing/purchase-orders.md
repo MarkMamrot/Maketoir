@@ -83,7 +83,7 @@ When a payment requested for Xero is not confirmed there, the PO keeps a visible
 
 ## Review an order
 
-Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, resolution choices, linked supplier credits and replacement orders.
+Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, item movements with links to the other PO, resolution choices, linked supplier credits and replacement orders.
 
 The detail view separates the order summary, products and totals, landed costs, payments, accounting, stock allocation, documents, and activity with labelled dividers. **Stock allocation** opens automatically when the Purchase Order has active customer allocations and stays collapsed initially when it has none. Its header shows active links, allocated and ready quantities, and any at-risk demand. Expand it to inspect or release individual customer allocations.
 

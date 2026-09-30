@@ -5,7 +5,7 @@ import type { OrderKind } from './orderLifecyclePolicy';
 export type OrderAmendmentHistoryEntry = {
   id: number;
   entryKey?: string;
-  activityType?: 'amendment' | 'receive' | 'fulfilment' | 'resolution' | 'receipt_undo' | 'credit' | 'replacement';
+  activityType?: 'amendment' | 'movement' | 'receive' | 'fulfilment' | 'resolution' | 'receipt_undo' | 'credit' | 'replacement';
   title?: string;
   summary?: string;
   state?: string;
@@ -135,20 +135,42 @@ export async function getOrderActivityHistory(
     const beforeHeader = parseObject(row.before_header_json);
     const afterHeader = parseObject(row.after_header_json);
     const isReceiptUndo = orderKind === 'purchase_order' && afterHeader?.correction === 'undo_mistaken_receipt';
+    const transferResult = parseObject(afterHeader?.transferResult);
+    const transferSourceOrderId = Number(afterHeader?.transferSourceOrderId ?? 0);
+    const isOutgoingMovement = transferResult != null && Number(transferResult.targetOrderId ?? 0) > 0;
+    const isIncomingMovement = transferSourceOrderId > 0;
+    const isMovement = isOutgoingMovement || isIncomingMovement;
+    const movedLines = parseArray(transferResult?.movedLines)
+      .filter(line => line && typeof line === 'object') as Record<string, unknown>[];
+    const counterpartId = isOutgoingMovement ? Number(transferResult?.targetOrderId) : transferSourceOrderId;
+    const counterpartNumber = isOutgoingMovement
+      ? String(transferResult?.targetOrderNumber ?? `Order #${counterpartId}`)
+      : String(afterHeader?.transferSourceOrderNumber ?? `Order #${counterpartId}`);
+    const lineCount = isOutgoingMovement ? movedLines.length : Number(row.line_change_count ?? 0);
     return {
       id: Number(row.id),
       entryKey: `amendment:${row.id}`,
-      activityType: isReceiptUndo ? 'receipt_undo' : 'amendment',
+      activityType: isReceiptUndo ? 'receipt_undo' : isMovement ? 'movement' : 'amendment',
       ...(isReceiptUndo ? {
         title: 'Receipt undone',
         summary: 'Received stock was reversed and the purchase order was cancelled',
         state: String(afterHeader?.status ?? 'cancelled'),
+      } : isMovement ? {
+        title: `Items ${isOutgoingMovement ? 'moved to' : 'received from'} ${counterpartNumber}`,
+        summary: `${row.actor_name == null ? 'System' : String(row.actor_name)} · ${lineCount} line${lineCount === 1 ? '' : 's'} ${isOutgoingMovement ? 'moved' : 'received'}`,
+        state: String(afterHeader?.status ?? row.order_status ?? ''),
+        details: isOutgoingMovement ? movedLines.map(line => (
+          `Variant ${String(line.variantId ?? '—')}: moved ${Number(line.quantity ?? 0)}`
+        )) : [],
+        documentType: orderKind === 'purchase_order' ? 'purchase_order' : 'sales_order',
+        documentId: counterpartId,
+        documentNumber: counterpartNumber,
       } : {}),
       previousStatus: String(row.order_status ?? ''),
       resultingStatus: String(afterHeader?.status ?? row.order_status ?? ''),
       actorName: row.actor_name == null ? null : String(row.actor_name),
       lineChangeCount: Number(row.line_change_count ?? 0),
-      changedFields: isReceiptUndo ? [] : changedHeaderFields(beforeHeader, afterHeader),
+      changedFields: isReceiptUndo || isMovement ? [] : changedHeaderFields(beforeHeader, afterHeader),
       lines: linesByOperation.get(Number(row.id)) ?? [],
       createdAt: toIso(row.created_at),
       completedAt: row.completed_at == null ? null : toIso(row.completed_at),

@@ -185,4 +185,62 @@ describe('getOrderAmendmentHistory', () => {
     );
     expect(getOrderAmendmentHistory).toBe(getOrderActivityHistory);
   });
+
+  it('presents transfer operations as linked movement history instead of generic edits', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{
+        id: 40,
+        order_status: 'confirmed',
+        actor_name: 'Alex',
+        before_header_json: JSON.stringify({ status: 'confirmed', so_number: 'SO-40' }),
+        after_header_json: JSON.stringify({
+          status: 'confirmed',
+          transferResult: {
+            targetOrderId: 41,
+            targetOrderNumber: 'SO-41',
+            movedLines: [{ sourceItemId: 10, targetItemId: 11, variantId: 'red', quantity: 2.5 }],
+          },
+        }),
+        line_change_count: 1,
+        created_at: new Date('2026-08-13T08:00:00.000Z'),
+        completed_at: new Date('2026-08-13T08:00:01.000Z'),
+      }, {
+        id: 41,
+        order_status: 'confirmed',
+        actor_name: 'Alex',
+        before_header_json: JSON.stringify({ status: 'confirmed', so_number: 'SO-41' }),
+        after_header_json: JSON.stringify({
+          status: 'confirmed', transferSourceOrderId: 39, transferSourceOrderNumber: 'SO-39',
+        }),
+        line_change_count: 1,
+        created_at: new Date('2026-08-13T07:00:00.000Z'),
+        completed_at: new Date('2026-08-13T07:00:01.000Z'),
+      }])
+      .mockResolvedValueOnce([{
+        id: 50, amendment_id: 40, source_line_id: 10, result_line_id: 10,
+        before_line_json: JSON.stringify({ variant_id: 'red', qty_ordered: 5 }),
+        after_line_json: JSON.stringify({ variant_id: 'red', qty_ordered: 2.5 }),
+      }, {
+        id: 51, amendment_id: 41, source_line_id: null, result_line_id: 11,
+        before_line_json: null,
+        after_line_json: JSON.stringify({ variant_id: 'blue', qty_ordered: 1 }),
+      }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const entries = await getOrderActivityHistory('biz-1', 'sales_order', 42);
+
+    expect(entries).toMatchObject([{
+      activityType: 'movement',
+      title: 'Items moved to SO-41',
+      summary: 'Alex · 1 line moved',
+      documentType: 'sales_order', documentId: 41, documentNumber: 'SO-41',
+      details: ['Variant red: moved 2.5'],
+    }, {
+      activityType: 'movement',
+      title: 'Items received from SO-39',
+      summary: 'Alex · 1 line received',
+      documentType: 'sales_order', documentId: 39, documentNumber: 'SO-39',
+    }]);
+  });
 });

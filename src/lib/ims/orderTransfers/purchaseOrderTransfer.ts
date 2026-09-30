@@ -494,7 +494,8 @@ export async function transferPurchaseOrderItems(input: {
     await conn.execute(
       `UPDATE ims_order_amendment_operations SET state = 'complete', after_header_json = ?, completed_at = NOW()
         WHERE business_id = ? AND id = ?`,
-      [JSON.stringify({ ...targetOrder, transferSourceOrderId: input.sourceOrderId }), input.businessId, Number(targetOperation.insertId)],
+      [JSON.stringify({ ...targetOrder, transferSourceOrderId: input.sourceOrderId,
+        transferSourceOrderNumber: sourceOrder.po_number }), input.businessId, Number(targetOperation.insertId)],
     );
     await conn.commit();
     return result;
