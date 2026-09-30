@@ -148,7 +148,38 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
               {Number(quantities[line.itemId] ?? 0) > lineCapacity(line) + 0.00005 && <div role="alert" style={{ color: '#fbbf24', marginTop: 8, fontSize: 12 }}>Select more customer promise quantity or reduce the move to {formatQuantity(lineCapacity(line))}.</div>}
             </section>)}
           </div>}
-          {preview && !loading && step === 2 && <div style={{ display: 'grid', gap: 10 }}><h3 style={{ margin: 0, fontSize: 15 }}>Destination</h3><label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === 'new' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}><input type="radio" name="po-move-target" checked={targetChoice === 'new'} onChange={() => setTargetChoice('new')} /><span style={{ flex: 1 }}><strong>Create new Purchase Order</strong><span style={{ display: 'block', fontSize: 12 }}>Same supplier, location and commercial terms · starts {newTargetStatus}</span></span>{targetChoice === 'new' && <Check size={16} />}</label>{preview.eligibleTargets.length > 0 && <h3 style={{ margin: '8px 0 0', fontSize: 15 }}>Existing compatible Purchase Orders</h3>}{preview.eligibleTargets.map(target => <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}><input type="radio" name="po-move-target" checked={targetChoice === target.id} onChange={() => setTargetChoice(target.id)} /><span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', fontSize: 12 }}>{formatQuantity(target.outstandingQuantity)} outstanding · {target.status.replaceAll('_', ' ')}</span></span>{targetChoice === target.id && <Check size={16} />}</label>)}{destinationPromiseConflict && <div role="alert" style={{ color: '#fbbf24', fontSize: 12 }}>Customer promises cannot move to a Draft Purchase Order. Choose an active destination or move free supply only.</div>}</div>}
+          {preview && !loading && step === 2 && (
+            <div style={{ display: 'grid', gap: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 15 }}>Destination</h3>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === 'new' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}>
+                <input type="radio" name="po-move-target" checked={targetChoice === 'new'} onChange={() => setTargetChoice('new')} />
+                <span style={{ flex: 1 }}><strong>Create new Purchase Order</strong><span style={{ display: 'block', fontSize: 12 }}>Same supplier, location and commercial terms · starts {newTargetStatus}</span></span>
+                {targetChoice === 'new' && <Check size={16} />}
+              </label>
+              {preview.eligibleTargets.length > 0 && <h3 style={{ margin: '8px 0 0', fontSize: 15 }}>Existing compatible Purchase Orders</h3>}
+              {preview.eligibleTargets.map(target => (
+                <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}>
+                  <input type="radio" name="po-move-target" checked={targetChoice === target.id} onChange={() => setTargetChoice(target.id)} />
+                  <span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', fontSize: 12 }}>{formatQuantity(target.outstandingQuantity)} outstanding · {target.status === 'backordered' ? 'Backordered' : target.status.replaceAll('_', ' ')}</span></span>
+                  {targetChoice === target.id && <Check size={16} />}
+                </label>
+              ))}
+              {preview.excludedTargets.length > 0 && (
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--sv-text-dim,#aab4c2)', fontSize: 13 }}>Why can’t I select an order? ({preview.excludedTargets.length})</summary>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    {preview.excludedTargets.map(target => (
+                      <div key={target.id} style={{ padding: 10, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,.07)', fontSize: 12 }}>
+                        <strong>{target.orderNumber}</strong>
+                        <div style={{ color: 'var(--sv-text-dim,#aab4c2)', marginTop: 3 }}>{target.conflicts.join(' ')}</div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+              {destinationPromiseConflict && <div role="alert" style={{ color: '#fbbf24', fontSize: 12 }}>Customer promises cannot move to a Draft Purchase Order. Choose an active destination or move free supply only.</div>}
+            </div>
+          )}
           {preview && !loading && step === 3 && targetChoice != null && <div style={{ display: 'grid', gap: 12 }}><strong>{preview.source.orderNumber} <ArrowRight size={15} /> {selectedTarget?.orderNumber ?? 'New Purchase Order'}</strong>{selectedLines.map(line => <div key={line.itemId} style={{ borderBottom: '1px solid var(--sv-border,#364152)', padding: 10 }}><strong>{line.productName}</strong><div>{formatQuantity(quantities[line.itemId])} supply moves · {formatQuantity(selectedPromises(line).reduce((sum, allocation) => sum + allocation.selectedQuantity, 0))} customer-promised</div>{selectedPromises(line).map(allocation => <div key={allocation.allocationId} style={{ fontSize: 12 }}>{allocation.salesOrderNumber}: {formatQuantity(allocation.selectedQuantity)}</div>)}</div>)}<div style={{ padding: 12, background: 'rgba(52,211,153,.08)', borderRadius: 6 }}>Received quantities and stock on hand stay on the source PO. The destination keeps only the moved lines and starts with no freight or order discount.</div></div>}
         </div>
         <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between' }}><button type="button" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(step === 3 ? 2 : 1)}>{step === 1 ? 'Cancel' : 'Back'}</button>{step === 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep(2)}>Choose destination <ArrowRight size={15} /></button> : step === 2 ? <button type="button" disabled={targetChoice == null || destinationPromiseConflict} onClick={() => setStep(3)}>Review move <ArrowRight size={15} /></button> : <button type="button" disabled={submitting} onClick={submitMove}>{submitting && <Loader2 size={15} />} {submitting ? 'Moving items...' : 'Move selected items'}</button>}</footer>

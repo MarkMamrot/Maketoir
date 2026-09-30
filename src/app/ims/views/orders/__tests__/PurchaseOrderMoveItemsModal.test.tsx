@@ -101,4 +101,26 @@ describe('PurchaseOrderMoveItemsModal', () => {
     expect(screen.getByRole('alert').textContent).toContain('Select more customer promise quantity');
     expect((screen.getByRole('button', { name: /Choose destination/ }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it('explains why an existing Purchase Order cannot be selected', async () => {
+    const excludedPreview = {
+      ...preview,
+      excludedTargets: [{
+        ...preview.eligibleTargets[0], id: 30, orderNumber: 'PO-30',
+        conflicts: ['Supplier does not match the source Purchase Order.'],
+      }],
+    };
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => init?.method === 'POST'
+      ? response({ success: true, data: { sourceOrderId: 10, targetOrderId: 20 } })
+      : response({ success: true, data: excludedPreview })));
+    const user = userEvent.setup();
+    render(<PurchaseOrderMoveItemsModal order={{ id: 10, po_number: 'PO-10' }} onClose={vi.fn()} />);
+
+    await screen.findByText(/Blue Shirt/);
+    await user.click(screen.getByRole('button', { name: /Choose destination/ }));
+    await user.click(screen.getByText(/Why can’t I select an order\?/));
+
+    expect(screen.getByText('PO-30')).toBeTruthy();
+    expect(screen.getByText('Supplier does not match the source Purchase Order.')).toBeTruthy();
+  });
 });
