@@ -1,3 +1,9 @@
+## 2026-09-30 - Backorder terminology restored
+
+- The internal `backordered` SO/PO state is again presented as **Backordered**, because retail users recognise that term as outstanding demand or supply waiting for future stock. Filters, badges, Move items previews, Resolve Outstanding choices and actions now use **Backordered**, **Create backorder**, and **Release backorder**.
+- **On hold** is no longer an alias for Backordered. If operational pauses such as payment review, customer-requested delay, compliance review or address clarification are implemented later, they should use a distinct hold concept rather than the shortage state.
+- Backorders remain ordinary Sales Orders and Purchase Orders in their normal lists; this terminology change does not restore a dedicated Backorders workspace or alter the database status, stock, allocation or accounting behavior.
+
 ## 2026-09-29 - On-hold orders integrated into SO/PO workflows
 
 - Customer and supplier backorders remain normal Sales Orders and Purchase Orders with internal status `backordered`, now presented consistently as **On hold**. Normal SO/PO filters expose them, status badges use the central lifecycle label, and actions say **Release from hold**.

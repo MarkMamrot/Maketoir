@@ -10086,7 +10086,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               };
             }), targetStatus);
           if (receivePlan.createBackorderPo && !confirm(
-            `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} are short. Complete this PO and create an on-hold order for the outstanding quantities?`,
+            `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} are short. Complete this PO and create a backorder for the outstanding quantities?`,
           )) {
             return;
           }
@@ -10303,7 +10303,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       if (fullyReceived) actions.push({ label: 'Mark Complete', value: 'complete' });
     }
     if (!isAdvisor && po.status === 'backordered') {
-      actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Move items', value: 'move-items' }, { label: 'Cancel', value: 'cancel' });
+      actions.push({ label: 'Release backorder', value: 'release' }, { label: 'Move items', value: 'move-items' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && po.status === 'complete') {
       actions.push({ label: 'Undo Receipt', value: 'undo-receipt' }, { label: 'Supplier Return / Credit', value: 'supplier-return' });
@@ -10431,7 +10431,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
                     <option value="partially_received">In Progress</option>
-                    <option value="backordered">On hold</option>
+                    <option value="backordered">Backordered</option>
                     <option value="complete">Complete</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -11438,7 +11438,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onMoveItems, onDelete, on
     }
   }
   if (!isAdvisor && po.status === 'backordered') {
-    btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release from hold</button>);
+    btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release backorder</button>);
     btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && ['draft', 'confirmed', 'partially_received', 'backordered'].includes(po.status) && onMoveItems) {
@@ -14959,7 +14959,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     draft: 'Draft',
     confirmed: 'Confirmed',
     partially_fulfilled: 'In Progress',
-    backordered: 'On hold',
+    backordered: 'Backordered',
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
@@ -14983,7 +14983,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       }
     }
     if (!isAdvisor && so.status === 'backordered') {
-      actions.push({ label: 'Release from hold', value: 'release' }, { label: 'Cancel', value: 'cancel' });
+      actions.push({ label: 'Release backorder', value: 'release' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && !so.is_historical && ['draft', 'confirmed', 'partially_fulfilled', 'backordered'].includes(String(so.status))) {
       actions.push({ label: 'Move items', value: 'move_items' });
@@ -15179,7 +15179,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
                     <option value="partially_fulfilled">In Progress</option>
-                    <option value="backordered">On hold</option>
+                    <option value="backordered">Backordered</option>
                     <option value="fulfilled">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -16118,7 +16118,7 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
     }
   }
   if (!isAdvisor && so.status === 'backordered') {
-    btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release from hold</button>);
+    btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release backorder</button>);
     btns.push(<button key="cancel" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && !so.is_historical && ['draft', 'confirmed', 'partially_fulfilled', 'backordered'].includes(String(so.status)) && onMoveItems) {

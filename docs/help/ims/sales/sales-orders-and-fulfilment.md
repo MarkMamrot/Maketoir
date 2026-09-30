@@ -28,7 +28,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 | Mark dispatched                          | Records the parcel quantities that physically left and sends tracking to the connected channel | Shipped quantities reduce stock                           |
 | Create booking & manifest                | Seals selected dispatched shipments into one carrier pickup batch                              | No additional stock movement                              |
 | Partially fulfil now                     | Ship entered quantities and leave the balance on this order                                    | Only the shipped quantity reduces stock                   |
-| Create an on-hold order for the remainder | Ship entered quantities and move the balance to a separate on-hold Sales Order                 | Only the shipped quantity reduces stock                   |
+| Create a backorder for the remainder      | Ship entered quantities and move the supply shortfall to a separate Backordered Sales Order     | Only the shipped quantity reduces stock                   |
 | Complete                                 | All intended shipments or remainder decisions are finished                                     | No extra movement beyond recorded shipments               |
 
 ## Before you begin
@@ -74,13 +74,13 @@ For Shopify orders, Solvantis copies the shipping address supplied on the order 
 
 To split, consolidate, or reorganise commercial demand, choose **Move items** on an open Sales Order. Select a quantity preset or enter the quantity to move for each outstanding line. For every selected line, also choose how much of its protected incoming supply should follow; this can be zero and cannot exceed either the moved quantity or the protection currently available. Then create a new Sales Order or choose a compatible existing destination and review the complete move before confirming it. Activity History on both orders records the movement and links to the other Sales Order.
 
-Solvantis creates a new destination with the source customer, location, commercial terms, delivery details, and customer PO reference. A Draft source creates a Draft destination, an On hold source creates an On hold destination, and active or In Progress demand creates a Confirmed destination. A Draft destination cannot receive protected incoming supply; set that amount to zero or choose a Confirmed destination.
+Solvantis creates a new destination with the source customer, location, commercial terms, delivery details, and customer PO reference. A Draft source creates a Draft destination, a Backordered source creates a Backordered destination, and active or In Progress demand creates a Confirmed destination. A Draft destination cannot receive protected incoming supply; set that amount to zero or choose a Confirmed destination.
 
 For existing destinations, Solvantis separates orders that cannot receive the items and shows the reason, including customer, location, currency, tax, payment, shipment, channel, customer PO reference, or Xero differences. On confirmation, the ordered quantities and selected incoming protection move together atomically. Existing fulfilled quantities remain on their original orders, each order keeps its own freight and discount, and no goods are dispatched or stock on hand changed. If either order or its protected supply changed after the review, refresh and review the move again.
 
 > **Important:** If Solvantis reports that the carrier outcome is unknown, do not create another booking. Check the Australia Post portal, then use **Reconcile** with the confirmed carrier order ID. Solvantis verifies that the carrier order contains exactly the expected shipments before enabling the manifest printout.
 
-Prepared work is not lost when the dialog closes. **Prepared & labelled batches** groups the customer orders prepared together, while each nested row remains a separate carrier consignment with its own tracking identity. Choose **Open batch** to continue pricing, carrier submission, label polling, printing, dispatch, or a pending channel retry. **Ready to dispatch** means labels exist but staff have not yet confirmed that the parcels physically left. Use **Delete batch** only for local drafts. A batch that has reached Australia Post cannot be deleted because it may already have incurred postage; continue or resolve it with the carrier instead. 16. To record goods that leave outside Shipping Workspace, select **Fulfil** and enter only the quantity in this shipment for each line. 17. Choose **Partially fulfil now** when the balance should stay on the order, or **Create an on-hold order for the remainder** when the balance needs a separate Sales Order. 18. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+Prepared work is not lost when the dialog closes. **Prepared & labelled batches** groups the customer orders prepared together, while each nested row remains a separate carrier consignment with its own tracking identity. Choose **Open batch** to continue pricing, carrier submission, label polling, printing, dispatch, or a pending channel retry. **Ready to dispatch** means labels exist but staff have not yet confirmed that the parcels physically left. Use **Delete batch** only for local drafts. A batch that has reached Australia Post cannot be deleted because it may already have incurred postage; continue or resolve it with the carrier instead. 16. To record goods that leave outside Shipping Workspace, select **Fulfil** and enter only the quantity in this shipment for each line. 17. Choose **Partially fulfil now** when the balance should stay on the order, or **Create a backorder for the remainder** when the supply shortfall needs a separate Sales Order. 18. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
 Create early-payment rules under **Settings > Payment Discounts**. On a new Sales Order, **Early-payment discount** shows the selected customer's current default by name. Keep that default, choose any active rule as an order-only override, or choose **No early-payment discount**. An order-only rule can be selected even when the customer has no default. Solvantis saves the rule details and cutoff date on the new Sales Order using its order date. Later changes to the customer or rule do not rewrite the saved order terms.
 
@@ -100,7 +100,7 @@ Before reverting a Confirmed Sales Order to Draft, expand **Stock allocation** a
 | ---------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
 | Leave partially open         | A short delay is expected                             | The remainder stays on the current order                |
 | Cancel outstanding remainder | The customer no longer wants the balance              | The source order closes at the quantity already shipped |
-| Create an on-hold order for the remainder | The balance still needs supply and separate follow-up | Only the unshipped balance moves to a separate Sales Order |
+| Create a backorder for the remainder | The balance is waiting for future supply and needs separate follow-up | Only the unshipped balance moves to a separate Sales Order |
 
 ## Troubleshooting
 
@@ -137,6 +137,6 @@ Before reverting a Confirmed Sales Order to Draft, expand **Stock allocation** a
 
 A customer orders 10 shirts at $49.95 each, total $499.50 including GST. Ship 6 now, leaving 4 outstanding. The first fulfilment reduces stock by 6. When the last 4 arrive, use **Continue Fulfilment** and ship 4; the first 6 are not moved again.
 
-### Move the balance to an on-hold order
+### Move the supply shortfall to a backorder
 
-An order contains 8 lamps. You dispatch 5 and choose **Create an on-hold order for the remainder**. Stock reduces by 5, the source order records that shipment, and a separate on-hold Sales Order carries the remaining 3 without another stock movement. Find it later with the **On hold** status filter and choose **Release from hold** when fulfilment should resume.
+An order contains 8 lamps. You dispatch 5 and choose **Create a backorder for the remainder**. Stock reduces by 5, the source order records that shipment, and a separate Backordered Sales Order carries the remaining 3 without another stock movement. Find it later with the **Backordered** status filter and choose **Release backorder** when fulfilment should resume.

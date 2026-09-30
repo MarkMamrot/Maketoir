@@ -1,11 +1,11 @@
 ---
-{"id":"ims-stock-allocation-backorders","title":"Stock Allocation and On-Hold Orders","audiences":["ims"],"capability":"orders","screen":"Sales > Stock Allocation","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-purchase-orders"],"contexts":["stock-availability","backorders","customer-backorders","sales-orders"],"contextSections":{"stock-availability":"Step-by-step","backorders":"At a glance","customer-backorders":"At a glance","sales-orders":"Confirm with incoming supply"},"order":32,"summary":"Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.","lastReviewed":"2026-09-29","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-stock-allocation-backorders","title":"Stock Allocation and Customer Backorders","audiences":["ims"],"capability":"orders","screen":"Sales > Stock Allocation","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-purchase-orders"],"contexts":["stock-availability","backorders","customer-backorders","sales-orders"],"contextSections":{"stock-availability":"Step-by-step","backorders":"At a glance","customer-backorders":"At a glance","sales-orders":"Confirm with incoming supply"},"order":32,"summary":"Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.","lastReviewed":"2026-09-30","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
-# Stock Allocation and On-Hold Orders
+# Stock Allocation and Customer Backorders
 
 Use Stock Allocation to connect confirmed incoming supply to outstanding customer order lines without receiving or shipping the goods.
 
-An on-hold customer order is still a Sales Order. Find it from **Sales > Sales Orders** by choosing the **On hold** status filter. Use **Release from hold** when it should return to normal fulfilment.
+A customer backorder is still a Sales Order. Find it from **Sales > Sales Orders** by choosing the **Backordered** status filter. Use **Release backorder** when it should return to normal fulfilment. Backordered means outstanding demand is waiting for future supply; it is not a general payment, compliance, or customer-requested pause.
 
 ## Main operations
 

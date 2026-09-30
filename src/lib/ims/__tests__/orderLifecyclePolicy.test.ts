@@ -91,8 +91,8 @@ describe('order lifecycle policy', () => {
     expect(getOrderStatusLabel('sales_order', 'fulfilled')).toBe('Completed');
     expect(getOrderStatusLabel('purchase_order', 'partially_received')).toBe('In Progress');
     expect(getOrderStatusLabel('sales_order', 'partially_fulfilled')).toBe('In Progress');
-    expect(getOrderStatusLabel('purchase_order', 'backordered')).toBe('On hold');
-    expect(getOrderStatusLabel('sales_order', 'backordered')).toBe('On hold');
+    expect(getOrderStatusLabel('purchase_order', 'backordered')).toBe('Backordered');
+    expect(getOrderStatusLabel('sales_order', 'backordered')).toBe('Backordered');
     expect(getPhysicalCompletionLabel('purchase_order')).toBe('Fully received');
     expect(getPhysicalCompletionLabel('sales_order')).toBe('Fully fulfilled');
   });

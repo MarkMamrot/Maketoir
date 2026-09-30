@@ -29,7 +29,7 @@ Use the supplier or order-number search and date-range picker for quick filterin
 
 Use **Presets** to return to a named combination of Purchase Order filters, date range, and sort order. The bookmark button saves the current workspace or deletes the selected preset. Presets belong to the signed-in user and are available when that user opens the business on another device.
 
-Ask Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or On hold orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.
+Ask Assistant for purchase-order aging when you need a read-only list of open Confirmed, Partially Received or Backordered orders. Choose all open orders, overdue orders, or orders due within a future window. The live check returns at most 30 orders and includes outstanding quantity, receiving location, order age, expected date and overdue days.
 
 An order is overdue only when it has an expected date earlier than today and still has unreceived quantity. Orders without an expected date remain in the all-open view but cannot be classified as overdue or due soon.
 
@@ -77,7 +77,7 @@ When a payment requested for Xero is not confirmed there, the PO keeps a visible
 | Draft | The order is being prepared | Edit, confirm or delete |
 | Confirmed | The supplier order is active and quantity is incoming | Receive, edit, revert to Draft or cancel where offered |
 | Partially Received | Some goods arrived and some remain outstanding | Continue Receiving or Resolve Outstanding |
-| On hold | Outstanding quantity was moved to a separate Purchase Order and intentionally paused | Release from hold when it should become active, or cancel |
+| Backordered | Outstanding supply is waiting on a later supplier delivery | Release the backorder when it should become an active supplier order, or cancel |
 | Complete | Receiving is finished | Review, return goods, correct a mistaken receipt or create a replacement draft |
 | Cancelled | The order is closed without further receiving | Review or create a replacement draft |
 
@@ -95,7 +95,7 @@ For a Partially Received order, choose **Edit Details** to increase an ordered q
 
 Choose **Move items** on an open Purchase Order when selected outstanding supply should belong to another Purchase Order. For each line, enter the quantity to move. Solvantis separates free supply from supply already promised to customer Sales Orders. Choose the exact quantity from each named customer promise that should follow the moved supply. **Free only** moves no customer promises; **All outstanding** explicitly selects every unreceived promise on that line.
 
-Choose a compatible existing PO or create a new destination. An existing destination must match the supplier, receiving location, currency, exchange rate, tax treatment, payment terms, and supplier invoice reference. A new destination copies those commercial details, starts with only the moved lines, and has no freight or order discount. Its status follows the source: Draft stays Draft, On hold stays On hold, and other active orders create a Confirmed destination. Orders with payments, controlled external records, or Xero bills that cannot be safely verified are unavailable. A Draft destination cannot receive customer promises.
+Choose a compatible existing PO or create a new destination. An existing destination must match the supplier, receiving location, currency, exchange rate, tax treatment, payment terms, and supplier invoice reference. A new destination copies those commercial details, starts with only the moved lines, and has no freight or order discount. Its status follows the source: Draft stays Draft, Backordered stays Backordered, and other active orders create a Confirmed destination. Orders with payments, controlled external records, or Xero bills that cannot be safely verified are unavailable. A Draft destination cannot receive customer promises.
 
 On confirmation, the outstanding ordered quantity and selected promise links move together. Received quantities remain on the source PO, stock on hand does not change, and each PO keeps its own freight and discount. When both orders already own incoming supply, the business's total incoming quantity is unchanged. If an order or customer promise changed after review, refresh and review the move again.
 

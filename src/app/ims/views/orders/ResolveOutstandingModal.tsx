@@ -15,7 +15,7 @@ const outcomeText: { value: Outcome; label: string; help: string }[] = [
   },
   {
     value: "create_backorder",
-    label: "Create an on-hold order for the remainder",
+    label: "Create a backorder for the remainder",
     help: "Move only the outstanding quantity to a separate order without repeating a shipment or receipt.",
   },
 ];
@@ -24,7 +24,7 @@ const settlementLabels: Record<string, string> = {
   refund: "Refund customer",
   supplier_refund: "Supplier refunded us",
   leave_unapplied: "Leave credit unapplied",
-  reserve_for_backorder: "Reserve for the new on-hold order",
+  reserve_for_backorder: "Reserve for the new backorder",
   reserve_for_new_po: "Reserve for child purchase order",
 };
 export function ResolveOutstandingModal({
@@ -278,7 +278,7 @@ export function ResolveOutstandingModal({
                     color: "var(--sv-text-dim,#aab4c2)",
                   }}
                 >
-                  This order keeps the quantities already {kind === "customer" ? "shipped" : "received"}. A new on-hold order will contain {outstandingQuantity} outstanding unit{outstandingQuantity === 1 ? "" : "s"}.
+                  This order keeps the quantities already {kind === "customer" ? "shipped" : "received"}. A new backorder will contain {outstandingQuantity} outstanding unit{outstandingQuantity === 1 ? "" : "s"}.
                 </div>
               )}
             </div>
@@ -411,7 +411,7 @@ export function ResolveOutstandingModal({
             {saving
               ? "Resolving…"
               : outcome === "create_backorder"
-                ? "Create on-hold order"
+                ? "Create backorder"
                 : "Confirm resolution"}
           </button>
         </div>

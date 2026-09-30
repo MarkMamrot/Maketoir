@@ -3,7 +3,7 @@
 ---
 # Purchasing Planning and Supplier Work
 
-Purchasing starts with a reviewed need, not an automatic order. Use Order Planner to investigate replenishment, then use Purchase Orders or Supplier Credit Notes for the action that matches the real event. On-hold supplier orders remain Purchase Orders and can be found with the **On hold** status filter.
+Purchasing starts with a reviewed need, not an automatic order. Use Order Planner to investigate replenishment, then use Purchase Orders or Supplier Credit Notes for the action that matches the real event. Supplier backorders remain Purchase Orders and can be found with the **Backordered** status filter.
 
 ## Main operations
 
@@ -12,7 +12,7 @@ Purchasing starts with a reviewed need, not an automatic order. Use Order Planne
 | Decide what may need ordering | Order Planner | A suggestion for staff to review |
 | Place an order | Purchase Orders | A Draft, then confirmed incoming supply |
 | Record goods that arrived | Purchase Orders > Receive | Stock on hand increases by the received quantity |
-| Decide what happens to a short delivery | Purchase Orders > Resolve Outstanding | The remainder stays open, closes or moves to an on-hold PO |
+| Decide what happens to a short delivery | Purchase Orders > Resolve Outstanding | The remainder stays open, closes or moves to a Backordered PO |
 | Return goods or record a supplier allowance | Supplier Credit Notes | Stock may reduce and a supplier credit is recorded |
 
 ## Order planner
@@ -42,7 +42,7 @@ Before creating a PO, review:
 |---|---|
 | The supplier will send the remaining units soon | Leave the partial PO open and Continue Receiving later |
 | The supplier cancelled the remaining units | Resolve Outstanding and cancel the remainder |
-| The remaining units should be kept as a separate future order | Resolve Outstanding and create an on-hold order for the remainder |
+| The supplier will deliver the remaining units later as separate future work | Resolve Outstanding and create a backorder for the remainder |
 | Received goods are physically going back | Create a Supplier Return / Credit with **Return stock** selected |
 | The supplier gave a rebate or corrected an overcharge | Create a money-only Supplier Credit Note with **Return stock** cleared |
 

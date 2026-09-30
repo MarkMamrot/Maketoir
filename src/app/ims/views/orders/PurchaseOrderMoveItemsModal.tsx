@@ -63,7 +63,7 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
   const canContinue = !sourceBlocked && selectedLines.length > 0 && invalidLines.length === 0;
   const newTargetStatus = preview?.source.status === 'draft'
     ? 'Draft'
-    : preview?.source.status === 'backordered' ? 'On hold' : 'Confirmed';
+    : preview?.source.status === 'backordered' ? 'Backordered' : 'Confirmed';
   const selectedPromiseQuantity = selectedLines.reduce((sum, line) => sum
     + selectedPromises(line).reduce((lineSum, allocation) => lineSum + allocation.selectedQuantity, 0), 0);
   const destinationIsDraft = targetChoice === 'new'

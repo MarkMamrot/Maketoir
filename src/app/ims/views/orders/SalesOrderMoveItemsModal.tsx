@@ -70,7 +70,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
   const canContinue = !sourceBlocked && selectedLines.length > 0;
   const newTargetStatus = preview?.source.status === 'draft'
     ? 'Draft'
-    : preview?.source.status === 'backordered' ? 'On hold' : 'Confirmed';
+    : preview?.source.status === 'backordered' ? 'Backordered' : 'Confirmed';
   const selectedIncomingQuantity = selectedLines.reduce(
     (sum, line) => sum + Number(allocatedIncomingQuantities[line.itemId] ?? 0),
     0,
@@ -216,7 +216,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                 {preview.eligibleTargets.map(target => (
                   <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6, marginBottom: 8, cursor: 'pointer' }}>
                     <input type="radio" name="move-target" checked={targetChoice === target.id} onChange={() => setTargetChoice(target.id)} />
-                    <span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12, marginTop: 3 }}>{formatQuantity(target.outstandingQuantity)} already outstanding · {target.status === 'backordered' ? 'On hold' : target.status.replaceAll('_', ' ')}</span></span>
+                    <span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12, marginTop: 3 }}>{formatQuantity(target.outstandingQuantity)} already outstanding · {target.status === 'backordered' ? 'Backordered' : target.status.replaceAll('_', ' ')}</span></span>
                     {targetChoice === target.id && <Check size={16} color="var(--sv-mint,#34d399)" />}
                   </label>
                 ))}
