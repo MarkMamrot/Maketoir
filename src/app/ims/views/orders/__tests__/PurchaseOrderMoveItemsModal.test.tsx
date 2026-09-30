@@ -62,7 +62,7 @@ describe('PurchaseOrderMoveItemsModal', () => {
     expect(fetch).toHaveBeenLastCalledWith('/api/ims/purchase-orders/10/transfers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        targetOrderId: 20, operationKey: 'po-operation-1',
+        destinationMode: 'existing', targetOrderId: 20, operationKey: 'po-operation-1',
         expectedSourceUpdatedAt: '2026-09-01T00:00:00.000Z',
         expectedTargetUpdatedAt: '2026-09-02T00:00:00.000Z',
         lines: [{ sourceItemId: 101, quantity: 7, allocations: [
@@ -72,6 +72,24 @@ describe('PurchaseOrderMoveItemsModal', () => {
       }),
     });
     expect(onMoved).toHaveBeenCalledOnce();
+  });
+
+  it('creates a new destination without posting an existing order ID', async () => {
+    const user = userEvent.setup();
+    render(<PurchaseOrderMoveItemsModal order={{ id: 10, po_number: 'PO-10' }} onClose={vi.fn()} />);
+
+    await screen.findByText(/Blue Shirt/);
+    await user.click(screen.getByRole('button', { name: /Choose destination/ }));
+    await user.click(screen.getByRole('radio', { name: /Create new Purchase Order/ }));
+    await user.click(screen.getByRole('button', { name: /Review move/ }));
+    expect(screen.getByText((_, element) => element?.tagName === 'STRONG'
+      && element.textContent?.includes('New Purchase Order') === true)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Move selected items/ }));
+
+    const [, request] = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(JSON.parse(String(request?.body))).toEqual(expect.objectContaining({
+      destinationMode: 'new', targetOrderId: null, expectedTargetUpdatedAt: null,
+    }));
   });
 
   it('blocks destination selection when unselected promises would be stranded', async () => {

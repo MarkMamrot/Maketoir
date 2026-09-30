@@ -28,7 +28,7 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [promiseQuantities, setPromiseQuantities] = useState<Record<number, number>>({});
-  const [targetId, setTargetId] = useState<number | null>(null);
+  const [targetChoice, setTargetChoice] = useState<number | 'new' | null>(null);
   const operationKey = useRef('');
 
   useEffect(() => {
@@ -51,14 +51,25 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
 
   const sourceBlocked = (preview?.source.conflicts.length ?? 0) > 0;
   const selectedLines = (preview?.lines ?? []).filter(line => Number(quantities[line.itemId] ?? 0) > 0);
-  const selectedTarget = preview?.eligibleTargets.find(target => target.id === targetId) ?? null;
+  const selectedTarget = typeof targetChoice === 'number'
+    ? preview?.eligibleTargets.find(target => target.id === targetChoice) ?? null
+    : null;
   const selectedPromises = (line: PurchaseOrderTransferPreviewLine) => line.allocations
     .map(allocation => ({ ...allocation, selectedQuantity: Number(promiseQuantities[allocation.allocationId] ?? 0) }))
     .filter(allocation => allocation.selectedQuantity > 0);
   const lineCapacity = (line: PurchaseOrderTransferPreviewLine) => line.freeQuantity
     + selectedPromises(line).reduce((sum, allocation) => sum + allocation.selectedQuantity, 0);
   const invalidLines = selectedLines.filter(line => Number(quantities[line.itemId]) > lineCapacity(line) + 0.00005);
-  const canContinue = !sourceBlocked && selectedLines.length > 0 && invalidLines.length === 0 && preview!.eligibleTargets.length > 0;
+  const canContinue = !sourceBlocked && selectedLines.length > 0 && invalidLines.length === 0;
+  const newTargetStatus = preview?.source.status === 'draft'
+    ? 'Draft'
+    : preview?.source.status === 'backordered' ? 'On hold' : 'Confirmed';
+  const selectedPromiseQuantity = selectedLines.reduce((sum, line) => sum
+    + selectedPromises(line).reduce((lineSum, allocation) => lineSum + allocation.selectedQuantity, 0), 0);
+  const destinationIsDraft = targetChoice === 'new'
+    ? newTargetStatus === 'Draft'
+    : selectedTarget?.status === 'draft';
+  const destinationPromiseConflict = destinationIsDraft && selectedPromiseQuantity > 0;
 
   function selectFree(line: PurchaseOrderTransferPreviewLine) {
     setQuantities(current => ({ ...current, [line.itemId]: line.freeQuantity }));
@@ -71,7 +82,7 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
   }
 
   async function submitMove() {
-    if (!preview || !selectedTarget || submitting) return;
+    if (!preview || targetChoice == null || submitting) return;
     if (!operationKey.current) operationKey.current = crypto.randomUUID();
     setSubmitting(true);
     setError('');
@@ -80,10 +91,11 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetOrderId: selectedTarget.id,
+          destinationMode: targetChoice === 'new' ? 'new' : 'existing',
+          targetOrderId: selectedTarget?.id ?? null,
           operationKey: operationKey.current,
           expectedSourceUpdatedAt: preview.source.updatedAt,
-          expectedTargetUpdatedAt: selectedTarget.updatedAt,
+          expectedTargetUpdatedAt: selectedTarget?.updatedAt ?? null,
           lines: selectedLines.map(line => ({
             sourceItemId: line.itemId,
             quantity: quantities[line.itemId],
@@ -136,10 +148,10 @@ export function PurchaseOrderMoveItemsModal({ order, onClose, onMoved }: {
               {Number(quantities[line.itemId] ?? 0) > lineCapacity(line) + 0.00005 && <div role="alert" style={{ color: '#fbbf24', marginTop: 8, fontSize: 12 }}>Select more customer promise quantity or reduce the move to {formatQuantity(lineCapacity(line))}.</div>}
             </section>)}
           </div>}
-          {preview && !loading && step === 2 && <div style={{ display: 'grid', gap: 10 }}><h3 style={{ margin: 0, fontSize: 15 }}>Compatible Purchase Orders</h3>{preview.eligibleTargets.map(target => <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetId === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}><input type="radio" name="po-move-target" checked={targetId === target.id} onChange={() => setTargetId(target.id)} /><span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', fontSize: 12 }}>{formatQuantity(target.outstandingQuantity)} outstanding · {target.status.replaceAll('_', ' ')}</span></span>{targetId === target.id && <Check size={16} />}</label>)}</div>}
-          {preview && !loading && step === 3 && selectedTarget && <div style={{ display: 'grid', gap: 12 }}><strong>{preview.source.orderNumber} <ArrowRight size={15} /> {selectedTarget.orderNumber}</strong>{selectedLines.map(line => <div key={line.itemId} style={{ borderBottom: '1px solid var(--sv-border,#364152)', padding: 10 }}><strong>{line.productName}</strong><div>{formatQuantity(quantities[line.itemId])} supply moves · {formatQuantity(selectedPromises(line).reduce((sum, allocation) => sum + allocation.selectedQuantity, 0))} customer-promised</div>{selectedPromises(line).map(allocation => <div key={allocation.allocationId} style={{ fontSize: 12 }}>{allocation.salesOrderNumber}: {formatQuantity(allocation.selectedQuantity)}</div>)}</div>)}<div style={{ padding: 12, background: 'rgba(52,211,153,.08)', borderRadius: 6 }}>Received quantities and stock on hand stay on the source PO. This move does not receive stock.</div></div>}
+          {preview && !loading && step === 2 && <div style={{ display: 'grid', gap: 10 }}><h3 style={{ margin: 0, fontSize: 15 }}>Destination</h3><label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === 'new' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}><input type="radio" name="po-move-target" checked={targetChoice === 'new'} onChange={() => setTargetChoice('new')} /><span style={{ flex: 1 }}><strong>Create new Purchase Order</strong><span style={{ display: 'block', fontSize: 12 }}>Same supplier, location and commercial terms · starts {newTargetStatus}</span></span>{targetChoice === 'new' && <Check size={16} />}</label>{preview.eligibleTargets.length > 0 && <h3 style={{ margin: '8px 0 0', fontSize: 15 }}>Existing compatible Purchase Orders</h3>}{preview.eligibleTargets.map(target => <label key={target.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 11, border: `1px solid ${targetChoice === target.id ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 6 }}><input type="radio" name="po-move-target" checked={targetChoice === target.id} onChange={() => setTargetChoice(target.id)} /><span style={{ flex: 1 }}><strong>{targetLabel(target)}</strong><span style={{ display: 'block', fontSize: 12 }}>{formatQuantity(target.outstandingQuantity)} outstanding · {target.status.replaceAll('_', ' ')}</span></span>{targetChoice === target.id && <Check size={16} />}</label>)}{destinationPromiseConflict && <div role="alert" style={{ color: '#fbbf24', fontSize: 12 }}>Customer promises cannot move to a Draft Purchase Order. Choose an active destination or move free supply only.</div>}</div>}
+          {preview && !loading && step === 3 && targetChoice != null && <div style={{ display: 'grid', gap: 12 }}><strong>{preview.source.orderNumber} <ArrowRight size={15} /> {selectedTarget?.orderNumber ?? 'New Purchase Order'}</strong>{selectedLines.map(line => <div key={line.itemId} style={{ borderBottom: '1px solid var(--sv-border,#364152)', padding: 10 }}><strong>{line.productName}</strong><div>{formatQuantity(quantities[line.itemId])} supply moves · {formatQuantity(selectedPromises(line).reduce((sum, allocation) => sum + allocation.selectedQuantity, 0))} customer-promised</div>{selectedPromises(line).map(allocation => <div key={allocation.allocationId} style={{ fontSize: 12 }}>{allocation.salesOrderNumber}: {formatQuantity(allocation.selectedQuantity)}</div>)}</div>)}<div style={{ padding: 12, background: 'rgba(52,211,153,.08)', borderRadius: 6 }}>Received quantities and stock on hand stay on the source PO. The destination keeps only the moved lines and starts with no freight or order discount.</div></div>}
         </div>
-        <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between' }}><button type="button" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(step === 3 ? 2 : 1)}>{step === 1 ? 'Cancel' : 'Back'}</button>{step === 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep(2)}>Choose destination <ArrowRight size={15} /></button> : step === 2 ? <button type="button" disabled={!selectedTarget} onClick={() => setStep(3)}>Review move <ArrowRight size={15} /></button> : <button type="button" disabled={submitting} onClick={submitMove}>{submitting && <Loader2 size={15} />} {submitting ? 'Moving items...' : 'Move selected items'}</button>}</footer>
+        <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between' }}><button type="button" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(step === 3 ? 2 : 1)}>{step === 1 ? 'Cancel' : 'Back'}</button>{step === 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep(2)}>Choose destination <ArrowRight size={15} /></button> : step === 2 ? <button type="button" disabled={targetChoice == null || destinationPromiseConflict} onClick={() => setStep(3)}>Review move <ArrowRight size={15} /></button> : <button type="button" disabled={submitting} onClick={submitMove}>{submitting && <Loader2 size={15} />} {submitting ? 'Moving items...' : 'Move selected items'}</button>}</footer>
       </div>
     </div>
   );

@@ -35,11 +35,24 @@ describe('POST /api/ims/purchase-orders/[id]/transfers', () => {
     }), { params: { id: '10' } });
     expect(response.status).toBe(200);
     expect(mockTransfer).toHaveBeenCalledWith(expect.objectContaining({
-      businessId: 'biz-1', sourceOrderId: 10, targetOrderId: 20,
+      businessId: 'biz-1', sourceOrderId: 10, targetOrderId: 20, createTarget: false,
       lines: [{ sourceItemId: 101, quantity: 4,
         allocations: [{ allocationId: 501, revision: 2, quantity: 2 }] }],
     }));
     expect(mockRefresh).toHaveBeenCalledWith(['variant-1']);
+  });
+
+  it('requests a new destination without accepting a client-supplied order ID', async () => {
+    const response = await POST(request({
+      destinationMode: 'new', targetOrderId: 999, operationKey: 'move-po-new',
+      lines: [{ sourceItemId: 101, quantity: 2, allocations: [] }],
+    }), { params: { id: '10' } });
+
+    expect(response.status).toBe(200);
+    expect(mockTransfer).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', sourceOrderId: 10, targetOrderId: null, createTarget: true,
+      expectedTargetUpdatedAt: null,
+    }));
   });
 
   it('keeps Advisor accounts read-only', async () => {

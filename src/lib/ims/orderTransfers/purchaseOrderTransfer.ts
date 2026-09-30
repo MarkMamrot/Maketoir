@@ -153,10 +153,53 @@ function canonicalLines(lines: PurchaseOrderTransferLineInput[]) {
   })).sort((left, right) => left.sourceItemId - right.sourceItemId);
 }
 
+function newTargetStatus(sourceStatus: string): string {
+  if (sourceStatus === 'draft' || sourceStatus === 'backordered') return sourceStatus;
+  return 'confirmed';
+}
+
+async function createTransferTarget(conn: any, businessId: string, sourceOrder: PurchaseOrderRow) {
+  const year = new Date().getFullYear();
+  const [[numberRow]] = await conn.execute<any[]>(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(po_number, '-', -1) AS UNSIGNED)) AS max_seq
+       FROM ims_purchase_orders
+      WHERE business_id = ? AND po_number LIKE ?`,
+    [businessId, `PO-${year}-%`],
+  );
+  const poNumber = `PO-${year}-${String(Number(numberRow?.max_seq ?? 0) + 1).padStart(4, '0')}`;
+  const status = newTargetStatus(String(sourceOrder.status));
+  const [insertResult] = await conn.execute<any>(
+    `INSERT INTO ims_purchase_orders
+      (business_id, po_number, supplier_id, location_id, status, order_date, expected_date, notes,
+       supplier_invoice_number, payment_terms, tax_treatment, tax_code, currency_code, exchange_rate,
+       freight, discount, subtotal, tax_amount, total_amount)
+     VALUES (?, ?, ?, ?, ?, CURRENT_DATE, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)`,
+    [businessId, poNumber, sourceOrder.supplier_id ?? null, sourceOrder.location_id, status,
+      sourceOrder.expected_date ?? null, `Items moved from ${sourceOrder.po_number}`,
+      sourceOrder.supplier_invoice_number ?? null, sourceOrder.payment_terms ?? null,
+      sourceOrder.tax_treatment ?? 'ex_tax', sourceOrder.tax_code ?? null,
+      sourceOrder.currency_code ?? 'AUD', Number(sourceOrder.exchange_rate ?? 1)],
+  );
+  return {
+    ...sourceOrder,
+    id: Number(insertResult.insertId),
+    po_number: poNumber,
+    status,
+    is_historical: 0,
+    cin7_order_id: null,
+    xero_bill_id: null,
+    has_payments: 0,
+    freight: 0,
+    discount: 0,
+    updated_at: null,
+  } as PurchaseOrderRow;
+}
+
 export async function transferPurchaseOrderItems(input: {
   businessId: string;
   sourceOrderId: number;
-  targetOrderId: number;
+  targetOrderId?: number | null;
+  createTarget?: boolean;
   lines: PurchaseOrderTransferLineInput[];
   operationKey: string;
   expectedSourceUpdatedAt?: string | null;
@@ -166,10 +209,13 @@ export async function transferPurchaseOrderItems(input: {
 }): Promise<PurchaseOrderTransferResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150) throw new PurchaseOrderTransferConflict('A valid operation key is required.');
-  if (!Number.isInteger(input.sourceOrderId) || input.sourceOrderId <= 0
-    || !Number.isInteger(input.targetOrderId) || input.targetOrderId <= 0
-    || input.sourceOrderId === input.targetOrderId) {
-    throw new PurchaseOrderTransferConflict('Choose two different valid Purchase Orders.');
+  const createTarget = input.createTarget === true;
+  if (!Number.isInteger(input.sourceOrderId) || input.sourceOrderId <= 0) {
+    throw new PurchaseOrderTransferConflict('Choose a valid source Purchase Order.');
+  }
+  if (!createTarget && (!Number.isInteger(input.targetOrderId) || Number(input.targetOrderId) <= 0
+    || input.sourceOrderId === input.targetOrderId)) {
+    throw new PurchaseOrderTransferConflict('Choose a different valid destination Purchase Order.');
   }
   if (!Array.isArray(input.lines) || input.lines.length === 0) throw new PurchaseOrderTransferConflict('Select at least one quantity to move.');
   const lines = canonicalLines(input.lines);
@@ -188,9 +234,11 @@ export async function transferPurchaseOrderItems(input: {
     }
   }
   const requestHash = createHash('sha256').update(JSON.stringify({
-    sourceOrderId: input.sourceOrderId, targetOrderId: input.targetOrderId, lines,
+    sourceOrderId: input.sourceOrderId, destination: createTarget ? 'new' : Number(input.targetOrderId), lines,
   })).digest('hex');
   const conn = await getIMSPool().getConnection();
+  const numberLockName = `ims:${input.businessId}:po:number`;
+  let numberLockAcquired = false;
   try {
     await conn.beginTransaction();
     const [existingRows] = await conn.execute<any[]>(
@@ -208,30 +256,45 @@ export async function transferPurchaseOrderItems(input: {
       return { ...after.transferResult, replayed: true };
     }
 
-    const orderIds = [input.sourceOrderId, input.targetOrderId].sort((left, right) => left - right);
+    const orderIds = createTarget
+      ? [input.sourceOrderId]
+      : [input.sourceOrderId, Number(input.targetOrderId)].sort((left, right) => left - right);
+    const orderPlaceholders = orderIds.map(() => '?').join(', ');
     const [orders] = await conn.execute<PurchaseOrderRow[]>(
       `SELECT po.*,
               EXISTS(SELECT 1 FROM ims_purchase_order_payments payment
                        WHERE payment.business_id = po.business_id AND payment.po_id = po.id) AS has_payments
          FROM ims_purchase_orders po
-        WHERE po.business_id = ? AND po.id IN (?, ?) ORDER BY po.id FOR UPDATE`,
+        WHERE po.business_id = ? AND po.id IN (${orderPlaceholders}) ORDER BY po.id FOR UPDATE`,
       [input.businessId, ...orderIds],
     );
-    if (orders.length !== 2) throw new PurchaseOrderTransferConflict('One or more Purchase Orders were not found.');
+    if (orders.length !== orderIds.length) throw new PurchaseOrderTransferConflict('One or more Purchase Orders were not found.');
     const sourceOrder = orders.find(order => Number(order.id) === input.sourceOrderId)!;
-    const targetOrder = orders.find(order => Number(order.id) === input.targetOrderId)!;
     assertRevision(sourceOrder.updated_at, input.expectedSourceUpdatedAt, 'The source Purchase Order');
-    assertRevision(targetOrder.updated_at, input.expectedTargetUpdatedAt, 'The destination Purchase Order');
+    if (createTarget) {
+      const [[lockResult]] = await conn.execute<any[]>(`SELECT GET_LOCK(?, 10) AS acquired`, [numberLockName]);
+      if (Number(lockResult?.acquired) !== 1) {
+        throw new PurchaseOrderTransferConflict('Could not allocate a new Purchase Order number. Please retry.');
+      }
+      numberLockAcquired = true;
+    }
+    const targetOrder = createTarget
+      ? await createTransferTarget(conn, input.businessId, sourceOrder)
+      : orders.find(order => Number(order.id) === Number(input.targetOrderId))!;
+    const targetOrderId = Number(targetOrder.id);
+    if (!createTarget) assertRevision(targetOrder.updated_at, input.expectedTargetUpdatedAt, 'The destination Purchase Order');
     const conflicts = getOrderTransferConflicts(asTransferDocument(sourceOrder), asTransferDocument(targetOrder));
     if (conflicts.length > 0) throw new PurchaseOrderTransferConflict(conflicts.join(' '));
 
+    const itemOrderIds = createTarget ? [input.sourceOrderId] : orderIds;
+    const itemPlaceholders = itemOrderIds.map(() => '?').join(', ');
     const [allItems] = await conn.execute<PurchaseOrderItemRow[]>(
       `SELECT * FROM ims_purchase_order_items
-        WHERE business_id = ? AND po_id IN (?, ?) ORDER BY id FOR UPDATE`,
-      [input.businessId, ...orderIds],
+        WHERE business_id = ? AND po_id IN (${itemPlaceholders}) ORDER BY id FOR UPDATE`,
+      [input.businessId, ...itemOrderIds],
     );
     const sourceItems = allItems.filter(item => Number(item.po_id) === input.sourceOrderId);
-    const targetItems = allItems.filter(item => Number(item.po_id) === input.targetOrderId);
+    const targetItems = allItems.filter(item => Number(item.po_id) === targetOrderId);
     const sourceById = new Map(sourceItems.map(item => [Number(item.id), item]));
     const targetByKey = new Map(targetItems.map(item => [lineKey(item), item]));
 
@@ -248,7 +311,7 @@ export async function transferPurchaseOrderItems(input: {
         (business_id, operation_key, request_hash, order_kind, order_id, order_status, state,
          before_header_json, actor_id, actor_name)
        VALUES (?, ?, ?, 'purchase_order', ?, ?, 'processing', ?, ?, ?)`,
-      [input.businessId, `${operationKey}:destination`, requestHash, input.targetOrderId, targetOrder.status,
+      [input.businessId, `${operationKey}:destination`, requestHash, targetOrderId, targetOrder.status,
         JSON.stringify(targetOrder), input.actorId ?? null, input.actorName ?? null],
     );
 
@@ -296,7 +359,7 @@ export async function transferPurchaseOrderItems(input: {
         await conn.execute(
           `UPDATE ims_purchase_order_items SET qty_ordered = ?, line_total = ?
             WHERE business_id = ? AND po_id = ? AND id = ?`,
-          [next, lineTotal(next, targetItem), input.businessId, input.targetOrderId, targetItem.id],
+          [next, lineTotal(next, targetItem), input.businessId, targetOrderId, targetItem.id],
         );
         targetItem = { ...targetItem, qty_ordered: next, line_total: lineTotal(next, targetItem) };
         targetByKey.set(lineKey(sourceItem), targetItem);
@@ -306,11 +369,11 @@ export async function transferPurchaseOrderItems(input: {
             (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost,
              discount_pct, tax_rate, line_total, notes, is_stock_item)
            VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-          [input.businessId, input.targetOrderId, sourceItem.variant_id, command.quantity,
+          [input.businessId, targetOrderId, sourceItem.variant_id, command.quantity,
             sourceItem.unit_cost, sourceItem.discount_pct ?? 0, sourceItem.tax_rate ?? 0,
             lineTotal(command.quantity, sourceItem), sourceItem.notes ?? null, Number(sourceItem.is_stock_item ?? 1)],
         );
-        targetItem = { ...sourceItem, id: Number(insertResult.insertId), po_id: input.targetOrderId,
+        targetItem = { ...sourceItem, id: Number(insertResult.insertId), po_id: targetOrderId,
           qty_ordered: command.quantity, qty_received: 0, line_total: lineTotal(command.quantity, sourceItem) };
         targetItems.push(targetItem);
         targetByKey.set(lineKey(sourceItem), targetItem);
@@ -338,7 +401,7 @@ export async function transferPurchaseOrderItems(input: {
                 SET po_id = ?, po_item_id = ?, source_expected_date = ?, promise_status = 'at_risk',
                     risk_reason = 'Protected supply moved to another Purchase Order.', revision = revision + 1
               WHERE business_id = ? AND id = ? AND revision = ?`,
-            [input.targetOrderId, targetItem.id, targetOrder.expected_date ?? null,
+            [targetOrderId, targetItem.id, targetOrder.expected_date ?? null,
               input.businessId, allocation.id, selection.revision],
           );
         } else {
@@ -354,7 +417,7 @@ export async function transferPurchaseOrderItems(input: {
                qty_allocated, qty_received_assigned, qty_fulfilled, source_expected_date, promised_date,
                promise_status, state, priority, override_reason, risk_reason, created_by, created_by_name)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 'at_risk', 'active', ?, ?, ?, ?, ?)`,
-            [input.businessId, allocation.so_id, allocation.so_item_id, input.targetOrderId, targetItem.id,
+            [input.businessId, allocation.so_id, allocation.so_item_id, targetOrderId, targetItem.id,
               allocation.variant_id, allocation.location_id, moveAllocation, targetOrder.expected_date ?? null,
               allocation.promised_date ?? null, allocation.priority, allocation.override_reason ?? null,
               'Protected supply moved to another Purchase Order.', allocation.created_by ?? null,
@@ -369,7 +432,7 @@ export async function transferPurchaseOrderItems(input: {
            backorder_po_id, backorder_po_item_id, transferred_qty, source_item_snapshot)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [input.businessId, `${operationKey}:${sourceItem.id}`, input.sourceOrderId, sourceItem.id,
-          input.targetOrderId, targetItem.id, command.quantity, JSON.stringify(sourceBefore)],
+          targetOrderId, targetItem.id, command.quantity, JSON.stringify(sourceBefore)],
       );
       await conn.execute(
         `INSERT INTO ims_order_amendment_lines
@@ -416,10 +479,10 @@ export async function transferPurchaseOrderItems(input: {
     await conn.execute(
       `UPDATE ims_purchase_orders SET subtotal = ?, tax_amount = ?, total_amount = ?
         WHERE business_id = ? AND id = ?`,
-      [targetTotals.subtotal, targetTotals.taxAmount, targetTotals.totalAmount, input.businessId, input.targetOrderId],
+      [targetTotals.subtotal, targetTotals.taxAmount, targetTotals.totalAmount, input.businessId, targetOrderId],
     );
     const result: PurchaseOrderTransferResult = {
-      replayed: false, sourceOrderId: input.sourceOrderId, targetOrderId: input.targetOrderId,
+      replayed: false, sourceOrderId: input.sourceOrderId, targetOrderId,
       targetOrderNumber: String(targetOrder.po_number), sourceStatus, targetStatus: String(targetOrder.status),
       movedLines, variantIds: Array.from(new Set(movedLines.map(line => line.variantId))),
     };
@@ -439,6 +502,7 @@ export async function transferPurchaseOrderItems(input: {
     await conn.rollback();
     throw error;
   } finally {
+    if (numberLockAcquired) await conn.execute(`SELECT RELEASE_LOCK(?)`, [numberLockName]);
     conn.release();
   }
 }
