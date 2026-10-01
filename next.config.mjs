@@ -12,7 +12,6 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   experimental: {
-    instrumentationHook: true,
     serverComponentsExternalPackages: ['shopify-api-node', 'got', 'cacheable-request', 'keyv'],
   },
   webpack: (config) => {
