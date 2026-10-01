@@ -54,15 +54,17 @@ describe('POST sales order fulfilment', () => {
     }), { params: { id: '42' } });
 
     expect(response.status).toBe(200);
-    expect(mockFulfil).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz-1', soId: 42 }));
+    expect(mockFulfil).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', soId: 42, finalizeWhenComplete: true,
+    }));
     expect(mockRefresh).toHaveBeenCalledWith(['variant-1']);
     expect(mockXeroSync).not.toHaveBeenCalled();
   });
 
-  it('does not approve the Xero invoice after the final shipment until completion is explicit', async () => {
+  it('approves the Xero invoice when the final shipment completes the order', async () => {
     mockFulfil.mockResolvedValue({
       soId: 42,
-      status: 'partially_fulfilled',
+      status: 'fulfilled',
       operationKey: 'shipment-2',
       fulfilledVariantIds: ['variant-1'],
     });
@@ -72,7 +74,7 @@ describe('POST sales order fulfilment', () => {
     }), { params: { id: '42' } });
 
     expect(response.status).toBe(200);
-    expect(mockXeroSync).not.toHaveBeenCalled();
+    expect(mockXeroSync).toHaveBeenCalledWith('biz-1', 42, 'fulfilled');
   });
 
   it('reports unexpected operational failures', async () => {

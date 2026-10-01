@@ -40,6 +40,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       operationKey: String(body.operationKey ?? ''),
       shipmentQuantities: Array.isArray(body.shipmentQuantities) ? body.shipmentQuantities : [],
       allowNegativeStock: body.allowNegativeStock === true,
+      finalizeWhenComplete: true,
     });
 
     if (result.fulfilledVariantIds.length) {

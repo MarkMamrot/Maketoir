@@ -48,6 +48,19 @@ function request(topic = 'orders/create') {
   });
 }
 
+function fulfilledOrderUpdateRequest() {
+  return new Request('http://localhost/api/webhooks/shopify/channels/instance-1', {
+    method: 'POST',
+    headers: {
+      'x-shopify-topic': 'orders/updated',
+      'x-shopify-webhook-id': 'webhook-1',
+      'x-shopify-shop-domain': 'retail.myshopify.com',
+      'x-shopify-hmac-sha256': 'signature',
+    },
+    body: JSON.stringify({ id: 1001, created_at: '2026-09-25T01:00:00Z', fulfillment_status: 'fulfilled' }),
+  });
+}
+
 describe('exact-instance Shopify webhook route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,6 +240,22 @@ describe('exact-instance Shopify webhook route', () => {
       businessId: 'business-1', channelInstanceId: 'instance-1',
     }));
     expect(mocks.importOrder).not.toHaveBeenCalled();
+  });
+
+  it('uses a fulfilled order update to reconcile a missed fulfilment event', async () => {
+    mocks.verify.mockResolvedValue({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      topic: 'orders/updated', webhookId: 'webhook-1', shopDomain: 'retail.myshopify.com', payloadHash: 'hash' });
+
+    const response = await POST(fulfilledOrderUpdateRequest(), { params: { channelInstanceId: 'instance-1' } });
+
+    expect(await response.json()).toEqual({
+      ok: true, eventStatus: 'complete', outcome: 'fulfilled', salesOrderId: 44,
+    });
+    expect(mocks.updateOrder).toHaveBeenCalled();
+    expect(mocks.fulfilOrder).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', channelInstanceId: 'instance-1', topic: 'orders/fulfilled',
+      payload: expect.objectContaining({ id: 1001, fulfillment_status: 'fulfilled' }),
+    }));
   });
 
   it('reports a tenant mapping or staging failure with safe exact-instance context', async () => {

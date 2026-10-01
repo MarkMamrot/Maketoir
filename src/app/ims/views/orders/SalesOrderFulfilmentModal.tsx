@@ -33,8 +33,10 @@ export function SalesOrderFulfilmentModal({
   const summary = useMemo(() => {
     const totalOrdered = items.reduce((sum, item) => sum + Number(item.qty_ordered || 0), 0);
     const totalOutstanding = items.reduce((sum, item) => sum + Math.max(0, Number(item.qty_ordered || 0) - Number(item.qty_fulfilled || 0)), 0);
-    return { totalOrdered, totalOutstanding };
-  }, [items]);
+    const totalEntered = items.reduce((sum, item) => sum + Math.max(0, Number(quantities[item.id] ?? 0)), 0);
+    return { totalOrdered, totalOutstanding, totalEntered };
+  }, [items, quantities]);
+  const leavesRemainder = summary.totalEntered < summary.totalOutstanding;
 
   const allocationByItem = useMemo(() => {
     const allocations = Array.isArray(order?.stock_allocations) ? order.stock_allocations : [];
@@ -67,13 +69,14 @@ export function SalesOrderFulfilmentModal({
       if (payloadItems.length === 0) {
         throw new Error('Enter at least one positive quantity.');
       }
+      const submissionMode: SalesOrderFulfilmentMode = leavesRemainder ? mode : 'partial';
       const operationKey = retryOperationKey ?? await buildSalesOrderFulfilmentOperationKey(
-        mode,
+        submissionMode,
         Number(order.id),
         order.updated_at,
         payloadItems,
       );
-      const request = buildSalesOrderFulfilmentRequest(mode, Number(order.id), payloadItems);
+      const request = buildSalesOrderFulfilmentRequest(submissionMode, Number(order.id), payloadItems);
       const response = await fetch(request.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,19 +121,19 @@ export function SalesOrderFulfilmentModal({
 
   return (
     <div data-testid="so-fulfil-modal" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: 16 }} onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
-      <div style={{ width: 'min(760px, 100%)', maxHeight: '92vh', overflow: 'auto', background: 'var(--sv-surface,#18202b)', color: 'var(--sv-text,#fff)', border: '1px solid var(--sv-border,#364152)', borderRadius: 14, padding: 22, boxShadow: '0 24px 80px rgba(0,0,0,.45)' }}>
+      <div style={{ width: 'min(680px, 100%)', maxHeight: '92vh', overflow: 'auto', background: 'var(--sv-bg-1,#18202b)', color: 'var(--sv-text-main,#fff)', border: '1px solid var(--sv-etch,#364152)', borderRadius: 10, padding: 22, boxShadow: '0 24px 80px rgba(0,0,0,.45)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, color: 'var(--sv-mint,#34d399)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em' }}>Fulfil sales order</div>
             <h2 style={{ margin: '5px 0 4px' }}>{order.so_number || order.po_number || 'Sales order'}</h2>
             <p style={{ margin: 0, color: 'var(--sv-text-dim,#aab4c2)', fontSize: 13 }}>
-              Choose whether to ship the quantities now and leave the rest open, or split the remainder into a child backorder.
+              {leavesRemainder ? 'Choose what should happen to the quantity not shipped now.' : 'Confirm the quantities leaving stock now.'}
             </p>
           </div>
           <button onClick={onClose} disabled={saving} style={{ background: 'none', border: 0, color: 'inherit', fontSize: 24, cursor: 'pointer' }}>×</button>
         </div>
 
-        <div style={{ display: 'grid', gap: 10, marginTop: 20 }}>
+        {leavesRemainder && <div style={{ display: 'grid', gap: 8, marginTop: 20 }}>
           <label style={{ display: 'block', padding: 12, border: `1px solid ${mode === 'partial' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 9, cursor: 'pointer' }}>
             <input data-testid="so-fulfil-mode-partial" type="radio" checked={mode === 'partial'} onChange={() => setMode('partial')} />
             <strong>Partially fulfil now</strong>
@@ -145,11 +148,11 @@ export function SalesOrderFulfilmentModal({
               Fulfil the quantities entered now and move the rest to a held child backorder for later dispatch.
             </div>
           </label>
-        </div>
+        </div>}
 
-        <div style={{ marginTop: 18, padding: 12, border: '1px solid var(--sv-border,#364152)', borderRadius: 9, background: 'var(--sv-bg-2,#111827)' }}>
+        <div style={{ marginTop: 18, padding: 14, border: '1px solid var(--sv-etch,#364152)', borderRadius: 8, background: 'color-mix(in srgb, var(--sv-bg-2,#111827) 72%, var(--sv-bg-1,#18202b))' }}>
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)', marginBottom: 8 }}>
-            Fulfil {summary.totalOutstanding} of {summary.totalOrdered} outstanding units.
+            {summary.totalOutstanding} outstanding {summary.totalOutstanding === 1 ? 'unit' : 'units'}.
           </div>
           <div style={{ display: 'grid', gap: 8 }}>
             {items.map(item => {
@@ -161,7 +164,7 @@ export function SalesOrderFulfilmentModal({
                   <div style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>{item.sku || item.product_name || `Line ${item.id}`}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <label style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>Qty</label>
-                    <input data-testid={`so-fulfil-qty-${item.id}`} type="number" min={0} step={1} value={quantities[item.id] ?? ''} onChange={e => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))} style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--sv-etch,#4b5563)', background: 'var(--sv-bg-1,#0f172a)', color: 'inherit' }} />
+                    <input data-testid={`so-fulfil-qty-${item.id}`} type="number" min={0} max={outstanding} step={1} value={quantities[item.id] ?? ''} onChange={e => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))} style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--sv-etch,#4b5563)', background: 'var(--sv-bg-1,#0f172a)', color: 'inherit' }} />
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>of {outstanding}</span>
                   </div>
                   {allocation && allocation.protected > 0 && (
@@ -183,7 +186,7 @@ export function SalesOrderFulfilmentModal({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
           <button onClick={onClose} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', border: '1px solid var(--sv-border,#364152)', color: 'inherit', cursor: 'pointer' }}>Cancel</button>
           {buildOffer?.eligible && <button data-testid="so-build-fulfil-confirm" onClick={buildAndFulfil} disabled={saving || checkingBuild} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--sv-mint,#34d399)', background: 'transparent', color: 'var(--sv-mint,#34d399)', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Build & Fulfil'}</button>}
-          <button data-testid="so-fulfil-confirm" onClick={() => submit()} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--sv-mint,#34d399)', color: '#052e16', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Confirm'}</button>
+          <button data-testid="so-fulfil-confirm" onClick={() => submit()} disabled={saving} style={{ padding: '8px 12px', borderRadius: 6, border: 0, background: 'var(--sv-action,var(--sv-mint,#34d399))', color: 'var(--sv-action-contrast,#052e16)', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : leavesRemainder ? 'Continue fulfilment' : 'Fulfil order'}</button>
         </div>
       </div>
     </div>

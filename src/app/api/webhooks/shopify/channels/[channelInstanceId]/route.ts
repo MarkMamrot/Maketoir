@@ -116,6 +116,16 @@ export async function POST(request: Request, context: { params: { channelInstanc
             channelInstanceId: verified!.channelInstanceId,
             order: payload,
           });
+          if (String(payload.fulfillment_status ?? '').toLowerCase() === 'fulfilled') {
+            const fulfilled = await applyShopifyOrderFulfilment({
+              businessId: verified!.businessId,
+              channelInstanceId: verified!.channelInstanceId,
+              topic: 'orders/fulfilled',
+              payload,
+            });
+            await finishShopifyWebhookEvent({ webhook: verified!, status: 'complete' });
+            return { eventStatus: 'complete' as const, outcome: fulfilled.outcome, salesOrderId: fulfilled.salesOrderId };
+          }
           await finishShopifyWebhookEvent({ webhook: verified!, status: 'complete' });
           return { eventStatus: 'complete' as const, ...updated };
         }
