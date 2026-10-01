@@ -622,20 +622,6 @@ const TABLE_DDLS = [
     UNIQUE KEY uq_stock_allocation_operation (business_id, operation_key),
     INDEX idx_stock_allocation_history (business_id, allocation_id, created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-  `CREATE TABLE IF NOT EXISTS ims_backorder_merges (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    business_id VARCHAR(100) NOT NULL,
-    operation_key VARCHAR(191) NOT NULL,
-    request_hash CHAR(64) NULL,
-    backorder_type ENUM('customer','supplier') NOT NULL,
-    target_order_id INT NOT NULL,
-    source_order_ids JSON NOT NULL,
-    response_json JSON NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME NULL,
-    UNIQUE KEY uq_backorder_merge_operation (business_id, operation_key),
-    INDEX idx_backorder_merge_target (business_id, backorder_type, target_order_id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_po_backorder_lines (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,
@@ -1536,9 +1522,6 @@ const COLUMNS = [
   ['loyalty_membership_events', 'policy_version_id', 'BIGINT UNSIGNED NULL AFTER terms_version'],
   ['ims_po_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_so_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
-  ['ims_backorder_merges', 'request_hash', 'CHAR(64) NULL AFTER operation_key'],
-  ['ims_backorder_merges', 'response_json', 'JSON NULL AFTER source_order_ids'],
-  ['ims_backorder_merges', 'completed_at', 'DATETIME NULL AFTER created_at'],
   ['ims_po_shortfall_resolutions', 'accounting_action', "ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none' AFTER currency_code"],
   ['ims_purchase_order_items', 'discount_pct', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER unit_cost'],
   ['ims_sales_order_items', 'shopify_line_item_id', 'VARCHAR(100) NULL AFTER so_id'],
@@ -2206,20 +2189,6 @@ async function migrateSchema(schema, businessId) {
   console.log(`✓ ${schema}: added ${added} columns, skipped ${skipped}, added ${indexesAdded} indexes, skipped ${indexesSkipped}`);
 }
 
-async function verifyBackorderMergeSchema(schema) {
-  const [rows] = await conn.query(
-    `SELECT INDEX_NAME
-       FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_backorder_merges'`,
-    [schema],
-  );
-  const indexes = new Set(rows.map(row => row.INDEX_NAME));
-  for (const required of ['PRIMARY', 'uq_backorder_merge_operation', 'idx_backorder_merge_target']) {
-    if (!indexes.has(required)) throw new Error(`${schema}.ims_backorder_merges is missing ${required}`);
-  }
-  console.log(`  verified ${schema}.ims_backorder_merges`);
-}
-
 async function verifyStockAvailabilitySchema(schema) {
   const requiredColumns = {
     ims_stock_allocations: ['business_id', 'so_item_id', 'po_item_id', 'qty_allocated', 'qty_received_assigned', 'promise_status', 'state', 'revision'],
@@ -2562,7 +2531,6 @@ try {
     }
     await migrateSchema(schema, businessIdsBySchema.get(schema));
     if (requestedTable) continue;
-    await verifyBackorderMergeSchema(schema);
     await verifyStockAvailabilitySchema(schema);
     await verifyGiftCardReconciliationSchema(schema);
     await verifyOutstandingResolutionSchema(schema);

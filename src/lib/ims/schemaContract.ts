@@ -77,7 +77,6 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_supplier_credit_settlements',
   'ims_po_backorder_lines',
   'ims_so_backorder_lines',
-  'ims_backorder_merges',
   'ims_credit_notes',
   'ims_credit_note_items',
   'ims_supplier_credit_notes',

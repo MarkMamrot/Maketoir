@@ -34,7 +34,6 @@ interface OrdersSectionProps {
   PurchaseOrdersView: any;
   SalesOrdersView: any;
   StockAvailabilityWorkbenchView: any;
-  BackordersView: any;
   CreditNotesView: any;
   SupplierCreditNotesView: any;
   BranchTransfersView: any;
@@ -69,7 +68,6 @@ export function OrdersSection({
   PurchaseOrdersView,
   SalesOrdersView,
   StockAvailabilityWorkbenchView,
-  BackordersView,
   CreditNotesView,
   SupplierCreditNotesView,
   BranchTransfersView,
@@ -115,16 +113,6 @@ export function OrdersSection({
         <StockAvailabilityWorkbenchView
           isAdvisor={isAdvisor}
           onOpenSalesOrder={(id: number) => { setPendingOpenSO(id); setView('sales-orders'); }}
-        />
-      )}
-      {['backorders', 'customer-backorders', 'supplier-backorders'].includes(view) && (
-        <BackordersView
-          isAdvisor={isAdvisor}
-          initialType={view === 'supplier-backorders' ? 'supplier' : 'customer'}
-          onOpenOrder={(type: 'customer' | 'supplier', id: number) => {
-            if (type === 'customer') { setPendingOpenSO(id); setView('sales-orders'); }
-            else { setPendingOpenPO(id); setView('purchase-orders'); }
-          }}
         />
       )}
       {view === 'credit-notes' && (

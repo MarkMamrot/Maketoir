@@ -65,7 +65,6 @@ interface MainSectionsProps {
   PurchaseOrdersView: any;
   SalesOrdersView: any;
   StockAvailabilityWorkbenchView: any;
-  BackordersView: any;
   CreditNotesView: any;
   SupplierCreditNotesView: any;
   BranchTransfersView: any;
@@ -146,7 +145,6 @@ export function MainSections(props: MainSectionsProps) {
     PurchaseOrdersView,
     SalesOrdersView,
     StockAvailabilityWorkbenchView,
-    BackordersView,
     CreditNotesView,
     SupplierCreditNotesView,
     BranchTransfersView,
@@ -273,7 +271,6 @@ export function MainSections(props: MainSectionsProps) {
         PurchaseOrdersView={PurchaseOrdersView}
         SalesOrdersView={SalesOrdersView}
         StockAvailabilityWorkbenchView={StockAvailabilityWorkbenchView}
-        BackordersView={BackordersView}
         CreditNotesView={CreditNotesView}
         SupplierCreditNotesView={SupplierCreditNotesView}
         BranchTransfersView={BranchTransfersView}

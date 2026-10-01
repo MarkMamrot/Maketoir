@@ -51,7 +51,6 @@ import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection'
 import { ShippingSettingsSection } from './views/settings/ShippingSettingsSection';
 import { ShipOrdersWorkspace } from './views/orders/ShipOrdersWorkspace';
 import { LocationDaybooksView } from './views/locations/LocationDaybooksView';
-import { BackordersView } from './views/backorders/BackordersView';
 import { StockAvailabilityWorkbenchView } from './views/orders/StockAvailabilityWorkbenchView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
@@ -69,6 +68,7 @@ import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentMo
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { SalesOrderBatchMoveModal } from './views/orders/SalesOrderBatchMoveModal';
 import { SalesOrderMoveItemsModal } from './views/orders/SalesOrderMoveItemsModal';
+import { PurchaseOrderBatchMoveModal } from './views/orders/PurchaseOrderBatchMoveModal';
 import { PurchaseOrderMoveItemsModal } from './views/orders/PurchaseOrderMoveItemsModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
@@ -9606,6 +9606,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const poCurrency = String(viewModal.po?.currency_code || 'AUD').toUpperCase();
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
   const [moveItemsOrder, setMoveItemsOrder] = useState<any | null>(null);
+  const [selectedPoIds, setSelectedPoIds] = useState<Set<number>>(new Set());
+  const [batchMoveOpen, setBatchMoveOpen] = useState(false);
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; audAmount: string; rate: string; rateDirection: ExchangeRateDirection; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero'; applyDiscount: boolean; operationKey: string } | null>(null);
   const [poEarlyPaymentPreview, setPoEarlyPaymentPreview] = useState<any | null>(null);
   const [syncingPoPaymentId, setSyncingPoPaymentId] = useState<number | null>(null);
@@ -10288,6 +10290,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const totalPagesPO = Math.max(1, Math.ceil(sortedFilteredPOs.length / PAGE_SIZE));
   const safePagePO = Math.min(page, totalPagesPO);
   const visiblePOs = sortedFilteredPOs.slice((safePagePO - 1) * PAGE_SIZE, safePagePO * PAGE_SIZE);
+  const movablePOs = visiblePOs.filter((po: any) => !po.is_historical && !po.cin7_order_id
+    && ['draft', 'confirmed', 'partially_received', 'backordered'].includes(String(po.status)));
+  const selectedPOs = visiblePOs.filter((po: any) => selectedPoIds.has(Number(po.id)));
+  const movablePoIds = new Set(movablePOs.map((po: any) => Number(po.id)));
+  const selectedCanBatchMove = selectedPOs.length >= 2 && selectedPOs.every((po: any) => movablePoIds.has(Number(po.id)));
+  const allMovableSelected = movablePOs.length > 0 && movablePOs.every((po: any) => selectedPoIds.has(Number(po.id)));
   const getPoActionOptions = (po: any) => {
     const actions: Array<{ label: string; value: string }> = [];
     const fullyReceived = !Array.isArray(po.items) || (po.items.length > 0 && po.items.every((item: any) =>
@@ -10371,9 +10379,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
-  const poTableWidth = selectedPoFields.reduce((total, field) => total + field.width, 0) + 228;
+  const poTableWidth = selectedPoFields.reduce((total, field) => total + field.width, 0) + 44 + 228;
   const renderPoColGroup = () => (
     <colgroup>
+      <col style={{ width: 44 }} />
       {selectedPoFields.map(field => <col key={field.id} style={{ width: field.width }} />)}
       <col style={{ width: 228 }} />
     </colgroup>
@@ -10472,6 +10481,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         )}
       </div>
       {poPresetMessage && <div role="status" style={{ margin: '-6px 0 12px', color: 'var(--sv-text-dim)', fontSize: 12 }}>{poPresetMessage}</div>}
+      {selectedPoIds.size > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10, padding: '8px 12px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><strong style={{ fontSize: 12 }}>{selectedPoIds.size} selected</strong><button type="button" onClick={() => setBatchMoveOpen(true)} disabled={isAdvisor || !selectedCanBatchMove} title={selectedCanBatchMove ? 'Move all outstanding supply into one selected Purchase Order' : 'Select at least two ordinary open Purchase Orders'} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftRight size={14} />Move into one order</button><button type="button" onClick={() => setSelectedPoIds(new Set())} style={btnStyle('ghost', 'sm')}>Clear</button></div>}
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
         <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
           <div ref={poHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
@@ -10479,9 +10489,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               {renderPoColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
+                <th style={{ padding: '10px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all movable Purchase Orders on this page" checked={allMovableSelected} onChange={event => setSelectedPoIds(event.target.checked ? new Set(movablePOs.map((po: any) => Number(po.id))) : new Set())} /></th>
                 {selectedPoFields.map(field => (
                   <th key={field.id} onClick={() => toggleSort(field.sortKey ?? field.id)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === (field.sortKey ?? field.id) ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: field.id === 'po_number' || field.id === 'supplier_name' ? 'sticky' : undefined, left: field.id === 'po_number' ? 0 : field.id === 'supplier_name' ? 110 : undefined, background: 'var(--sv-bg-2)', zIndex: field.id === 'po_number' || field.id === 'supplier_name' ? 3 : 1, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === (field.sortKey ?? field.id) ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: field.id === 'po_number' || field.id === 'supplier_name' ? 'sticky' : undefined, left: field.id === 'po_number' ? 44 : field.id === 'supplier_name' ? 154 : undefined, background: 'var(--sv-bg-2)', zIndex: field.id === 'po_number' || field.id === 'supplier_name' ? 3 : 1, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
                     {field.label}<SortIcon col={field.sortKey ?? field.id} />
                   </th>
                 ))}
@@ -10510,10 +10521,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 const selectedAction = poActionSelections[po.id] ?? poActions[0]?.value ?? 'open';
                 return (
                   <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
+                    <td style={{ padding: '10px 8px', textAlign: 'center', position: 'sticky', left: 0, zIndex: 4, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><input type="checkbox" aria-label={`Select ${po.po_number}`} checked={selectedPoIds.has(Number(po.id))} disabled={!movablePoIds.has(Number(po.id))} onChange={event => setSelectedPoIds(current => { const next = new Set(current); if (event.target.checked) next.add(Number(po.id)); else next.delete(Number(po.id)); return next; })} /></td>
                     {selectedPoFields.map(field => {
                       const frozen = field.id === 'po_number' || field.id === 'supplier_name';
                       const background = i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)';
-                      return <td key={field.id} title={typeof field.render(po) === 'string' ? String(field.render(po)) : undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: frozen ? 'sticky' : undefined, left: field.id === 'po_number' ? 0 : field.id === 'supplier_name' ? 110 : undefined, zIndex: frozen ? 3 : undefined, background: frozen ? background : undefined, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
+                      return <td key={field.id} title={typeof field.render(po) === 'string' ? String(field.render(po)) : undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: frozen ? 'sticky' : undefined, left: field.id === 'po_number' ? 44 : field.id === 'supplier_name' ? 154 : undefined, zIndex: frozen ? 3 : undefined, background: frozen ? background : undefined, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
                         {field.id === 'po_number' ? <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{po.po_number}</button> : field.render(po)}
                       </td>;
                     })}
@@ -11392,6 +11404,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
           onMoved={() => load()}
         />
       )}
+      {batchMoveOpen && <PurchaseOrderBatchMoveModal orders={selectedPOs} onClose={() => setBatchMoveOpen(false)} onMoved={() => { setSelectedPoIds(new Set()); load(); }} />}
       {importPOsOpen && (
         <ImportPOsModal
           locations={locations}
@@ -23798,7 +23811,6 @@ export default function ImsPage() {
               PurchaseOrdersView={PurchaseOrdersView}
               SalesOrdersView={SalesOrdersView}
               StockAvailabilityWorkbenchView={StockAvailabilityWorkbenchView}
-              BackordersView={BackordersView}
               CreditNotesView={CreditNotesView}
               SupplierCreditNotesView={SupplierCreditNotesView}
               BranchTransfersView={BranchTransfersView}

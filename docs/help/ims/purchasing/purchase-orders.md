@@ -99,6 +99,8 @@ Choose a compatible existing PO or create a new destination. An existing destina
 
 On confirmation, the outstanding ordered quantity and selected promise links move together. Received quantities remain on the source PO, stock on hand does not change, and each PO keeps its own freight and discount. When both orders already own incoming supply, the business's total incoming quantity is unchanged. If the move takes every outstanding quantity, acknowledge in the review that the source Purchase Order will close. If an order or customer promise changed after review, refresh and review the move again.
 
+To consolidate several open Purchase Orders, mark their rows and choose **Move into one order**. Choose which marked PO should remain as the destination. Review every source line and individually choose each named customer promise that must follow; moving all outstanding supply cannot continue while a promise remains unselected. After acknowledging that the source POs will close, Solvantis applies the full batch in one transaction. Received quantities remain with their source POs, and a stale order or promise prevents every change in the batch.
+
 If the PO has active incoming-stock allocations, release or reassign them before changing its lines. If it has a linked Xero bill, Solvantis checks the live Xero state before saving a financial amendment. An unpaid Draft bill can still be amended when its date falls in a Xero locked period because it has not been posted. Paid, credited, posted locked-period, or unverifiable bills cannot be amended this way.
 
 ## Costs and stock value
