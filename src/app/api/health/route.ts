@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
-import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  try {
-    const sheets = new GoogleSheetsService();
-    const email = await sheets.ping();
-    return NextResponse.json({ ok: true, google_sheets: email });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
-  }
+  return NextResponse.json(
+    {
+      status: 'ok',
+      deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+    },
+    {
+      headers: { 'Cache-Control': 'no-store' },
+    },
+  );
 }

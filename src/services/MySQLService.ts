@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import { instrumentPool } from '@/services/dbPoolTelemetry';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -29,6 +30,7 @@ export function getPool(): mysql.Pool {
         if (err) console.error('Failed to set session time_zone on main pool:', err.message);
       });
     });
+    instrumentPool(globalThis.__mysqlPool, 'main');
   }
   return globalThis.__mysqlPool;
 }

@@ -1,12 +1,14 @@
+import { createHash } from 'node:crypto';
 import mysql from 'mysql2/promise';
 import { cookies } from 'next/headers';
 import { getCurrentImsDb } from '@/services/imsContext';
+import { instrumentPool, recordPoolClose, recordPoolRetry } from '@/services/dbPoolTelemetry';
 import { getImsDbNameSync, getImsDbNameStrict, primeImsDbMap } from '@/lib/db/BusinessRegistry';
 
 // Warm the business → schema map as soon as this module loads so the
 // synchronous tenant resolver (used by getIMSPool for transactions) works
 // from the first request after boot.
-void primeImsDbMap();
+if (process.env.NEXT_PHASE !== 'phase-production-build') void primeImsDbMap();
 
 declare global {
   // eslint-disable-next-line no-var
@@ -32,6 +34,10 @@ const lastUsed: Map<string, number> =
 const POOL_IDLE_MS = parseInt(process.env.IMS_POOL_IDLE_MS ?? '600000', 10); // 10 min
 const POOL_SWEEP_MS = 120000; // check every 2 min
 
+function telemetryLabel(name: string): string {
+  return `ims:${createHash('sha256').update(name).digest('hex').slice(0, 12)}`;
+}
+
 /** Close pools for tenant schemas that have been idle beyond POOL_IDLE_MS. */
 async function sweepIdlePools(): Promise<void> {
   const now = Date.now();
@@ -42,7 +48,10 @@ async function sweepIdlePools(): Promise<void> {
     if (idle < POOL_IDLE_MS) continue;
     pools.delete(name);
     lastUsed.delete(name);
-    try { await pool.end(); } catch { /* ignore — best effort */ }
+    try {
+      await pool.end();
+      recordPoolClose(telemetryLabel(name));
+    } catch { /* ignore — best effort */ }
   }
 }
 
@@ -186,6 +195,7 @@ export function getIMSPool(dbName?: string): mysql.Pool {
         if (err) console.error(`Failed to set session time_zone on IMS pool (${name}):`, err.message);
       });
     });
+    instrumentPool(pool, telemetryLabel(name));
     pools.set(name, pool);
   }
   return pools.get(name)!;
@@ -196,13 +206,15 @@ export async function imsQuery<T = any>(
   params?: any[],
   db?: string,
 ): Promise<T[]> {
-  const pool = getIMSPool(await resolveTenantDb(db));
+  const resolvedDb = await resolveTenantDb(db);
+  const pool = getIMSPool(resolvedDb);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const [rows] = await pool.execute(sql, params);
       return rows as T[];
     } catch (err: any) {
       if (!isRetryableDbError(err) || attempt === 1) throw err;
+      recordPoolRetry(telemetryLabel(resolvedDb));
       await sleep(250);
     }
   }
@@ -214,13 +226,15 @@ export async function imsExecute(
   params?: any[],
   db?: string,
 ): Promise<mysql.ResultSetHeader> {
-  const pool = getIMSPool(await resolveTenantDb(db));
+  const resolvedDb = await resolveTenantDb(db);
+  const pool = getIMSPool(resolvedDb);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const [result] = await pool.execute(sql, params);
       return result as mysql.ResultSetHeader;
     } catch (err: any) {
       if (!isRetryableDbError(err) || attempt === 1) throw err;
+      recordPoolRetry(telemetryLabel(resolvedDb));
       await sleep(250);
     }
   }

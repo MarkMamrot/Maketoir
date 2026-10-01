@@ -13,6 +13,7 @@ interface ActiveAmazonChannelRow {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   if (!process.env.CRON_SECRET || request.headers.get('x-cron-secret') !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
@@ -51,8 +52,16 @@ export async function POST(request: Request) {
       }).catch(() => null);
     }
   }
+  const status = failedChannels === 0 && totals.failed === 0 ? 200 : 207;
+  console.info('[cron] amazon-orders', JSON.stringify({
+    deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+    durationMs: Date.now() - startedAt,
+    ...totals,
+    failedChannels,
+    status,
+  }));
   return NextResponse.json(
     { success: failedChannels === 0 && totals.failed === 0, ...totals, failedChannels },
-    { status: failedChannels === 0 && totals.failed === 0 ? 200 : 207 },
+    { status },
   );
 }

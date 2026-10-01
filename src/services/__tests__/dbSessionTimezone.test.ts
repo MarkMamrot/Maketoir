@@ -43,6 +43,7 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({
 
 beforeEach(() => {
   vi.resetModules();
+  delete process.env.NEXT_PHASE;
   fakePool = makeFakePool();
   createPool.mockClear();
   // These modules cache pools on globalThis so they survive Next.js HMR —
@@ -54,6 +55,15 @@ beforeEach(() => {
 });
 
 describe('IMS pool — session time_zone pinning', () => {
+  it('does not prime the business registry during a production build', async () => {
+    process.env.NEXT_PHASE = 'phase-production-build';
+    const registry = await import('@/lib/db/BusinessRegistry');
+
+    await import('../IMSMySQLService');
+
+    expect(registry.primeImsDbMap).not.toHaveBeenCalled();
+  });
+
   it('creates the pool with client-side UTC serialisation (timezone: "Z")', async () => {
     const { getIMSPool } = await import('../IMSMySQLService');
     getIMSPool('some_tenant_schema');
