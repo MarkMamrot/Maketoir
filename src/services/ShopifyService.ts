@@ -39,6 +39,13 @@ export interface ShopifyGiftCardBalanceMutationResult {
   balance: number;
 }
 
+export interface ShopifyUpdatedOrder {
+  id: string | number;
+  created_at?: string | null;
+  updated_at?: string | null;
+  fulfillment_status?: string | null;
+}
+
 interface GiftCardMutationTransaction {
   id: string;
   amount: { amount: string; currencyCode: string };
@@ -1044,6 +1051,30 @@ export class ShopifyService {
     'source_name', 'customer_id', 'customer_email', 'customer_first_name', 'customer_last_name',
     'customer_orders_count', 'line_items_count',
   ];
+
+  async getOrdersUpdatedSince(updatedAtMinIso: string): Promise<ShopifyUpdatedOrder[]> {
+    const parsed = new Date(updatedAtMinIso);
+    if (!updatedAtMinIso.trim() || Number.isNaN(parsed.getTime())) {
+      throw new Error('A valid Shopify order update timestamp is required.');
+    }
+
+    const orders: ShopifyUpdatedOrder[] = [];
+    let params: Record<string, unknown> = {
+      limit: 250,
+      status: 'any',
+      updated_at_min: parsed.toISOString(),
+      fields: 'id,created_at,updated_at,fulfillment_status',
+    };
+    while (true) {
+      const page = await (this.shopify as any).order.list(params) as ShopifyUpdatedOrder[] & {
+        nextPageParameters?: Record<string, unknown>;
+      };
+      orders.push(...page);
+      if (!page.nextPageParameters) break;
+      params = page.nextPageParameters;
+    }
+    return orders;
+  }
 
   /**
    * Fetch the last `monthsBack` months of Shopify orders for syncing to a sheet.

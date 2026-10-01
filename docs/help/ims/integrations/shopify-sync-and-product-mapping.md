@@ -50,6 +50,8 @@ For products uploaded or resynchronised from Solvantis, **Tracks Inventory** als
 
 Failed Shopify quantity updates remain queued and are retried by the next scheduled inventory run. The failed run does not advance the last-successful inventory sync time. Review the inventory notification or **Sync History**, repair an invalid Shopify product, variant, inventory-item, location, or connection link, then allow the queued update to retry. Do not make a compensating stock adjustment unless the Solvantis quantity itself is wrong.
 
+Shopify fulfilment webhooks remain the primary source for customer-order completion. Each night, Solvantis also reviews Shopify orders updated during the previous 36 hours. When Shopify reports an order fully fulfilled but the matching Solvantis Sales Order is still Confirmed or In Progress, Solvantis applies the same stock-safe fulfilment workflow used by the webhook. The overlapping window covers delayed nightly runs, and completed orders are not fulfilled twice. Whenever this fallback repairs an order, Solvantis records an operational warning for administrators because the usual webhook pathway did not bring the order up to date. Partial Shopify fulfilments are not inferred by this nightly check.
+
 ## Step-by-step
 
 ### Import products from Shopify
@@ -149,6 +151,7 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 | One product remains unlinked | Variant linkage is absent or points to another item | Inspect every variant and repair the intended match |
 | Inventory differs between systems | Queued update, location mapping, webhook failure, or manual change | Trace sync history and source stock before correcting anything |
 | A Shopify order is missing or remains Draft after a sync interruption | The order event was not received, or processing stopped before confirmation | Correct the connection or reported configuration issue, then retry the Shopify order sync; existing Drafts resume without creating a duplicate order |
+| Shopify is fully fulfilled but the Sales Order remains Confirmed | The dedicated fulfilment event was missed or could not be processed | Review Runtime Issues and stock readiness; the nightly 36-hour reconciliation retries eligible fully fulfilled orders automatically |
 | An old order still shows the fallback after mapping is fixed | Existing import has not been reprocessed | Use the supported Shopify update or retry and verify the order |
 | Payout status is missing here | Payout accounting is handled in Xero activity | Open **Xero > Shopify Payouts** |
 
