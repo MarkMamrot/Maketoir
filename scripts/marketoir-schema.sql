@@ -649,6 +649,26 @@ CREATE TABLE IF NOT EXISTS connections (
   updated_at               DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS klaviyo_integration_settings (
+  business_id                         VARCHAR(100) PRIMARY KEY,
+  enabled                             TINYINT(1) NOT NULL DEFAULT 0,
+  profiles_enabled                    TINYINT(1) NOT NULL DEFAULT 0,
+  reporting_enabled                   TINYINT(1) NOT NULL DEFAULT 0,
+  pos_enabled                         TINYINT(1) NOT NULL DEFAULT 0,
+  native_shop_enabled                 TINYINT(1) NOT NULL DEFAULT 0,
+  wholesale_enabled                   TINYINT(1) NOT NULL DEFAULT 0,
+  shopify_enabled                     TINYINT(1) NOT NULL DEFAULT 0,
+  shopify_duplicate_risk_acknowledged TINYINT(1) NOT NULL DEFAULT 0,
+  initial_sync_cursor                 VARCHAR(191) NULL,
+  initial_sync_completed_at           DATETIME(3) NULL,
+  last_event_sent_at                  DATETIME(3) NULL,
+  last_reporting_sync_at              DATETIME(3) NULL,
+  safe_error                          VARCHAR(1000) NULL,
+  created_at                          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at                          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_klaviyo_settings_enabled (enabled, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- AI billing control plane (cross-tenant, AUD micro-units)
 -- ---------------------------------------------------------

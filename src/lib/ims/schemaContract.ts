@@ -33,6 +33,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_sales_channel_product_selections',
   'ims_sales_channel_product_mappings',
   'ims_contact_channel_mappings',
+  'ims_klaviyo_profile_mappings',
+  'ims_klaviyo_outbox',
   'ims_sales_channel_product_rules',
   'ims_sales_channel_product_assignments',
   'ims_sales_channel_events',
@@ -152,6 +154,8 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_sales_channel_product_selections: ['business_id', 'channel_instance_id', 'variant_id', 'is_selected', 'inventory_enabled', 'price_enabled'],
   ims_sales_channel_product_mappings: ['business_id', 'channel_instance_id', 'variant_id', 'external_product_id', 'external_variant_id', 'external_inventory_id', 'mapping_status', 'last_seen_at'],
   ims_contact_channel_mappings: ['business_id', 'channel_instance_id', 'contact_id', 'external_customer_id', 'mapping_status', 'last_inbound_at', 'last_outbound_at', 'last_sync_status'],
+  ims_klaviyo_profile_mappings: ['business_id', 'contact_id', 'klaviyo_profile_id', 'external_id', 'reconciliation_status', 'last_sync_at', 'safe_error'],
+  ims_klaviyo_outbox: ['business_id', 'contact_id', 'operation_key', 'source_type', 'source_id', 'event_type', 'event_version', 'occurred_at', 'payload_json', 'status', 'attempts', 'available_at', 'locked_at'],
   ims_sales_channel_product_rules: ['business_id', 'channel_instance_id', 'name', 'priority', 'is_enabled', 'match_mode', 'decision', 'conditions_json'],
   ims_sales_channel_product_assignments: ['business_id', 'channel_instance_id', 'product_id', 'rule_decision', 'matched_rule_id', 'override_mode', 'desired_state', 'readiness_status', 'provider_state', 'evaluation_hash'],
   ims_sales_channel_events: ['business_id', 'channel_instance_id', 'provider', 'event_type', 'external_event_id', 'status', 'attempts'],
@@ -299,6 +303,8 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_klaviyo_profile_mappings: ['uq_klaviyo_mapping_contact', 'uq_klaviyo_mapping_profile', 'uq_klaviyo_mapping_external', 'idx_klaviyo_mapping_status'],
+  ims_klaviyo_outbox: ['uq_klaviyo_outbox_operation', 'idx_klaviyo_outbox_work', 'idx_klaviyo_outbox_contact'],
   ims_brands: ['uq_ims_brand_per_tenant', 'idx_ims_brand_business'],
   ims_bulk_product_presets: ['uq_bulk_product_preset_name', 'idx_bulk_product_preset_user'],
   pos_training_sales: ['uq_pos_training_local', 'idx_pos_training_location'],

@@ -65,6 +65,11 @@ const SALES_CHANNEL_TABLES = [
   'ims_sales_channel_jobs',
 ];
 
+const KLAVIYO_TABLES = [
+  'ims_klaviyo_profile_mappings',
+  'ims_klaviyo_outbox',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -96,6 +101,15 @@ const SALES_CHANNEL_TABLE_DDLS = SALES_CHANNEL_TABLES.map(table => {
     .replace(/,\s*(\) ENGINE=)/, '\n$1')
     .replace(/;$/, '');
 });
+const KLAVIYO_TABLE_DDLS = KLAVIYO_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0]
+    .replace(/^\s*CONSTRAINT fk_klaviyo_(?:mapping|outbox)_contact\b[^\n]*,?\r?\n/gm, '')
+    .replace(/,\s*(\) ENGINE=)/, '\n$1')
+    .replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -109,6 +123,7 @@ const TABLE_DDLS = [
   ...DAYBOOK_TABLE_DDLS,
   ...INVENTORY_COSTING_TABLE_DDLS,
   ...SALES_CHANNEL_TABLE_DDLS,
+  ...KLAVIYO_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',

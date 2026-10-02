@@ -1,6 +1,6 @@
-export const DEFAULT_KLAVIYO_REVISION = '2024-10-15';
+export const DEFAULT_KLAVIYO_REVISION = '2026-07-15';
 
-const KLAVIYO_BASE_URL = 'https://a.klaviyo.com/api';
+const KLAVIYO_BASE_URL = 'https://a.klaviyo.com/api/';
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 export interface KlaviyoCampaignRecord {
@@ -31,6 +31,28 @@ export interface KlaviyoListRecord {
   updated: string;
 }
 
+export interface KlaviyoEventProfile {
+  id?: string;
+  email?: string;
+  phoneNumber?: string;
+  externalId?: string;
+}
+
+export interface KlaviyoEventInput {
+  metricName: string;
+  profile: KlaviyoEventProfile;
+  uniqueId: string;
+  occurredAt: string;
+  properties: Record<string, unknown>;
+  value?: number;
+  valueCurrency?: string;
+  backfill?: boolean;
+}
+
+export interface KlaviyoProfileRecord extends KlaviyoEventProfile {
+  id: string;
+}
+
 interface KlaviyoResource {
   id?: unknown;
   attributes?: Record<string, unknown>;
@@ -39,6 +61,11 @@ interface KlaviyoResource {
 interface KlaviyoCollectionResponse {
   data?: KlaviyoResource[];
   links?: { next?: string | null };
+  errors?: Array<{ detail?: string; title?: string }>;
+}
+
+interface KlaviyoSingleResponse {
+  data?: KlaviyoResource;
   errors?: Array<{ detail?: string; title?: string }>;
 }
 
@@ -51,6 +78,25 @@ export interface KlaviyoServiceOptions {
 
 function text(value: unknown): string {
   return value == null ? '' : String(value);
+}
+
+function profileRecord(resource: KlaviyoResource | undefined): KlaviyoProfileRecord | null {
+  if (!resource?.id) return null;
+  const attributes = resource.attributes ?? {};
+  return {
+    id: text(resource.id),
+    ...(attributes.email ? { email: text(attributes.email) } : {}),
+    ...(attributes.phone_number ? { phoneNumber: text(attributes.phone_number) } : {}),
+    ...(attributes.external_id ? { externalId: text(attributes.external_id) } : {}),
+  };
+}
+
+function profileAttributes(profile: KlaviyoEventProfile): Record<string, string> {
+  return {
+    ...(profile.email ? { email: profile.email } : {}),
+    ...(profile.phoneNumber ? { phone_number: profile.phoneNumber } : {}),
+    ...(profile.externalId ? { external_id: profile.externalId } : {}),
+  };
 }
 
 function sleep(milliseconds: number): Promise<void> {
@@ -80,19 +126,24 @@ export class KlaviyoService {
     this.maxRetries = options.maxRetries ?? 3;
   }
 
-  private headers(): HeadersInit {
+  private headers(hasBody = false): HeadersInit {
     return {
       Accept: 'application/json',
       Authorization: `Klaviyo-API-Key ${this.apiKey}`,
       revision: this.revision,
+      ...(hasBody ? { 'Content-Type': 'application/vnd.api+json' } : {}),
     };
   }
 
-  private async fetchPage(url: string): Promise<KlaviyoCollectionResponse> {
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const url = new URL(path, KLAVIYO_BASE_URL).toString();
     for (let attempt = 0; ; attempt += 1) {
-      const response = await this.fetcher(url, { headers: this.headers() });
+      const response = await this.fetcher(url, {
+        ...init,
+        headers: { ...this.headers(init.body != null), ...init.headers },
+      });
       const body = await response.json().catch(() => ({})) as KlaviyoCollectionResponse;
-      if (response.ok) return body;
+      if (response.ok) return body as T;
 
       if (RETRYABLE_STATUSES.has(response.status) && attempt < this.maxRetries) {
         await this.sleeper(retryDelayMilliseconds(response, attempt));
@@ -102,6 +153,10 @@ export class KlaviyoService {
       const detail = body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? `HTTP ${response.status}`;
       throw new Error(`Klaviyo request failed: ${detail}`);
     }
+  }
+
+  private async fetchPage(url: string): Promise<KlaviyoCollectionResponse> {
+    return this.request<KlaviyoCollectionResponse>(url);
   }
 
   private async getAll(path: string): Promise<KlaviyoResource[]> {
@@ -166,5 +221,70 @@ export class KlaviyoService {
   async testConnection(): Promise<number> {
     const resources = await this.getAll('metrics/?page[size]=1');
     return resources.length;
+  }
+
+  async findProfilesByIdentifier(
+    field: 'external_id' | 'email' | 'phone_number',
+    value: string,
+  ): Promise<KlaviyoProfileRecord[]> {
+    const params = new URLSearchParams({
+      filter: `equals(${field},${JSON.stringify(value)})`,
+      'page[size]': '20',
+    });
+    const resources = await this.getAll(`profiles/?${params.toString()}`);
+    return resources.map(profileRecord).filter((profile): profile is KlaviyoProfileRecord => profile != null);
+  }
+
+  async createProfile(profile: KlaviyoEventProfile): Promise<KlaviyoProfileRecord> {
+    const response = await this.request<KlaviyoSingleResponse>('profiles', {
+      method: 'POST',
+      body: JSON.stringify({
+        data: { type: 'profile', attributes: profileAttributes(profile) },
+      }),
+    });
+    const created = profileRecord(response.data);
+    if (!created) throw new Error('Klaviyo profile creation returned no profile identity.');
+    return created;
+  }
+
+  async updateProfile(profileId: string, profile: KlaviyoEventProfile): Promise<KlaviyoProfileRecord> {
+    const response = await this.request<KlaviyoSingleResponse>(`profiles/${encodeURIComponent(profileId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        data: { type: 'profile', id: profileId, attributes: profileAttributes(profile) },
+      }),
+    });
+    const updated = profileRecord(response.data);
+    if (!updated) throw new Error('Klaviyo profile update returned no profile identity.');
+    return updated;
+  }
+
+  async createEvent(input: KlaviyoEventInput): Promise<void> {
+    await this.request('events', {
+      method: 'POST',
+      body: JSON.stringify({
+        data: {
+          type: 'event',
+          attributes: {
+            properties: input.properties,
+            time: input.occurredAt,
+            unique_id: input.uniqueId,
+            ...(input.value == null ? {} : { value: input.value }),
+            ...(input.valueCurrency ? { value_currency: input.valueCurrency } : {}),
+            ...(input.backfill == null ? {} : { backfill: input.backfill }),
+            metric: {
+              data: { type: 'metric', attributes: { name: input.metricName } },
+            },
+            profile: {
+              data: {
+                type: 'profile',
+                ...(input.profile.id ? { id: input.profile.id } : {}),
+                ...(input.profile.id ? {} : { attributes: profileAttributes(input.profile) }),
+              },
+            },
+          },
+        },
+      }),
+    });
   }
 }

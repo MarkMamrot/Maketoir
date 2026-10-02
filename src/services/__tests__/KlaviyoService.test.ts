@@ -71,4 +71,85 @@ describe('KlaviyoService', () => {
     await expect(service.getFlows()).rejects.toThrow('Klaviyo request failed: Missing flows:read scope');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+
+  it('creates an idempotent backfill event with stable profile identity', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+    const service = new KlaviyoService('private-key', { fetcher });
+
+    await service.createEvent({
+      metricName: 'Placed Order',
+      profile: { email: 'customer@example.com', externalId: 'solvantis:business-1:contact:42' },
+      uniqueId: 'pos:sale-100:placed-order:v1',
+      occurredAt: '2026-10-02T01:02:03.000Z',
+      properties: { orderId: 'sale-100', channel: 'pos' },
+      value: 109.95,
+      valueCurrency: 'AUD',
+      backfill: true,
+    });
+
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe('https://a.klaviyo.com/api/events');
+    expect(init).toMatchObject({
+      method: 'POST',
+      headers: {
+        Authorization: 'Klaviyo-API-Key private-key',
+        'Content-Type': 'application/vnd.api+json',
+        revision: '2026-07-15',
+      },
+    });
+    expect(JSON.parse(String(init.body))).toEqual({
+      data: {
+        type: 'event',
+        attributes: {
+          properties: { orderId: 'sale-100', channel: 'pos' },
+          time: '2026-10-02T01:02:03.000Z',
+          unique_id: 'pos:sale-100:placed-order:v1',
+          value: 109.95,
+          value_currency: 'AUD',
+          backfill: true,
+          metric: { data: { type: 'metric', attributes: { name: 'Placed Order' } } },
+          profile: {
+            data: {
+              type: 'profile',
+              attributes: {
+                email: 'customer@example.com',
+                external_id: 'solvantis:business-1:contact:42',
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('finds a profile by an encoded external identity', async () => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({
+      data: [{ id: 'profile-1', attributes: { email: 'customer@example.com', external_id: 'contact:42' } }],
+      links: { next: null },
+    }));
+    const service = new KlaviyoService('private-key', { fetcher });
+
+    await expect(service.findProfilesByIdentifier('external_id', 'contact:42')).resolves.toEqual([{
+      id: 'profile-1', email: 'customer@example.com', externalId: 'contact:42',
+    }]);
+    expect(fetcher.mock.calls[0][0]).toContain('filter=equals%28external_id%2C%22contact%3A42%22%29');
+  });
+
+  it('creates and updates profiles without subscription attributes', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { id: 'profile-1', attributes: { external_id: 'contact:42' } } }, 201))
+      .mockResolvedValueOnce(jsonResponse({ data: { id: 'profile-1', attributes: { email: 'new@example.com', external_id: 'contact:42' } } }));
+    const service = new KlaviyoService('private-key', { fetcher });
+
+    await service.createProfile({ email: 'customer@example.com', externalId: 'contact:42' });
+    await service.updateProfile('profile-1', { email: 'new@example.com', externalId: 'contact:42' });
+
+    const createBody = JSON.parse(String(fetcher.mock.calls[0][1].body));
+    const updateBody = JSON.parse(String(fetcher.mock.calls[1][1].body));
+    expect(createBody.data.attributes).toEqual({ email: 'customer@example.com', external_id: 'contact:42' });
+    expect(updateBody.data).toEqual({
+      type: 'profile', id: 'profile-1', attributes: { email: 'new@example.com', external_id: 'contact:42' },
+    });
+    expect(JSON.stringify([createBody, updateBody])).not.toContain('subscription');
+  });
 });

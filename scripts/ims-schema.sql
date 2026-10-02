@@ -867,6 +867,51 @@ CREATE TABLE IF NOT EXISTS ims_contact_channel_mappings (
   CONSTRAINT fk_contact_channel_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_klaviyo_profile_mappings (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  contact_id            INT NOT NULL,
+  klaviyo_profile_id    VARCHAR(191) NULL,
+  external_id           VARCHAR(191) NOT NULL,
+  reconciliation_status ENUM('linked','conflict','archived') NOT NULL DEFAULT 'linked',
+  metadata_json         JSON NULL,
+  last_sync_at          DATETIME(3) NULL,
+  safe_error            VARCHAR(1000) NULL,
+  error_at              DATETIME(3) NULL,
+  created_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_klaviyo_mapping_contact (business_id, contact_id),
+  UNIQUE KEY uq_klaviyo_mapping_profile (business_id, klaviyo_profile_id),
+  UNIQUE KEY uq_klaviyo_mapping_external (business_id, external_id),
+  INDEX idx_klaviyo_mapping_status (business_id, reconciliation_status, updated_at),
+  CONSTRAINT fk_klaviyo_mapping_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_klaviyo_outbox (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  contact_id      INT NOT NULL,
+  operation_key   VARCHAR(191) NOT NULL,
+  source_type     VARCHAR(32) NOT NULL,
+  source_id       VARCHAR(191) NOT NULL,
+  event_type      VARCHAR(100) NOT NULL,
+  event_version   INT NOT NULL DEFAULT 1,
+  occurred_at     DATETIME(3) NOT NULL,
+  payload_json    JSON NOT NULL,
+  status          ENUM('pending','processing','complete','dead_letter') NOT NULL DEFAULT 'pending',
+  attempts        INT NOT NULL DEFAULT 0,
+  available_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  locked_at       DATETIME(3) NULL,
+  completed_at    DATETIME(3) NULL,
+  safe_error      VARCHAR(1000) NULL,
+  created_at      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_klaviyo_outbox_operation (business_id, operation_key),
+  INDEX idx_klaviyo_outbox_work (business_id, status, available_at),
+  INDEX idx_klaviyo_outbox_contact (business_id, contact_id, occurred_at),
+  CONSTRAINT fk_klaviyo_outbox_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS ims_sales_channel_product_rules (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(100) NOT NULL,
