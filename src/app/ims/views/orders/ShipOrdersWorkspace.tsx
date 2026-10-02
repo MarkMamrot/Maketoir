@@ -1095,7 +1095,7 @@ export function ShipOrdersWorkspace({
                       </button>
                     </div>
                     <div style={{ borderTop: "1px solid var(--sv-etch)" }}>
-                      {availableReadyOrders.map((order) => (
+                      {availableReadyOrders.map((order, orderIndex) => (
                         <label
                           key={order.id}
                           style={{
@@ -1106,6 +1106,7 @@ export function ShipOrdersWorkspace({
                             alignItems: "center",
                             padding: "10px 4px",
                             borderBottom: "1px solid var(--sv-etch)",
+                            background: zebraRowBackground(orderIndex),
                             fontSize: 12,
                           }}
                         >
@@ -1343,6 +1344,12 @@ export function ShipOrdersWorkspace({
               )}
               {!loading && !created.length && (
                 <div style={{ marginBottom: 14 }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <strong style={{ fontSize: 13 }}>Shipment details</strong>
+                    <div style={{ marginTop: 2, fontSize: 11, color: "var(--sv-text-dim)" }}>
+                      Review the carrier, destination, packing and service for each order.
+                    </div>
+                  </div>
                   <label style={{ display: "block", width: "min(360px,100%)" }}>
                     <span
                       style={{
@@ -1412,7 +1419,7 @@ export function ShipOrdersWorkspace({
                     hasAddress,
                     ready,
                     suggestion,
-                  }) => {
+                  }, planIndex) => {
                     const orderParcels = parcelsByOrder[order.id] ?? [];
                     const rates = quotesByOrder[order.id] ?? [];
                     const parcelIssue = editableParcelIssue(
@@ -1439,8 +1446,9 @@ export function ShipOrdersWorkspace({
                       <div
                         key={order.id}
                         style={{
-                          padding: "14px 0",
+                          padding: "14px 12px",
                           borderBottom: "1px solid var(--sv-etch)",
+                          background: zebraRowBackground(planIndex),
                         }}
                       >
                         <div
@@ -2521,7 +2529,7 @@ function ManifestsWorkspacePanel() {
                   : "Select group"}
               </button>
             </div>
-            {rows.map((row) => (
+            {rows.map((row, rowIndex) => (
               <label
                 key={row.shipmentId}
                 style={{
@@ -2532,6 +2540,7 @@ function ManifestsWorkspacePanel() {
                   alignItems: "center",
                   padding: "10px 12px",
                   borderTop: "1px solid var(--sv-etch)",
+                  background: zebraRowBackground(rowIndex),
                   fontSize: 12,
                 }}
               >
@@ -2617,7 +2626,7 @@ function ManifestsWorkspacePanel() {
               No manifests have been created.
             </div>
           ) : (
-            manifests.map((manifest) => (
+            manifests.map((manifest, manifestIndex) => (
               <div
                 key={manifest.id}
                 style={{
@@ -2626,8 +2635,9 @@ function ManifestsWorkspacePanel() {
                     "minmax(180px,1fr) minmax(130px,.7fr) auto",
                   gap: 12,
                   alignItems: "center",
-                  padding: "10px 4px",
+                  padding: "10px 12px",
                   borderTop: "1px solid var(--sv-etch)",
+                  background: zebraRowBackground(manifestIndex),
                   fontSize: 12,
                 }}
               >
@@ -2980,6 +2990,12 @@ function formatChannelShippingMethod(order: SalesOrderSummary): string {
   )
     return `Pickup in store at ${method}`;
   return method;
+}
+
+function zebraRowBackground(index: number): string {
+  return index % 2 === 1
+    ? "color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))"
+    : "var(--sv-bg-1)";
 }
 
 function groupSavedShipments(shipments: SavedShippingShipment[]): Array<{
