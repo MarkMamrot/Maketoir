@@ -6,15 +6,24 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 type Context = { params: { id: string } };
 
-export async function POST(_: Request, { params }: Context) {
+const DEFAULT_WINDOW_HOURS = 36;
+const MAX_WINDOW_HOURS = 168;
+
+export async function POST(request: Request, { params }: Context) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
   if (session.tier !== 'Admin' && session.tier !== 'SuperAdmin') {
     return NextResponse.json({ error: 'Administrator access is required.' }, { status: 403 });
   }
 
+  const body = await request.json().catch(() => ({}));
+  const requestedHours = body && typeof body === 'object' && 'hours' in body ? body.hours : DEFAULT_WINDOW_HOURS;
+  if (typeof requestedHours !== 'number' || !Number.isInteger(requestedHours) || requestedHours < 1 || requestedHours > MAX_WINDOW_HOURS) {
+    return NextResponse.json({ error: `Hours must be a whole number from 1 to ${MAX_WINDOW_HOURS}.` }, { status: 400 });
+  }
+
   const windowEnd = new Date();
-  const windowStart = new Date(windowEnd.getTime() - (36 * 60 * 60 * 1000));
+  const windowStart = new Date(windowEnd.getTime() - (requestedHours * 60 * 60 * 1000));
   const channelInstanceId = String(params.id ?? '').trim();
   try {
     const result = await reconcileShopifyFulfilmentsForChannel({

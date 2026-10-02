@@ -10,7 +10,13 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
 import { POST } from '../route';
 
-const request = new Request('http://localhost/api/ims/channels/instance-1/shopify/reconcile-fulfilments', { method: 'POST' });
+function request(hours?: number) {
+  return new Request('http://localhost/api/ims/channels/instance-1/shopify/reconcile-fulfilments', {
+    method: 'POST',
+    headers: hours === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: hours === undefined ? undefined : JSON.stringify({ hours }),
+  });
+}
 
 function result(overrides: Record<string, unknown> = {}) {
   return {
@@ -43,7 +49,7 @@ describe('POST manual Shopify fulfilment reconciliation', () => {
   afterEach(() => vi.useRealTimers());
 
   it('runs the exact storefront over 36 hours and reports repaired drift', async () => {
-    const response = await POST(request, { params: { id: 'instance-1' } });
+    const response = await POST(request(), { params: { id: 'instance-1' } });
 
     expect(response.status).toBe(200);
     expect(mocks.reconcile).toHaveBeenCalledWith({
@@ -60,7 +66,7 @@ describe('POST manual Shopify fulfilment reconciliation', () => {
   it('blocks read-only accounts before reconciliation', async () => {
     mocks.session.mockResolvedValue({ businessId: 'business-1', tier: 'Advisor' });
 
-    const response = await POST(request, { params: { id: 'instance-1' } });
+    const response = await POST(request(), { params: { id: 'instance-1' } });
 
     expect(response.status).toBe(403);
     expect(mocks.reconcile).not.toHaveBeenCalled();
@@ -72,10 +78,27 @@ describe('POST manual Shopify fulfilment reconciliation', () => {
       reviewRequired: [{ salesOrderId: 45, shopifyOrderId: '1002', status: 'cancelled' }],
     }));
 
-    const response = await POST(request, { params: { id: 'instance-1' } });
+    const response = await POST(request(), { params: { id: 'instance-1' } });
 
     expect(response.status).toBe(207);
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ operation: 'fulfilment_reconciliation_failed' }));
     expect(await response.json()).toMatchObject({ success: false, reviewRequired: [{ salesOrderId: 45 }] });
+  });
+
+  it('uses a custom whole-hour window', async () => {
+    const response = await POST(request(72), { params: { id: 'instance-1' } });
+
+    expect(response.status).toBe(200);
+    expect(mocks.reconcile).toHaveBeenCalledWith(expect.objectContaining({
+      windowStart: '2026-09-29T00:00:00.000Z',
+      windowEnd: '2026-10-02T00:00:00.000Z',
+    }));
+  });
+
+  it.each([0, 169, 1.5])('rejects an invalid %s-hour window', async hours => {
+    const response = await POST(request(hours), { params: { id: 'instance-1' } });
+
+    expect(response.status).toBe(400);
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 });
