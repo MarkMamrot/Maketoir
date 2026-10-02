@@ -15,6 +15,10 @@ interface KlaviyoSettingsRow {
   shopify_duplicate_risk_acknowledged: number;
 }
 
+interface KlaviyoBusinessRow {
+  business_id: string;
+}
+
 function fromRow(row: KlaviyoSettingsRow): KlaviyoIntegrationSettings {
   return {
     enabled: row.enabled === 1,
@@ -31,6 +35,22 @@ function fromRow(row: KlaviyoSettingsRow): KlaviyoIntegrationSettings {
 }
 
 export const KlaviyoSettingsRepository = {
+  async listEnabledBusinessIds(): Promise<string[]> {
+    const rows = await query<KlaviyoBusinessRow>(
+      `SELECT settings.business_id
+         FROM klaviyo_integration_settings settings
+         JOIN businesses business ON BINARY business.business_id = BINARY settings.business_id
+        WHERE settings.enabled = 1
+          AND settings.profiles_enabled = 1
+          AND (settings.pos_enabled = 1 OR settings.native_shop_enabled = 1
+            OR settings.wholesale_enabled = 1 OR settings.shopify_enabled = 1)
+          AND business.deleted_at IS NULL
+          AND COALESCE(business.automation_paused, 0) = 0
+        ORDER BY settings.business_id`,
+    );
+    return rows.map(row => row.business_id);
+  },
+
   async get(businessId: string): Promise<KlaviyoIntegrationSettings> {
     const rows = await query<KlaviyoSettingsRow>(
       `SELECT enabled, profiles_enabled, reporting_enabled,

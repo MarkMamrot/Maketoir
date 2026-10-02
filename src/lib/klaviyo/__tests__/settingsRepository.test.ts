@@ -42,6 +42,14 @@ describe('KlaviyoSettingsRepository', () => {
     expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('WHERE business_id = ?'), ['business-1']);
   });
 
+  it('lists only businesses eligible for automatic processing', async () => {
+    mocks.query.mockResolvedValue([{ business_id: 'business-1' }, { business_id: 'business-2' }]);
+
+    await expect(KlaviyoSettingsRepository.listEnabledBusinessIds()).resolves.toEqual(['business-1', 'business-2']);
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('business.automation_paused'));
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('settings.profiles_enabled = 1'));
+  });
+
   it('blocks Shopify events until duplicate risk is acknowledged', async () => {
     await expect(KlaviyoSettingsRepository.save('business-1', {
       enabled: true,
