@@ -1,3 +1,9 @@
+## 2026-10-02 - Klaviyo sandbox schema foundation
+
+- Added a Klaviyo-only, dry-run-by-default multi-tenant schema command so rollout does not depend on the broad all-tenant catch-up. It discovers registered tenant schemas plus the environment fallback, supports an exact registered `--schema`, and verifies required columns and indexes after apply.
+- Applied and independently reverified `ims_klaviyo_profile_mappings` and `ims_klaviyo_outbox` only in `readyedu_MonsterthreadsSandboxIMS`. Both tables were newly created and contain no activated synchronization behavior by themselves.
+- The main `klaviyo_integration_settings` table and Klaviyo tenant tables in Monsterthreads production, Sage and Solvantis remain unapplied. No schedule, source toggle, sales hook, profile sync, event delivery or Klaviyo provider request was activated.
+
 ## 2026-09-30 - Backorder terminology restored
 
 - The internal `backordered` SO/PO state is again presented as **Backordered**, because retail users recognise that term as outstanding demand or supply waiting for future stock. Filters, badges, Move items previews, Resolve Outstanding choices and actions now use **Backordered**, **Create backorder**, and **Release backorder**.
