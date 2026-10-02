@@ -2,12 +2,12 @@
   width: 100%;
 }
 
-.detail button {
+.detail button:not(.tab) {
   border-radius: 8px !important;
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 
-.detail button:not(:disabled):hover {
+.detail button:not(.tab):not(:disabled):hover {
   border-color: color-mix(in srgb, var(--sv-action) 45%, var(--sv-border));
   box-shadow: 0 1px 3px rgba(15, 23, 42, .1);
 }

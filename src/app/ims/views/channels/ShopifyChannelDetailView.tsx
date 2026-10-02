@@ -203,7 +203,7 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
   }
 
   const tabButton = (value: Tab, label: string) => (
-    <button type="button" className={styles.tab} data-active={tab === value} aria-selected={tab === value} onClick={() => setTab(value)}>{label}</button>
+    <button type="button" className={`${styles.tab} sv-button-flat`} data-active={tab === value} aria-selected={tab === value} onClick={() => setTab(value)}>{label}</button>
   );
 
   return <ShopifyInstanceScope instance={scopedInstance}>

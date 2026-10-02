@@ -58,7 +58,7 @@ describe('ShopifyChannelDetailView', () => {
     render(<ShopifyChannelDetailView instance={instance} canManage xeroAccountingEnabled onBack={vi.fn()} onChanged={vi.fn()} />);
 
     for (const label of ['Connection', 'Products', 'Orders', 'Inventory', 'Customers', 'Gift Cards', 'Accounting', 'Activity']) {
-      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+      expect(screen.getByRole('button', { name: label }).classList.contains('sv-button-flat')).toBe(true);
     }
     expect(screen.getByText('webhooks workflow')).toBeTruthy();
 
