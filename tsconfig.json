@@ -42,7 +42,8 @@
     ".next-dev-3177/types/**/*.ts",
     ".next-dev-3001/types/**/*.ts",
     ".next-dev-3002/types/**/*.ts",
-    ".next-dev-3004/types/**/*.ts"
+    ".next-dev-3004/types/**/*.ts",
+    ".next-dev-3012/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

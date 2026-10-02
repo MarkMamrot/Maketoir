@@ -44,7 +44,7 @@
       ],
       "order": 10,
       "summary": "Keep business information current and investigate performance or inventory signals before acting.",
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "owner": "foresight",
       "quickSections": [
         "Main operations",
@@ -2596,7 +2596,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "Use Business Intelligence to check the information behind a result before changing stock, pricing, marketing, or merchandising.",
       "sectionId": "foresight-business-intelligence:1"
     },
@@ -2625,7 +2625,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "- Keep Business Key Information and Brand Profile accurate.\n- Refresh the relevant source before using time-sensitive results.\n- Match date ranges and locations when comparing figures.\n- Open the source records behind an inventory candidate before acting.\n- Ask the Assistant for a governed summary of the latest complete marketing and commerce days.",
       "sectionId": "foresight-business-intelligence:2"
     },
@@ -2654,7 +2654,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "Business Key Information records practical facts about the business. Brand Profile records reviewed information such as audience, voice, products, policies, and positioning. These details can shape generated analysis, so a person should correct anything that is old or unsupported.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Saved business facts and brand information | Which facts are correct and current | Context used by supported analysis and drafting | None |\n\n> **Important:** Generated or imported profile text is a draft until someone who knows the business checks it.",
       "sectionId": "foresight-business-intelligence:3"
     },
@@ -2683,7 +2683,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "Sync Data refreshes the supported source selected by the screen. Check the displayed status and time before refreshing. Wait for one refresh to finish before starting another.\n\n| Before refresh | After refresh | What to check |\n| --- | --- | --- |\n| Source is connected and the intended account is selected | A success, warning, or failure result is shown | Account, date, record count where shown, and warnings |",
       "sectionId": "foresight-business-intelligence:4"
     },
@@ -2712,7 +2712,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "Calculated views turn available source records into summaries. A result is only comparable when its date range, location, source freshness, and definition match the result beside it.\n\n| Result | Check before deciding | Human decision |\n| --- | --- | --- |\n| Sales or marketing trend | Same dates and current source data | Whether the movement needs investigation |\n| Stock turnover | Sales period, current stock, incoming stock, and seasonality | Whether ordering or merchandising should change |\n| Space efficiency | Product range and location context | Whether space use should be reviewed |\n\nThe Assistant can summarise up to 90 complete business days of stored paid-media and commerce observations when **Intel & Automation Marketing** is enabled. It reports Google Ads and Meta spend and platform-attributed revenue separately from authoritative online and POS sales. Its ecommerce MER uses authoritative tax-exclusive online net revenue divided by paid-media spend. Platform ROAS remains the platform's own attribution and should not be treated as the same measure.\n\nThe summary omits advertising account and campaign identities. It includes the latest observation date, tax-inclusive commerce sales and returns, extracted tax, tax-exclusive net revenue, cost coverage, and data-quality warnings. It reads stored Solvantis observations and does not contact an advertising platform live, so check source freshness before acting.",
       "sectionId": "foresight-business-intelligence:5"
     },
@@ -2741,7 +2741,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "SuperAdmins can open Merchant Rate Calculator from **Admin > Utilities**. It compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Entering monthly card turnover prefills a typical gift and book retailer mix of 65% Visa/Mastercard, 30% standard EFTPOS, 4% Amex/Diners, and 1% UnionPay. Replace any of these amounts with the customer's actual mix when known. Also enter average transaction value, terminal count, current total monthly terminal rental, and the Solvantis Merchant Fee percentage.\n\nThe calculator estimates transaction counts from turnover and average transaction value. For Nuvei, it adds an estimated 0.40% interchange and scheme cost to Visa and Mastercard; standard EFTPOS remains the supplied fixed per-transaction rate. For Tyro, it adds an estimated 0.40% network cost to Visa and Mastercard and 0.25% to EFTPOS. The editable Solvantis Merchant Fee is added to Visa and Mastercard for Nuvei, and to Visa, Mastercard, and EFTPOS for Tyro.\n\nIt shows provider merchant service fees, network costs, Solvantis Merchant Fee, equipment and other charges separately. Nuvei includes the supplied per-transaction and monthly administration charges. Tyro shows $0 for both transaction fees and monthly administration. Both options use the entered current terminal rental, so equipment is compared like for like. The lower estimate and possible monthly and annual difference are highlighted. Align the card-type amounts with total turnover before relying on the result.\n\n| Estimate includes | Estimate excludes | Result |\n| --- | --- | --- |\n| Listed processing, transaction, administration, terminal rental, terminal SIM, and minimum service fees | Gateway, refund, chargeback, terminal incident, same-day funding, and Velocity fees | Indicative comparison, not a quote |\n\n> **Important:** Confirm the customer's actual card mix, transaction counts, equipment, and applicable contract terms before presenting savings.",
       "sectionId": "foresight-business-intelligence:6"
     },
@@ -2770,7 +2770,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "Open **IMS > Reports** for Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover. These are investigation lists; they do not automatically change a product or prove why a result occurred.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product, sales, stock, and selected period | Whether the signal makes sense for this product and season | A candidate or comparison to investigate | None |",
       "sectionId": "foresight-business-intelligence:7"
     },
@@ -2799,7 +2799,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Two views disagree | Dates, locations, definitions, or refresh times differ | Align those settings before comparing again |\n| A candidate seems wrong | Recent receipts, seasonality, or product history changes the picture | Inspect the product and source records |\n| Results are empty | The source is not ready or the chosen period has no records | Check source status and widen the period only when appropriate |\n| Refresh fails twice | The connection or source needs attention | Stop retrying and check Setup connection status |",
       "sectionId": "foresight-business-intelligence:8"
     },
@@ -2828,7 +2828,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "### Review a slow-moving jacket\n\nStock Turnover flags a jacket with 18 units on hand and two sales in the selected period. Check that the period includes the relevant winter weeks, inspect stock by location and incoming orders, then decide whether to move stock, change ordering, or leave it for the season.\n\n### Compare two sales summaries\n\nOne view uses the last seven complete days and another includes today. Set both to the same complete dates and confirm the source refresh time before treating the difference as a business change.",
       "sectionId": "foresight-business-intelligence:9"
     },
@@ -2857,7 +2857,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "Stock Turnover flags a jacket with 18 units on hand and two sales in the selected period. Check that the period includes the relevant winter weeks, inspect stock by location and incoming orders, then decide whether to move stock, change ordering, or leave it for the season.",
       "sectionId": "foresight-business-intelligence:9"
     },
@@ -2886,7 +2886,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-02",
       "content": "One view uses the last seven complete days and another includes today. Set both to the same complete dates and confirm the source refresh time before treating the difference as a business change.",
       "sectionId": "foresight-business-intelligence:9"
     },
