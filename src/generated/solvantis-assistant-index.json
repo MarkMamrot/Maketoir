@@ -1726,7 +1726,7 @@
       },
       "order": 34,
       "summary": "Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "owner": "retail",
       "quickSections": [
         "Main operations",
@@ -13682,7 +13682,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "Record money removed from the open till for a business purchase at the time it occurs.",
       "sectionId": "pos-petty-cash:1"
     },
@@ -13702,7 +13702,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "- Enter the exact amount paid from the till.\n- Record the purchase or supplier reason.\n- Choose **GST on Expenses** or **BAS Excluded**.\n- Attach a receipt photo or PDF.\n- Record the entry and open the till.\n- Use the entry when explaining the cash count at End of Day.",
       "sectionId": "pos-petty-cash:2"
     },
@@ -13722,7 +13722,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "| Field | Requirement |\n|---|---|\n| Amount | Positive amount greater than $0.00 |\n| Purchase / Supplier | Required, up to the displayed field limit |\n| GST | Choose the treatment shown on the source document |\n| Receipt | Required JPG, PNG, WebP, image capture, or PDF |\n| Register | Must be an open active register session |\n| Training/offline use | Unavailable |",
       "sectionId": "pos-petty-cash:3"
     },
@@ -13742,7 +13742,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "- [ ] Confirm the purchase was paid from this register's till.\n- [ ] Confirm the register is open and POS is online.\n- [ ] Keep the readable receipt or tax invoice ready.\n- [ ] Determine whether the purchase has GST on expenses or is BAS excluded.\n\n> **Important:** Choose the GST treatment from the supplier document. Do not add 10% to the amount entered; record the amount actually paid.",
       "sectionId": "pos-petty-cash:4"
     },
@@ -13762,7 +13762,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "1. Choose **Petty Cash** from the POS toolbar.\n2. Enter the amount removed from the till.\n3. Enter the purchase or supplier reason.\n4. Choose **GST on Expenses** when the source document supports that treatment, otherwise choose **BAS Excluded** where appropriate.\n5. Under **Receipt**, take a photo or choose the receipt file.\n6. Check the amount, reason, treatment, and attachment.\n7. Choose **Record & open till**.\n8. Confirm POS reports **Petty cash recorded** before closing the dialog or entering it again.",
       "sectionId": "pos-petty-cash:5"
     },
@@ -13782,8 +13782,8 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Amount is rejected | It is empty, zero, negative, or invalid | Enter the positive amount actually paid |\n| Entry cannot be recorded | The reason or receipt is missing | Complete both required fields |\n| Petty Cash is unavailable | The register is not open, POS is offline, or Training Mode is active | Restore the required live register state |\n| Receipt upload fails | The file is unsupported or unreadable | Use a clear supported image or PDF and retry online |\n| End of Day cash is lower than sales suggest | Cash was removed for the recorded purchase | Compare the petty-cash entry and receipt before recording an unexplained variance |",
+      "lastReviewed": "2026-10-02",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Amount is rejected | It is empty, zero, negative, or invalid | Enter the positive amount actually paid |\n| Entry cannot be recorded | The reason or receipt is missing | Complete both required fields |\n| Petty Cash is unavailable | The register is not open, POS is offline, or Training Mode is active | Restore the required live register state |\n| POS reports that the open session is not current | The device is set to another branch or register | Check the branch and register shown on the POS login screen, then use **Change** to correct Device Setup before signing in again |\n| Receipt upload fails | The file is unsupported or unreadable | Use a clear supported image or PDF and retry online |\n| End of Day cash is lower than sales suggest | Cash was removed for the recorded purchase | Compare the petty-cash entry and receipt before recording an unexplained variance |",
       "sectionId": "pos-petty-cash:6"
     },
     {
@@ -13802,7 +13802,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "### Record cleaning supplies\n\nStaff pay $22 from the till for cleaning supplies and receive a tax invoice showing GST. They enter $22, name the supplier and purpose, choose **GST on Expenses**, attach the receipt, and record the entry. At End of Day, the $22 explains why physical cash is lower than cash sales alone.",
       "sectionId": "pos-petty-cash:7"
     },
@@ -13822,7 +13822,7 @@
         "pos-petty-cash"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-02",
       "content": "Staff pay $22 from the till for cleaning supplies and receive a tax invoice showing GST. They enter $22, name the supplier and purpose, choose **GST on Expenses**, attach the receipt, and record the entry. At End of Day, the $22 explains why physical cash is lower than cash sales alone.",
       "sectionId": "pos-petty-cash:7"
     },

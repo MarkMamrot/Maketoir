@@ -90,8 +90,7 @@ export async function POST(request: Request) {
     );
     const registerSession = registerSessions[0];
     if (!registerSession || registerSession.status !== 'open'
-      || Number(registerSession.location_id) !== Number(rawSession.location_id)
-      || Number(registerSession.register_id) !== Number(rawSession.register_id)) {
+      || Number(registerSession.location_id) !== Number(rawSession.location_id)) {
       return NextResponse.json({ error: 'Petty cash requires the current open register session.' }, { status: 409 });
     }
 

@@ -1,5 +1,5 @@
 ---
-{"id":"pos-petty-cash","title":"Petty Cash at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Petty Cash","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-end-of-day-xero","pos-reports-transactions","pos-settings-terminals-offline-recovery"],"contexts":["pos-petty-cash"],"contextSections":{"pos-petty-cash":"Step-by-step"},"order":34,"summary":"Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-petty-cash","title":"Petty Cash at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Petty Cash","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-end-of-day-xero","pos-reports-transactions","pos-settings-terminals-offline-recovery"],"contexts":["pos-petty-cash"],"contextSections":{"pos-petty-cash":"Step-by-step"},"order":34,"summary":"Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.","lastReviewed":"2026-10-02","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Petty Cash at POS
 
@@ -52,6 +52,7 @@ Record money removed from the open till for a business purchase at the time it o
 | Amount is rejected | It is empty, zero, negative, or invalid | Enter the positive amount actually paid |
 | Entry cannot be recorded | The reason or receipt is missing | Complete both required fields |
 | Petty Cash is unavailable | The register is not open, POS is offline, or Training Mode is active | Restore the required live register state |
+| POS reports that the open session is not current | The device is set to another branch or register | Check the branch and register shown on the POS login screen, then use **Change** to correct Device Setup before signing in again |
 | Receipt upload fails | The file is unsupported or unreadable | Use a clear supported image or PDF and retry online |
 | End of Day cash is lower than sales suggest | Cash was removed for the recorded purchase | Compare the petty-cash entry and receipt before recording an unexplained variance |
 
