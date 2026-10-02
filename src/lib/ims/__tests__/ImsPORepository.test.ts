@@ -139,6 +139,55 @@ describe('ImsPORepo.getSupplierReturnContext', () => {
 });
 
 describe('ImsPORepo.update', () => {
+  it('allows an unchanged receiving line payload when the PO has active allocations', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', po_number: 'PO-57' }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) return [[{
+        id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 0,
+        unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 25, notes: null,
+      }]];
+      if (sql.includes('FROM ims_stock_allocations')) return [[{ id: 99 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.update(42, { supplier_invoice_number: 'INV-57' }, [{
+      id: 10, variant_id: 'v-1', qty_ordered: 5, unit_cost: 5,
+      discount_pct: 0, tax_rate: 0.1, line_total: 25.00000001, notes: null,
+    }]);
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_stock_allocations'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('still blocks a real line amendment when the PO has active allocations', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', po_number: 'PO-57' }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) return [[{
+        id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 0,
+        unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 25, notes: null,
+      }]];
+      if (sql.includes('FROM ims_stock_allocations')) return [[{ id: 99 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.update(42, {}, [{
+      id: 10, variant_id: 'v-1', qty_ordered: 6, unit_cost: 5,
+      discount_pct: 0, tax_rate: 0.1, line_total: 30, notes: null,
+    }])).rejects.toThrow('Release or reassign active incoming allocations before changing the lines on this purchase order.');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
   it('allows receipt metadata updates on a partially received PO without rewriting lines', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) {

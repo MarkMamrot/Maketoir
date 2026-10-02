@@ -1742,6 +1742,8 @@ export const ImsPORepo = {
       assertExpectedOrderRevision(currentPo.updated_at, amendmentContext?.expectedUpdatedAt);
 
       let existingItems: any[] = [];
+      let lineReconciliation: ReturnType<typeof reconcileOrderLines> | null = null;
+      let linesChanged = false;
       const locationChanged = data.location_id !== undefined && Number(data.location_id) !== Number(currentPo.location_id);
       if (items || locationChanged) {
         [existingItems] = await conn.execute<any[]>(
@@ -1755,6 +1757,24 @@ export const ImsPORepo = {
         if (currentPo.status === 'partially_received' && locationChanged) {
           throw new OrderAmendmentConflict('The receiving location cannot change after stock has been received.');
         }
+        if (items) {
+          lineReconciliation = reconcileOrderLines(existingItems, items);
+          const numberChanged = (before: unknown, after: unknown) => Math.abs(Number(before ?? 0) - Number(after ?? 0)) > 0.00005;
+          linesChanged = lineReconciliation.removedIds.length > 0 || lineReconciliation.lines.some(({ existingId, line }) => {
+            if (existingId == null) return true;
+            const existing = existingItems.find(item => Number(item.id) === existingId);
+            return !existing
+              || String(existing.variant_id ?? '') !== String(line.variant_id ?? '')
+              || numberChanged(existing.qty_ordered, line.qty_ordered)
+              || numberChanged(existing.unit_cost, line.unit_cost)
+              || numberChanged(existing.discount_pct, line.discount_pct)
+              || numberChanged(existing.tax_rate, line.tax_rate)
+              || numberChanged(existing.line_total, line.line_total)
+              || String(existing.notes ?? '') !== String(line.notes ?? '');
+          });
+        }
+      }
+      if (locationChanged || linesChanged) {
         await assertNoActiveStockAllocations(conn, {
           businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
           operation: locationChanged ? 'changing the location or lines on' : 'changing the lines on',
@@ -1790,8 +1810,8 @@ export const ImsPORepo = {
         }
       }
 
-      if (items) {
-        const reconciliation = reconcileOrderLines(existingItems, items);
+      if (items && linesChanged) {
+        const reconciliation = lineReconciliation!;
         const variantsToClassify = [...new Set(reconciliation.lines
           .filter(({ existingId, line }) => existingId == null || String(existingItems.find(item => Number(item.id) === existingId)?.variant_id) !== String(line.variant_id))
           .map(({ line }) => String(line.variant_id))
