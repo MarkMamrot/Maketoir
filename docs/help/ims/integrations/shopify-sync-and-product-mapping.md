@@ -52,6 +52,8 @@ Failed Shopify quantity updates remain queued and are retried by the next schedu
 
 Shopify fulfilment webhooks remain the primary source for customer-order completion. Each night, Solvantis also reviews Shopify orders updated during the previous 36 hours. When Shopify reports an order fully fulfilled but the matching Solvantis Sales Order is still Confirmed or In Progress, Solvantis applies the same stock-safe fulfilment workflow used by the webhook. The overlapping window covers delayed nightly runs, and completed orders are not fulfilled twice. Whenever this fallback repairs an order, Solvantis records an operational warning for administrators because the usual webhook pathway did not bring the order up to date. Partial Shopify fulfilments are not inferred by this nightly check.
 
+An administrator can run the same check immediately for one storefront. Open **Integrations > Sales Channels**, configure the Shopify store, open **Orders**, and choose **Check last 36 hours** under **Fulfilment reconciliation**. Review the scanned, fully fulfilled, repaired, already current, missing locally, and needs review counts. A repair changes stock and allocations through the normal fulfilment workflow, so confirm that the selected storefront and its online-orders location are correct before running it. Missing local orders and unsupported Sales Order statuses are reported but are not created or forced through fulfilment.
+
 ## Step-by-step
 
 ### Import products from Shopify

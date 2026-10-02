@@ -1,5 +1,6 @@
 'use client';
 import { createContext, Fragment, useContext, useEffect, useState, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function statusBadge(s: 'success' | 'error' | 'partial' | string) {
@@ -673,7 +674,7 @@ export function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-export function ShopifyOrdersTab({ section = 'all' }: { section?: 'all' | 'orders' | 'inventory' | 'webhooks' }) {
+export function ShopifyOrdersTab({ section = 'all', canManage = false }: { section?: 'all' | 'orders' | 'inventory' | 'webhooks'; canManage?: boolean }) {
   const shopifySelection = useShopifyInstanceOptions();
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
@@ -685,6 +686,9 @@ export function ShopifyOrdersTab({ section = 'all' }: { section?: 'all' | 'order
   const [importing,      setImporting]      = useState(false);
   const [importResult,   setImportResult]   = useState<any>(null);
   const [importError,    setImportError]    = useState<string | null>(null);
+  const [reconciling,    setReconciling]    = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<any>(null);
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
@@ -697,6 +701,8 @@ export function ShopifyOrdersTab({ section = 'all' }: { section?: 'all' | 'order
     setSaveMsg(null);
     setImportResult(null);
     setImportError(null);
+    setReconcileResult(null);
+    setReconcileError(null);
     if (!channelInstanceId) {
       setSyncEnabled(false);
       setLocationId('');
@@ -746,6 +752,24 @@ export function ShopifyOrdersTab({ section = 'all' }: { section?: 'all' | 'order
       setImportResult(d);
     } catch (e: any) { setImportError(e.message); }
     setImporting(false);
+  }
+
+  async function runFulfilmentReconciliation() {
+    const channelInstanceId = shopifySelection.channelInstanceId;
+    if (!channelInstanceId) return;
+    if (!window.confirm('Check this Shopify store for fully fulfilled orders updated in the previous 36 hours? Eligible mismatches will update Sales Order status, stock, and allocations.')) return;
+    setReconciling(true); setReconcileResult(null); setReconcileError(null);
+    try {
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(channelInstanceId)}/shopify/reconcile-fulfilments`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok && response.status !== 207) throw new Error(data.error || 'Fulfilment reconciliation failed.');
+      setReconcileResult(data);
+      if (response.status === 207) setReconcileError('Some Shopify orders require review. See the result below and Runtime Issues.');
+    } catch (error) {
+      setReconcileError(error instanceof Error ? error.message : 'Fulfilment reconciliation failed.');
+    } finally {
+      setReconciling(false);
+    }
   }
 
   const card: React.CSSProperties = { padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 };
@@ -811,6 +835,31 @@ export function ShopifyOrdersTab({ section = 'all' }: { section?: 'all' | 'order
           {saveMsg && <span style={{ fontSize: 13, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{saveMsg}</span>}
         </div>
       </form>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Fulfilment reconciliation</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+          Check fully fulfilled Shopify orders updated during the previous 36 hours and repair eligible Sales Orders missed by normal webhook processing.
+        </p>
+        <button type="button" onClick={() => void runFulfilmentReconciliation()} disabled={!canManage || !syncEnabled || !shopifySelection.channelInstanceId || reconciling} style={{ ...btn(true), display: 'inline-flex', alignItems: 'center', gap: 7, opacity: !canManage || !syncEnabled || !shopifySelection.channelInstanceId ? .55 : 1 }}>
+          <RefreshCw size={14} /> {reconciling ? 'Checking fulfilments…' : 'Check last 36 hours'}
+        </button>
+        {!canManage && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--sv-text-dim)' }}>Administrator access is required.</div>}
+        {reconcileError && <div role="alert" style={{ marginTop: 12, color: 'var(--sv-red)', fontSize: 12 }}>{reconcileError}</div>}
+        {reconcileResult && <div style={{ marginTop: 14, padding: 12, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', borderRadius: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, fontSize: 12 }}>
+            {[
+              ['Scanned', reconcileResult.scanned],
+              ['Fully fulfilled', reconcileResult.providerFulfilled],
+              ['Repaired', reconcileResult.repaired?.length ?? 0],
+              ['Already current', reconcileResult.alreadyCurrent],
+              ['Missing locally', reconcileResult.missingLocal?.length ?? 0],
+              ['Needs review', (reconcileResult.reviewRequired?.length ?? 0) + (reconcileResult.failures?.length ?? 0)],
+            ].map(([name, value]) => <div key={String(name)}><div style={{ color: 'var(--sv-text-dim)' }}>{name}</div><strong style={{ display: 'block', marginTop: 2, fontSize: 16, color: name === 'Repaired' && Number(value) > 0 ? 'var(--sv-mint)' : 'var(--sv-text-strong)' }}>{value}</strong></div>)}
+          </div>
+          <div style={{ marginTop: 10, color: 'var(--sv-text-dim)', fontSize: 11 }}>Window: {new Date(reconcileResult.windowStart).toLocaleString()} to {new Date(reconcileResult.windowEnd).toLocaleString()}</div>
+        </div>}
+      </div>
       </>}
 
       {/* Webhook URL */}

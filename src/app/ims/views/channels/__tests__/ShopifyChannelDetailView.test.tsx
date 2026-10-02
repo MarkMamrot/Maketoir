@@ -9,7 +9,7 @@ vi.mock('../../../components/ShopifyView', () => ({
   ShopifyInstanceScope: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   ShopifyProductsTab: () => <div>Product catalogue</div>,
   ShopifyLogTab: () => <div>Activity log</div>,
-  ShopifyOrdersTab: ({ section }: { section: string }) => <div>{section} workflow</div>,
+  ShopifyOrdersTab: ({ section }: { section: string; canManage?: boolean }) => <div>{section} workflow</div>,
   ShopifyGiftCardsTab: ({ section }: { section: string }) => <div>{section} workflow</div>,
 }));
 
