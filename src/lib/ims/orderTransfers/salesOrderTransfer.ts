@@ -396,9 +396,11 @@ async function applySalesOrderItemsTransfer(
     const itemOrderIds = createTarget ? [input.sourceOrderId] : orderIds;
     const itemPlaceholders = itemOrderIds.map(() => '?').join(', ');
     const [allItems] = await conn.execute<SalesOrderItemRow[]>(
-      `SELECT item.*, COALESCE(variant.is_stock_item, 1) AS is_stock_item
+      `SELECT item.*, COALESCE(product.is_stock_item, 1) AS is_stock_item
          FROM ims_sales_order_items item
          LEFT JOIN ims_product_variants variant ON variant.variant_id = item.variant_id
+        LEFT JOIN ims_products product ON product.product_id = variant.product_id
+          AND product.business_id = item.business_id
         WHERE item.business_id = ? AND item.so_id IN (${itemPlaceholders})
         ORDER BY item.id FOR UPDATE`,
       [input.businessId, ...itemOrderIds],

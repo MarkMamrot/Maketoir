@@ -26,14 +26,19 @@ function targetLabel(target: SalesOrderTransferTarget): string {
   return [target.orderNumber, target.customerName, target.locationName].filter(Boolean).join(' · ');
 }
 
-export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: any; onClose: () => void; onMoved?: () => void }) {
+type MoveResult = {
+  targetOrderId: number;
+  targetOrderNumber: string;
+};
+
+export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: any; onClose: () => void; onMoved?: (result: MoveResult, createdNew: boolean) => void | Promise<void> }) {
   const [preview, setPreview] = useState<SalesOrderTransferPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [quantities, setQuantities] = useState<Record<number, number>>({});
-  const [allocatedIncomingQuantities, setAllocatedIncomingQuantities] = useState<Record<number, number>>({});
+  const [quantities, setQuantities] = useState<Record<number, string>>({});
+  const [allocatedIncomingQuantities, setAllocatedIncomingQuantities] = useState<Record<number, string>>({});
   const [targetChoice, setTargetChoice] = useState<number | 'new' | null>(null);
   const [sourceClosureAcknowledged, setSourceClosureAcknowledged] = useState(false);
   const operationKey = useRef('');
@@ -48,10 +53,10 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
         if (!response.ok) throw new Error(payload.error || 'Move preview could not be loaded.');
         setPreview(payload.data);
         setQuantities(Object.fromEntries(
-          (payload.data.lines ?? []).map((line: SalesOrderTransferPreviewLine) => [line.itemId, line.rules.outstanding]),
+          (payload.data.lines ?? []).map((line: SalesOrderTransferPreviewLine) => [line.itemId, String(line.rules.outstanding)]),
         ));
         setAllocatedIncomingQuantities(Object.fromEntries(
-          (payload.data.lines ?? []).map((line: SalesOrderTransferPreviewLine) => [line.itemId, line.rules.allocatedIncoming]),
+          (payload.data.lines ?? []).map((line: SalesOrderTransferPreviewLine) => [line.itemId, String(line.rules.allocatedIncoming)]),
         ));
       })
       .catch(cause => {
@@ -86,19 +91,33 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
 
   function setPreset(line: SalesOrderTransferPreviewLine, preset: QuantityPreset) {
     const nextQuantity = line.rules[preset];
-    setQuantities(current => ({ ...current, [line.itemId]: nextQuantity }));
+    setQuantities(current => ({ ...current, [line.itemId]: String(nextQuantity) }));
     setAllocatedIncomingQuantities(current => ({
       ...current,
-      [line.itemId]: Math.min(nextQuantity, line.rules.allocatedIncoming),
+      [line.itemId]: String(Math.min(nextQuantity, line.rules.allocatedIncoming)),
     }));
   }
 
-  function setMoveQuantity(line: SalesOrderTransferPreviewLine, nextQuantity: number) {
-    const boundedQuantity = Math.min(line.rules.outstanding, Math.max(0, nextQuantity || 0));
-    setQuantities(current => ({ ...current, [line.itemId]: boundedQuantity }));
+  function normalizeQuantity(rawValue: string, maximum: number): string {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) return '0';
+    return String(Math.min(maximum, Math.max(0, value)));
+  }
+
+  function commitMoveQuantity(line: SalesOrderTransferPreviewLine) {
+    const boundedQuantity = Number(normalizeQuantity(quantities[line.itemId] ?? '', line.rules.outstanding));
+    setQuantities(current => ({ ...current, [line.itemId]: String(boundedQuantity) }));
     setAllocatedIncomingQuantities(current => ({
       ...current,
-      [line.itemId]: Math.min(current[line.itemId] ?? 0, boundedQuantity, line.rules.allocatedIncoming),
+      [line.itemId]: String(Math.min(Number(current[line.itemId] || 0), boundedQuantity, line.rules.allocatedIncoming)),
+    }));
+  }
+
+  function commitProtectedQuantity(line: SalesOrderTransferPreviewLine) {
+    const maximum = Math.min(Number(quantities[line.itemId] || 0), line.rules.allocatedIncoming);
+    setAllocatedIncomingQuantities(current => ({
+      ...current,
+      [line.itemId]: normalizeQuantity(current[line.itemId] ?? '', maximum),
     }));
   }
 
@@ -119,14 +138,14 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
           expectedTargetUpdatedAt: selectedTarget?.updatedAt ?? null,
           lines: selectedLines.map(line => ({
             sourceItemId: line.itemId,
-            quantity: quantities[line.itemId],
-            allocatedIncomingQuantity: allocatedIncomingQuantities[line.itemId] ?? 0,
+            quantity: Number(quantities[line.itemId] || 0),
+            allocatedIncomingQuantity: Number(allocatedIncomingQuantities[line.itemId] || 0),
           })),
         }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Items could not be moved.');
-      onMoved?.();
+      await onMoved?.(payload.data, targetChoice === 'new');
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Items could not be moved.');
@@ -185,21 +204,22 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                         type="button"
                         disabled={line.rules[preset.value] <= 0 || sourceBlocked}
                         onClick={() => setPreset(line, preset.value)}
-                        style={{ padding: '7px 9px', borderRadius: 5, border: quantities[line.itemId] === line.rules[preset.value] && line.rules[preset.value] > 0 ? '1px solid var(--sv-action,#0f766e)' : '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-main,#334155)', cursor: line.rules[preset.value] > 0 && !sourceBlocked ? 'pointer' : 'not-allowed', opacity: line.rules[preset.value] > 0 ? 1 : .45, fontSize: 12 }}
+                        style={{ padding: '7px 9px', borderRadius: 5, border: Number(quantities[line.itemId]) === line.rules[preset.value] && line.rules[preset.value] > 0 ? '1px solid var(--sv-action,#0f766e)' : '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-main,#334155)', cursor: line.rules[preset.value] > 0 && !sourceBlocked ? 'pointer' : 'not-allowed', opacity: line.rules[preset.value] > 0 ? 1 : .45, fontSize: 12 }}
                       >
                         {preset.label} · {formatQuantity(line.rules[preset.value])}
                       </button>
                     ))}
                   </div>
-                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 12 }}>
-                    <label style={{ display: 'grid', gap: 5, width: 180, fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14, marginTop: 12, maxWidth: 460 }}>
+                    <label style={{ display: 'grid', gridTemplateRows: 'auto 38px auto', gap: 5, minWidth: 0, fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
                       Quantity to move
-                      <input type="number" min={0} max={line.rules.outstanding} step="0.0001" disabled={sourceBlocked} value={quantities[line.itemId] ?? 0} onChange={event => setMoveQuantity(line, Number(event.target.value))} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)' }} />
+                      <input type="number" min={0} max={line.rules.outstanding} step="0.0001" disabled={sourceBlocked} value={quantities[line.itemId] ?? ''} onChange={event => setQuantities(current => ({ ...current, [line.itemId]: event.target.value }))} onBlur={() => commitMoveQuantity(line)} style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)' }} />
+                      <span aria-hidden="true" />
                     </label>
-                    <label style={{ display: 'grid', gap: 5, width: 220, fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
+                    <label style={{ display: 'grid', gridTemplateRows: 'auto 38px auto', gap: 5, minWidth: 0, fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
                       Protected incoming to move
-                      <input type="number" min={0} max={Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming)} step="0.0001" disabled={sourceBlocked || Number(quantities[line.itemId] ?? 0) <= 0} value={allocatedIncomingQuantities[line.itemId] ?? 0} onChange={event => setAllocatedIncomingQuantities(current => ({ ...current, [line.itemId]: Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming, Math.max(0, Number(event.target.value) || 0)) }))} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)' }} />
-                      <span>Up to {formatQuantity(Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming))} can follow this quantity.</span>
+                      <input type="number" min={0} max={Math.min(Number(quantities[line.itemId] || 0), line.rules.allocatedIncoming)} step="0.0001" disabled={sourceBlocked || Number(quantities[line.itemId] ?? 0) <= 0} value={allocatedIncomingQuantities[line.itemId] ?? ''} onChange={event => setAllocatedIncomingQuantities(current => ({ ...current, [line.itemId]: event.target.value }))} onBlur={() => commitProtectedQuantity(line)} style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)' }} />
+                      <span>Up to {formatQuantity(Math.min(Number(quantities[line.itemId] || 0), line.rules.allocatedIncoming))} can follow this quantity.</span>
                     </label>
                   </div>
                 </section>
@@ -248,8 +268,8 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                 <section key={line.itemId} style={{ padding: 14, borderBottom: '1px solid var(--sv-border,#364152)', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 14 }}>
                   <div><strong>{line.productName}</strong>{line.sku && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12 }}>{line.sku}</span>}</div>
                   <div style={{ textAlign: 'right', fontSize: 13 }}>
-                    <strong>{formatQuantity(quantities[line.itemId])}</strong> to move
-                    <div style={{ color: 'var(--sv-text-dim,#aab4c2)', marginTop: 3 }}>{formatQuantity(allocatedIncomingQuantities[line.itemId] ?? 0)} protected incoming follows</div>
+                    <strong>{formatQuantity(Number(quantities[line.itemId] || 0))}</strong> to move
+                    <div style={{ color: 'var(--sv-text-dim,#aab4c2)', marginTop: 3 }}>{formatQuantity(Number(allocatedIncomingQuantities[line.itemId] || 0))} protected incoming follows</div>
                   </div>
                 </section>
               ))}

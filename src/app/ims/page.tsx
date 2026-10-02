@@ -16132,7 +16132,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <SalesOrderMoveItemsModal
           order={moveItemsOrder}
           onClose={() => setMoveItemsOrder(null)}
-          onMoved={() => load()}
+          onMoved={async (result, createdNew) => {
+            await load();
+            if (createdNew) await openEdit({ id: result.targetOrderId });
+          }}
         />
       )}
 

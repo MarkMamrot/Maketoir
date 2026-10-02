@@ -75,10 +75,9 @@ export function getOrderTransferConflicts(
   if (source.kind === 'sales_order' && normalizedText(source.priceTier) !== normalizedText(target.priceTier)) {
     conflicts.push('Price tier does not match.');
   }
-  if (normalizedText(source.externalReference) !== normalizedText(target.externalReference)) {
-    conflicts.push(source.kind === 'sales_order'
-      ? 'Customer PO reference does not match.'
-      : 'Supplier reference does not match.');
+  if (source.kind === 'purchase_order'
+    && normalizedText(source.externalReference) !== normalizedText(target.externalReference)) {
+    conflicts.push('Supplier reference does not match.');
   }
 
   conflicts.push(...getOrderTransferDocumentConflicts(source, 'Source'));

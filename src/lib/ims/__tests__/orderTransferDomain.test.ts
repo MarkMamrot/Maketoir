@@ -116,7 +116,6 @@ describe('order transfer compatibility', () => {
     })).toEqual([
       'Customer does not match.',
       'Location does not match.',
-      'Customer PO reference does not match.',
       'Destination order is not open.',
       'Destination order has payments.',
       'Destination order has a non-Draft Xero document.',

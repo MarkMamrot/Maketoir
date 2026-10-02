@@ -107,9 +107,23 @@ describe('SalesOrderMoveItemsModal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('can create a new destination from the reviewed source terms', async () => {
+  it('allows quantities to be cleared and replaced without retaining a leading zero', async () => {
     const user = userEvent.setup();
     render(<SalesOrderMoveItemsModal order={{ id: 7, so_number: 'SO-7' }} onClose={vi.fn()} />);
+
+    const quantityInput = await screen.findByRole('spinbutton', { name: 'Quantity to move' }) as HTMLInputElement;
+    await user.clear(quantityInput);
+    expect(quantityInput.value).toBe('');
+    await user.type(quantityInput, '5');
+    expect(quantityInput.value).toBe('5');
+    await user.tab();
+    expect(quantityInput.value).toBe('5');
+  });
+
+  it('can create a new destination from the reviewed source terms', async () => {
+    const user = userEvent.setup();
+    const onMoved = vi.fn();
+    render(<SalesOrderMoveItemsModal order={{ id: 7, so_number: 'SO-7' }} onClose={vi.fn()} onMoved={onMoved} />);
 
     expect(await screen.findByText('Blue Shirt')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Choose destination' }));
@@ -127,6 +141,7 @@ describe('SalesOrderMoveItemsModal', () => {
       targetOrderId: null,
       expectedTargetUpdatedAt: null,
     }));
+    expect(onMoved).toHaveBeenCalledWith({ sourceOrderId: 7, targetOrderId: 8 }, true);
   });
 
   it('keeps the destination step unavailable when the source has blockers', async () => {
