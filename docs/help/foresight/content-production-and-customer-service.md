@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-content-production-customer-service","title":"Content Production and Customer Service","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Website and Customer Service","product":"foresight","format":"task","parentId":"foresight-content-service","contexts":["website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates"],"contextSections":{"website":"Step-by-step","pending-online":"Review content before use","product-description-template":"Prepare reliable inputs","bulk-edit-listings":"Review content before use","customer-service":"Customer-service replies","cs-inbox":"Customer-service replies","cs-compose":"Customer-service replies","cs-templates":"Customer-service replies"},"relatedTopics":["foresight-content-service","setup-business-brand-appearance","setup-integration-readiness-troubleshooting"],"order":31,"summary":"Prepare product content and customer replies, then check every customer-facing detail before use.","lastReviewed":"2026-08-29","owner":"commerce","quickSections":["Main operations","At a glance"]}
+{"id":"foresight-content-production-customer-service","title":"Content Production and Customer Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations and Settings; Intel & Automation > Customer Service","product":"foresight","format":"task","parentId":"foresight-content-service","contexts":["website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates"],"contextSections":{"website":"Step-by-step","pending-online":"Review content before use","product-description-template":"Prepare reliable inputs","bulk-edit-listings":"Review content before use","customer-service":"Customer-service replies","cs-inbox":"Customer-service replies","cs-compose":"Customer-service replies","cs-templates":"Customer-service replies"},"relatedTopics":["foresight-content-service","setup-business-brand-appearance","setup-integration-readiness-troubleshooting"],"order":31,"summary":"Prepare product content and customer replies, then check every customer-facing detail before use.","lastReviewed":"2026-10-02","owner":"commerce","quickSections":["Main operations","At a glance"]}
 ---
 # Content Production and Customer Service
 
@@ -8,7 +8,7 @@ Use content and service tools to prepare drafts that a person checks before publ
 ## Main operations
 
 - Keep business, brand, product, and policy information current.
-- Choose the correct product and field template.
+- Choose the correct product and Web Field Template from **Settings**.
 - Review generated descriptions, titles, tags, and candidate images.
 - Check customer, order, recipients, tone, and claims before sending a reply.
 - Keep existing content or images until a replacement is approved.
@@ -30,13 +30,13 @@ Use content and service tools to prepare drafts that a person checks before publ
 
 ## Step-by-step
 
-1. Open **Push to Sales Channels** or the relevant pending or bulk listing view.
+1. Open **IMS > Automations > Bulk Online Listing Generator** or **Bulk Edit Existing Listings**.
 2. Select the product and check its source data.
-3. Choose the intended field template and inputs.
+3. Choose the intended Web Field Template and inputs.
 4. Generate a draft or edit the existing proposal.
 5. Compare every product fact and policy statement with the source information.
 6. Review candidate images separately and keep existing images until a replacement is approved.
-7. Choose **Push to Sales Channels**, select each exact destination, and confirm the inclusion.
+7. Generate the online listing, select each exact destination, and confirm the inclusion.
 8. Check each destination after its channel publication workflow runs rather than assuming inclusion means the provider accepted it.
 
 ## Prepare reliable inputs
@@ -56,7 +56,7 @@ Use content and service tools to prepare drafts that a person checks before publ
 | Candidate image | Approve, reject, or keep the current image | Reviewed image choice | Not until explicitly changed |
 | Bulk listing set | Which products and fields are ready | Approved batch | Only the later publication step |
 
-**Push to Sales Channels** first saves the reviewed title, description, tags, and explicitly selected candidate images to the IMS product. It then records inclusion for the exact channel instances you select. This does not bypass channel readiness or publication controls; provider publication is reconciled separately for each channel.
+**Bulk Online Listing Generator** first saves the reviewed title, description, tags, and explicitly selected candidate images to the IMS product. It then records inclusion for the exact channel instances you select. This does not bypass channel readiness or publication controls; provider publication is reconciled separately for each channel. **Bulk Edit Existing Listings** previews its proposed changes for review before the separate Shopify commit.
 
 ## Customer-service replies
 

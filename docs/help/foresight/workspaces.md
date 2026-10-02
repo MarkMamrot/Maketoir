@@ -10,7 +10,7 @@ Use this page to choose the right workspace before you start reviewing data, pla
 - Check Dashboard for a summary, then open the detailed view behind a figure.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Ask AI Helper for an explanation or a starting point without treating its reply as approval.
-- Use Business Intelligence to check business facts, source freshness, and inventory signals.
+- Use Business Intelligence to check business facts and source freshness; use **IMS > Reports** for inventory analysis.
 - Use Planning and Review to move a recommendation through a recorded human decision.
 - Use Content and Service to prepare assets, product content, and customer replies for review.
 
@@ -24,7 +24,7 @@ Some developing workspaces are introduced to selected businesses first. If a rol
 | Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |
 | Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |
 | Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |
-| Prepare product content or a customer reply | Website or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |
+| Prepare product content or a customer reply | **IMS > Automations** or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |
 
 > **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened.
 

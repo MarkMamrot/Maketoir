@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, and integrations.","lastReviewed":"2026-09-24","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-02","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -8,7 +8,8 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 ## Main operations
 
 - Use the Dashboard to spot work that needs attention.
-- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.
+- Select **Reports** to investigate inventory and business results, **Automations** to prepare batches of online listings, or **Brand Assets** to maintain reusable creative references.
+- Select **Intel & Automation** in the top bar for analytics, planning, marketing, and customer-service work. Intel & Automation is not a separate option on the login menu.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
@@ -27,7 +28,9 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 | Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |
 | Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |
 | Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |
-| Answer a business question | **Reports** | Sales, margin, valuation, registers, and availability |
+| Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |
+| Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |
+| Maintain reusable creative references | **Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
 
 ## How summaries work

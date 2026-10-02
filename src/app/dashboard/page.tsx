@@ -9346,7 +9346,10 @@ export default function DashboardPage() {
               <div className="flex-1 overflow-y-auto p-6 bg-white">
                 <h1 className="text-xl font-bold text-gray-900 mb-5">{titles[activeSettingView] ?? 'Settings'}</h1>
                 {activeSettingView === 'connections' && (
-                  <ConnectionsTab business={databaseId ? { name: businessName, userId: '', databaseId } : null} />
+                  <ConnectionsTab
+                    business={databaseId ? { name: businessName, userId: '', databaseId } : null}
+                    onHelp={context => { setActiveSettingView(context); setHelpOpen(true); }}
+                  />
                 )}
                 {marketingEnabled && activeSettingView === 'marketing-settings' && (
                   <MarketingSettingsView databaseId={databaseId} />

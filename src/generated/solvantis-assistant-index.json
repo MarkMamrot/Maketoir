@@ -60,7 +60,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "product": "foresight",
       "format": "overview",
       "parentId": "foresight-workspaces",
@@ -93,7 +93,7 @@
       ],
       "order": 30,
       "summary": "Choose and review reusable brand inputs before producing website content or customer replies.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "owner": "commerce",
       "quickSections": [
         "Main operations",
@@ -109,7 +109,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "product": "foresight",
       "format": "task",
       "parentId": "foresight-content-service",
@@ -140,7 +140,7 @@
       ],
       "order": 31,
       "summary": "Prepare product content and customer replies, then check every customer-facing detail before use.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "owner": "commerce",
       "quickSections": [
         "Main operations",
@@ -476,8 +476,8 @@
         "dashboard": "Choose a workspace"
       },
       "order": 1,
-      "summary": "Find the right IMS workspace for products, orders, customers, stock, finances, reports, and integrations.",
-      "lastReviewed": "2026-09-24",
+      "summary": "Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.",
+      "lastReviewed": "2026-10-02",
       "owner": "operations",
       "quickSections": [
         "Main operations",
@@ -2742,7 +2742,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-09-16",
-      "content": "Open Merchant Rate Calculator from **Intel & Automation > Business Intelligence**, or from **Admin > Utilities** when signed in as a SuperAdmin. It compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Entering monthly card turnover prefills a typical gift and book retailer mix of 65% Visa/Mastercard, 30% standard EFTPOS, 4% Amex/Diners, and 1% UnionPay. Replace any of these amounts with the customer's actual mix when known. Also enter average transaction value, terminal count, current total monthly terminal rental, and the Solvantis Merchant Fee percentage.\n\nThe calculator estimates transaction counts from turnover and average transaction value. For Nuvei, it adds an estimated 0.40% interchange and scheme cost to Visa and Mastercard; standard EFTPOS remains the supplied fixed per-transaction rate. For Tyro, it adds an estimated 0.40% network cost to Visa and Mastercard and 0.25% to EFTPOS. The editable Solvantis Merchant Fee is added to Visa and Mastercard for Nuvei, and to Visa, Mastercard, and EFTPOS for Tyro.\n\nIt shows provider merchant service fees, network costs, Solvantis Merchant Fee, equipment and other charges separately. Nuvei includes the supplied per-transaction and monthly administration charges. Tyro shows $0 for both transaction fees and monthly administration. Both options use the entered current terminal rental, so equipment is compared like for like. The lower estimate and possible monthly and annual difference are highlighted. Align the card-type amounts with total turnover before relying on the result.\n\n| Estimate includes | Estimate excludes | Result |\n| --- | --- | --- |\n| Listed processing, transaction, administration, terminal rental, terminal SIM, and minimum service fees | Gateway, refund, chargeback, terminal incident, same-day funding, and Velocity fees | Indicative comparison, not a quote |\n\n> **Important:** Confirm the customer's actual card mix, transaction counts, equipment, and applicable contract terms before presenting savings.",
+      "content": "SuperAdmins can open Merchant Rate Calculator from **Admin > Utilities**. It compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Entering monthly card turnover prefills a typical gift and book retailer mix of 65% Visa/Mastercard, 30% standard EFTPOS, 4% Amex/Diners, and 1% UnionPay. Replace any of these amounts with the customer's actual mix when known. Also enter average transaction value, terminal count, current total monthly terminal rental, and the Solvantis Merchant Fee percentage.\n\nThe calculator estimates transaction counts from turnover and average transaction value. For Nuvei, it adds an estimated 0.40% interchange and scheme cost to Visa and Mastercard; standard EFTPOS remains the supplied fixed per-transaction rate. For Tyro, it adds an estimated 0.40% network cost to Visa and Mastercard and 0.25% to EFTPOS. The editable Solvantis Merchant Fee is added to Visa and Mastercard for Nuvei, and to Visa, Mastercard, and EFTPOS for Tyro.\n\nIt shows provider merchant service fees, network costs, Solvantis Merchant Fee, equipment and other charges separately. Nuvei includes the supplied per-transaction and monthly administration charges. Tyro shows $0 for both transaction fees and monthly administration. Both options use the entered current terminal rental, so equipment is compared like for like. The lower estimate and possible monthly and annual difference are highlighted. Align the card-type amounts with total turnover before relying on the result.\n\n| Estimate includes | Estimate excludes | Result |\n| --- | --- | --- |\n| Listed processing, transaction, administration, terminal rental, terminal SIM, and minimum service fees | Gateway, refund, chargeback, terminal incident, same-day funding, and Velocity fees | Indicative comparison, not a quote |\n\n> **Important:** Confirm the customer's actual card mix, transaction counts, equipment, and applicable contract terms before presenting savings.",
       "sectionId": "foresight-business-intelligence:6"
     },
     {
@@ -2771,7 +2771,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-09-16",
-      "content": "Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover are investigation lists. They do not automatically change a product or prove why a result occurred.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product, sales, stock, and selected period | Whether the signal makes sense for this product and season | A candidate or comparison to investigate | None |",
+      "content": "Open **IMS > Reports** for Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover. These are investigation lists; they do not automatically change a product or prove why a result occurred.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product, sales, stock, and selected period | Whether the signal makes sense for this product and season | A candidate or comparison to investigate | None |",
       "sectionId": "foresight-business-intelligence:7"
     },
     {
@@ -2899,7 +2899,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2913,8 +2913,8 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
-      "content": "Use this overview to prepare reliable brand inputs and choose the right content or customer-service workflow.",
+      "lastReviewed": "2026-10-02",
+      "content": "Use **IMS > Brand Assets** to prepare reliable brand inputs, then choose the right Intel & Automation content or customer-service workflow.",
       "sectionId": "foresight-content-service:1"
     },
     {
@@ -2926,7 +2926,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2940,7 +2940,7 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "- Check source rights and intended use before saving a reusable asset.\n- Keep models, backdrops, poses, scenes, and templates clearly named.\n- Review generated product content against the real product and brand.\n- Check customer, order, recipients, and claims before sending a reply.\n- Fix required settings or connections before repeating failed work.",
       "sectionId": "foresight-content-service:2"
     },
@@ -2953,7 +2953,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2967,7 +2967,7 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "Brand Assets stores reusable references for creative work. A generated image is a candidate, not an automatic replacement for an existing image or an approved advertisement.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Source image, instructions, and chosen asset type | Are the source rights, quality, and intended use acceptable? | A reusable model, backdrop, pose, scene, or template | None |\n\n> **Warning:** Do not use an asset when you cannot confirm that the business has the right to use its source image.",
       "sectionId": "foresight-content-service:3"
     },
@@ -2980,7 +2980,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2994,7 +2994,7 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "| Asset | Use it for | Check before reuse |\n| --- | --- | --- |\n| Model | A consistent person reference | Consent, source rights, and appearance |\n| Backdrop | An empty setting for product placement | Space, lighting, and brand fit |\n| Pose | A body-position reference | Clear position and suitability |\n| Scene | A reusable environment | No unintended products, logos, or claims |\n| Template | A repeatable composition | Layout, required text, and intended channel |",
       "sectionId": "foresight-content-service:4"
     },
@@ -3007,7 +3007,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -3021,7 +3021,7 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "Connections and Data Source control which supported services and information are available. Marketing Settings controls the options shown for applicable Intel & Automation work.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |",
       "sectionId": "foresight-content-service:5"
     },
@@ -3034,7 +3034,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -3048,7 +3048,7 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| An asset does not fit the product | The wrong asset type or instructions were used | Start a new candidate with the correct input; keep the original until reviewed |\n| Content lacks brand detail | Business or Brand Profile information is incomplete | Update and review the source information first |\n| A connected action is unavailable | Access expired or required setup is incomplete | Check Setup and reconnect only the intended account |\n| A retry produces another poor result | The input or template still needs correction | Stop generating and correct the source material |",
       "sectionId": "foresight-content-service:6"
     },
@@ -3061,7 +3061,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -3075,7 +3075,7 @@
         "data-source"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "### Prepare a reusable backdrop\n\nChoose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.\n\n### Decide where to fix missing context\n\nA product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
       "sectionId": "foresight-content-service:7"
     },
@@ -3088,7 +3088,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -3102,7 +3102,7 @@
         "data-source"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "Choose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.",
       "sectionId": "foresight-content-service:7"
     },
@@ -3115,7 +3115,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Content and Service",
+      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -3129,7 +3129,7 @@
         "data-source"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "A product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
       "sectionId": "foresight-content-service:7"
     },
@@ -3142,7 +3142,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3155,7 +3155,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "Use content and service tools to prepare drafts that a person checks before publishing or sending.",
       "sectionId": "foresight-content-production-customer-service:1"
     },
@@ -3168,7 +3168,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3181,8 +3181,8 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
-      "content": "- Keep business, brand, product, and policy information current.\n- Choose the correct product and field template.\n- Review generated descriptions, titles, tags, and candidate images.\n- Check customer, order, recipients, tone, and claims before sending a reply.\n- Keep existing content or images until a replacement is approved.",
+      "lastReviewed": "2026-10-02",
+      "content": "- Keep business, brand, product, and policy information current.\n- Choose the correct product and Web Field Template from **Settings**.\n- Review generated descriptions, titles, tags, and candidate images.\n- Check customer, order, recipients, tone, and claims before sending a reply.\n- Keep existing content or images until a replacement is approved.",
       "sectionId": "foresight-content-production-customer-service:2"
     },
     {
@@ -3194,7 +3194,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3207,7 +3207,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product data, reviewed brand information, templates, customer message, and order context | Is the draft accurate, suitable, and ready to use? | Product-content or customer-reply draft | Only the separate send or publish action changes what a customer sees |",
       "sectionId": "foresight-content-production-customer-service:3"
     },
@@ -3220,7 +3220,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3233,7 +3233,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "- Confirm the correct product, customer, and business.\n- Check Brand Profile, shipping, returns, and other customer-facing facts.\n- Select the intended template and channel.\n- Confirm any connected service required by the workflow is ready.\n\n> **Important:** Generated text and images can be wrong. Check product facts, price, availability, policy wording, claims, spelling, links, recipients, and tone before use.",
       "sectionId": "foresight-content-production-customer-service:4"
     },
@@ -3246,7 +3246,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3259,8 +3259,8 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
-      "content": "1. Open **Push to Sales Channels** or the relevant pending or bulk listing view.\n2. Select the product and check its source data.\n3. Choose the intended field template and inputs.\n4. Generate a draft or edit the existing proposal.\n5. Compare every product fact and policy statement with the source information.\n6. Review candidate images separately and keep existing images until a replacement is approved.\n7. Choose **Push to Sales Channels**, select each exact destination, and confirm the inclusion.\n8. Check each destination after its channel publication workflow runs rather than assuming inclusion means the provider accepted it.",
+      "lastReviewed": "2026-10-02",
+      "content": "1. Open **IMS > Automations > Bulk Online Listing Generator** or **Bulk Edit Existing Listings**.\n2. Select the product and check its source data.\n3. Choose the intended Web Field Template and inputs.\n4. Generate a draft or edit the existing proposal.\n5. Compare every product fact and policy statement with the source information.\n6. Review candidate images separately and keep existing images until a replacement is approved.\n7. Generate the online listing, select each exact destination, and confirm the inclusion.\n8. Check each destination after its channel publication workflow runs rather than assuming inclusion means the provider accepted it.",
       "sectionId": "foresight-content-production-customer-service:5"
     },
     {
@@ -3272,7 +3272,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3285,7 +3285,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "| Input | Check | Why it matters |\n| --- | --- | --- |\n| Product record | Name, variant, features, material, price, and availability | Prevents claims about the wrong item |\n| Brand Profile | Voice, audience, positioning, and approved claims | Keeps wording consistent |\n| Product description template | Required fields and channel purpose | Gives drafts a repeatable structure |\n| Business policies | Shipping, returns, and contact details | Prevents outdated customer promises |",
       "sectionId": "foresight-content-production-customer-service:6"
     },
@@ -3298,7 +3298,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3311,8 +3311,8 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
-      "content": "| Item | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Generated title, description, or tags | Accept, edit, or leave unchanged | Reviewed field proposal | Not until published |\n| Candidate image | Approve, reject, or keep the current image | Reviewed image choice | Not until explicitly changed |\n| Bulk listing set | Which products and fields are ready | Approved batch | Only the later publication step |\n\n**Push to Sales Channels** first saves the reviewed title, description, tags, and explicitly selected candidate images to the IMS product. It then records inclusion for the exact channel instances you select. This does not bypass channel readiness or publication controls; provider publication is reconciled separately for each channel.",
+      "lastReviewed": "2026-10-02",
+      "content": "| Item | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Generated title, description, or tags | Accept, edit, or leave unchanged | Reviewed field proposal | Not until published |\n| Candidate image | Approve, reject, or keep the current image | Reviewed image choice | Not until explicitly changed |\n| Bulk listing set | Which products and fields are ready | Approved batch | Only the later publication step |\n\n**Bulk Online Listing Generator** first saves the reviewed title, description, tags, and explicitly selected candidate images to the IMS product. It then records inclusion for the exact channel instances you select. This does not bypass channel readiness or publication controls; provider publication is reconciled separately for each channel. **Bulk Edit Existing Listings** previews its proposed changes for review before the separate Shopify commit.",
       "sectionId": "foresight-content-production-customer-service:7"
     },
     {
@@ -3324,7 +3324,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3337,7 +3337,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "The Inbox synchronises messages currently in Gmail's Inbox across Primary, Promotions, Updates, Social, and Forums. Gmail Spam, Trash, and messages already archived out of the Gmail Inbox are not included.\n\nAI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. By default, starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. Enable **Put all unread emails at the top** under Settings to show unread conversations newest to oldest, followed by read conversations newest to oldest. **Refresh emails** synchronises Gmail and shows when the Inbox was last refreshed. The loaded count appears only when more conversations are available; select **Load more** to retrieve them. Set the 7, 14, 30, 60, or 90-day **Email refresh window** under Settings.\n\nUse **Compose email** to start a new conversation. In To, enter an email address directly or type at least two characters of a contact's name or email, then choose the matching IMS contact. Check the selected address, add optional Cc recipients, enter a subject and message, then send once. The sent email appears as a new Inbox conversation.\n\n1. Open the Inbox item, or select **Compose email** for a new conversation.\n2. Confirm the customer, subject, and related order.\n3. Read the chronological conversation before using a template or draft. Opening a conversation aligns the top of the latest email directly below the subject bar.\n4. Check **Other conversations with this customer** when earlier subjects may contain useful context.\n5. Correct factual claims, tone, recipients, links, and promised actions.\n6. Select **Send reply** once and wait for its status to change.\n7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message. Clear the suggestion to start again, edit it in place, or send the reviewed reply.\n8. Each email shows its From, To, Cc, and sent time. Use **Reply** for the sender, **Reply all** for the sender and the other original recipients, or **Forward** for a new recipient. Check and edit the To and Cc fields before sending. Forwarded content includes the original From, To, Cc, date, and subject. After a message is sent, its completed AI draft panel is removed while the message remains in the conversation.\n9. For unwanted mail, use **Report spam** and confirm. Gmail moves the conversation to Spam, takes it out of the Inbox, and uses the report as a spam signal. This does not guarantee that Gmail will block every future message from the sender.\n10. When a sender provides a standard secure unsubscribe link, use **Unsubscribe** to open the sender's page in a new tab and complete its confirmation. Solvantis does not use links found only in the email body and does not submit unsubscribe requests automatically.\n\n> **Important:** **Sending** and **Confirming send** mean the action is still blocked. Do not click Send again or create another reply in Gmail while confirmation is pending. **Sent** means Gmail accepted the reply and it is recorded in the conversation.\n\nCached conversation history is kept until the retention setting is changed. A 90, 180, or 365-day limit removes only inactive cached conversations from Solvantis; it does not delete mail from Gmail.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Customer message, order context, template, and draft | Is this accurate and safe to send to these recipients? | Reviewed reply | Yes, when sent successfully |",
       "sectionId": "foresight-content-production-customer-service:8"
     },
@@ -3350,7 +3350,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3363,7 +3363,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Draft contains a wrong fact | Source product, profile, or policy is wrong or missing | Correct the source, then create a fresh draft |\n| Bulk action is unavailable | Required fields, selection, role, or connection is missing | Read the page status and complete the missing item |\n| Reply lacks order context | The wrong customer or order is selected | Reopen the source item and verify identifiers shown to staff |\n| A promotional or automated email is not near the top | AI prioritised likely customer enquiries first | Use All categories, search, or the category filter; the message is not removed by its AI category |\n| Only the first set of conversations is visible | More matching conversations are available than currently loaded | Select Load more and check the loaded and total counts |\n| A previous customer subject is missing from the open thread | Gmail keeps different subjects as separate conversations | Check Other conversations with this customer |\n| Reply shows Confirming send | Gmail may have accepted the message but confirmation is incomplete | Do not resend; refresh after processing or ask an administrator to check delivery status |\n| Unsubscribe is not shown | The email did not publish a standard secure HTTPS unsubscribe method, or it has not been refreshed since this feature was enabled | Refresh emails; if the action is still absent, use Report spam or manage the sender in Gmail |\n| Send or publish fails | Access expired or the destination definitively rejected the action | Read the displayed status before retrying; do not repeat blindly |",
       "sectionId": "foresight-content-production-customer-service:9"
     },
@@ -3376,7 +3376,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3389,7 +3389,7 @@
         "cs-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "### Prepare a boot listing\n\nSelect the exact boot variant, check its leather, colour, size range, tax-inclusive price, and current images, then use the approved description template. Remove any unsupported waterproof claim and approve only the reviewed fields.\n\n### Reply about a delayed order\n\nOpen the customer message and linked order. Confirm what has shipped and what remains outstanding. Edit the draft to give only the timing shown by the order information, check the recipient, and send once.",
       "sectionId": "foresight-content-production-customer-service:10"
     },
@@ -3402,7 +3402,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3415,7 +3415,7 @@
         "cs-templates"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "Select the exact boot variant, check its leather, colour, size range, tax-inclusive price, and current images, then use the approved description template. Remove any unsupported waterproof claim and approve only the reviewed fields.",
       "sectionId": "foresight-content-production-customer-service:10"
     },
@@ -3428,7 +3428,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Website and Customer Service",
+      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -3441,7 +3441,7 @@
         "cs-templates"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-10-02",
       "content": "Open the customer message and linked order. Confirm what has shipped and what remains outstanding. Edit the draft to give only the timing shown by the order information, check the recipient, and send once.",
       "sectionId": "foresight-content-production-customer-service:10"
     },
@@ -4322,7 +4322,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-29",
-      "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review.\n\nSome developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu.",
+      "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts and source freshness; use **IMS > Reports** for inventory analysis.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review.\n\nSome developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu.",
       "sectionId": "foresight-workspaces:2"
     },
     {
@@ -4342,7 +4342,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-29",
-      "content": "| You need to | Open | What you get | Does opening it change anything outside Solvantis? |\n| --- | --- | --- | --- |\n| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |\n| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |\n| Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |\n| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |\n| Prepare product content or a customer reply | Website or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |\n\n> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened.",
+      "content": "| You need to | Open | What you get | Does opening it change anything outside Solvantis? |\n| --- | --- | --- | --- |\n| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |\n| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |\n| Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |\n| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |\n| Prepare product content or a customer reply | **IMS > Automations** or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |\n\n> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened.",
       "sectionId": "foresight-workspaces:3"
     },
     {
@@ -5451,7 +5451,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-02",
       "content": "IMS brings day-to-day retail operations into one workspace. Start with the business question, then open the area that owns the record or action.",
       "sectionId": "ims-workspaces:1"
     },
@@ -5470,8 +5470,8 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-24",
-      "content": "- Use the Dashboard to spot work that needs attention.\n- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
+      "lastReviewed": "2026-10-02",
+      "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, **Automations** to prepare batches of online listings, or **Brand Assets** to maintain reusable creative references.\n- Select **Intel & Automation** in the top bar for analytics, planning, marketing, and customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
       "sectionId": "ims-workspaces:2"
     },
     {
@@ -5489,8 +5489,8 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-24",
-      "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Answer a business question | **Reports** | Sales, margin, valuation, registers, and availability |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
+      "lastReviewed": "2026-10-02",
+      "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |\n| Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |\n| Maintain reusable creative references | **Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
       "sectionId": "ims-workspaces:3"
     },
     {
@@ -5508,7 +5508,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-02",
       "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nLive checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.\n\nYour recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\nNotifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.",
       "sectionId": "ims-workspaces:4"
     },
@@ -5527,7 +5527,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-02",
       "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |\n| A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |\n| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |\n| Ask Solvantis cannot complete an answer | Confirm the internet connection, then retry once | Use Help for the maintained procedure or contact support if the retry also fails |",
       "sectionId": "ims-workspaces:5"
     },
@@ -5546,7 +5546,7 @@
         "dashboard"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-02",
       "content": "### Trace unavailable stock\n\nOpen **Products > Stock Levels** to compare stock on hand, committed, incoming, and available. Follow committed demand to Sales Orders or Stock Allocation and incoming supply to Purchase Orders. This explains the quantity without changing it.\n\n### Follow up a customer\n\nOpen **Contacts > CRM**, find the customer, review the profile timeline, and create a task for the next action. Use the linked sale, order, or credit note when the underlying transaction needs attention.",
       "sectionId": "ims-workspaces:6"
     },
@@ -5565,7 +5565,7 @@
         "dashboard"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-02",
       "content": "Open **Products > Stock Levels** to compare stock on hand, committed, incoming, and available. Follow committed demand to Sales Orders or Stock Allocation and incoming supply to Purchase Orders. This explains the quantity without changing it.",
       "sectionId": "ims-workspaces:6"
     },
@@ -5584,7 +5584,7 @@
         "dashboard"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-02",
       "content": "Open **Contacts > CRM**, find the customer, review the profile timeline, and create a task for the next action. Use the linked sale, order, or credit note when the underlying transaction needs attention.",
       "sectionId": "ims-workspaces:6"
     },

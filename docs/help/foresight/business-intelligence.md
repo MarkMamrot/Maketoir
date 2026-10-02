@@ -47,7 +47,7 @@ The summary omits advertising account and campaign identities. It includes the l
 
 ## Compare merchant rates
 
-Open Merchant Rate Calculator from **Intel & Automation > Business Intelligence**, or from **Admin > Utilities** when signed in as a SuperAdmin. It compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Entering monthly card turnover prefills a typical gift and book retailer mix of 65% Visa/Mastercard, 30% standard EFTPOS, 4% Amex/Diners, and 1% UnionPay. Replace any of these amounts with the customer's actual mix when known. Also enter average transaction value, terminal count, current total monthly terminal rental, and the Solvantis Merchant Fee percentage.
+SuperAdmins can open Merchant Rate Calculator from **Admin > Utilities**. It compares the supplied Nuvei tiered rate card with Tyro's flat 0.22% merchant service fee option. Entering monthly card turnover prefills a typical gift and book retailer mix of 65% Visa/Mastercard, 30% standard EFTPOS, 4% Amex/Diners, and 1% UnionPay. Replace any of these amounts with the customer's actual mix when known. Also enter average transaction value, terminal count, current total monthly terminal rental, and the Solvantis Merchant Fee percentage.
 
 The calculator estimates transaction counts from turnover and average transaction value. For Nuvei, it adds an estimated 0.40% interchange and scheme cost to Visa and Mastercard; standard EFTPOS remains the supplied fixed per-transaction rate. For Tyro, it adds an estimated 0.40% network cost to Visa and Mastercard and 0.25% to EFTPOS. The editable Solvantis Merchant Fee is added to Visa and Mastercard for Nuvei, and to Visa, Mastercard, and EFTPOS for Tyro.
 
@@ -61,7 +61,7 @@ It shows provider merchant service fees, network costs, Solvantis Merchant Fee, 
 
 ## Inventory analysis
 
-Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover are investigation lists. They do not automatically change a product or prove why a result occurred.
+Open **IMS > Reports** for Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover. These are investigation lists; they do not automatically change a product or prove why a result occurred.
 
 | Input | Human decision | Output | External change |
 | --- | --- | --- | --- |
