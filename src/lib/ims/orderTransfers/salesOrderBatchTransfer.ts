@@ -6,6 +6,8 @@ import {
   type SalesOrderTransferLineInput,
   type SalesOrderTransferResult,
 } from './salesOrderTransfer';
+import { preflightSalesOrderXeroDocuments } from './salesOrderXeroPreflight';
+import { reconcileSalesOrderTransferXero } from './salesOrderXeroReconciliation';
 
 export type SalesOrderBatchTransferSource = {
   sourceOrderId: number;
@@ -38,6 +40,8 @@ type LockedOrder = {
   status: string;
   updated_at: string | Date | null;
 };
+
+type XeroLinkedOrder = { id: number; so_number: string; xero_invoice_id: string | null };
 
 function assertRevision(actual: unknown, expected: string | null | undefined, label: string): void {
   if (!expected) return;
@@ -98,6 +102,17 @@ export async function transferSalesOrderItemsBatch(
   const connection = await getIMSPool().getConnection();
 
   try {
+    const allOrderIds = [input.targetOrderId, ...sourceOrderIds];
+    const [xeroLinkedOrders] = await connection.execute<XeroLinkedOrder[]>(
+      `SELECT id, so_number, xero_invoice_id FROM ims_sales_orders
+        WHERE business_id = ? AND id IN (${allOrderIds.map(() => '?').join(', ')})`,
+      [input.businessId, ...allOrderIds],
+    );
+    const xeroClearances = await preflightSalesOrderXeroDocuments(input.businessId, xeroLinkedOrders.map(order => ({
+      orderId: Number(order.id),
+      orderNumber: String(order.so_number),
+      xeroDocumentId: order.xero_invoice_id ?? null,
+    })));
     await connection.beginTransaction();
     const [existingRows] = await connection.execute<any[]>(
       `SELECT request_hash, state, after_header_json
@@ -165,6 +180,7 @@ export async function transferSalesOrderItemsBatch(
         operationKey: `${operationKey}:source:${source.sourceOrderId}`,
         actorId: input.actorId,
         actorName: input.actorName,
+        xeroClearances,
       }));
     }
 
@@ -184,6 +200,7 @@ export async function transferSalesOrderItemsBatch(
         Number(batchOperationResult.insertId)],
     );
     await connection.commit();
+    await reconcileSalesOrderTransferXero(input.businessId, transfers);
     return result;
   } catch (error) {
     await connection.rollback();

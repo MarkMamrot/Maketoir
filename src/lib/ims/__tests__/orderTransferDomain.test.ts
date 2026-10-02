@@ -145,4 +145,23 @@ describe('order transfer compatibility', () => {
       xeroDocumentStatus: null,
     }, 'Source')).toContain('Source order has a Xero document that must be checked.');
   });
+
+  it('allows the exact linked Xero document after a successful live edit preflight', () => {
+    expect(getOrderTransferDocumentConflicts({
+      ...source,
+      xeroDocumentId: 'invoice-1',
+      xeroDocumentStatus: 'AUTHORISED',
+      xeroDocumentEditable: true,
+    }, 'Source')).toEqual([]);
+  });
+
+  it('shows the live Xero policy reason when the linked document is unsafe', () => {
+    expect(getOrderTransferDocumentConflicts({
+      ...source,
+      xeroDocumentId: 'invoice-1',
+      xeroDocumentStatus: 'AUTHORISED',
+      xeroDocumentEditable: false,
+      xeroDocumentConflict: 'has a linked Xero invoice with payments or credits applied.',
+    }, 'Source')).toContain('Source order has a linked Xero invoice with payments or credits applied.');
+  });
 });

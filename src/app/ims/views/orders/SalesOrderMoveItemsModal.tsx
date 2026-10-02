@@ -143,37 +143,37 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
       style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: 16 }}
       onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div style={{ width: 'min(880px,100%)', maxHeight: '92vh', overflow: 'auto', background: 'var(--sv-surface,#18202b)', color: 'var(--sv-text,#fff)', border: '1px solid var(--sv-border,#364152)', borderRadius: 8, boxShadow: '0 24px 80px rgba(0,0,0,.45)' }}>
-        <header style={{ padding: '20px 22px 16px', borderBottom: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+      <div style={{ width: 'min(880px,100%)', maxHeight: '92vh', overflow: 'auto', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)', border: '1px solid var(--sv-etch,#cbd5e1)', borderRadius: 8, boxShadow: '0 24px 80px rgba(0,0,0,.35)' }}>
+        <header style={{ padding: '20px 22px 16px', borderBottom: '1px solid var(--sv-etch,#cbd5e1)', display: 'flex', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <div style={{ color: 'var(--sv-mint,#34d399)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Move items</div>
             <h2 id="move-items-title" style={{ margin: '5px 0 4px', fontSize: 21 }}>{order.so_number || `SO ${order.id}`}</h2>
-            <p style={{ margin: 0, color: 'var(--sv-text-dim,#aab4c2)', fontSize: 13 }}>Move selected outstanding quantities and choose how much protected incoming supply follows them.</p>
+            <p style={{ margin: 0, color: 'var(--sv-text-dim,#64748b)', fontSize: 13 }}>Move selected outstanding quantities and choose how much protected incoming supply follows them.</p>
           </div>
           <button type="button" aria-label="Close move items preview" onClick={onClose} style={{ alignSelf: 'flex-start', border: 0, background: 'none', color: 'inherit', cursor: 'pointer', padding: 4 }}><X size={20} /></button>
         </header>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', borderBottom: '1px solid var(--sv-border,#364152)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', borderBottom: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-2,#f8fafc)' }}>
           {['1  Choose quantities', '2  Choose destination', '3  Review'].map((label, index) => (
-            <div key={label} style={{ padding: '10px 22px', fontSize: 12, fontWeight: 700, color: step === index + 1 ? 'var(--sv-text,#fff)' : 'var(--sv-text-dim,#aab4c2)', borderBottom: step === index + 1 ? '2px solid var(--sv-mint,#34d399)' : '2px solid transparent' }}>{label}</div>
+            <div key={label} style={{ padding: '10px 22px', fontSize: 12, fontWeight: 700, color: step === index + 1 ? 'var(--sv-text-strong,#0f172a)' : 'var(--sv-text-dim,#64748b)', borderBottom: step === index + 1 ? '2px solid var(--sv-action,#0f766e)' : '2px solid transparent' }}>{label}</div>
           ))}
         </div>
 
         <div style={{ padding: 22 }}>
-          {loading && <div aria-live="polite" style={{ color: 'var(--sv-text-dim,#aab4c2)' }}>Checking order quantities and possible destinations...</div>}
-          {error && <div role="alert" style={{ padding: 12, border: '1px solid #ef4444', background: 'rgba(239,68,68,.10)', color: '#fca5a5', borderRadius: 6 }}>{error}</div>}
+          {loading && <div aria-live="polite" style={{ color: 'var(--sv-text-dim,#64748b)' }}>Checking order quantities and possible destinations...</div>}
+          {error && <div role="alert" style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', borderRadius: 6 }}>{error}</div>}
 
           {preview && !loading && step === 1 && (
             <div style={{ display: 'grid', gap: 14 }}>
               {sourceBlocked && (
-                <div role="alert" style={{ padding: 12, border: '1px solid #f59e0b', background: 'rgba(245,158,11,.10)', borderRadius: 6 }}>
+                <div role="alert" style={{ padding: 12, border: '1px solid #f59e0b', background: '#fffbeb', color: '#92400e', borderRadius: 6 }}>
                   <strong style={{ display: 'flex', alignItems: 'center', gap: 7 }}><AlertTriangle size={16} />This order cannot move items yet</strong>
                   <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>{preview.source.conflicts.map(reason => <li key={reason}>{reason}</li>)}</ul>
                 </div>
               )}
               {preview.lines.length === 0 && <div style={{ color: 'var(--sv-text-dim,#aab4c2)' }}>This Sales Order has no outstanding quantities to move.</div>}
               {preview.lines.map(line => (
-                <section key={line.itemId} style={{ border: '1px solid var(--sv-border,#364152)', borderRadius: 7, padding: 14 }}>
+                <section key={line.itemId} style={{ border: '1px solid var(--sv-etch,#cbd5e1)', borderRadius: 7, padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'baseline', flexWrap: 'wrap' }}>
                     <div><strong>{line.productName}</strong>{line.sku && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12 }}>{line.sku}</span>}</div>
                     <div style={{ color: 'var(--sv-text-dim,#aab4c2)', fontSize: 12 }}>{formatQuantity(line.rules.outstanding)} outstanding</div>
@@ -185,7 +185,7 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                         type="button"
                         disabled={line.rules[preset.value] <= 0 || sourceBlocked}
                         onClick={() => setPreset(line, preset.value)}
-                        style={{ padding: '7px 9px', borderRadius: 5, border: quantities[line.itemId] === line.rules[preset.value] && line.rules[preset.value] > 0 ? '1px solid var(--sv-mint,#34d399)' : '1px solid var(--sv-border,#364152)', background: 'var(--sv-bg-2,#111827)', color: 'inherit', cursor: line.rules[preset.value] > 0 && !sourceBlocked ? 'pointer' : 'not-allowed', opacity: line.rules[preset.value] > 0 ? 1 : .45, fontSize: 12 }}
+                        style={{ padding: '7px 9px', borderRadius: 5, border: quantities[line.itemId] === line.rules[preset.value] && line.rules[preset.value] > 0 ? '1px solid var(--sv-action,#0f766e)' : '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-main,#334155)', cursor: line.rules[preset.value] > 0 && !sourceBlocked ? 'pointer' : 'not-allowed', opacity: line.rules[preset.value] > 0 ? 1 : .45, fontSize: 12 }}
                       >
                         {preset.label} · {formatQuantity(line.rules[preset.value])}
                       </button>
@@ -194,11 +194,11 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
                   <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 12 }}>
                     <label style={{ display: 'grid', gap: 5, width: 180, fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
                       Quantity to move
-                      <input type="number" min={0} max={line.rules.outstanding} step="0.0001" disabled={sourceBlocked} value={quantities[line.itemId] ?? 0} onChange={event => setMoveQuantity(line, Number(event.target.value))} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-border,#364152)', background: 'var(--sv-bg-2,#111827)', color: 'inherit' }} />
+                      <input type="number" min={0} max={line.rules.outstanding} step="0.0001" disabled={sourceBlocked} value={quantities[line.itemId] ?? 0} onChange={event => setMoveQuantity(line, Number(event.target.value))} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)' }} />
                     </label>
                     <label style={{ display: 'grid', gap: 5, width: 220, fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
                       Protected incoming to move
-                      <input type="number" min={0} max={Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming)} step="0.0001" disabled={sourceBlocked || Number(quantities[line.itemId] ?? 0) <= 0} value={allocatedIncomingQuantities[line.itemId] ?? 0} onChange={event => setAllocatedIncomingQuantities(current => ({ ...current, [line.itemId]: Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming, Math.max(0, Number(event.target.value) || 0)) }))} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-border,#364152)', background: 'var(--sv-bg-2,#111827)', color: 'inherit' }} />
+                      <input type="number" min={0} max={Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming)} step="0.0001" disabled={sourceBlocked || Number(quantities[line.itemId] ?? 0) <= 0} value={allocatedIncomingQuantities[line.itemId] ?? 0} onChange={event => setAllocatedIncomingQuantities(current => ({ ...current, [line.itemId]: Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming, Math.max(0, Number(event.target.value) || 0)) }))} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch,#cbd5e1)', background: 'var(--sv-bg-1,#fff)', color: 'var(--sv-text-strong,#0f172a)' }} />
                       <span>Up to {formatQuantity(Math.min(quantities[line.itemId] ?? 0, line.rules.allocatedIncoming))} can follow this quantity.</span>
                     </label>
                   </div>
@@ -264,14 +264,14 @@ export function SalesOrderMoveItemsModal({ order, onClose, onMoved }: { order: a
           )}
         </div>
 
-        <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-border,#364152)', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+        <footer style={{ padding: '14px 22px', borderTop: '1px solid var(--sv-etch,#cbd5e1)', display: 'flex', justifyContent: 'space-between', gap: 10, background: 'var(--sv-bg-2,#f8fafc)' }}>
           <button type="button" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(step === 3 ? 2 : 1)} style={{ padding: '9px 13px', borderRadius: 5, border: '1px solid var(--sv-border,#364152)', background: 'transparent', color: 'inherit', cursor: submitting ? 'not-allowed' : 'pointer' }}>{step === 1 ? 'Cancel' : 'Back'}</button>
           {step === 1 ? (
-            <button type="button" disabled={!canContinue} onClick={() => setStep(2)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: canContinue ? 'pointer' : 'not-allowed', opacity: canContinue ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Choose destination <ArrowRight size={15} /></button>
+            <button type="button" disabled={!canContinue} onClick={() => setStep(2)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-action,#0f766e)', color: '#fff', fontWeight: 800, cursor: canContinue ? 'pointer' : 'not-allowed', opacity: canContinue ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Choose destination <ArrowRight size={15} /></button>
           ) : step === 2 ? (
-            <button type="button" disabled={targetChoice == null || destinationAllocationConflict} onClick={() => setStep(3)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: targetChoice != null && !destinationAllocationConflict ? 'pointer' : 'not-allowed', opacity: targetChoice != null && !destinationAllocationConflict ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Review move <ArrowRight size={15} /></button>
+            <button type="button" disabled={targetChoice == null || destinationAllocationConflict} onClick={() => setStep(3)} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-action,#0f766e)', color: '#fff', fontWeight: 800, cursor: targetChoice != null && !destinationAllocationConflict ? 'pointer' : 'not-allowed', opacity: targetChoice != null && !destinationAllocationConflict ? 1 : .5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>Review move <ArrowRight size={15} /></button>
           ) : (
-            <button type="button" disabled={submitting || (willCloseSource && !sourceClosureAcknowledged)} onClick={submitMove} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-mint,#34d399)', color: '#07130f', fontWeight: 800, cursor: submitting || (willCloseSource && !sourceClosureAcknowledged) ? 'not-allowed' : 'pointer', opacity: submitting || (willCloseSource && !sourceClosureAcknowledged) ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{submitting && <Loader2 size={15} className="spin" />} {submitting ? 'Moving items...' : 'Move selected items'}</button>
+            <button type="button" disabled={submitting || (willCloseSource && !sourceClosureAcknowledged)} onClick={submitMove} style={{ padding: '9px 13px', borderRadius: 5, border: 0, background: 'var(--sv-action,#0f766e)', color: '#fff', fontWeight: 800, cursor: submitting || (willCloseSource && !sourceClosureAcknowledged) ? 'not-allowed' : 'pointer', opacity: submitting || (willCloseSource && !sourceClosureAcknowledged) ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{submitting && <Loader2 size={15} className="spin" />} {submitting ? 'Moving items...' : 'Move selected items'}</button>
           )}
         </footer>
       </div>

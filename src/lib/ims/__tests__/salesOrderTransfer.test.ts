@@ -16,6 +16,9 @@ vi.mock('@/services/IMSMySQLService', () => ({
 vi.mock('../stockAllocation/service', () => ({
   transferStockAllocationsToBackorderLine: transferAllocation,
 }));
+vi.mock('../orderTransfers/salesOrderXeroReconciliation', () => ({
+  reconcileSalesOrderTransferXero: vi.fn().mockResolvedValue([]),
+}));
 
 import {
   SalesOrderTransferConflict,
@@ -84,6 +87,7 @@ describe('transferSalesOrderItems', () => {
     transferAllocation.mockResolvedValue(1.25);
     let amendmentId = 700;
     execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id, so_number, xero_invoice_id')) return [[sourceOrder, targetOrder]];
       if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
       if (sql.includes('FROM ims_sales_orders so')) return [[sourceOrder, targetOrder]];
       if (sql.includes('FROM ims_sales_order_items item')) return [[{ ...sourceItem }, { ...targetItem }]];
@@ -141,6 +145,7 @@ describe('transferSalesOrderItems', () => {
 
   it('rolls back when the selected protected incoming quantity is no longer available', async () => {
     execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id, so_number, xero_invoice_id')) return [[sourceOrder, targetOrder]];
       if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
       if (sql.includes('FROM ims_sales_orders so')) return [[sourceOrder, targetOrder]];
       if (sql.includes('FROM ims_sales_order_items item')) return [[{ ...sourceItem }, { ...targetItem }]];
@@ -181,6 +186,7 @@ describe('transferSalesOrderItems', () => {
     transferAllocation.mockResolvedValue(1);
     let amendmentId = 800;
     execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id, so_number, xero_invoice_id')) return [[sourceOrder]];
       if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
       if (sql.includes('FROM ims_sales_orders so')) return [[sourceOrder]];
       if (sql.includes('SELECT GET_LOCK')) return [[{ acquired: 1 }]];
@@ -229,6 +235,7 @@ describe('transferSalesOrderItems', () => {
 
   it('does not attach protected incoming supply to a Draft destination', async () => {
     execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id, so_number, xero_invoice_id')) return [[sourceOrder, targetOrder]];
       if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
       if (sql.includes('FROM ims_sales_orders so')) return [[
         sourceOrder,

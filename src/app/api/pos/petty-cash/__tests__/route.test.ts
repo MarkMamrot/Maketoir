@@ -19,13 +19,13 @@ vi.mock('node:fs/promises', () => ({
 
 import { POST } from '../route';
 
-function pettyCashRequest(registerSessionId = 91): Request {
+function pettyCashRequest(registerSessionId = 91, gstTreatment = 'gst'): Request {
   const form = new FormData();
   form.set('operation_key', '12345678-1234-4123-8123-123456789abc');
   form.set('register_session_id', String(registerSessionId));
   form.set('amount', '22.00');
   form.set('reason', 'Cleaning supplies');
-  form.set('gst_treatment', 'gst');
+  form.set('gst_treatment', gstTreatment);
   form.set('receipt', new File(['receipt'], 'receipt.png', { type: 'image/png' }));
   return new Request('http://localhost/api/pos/petty-cash', { method: 'POST', body: form });
 }
@@ -82,5 +82,25 @@ describe('POST /api/pos/petty-cash', () => {
     expect(response.status).toBe(409);
     expect(mockImsExecute).not.toHaveBeenCalled();
     expect(mockWriteFile).not.toHaveBeenCalled();
+  });
+
+  it('records no GST when the receipt does not show GST', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 91,
+        register_id: 8,
+        location_id: 4,
+        session_date: '2026-10-02',
+        status: 'open',
+      }]);
+
+    const response = await POST(pettyCashRequest(91, 'bas_excluded'));
+
+    expect(response.status).toBe(201);
+    expect(mockImsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO pos_petty_cash_transactions'),
+      expect.arrayContaining([22, 'bas_excluded', 0, 'Cleaning supplies']),
+    );
   });
 });

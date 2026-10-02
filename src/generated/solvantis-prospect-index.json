@@ -518,7 +518,7 @@
     {
       "id": "public-capability:pos-petty-cash",
       "title": "Petty Cash at POS",
-      "summary": "Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.",
+      "summary": "Record a purchase paid from the open till, whether its receipt shows GST, the reason, and receipt evidence.",
       "capabilities": [
         "pos"
       ],

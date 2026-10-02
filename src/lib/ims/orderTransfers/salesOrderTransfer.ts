@@ -7,6 +7,8 @@ import {
   getOrderTransferDocumentConflicts,
   type OrderTransferDocument,
 } from './domain';
+import { preflightSalesOrderXeroDocuments, type SalesOrderXeroClearances } from './salesOrderXeroPreflight';
+import { reconcileSalesOrderTransferXero } from './salesOrderXeroReconciliation';
 
 const QUANTITY_SCALE = 10_000;
 const COMMITTED_STATUSES = new Set(['confirmed', 'partially_fulfilled', 'backordered']);
@@ -37,6 +39,7 @@ export type SalesOrderTransferInput = {
   expectedTargetUpdatedAt?: string | null;
   actorId?: number | null;
   actorName?: string | null;
+  xeroClearances?: SalesOrderXeroClearances;
 };
 
 export type SalesOrderTransferResult = {
@@ -128,7 +131,8 @@ function assertRevision(actual: unknown, expected: string | null | undefined, la
   }
 }
 
-function asTransferDocument(order: SalesOrderRow): OrderTransferDocument {
+function asTransferDocument(order: SalesOrderRow, clearances: SalesOrderXeroClearances = {}): OrderTransferDocument {
+  const clearance = clearances[Number(order.id)];
   return {
     id: Number(order.id),
     kind: 'sales_order',
@@ -145,7 +149,9 @@ function asTransferDocument(order: SalesOrderRow): OrderTransferDocument {
     status: String(order.status),
     hasPayments: Boolean(Number(order.has_payments ?? 0)),
     xeroDocumentId: order.xero_invoice_id ?? null,
-    xeroDocumentStatus: order.xero_invoice_id ? 'UNKNOWN' : null,
+    xeroDocumentStatus: clearance?.status ?? (order.xero_invoice_id ? 'UNKNOWN' : null),
+    xeroDocumentEditable: clearance?.documentId === order.xero_invoice_id && clearance.editable,
+    xeroDocumentConflict: clearance?.documentId === order.xero_invoice_id ? clearance.conflict : null,
     hasSubmittedShipment: Boolean(Number(order.has_submitted_shipment ?? 0)),
     commerciallyEditable: !Number(order.is_historical ?? 0) && String(order.so_type ?? 'b2b') !== 'online',
   };
@@ -310,6 +316,24 @@ async function applySalesOrderItemsTransfer(
   const ownsConnection = externalConnection == null;
   const conn = externalConnection ?? await getIMSPool().getConnection();
   try {
+    if (ownsConnection && input.xeroClearances == null) {
+      const orderIds = createTarget
+        ? [input.sourceOrderId]
+        : [input.sourceOrderId, Number(input.targetOrderId)];
+      const [orders] = await conn.execute<SalesOrderRow[]>(
+        `SELECT id, so_number, xero_invoice_id FROM ims_sales_orders
+          WHERE business_id = ? AND id IN (${orderIds.map(() => '?').join(', ')})`,
+        [input.businessId, ...orderIds],
+      );
+      input = {
+        ...input,
+        xeroClearances: await preflightSalesOrderXeroDocuments(input.businessId, orders.map(order => ({
+          orderId: Number(order.id),
+          orderNumber: String(order.so_number),
+          xeroDocumentId: order.xero_invoice_id ?? null,
+        }))),
+      };
+    }
     if (ownsConnection) await conn.beginTransaction();
     const [existingRows] = await conn.execute<any[]>(
       `SELECT request_hash, state, after_header_json
@@ -353,14 +377,17 @@ async function applySalesOrderItemsTransfer(
     if (orderRows.length !== orderIds.length) throw new SalesOrderTransferConflict('One or more Sales Orders were not found.');
     const sourceOrder = orderRows.find(order => Number(order.id) === input.sourceOrderId)!;
     assertRevision(sourceOrder.updated_at, input.expectedSourceUpdatedAt, 'The source Sales Order');
-    const sourceConflicts = getOrderTransferDocumentConflicts(asTransferDocument(sourceOrder), 'Source');
+    const sourceConflicts = getOrderTransferDocumentConflicts(asTransferDocument(sourceOrder, input.xeroClearances), 'Source');
     if (sourceConflicts.length > 0) throw new SalesOrderTransferConflict(sourceConflicts.join(' '));
     const targetOrder = createTarget
       ? await createTransferTarget(conn, input.businessId, sourceOrder)
       : orderRows.find(order => Number(order.id) === Number(input.targetOrderId))!;
     const targetOrderId = Number(targetOrder.id);
     if (!createTarget) assertRevision(targetOrder.updated_at, input.expectedTargetUpdatedAt, 'The destination Sales Order');
-    const conflicts = getOrderTransferConflicts(asTransferDocument(sourceOrder), asTransferDocument(targetOrder));
+    const conflicts = getOrderTransferConflicts(
+      asTransferDocument(sourceOrder, input.xeroClearances),
+      asTransferDocument(targetOrder, input.xeroClearances),
+    );
     if (conflicts.length > 0) throw new SalesOrderTransferConflict(conflicts.join(' '));
     if (targetOrder.status === 'draft' && lines.some(line => line.allocatedIncomingQuantity > 0)) {
       throw new SalesOrderTransferConflict('Protected incoming supply cannot move to a Draft Sales Order. Choose zero protected incoming or use a Confirmed destination.');
@@ -590,6 +617,8 @@ export function transferSalesOrderItemsInTransaction(
   return applySalesOrderItemsTransfer(input, connection);
 }
 
-export function transferSalesOrderItems(input: SalesOrderTransferInput): Promise<SalesOrderTransferResult> {
-  return applySalesOrderItemsTransfer(input);
+export async function transferSalesOrderItems(input: SalesOrderTransferInput): Promise<SalesOrderTransferResult> {
+  const result = await applySalesOrderItemsTransfer(input);
+  await reconcileSalesOrderTransferXero(input.businessId, [result]);
+  return result;
 }

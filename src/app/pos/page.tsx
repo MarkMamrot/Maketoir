@@ -1452,10 +1452,10 @@ function PettyCashModal({ registerSessionId, onSaved, onCancel }: {
             <input maxLength={500} value={reason} onChange={event => setReason(event.target.value)} style={{ ...inputStyle, marginTop: 5 }} />
           </label>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', marginBottom: 5 }}>GST</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', marginBottom: 5 }}>GST ON RECEIPT</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
-              <button type="button" onClick={() => setGstTreatment('gst')} style={{ padding: '9px 8px', border: 0, borderRight: '1px solid var(--sv-etch)', background: gstTreatment === 'gst' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: gstTreatment === 'gst' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>GST on Expenses</button>
-              <button type="button" onClick={() => setGstTreatment('bas_excluded')} style={{ padding: '9px 8px', border: 0, background: gstTreatment === 'bas_excluded' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: gstTreatment === 'bas_excluded' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>BAS Excluded</button>
+              <button type="button" onClick={() => setGstTreatment('gst')} style={{ minHeight: 48, padding: '8px 10px', border: 0, borderRight: '1px solid var(--sv-etch)', background: gstTreatment === 'gst' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: gstTreatment === 'gst' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Purchase price includes GST</button>
+              <button type="button" onClick={() => setGstTreatment('bas_excluded')} style={{ minHeight: 48, padding: '8px 10px', border: 0, background: gstTreatment === 'bas_excluded' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: gstTreatment === 'bas_excluded' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>No GST on receipt</button>
             </div>
           </div>
           <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>RECEIPT

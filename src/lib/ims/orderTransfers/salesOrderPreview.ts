@@ -7,6 +7,7 @@ import {
   type OrderTransferDocument,
   type OrderTransferQuantityRules,
 } from './domain';
+import { preflightSalesOrderXeroDocuments, type SalesOrderXeroClearances } from './salesOrderXeroPreflight';
 
 export class OrderTransferPreviewConflict extends Error {
   readonly code = 'order_transfer_preview_conflict';
@@ -79,7 +80,8 @@ export type SalesOrderTransferPreview = {
   excludedTargets: SalesOrderTransferTarget[];
 };
 
-function asTransferDocument(row: SalesOrderPreviewRow): OrderTransferDocument {
+function asTransferDocument(row: SalesOrderPreviewRow, clearances: SalesOrderXeroClearances): OrderTransferDocument {
+  const clearance = clearances[Number(row.id)];
   return {
     id: Number(row.id),
     kind: 'sales_order',
@@ -96,7 +98,9 @@ function asTransferDocument(row: SalesOrderPreviewRow): OrderTransferDocument {
     status: String(row.status),
     hasPayments: Boolean(Number(row.has_payments ?? 0)),
     xeroDocumentId: row.xero_invoice_id ?? null,
-    xeroDocumentStatus: row.xero_invoice_id ? 'UNKNOWN' : null,
+    xeroDocumentStatus: clearance?.status ?? (row.xero_invoice_id ? 'UNKNOWN' : null),
+    xeroDocumentEditable: clearance?.documentId === row.xero_invoice_id && clearance.editable,
+    xeroDocumentConflict: clearance?.documentId === row.xero_invoice_id ? clearance.conflict : null,
     hasSubmittedShipment: Boolean(Number(row.has_submitted_shipment ?? 0)),
     commerciallyEditable: !Number(row.is_historical ?? 0) && String(row.so_type ?? 'b2b') !== 'online',
   };
@@ -151,9 +155,6 @@ export async function previewSalesOrderTransfer(input: {
     businessId: input.businessId,
     soId: input.sourceOrderId,
   });
-  const sourceDocument = asTransferDocument(sourceRow);
-  const sourceConflicts = getOrderTransferDocumentConflicts(sourceDocument, 'Source');
-
   const [candidateRows] = await pool.execute<SalesOrderPreviewRow[]>(
     `SELECT so.id, so.so_number, so.business_id, so.customer_id, customer.name AS customer_name,
             so.location_id, location.name AS location_name, so.order_date, so.status,
@@ -179,8 +180,19 @@ export async function previewSalesOrderTransfer(input: {
     [input.businessId, input.sourceOrderId, sourceRow.customer_id],
   );
 
+  const xeroClearances = await preflightSalesOrderXeroDocuments(
+    input.businessId,
+    [sourceRow, ...candidateRows].map(row => ({
+      orderId: Number(row.id),
+      orderNumber: String(row.so_number),
+      xeroDocumentId: row.xero_invoice_id ?? null,
+    })),
+  );
+  const sourceDocument = asTransferDocument(sourceRow, xeroClearances);
+  const sourceConflicts = getOrderTransferDocumentConflicts(sourceDocument, 'Source');
+
   const targets = candidateRows.map(row => {
-    const conflicts = getOrderTransferConflicts(sourceDocument, asTransferDocument(row));
+    const conflicts = getOrderTransferConflicts(sourceDocument, asTransferDocument(row, xeroClearances));
     return asTarget(row, conflicts);
   });
 

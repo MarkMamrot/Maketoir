@@ -34,6 +34,8 @@ export type OrderTransferDocument = {
   hasPayments?: boolean;
   xeroDocumentId?: string | null;
   xeroDocumentStatus?: string | null;
+  xeroDocumentEditable?: boolean;
+  xeroDocumentConflict?: string | null;
   hasSubmittedShipment?: boolean;
   commerciallyEditable?: boolean;
 };
@@ -95,11 +97,17 @@ export function getOrderTransferDocumentConflicts(
   }
   if (document.hasPayments) conflicts.push(`${role} order has payments.`);
   if (document.xeroDocumentId) {
+    if (document.xeroDocumentConflict) {
+      conflicts.push(`${role} order ${document.xeroDocumentConflict}`);
+    } else if (document.xeroDocumentEditable === true) {
+      // Live Xero preflight confirmed this exact linked document is safely editable.
+    } else {
     const xeroStatus = normalizedText(document.xeroDocumentStatus).toUpperCase();
     if (!xeroStatus || xeroStatus === 'UNKNOWN') {
       conflicts.push(`${role} order has a Xero document that must be checked.`);
     } else if (xeroStatus !== 'DRAFT') {
       conflicts.push(`${role} order has a non-Draft Xero document.`);
+    }
     }
   }
   if (document.hasSubmittedShipment) conflicts.push(`${role} order has a submitted shipment.`);

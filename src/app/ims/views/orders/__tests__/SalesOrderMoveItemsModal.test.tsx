@@ -68,6 +68,8 @@ describe('SalesOrderMoveItemsModal', () => {
     render(<SalesOrderMoveItemsModal order={{ id: 7, so_number: 'SO-7' }} onClose={onClose} onMoved={onMoved} />);
 
     expect(await screen.findByText('Blue Shirt')).toBeTruthy();
+    expect((screen.getByRole('dialog').firstElementChild as HTMLElement).style.background).toContain('--sv-bg-1');
+    expect((screen.getByRole('dialog').firstElementChild as HTMLElement).style.color).toContain('--sv-text-strong');
     expect(fetch).toHaveBeenCalledWith('/api/ims/sales-orders/7/transfers/preview', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     await user.click(screen.getByRole('button', { name: /Ready now/ }));
     expect((screen.getByRole('spinbutton', { name: 'Quantity to move' }) as HTMLInputElement).value).toBe('3');

@@ -4,12 +4,14 @@ const { execute, previewSalesOrderSourcing } = vi.hoisted(() => ({
   execute: vi.fn(),
   previewSalesOrderSourcing: vi.fn(),
 }));
+const preflightSalesOrderXeroDocuments = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ execute })),
 }));
 
 vi.mock('../salesOrderSourcing', () => ({ previewSalesOrderSourcing }));
+vi.mock('../orderTransfers/salesOrderXeroPreflight', () => ({ preflightSalesOrderXeroDocuments }));
 
 import { previewSalesOrderTransfer } from '../orderTransfers/salesOrderPreview';
 
@@ -61,6 +63,7 @@ const excluded = {
 describe('sales order transfer preview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    preflightSalesOrderXeroDocuments.mockResolvedValue({});
     previewSalesOrderSourcing.mockResolvedValue({
       lines: [{
         soItemId: 11,

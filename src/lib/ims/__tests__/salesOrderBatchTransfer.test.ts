@@ -17,6 +17,9 @@ vi.mock('../orderTransfers/salesOrderTransfer', () => ({
   SalesOrderTransferConflict: class SalesOrderTransferConflict extends Error {},
   transferSalesOrderItemsInTransaction: transferInTransaction,
 }));
+vi.mock('../orderTransfers/salesOrderXeroReconciliation', () => ({
+  reconcileSalesOrderTransferXero: vi.fn().mockResolvedValue([]),
+}));
 
 import { transferSalesOrderItemsBatch } from '../orderTransfers/salesOrderBatchTransfer';
 
@@ -130,6 +133,11 @@ describe('transferSalesOrderItemsBatch', () => {
 
     vi.clearAllMocks();
     execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id, so_number, xero_invoice_id')) return [[
+        { id: 10, so_number: 'SO-10', xero_invoice_id: null },
+        { id: 20, so_number: 'SO-20', xero_invoice_id: null },
+        { id: 30, so_number: 'SO-30', xero_invoice_id: null },
+      ]];
       if (sql.includes('FROM ims_order_amendment_operations')) return [[{
         request_hash: requestHash,
         state: 'complete',
