@@ -3,16 +3,17 @@
   "topics": [
     {
       "id": "foresight-business-intelligence",
-      "title": "Business Intelligence and Inventory Analysis",
+      "title": "Business Profile",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Intel & Automation > Business Intelligence",
+      "screen": "IMS > Automations > Business Profile",
       "product": "foresight",
       "format": "overview",
       "parentId": "foresight-workspaces",
       "contexts": [
+        "business-profile",
         "business-intelligence",
         "business-info",
         "brand-profile",
@@ -26,6 +27,7 @@
         "stock-turnover"
       ],
       "contextSections": {
+        "business-profile": "Business information and data",
         "business-intelligence": "Business information and data",
         "business-info": "Business information and data",
         "brand-profile": "Business information and data",
@@ -55,8 +57,8 @@
       "sections": [
         {
           "id": "foresight-business-intelligence:1",
-          "heading": "Business Intelligence and Inventory Analysis",
-          "content": "Use Business Intelligence to check the information behind a result before changing stock, pricing, marketing, or merchandising.",
+          "heading": "Business Profile",
+          "content": "Use Business Profile to keep the information behind analysis current. Open **IMS > Reports** to investigate inventory results before changing stock, pricing, or merchandising.",
           "presentation": "detail"
         },
         {
@@ -116,7 +118,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "IMS > Brand Assets; Intel & Automation > Customer Service",
+      "screen": "IMS > Automations > Brand Assets and Customer Service",
       "product": "foresight",
       "format": "overview",
       "parentId": "foresight-workspaces",
@@ -161,7 +163,7 @@
         {
           "id": "foresight-content-service:1",
           "heading": "Brand Assets, Content, and Service",
-          "content": "Use **IMS > Brand Assets** to prepare reliable brand inputs, then choose the right Intel & Automation content or customer-service workflow.",
+          "content": "Use **IMS > Automations > Brand Assets** to prepare reliable brand inputs, then choose the right content or customer-service workflow.",
           "presentation": "detail"
         },
         {
@@ -209,7 +211,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "IMS > Automations and Settings; Intel & Automation > Customer Service",
+      "screen": "IMS > Automations and Settings",
       "product": "foresight",
       "format": "task",
       "parentId": "foresight-content-service",
@@ -701,13 +703,13 @@
         {
           "id": "foresight-workspaces:2",
           "heading": "Main operations",
-          "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts and source freshness; use **IMS > Reports** for inventory analysis.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review.\n\nSome developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu.",
+          "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use **IMS > Automations > Business Profile** to maintain business information and refresh source data.\n- Use **IMS > Reports** to investigate inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use **IMS > Automations** to prepare online listings, manage brand assets, and handle customer service.\n\nSome developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu.",
           "presentation": "quick"
         },
         {
           "id": "foresight-workspaces:3",
           "heading": "Choose a workspace",
-          "content": "| You need to | Open | What you get | Does opening it change anything outside Solvantis? |\n| --- | --- | --- | --- |\n| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |\n| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |\n| Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |\n| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |\n| Prepare product content or a customer reply | **IMS > Automations** or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |\n\n> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened.",
+          "content": "| You need to | Open | What you get | Does opening it change anything outside Solvantis? |\n| --- | --- | --- | --- |\n| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |\n| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |\n| Maintain business information and refresh sources | **IMS > Automations > Business Profile** | Current business context and source information | No |\n| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |\n| Prepare product content or a customer reply | **IMS > Automations** | A draft for a person to check | Not until a person uses the available send or publish action |\n\n> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened.",
           "presentation": "quick"
         },
         {
@@ -1112,13 +1114,13 @@
         {
           "id": "ims-workspaces:2",
           "heading": "Main operations",
-          "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, **Automations** to prepare batches of online listings, or **Brand Assets** to maintain reusable creative references.\n- Select **Intel & Automation** in the top bar for analytics, planning, marketing, and customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
+          "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.\n- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.\n- Open **Settings** in the IMS sidebar for Connections, Data Source, and Web Field Templates.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
           "presentation": "quick"
         },
         {
           "id": "ims-workspaces:3",
           "heading": "Choose a workspace",
-          "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |\n| Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |\n| Maintain reusable creative references | **Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
+          "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |\n| Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |\n| Maintain business information and brand profile | **Automations > Business Profile** | Business Key Information, Brand Profile, Sync Data, and Reports |\n| Maintain reusable creative references | **Automations > Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |\n| Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |\n| Configure data connections and Web Field Templates | **Settings** | Connections, Data Source, and Web Field Templates |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
           "presentation": "quick"
         },
         {

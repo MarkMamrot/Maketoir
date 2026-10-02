@@ -8,8 +8,9 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 ## Main operations
 
 - Use the Dashboard to spot work that needs attention.
-- Select **Reports** to investigate inventory and business results, **Automations** to prepare batches of online listings, or **Brand Assets** to maintain reusable creative references.
-- Select **Intel & Automation** in the top bar for analytics, planning, marketing, and customer-service work. Intel & Automation is not a separate option on the login menu.
+- Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.
+- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.
+- Open **Settings** in the IMS sidebar for Connections, Data Source, and Web Field Templates.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
@@ -30,7 +31,10 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 | Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |
 | Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |
 | Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |
-| Maintain reusable creative references | **Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |
+| Maintain business information and brand profile | **Automations > Business Profile** | Business Key Information, Brand Profile, Sync Data, and Reports |
+| Maintain reusable creative references | **Automations > Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |
+| Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |
+| Configure data connections and Web Field Templates | **Settings** | Connections, Data Source, and Web Field Templates |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
 
 ## How summaries work

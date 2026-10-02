@@ -3,7 +3,7 @@
   "sources": [
     {
       "id": "public-capability:foresight-business-intelligence",
-      "title": "Business Intelligence and Inventory Analysis",
+      "title": "Business Profile",
       "summary": "Keep business information current and investigate performance or inventory signals before acting.",
       "capabilities": [
         "foresight",

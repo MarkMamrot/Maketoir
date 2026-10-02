@@ -43,15 +43,6 @@ const NAV: NavItem[] = [
   { id: 'home',      label: 'Dashboard',            icon: 'home', children: [] },
   { id: 'ai-helper', label: 'AI Helper',             icon: 'ai-helper', children: [] },
   {
-    id: 'business-intelligence', label: 'Business Intelligence', icon: 'ai-helper',
-    children: [
-      { id: 'business-info', label: 'Business/Brand Key Information' },
-      { id: 'brand-profile', label: 'Brand Profile' },
-      { id: 'sync-data', label: 'Sync Data' },
-      { id: 'calculated-data', label: 'Reports' },
-    ],
-  },
-  {
     id: 'marketing', label: 'Marketing Activities', icon: 'marketing',
     children: [
       { id: 'sync-ads', label: 'Sync Marketing Data' },
@@ -62,23 +53,12 @@ const NAV: NavItem[] = [
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
     ],
   },
-  {
-    id: 'customer-service', label: 'Customer Service', icon: 'customer-service',
-    children: [
-      { id: 'cs-inbox',      label: 'Inbox'            },
-      { id: 'cs-compose',    label: 'Compose Email'    },
-      { id: 'cs-templates',  label: 'Email Templates'  },
-    ],
-  },
 ];
 
 const SETTINGS_NAV: NavItem = {
   id: 'settings', label: 'Settings', icon: 'settings',
   children: [
-    { id: 'connections',        label: 'Connections' },
     { id: 'marketing-settings', label: 'Marketing Settings' },
-    { id: 'data-source',        label: 'Data Source' },
-    { id: 'product-description-template', label: 'Web Field Templates' },
   ],
 };
 
@@ -89,6 +69,8 @@ const DASHBOARD_VIEW_IDS = new Set<string>([
   'inactive-candidates', 'lost-candidates', 'space-analysis', 'stock-turnover',
   'pending-online', 'bulk-edit-listings', 'brand-assets', 'brand-assets-models',
   'brand-assets-backdrops', 'brand-assets-poses', 'brand-assets-scenes', 'brand-assets-templates',
+  'business-info', 'brand-profile', 'sync-data', 'calculated-data', 'cs-inbox', 'cs-compose', 'cs-templates',
+  'connections', 'data-source', 'product-description-template',
 ]);
 
 const MARKETING_VIEW_IDS = new Set(['marketing', 'sync-ads', 'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit', 'marketing-settings']);
@@ -172,7 +154,7 @@ function Sidebar({
 
       {!collapsed && item.children.length > 0 && expanded[item.id] && (
         <div className="mt-0.5 ml-4 pl-2 border-l-2 border-gray-200 space-y-0.5">
-          {item.children.map(child =>
+          {item.children.map(child => (
             <button
               key={child.id}
               onClick={() => onSelect(child.id)}
@@ -183,7 +165,7 @@ function Sidebar({
             >
               {child.label}
             </button>
-          )}
+          ))}
         </div>
       )}
     </div>;
@@ -9073,6 +9055,11 @@ export default function DashboardPage() {
   useEffect(() => {
     const fromHash = parseDashboardViewFromHash(window.location.hash);
     if (fromHash) setActiveView(fromHash);
+    const settingsView = new URLSearchParams(window.location.search).get('settings');
+    if (settingsView && ['connections', 'data-source', 'product-description-template'].includes(settingsView)) {
+      setActiveSettingView(settingsView);
+      setSettingsOpen(true);
+    }
     setHashReady(true);
 
     const onHashChange = () => {

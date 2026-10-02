@@ -163,13 +163,29 @@ const NAV = [
   { id: '__automation',    label: 'Automations',      section: 'automation', children: [
     { id: 'pending-online', label: 'Bulk Online Listing Generator', href: '/dashboard#pending-online' },
     { id: 'bulk-edit-listings', label: 'Bulk Edit Existing Listings', href: '/dashboard#bulk-edit-listings' },
+    { id: '__business-profile', label: 'Business Profile', children: [
+      { id: 'business-info', label: 'Business Key Information', href: '/dashboard#business-info' },
+      { id: 'brand-profile', label: 'Brand Profile', href: '/dashboard#brand-profile' },
+      { id: 'sync-data', label: 'Sync Data', href: '/dashboard#sync-data' },
+      { id: 'calculated-data', label: 'Reports', href: '/dashboard#calculated-data' },
+    ]},
+    { id: '__brand-assets', label: 'Brand Assets', children: [
+      { id: 'brand-assets-models', label: 'Models', href: '/dashboard#brand-assets-models' },
+      { id: 'brand-assets-backdrops', label: 'Backdrops', href: '/dashboard#brand-assets-backdrops' },
+      { id: 'brand-assets-poses', label: 'Poses', href: '/dashboard#brand-assets-poses' },
+      { id: 'brand-assets-scenes', label: 'Scenes', href: '/dashboard#brand-assets-scenes' },
+      { id: 'brand-assets-templates', label: 'Templates', href: '/dashboard#brand-assets-templates' },
+    ]},
+    { id: '__customer-service', label: 'Customer Service', children: [
+      { id: 'cs-inbox', label: 'Inbox', href: '/dashboard#cs-inbox' },
+      { id: 'cs-compose', label: 'Compose Email', href: '/dashboard#cs-compose' },
+      { id: 'cs-templates', label: 'Email Templates', href: '/dashboard#cs-templates' },
+    ]},
   ]},
-  { id: '__brand-assets',  label: 'Brand Assets',     section: 'brand-assets', children: [
-    { id: 'brand-assets-models', label: 'Models', href: '/dashboard#brand-assets-models' },
-    { id: 'brand-assets-backdrops', label: 'Backdrops', href: '/dashboard#brand-assets-backdrops' },
-    { id: 'brand-assets-poses', label: 'Poses', href: '/dashboard#brand-assets-poses' },
-    { id: 'brand-assets-scenes', label: 'Scenes', href: '/dashboard#brand-assets-scenes' },
-    { id: 'brand-assets-templates', label: 'Templates', href: '/dashboard#brand-assets-templates' },
+  { id: '__settings',      label: 'Settings',         section: 'settings', children: [
+    { id: 'connections', label: 'Connections', href: '/dashboard?settings=connections' },
+    { id: 'data-source', label: 'Data Source', href: '/dashboard?settings=data-source' },
+    { id: 'product-description-template', label: 'Web Field Templates', href: '/dashboard?settings=product-description-template' },
   ]},
   { id: '__finances',       label: 'Finances',         section: 'finances', children: [
     { id: 'report-bookkeeper-audit', label: 'Accounting Audit' },
@@ -638,7 +654,8 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, '__brand-assets': false, __finances: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, __settings: false, __finances: false, __integrations: false });
+  const [nestedOpen, setNestedOpen] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
   const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
@@ -702,7 +719,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     __reports:          'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     __automation:      'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z',
-    '__brand-assets':  'M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6',
+    __settings:        'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82',
     __finances:         'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     'sales-channels':   'M3 7h18M5 7l1-4h12l1 4M5 7v13h14V7M9 20v-6h6v6',
@@ -805,6 +822,30 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
                       borderLeft: '3px solid transparent', borderRadius: 0,
                     }}
                   >{child.label}</a>
+                ) : child.children?.length ? (
+                  <React.Fragment key={child.id}>
+                    <button type="button" data-testid={`ims-nav-${child.id}`} aria-expanded={Boolean(nestedOpen[child.id])}
+                      onClick={() => setNestedOpen(previous => ({ ...previous, [child.id]: !previous[child.id] }))}
+                      style={{
+                        width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                        padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        color: '#475569', fontSize: 13, fontWeight: 550, textAlign: 'left',
+                      }}
+                    >
+                      {child.label}
+                      <span aria-hidden="true" style={{ color: '#94a3b8', fontSize: 11 }}>{nestedOpen[child.id] ? '▾' : '▸'}</span>
+                    </button>
+                    {nestedOpen[child.id] && child.children.map((grandchild: any) => (
+                      <a key={grandchild.id} data-testid={`ims-nav-${grandchild.id}`} href={grandchild.href}
+                        onClick={() => openOnlySection(item.id)}
+                        style={{
+                          display: 'block', textDecoration: 'none',
+                          padding: '6px 12px 6px 30px', color: '#64748b', fontSize: 12, fontWeight: 400,
+                          lineHeight: 1.4, borderLeft: '3px solid transparent',
+                        }}
+                      >{grandchild.label}</a>
+                    ))}
+                  </React.Fragment>
                 ) : (
                   <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => { openOnlySection(item.id); onSelect(child.id as ImsView); }}
                     style={{
@@ -28057,10 +28098,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </button>
           );
         })}
-        <a href="/dashboard#product-description-template" style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', color: 'var(--sv-text-dim)', fontWeight: 400, fontSize: 13, textAlign: 'left', textDecoration: 'none', borderLeft: '3px solid transparent' }}>
-          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>▤</span>
-          Web Field Templates
-        </a>
       </div>
 
       {/* Right content */}
