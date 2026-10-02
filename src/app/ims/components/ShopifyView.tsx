@@ -687,6 +687,7 @@ export function ShopifyOrdersTab({ section = 'all', canManage = false }: { secti
   const [importResult,   setImportResult]   = useState<any>(null);
   const [importError,    setImportError]    = useState<string | null>(null);
   const [reconciling,    setReconciling]    = useState(false);
+  const [reconcileHours, setReconcileHours] = useState('36');
   const [reconcileResult, setReconcileResult] = useState<any>(null);
   const [reconcileError, setReconcileError] = useState<string | null>(null);
 
@@ -757,10 +758,19 @@ export function ShopifyOrdersTab({ section = 'all', canManage = false }: { secti
   async function runFulfilmentReconciliation() {
     const channelInstanceId = shopifySelection.channelInstanceId;
     if (!channelInstanceId) return;
-    if (!window.confirm('Check this Shopify store for fully fulfilled orders updated in the previous 36 hours? Eligible mismatches will update Sales Order status, stock, and allocations.')) return;
+    const hours = Number(reconcileHours);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 168) {
+      setReconcileError('Hours must be a whole number from 1 to 168.');
+      return;
+    }
+    if (!window.confirm(`Check this Shopify store for fully fulfilled orders updated in the previous ${hours} hours? Eligible mismatches will update Sales Order status, stock, and allocations.`)) return;
     setReconciling(true); setReconcileResult(null); setReconcileError(null);
     try {
-      const response = await fetch(`/api/ims/channels/${encodeURIComponent(channelInstanceId)}/shopify/reconcile-fulfilments`, { method: 'POST' });
+      const response = await fetch(`/api/ims/channels/${encodeURIComponent(channelInstanceId)}/shopify/reconcile-fulfilments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours }),
+      });
       const data = await response.json();
       if (!response.ok && response.status !== 207) throw new Error(data.error || 'Fulfilment reconciliation failed.');
       setReconcileResult(data);
@@ -776,6 +786,8 @@ export function ShopifyOrdersTab({ section = 'all', canManage = false }: { secti
   const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' };
   const input: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%', boxSizing: 'border-box' as const };
   const btn = (primary?: boolean): React.CSSProperties => ({ padding: '8px 20px', background: primary ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: primary ? '#fff' : 'var(--sv-text-main)', border: `1px solid ${primary ? 'transparent' : 'var(--sv-etch)'}`, borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 });
+  const reconcileHoursValue = Number(reconcileHours);
+  const reconcileHoursValid = Number.isInteger(reconcileHoursValue) && reconcileHoursValue >= 1 && reconcileHoursValue <= 168;
 
   const webhookUrl = shopifySelection.channelInstanceId
     ? (typeof window !== 'undefined' ? window.location.origin : '') + `/api/webhooks/shopify/channels/${shopifySelection.channelInstanceId}`
@@ -839,11 +851,18 @@ export function ShopifyOrdersTab({ section = 'all', canManage = false }: { secti
       <div style={card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Fulfilment reconciliation</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Check fully fulfilled Shopify orders updated during the previous 36 hours and repair eligible Sales Orders missed by normal webhook processing.
+          Check fully fulfilled Shopify orders updated during a recent period and repair eligible Sales Orders missed by normal webhook processing.
         </p>
-        <button type="button" onClick={() => void runFulfilmentReconciliation()} disabled={!canManage || !syncEnabled || !shopifySelection.channelInstanceId || reconciling} style={{ ...btn(true), display: 'inline-flex', alignItems: 'center', gap: 7, opacity: !canManage || !syncEnabled || !shopifySelection.channelInstanceId ? .55 : 1 }}>
-          <RefreshCw size={14} /> {reconciling ? 'Checking fulfilments…' : 'Check last 36 hours'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ width: 140 }}>
+            <label htmlFor="shopify-reconciliation-hours" style={label}>Hours to check</label>
+            <input id="shopify-reconciliation-hours" type="number" min={1} max={168} step={1} value={reconcileHours} onChange={event => setReconcileHours(event.target.value)} disabled={reconciling} style={input} />
+          </div>
+          <button type="button" onClick={() => void runFulfilmentReconciliation()} disabled={!canManage || !syncEnabled || !shopifySelection.channelInstanceId || !reconcileHoursValid || reconciling} style={{ ...btn(true), display: 'inline-flex', alignItems: 'center', gap: 7, opacity: !canManage || !syncEnabled || !shopifySelection.channelInstanceId || !reconcileHoursValid ? .55 : 1 }}>
+            <RefreshCw size={14} /> {reconciling ? 'Checking fulfilments…' : `Check last ${reconcileHoursValid ? reconcileHoursValue : '?'} hours`}
+          </button>
+        </div>
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)' }}>Enter a whole number from 1 to 168 hours.</div>
         {!canManage && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--sv-text-dim)' }}>Administrator access is required.</div>}
         {reconcileError && <div role="alert" style={{ marginTop: 12, color: 'var(--sv-red)', fontSize: 12 }}>{reconcileError}</div>}
         {reconcileResult && <div style={{ marginTop: 14, padding: 12, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', borderRadius: 6 }}>

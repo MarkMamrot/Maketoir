@@ -51,12 +51,19 @@ describe('ShopifyOrdersTab fulfilment reconciliation', () => {
       </ShopifyInstanceScope>,
     );
 
-    const button = await screen.findByRole('button', { name: 'Check last 36 hours' });
+    const hours = await screen.findByRole('spinbutton', { name: 'Hours to check' });
+    await user.clear(hours);
+    await user.type(hours, '72');
+    const button = screen.getByRole('button', { name: 'Check last 72 hours' });
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
     await user.click(button);
 
     expect(window.confirm).toHaveBeenCalled();
-    expect(fetch).toHaveBeenCalledWith('/api/ims/channels/store-1/shopify/reconcile-fulfilments', { method: 'POST' });
+    expect(fetch).toHaveBeenCalledWith('/api/ims/channels/store-1/shopify/reconcile-fulfilments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hours: 72 }),
+    });
     expect(await screen.findByText('Repaired')).toBeTruthy();
     expect(screen.getByText('Repaired').parentElement?.textContent).toBe('Repaired1');
     expect(screen.getByText('Already current').parentElement?.textContent).toBe('Already current1');
