@@ -4,6 +4,10 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { switchBusinessContext } from '@/components/BusinessContextSwitcher';
+import {
+  DEFAULT_KLAVIYO_INTEGRATION_SETTINGS,
+  type KlaviyoIntegrationSettings,
+} from '@/lib/klaviyo/contracts';
 
 // --- Embedded Business Info Component ---
 export function BusinessInfoTab({ business }: { business: { name: string; userId: string; databaseId: string } | null }) {
@@ -952,6 +956,13 @@ function ConnectionStatus({ result }: { result: any }) {
 // --- Embedded Connections Component ---
 export interface Business { name: string; userId: string; databaseId: string; }
 
+const KLAVIYO_SOURCE_OPTIONS = [
+  { key: 'pos', label: 'POS sales' },
+  { key: 'nativeShop', label: 'Solvantis Online Shop' },
+  { key: 'wholesale', label: 'Wholesale and IMS sales' },
+  { key: 'shopify', label: 'Shopify orders' },
+] as const;
+
 export function ConnectionsTab({ business, onHelp }: { business: Business | null; onHelp: (context: string) => void }) {
   // Per-business credential state
   const [shopifyEnabled, setShopifyEnabled] = useState(false);
@@ -999,6 +1010,9 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const [gmailClientId, setGmailClientId] = useState('');
   const [gmailClientSecret, setGmailClientSecret] = useState('');
   const [klaviyoApiKey, setKlaviyoApiKey] = useState('');
+  const [klaviyoSettings, setKlaviyoSettings] = useState<KlaviyoIntegrationSettings>(DEFAULT_KLAVIYO_INTEGRATION_SETTINGS);
+  const [klaviyoSettingsLoading, setKlaviyoSettingsLoading] = useState(false);
+  const [klaviyoTenantReady, setKlaviyoTenantReady] = useState<boolean | null>(null);
 
   // Xero OAuth state
   const [xeroStatus, setXeroStatus] = useState<{
@@ -1125,6 +1139,8 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       setMetaResult(null); setCin7Result(null); setGmailResult(null); setKlaviyoResult(null);
       setXeroStatus(null); setGoogleStatus(null); setGoogleMessage('');
       setShopifyEnabled(false);
+      setKlaviyoSettings(DEFAULT_KLAVIYO_INTEGRATION_SETTINGS);
+      setKlaviyoTenantReady(null);
 
     const databaseId = business.databaseId;
 
@@ -1241,6 +1257,19 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       }
       if (klKey) {
         pingKlaviyo(klKey);
+      }
+      setKlaviyoSettingsLoading(true);
+      try {
+        const response = await fetch(`/api/klaviyo/settings?databaseId=${encodeURIComponent(databaseId)}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to load Klaviyo settings.');
+        setKlaviyoSettings(data.settings);
+        setKlaviyoTenantReady(data.tenantReady === true);
+      } catch (error) {
+        setKlaviyoTenantReady(null);
+        setCardMsgs(previous => ({ ...previous, klaviyo: `❌ ${error instanceof Error ? error.message : 'Unable to load settings.'}` }));
+      } finally {
+        setKlaviyoSettingsLoading(false);
       }
       if (sid && (shopMode === 'client_credentials' ? shopClientId && shopClientSecretConfigured : sat)) {
         try {
@@ -1477,6 +1506,35 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       setKlaviyoResult(await res.json());
     } catch (err: any) { setKlaviyoResult({ success: false, error: err.message }); }
     setKlaviyoLoading(false);
+  };
+
+  const saveKlaviyo = async () => {
+    if (!business?.databaseId) return;
+    setSavingCard('klaviyo');
+    setCardMsgs(previous => ({ ...previous, klaviyo: '' }));
+    try {
+      const connectionResponse = await fetch('/api/user/business-connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: business.databaseId, connections: { KlaviyoApiKey: klaviyoApiKey } }),
+      });
+      const connectionData = await connectionResponse.json();
+      if (!connectionResponse.ok) throw new Error(connectionData.error || 'Unable to save the Klaviyo connection.');
+
+      const settingsResponse = await fetch('/api/klaviyo/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: business.databaseId, settings: klaviyoSettings }),
+      });
+      const settingsData = await settingsResponse.json();
+      if (!settingsResponse.ok) throw new Error(settingsData.error || 'Unable to save Klaviyo settings.');
+      setKlaviyoSettings(settingsData.settings);
+      setCardMsgs(previous => ({ ...previous, klaviyo: '✅ Saved' }));
+    } catch (error) {
+      setCardMsgs(previous => ({ ...previous, klaviyo: `❌ ${error instanceof Error ? error.message : 'Save failed'}` }));
+    } finally {
+      setSavingCard(null);
+    }
   };
 
   const buildInstructions = async (api: string) => {
@@ -1770,9 +1828,10 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
               <h2 className="text-lg font-bold">Klaviyo</h2>
               <ConnectionStatus result={klaviyoResult} />
             </div>
+            <button onClick={() => onHelp('klaviyo')} className="text-xs text-blue-500 hover:underline">Setup help</button>
           </div>
           <p className="text-xs text-gray-500 -mt-2">
-            Connect Klaviyo to sync email campaigns, automation flows and subscriber lists into the Marketing Data sheet for AI analysis.
+            Connect Klaviyo for marketing analysis and controlled customer and commerce event sync.
           </p>
           <div className="w-full">
             <label className="block text-xs font-semibold text-gray-600 mb-1">Private API Key</label>
@@ -1785,13 +1844,71 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
             />
             <p className="text-xs text-gray-400 mt-1">Found in Klaviyo → Settings → API Keys → Create Private API Key.</p>
           </div>
+          <div className="w-full border-t border-gray-100 pt-4 space-y-3">
+            <label className="flex items-center justify-between gap-4 text-sm font-semibold text-gray-800">
+              Enable customer and commerce sync
+              <input
+                type="checkbox"
+                checked={klaviyoSettings.enabled}
+                disabled={klaviyoSettingsLoading || (!klaviyoSettings.enabled && klaviyoTenantReady !== true)}
+                onChange={event => setKlaviyoSettings(current => ({ ...current, enabled: event.target.checked }))}
+                className="h-4 w-4 accent-teal-600"
+              />
+            </label>
+            {klaviyoTenantReady === false && (
+              <p className="border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                Customer and commerce sync is not available for this business yet.
+              </p>
+            )}
+            <fieldset disabled={!klaviyoSettings.enabled || klaviyoSettingsLoading} className="space-y-3 disabled:opacity-50">
+              <label className="flex items-center justify-between gap-4 text-sm text-gray-700">
+                Sync customer profiles
+                <input
+                  type="checkbox"
+                  checked={klaviyoSettings.profilesEnabled}
+                  onChange={event => setKlaviyoSettings(current => ({ ...current, profilesEnabled: event.target.checked }))}
+                  className="h-4 w-4 accent-teal-600"
+                />
+              </label>
+              <div className="border-t border-gray-100 pt-3">
+                <p className="mb-2 text-xs font-semibold text-gray-600">Commerce event sources</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {KLAVIYO_SOURCE_OPTIONS.map(option => (
+                    <label key={option.key} className="flex items-center gap-2 text-xs text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={klaviyoSettings.sources[option.key]}
+                        onChange={event => setKlaviyoSettings(current => ({
+                          ...current,
+                          sources: { ...current.sources, [option.key]: event.target.checked },
+                        }))}
+                        className="h-4 w-4 accent-teal-600"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {klaviyoSettings.sources.shopify && (
+                <label className="flex items-start gap-2 border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <input
+                    type="checkbox"
+                    checked={klaviyoSettings.shopifyDuplicateRiskAcknowledged}
+                    onChange={event => setKlaviyoSettings(current => ({ ...current, shopifyDuplicateRiskAcknowledged: event.target.checked }))}
+                    className="mt-0.5 h-4 w-4 accent-amber-700"
+                  />
+                  I have confirmed this store is not already sending the same commerce events directly to Klaviyo.
+                </label>
+              )}
+            </fieldset>
+          </div>
           <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
             <button onClick={testKlaviyoSync} disabled={klaviyoLoading || !klaviyoApiKey} className="px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition disabled:opacity-40">
               {klaviyoLoading ? 'Testing...' : 'Test Connection'}
             </button>
             <div className="flex items-center gap-2">
               {cardMsgs['klaviyo'] && <span className="text-xs font-medium">{cardMsgs['klaviyo']}</span>}
-              <button onClick={() => saveCard('klaviyo')} disabled={savingCard === 'klaviyo'} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition">
+              <button onClick={saveKlaviyo} disabled={savingCard === 'klaviyo' || klaviyoSettingsLoading} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
                 {savingCard === 'klaviyo' ? 'Saving...' : 'Save'}
               </button>
             </div>

@@ -1,5 +1,5 @@
 ---
-{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"]}
+{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Configure Klaviyo customer and sales sync"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-10-03","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"]}
 ---
 # Connections and Setup
 
@@ -41,6 +41,19 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |
 
 A green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.
+
+## Configure Klaviyo customer and sales sync
+
+1. Enter and save the Klaviyo private API key, then select **Test Connection**.
+2. Turn on **Enable customer and commerce sync**.
+3. Turn on **Sync customer profiles** before selecting any commerce event source.
+4. Select each Solvantis sales source that should send identified commerce events.
+5. For Shopify, first confirm that the store is not already sending the same events directly to Klaviyo, then acknowledge the duplicate-event risk.
+6. Select **Save**.
+
+The master switch stops all customer and commerce event processing for the business. Each source switch independently controls events from that source. All switches start off. Turning the integration off does not delete Klaviyo profiles or previously delivered events.
+
+Solvantis matches eligible customer contacts using its stable contact identity plus normalized email and phone details. It does not subscribe or unsubscribe people, and it does not treat promotional email or SMS preferences as Klaviyo consent. Identity conflicts stop the affected event for review rather than linking profiles by guesswork.
 
 ## Connect Shopify
 

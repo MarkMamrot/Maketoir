@@ -5090,7 +5090,7 @@
         "cin7": "Connection readiness",
         "meta": "Connection readiness",
         "google": "Connection readiness",
-        "klaviyo": "Connection readiness"
+        "klaviyo": "Configure Klaviyo customer and sales sync"
       },
       "relatedTopics": [
         "setup-business-brand-appearance",
@@ -5101,7 +5101,7 @@
       ],
       "order": 1,
       "summary": "Choose the right Setup area and understand when a connection is ready for real work.",
-      "lastReviewed": "2026-09-27",
+      "lastReviewed": "2026-10-03",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
@@ -5136,30 +5136,36 @@
         },
         {
           "id": "setup-connections:5",
+          "heading": "Configure Klaviyo customer and sales sync",
+          "content": "1. Enter and save the Klaviyo private API key, then select **Test Connection**.\n2. Turn on **Enable customer and commerce sync**.\n3. Turn on **Sync customer profiles** before selecting any commerce event source.\n4. Select each Solvantis sales source that should send identified commerce events.\n5. For Shopify, first confirm that the store is not already sending the same events directly to Klaviyo, then acknowledge the duplicate-event risk.\n6. Select **Save**.\n\nThe master switch stops all customer and commerce event processing for the business. Each source switch independently controls events from that source. All switches start off. Turning the integration off does not delete Klaviyo profiles or previously delivered events.\n\nSolvantis matches eligible customer contacts using its stable contact identity plus normalized email and phone details. It does not subscribe or unsubscribe people, and it does not treat promotional email or SMS preferences as Klaviyo consent. Identity conflicts stop the affected event for review rather than linking profiles by guesswork.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-connections:6",
           "heading": "Connect Shopify",
           "content": "Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use **Legacy token** only for an existing admin-created custom app that still supplies a permanent Admin API access token.\n\n1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.\n2. Install that app on the intended store.\n3. Open **IMS > Integrations > Sales Channels** and choose **Add Sales Channel > Shopify**.\n4. Choose **Dev Dashboard**, then enter the permanent `myshopify.com` store domain, Client ID, and Client secret shown in the app's Settings area.\n5. Save the channel, choose **Test connection**, then activate the store when readiness succeeds.\n6. Choose **Configure** on that store and use **Orders & Inventory** to register or verify its required webhooks.\n\nSolvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.\n\n> **Important:** The Client ID and Client secret are not Admin API access tokens. Enter them only in Dev Dashboard mode. Do not paste a manually generated short-lived token into Legacy token mode.",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:6",
+          "id": "setup-connections:7",
           "heading": "POS setup",
           "content": "POS Settings controls the payment-method names shown on the POS payment screen.\n\n1. Review the current list.\n2. Add, rename, or remove a method.\n3. Select **Save Methods**.\n4. Open POS and confirm the expected choices before taking a sale.\n\n| Change | Effect | External change |\n| --- | --- | --- |\n| Save payment methods | Updates payment choices shown in POS | No external service is changed |",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:7",
+          "id": "setup-connections:8",
           "heading": "Safe connection sequence",
           "content": "1. Select the intended business.\n2. Start the connection or enter details only in its protected fields.\n3. Confirm the external organisation, store, account, or property.\n4. Save and use the available status or test action.\n5. Complete downstream mappings and settings in the owning product area.\n6. Run one controlled sync or test and review its result.",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:8",
+          "id": "setup-connections:9",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Connected to the wrong account | The wrong organisation or account was selected during sign-in | Disconnect and reconnect the intended account |\n| Connected but a workflow is unavailable | Required mapping, permission, or product setup is incomplete | Open Integration Readiness and complete the shown dependency |\n| Access expired | The external service no longer accepts the saved authorisation | Reconnect through the normal connection flow |\n| A test fails twice | Account access or setup still needs attention | Stop retries and read the specific status or error |",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:9",
+          "id": "setup-connections:10",
           "heading": "Worked examples",
           "content": "### Prepare Xero for POS accounting\n\nConnect the intended Xero organisation, confirm its name, then open IMS Xero Setup to complete the required revenue and payment mappings. Run one controlled end-of-day sync and review the Xero result before relying on automation.\n\n### Add a POS payment method\n\nOpen POS Settings, add \"Afterpay\", save the list, and open POS to confirm it appears. This changes the available POS label; it does not create or configure an Afterpay account.",
           "presentation": "detail"

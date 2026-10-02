@@ -1,3 +1,10 @@
+## 2026-10-03 - Klaviyo administrator controls and guarded rollout
+
+- Setup > Connections now has Admin-only Klaviyo customer and commerce sync controls: one master switch, profile sync, and separate POS, Solvantis Online Shop, wholesale/IMS, and Shopify source switches. Shopify requires explicit acknowledgement that the same events are not already sent directly to Klaviyo.
+- Settings fail closed and require a saved API key, profile sync for commerce sources, exact business ownership, and both tenant Klaviyo tables before activation. Turning the master switch off remains available even if tenant readiness later fails. Database failures are recorded through Runtime Issues without exposing internal details in Setup.
+- Applied and independently reverified the empty shared `klaviyo_integration_settings` table in `readyedu_Solvantis`. All businesses remain off by default. Only `readyedu_MonsterthreadsSandboxIMS` currently has the required tenant tables; production tenants cannot be enabled through the settings API.
+- Updated canonical Connections Help and rebuilt Help/Assistant indexes. No Klaviyo setting row was enabled, no schedule or sales hook was activated, and no Klaviyo provider request was made. Authenticated visual inspection was skipped at the user's request.
+
 ## 2026-10-02 - Klaviyo sandbox schema foundation
 
 - Added a Klaviyo-only, dry-run-by-default multi-tenant schema command so rollout does not depend on the broad all-tenant catch-up. It discovers registered tenant schemas plus the environment fallback, supports an exact registered `--schema`, and verifies required columns and indexes after apply.
