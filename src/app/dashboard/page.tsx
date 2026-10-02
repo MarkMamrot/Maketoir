@@ -9,7 +9,6 @@ import { CustomerServiceView } from './CustomerServiceView';
 import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
 import { CreativeReviewView } from './CreativeReviewView';
-import { MerchantRateCalculatorView } from './MerchantRateCalculatorView';
 import { dashboardHashView } from './dashboardHandoff';
 import { BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
@@ -50,16 +49,6 @@ const NAV: NavItem[] = [
       { id: 'brand-profile', label: 'Brand Profile' },
       { id: 'sync-data', label: 'Sync Data' },
       { id: 'calculated-data', label: 'Reports' },
-      { id: 'merchant-rate-calculator', label: 'Merchant Rate Calculator' },
-    ],
-  },
-  {
-    id: 'inventory', label: 'Inventory', icon: 'inventory',
-    children: [
-      { id: 'inactive-candidates',   label: 'Inactive Candidates' },
-      { id: 'lost-candidates',       label: 'Possible Losses'     },
-      { id: 'space-analysis',        label: 'Space Efficiency'    },
-      { id: 'stock-turnover',         label: 'Stock Turnover'      },
     ],
   },
   {
@@ -71,24 +60,6 @@ const NAV: NavItem[] = [
       { id: 'marketing-recommendations', label: 'Recommendation Inbox' },
       { id: 'creative-review', label: 'Creative Review' },
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
-    ],
-  },
-  {
-    id: 'brand-assets', label: 'Brand Assets', icon: 'brand-assets',
-    children: [
-      { id: 'brand-assets-models',    label: 'Models'    },
-      { id: 'brand-assets-backdrops', label: 'Backdrops' },
-      { id: 'brand-assets-poses',     label: 'Poses'     },
-      { id: 'brand-assets-scenes',    label: 'Scenes'    },
-      { id: 'brand-assets-templates', label: 'Templates' },
-    ],
-  },
-  {
-    id: 'website', label: 'Website', icon: 'website',
-    children: [
-      { id: 'pending-online',               label: 'Push to Sales Channels' },
-      { id: 'product-description-template', label: 'Web Field Templates'      },
-      { id: 'bulk-edit-listings',           label: 'Bulk Edit Listings'       },
     ],
   },
   {
@@ -107,12 +78,17 @@ const SETTINGS_NAV: NavItem = {
     { id: 'connections',        label: 'Connections' },
     { id: 'marketing-settings', label: 'Marketing Settings' },
     { id: 'data-source',        label: 'Data Source' },
+    { id: 'product-description-template', label: 'Web Field Templates' },
   ],
 };
 
 const DASHBOARD_VIEW_IDS = new Set<string>([
   ...NAV.map(item => item.id),
   ...NAV.flatMap(item => item.children.map(child => child.id)),
+  ...SETTINGS_NAV.children.map(child => child.id),
+  'inactive-candidates', 'lost-candidates', 'space-analysis', 'stock-turnover',
+  'pending-online', 'bulk-edit-listings', 'brand-assets', 'brand-assets-models',
+  'brand-assets-backdrops', 'brand-assets-poses', 'brand-assets-scenes', 'brand-assets-templates',
 ]);
 
 const MARKETING_VIEW_IDS = new Set(['marketing', 'sync-ads', 'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit', 'marketing-settings']);
@@ -5785,7 +5761,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         <div className="relative flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
-            <h2 className="font-bold text-gray-800 text-lg leading-tight">Push to Sales Channels</h2>
+            <h2 className="font-bold text-gray-800 text-lg leading-tight">Bulk Online Listing Generator</h2>
             <p className="text-xs text-gray-500">Turn basic catalogue data into complete online listings with researched titles, compelling descriptions, and relevant supplier images.</p>
           </div>
           {/* Settings cog */}
@@ -5815,14 +5791,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <input type="radio" name="workflowMode" value="manual" checked={workflowMode === 'manual'} onChange={() => setAndPersistMode('manual')} className="mt-0.5 accent-blue-600 shrink-0" />
                         <div>
                           <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Manual Steps</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Find URLs, Get Images &amp; Research, Format Content, Push to Sales Channels.</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Find URLs, get images and research, format content, then generate online listings.</p>
                         </div>
                       </label>
                       <label className="flex items-start gap-2.5 cursor-pointer group">
                         <input type="radio" name="workflowMode" value="auto" checked={workflowMode === 'auto'} onChange={() => setAndPersistMode('auto')} className="mt-0.5 accent-blue-600 shrink-0" />
                         <div>
                           <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 leading-tight">Auto Generate</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Generate Product Descriptions &amp; Images (full pipeline) and Push to Sales Channels.</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Generate product descriptions and images, then prepare online listings.</p>
                         </div>
                       </label>
                     </div>
@@ -5961,7 +5937,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       🤖 Generate Product Descriptions &amp; Images
                     </button>
                     <button disabled={selectedKeys.size === 0} onClick={() => void openPushToChannels(processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']))} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
-                      Push to Sales Channels
+                      Generate Online Listings
                     </button>
                   </>
                 ) : (
@@ -5976,7 +5952,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       ✨ Format Content
                     </button>
                     <button disabled={selectedKeys.size === 0} onClick={() => void openPushToChannels(processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']))} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
-                      Push to Sales Channels
+                      Generate Online Listings
                     </button>
                   </>
                 )}
@@ -6335,7 +6311,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                   ? 'Saving and assigning…'
                                   : onlineStatus[key] === 'done'
                                   ? 'Saved to channels'
-                                  : 'Push to Sales Channels'}
+                                  : 'Generate Online Listing'}
                               </button>
                               {shopifyLinksLoading.has(key) && <span className="text-xs text-gray-400">Loading Shopify links…</span>}
                               {shopifyLinksMap[key]?.storefrontUrl && (
@@ -6378,7 +6354,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       </div>
       {pushTargets.length > 0 && <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-5" onMouseDown={event => { if (event.target === event.currentTarget) setPushTargets([]); }}>
         <div role="dialog" aria-modal="true" aria-labelledby="push-channels-title" className="w-full max-w-lg rounded-lg border border-gray-200 bg-white p-5 shadow-2xl">
-          <h3 id="push-channels-title" className="text-base font-bold text-gray-800">Push to Sales Channels</h3>
+          <h3 id="push-channels-title" className="text-base font-bold text-gray-800">Bulk Online Listing Generator</h3>
           <p className="mt-1 text-xs text-gray-500">Save reviewed content for {pushTargets.length} product{pushTargets.length === 1 ? '' : 's'} and include them in the selected channels.</p>
           {pushChannelError && <p role="alert" className="mt-3 rounded bg-red-50 p-2 text-xs text-red-700">{pushChannelError}</p>}
           <div className="mt-4 space-y-2">
@@ -6531,7 +6507,7 @@ function ToggleChip({
   );
 }
 
-// ── Bulk Edit Website Listings ────────────────────────────────────────────────
+// ── Bulk Edit Existing Listings ───────────────────────────────────────────────
 type BulkLogEntry = { text: string; type: 'info' | 'ok' | 'warn' | 'error' };
 
 function BulkEditListingsView({ databaseId }: { databaseId: string }) {
@@ -6705,7 +6681,7 @@ function BulkEditListingsView({ databaseId }: { databaseId: string }) {
       <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-1">Bulk Edit Website Listings</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-1">Bulk Edit Existing Listings</h2>
             <p className="text-sm text-gray-500">
               AI-rewrite descriptions and tags for all products in batches. Preview changes in a spreadsheet, review them, then commit to Shopify when ready.
             </p>
@@ -9166,6 +9142,8 @@ export default function DashboardPage() {
     'ai-helper': 'AI Business Helper',
     'inactive-candidates': 'Inactive Candidates',
     'lost-candidates': 'Possible Losses',
+    'space-analysis': 'Space Efficiency',
+    'stock-turnover': 'Stock Turnover',
     'sync-ads': 'Sync Marketing Data',
     'marketing-assistant': 'Marketing Assistant',
     'planning-workspace': 'Intel & Automation Planning Workspace',
@@ -9173,7 +9151,8 @@ export default function DashboardPage() {
     'creative-review': 'Creative Review',
     'campaign-audit':       'Campaign Architecture Audit',
     'product-description-template': 'Web Field Templates',
-    'bulk-edit-listings':           'Bulk Edit Website Listings',
+    'pending-online':               'Bulk Online Listing Generator',
+    'bulk-edit-listings':           'Bulk Edit Existing Listings',
     'cs-inbox':     'Customer Service — Inbox',
     'cs-compose':   'Customer Service — Compose Email',
     'cs-templates': 'Customer Service — Email Templates',
@@ -9182,7 +9161,6 @@ export default function DashboardPage() {
     'business-info': 'Business Info',
     'brand-profile': 'Brand Profile',
     'sync-data': 'Sync Data',
-    'merchant-rate-calculator': 'Merchant Rate Calculator',
     'brand-assets': 'Brand Assets',
     'brand-assets-models': 'Brand Assets — Models',
     'brand-assets-backdrops': 'Brand Assets — Backdrops',
@@ -9337,7 +9315,6 @@ export default function DashboardPage() {
           {activeView === 'calculated-data' && (
             <CalculatedDataView databaseId={databaseId} />
           )}
-          {activeView === 'merchant-rate-calculator' && <MerchantRateCalculatorView />}
         </main>
       </div>
       </div>
@@ -9355,7 +9332,7 @@ export default function DashboardPage() {
             <div className="flex flex-1 min-h-0">
               {/* Settings Sidebar */}
               <div className="w-64 border-r border-gray-200 bg-gray-50 p-4 space-y-1 overflow-y-auto shrink-0">
-                {SETTINGS_NAV.children.filter(tab => tab.id !== 'marketing-settings' || marketingEnabled).map(tab => (
+                {SETTINGS_NAV.children.filter(tab => (tab.id !== 'marketing-settings' || marketingEnabled) && (tab.id !== 'product-description-template' || shopifyEnabled)).map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveSettingView(tab.id)}
@@ -9376,6 +9353,12 @@ export default function DashboardPage() {
                 )}
                 {activeSettingView === 'data-source' && (
                   <DataSourceTab business={null} />
+                )}
+                {activeSettingView === 'product-description-template' && (
+                  <>
+                    <p className="mb-5 max-w-3xl text-sm leading-6 text-gray-600">These Web Field Templates guide the Bulk Online Listing Generator and Bulk Edit Existing Listings.</p>
+                    <WebContentTemplatesView databaseId={databaseId} />
+                  </>
                 )}
               </div>
             </div>

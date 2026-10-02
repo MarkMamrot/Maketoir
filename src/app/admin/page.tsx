@@ -13,6 +13,7 @@ import WorkflowFindingsView from './WorkflowFindingsView';
 import BusinessFeaturesView from './BusinessFeaturesView';
 import { BusinessApplicationsQueue } from './BusinessApplicationsQueue';
 import { BusinessContextSwitcher, switchBusinessContext } from '@/components/BusinessContextSwitcher';
+import { MerchantRateCalculatorView } from '../dashboard/MerchantRateCalculatorView';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Business {
@@ -27,7 +28,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings';
+type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings' | 'merchant-rate-calculator';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -813,12 +814,9 @@ export default function AdminPage() {
             <button key={item.id} onClick={() => setView(item.id)} style={S.navBtn(view === item.id)}>{item.label}</button>
           ))}
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim,#64748b)', textTransform: 'uppercase', letterSpacing: .7, padding: '4px 12px', margin: '16px 0 8px' }}>Utilities</p>
-          <a
-            href="/dashboard#merchant-rate-calculator"
-            style={{ ...S.navBtn(false), display: 'block', textDecoration: 'none', boxSizing: 'border-box' }}
-          >
+          <button onClick={() => setView('merchant-rate-calculator')} style={S.navBtn(view === 'merchant-rate-calculator')}>
             Merchant Rate Calculator
-          </a>
+          </button>
         </div>
 
         {/* Main */}
@@ -834,6 +832,12 @@ export default function AdminPage() {
           {view === 'runtime-issues' && <RuntimeIssuesView />}
           {view === 'support-tickets' && <SupportTicketsView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
+          {view === 'merchant-rate-calculator' && (
+            <div style={{ background: '#fff', color: '#111827', minHeight: '100%', margin: -24, padding: 24 }}>
+              <h1 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Merchant Rate Calculator</h1>
+              <MerchantRateCalculatorView />
+            </div>
+          )}
         </div>
       </div>
       <style jsx global>{`

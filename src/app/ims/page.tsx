@@ -153,7 +153,24 @@ const NAV = [
     { id: 'receive-transfers', label: 'Receive Transfers' },
   ]},
   { id: 'stocktakes',       label: 'Stocktakes',       section: null },
-  { id: 'reports',          label: 'Reports',          section: null },
+  { id: '__reports',       label: 'Reports',          section: 'reports', children: [
+    { id: 'reports', label: 'Reports Overview' },
+    { id: 'inactive-candidates', label: 'Inactive Candidates', href: '/dashboard#inactive-candidates' },
+    { id: 'lost-candidates', label: 'Possible Losses', href: '/dashboard#lost-candidates' },
+    { id: 'space-analysis', label: 'Space Efficiency', href: '/dashboard#space-analysis' },
+    { id: 'stock-turnover', label: 'Stock Turnover', href: '/dashboard#stock-turnover' },
+  ]},
+  { id: '__automation',    label: 'Automations',      section: 'automation', children: [
+    { id: 'pending-online', label: 'Bulk Online Listing Generator', href: '/dashboard#pending-online' },
+    { id: 'bulk-edit-listings', label: 'Bulk Edit Existing Listings', href: '/dashboard#bulk-edit-listings' },
+  ]},
+  { id: '__brand-assets',  label: 'Brand Assets',     section: 'brand-assets', children: [
+    { id: 'brand-assets-models', label: 'Models', href: '/dashboard#brand-assets-models' },
+    { id: 'brand-assets-backdrops', label: 'Backdrops', href: '/dashboard#brand-assets-backdrops' },
+    { id: 'brand-assets-poses', label: 'Poses', href: '/dashboard#brand-assets-poses' },
+    { id: 'brand-assets-scenes', label: 'Scenes', href: '/dashboard#brand-assets-scenes' },
+    { id: 'brand-assets-templates', label: 'Templates', href: '/dashboard#brand-assets-templates' },
+  ]},
   { id: '__finances',       label: 'Finances',         section: 'finances', children: [
     { id: 'report-bookkeeper-audit', label: 'Accounting Audit' },
     { id: 'cash-banking',            label: 'Cash Banking' },
@@ -621,7 +638,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __finances: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, '__brand-assets': false, __finances: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
   const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
@@ -650,7 +667,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     const aliases = [
       ...(item.id === '__sales' ? ['wholesale-applications'] : []),
       ...(item.id === '__contacts' ? ['contact-profile'] : []),
-      ...(item.id === 'reports' && active.startsWith('report-') && active !== 'report-bookkeeper-audit' ? [active] : []),
+      ...(item.id === '__reports' && active.startsWith('report-') && active !== 'report-bookkeeper-audit' ? [active] : []),
     ];
     return isSidebarSectionActive(item, active, aliases);
   };
@@ -683,6 +700,9 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     locations:          'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
     reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    __reports:          'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    __automation:      'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z',
+    '__brand-assets':  'M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6',
     __finances:         'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     'sales-channels':   'M3 7h18M5 7l1-4h12l1 4M5 7v13h14V7M9 20v-6h6v6',
@@ -776,7 +796,16 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             </button>
             {hasChildren && isGroupOpen && (
               <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid #dfe3e8', background: 'rgba(148,163,184,.04)', borderRadius: 0, overflow: 'hidden' }}>
-                {visibleChildren.map((child: any) => (
+                {visibleChildren.map((child: any) => child.href ? (
+                  <a key={child.id} data-testid={`ims-nav-${child.id}`} href={child.href}
+                    onClick={() => openOnlySection(item.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', textDecoration: 'none',
+                      padding: '7px 12px 7px 18px', color: '#475569', fontSize: 13, fontWeight: 500,
+                      borderLeft: '3px solid transparent', borderRadius: 0,
+                    }}
+                  >{child.label}</a>
+                ) : (
                   <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => { openOnlySection(item.id); onSelect(child.id as ImsView); }}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -788,9 +817,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
                       borderLeft: '3px solid transparent',
                       borderRadius: 0,
                     }}
-                  >
-                    {child.label}
-                  </button>
+                  >{child.label}</button>
                 ))}
                 {item.id === '__sales' && showWholesalePreview && (
                   <a href="/wholesale/preview" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
@@ -28027,6 +28054,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </button>
           );
         })}
+        <a href="/dashboard#product-description-template" style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', color: 'var(--sv-text-dim)', fontWeight: 400, fontSize: 13, textAlign: 'left', textDecoration: 'none', borderLeft: '3px solid transparent' }}>
+          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>▤</span>
+          Web Field Templates
+        </a>
       </div>
 
       {/* Right content */}
