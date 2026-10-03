@@ -94,6 +94,13 @@ describe('fresh IMS schema contract', () => {
     }
   });
 
+  it('allows Volume-backed product images in fresh and existing tenant schemas', () => {
+    expect(tableBody('ims_product_images')).toMatch(/source\s+ENUM\([^\n]*'volume'/);
+    expect(catchupSource).toContain("ensureEnumValues(schema, 'ims_product_images', 'source', ['shopify', 'google_drive', 'external', 'volume'])");
+    expect(catchupSource).toMatch(/source\s+ENUM\([^\n]*'volume'/);
+    expect(catchupSource).toMatch(/if \(requestedTable === 'ims_product_images'\)\s*\{\s*await ensureEnumValues\(schema, requestedTable, 'source', \['shopify', 'google_drive', 'external', 'volume'\]\);/);
+  });
+
   it('does not define indexes or foreign keys on undeclared columns', () => {
     const tables = Array.from(schemaSql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-zA-Z0-9_]+)\s*\(/gi))
       .map(match => match[1]);

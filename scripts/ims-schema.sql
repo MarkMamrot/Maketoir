@@ -1000,7 +1000,7 @@ CREATE TABLE IF NOT EXISTS ims_product_images (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   product_id    VARCHAR(36) NOT NULL,
   url           TEXT NOT NULL,
-  source        ENUM('shopify','google_drive','external') NOT NULL DEFAULT 'external',
+  source        ENUM('shopify','google_drive','external','volume') NOT NULL DEFAULT 'external',
   drive_file_id VARCHAR(200) NULL,
   is_primary    TINYINT(1) NOT NULL DEFAULT 0,
   sort_order    INT NOT NULL DEFAULT 0,

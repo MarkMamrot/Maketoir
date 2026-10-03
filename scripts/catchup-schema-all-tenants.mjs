@@ -1087,7 +1087,7 @@ const TABLE_DDLS = [
     id            INT AUTO_INCREMENT PRIMARY KEY,
     product_id    VARCHAR(36) NOT NULL,
     url           TEXT NOT NULL,
-    source        ENUM('shopify','google_drive','external') NOT NULL DEFAULT 'external',
+    source        ENUM('shopify','google_drive','external','volume') NOT NULL DEFAULT 'external',
     drive_file_id VARCHAR(200) NULL,
     is_primary    TINYINT(1) NOT NULL DEFAULT 0,
     sort_order    INT NOT NULL DEFAULT 0,
@@ -1950,6 +1950,19 @@ async function migrateSchema(schema, businessId) {
       existingIndexes.add(indexName);
       indexesAdded++;
     }
+    if (requestedTable === 'ims_product_images') {
+      await ensureEnumValues(schema, requestedTable, 'source', ['shopify', 'google_drive', 'external', 'volume']);
+      const [sourceColumns] = await conn.query(
+        `SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_product_images' AND COLUMN_NAME = 'source'
+          LIMIT 1`,
+        [schema],
+      );
+      if (!String(sourceColumns[0]?.COLUMN_TYPE ?? '').includes("'volume'")) {
+        throw new Error(`${schema}.ims_product_images.source is missing volume`);
+      }
+      console.log(`  ${schema}.ims_product_images.source: verified volume`);
+    }
     if (requestedTable === 'ims_so_shipments') await migrateExactShopifyShipmentOwnership(schema);
     if (requestedTable === 'ims_credit_notes') await migrateExactShopifyRefundIdentity(schema);
     if (requestedTable === 'gift_cards') await migrateExactShopifyGiftCardOwnership(schema);
@@ -2157,6 +2170,7 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'partially_fulfilled', 'backordered', 'fulfilled', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'sales_channel', ['shopify', 'native_shop', 'amazon']);
+    await ensureEnumValues(schema, 'ims_product_images', 'source', ['shopify', 'google_drive', 'external', 'volume']);
     await ensureEnumValues(schema, 'loyalty_transactions', 'channel', ['pos', 'shopify', 'native_shop', 'manual', 'migration']);
     await ensureEnumValues(schema, 'gift_card_transactions', 'type', ['deactivate', 'reconcile']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, maintain customs details, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-11","owner":"inventory","quickSections":["Main operations","At a glance"]}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments","ims-product-builds"],"order":16,"summary":"Create a product, maintain customs details, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-10-03","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -8,7 +8,7 @@ Use this guide to create a clean product record and give each sellable option it
 ## Main operations
 
 - Create one product for the item customers recognise.
-- Add up to 10 product photos when creating or editing a product.
+- Add up to 10 JPG, PNG, WebP, or GIF product photos when creating or editing a product.
 - Add a default variant for a single-option item, or generate variants from Size, Colour or Style.
 - Give each variant a unique SKU and, where used, a unique barcode.
 - Optionally generate a Product SKU from the brand and current date and time.
