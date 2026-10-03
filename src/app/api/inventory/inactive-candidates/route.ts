@@ -29,7 +29,7 @@ export interface InactiveCandidate {
  *  2. Created more than 2 years ago
  *  3. No sales in the last 12 months
  *
- * Data source: Cin7 MySQL cache OR Solvantis IMS MySQL (based on inventory_source config).
+ * Data source: Solvantis IMS; upstream Cin7 data is imported into IMS before reporting.
  */
 export async function POST(req: Request) {
   const session = await getImsSession();

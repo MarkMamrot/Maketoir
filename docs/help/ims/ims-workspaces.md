@@ -10,7 +10,8 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Use the Dashboard to spot work that needs attention.
 - Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.
 - Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.
-- Open **Settings** in the IMS sidebar for Connections, Data Source, and Web Field Templates.
+- Open the top-bar **Settings** (gear) drawer for Connections and the existing IMS settings sections. Choose **Sync & Import** to import supported source data into IMS or refresh cached sales totals.
+- Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
@@ -34,7 +35,9 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 | Maintain business information and brand profile | **Automations > Business Profile** | Business Key Information, Brand Profile, Sync Data, and Reports |
 | Maintain reusable creative references | **Automations > Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |
 | Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |
-| Configure data connections and Web Field Templates | **Settings** | Connections, Data Source, and Web Field Templates |
+| Configure connections | Top-bar **Settings** > **Connections** | Shared account and provider connections |
+| Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |
+| Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
 
 ## How summaries work

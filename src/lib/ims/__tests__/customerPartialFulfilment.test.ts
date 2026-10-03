@@ -21,6 +21,8 @@ let quantityIncoming = 0;
 let averageCost = 4.5;
 let branchTransferIncoming = 0;
 let allocationRows: Record<string, unknown>[] = [];
+let competingDemandRows: Record<string, unknown>[] = [];
+let competingAllocationRows: Record<string, unknown>[] = [];
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
@@ -43,6 +45,8 @@ describe('fulfilSalesOrderPartial', () => {
     averageCost = 4.5;
     branchTransferIncoming = 0;
     allocationRows = [];
+    competingDemandRows = [];
+    competingAllocationRows = [];
     mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
     mockConsumeFifoCostLayers.mockResolvedValue({ allocatedValue: 35, unitCost: 5, allocationCount: 2 });
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
@@ -53,6 +57,24 @@ describe('fulfilSalesOrderPartial', () => {
       if (sql.includes('FROM ims_so_fulfilment_operations')) {
         return [[{ so_id: 42, request_hash: storedRequestHash, status: 'processing', response_json: null }]];
       }
+      if (sql.includes('SELECT location_id, so_type')) return [[{ location_id: 4, so_type: 'b2b' }]];
+      if (sql.includes('SELECT id, variant_id')) return [[
+        { id: 10, variant_id: 'variant-1' },
+        { id: 11, variant_id: 'variant-2' },
+      ]];
+      if (sql.includes('so.id AS so_id') && sql.includes('FROM ims_sales_order_items soi')) return [[
+        { so_id: 42, so_item_id: 10, variant_id: 'variant-1', location_id: 4, expected_date: '2026-10-10', created_at: '2026-10-01T00:00:00Z', qty_ordered: 10, qty_fulfilled: 0 },
+        { so_id: 42, so_item_id: 11, variant_id: 'variant-2', location_id: 4, expected_date: '2026-10-10', created_at: '2026-10-01T00:00:00Z', qty_ordered: 2, qty_fulfilled: 0 },
+        ...competingDemandRows,
+      ]];
+      if (sql.includes('SELECT so_item_id, qty_allocated')) return [[
+        ...allocationRows.map(row => ({ ...row, so_item_id: 10 })),
+        ...competingAllocationRows,
+      ]];
+      if (sql.includes('SELECT variant_id, location_id, qty_on_hand')) return [[
+        { variant_id: 'variant-1', location_id: 4, qty_on_hand: quantityOnHand },
+        { variant_id: 'variant-2', location_id: 4, qty_on_hand: quantityOnHand },
+      ]];
       if (sql.includes('FROM ims_sales_orders')) {
         return [[{
           id: 42, business_id: 'biz-1', status: 'confirmed', so_type: 'b2b', location_id: 4, is_historical: 0,
@@ -196,6 +218,48 @@ describe('fulfilSalesOrderPartial', () => {
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('SET qty_fulfilled = ?'),
       [3, 71, 'biz-1'],
+    );
+  });
+
+  it('blocks a shipment before mutation when stock is protected for another order', async () => {
+    quantityOnHand = 5;
+    competingDemandRows = [{
+      so_id: 41, so_item_id: 9, variant_id: 'variant-1', location_id: 4,
+      expected_date: '2026-10-01', created_at: '2026-09-01T00:00:00Z', qty_ordered: 4, qty_fulfilled: 0,
+    }];
+    competingAllocationRows = [{
+      so_item_id: 9, qty_allocated: 4, qty_received_assigned: 4, qty_fulfilled: 0,
+    }];
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-protected-conflict',
+      shipmentQuantities: [{ itemId: 10, quantity: 2 }],
+    })).rejects.toMatchObject({ code: 'PROTECTED_STOCK_CONFLICT' });
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('SET qty_received_assigned'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('SET qty_on_hand'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('requires a reason before using unprotected stock assigned to an earlier order', async () => {
+    quantityOnHand = 5;
+    competingDemandRows = [{
+      so_id: 41, so_item_id: 9, variant_id: 'variant-1', location_id: 4,
+      expected_date: '2026-10-01', created_at: '2026-09-01T00:00:00Z', qty_ordered: 4, qty_fulfilled: 0,
+    }];
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-priority-conflict',
+      shipmentQuantities: [{ itemId: 10, quantity: 2 }],
+    })).rejects.toMatchObject({ code: 'SALES_ORDER_PRIORITY_CONFLICT' });
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-priority-override',
+      shipmentQuantities: [{ itemId: 10, quantity: 2 }], priorityOverrideReason: 'Customer collection is booked today',
+    })).resolves.toMatchObject({ soId: 42 });
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_on_hand = ?'),
+      [3, 2, 'variant-1', 4],
     );
   });
 

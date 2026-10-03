@@ -14,6 +14,7 @@ const {
   mockReportRuntimeIssue,
   mockGetOrderActivityHistory,
   mockGetOrderResolutionFinancialSummaries,
+  mockGetSalesOrderReadiness,
   mockImsQuery,
 } = vi.hoisted(() => ({
   mockSession: vi.fn(),
@@ -29,6 +30,7 @@ const {
   mockReportRuntimeIssue: vi.fn(),
   mockGetOrderActivityHistory: vi.fn(),
   mockGetOrderResolutionFinancialSummaries: vi.fn(),
+  mockGetSalesOrderReadiness: vi.fn(),
   mockImsQuery: vi.fn(),
 }));
 
@@ -47,6 +49,7 @@ vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliatio
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/lib/ims/orderAmendmentHistory', () => ({ getOrderActivityHistory: mockGetOrderActivityHistory }));
 vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
+vi.mock('@/lib/ims/stockAllocation/readinessService', () => ({ getSalesOrderReadiness: mockGetSalesOrderReadiness }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 
 import { DELETE, GET, PUT } from '../route';
@@ -72,6 +75,7 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
     mockGetOrderActivityHistory.mockResolvedValue([]);
     mockGetOrderResolutionFinancialSummaries.mockResolvedValue([]);
+    mockGetSalesOrderReadiness.mockResolvedValue([]);
     mockImsQuery.mockResolvedValue([]);
   });
 
@@ -89,6 +93,21 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
       },
     });
     expect(mockGetOrderActivityHistory).toHaveBeenCalledWith('biz-1', 'sales_order', 42);
+  });
+
+  it('attaches stock readiness to its sales order line', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ id: 10, variant_id: 'variant-1' }] });
+    mockGetSalesOrderReadiness.mockResolvedValue([{ soItemId: 10, readyNowQuantity: 3, shortfallNowQuantity: 2 }]);
+
+    const response = await GET(new Request('http://localhost'), params);
+
+    expect(await response.json()).toMatchObject({
+      data: {
+        items: [{ id: 10, stock_readiness: { readyNowQuantity: 3, shortfallNowQuantity: 2 } }],
+        stock_readiness: [{ soItemId: 10, readyNowQuantity: 3, shortfallNowQuantity: 2 }],
+      },
+    });
+    expect(mockGetSalesOrderReadiness).toHaveBeenCalledWith({ businessId: 'biz-1', soId: 42 });
   });
 
   it('returns core SO detail when optional shortfall financials fail', async () => {

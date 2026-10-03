@@ -10,7 +10,7 @@ import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
 import { CreativeReviewView } from './CreativeReviewView';
 import { dashboardHashView } from './dashboardHandoff';
-import { BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
+import { BusinessInfoTab, BrandProfileTab, ConnectionsTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
@@ -59,6 +59,7 @@ const SETTINGS_NAV: NavItem = {
   id: 'settings', label: 'Settings', icon: 'settings',
   children: [
     { id: 'marketing-settings', label: 'Marketing Settings' },
+    { id: 'product-description-template', label: 'Web Field Templates' },
   ],
 };
 
@@ -70,7 +71,7 @@ const DASHBOARD_VIEW_IDS = new Set<string>([
   'pending-online', 'bulk-edit-listings', 'brand-assets', 'brand-assets-models',
   'brand-assets-backdrops', 'brand-assets-poses', 'brand-assets-scenes', 'brand-assets-templates',
   'business-info', 'brand-profile', 'sync-data', 'calculated-data', 'cs-inbox', 'cs-compose', 'cs-templates',
-  'connections', 'data-source', 'product-description-template',
+  'connections', 'product-description-template',
 ]);
 
 const MARKETING_VIEW_IDS = new Set(['marketing', 'sync-ads', 'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit', 'marketing-settings']);
@@ -250,17 +251,9 @@ function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element 
   const [lastSync, setLastSync] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<SyncLogEntry[]>([]);
-  const [inventorySource, setInventorySource] = useState<string>('cin7');
+  const inventorySource = 'solvantis';
   const abortControllerRef = useRef<AbortController | null>(null);
   const stopRequestedRef = useRef(false);
-
-  useEffect(() => {
-    if (!databaseId) return;
-    fetch('/api/settings/inventory-source')
-      .then(r => r.json())
-      .then(d => { if (d.success) setInventorySource(d.source); })
-      .catch(() => {});
-  }, [databaseId]);
 
   // Load last-sync dates — localStorage first (fast), then hydrate sales
   // timestamp from the server (source of truth: Config tab in Google Sheets).
@@ -377,11 +370,10 @@ function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element 
           </div>
         </div>
         <p className="text-sm text-gray-600 mb-4">
-          Inventory data is sourced from Solvantis IMS — Cin7 sync is not applicable.
-          Use the Refresh Cache button to keep sales aggregates up to date.
+          IMS is the inventory source for reports and operations. Use IMS Sync &amp; Import to bring in upstream data or refresh sales aggregates.
         </p>
-        <a href="/setup?tab=data-source" className="text-sm text-blue-600 hover:underline">
-          Manage data source →
+        <a href="/ims#settings-sync" className="text-sm text-blue-600 hover:underline">
+          Open IMS Sync &amp; Import →
         </a>
       </div>
     );
@@ -9056,7 +9048,7 @@ export default function DashboardPage() {
     const fromHash = parseDashboardViewFromHash(window.location.hash);
     if (fromHash) setActiveView(fromHash);
     const settingsView = new URLSearchParams(window.location.search).get('settings');
-    if (settingsView && ['connections', 'data-source', 'product-description-template'].includes(settingsView)) {
+    if (settingsView && ['connections', 'product-description-template'].includes(settingsView)) {
       setActiveSettingView(settingsView);
       setSettingsOpen(true);
     }
@@ -9340,9 +9332,6 @@ export default function DashboardPage() {
                 )}
                 {marketingEnabled && activeSettingView === 'marketing-settings' && (
                   <MarketingSettingsView databaseId={databaseId} />
-                )}
-                {activeSettingView === 'data-source' && (
-                  <DataSourceTab business={null} />
                 )}
                 {activeSettingView === 'product-description-template' && (
                   <>

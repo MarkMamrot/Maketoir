@@ -225,6 +225,7 @@ export async function getOrderActivityHistory(
       title = response?.status === 'fulfilled' ? 'Fulfilment completed' : 'Shipment recorded';
       summary = `${shipments.length} line${shipments.length === 1 ? '' : 's'} submitted`;
       details = shipments.map(item => `Line #${String(item.itemId ?? '—')}: shipped ${Number(item.quantity ?? 0)}`);
+      if (request?.priorityOverrideReason) details.push(`Demand priority overridden: ${String(request.priorityOverrideReason)}`);
       if (allocationActivity.consumed > 0) summary += `; ${allocationActivity.consumed} received protected unit${allocationActivity.consumed === 1 ? '' : 's'} consumed`;
       if (allocationActivity.released > 0) summary += `; ${allocationActivity.released} future protected unit${allocationActivity.released === 1 ? '' : 's'} released`;
       details.push(...allocationActivity.details);

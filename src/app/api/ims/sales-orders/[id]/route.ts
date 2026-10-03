@@ -13,6 +13,7 @@ import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
+import { getSalesOrderReadiness } from '@/lib/ims/stockAllocation/readinessService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 import { query } from '@/services/MySQLService';
@@ -172,16 +173,32 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         reference: { type: 'sales_order', id: params.id },
       }).catch(() => {});
     }
+    let stockReadiness: Awaited<ReturnType<typeof getSalesOrderReadiness>> = [];
+    try {
+      stockReadiness = await getSalesOrderReadiness({ businessId, soId: Number(params.id) });
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId, source: 'ims_sales_orders', operation: 'load_stock_readiness',
+        title: 'Sales order stock readiness could not be loaded', error,
+        reference: { type: 'sales_order', id: params.id },
+      }).catch(() => {});
+    }
+    const readinessByItemId = new Map(stockReadiness.map(row => [row.soItemId, row]));
     return NextResponse.json({
       success: true,
       data: {
         ...data,
+        items: data.items?.map(item => ({
+          ...item,
+          stock_readiness: readinessByItemId.get(Number(item.id)) ?? null,
+        })),
         channel_display_name: channelDisplayName,
         saleType: data.so_type === 'online' ? 'online' : data.so_type,
         sourceSystem: data.shopify_order_id ? 'shopify' : null,
         shipments,
         resolution_financials,
         stock_allocations,
+        stock_readiness: stockReadiness,
         activity_history,
         amendment_history: activity_history,
       },

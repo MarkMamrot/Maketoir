@@ -39,6 +39,7 @@ import { SolvantisMark } from '@/components/SolvantisMark';
 import { BusinessContextSwitcher } from '@/components/BusinessContextSwitcher';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { TeamCommunicationsDrawer } from '@/components/help/TeamCommunicationsDrawer';
+import { ConnectionsTab, SalesCacheTab } from '../setup/page';
 import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -183,11 +184,6 @@ const NAV = [
       { id: 'cs-compose', label: 'Compose Email', href: '/dashboard#cs-compose' },
       { id: 'cs-templates', label: 'Email Templates', href: '/dashboard#cs-templates' },
     ]},
-  ]},
-  { id: '__settings',      label: 'Settings',         section: 'settings', children: [
-    { id: 'connections', label: 'Connections', href: '/dashboard?settings=connections' },
-    { id: 'data-source', label: 'Data Source', href: '/dashboard?settings=data-source' },
-    { id: 'product-description-template', label: 'Web Field Templates', href: '/dashboard?settings=product-description-template' },
   ]},
   { id: '__finances',       label: 'Finances',         section: 'finances', children: [
     { id: 'report-bookkeeper-audit', label: 'Accounting Audit' },
@@ -656,7 +652,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, __settings: false, __finances: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, __finances: false, __integrations: false });
   const [nestedOpen, setNestedOpen] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
@@ -721,7 +717,6 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     reports:            'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     __reports:          'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     __automation:      'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z',
-    __settings:        'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82',
     __finances:         'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     'sales-channels':   'M3 7h18M5 7l1-4h12l1 4M5 7v13h14V7M9 20v-6h6v6',
@@ -11087,7 +11082,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               {(viewModal.po.items || []).map((item: any, i: number) => (
                 <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td style={{ padding: '8px 10px' }}><code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{item.sku || '—'}</code></td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.product_name}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>
+                    <div>{item.product_name}</div>
+                    {item.stock_readiness && (
+                      <div style={{ marginTop: 3, fontSize: 10, lineHeight: 1.4, color: 'var(--sv-text-dim)' }}>
+                        On hand {fmtQty(item.stock_readiness.quantityOnHand)} · Ready {fmtQty(item.stock_readiness.readyNowQuantity)} · Protected incoming {fmtQty(item.stock_readiness.protectedIncomingQuantity)} · Shortfall {fmtQty(item.stock_readiness.shortfallNowQuantity)} · Priority #{item.stock_readiness.priorityPosition}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
@@ -22892,7 +22894,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'payment-discounts' | 'shipping' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'payment-discounts' | 'shipping' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale' | 'connections';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -23220,6 +23222,7 @@ export default function ImsPage() {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpModeRequest, setHelpModeRequest] = useState<{ key: number; mode: 'help' | 'ask' }>();
+  const [helpContextOverride, setHelpContextOverride] = useState<string | null>(null);
   const [teamCommsOpen, setTeamCommsOpen] = useState(false);
   const [helpSection, setHelpSection] = useState<SettingsSection>('general');
   const [syncing, setSyncing] = useState(false);
@@ -23583,7 +23586,7 @@ export default function ImsPage() {
           <div style={{ flex: 1 }} />
           <BusinessContextSwitcher destination="/ims" enabled />
           <button
-            onClick={() => { setHelpSection(sectionFromView(view)); setHelpModeRequest({ key: Date.now(), mode: 'help' }); setHelpOpen(true); }}
+            onClick={() => { setHelpContextOverride(null); setHelpSection(sectionFromView(view)); setHelpModeRequest({ key: Date.now(), mode: 'help' }); setHelpOpen(true); }}
             title="Help"
             style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.72)', transition: 'background .15s' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.06)')}
@@ -23932,10 +23935,10 @@ export default function ImsPage() {
 
       <UnifiedHelpDrawer
         open={helpOpen}
-        onOpenChange={setHelpOpen}
+        onOpenChange={open => { setHelpOpen(open); if (!open) setHelpContextOverride(null); }}
         audience="ims"
         product="ims"
-        currentContext={settingsOpen ? `settings-${settingsSection}` : view}
+        currentContext={helpContextOverride ?? (settingsOpen ? `settings-${settingsSection}` : view)}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"
         supportEndpoint="/api/ims/support-tickets"
@@ -23952,8 +23955,10 @@ export default function ImsPage() {
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onHelp={context => { setHelpContextOverride(context); setHelpModeRequest({ key: Date.now(), mode: 'help' }); setHelpOpen(true); }}
         defaultSection={settingsSection}
         businessId={user?.businessId ?? ''}
+        businessName={user?.company ?? user?.name ?? ''}
         syncing={syncing}
         syncingSteps={syncingSteps}
         syncLog={syncLog}
@@ -27202,8 +27207,10 @@ function SetupImportCard({ section }: { section: SetupSection }) {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onHelp: (context: string) => void;
   defaultSection: SettingsSection;
   businessId: string;
+  businessName: string;
   syncing: boolean;
   syncingSteps: string[];
   syncLog: { step: string; status: string; message: string }[];
@@ -27757,7 +27764,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
-function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, businessName, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, capabilities, loaded, loadError, saveSettings, saveOnlineChannels, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
@@ -28034,6 +28041,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
     { id: 'general',          label: 'General',          icon: '⚙' },
+    { id: 'connections',      label: 'Connections',      icon: '🔗' },
     { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
     { id: 'products',         label: 'Products',         icon: '▦' },
@@ -28085,6 +28093,12 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {active === 'ai-models' && <AiModelSettingsSection />}
         {active === 'ai-account' && <AccountAiCreditsSection />}
+        {active === 'connections' && (
+          <div style={{ padding: 32, overflowY: 'auto', maxHeight: '100%' }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Connections</h2>
+            <ConnectionsTab business={{ name: businessName, userId: '', databaseId: businessId }} onHelp={onHelp} />
+          </div>
+        )}
 
         {active === 'payment-discounts' && (
           <div style={{ padding: 32 }}>
@@ -28395,6 +28409,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         <div style={{ padding: 20, overflowY: 'auto', display: (active === 'general' || active === 'pos' || active === 'sync') ? undefined : 'none' }}>
           {/* ── SYNC SECTION ── */}
           <div style={{ display: active === 'sync' ? undefined : 'none' }}>
+          <div style={{ marginBottom: 16, padding: 16, background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
+            <SalesCacheTab />
+          </div>
           {/* ── Cin7 Sync ── */}
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Cin7 Sync</div>
 

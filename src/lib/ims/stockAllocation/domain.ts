@@ -8,8 +8,39 @@ export type AllocationDemand = {
   orderedQuantity: number;
   fulfilledQuantity?: number;
   activeAllocatedQuantity?: number;
+  requiredDate?: string | null;
   confirmedAt: string;
   isStockItem?: boolean;
+};
+
+export type DemandReadinessInput = {
+  soId: number;
+  soItemId: number;
+  variantId: string;
+  locationId: number;
+  requiredDate?: string | null;
+  createdAt: string;
+  outstandingQuantity: number;
+  activeAllocatedQuantity?: number;
+  receivedAssignedQuantity?: number;
+  allocationFulfilledQuantity?: number;
+};
+
+export type DemandReadiness = {
+  soId: number;
+  soItemId: number;
+  priorityPosition: number;
+  outstandingQuantity: number;
+  protectedQuantity: number;
+  protectedReadyQuantity: number;
+  protectedReadyCoveredQuantity: number;
+  protectedIncomingQuantity: number;
+  priorityReadyQuantity: number;
+  higherPriorityReadyQuantity: number;
+  protectedReadyReservedForOthers: number;
+  readyNowQuantity: number;
+  shortfallNowQuantity: number;
+  unsourcedQuantity: number;
 };
 
 export type AllocationSupply = {
@@ -42,6 +73,80 @@ function scaledQuantity(value: number): number {
 
 function quantity(value: number): number {
   return value / QUANTITY_SCALE;
+}
+
+function demandPriority(left: { requiredDate?: string | null; createdAt: string; soId: number; soItemId: number }, right: { requiredDate?: string | null; createdAt: string; soId: number; soItemId: number }): number {
+  return String(left.requiredDate ?? '9999-12-31').localeCompare(String(right.requiredDate ?? '9999-12-31'))
+    || left.createdAt.localeCompare(right.createdAt)
+    || left.soId - right.soId
+    || left.soItemId - right.soItemId;
+}
+
+export function buildDemandReadiness(
+  demands: DemandReadinessInput[],
+  stockByVariantLocation: Array<{ variantId: string; locationId: number; quantityOnHand: number }>,
+): DemandReadiness[] {
+  const groups = new Map<string, DemandReadinessInput[]>();
+  for (const demand of demands) {
+    const key = `${demand.locationId}\u0000${demand.variantId}`;
+    groups.set(key, [...(groups.get(key) ?? []), demand]);
+  }
+  const stock = new Map(stockByVariantLocation.map(row => [
+    `${row.locationId}\u0000${row.variantId}`,
+    Math.max(0, scaledQuantity(row.quantityOnHand)),
+  ]));
+  const results: DemandReadiness[] = [];
+
+  for (const [key, group] of groups) {
+    const ordered = [...group].sort(demandPriority);
+    let physicalRemaining = stock.get(key) ?? 0;
+    const prepared = ordered.map(demand => {
+      const outstanding = Math.max(0, scaledQuantity(demand.outstandingQuantity));
+      const allocated = Math.min(outstanding, Math.max(0,
+        scaledQuantity(demand.activeAllocatedQuantity ?? 0) - scaledQuantity(demand.allocationFulfilledQuantity ?? 0),
+      ));
+      const received = Math.min(allocated, Math.max(0,
+        scaledQuantity(demand.receivedAssignedQuantity ?? 0) - scaledQuantity(demand.allocationFulfilledQuantity ?? 0),
+      ));
+      return { demand, outstanding, allocated, received };
+    });
+
+    const protectedCoverage = new Map<number, number>();
+    for (const row of prepared) {
+      const covered = Math.min(row.received, physicalRemaining);
+      protectedCoverage.set(row.demand.soItemId, covered);
+      physicalRemaining -= covered;
+    }
+    const totalProtectedCovered = [...protectedCoverage.values()].reduce((sum, value) => sum + value, 0);
+    let higherPriorityReady = 0;
+
+    prepared.forEach((row, index) => {
+      const protectedCovered = protectedCoverage.get(row.demand.soItemId) ?? 0;
+      const unprotectedDemand = Math.max(0, row.outstanding - row.allocated);
+      const priorityReady = Math.min(unprotectedDemand, physicalRemaining);
+      physicalRemaining -= priorityReady;
+      const readyNow = protectedCovered + priorityReady;
+      results.push({
+        soId: row.demand.soId,
+        soItemId: row.demand.soItemId,
+        priorityPosition: index + 1,
+        outstandingQuantity: quantity(row.outstanding),
+        protectedQuantity: quantity(row.allocated),
+        protectedReadyQuantity: quantity(row.received),
+        protectedReadyCoveredQuantity: quantity(protectedCovered),
+        protectedIncomingQuantity: quantity(Math.max(0, row.allocated - row.received)),
+        priorityReadyQuantity: quantity(priorityReady),
+        higherPriorityReadyQuantity: quantity(higherPriorityReady),
+        protectedReadyReservedForOthers: quantity(Math.max(0, totalProtectedCovered - protectedCovered)),
+        readyNowQuantity: quantity(readyNow),
+        shortfallNowQuantity: quantity(Math.max(0, row.outstanding - readyNow)),
+        unsourcedQuantity: quantity(Math.max(0, row.outstanding - row.allocated)),
+      });
+      higherPriorityReady += readyNow;
+    });
+  }
+
+  return results;
 }
 
 export function calculateStockAvailability(input: {
@@ -97,11 +202,10 @@ export function buildFifoAllocationSuggestions(
     );
   }
 
-  const orderedDemands = [...demands].sort((left, right) =>
-    left.confirmedAt.localeCompare(right.confirmedAt)
-    || left.soId - right.soId
-    || left.soItemId - right.soItemId,
-  );
+  const orderedDemands = [...demands].sort((left, right) => demandPriority(
+    { ...left, createdAt: left.confirmedAt },
+    { ...right, createdAt: right.confirmedAt },
+  ));
   const orderedSupplies = [...supplies].sort((left, right) =>
     String(left.expectedDate ?? '9999-12-31').localeCompare(String(right.expectedDate ?? '9999-12-31'))
     || left.poId - right.poId

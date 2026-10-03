@@ -73,9 +73,7 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "contextSections": {
         "brand-assets": "Brand assets",
@@ -84,9 +82,7 @@
         "brand-assets-poses": "Brand assets",
         "brand-assets-scenes": "Brand assets",
         "brand-assets-templates": "Brand assets",
-        "connections": "Supporting settings",
-        "marketing-settings": "Supporting settings",
-        "data-source": "Supporting settings"
+        "marketing-settings": "Supporting settings"
       },
       "relatedTopics": [
         "foresight-content-production-customer-service",
@@ -95,7 +91,7 @@
       ],
       "order": 30,
       "summary": "Choose and review reusable brand inputs before producing website content or customer replies.",
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "owner": "commerce",
       "quickSections": [
         "Main operations",
@@ -2204,16 +2200,14 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "product": "setup",
       "format": "task",
       "parentId": "setup-connections",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "contextSections": {
-        "data-source": "Choose the inventory data source",
         "integration-readiness-troubleshooting": "Step-by-step"
       },
       "relatedTopics": [
@@ -2223,7 +2217,7 @@
       ],
       "order": 4,
       "summary": "Check account access, required follow-up setup, source freshness, and safe recovery before relying on an integration.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-03",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
@@ -2921,12 +2915,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "Use **IMS > Automations > Brand Assets** to prepare reliable brand inputs, then choose the right content or customer-service workflow.",
       "sectionId": "foresight-content-service:1"
     },
@@ -2948,12 +2940,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "- Check source rights and intended use before saving a reusable asset.\n- Keep models, backdrops, poses, scenes, and templates clearly named.\n- Review generated product content against the real product and brand.\n- Check customer, order, recipients, and claims before sending a reply.\n- Fix required settings or connections before repeating failed work.",
       "sectionId": "foresight-content-service:2"
     },
@@ -2975,12 +2965,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "Brand Assets stores reusable references for creative work. A generated image is a candidate, not an automatic replacement for an existing image or an approved advertisement.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Source image, instructions, and chosen asset type | Are the source rights, quality, and intended use acceptable? | A reusable model, backdrop, pose, scene, or template | None |\n\n> **Warning:** Do not use an asset when you cannot confirm that the business has the right to use its source image.",
       "sectionId": "foresight-content-service:3"
     },
@@ -3002,12 +2990,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "| Asset | Use it for | Check before reuse |\n| --- | --- | --- |\n| Model | A consistent person reference | Consent, source rights, and appearance |\n| Backdrop | An empty setting for product placement | Space, lighting, and brand fit |\n| Pose | A body-position reference | Clear position and suitability |\n| Scene | A reusable environment | No unintended products, logos, or claims |\n| Template | A repeatable composition | Layout, required text, and intended channel |",
       "sectionId": "foresight-content-service:4"
     },
@@ -3029,13 +3015,11 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
-      "content": "Connections and Data Source control which supported services and information are available. Marketing Settings controls the options shown for applicable Intel & Automation work.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |",
+      "lastReviewed": "2026-10-03",
+      "content": "Connections are managed in IMS Settings. Marketing Settings controls the options shown for applicable Intel & Automation work.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |",
       "sectionId": "foresight-content-service:5"
     },
     {
@@ -3056,12 +3040,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| An asset does not fit the product | The wrong asset type or instructions were used | Start a new candidate with the correct input; keep the original until reviewed |\n| Content lacks brand detail | Business or Brand Profile information is incomplete | Update and review the source information first |\n| A connected action is unavailable | Access expired or required setup is incomplete | Check Setup and reconnect only the intended account |\n| A retry produces another poor result | The input or template still needs correction | Stop generating and correct the source material |",
       "sectionId": "foresight-content-service:6"
     },
@@ -3083,12 +3065,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "### Prepare a reusable backdrop\n\nChoose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.\n\n### Decide where to fix missing context\n\nA product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
       "sectionId": "foresight-content-service:7"
     },
@@ -3110,12 +3090,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "Choose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.",
       "sectionId": "foresight-content-service:7"
     },
@@ -3137,12 +3115,10 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "connections",
-        "marketing-settings",
-        "data-source"
+        "marketing-settings"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-02",
+      "lastReviewed": "2026-10-03",
       "content": "A product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
       "sectionId": "foresight-content-service:7"
     },
@@ -5484,7 +5460,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-02",
-      "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.\n- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.\n- Open **Settings** in the IMS sidebar for Connections, Data Source, and Web Field Templates.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
+      "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.\n- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.\n- Open the top-bar **Settings** (gear) drawer for Connections and the existing IMS settings sections. Choose **Sync & Import** to import supported source data into IMS or refresh cached sales totals.\n- Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.",
       "sectionId": "ims-workspaces:2"
     },
     {
@@ -5503,7 +5479,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-02",
-      "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |\n| Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |\n| Maintain business information and brand profile | **Automations > Business Profile** | Business Key Information, Brand Profile, Sync Data, and Reports |\n| Maintain reusable creative references | **Automations > Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |\n| Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |\n| Configure data connections and Web Field Templates | **Settings** | Connections, Data Source, and Web Field Templates |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
+      "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Review accounting or bank cash | **Finances** | Accounting Audit, Cash Banking, and Xero Integration |\n| Review sales and inventory performance | **Reports** | Sales, margin, valuation, registers, availability, candidates, space efficiency, and stock turnover |\n| Prepare online listing batches | **Automations** | Bulk Online Listing Generator and Bulk Edit Existing Listings |\n| Maintain business information and brand profile | **Automations > Business Profile** | Business Key Information, Brand Profile, Sync Data, and Reports |\n| Maintain reusable creative references | **Automations > Brand Assets** | Models, Backdrops, Poses, Scenes, and Templates |\n| Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |\n| Configure connections | Top-bar **Settings** > **Connections** | Shared account and provider connections |\n| Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |\n| Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |\n| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |",
       "sectionId": "ims-workspaces:3"
     },
     {
@@ -10722,7 +10698,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-03",
-      "content": "| Symptom                                         | Likely reason                                                                                                               | What to do                                                                                                                                                                                                                                                        |\n| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |\n| Fulfil is unavailable                           | The order is Draft, cancelled, complete, or read-only                                                                       | Confirm the order and review the available action list                                                                                                                                                                                                            |\n| Revert to Draft is blocked                      | The Sales Order still has active incoming stock allocations                                                                 | Expand **Stock allocation**, release each active allocation with a reason, then retry **Revert to Draft**                                                                                                                                                         |\n| An order is excluded from Move items            | Its customer, location, currency, tax settings, terms, price tier, accounting, shipment, or channel ownership differs | Read the reason shown beneath that order. Use a genuinely compatible destination or keep the quantities on the current Sales Order; the preview does not change either order. |\n| Confirmation shows Stock sourcing               | Recorded available stock cannot cover one or more order lines                                                               | Review the suggested incoming Purchase Orders. Protect the required quantities, or explicitly acknowledge each quantity that will remain unsourced                                                                                                                |\n| Suggested incoming stock changed before confirm | Another order, receipt, or Purchase Order change used or altered the supply while the review was open                       | Refresh and review the latest sourcing quantities; confirmation and allocation are applied together, so the failed attempt does not partly confirm the order                                                                                                      |\n| An order cannot be selected for shipping        | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress                                             | Open the order and resolve its status or remaining quantities                                                                                                                                                                                                     |\n| Dispatch location is incomplete                 | The location selected on the carrier account is missing one or more sender fields                                           | Select **Update location** and complete the named street, suburb or city, state, or postcode fields                                                                                                                                                               |\n| Automatic packing is unavailable                | Product measurements are missing or no preset fits                                                                          | Enter the actual packed dimensions and weight directly, or choose a suitable preset                                                                                                                                                                               |\n| Get shipping prices is unavailable              | A parcel field is empty, non-positive, or line quantities are not fully assigned                                            | Complete every parcel measurement and assign the full remaining quantity                                                                                                                                                                                          |\n| Prepare Shipments is unavailable after pricing  | A quoted service has not been selected for every order                                                                      | Choose one service for each order                                                                                                                                                                                                                                 |\n| Stock readiness shows missing stock             | The batch needs more units than are currently on hand at its fulfilment branch                                               | Review the listed incoming transfers and POs. Receive arrived stock, or start the prefilled stock adjustment only after physically recounting. Acknowledge the warning only when purchasing labels before the stock record is resolved.                                                                                     |\n| Australia Post returns no common service        | The selected service is not available for every parcel                                                                      | Review parcel measurements and destination, or prepare separate shipments where appropriate                                                                                                                                                                       |\n| The price changed before submission             | Australia Post returned a different live price for the selected service                                                     | Retrieve prices again, review the new amount and prepare a new shipment                                                                                                                                                                                           |\n| Some consignments submit and others fail        | Australia Post rejected details on the named consignments while accepting the others                                        | Keep the successful postage and labels, correct only the named failed consignments, then reopen the batch; Solvantis reuses existing carrier shipment IDs and does not purchase that postage again                                                               |\n| Label processing does not finish immediately    | Australia Post accepted the shipment but is still generating the PDF                                                        | Select **Check label status**; do not prepare or submit the shipment again                                                                                                                                                                                        |\n| Channel sync remains pending after dispatch     | The connected channel rejected the fulfillment, commonly because the Shopify custom app lacks fulfillment-order permissions | In Shopify, grant the app `read_merchant_managed_fulfillment_orders` and `write_merchant_managed_fulfillment_orders`, refresh its access token in **Setup > Connections**, then reopen the shipment and select **Mark dispatched** to retry the channel sync only |\n| Carrier tracking is unavailable                 | The carrier shipment response did not include an article or consignment number                                              | Review the shipment with the carrier; Solvantis keeps the original-channel update pending until tracking is available                                                                                                                                             |\n| Submission outcome requires review              | The connection ended without a definitive Australia Post response                                                           | Stop and verify the shipment in Australia Post before retrying so postage is not purchased twice                                                                                                                                                                  |\n| Manifest outcome needs review                   | The carrier may have accepted the booking before the connection ended                                                       | Check the Australia Post portal, then use **Reconcile** with the matching order ID; do not create another manifest                                                                                                                                                |\n| A dispatched shipment is missing from Manifests | Its label is not ready, it is not marked dispatched, or it already belongs to a manifest                                    | Finish the shipment stage or review its existing manifest history                                                                                                                                                                                                 |\n| A negative-stock warning appears                | A labelled shipment is greater than recorded stock on hand at its Sales Order location                                      | Review the named order, SKU, on-hand and resulting quantity. Continue only when the physical parcel is present and leaving; Solvantis records negative stock so it can be corrected by stocktake or an audited adjustment                                            |\n| Actual COGS is unresolved                       | A shipped stock line had no positive Average Cost when it left stock                                                       | Review the separate current-cost estimate as informational only. A later receipt does not rewrite the shipment cost; use the appropriate reviewed stock and accounting process if a correction is needed |\n| Shopify incoming-stock notification appears     | Shopify fulfilled an order before recorded incoming supply was received                                                     | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock                                                                                                                                                   |\n| The first shipment appears twice                | Fulfilment was repeated instead of continued                                                                                | Stop and review order activity before making another change                                                                                                                                                                                                       |\n| Resolve Outstanding is blocked                  | Payments or accounting records need a controlled value decision                                                             | Read the preview and choose the offered settlement; do not alter shipped quantities                                                                                                                                                                               |",
+      "content": "| Symptom                                         | Likely reason                                                                                                               | What to do                                                                                                                                                                                                                                                        |\n| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |\n| Fulfil is unavailable                           | The order is Draft, cancelled, complete, or read-only                                                                       | Confirm the order and review the available action list                                                                                                                                                                                                            |\n| Revert to Draft is blocked                      | The Sales Order still has active incoming stock allocations                                                                 | Expand **Stock allocation**, release each active allocation with a reason, then retry **Revert to Draft**                                                                                                                                                         |\n| An order is excluded from Move items            | Its customer, location, currency, tax settings, terms, price tier, accounting, shipment, or channel ownership differs | Read the reason shown beneath that order. Use a genuinely compatible destination or keep the quantities on the current Sales Order; the preview does not change either order. |\n| Confirmation shows Stock sourcing               | Recorded available stock cannot cover one or more order lines                                                               | Review the suggested incoming Purchase Orders. Protect the required quantities, or explicitly acknowledge each quantity that will remain unsourced                                                                                                                |\n| Suggested incoming stock changed before confirm | Another order, receipt, or Purchase Order change used or altered the supply while the review was open                       | Refresh and review the latest sourcing quantities; confirmation and allocation are applied together, so the failed attempt does not partly confirm the order                                                                                                      |\n| An order cannot be selected for shipping        | It is a POS sale, has no remaining quantity, or is not Confirmed or In Progress                                             | Open the order and resolve its status or remaining quantities                                                                                                                                                                                                     |\n| Dispatch location is incomplete                 | The location selected on the carrier account is missing one or more sender fields                                           | Select **Update location** and complete the named street, suburb or city, state, or postcode fields                                                                                                                                                               |\n| Automatic packing is unavailable                | Product measurements are missing or no preset fits                                                                          | Enter the actual packed dimensions and weight directly, or choose a suitable preset                                                                                                                                                                               |\n| Get shipping prices is unavailable              | A parcel field is empty, non-positive, or line quantities are not fully assigned                                            | Complete every parcel measurement and assign the full remaining quantity                                                                                                                                                                                          |\n| Prepare Shipments is unavailable after pricing  | A quoted service has not been selected for every order                                                                      | Choose one service for each order                                                                                                                                                                                                                                 |\n| Stock readiness shows missing stock             | The batch needs more units than are currently on hand at its fulfilment branch                                               | Review the listed incoming transfers and POs. Receive arrived stock, or start the prefilled stock adjustment only after physically recounting. Acknowledge the warning only when purchasing labels before the stock record is resolved.                                                                                     |\n| Australia Post returns no common service        | The selected service is not available for every parcel                                                                      | Review parcel measurements and destination, or prepare separate shipments where appropriate                                                                                                                                                                       |\n| The price changed before submission             | Australia Post returned a different live price for the selected service                                                     | Retrieve prices again, review the new amount and prepare a new shipment                                                                                                                                                                                           |\n| Some consignments submit and others fail        | Australia Post rejected details on the named consignments while accepting the others                                        | Keep the successful postage and labels, correct only the named failed consignments, then reopen the batch; Solvantis reuses existing carrier shipment IDs and does not purchase that postage again                                                               |\n| Label processing does not finish immediately    | Australia Post accepted the shipment but is still generating the PDF                                                        | Select **Check label status**; do not prepare or submit the shipment again                                                                                                                                                                                        |\n| Channel sync remains pending after dispatch     | The connected channel rejected the fulfillment, commonly because the Shopify custom app lacks fulfillment-order permissions | In Shopify, grant the app `read_merchant_managed_fulfillment_orders` and `write_merchant_managed_fulfillment_orders`, refresh its access token in **IMS Settings > Connections**, then reopen the shipment and select **Mark dispatched** to retry the channel sync only |\n| Carrier tracking is unavailable                 | The carrier shipment response did not include an article or consignment number                                              | Review the shipment with the carrier; Solvantis keeps the original-channel update pending until tracking is available                                                                                                                                             |\n| Submission outcome requires review              | The connection ended without a definitive Australia Post response                                                           | Stop and verify the shipment in Australia Post before retrying so postage is not purchased twice                                                                                                                                                                  |\n| Manifest outcome needs review                   | The carrier may have accepted the booking before the connection ended                                                       | Check the Australia Post portal, then use **Reconcile** with the matching order ID; do not create another manifest                                                                                                                                                |\n| A dispatched shipment is missing from Manifests | Its label is not ready, it is not marked dispatched, or it already belongs to a manifest                                    | Finish the shipment stage or review its existing manifest history                                                                                                                                                                                                 |\n| A negative-stock warning appears                | A labelled shipment is greater than recorded stock on hand at its Sales Order location                                      | Review the named order, SKU, on-hand and resulting quantity. Continue only when the physical parcel is present and leaving; Solvantis records negative stock so it can be corrected by stocktake or an audited adjustment                                            |\n| Actual COGS is unresolved                       | A shipped stock line had no positive Average Cost when it left stock                                                       | Review the separate current-cost estimate as informational only. A later receipt does not rewrite the shipment cost; use the appropriate reviewed stock and accounting process if a correction is needed |\n| Shopify incoming-stock notification appears     | Shopify fulfilled an order before recorded incoming supply was received                                                     | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock                                                                                                                                                   |\n| The first shipment appears twice                | Fulfilment was repeated instead of continued                                                                                | Stop and review order activity before making another change                                                                                                                                                                                                       |\n| Resolve Outstanding is blocked                  | Payments or accounting records need a controlled value decision                                                             | Read the preview and choose the offered settlement; do not alter shipped quantities                                                                                                                                                                               |",
       "sectionId": "ims-sales-orders-fulfilment:7"
     },
     {
@@ -16417,7 +16393,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-03",
-      "content": "Use Setup to maintain business information, team access, POS payment options, data sources, and supported external connections.",
+      "content": "Use Setup to maintain business information, team access, POS payment options, and supported external connections.",
       "sectionId": "setup-connections:1"
     },
     {
@@ -16471,7 +16447,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-03",
-      "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |\n| Connect Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n| Connect or configure a Shopify store | IMS > Integrations > Sales Channels | One exact store with its own credentials, settings, and status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.",
+      "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |\n| Connect Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n| Connect or configure a Shopify store | IMS > Integrations > Sales Channels | One exact store with its own credentials, settings, and status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.",
       "sectionId": "setup-connections:3"
     },
     {
@@ -16498,7 +16474,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-03",
-      "content": "| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Product, stock, sales, and purchasing information | The intended account can be reached | Data Source selection, ownership, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.",
+      "content": "| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Import product, stock, sales, and purchasing information into IMS | The intended account can be reached | Ownership, import scope, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.",
       "sectionId": "setup-connections:4"
     },
     {
@@ -16878,14 +16854,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-03",
       "content": "Use this guide when a connection says it is connected but a sync, report, or downstream workflow is not ready.",
       "sectionId": "setup-integration-readiness-troubleshooting:1"
     },
@@ -16898,15 +16873,14 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "- Confirm the business and external account shown on screen.\n- Separate account access from mapping and workflow readiness.\n- Choose the intended inventory data source.\n- Run one controlled test or refresh and read the result.\n- Stop repeated retries when the same problem remains.",
+      "lastReviewed": "2026-10-03",
+      "content": "- Confirm the business and external account shown on screen.\n- Separate account access from mapping and workflow readiness.\n- Confirm the intended Cin7 account when importing data into IMS.\n- Run one controlled test or refresh and read the result.\n- Stop repeated retries when the same problem remains.",
       "sectionId": "setup-integration-readiness-troubleshooting:2"
     },
     {
@@ -16918,15 +16892,14 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "| Check | Ready when | If not ready |\n| --- | --- | --- |\n| Account access | Intended account is shown and status succeeds | Reconnect or correct access |\n| Required permissions | The enabled workflow can read or perform its stated action | Reauthorise with the required access through the normal flow |\n| Product settings | Required mappings and policies are complete | Finish setup in the owning product area |\n| Data source | Cin7 or Solvantis IMS is selected as intended | Select the correct source and save |\n| Freshness | Test or refresh completes and the time or result is current | Investigate the connection before relying on reports |",
+      "lastReviewed": "2026-10-03",
+      "content": "| Check | Ready when | If not ready |\n| --- | --- | --- |\n| Account access | Intended account is shown and status succeeds | Reconnect or correct access |\n| Required permissions | The enabled workflow can read or perform its stated action | Reauthorise with the required access through the normal flow |\n| Product settings | Required mappings and policies are complete | Finish setup in the owning product area |\n| Freshness | Test or refresh completes and the time or result is current | Investigate the connection before relying on reports |",
       "sectionId": "setup-integration-readiness-troubleshooting:3"
     },
     {
@@ -16938,15 +16911,14 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "- Select the intended Solvantis business.\n- Know which external organisation, store, advertising account, or property should be connected.\n- Avoid starting another sync while one is still running.\n- Record the visible time and wording of an error without including private access details.\n\n> **Important:** \"Connected\" confirms access, not complete readiness. Xero mappings, Shopify product rules, selected advertising accounts, and inventory-source choices may still need attention.",
+      "lastReviewed": "2026-10-03",
+      "content": "- Select the intended Solvantis business.\n- Know which external organisation, store, advertising account, or property should be connected.\n- Avoid starting another sync while one is still running.\n- Record the visible time and wording of an error without including private access details.\n\n> **Important:** \"Connected\" confirms access, not complete readiness. Xero mappings, Shopify product rules, selected advertising accounts, and imported IMS data may still need attention.",
       "sectionId": "setup-integration-readiness-troubleshooting:4"
     },
     {
@@ -16958,35 +16930,33 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "1. Open **Connections** and confirm the intended business.\n2. Find the affected service and check the displayed account identity and status.\n3. If access is expired or the wrong account is shown, reconnect through the normal flow.\n4. Open the owning product settings and complete required mappings, policies, or account selections.\n5. Check **Data Source** when products, stock, or sales are missing.\n6. Run one supported test, sync, or cache refresh.\n7. Read the full result, including warnings and the displayed update time.\n8. If it fails again for the same reason, stop and seek support with the safe details shown on screen.",
+      "lastReviewed": "2026-10-03",
+      "content": "1. Open **Connections** and confirm the intended business.\n2. Find the affected service and check the displayed account identity and status.\n3. If access is expired or the wrong account is shown, reconnect through the normal flow.\n4. Open the owning product settings and complete required mappings, policies, or account selections.\n5. Open **IMS Settings > Sync & Import** to run the intended Cin7 import or refresh the sales cache.\n6. Run one supported test, sync, or cache refresh.\n7. Read the full result, including warnings and the displayed update time.\n8. If it fails again for the same reason, stop and seek support with the safe details shown on screen.",
       "sectionId": "setup-integration-readiness-troubleshooting:5"
     },
     {
       "id": "setup-integration-readiness-troubleshooting:6",
       "documentId": "setup-integration-readiness-troubleshooting",
       "title": "Integration Readiness and Troubleshooting",
-      "heading": "Choose the inventory data source",
+      "heading": "Inventory data in IMS",
       "audiences": [
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "| Source | Solvantis reads | Follow-up check |\n| --- | --- | --- |\n| Cin7 | Products, stock, and sales from the connected Cin7 source | Cin7 access, intended account, and successful sync |\n| Solvantis IMS | Products, stock, and sales from Solvantis IMS | Cache count, last refresh time, and expected product coverage |\n\nChanging the source can change which records appear in analysis. Confirm a successful refresh before comparing new results with old ones.",
+      "lastReviewed": "2026-10-03",
+      "content": "IMS is the inventory source used by Solvantis reports and operations. Cin7 can be connected as an upstream system and imported into IMS; it is not a selectable alternative reporting source. After an import or refresh, confirm the completed status and cache timestamp before comparing results.",
       "sectionId": "setup-integration-readiness-troubleshooting:6"
     },
     {
@@ -16998,15 +16968,14 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "| Symptom | Likely cause | Safe recovery |\n| --- | --- | --- |\n| Connection says expired | External authorisation ended | Reconnect the intended account, then test once |\n| Status succeeds but no data appears | A mapping, source choice, date range, or first sync is missing | Check downstream setup and source freshness |\n| Only one Google service is ready | Ads account or Analytics property is not selected | Select the missing account or property and recheck status |\n| Shopify items do not match | Product mapping or source ownership is incomplete | Review Shopify setup before another broad sync |\n| Xero posting is unavailable | Accounts, tax, tracking, payment routing, or policy is incomplete | Finish Xero Setup; connection alone is not enough |\n| A sync appears stuck | It may still be running or the result has not refreshed | Wait, refresh status once, and do not start an overlapping sync |\n| The same test fails twice | The underlying access or setup problem remains | Stop retrying and seek support with service name, time, and safe error wording |",
+      "lastReviewed": "2026-10-03",
+      "content": "| Symptom | Likely cause | Safe recovery |\n| --- | --- | --- |\n| Connection says expired | External authorisation ended | Reconnect the intended account, then test once |\n| Status succeeds but no data appears | A mapping, date range, or first import is missing | Check downstream setup and source freshness |\n| Only one Google service is ready | Ads account or Analytics property is not selected | Select the missing account or property and recheck status |\n| Shopify items do not match | Product mapping or source ownership is incomplete | Review Shopify setup before another broad sync |\n| Xero posting is unavailable | Accounts, tax, tracking, payment routing, or policy is incomplete | Finish Xero Setup; connection alone is not enough |\n| A sync appears stuck | It may still be running or the result has not refreshed | Wait, refresh status once, and do not start an overlapping sync |\n| The same test fails twice | The underlying access or setup problem remains | Stop retrying and seek support with service name, time, and safe error wording |",
       "sectionId": "setup-integration-readiness-troubleshooting:7"
     },
     {
@@ -17018,14 +16987,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-03",
       "content": "| What to share | Safe example | Do not share |\n| --- | --- | --- |\n| Service and account label | \"Google Ads for Northside Retail\" | Sign-in or access values |\n| Time and action | \"Tested at 10:15 AEST after reconnecting\" | Authenticator or recovery codes |\n| Visible error wording | The exact non-sensitive message | Private customer payloads or protected connection fields |\n| Retry count | \"One test and one retry\" | Repeated screenshots containing private values |",
       "sectionId": "setup-integration-readiness-troubleshooting:8"
     },
@@ -17038,15 +17006,14 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "### Recover a stale Google connection\n\nSetup shows Google authorised, but Analytics is not connected. Confirm the intended Google account, select the correct Analytics property, and check status again. Refresh marketing information once after both Ads and Analytics show ready.\n\n### Switch to Solvantis IMS data\n\nSelect Solvantis IMS as the inventory source, save, and use **Refresh Cache** once. Confirm the updated variant count and time before comparing product or stock reports.",
+      "lastReviewed": "2026-10-03",
+      "content": "### Recover a stale Google connection\n\nSetup shows Google authorised, but Analytics is not connected. Confirm the intended Google account, select the correct Analytics property, and check status again. Refresh marketing information once after both Ads and Analytics show ready.\n\n### Refresh IMS reporting data\n\nIMS is the inventory source for Solvantis reports. When upstream Cin7 records have changed, open **IMS Settings > Sync & Import**, run the required import, then select **Refresh Sales Cache**. Confirm the updated variant count and time before comparing reports.",
       "sectionId": "setup-integration-readiness-troubleshooting:9"
     },
     {
@@ -17058,14 +17025,13 @@
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-03",
       "content": "Setup shows Google authorised, but Analytics is not connected. Confirm the intended Google account, select the correct Analytics property, and check status again. Refresh marketing information once after both Ads and Analytics show ready.",
       "sectionId": "setup-integration-readiness-troubleshooting:9"
     },
@@ -17073,20 +17039,19 @@
       "id": "setup-integration-readiness-troubleshooting:9.2",
       "documentId": "setup-integration-readiness-troubleshooting",
       "title": "Integration Readiness and Troubleshooting",
-      "heading": "Worked examples > Switch to Solvantis IMS data",
+      "heading": "Worked examples > Refresh IMS reporting data",
       "audiences": [
         "ims"
       ],
       "capability": "integrations",
-      "screen": "Setup > Connections and Data Source",
+      "screen": "Setup > Connections; IMS Settings > Sync & Import",
       "topicId": "setup-integration-readiness-troubleshooting",
       "contexts": [
-        "data-source",
         "integration-readiness-troubleshooting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
-      "content": "Select Solvantis IMS as the inventory source, save, and use **Refresh Cache** once. Confirm the updated variant count and time before comparing product or stock reports.",
+      "lastReviewed": "2026-10-03",
+      "content": "IMS is the inventory source for Solvantis reports. When upstream Cin7 records have changed, open **IMS Settings > Sync & Import**, run the required import, then select **Refresh Sales Cache**. Confirm the updated variant count and time before comparing reports.",
       "sectionId": "setup-integration-readiness-troubleshooting:9"
     },
     {

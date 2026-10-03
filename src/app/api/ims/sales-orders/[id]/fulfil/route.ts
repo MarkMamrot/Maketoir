@@ -7,6 +7,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
+import { ProtectedStockConflict, SalesOrderPriorityConflict } from '@/lib/ims/stockAllocation/readinessService';
 
 function responseStatus(message: string): number {
   if (message.includes('not found')) return 404;
@@ -40,6 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       operationKey: String(body.operationKey ?? ''),
       shipmentQuantities: Array.isArray(body.shipmentQuantities) ? body.shipmentQuantities : [],
       allowNegativeStock: body.allowNegativeStock === true,
+      priorityOverrideReason: typeof body.priorityOverrideReason === 'string' ? body.priorityOverrideReason : null,
       finalizeWhenComplete: true,
     });
 
@@ -57,6 +59,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     if (error instanceof FifoCostingConflict) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    if (error instanceof ProtectedStockConflict || error instanceof SalesOrderPriorityConflict) {
+      return NextResponse.json({ error: error.message, code: error.code, lines: error.lines }, { status: error.status });
     }
     const message = String(error?.message ?? 'Sales order fulfilment failed.');
     const status = responseStatus(message);

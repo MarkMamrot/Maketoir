@@ -2150,54 +2150,20 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     </div>
   );
 }
-// --- Data Source Tab ---
-export function DataSourceTab({ business }: { business: Business | null }) {
-  const [source, setSource] = useState<string | null>(null);
+// --- Sales Cache Refresh ---
+export function SalesCacheTab() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState('');
   const [cacheStatus, setCacheStatus] = useState<{ count: number; updatedAt: string | null } | null>(null);
 
   useEffect(() => {
-    fetch('/api/settings/inventory-source')
-      .then(r => r.json())
-      .then(data => { if (data.success) setSource(data.source); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  // Load IMS cache status once on mount (independent of selected source)
-  useEffect(() => {
     fetch('/api/ims/refresh-sales-cache')
       .then(r => r.json())
       .then(data => { if (data.success) setCacheStatus({ count: data.count, updatedAt: data.updatedAt }); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
-
-  async function selectSource(newSource: string) {
-    if (saving) return;
-    setSaving(true);
-    setMsg('');
-    try {
-      const res = await fetch('/api/settings/inventory-source', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: newSource }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSource(data.source);
-        setMsg('Data source updated successfully.');
-      } else {
-        setMsg(data.error ?? 'Failed to update data source.');
-      }
-    } catch {
-      setMsg('Network error. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function refreshCache() {
     setRefreshing(true);
@@ -2220,80 +2186,23 @@ export function DataSourceTab({ business }: { business: Business | null }) {
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>;
 
-  const tileBase = 'relative rounded-xl border-2 p-5 text-left transition-all w-full';
-  const tileActive = 'border-blue-500 bg-blue-50';
-  const tileIdle = 'border-gray-200 bg-white hover:border-blue-300';
-  const tileDisabled = 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed';
-
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">Inventory Data Source</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Choose which system Solvantis reads product, stock, and sales data from.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        {/* Cin7 */}
-        <button
-          onClick={() => selectSource('cin7')}
-          disabled={saving}
-          className={`${tileBase} ${source === 'cin7' ? tileActive : tileIdle}`}
-        >
-          {source === 'cin7' && (
-            <span className="absolute top-3 right-3 text-blue-500 font-bold text-lg">✓</span>
-          )}
-          <div className="text-2xl mb-2">📦</div>
-          <div className="font-semibold text-gray-900 mb-1">Cin7</div>
-          <div className="text-xs text-gray-500">
-            Products, stock, and sales synced from Cin7 Core or Cin7 Omni.
-          </div>
-        </button>
-
-        {/* Solvantis IMS — div to allow nested Refresh button */}
-        <div
-          onClick={() => selectSource('solvantis')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={e => e.key === 'Enter' && selectSource('solvantis')}
-          className={`${tileBase} ${source === 'solvantis' ? tileActive : tileIdle} cursor-pointer`}
-        >
-          {source === 'solvantis' && (
-            <span className="absolute top-3 right-3 text-blue-500 font-bold text-lg">✓</span>
-          )}
-          <div className="text-2xl mb-2">🏭</div>
-          <div className="font-semibold text-gray-900 mb-1">Solvantis IMS</div>
-          <div className="text-xs text-gray-500">
-            Products, stock, and sales from Solvantis Inventory Management System.
-          </div>
-          {cacheStatus !== null ? (
-            <div className="mt-2 text-xs text-gray-500 border-t border-gray-200 pt-2">
-              {cacheStatus.count > 0
-                ? `${cacheStatus.count} variants cached`
-                : 'Cache empty — click Refresh to populate.'}
-              {cacheStatus.updatedAt && (
-                <span className="block text-gray-400 mt-0.5">
-                  Last: {new Date(cacheStatus.updatedAt).toLocaleString()}
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="mt-2 text-xs text-amber-600 border-t border-gray-200 pt-2">
-              Not synced yet.
-            </div>
-          )}
-          <button
-            onClick={e => { e.stopPropagation(); refreshCache(); }}
-            disabled={refreshing || saving}
-            className="mt-3 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 px-3 py-1 rounded-lg transition-colors"
-          >
-            {refreshing ? 'Refreshing…' : '↻ Refresh Cache'}
-          </button>
+    <div style={{ padding: 16, border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 14, fontWeight: 700 }}>Sales Cache</h3>
+          <p style={{ margin: '4px 0 0', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>Refresh the cached sales totals used by IMS reports.</p>
+          <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 11 }}>
+            {cacheStatus
+              ? `${cacheStatus.count} variants cached${cacheStatus.updatedAt ? ` · Last refreshed ${new Date(cacheStatus.updatedAt).toLocaleString()}` : ''}`
+              : 'Cache status is unavailable.'}
+          </p>
         </div>
-
+        <button type="button" onClick={refreshCache} disabled={refreshing} style={{ padding: '7px 12px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: refreshing ? 'wait' : 'pointer', opacity: refreshing ? .65 : 1 }}>
+          {refreshing ? 'Refreshing…' : 'Refresh Sales Cache'}
+        </button>
       </div>
-
-      {msg && (
-        <p className={`text-sm ${msg.includes('updated') ? 'text-green-600' : 'text-red-500'}`}>{msg}</p>
-      )}
+      {msg && <p role="status" style={{ margin: '10px 0 0', color: msg.startsWith('Cache refreshed') ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 12 }}>{msg}</p>}
     </div>
   );
 }
@@ -2463,8 +2372,6 @@ function SetupPageContent() {
     ? 'business'
     : searchParams.get('tab') === 'profile'
     ? 'profile'
-    : searchParams.get('tab') === 'data-source'
-    ? 'data-source'
     : 'connections';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -2583,16 +2490,6 @@ function SetupPageContent() {
               🛒 POS
             </button>
             <button
-              onClick={() => setActiveTab('data-source')}
-              className={`${
-                activeTab === 'data-source'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors font-nav`}
-            >
-              🔌 Data Source
-            </button>
-            <button
               onClick={() => setActiveTab('team')}
               className={`${
                 activeTab === 'team'
@@ -2611,7 +2508,6 @@ function SetupPageContent() {
           {activeTab === 'business' && <BusinessInfoTab business={selectedBusiness} />}
           {activeTab === 'profile' && <BrandProfileTab business={selectedBusiness} />}
           {activeTab === 'pos' && <PosSettingsTab />}
-          {activeTab === 'data-source' && <DataSourceTab business={selectedBusiness} />}
           {activeTab === 'team' && <TeamTab business={selectedBusiness} />}
         </div>
       </main>

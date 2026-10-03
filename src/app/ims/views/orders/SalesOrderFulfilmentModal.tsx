@@ -3,6 +3,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest, summarizeFulfilmentAllocations, type SalesOrderFulfilmentMode } from './salesOrderFulfilmentRequest';
 
+type StockReadiness = {
+  quantityOnHand: number;
+  readyNowQuantity: number;
+  protectedIncomingQuantity: number;
+  shortfallNowQuantity: number;
+  priorityPosition: number;
+};
+
+type FulfilmentItem = {
+  id: number;
+  variant_id?: string;
+  sku?: string;
+  product_name?: string;
+  qty_ordered: number;
+  qty_fulfilled?: number;
+  unit_price?: number;
+  tax_rate?: number;
+  discount_pct?: number;
+  stock_readiness?: StockReadiness | null;
+};
+
 export function SalesOrderFulfilmentModal({
   order,
   items,
@@ -10,7 +31,7 @@ export function SalesOrderFulfilmentModal({
   onResolved,
 }: {
   order: any;
-  items: Array<{ id: number; variant_id?: string; sku?: string; product_name?: string; qty_ordered: number; qty_fulfilled?: number; unit_price?: number; tax_rate?: number; discount_pct?: number }>;
+  items: FulfilmentItem[];
   onClose: () => void;
   onResolved: () => Promise<void> | void;
 }) {
@@ -25,7 +46,9 @@ export function SalesOrderFulfilmentModal({
     const initial: Record<number, string> = {};
     items.forEach(item => {
       const outstanding = Math.max(0, Number(item.qty_ordered || 0) - Number(item.qty_fulfilled || 0));
-      initial[item.id] = String(outstanding);
+      initial[item.id] = String(item.stock_readiness
+        ? Math.min(outstanding, Math.max(0, Number(item.stock_readiness.readyNowQuantity || 0)))
+        : outstanding);
     });
     setQuantities(initial);
   }, [items]);
@@ -59,7 +82,7 @@ export function SalesOrderFulfilmentModal({
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [items, order.id, quantities]);
 
-  async function submit(allowNegativeStock = false, retryOperationKey?: string) {
+  async function submit(allowNegativeStock = false, retryOperationKey?: string, priorityOverrideReason?: string) {
     setSaving(true);
     setError('');
     try {
@@ -80,9 +103,16 @@ export function SalesOrderFulfilmentModal({
       const response = await fetch(request.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operationKey, allowNegativeStock, ...request.body }),
+        body: JSON.stringify({ operationKey, allowNegativeStock, priorityOverrideReason, ...request.body }),
       });
       const data = await response.json();
+      if (response.status === 409 && data?.code === 'SALES_ORDER_PRIORITY_CONFLICT' && !priorityOverrideReason) {
+        const reason = window.prompt(
+          `${data.error}\n\nEnter a reason to override the required-date/FIFO priority, or Cancel to review the waiting orders.`,
+        )?.trim();
+        if (reason) return submit(allowNegativeStock, operationKey, reason);
+        return;
+      }
       if (response.status === 409 && data?.code === 'STOCK_SHORTFALL' && !allowNegativeStock) {
         const lines = Array.isArray(data.shortfalls) ? data.shortfalls : [];
         const detail = lines.map((line: any) => {
@@ -168,6 +198,7 @@ export function SalesOrderFulfilmentModal({
             {items.map(item => {
               const outstanding = Math.max(0, Number(item.qty_ordered || 0) - Number(item.qty_fulfilled || 0));
               const allocation = allocationByItem.get(Number(item.id));
+              const readiness = item.stock_readiness;
               const enteredQuantity = Number(quantities[item.id] ?? 0);
               return (
                 <div key={item.id} style={{ display: 'grid', gap: 4 }}>
@@ -177,6 +208,15 @@ export function SalesOrderFulfilmentModal({
                     <input data-testid={`so-fulfil-qty-${item.id}`} type="number" min={0} max={outstanding} step={1} value={quantities[item.id] ?? ''} onChange={e => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))} style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--sv-etch,#4b5563)', background: 'var(--sv-bg-1,#0f172a)', color: 'inherit' }} />
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>of {outstanding}</span>
                   </div>
+                  {readiness && (
+                    <div data-testid={`so-fulfil-readiness-${item.id}`} style={{ fontSize: 11, color: 'var(--sv-text-dim,#aab4c2)' }}>
+                      On hand {readiness.quantityOnHand.toLocaleString('en-AU', { maximumFractionDigits: 4 })}
+                      {' · '}Ready for this SO {readiness.readyNowQuantity.toLocaleString('en-AU', { maximumFractionDigits: 4 })}
+                      {' · '}Protected incoming {readiness.protectedIncomingQuantity.toLocaleString('en-AU', { maximumFractionDigits: 4 })}
+                      {' · '}Shortfall {readiness.shortfallNowQuantity.toLocaleString('en-AU', { maximumFractionDigits: 4 })}
+                      {' · '}Priority #{readiness.priorityPosition}
+                    </div>
+                  )}
                   {allocation && allocation.protected > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--sv-text-dim,#aab4c2)' }}>
                       Protected {allocation.protected.toLocaleString('en-AU', { maximumFractionDigits: 4 })}: {allocation.ready.toLocaleString('en-AU', { maximumFractionDigits: 4 })} ready, {allocation.incoming.toLocaleString('en-AU', { maximumFractionDigits: 4 })} incoming

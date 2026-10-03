@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-content-service","title":"Brand Assets, Content, and Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Brand Assets and Customer Service","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["brand-assets","brand-assets-models","brand-assets-backdrops","brand-assets-poses","brand-assets-scenes","brand-assets-templates","connections","marketing-settings","data-source"],"contextSections":{"brand-assets":"Brand assets","brand-assets-models":"Brand assets","brand-assets-backdrops":"Brand assets","brand-assets-poses":"Brand assets","brand-assets-scenes":"Brand assets","brand-assets-templates":"Brand assets","connections":"Supporting settings","marketing-settings":"Supporting settings","data-source":"Supporting settings"},"relatedTopics":["foresight-content-production-customer-service","setup-connections","setup-business-brand-appearance"],"order":30,"summary":"Choose and review reusable brand inputs before producing website content or customer replies.","lastReviewed":"2026-10-02","owner":"commerce","quickSections":["Main operations","Brand assets","Choose the right asset type"]}
+{"id":"foresight-content-service","title":"Brand Assets, Content, and Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Brand Assets and Customer Service","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["brand-assets","brand-assets-models","brand-assets-backdrops","brand-assets-poses","brand-assets-scenes","brand-assets-templates","marketing-settings"],"contextSections":{"brand-assets":"Brand assets","brand-assets-models":"Brand assets","brand-assets-backdrops":"Brand assets","brand-assets-poses":"Brand assets","brand-assets-scenes":"Brand assets","brand-assets-templates":"Brand assets","marketing-settings":"Supporting settings"},"relatedTopics":["foresight-content-production-customer-service","setup-connections","setup-business-brand-appearance"],"order":30,"summary":"Choose and review reusable brand inputs before producing website content or customer replies.","lastReviewed":"2026-10-03","owner":"commerce","quickSections":["Main operations","Brand assets","Choose the right asset type"]}
 ---
 # Brand Assets, Content, and Service
 
@@ -35,7 +35,7 @@ Brand Assets stores reusable references for creative work. A generated image is 
 
 ## Supporting settings
 
-Connections and Data Source control which supported services and information are available. Marketing Settings controls the options shown for applicable Intel & Automation work.
+Connections are managed in IMS Settings. Marketing Settings controls the options shown for applicable Intel & Automation work.
 
 | Input | Human decision | Output | External change |
 | --- | --- | --- | --- |

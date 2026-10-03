@@ -3,6 +3,11 @@ import type { PoolConnection } from 'mysql2/promise';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { StockShortfallError, type StockShortfall } from './stockShortfall';
 import { reconcileStockAllocationsForFulfilment } from '../stockAllocation/service';
+import {
+  loadSalesOrderReadiness,
+  ProtectedStockConflict,
+  SalesOrderPriorityConflict,
+} from '../stockAllocation/readinessService';
 import { consumeFifoCostLayers, lockInventoryCostState } from '../costing/fifoCostingService';
 
 const QUANTITY_SCALE = 10_000;
@@ -40,6 +45,7 @@ export type FulfilSalesOrderPartialInput = {
   allowNegativeStock?: boolean;
   allowIncomingCoveredStockShortfall?: boolean;
   finalizeWhenComplete?: boolean;
+  priorityOverrideReason?: string | null;
 };
 
 export async function fulfilSalesOrderPartialInTransaction(
@@ -61,15 +67,19 @@ export async function fulfilSalesOrderPartialInTransaction(
   if (![...requested.values()].some(quantity => quantity > 0)) {
     throw new Error('At least one positive shipment quantity is required.');
   }
+  const priorityOverrideReason = input.priorityOverrideReason?.trim() || null;
   const requestHash = createHash('sha256')
-    .update(JSON.stringify([...requested.entries()].sort(([left], [right]) => left - right)))
+    .update(JSON.stringify({
+      shipmentQuantities: [...requested.entries()].sort(([left], [right]) => left - right),
+      priorityOverrideReason,
+    }))
     .digest('hex');
 
     await conn.execute(
       `INSERT IGNORE INTO ims_so_fulfilment_operations
         (business_id, operation_key, request_hash, so_id, status, request_json)
        VALUES (?, ?, ?, ?, 'processing', ?)`,
-      [input.businessId, operationKey, requestHash, input.soId, JSON.stringify({ shipmentQuantities: input.shipmentQuantities })],
+      [input.businessId, operationKey, requestHash, input.soId, JSON.stringify({ shipmentQuantities: input.shipmentQuantities, priorityOverrideReason })],
     );
     const [[operation]] = await conn.execute<any[]>(
       `SELECT so_id, request_hash, status, response_json
@@ -120,6 +130,30 @@ export async function fulfilSalesOrderPartialInTransaction(
     const itemsById = new Map(items.map(item => [Number(item.id), item]));
     for (const itemId of requested.keys()) {
       if (!itemsById.has(itemId)) throw new Error(`Sales order item ${itemId} was not found on this order.`);
+    }
+
+    const readinessByItem = new Map((await loadSalesOrderReadiness(conn, {
+      businessId: input.businessId,
+      soId: input.soId,
+      lock: true,
+    })).map(row => [row.soItemId, row]));
+    for (const [itemId, shipmentScaled] of requested) {
+      if (shipmentScaled <= 0) continue;
+      const item = itemsById.get(itemId);
+      if (Number(item?.is_stock_item ?? 1) === 0) continue;
+      const readiness = readinessByItem.get(itemId);
+      if (!readiness) continue;
+      const shipmentQuantity = shipmentScaled / QUANTITY_SCALE;
+      const stockNotProtectedForOthers = Math.max(0, readiness.quantityOnHand - readiness.protectedReadyReservedForOthers);
+      if (readiness.protectedReadyReservedForOthers > 0
+        && shipmentQuantity > stockNotProtectedForOthers + 0.00005) {
+        throw new ProtectedStockConflict([readiness]);
+      }
+      if (shipmentQuantity > readiness.readyNowQuantity + 0.00005
+        && readiness.higherPriorityReadyQuantity > 0
+        && !priorityOverrideReason) {
+        throw new SalesOrderPriorityConflict([readiness]);
+      }
     }
 
     const fulfilledVariantIds: string[] = [];

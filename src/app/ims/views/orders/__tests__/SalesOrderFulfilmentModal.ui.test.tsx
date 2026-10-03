@@ -13,6 +13,36 @@ afterEach(() => {
 });
 
 describe('SalesOrderFulfilmentModal', () => {
+  it('shows readiness and defaults quantity to what is ready for this order', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: {} }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })));
+
+    render(
+      <SalesOrderFulfilmentModal
+        order={{ id: 42, so_number: 'SO-42', updated_at: '2026-10-02T00:00:00.000Z' }}
+        items={[{
+          id: 7, sku: 'SKU-7', qty_ordered: 5, qty_fulfilled: 0,
+          stock_readiness: {
+            quantityOnHand: 8,
+            readyNowQuantity: 3,
+            protectedIncomingQuantity: 1,
+            shortfallNowQuantity: 2,
+            priorityPosition: 2,
+          },
+        }]}
+        onClose={vi.fn()}
+        onResolved={vi.fn()}
+      />,
+    );
+
+    expect((screen.getByTestId('so-fulfil-qty-7') as HTMLInputElement).value).toBe('3');
+    expect(screen.getByTestId('so-fulfil-readiness-7').textContent).toContain(
+      'On hand 8 · Ready for this SO 3 · Protected incoming 1 · Shortfall 2 · Priority #2',
+    );
+  });
+
   it('shows a direct full fulfilment action and reveals remainder choices only for a partial quantity', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, data: {} }), {
       status: 200,

@@ -3,7 +3,7 @@
 ---
 # Connections and Setup
 
-Use Setup to maintain business information, team access, POS payment options, data sources, and supported external connections.
+Use Setup to maintain business information, team access, POS payment options, and supported external connections.
 
 ## Main operations
 
@@ -20,7 +20,6 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |
 | Invite a colleague or choose a role | Team | An invitation for User or Admin access |
 | Add or rename POS payment options | POS Settings | Payment methods shown at checkout |
-| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |
 | Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |
 | Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |
 | Connect Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
@@ -35,7 +34,7 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |
 | Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |
 | Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |
-| Cin7 | Product, stock, sales, and purchasing information | The intended account can be reached | Data Source selection, ownership, and first sync result |
+| Cin7 | Import product, stock, sales, and purchasing information into IMS | The intended account can be reached | Ownership, import scope, and first sync result |
 | Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |
 | Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |
 | Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |
