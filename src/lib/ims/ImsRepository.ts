@@ -375,6 +375,9 @@ export interface ImsSOItem {
   code?: string; name?: string;
   qty_ordered: number;
   qty_fulfilled: number; unit_price: number; unit_cost?: number;
+  captured_unit_cost?: number | null;
+  catalogue_cost_estimate?: number | null;
+  catalogue_cost_source?: 'average_cost' | 'standard_cost' | null;
   discount_pct: number; tax_rate: number; line_total: number; notes?: string;
   sku?: string; product_name?: string; variant_label?: string;
   product_id?: string | null; customs_description?: string | null; hs_code?: string | null;
@@ -3070,16 +3073,21 @@ export const ImsSORepo = {
     await ensureVariantAvgCost(); // ensure avg_cost column exists before reading it
     const items = await imsQuery<ImsSOItem>(
       `SELECT i.*,
+              i.unit_cost AS captured_unit_cost,
               COALESCE(v.sku, i.code) AS sku,
               COALESCE(p.name, i.name, i.notes) AS product_name,
               p.product_id, p.customs_description, p.hs_code, p.country_of_origin,
-              p.is_dangerous_or_restricted,
+              p.is_dangerous_or_restricted, COALESCE(p.is_stock_item, 1) AS is_stock_item,
               CONCAT_WS(' / ',
                 NULLIF(v.option1_value,''),
                 NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')
               ) AS variant_label,
-              COALESCE(v.avg_cost, v.cost_aud) AS unit_cost,
+                  COALESCE(v.avg_cost, v.cost_aud) AS unit_cost,
+                  COALESCE(NULLIF(v.avg_cost, 0), NULLIF(v.cost_aud, 0)) AS catalogue_cost_estimate,
+                  CASE WHEN v.avg_cost > 0 THEN 'average_cost'
+                    WHEN v.cost_aud > 0 THEN 'standard_cost'
+                    ELSE NULL END AS catalogue_cost_source,
               v.weight_kg, v.length_mm, v.width_mm, v.height_mm
        FROM ims_sales_order_items i
        LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id

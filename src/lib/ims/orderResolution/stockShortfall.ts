@@ -5,6 +5,7 @@ export type StockShortfall = {
   requestedQuantity: number;
   quantityOnHand: number;
   resultingQuantityOnHand: number;
+  actualCostUnavailable?: boolean;
 };
 
 export class StockShortfallError extends Error {

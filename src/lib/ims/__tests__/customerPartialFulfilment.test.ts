@@ -18,6 +18,7 @@ let storedRequestHash = '';
 let firstItemIsStock = 1;
 let quantityOnHand = 20;
 let quantityIncoming = 0;
+let averageCost = 4.5;
 let branchTransferIncoming = 0;
 let allocationRows: Record<string, unknown>[] = [];
 
@@ -39,6 +40,7 @@ describe('fulfilSalesOrderPartial', () => {
     firstItemIsStock = 1;
     quantityOnHand = 20;
     quantityIncoming = 0;
+    averageCost = 4.5;
     branchTransferIncoming = 0;
     allocationRows = [];
     mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: null, revision: 1 });
@@ -63,7 +65,7 @@ describe('fulfilSalesOrderPartial', () => {
         ]];
       }
       if (sql.includes('FROM ims_stock s')) {
-        return [[{ qty_on_hand: quantityOnHand, qty_committed: 12, qty_incoming: quantityIncoming, avg_cost: 4.5 }]];
+        return [[{ qty_on_hand: quantityOnHand, qty_committed: 12, qty_incoming: quantityIncoming, avg_cost: averageCost }]];
       }
       if (sql.includes('FROM ims_branch_transfers bt')) return [[{ incoming_quantity: branchTransferIncoming }]];
       if (sql.includes('FROM ims_stock_allocations')) return [allocationRows];
@@ -302,6 +304,34 @@ describe('fulfilSalesOrderPartial', () => {
       shortfalls: [{ itemId: 10, quantityOnHand: 2, requestedQuantity: 3, resultingQuantityOnHand: -1 }],
     });
     expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('marks Average Cost stock shortfalls unresolved when no positive Average Cost is available', async () => {
+    quantityOnHand = 2;
+    averageCost = 0;
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-short-no-cost',
+      shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+    })).rejects.toMatchObject({
+      code: 'STOCK_SHORTFALL',
+      shortfalls: [{ itemId: 10, actualCostUnavailable: true }],
+    });
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('does not label FIFO stock shortfalls as Average Cost-unresolved', async () => {
+    quantityOnHand = 2;
+    averageCost = 0;
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-fifo-short-warning',
+      shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+    })).rejects.toMatchObject({
+      code: 'STOCK_SHORTFALL',
+      shortfalls: [{ itemId: 10 }],
+    });
   });
 
   it('allows negative stock only after an explicit override', async () => {

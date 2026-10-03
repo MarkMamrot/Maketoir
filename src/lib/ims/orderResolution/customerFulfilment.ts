@@ -175,6 +175,9 @@ export async function fulfilSalesOrderPartialInTransaction(
           requestedQuantity: quantity,
           quantityOnHand: oldOnHand,
           resultingQuantityOnHand: oldOnHand - quantity,
+          ...(costingState.method === 'average_cost' && Number(stock?.avg_cost ?? 0) <= 0
+            ? { actualCostUnavailable: true }
+            : {}),
         };
         let coveredByIncoming = false;
         if (input.allowIncomingCoveredStockShortfall) {

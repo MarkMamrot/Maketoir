@@ -89,8 +89,18 @@ export function SalesOrderFulfilmentModal({
           const item = items.find(candidate => Number(candidate.id) === Number(line.itemId));
           return `${item?.sku || item?.product_name || `Line ${line.itemId}`}: ${line.quantityOnHand} on hand, ${line.requestedQuantity} requested, resulting SOH ${line.resultingQuantityOnHand}`;
         }).join('\n');
+        const unresolvedCostLines = lines
+          .filter((line: any) => line.actualCostUnavailable === true)
+          .map((line: any) => {
+            const item = items.find(candidate => Number(candidate.id) === Number(line.itemId));
+            return item?.sku || item?.product_name || `Line ${line.itemId}`;
+          });
+        const costWarning = unresolvedCostLines.length > 0
+          ? `\n\nNo positive Average Cost is available for ${unresolvedCostLines.join(', ')}. If you continue, actual COGS for these shipped units will remain unresolved. Any Standard Cost estimate is informational only and will not be counted as actual COGS or gross margin.`
+          : '';
         const confirmed = window.confirm(
           `Stock on hand is insufficient:\n\n${detail}\n\n` +
+          `${costWarning}\n\n` +
           'Continuing will make stock on hand negative. Stocktake or adjust this stock as soon as possible.\n\n' +
           'Continue and allow negative stock?',
         );

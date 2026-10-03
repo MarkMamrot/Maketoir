@@ -21,6 +21,7 @@ import { optionCombinations } from '@/lib/ims/bulkProductEditor';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { getCountryOptions } from '@/lib/ims/countryOptions';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { summarizeSalesOrderCogs } from '@/lib/ims/salesOrderCogs';
 import { formatAuditDateTime } from '@/lib/ims/auditDateTime';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
 import { audAmountFromPayment, canonicalExchangeRate, displayedExchangeRate, exchangeRateFromPaymentAmounts, type ExchangeRateDirection } from '@/lib/ims/foreignPaymentMath';
@@ -65,6 +66,7 @@ import { ProductBuildsView } from './views/products/ProductBuildsView';
 import { BuildRecipeEditor } from './views/products/BuildRecipeEditor';
 import { NewProductChannelChoices, ProductChannelDestinations } from './views/products/ProductChannelDestinations';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
+import { SalesOrderCogsDetail, type SalesOrderCogsDisplayLine } from './views/orders/SalesOrderCogsDetail';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { SalesOrderBatchMoveModal } from './views/orders/SalesOrderBatchMoveModal';
 import { SalesOrderMoveItemsModal } from './views/orders/SalesOrderMoveItemsModal';
@@ -11772,7 +11774,7 @@ function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: 
   const freightTreatment = settings.freight_treatment === 'capitalise' ? 'capitalise' : 'expense';
   const freight = Number(po.freight || 0);
 
-  const lineItems = items.map((item: any) => {
+  const lineItems = items.map((item: any, index: number) => {
     const qty = Number(item.qty_ordered);
     const cost = Number(item.unit_cost);
     const taxRate = Number(item.tax_rate || 0);
@@ -12043,8 +12045,17 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
   const taxTreatment = (so.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const lineAmountType = taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive';
 
-  const lineItems = items.map((item: any) => {
+  const cogsSummary = summarizeSalesOrderCogs(items.map(item => ({
+    qtyOrdered: item.qty_ordered,
+    qtyFulfilled: item.qty_fulfilled,
+    capturedUnitCost: item.captured_unit_cost,
+    estimatedUnitCost: item.catalogue_cost_estimate ?? item.unit_cost,
+    isStockItem: item.is_stock_item,
+  })));
+  const lineItems = items.map((item: any, index: number) => {
     const qty = Number(item.qty_ordered);
+    const qtyFulfilled = Number(item.qty_fulfilled ?? 0);
+    const qtyRemaining = Math.max(0, qty - qtyFulfilled);
     const price = Number(item.unit_price);
     const discPct = Number(item.discount_pct || 0);
     const taxRate = Number(item.tax_rate || 0);
@@ -12052,17 +12063,18 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
     const lineAmount = qty * netPrice;
     const lineNet = taxTreatment === 'inc_tax' && taxRate > 0 ? lineAmount / (1 + taxRate) : lineAmount;
     const taxAmt = taxTreatment === 'no_tax' ? 0 : taxTreatment === 'inc_tax' ? lineAmount - lineNet : lineNet * taxRate;
-    const cogs = item.unit_cost != null ? qty * Number(item.unit_cost) : null;
-    return { ...item, qty, price, discPct, taxRate, netPrice, lineAmount, lineNet, taxAmt, cogs };
+    const cogs = cogsSummary.lines[index].actualCogs;
+    const estimatedRemainingCogs = cogsSummary.lines[index].estimatedRemainingCogs;
+    return { ...item, qty, qtyFulfilled, qtyRemaining, price, discPct, taxRate, netPrice, lineAmount, lineNet, taxAmt, cogs, estimatedRemainingCogs };
   });
 
   const revenueSubtotal = lineItems.reduce((s: number, i: any) => s + Math.round(i.lineNet * 100) / 100, 0);
   const taxTotal = lineItems.reduce((s: number, i: any) => s + Math.round(i.taxAmt * 100) / 100, 0);
   const totalAud = Number(so.total_amount || 0) * rate;
   const revenueSubtotalAud = revenueSubtotal * rate;
-  const hasCogs = lineItems.some((i: any) => i.cogs !== null);
-  const totalCogs = hasCogs ? lineItems.reduce((s: number, i: any) => s + (i.cogs ?? 0), 0) : null;
-  const grossProfit = totalCogs !== null ? revenueSubtotal - totalCogs : null;
+  const totalCogs = cogsSummary.actualCogs;
+  const totalEstimatedCogs = cogsSummary.estimatedRemainingCogs;
+  const grossProfit = cogsSummary.grossMarginAvailable && totalCogs !== null ? revenueSubtotal - totalCogs : null;
   const grossMarginPct = grossProfit !== null && revenueSubtotal > 0 ? (grossProfit / revenueSubtotal) * 100 : null;
 
   const dim: React.CSSProperties = { color: 'var(--sv-text-dim)', fontSize: 11 };
@@ -12076,7 +12088,8 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
         <XeroBadge />
         <CostSummaryPills items={[
           { label: 'Revenue (ex tax)', value: fmtFx(revenueSubtotal, currency) },
-          { label: 'COGS (AUD)', value: totalCogs !== null ? fmtCurrency(totalCogs) : '—', tone: totalCogs !== null ? 'default' : 'warn' },
+          { label: 'Actual COGS (shipped, AUD)', value: totalCogs !== null ? fmtCurrency(totalCogs) : 'Unresolved', tone: totalCogs !== null ? 'default' : 'warn' },
+          { label: 'Estimate (remaining, AUD)', value: cogsSummary.hasRemainingStock ? (totalEstimatedCogs !== null ? fmtCurrency(totalEstimatedCogs) : 'Unavailable') : '—', tone: cogsSummary.hasRemainingStock && totalEstimatedCogs === null ? 'warn' : 'default' },
           { label: 'Gross Margin', value: grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—', tone: grossMarginPct !== null ? (grossMarginPct >= 0 ? 'good' : 'bad') : 'warn' },
         ]} />
         <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -12182,60 +12195,25 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
         </tbody>
       </table>
 
-      {/* C – COGS & Margin */}
-      <div style={lbl}>C — COGS & Gross Margin{!hasCogs ? ' (cost unavailable — no standard cost set on product)' : ''}</div>
-      {hasCogs ? (
-        <>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU</th>
-                <th style={{ ...num, fontWeight: 600 }}>Qty</th>
-                <th style={{ ...num, fontWeight: 600 }}>Avg Cost (AUD)</th>
-                <th style={{ ...num, fontWeight: 600 }}>COGS (AUD)</th>
-                <th style={{ ...num, fontWeight: 600 }}>Revenue ({currency})</th>
-                <th style={{ ...num, fontWeight: 600 }}>Margin</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lineItems.map((item: any, i: number) => {
-                const itemMargin = item.cogs !== null && item.lineNet > 0 ? ((item.lineNet - item.cogs) / item.lineNet) * 100 : null;
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                    <td style={cell}>{item.sku || '—'}</td>
-                    <td style={num}>{item.qty}</td>
-                    <td style={num}>{item.unit_cost != null ? fmtCurrency(Number(item.unit_cost)) : '—'}</td>
-                    <td style={num}>{item.cogs !== null ? fmtCurrency(item.cogs) : '—'}</td>
-                    <td style={{ ...num, color: 'var(--sv-text-main)' }}>{fmtFx(item.lineNet, currency)}</td>
-                    <td style={{ ...num, color: itemMargin !== null && itemMargin >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                      {itemMargin !== null ? `${itemMargin.toFixed(1)}%` : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
-                <td colSpan={3} style={{ ...cell, fontWeight: 700 }}>Totals</td>
-                <td style={{ ...num, fontWeight: 700 }}>{fmtCurrency(totalCogs!)}</td>
-                <td style={{ ...num, fontWeight: 700 }}>{fmtFx(revenueSubtotal, currency)}</td>
-                <td style={{ ...num, fontWeight: 700, color: grossMarginPct !== null && grossMarginPct >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                  {grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—'}
-                </td>
-              </tr>
-              <tr>
-                <td colSpan={4} style={dim}>Gross Profit = Revenue − COGS</td>
-                <td colSpan={2} style={{ ...dim, textAlign: 'right', fontWeight: 700, color: grossProfit !== null && grossProfit >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                  {grossProfit !== null ? fmtCurrency(grossProfit) : '—'}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-          <div style={{ ...dim, marginTop: 3 }}>Unit cost = business-wide weighted avg (across all locations), falling back to standard cost (cost_aud) if not yet received into stock.</div>
-        </>
-      ) : (
-        <div style={{ ...dim, fontStyle: 'italic' }}>Cost not available — no standard cost (cost_aud) set on these variants.</div>
-      )}
+      <SalesOrderCogsDetail
+        lines={lineItems.map((item: any): SalesOrderCogsDisplayLine => ({
+          sku: item.sku,
+          qtyFulfilled: item.qtyFulfilled,
+          qtyRemaining: item.qtyRemaining,
+          actualCogs: item.cogs,
+          estimatedRemainingCogs: item.estimatedRemainingCogs,
+          revenue: item.lineNet,
+          marginPct: item.qtyRemaining === 0 && item.cogs !== null && item.lineNet > 0
+            ? ((item.lineNet - item.cogs) / item.lineNet) * 100
+            : null,
+          isStockItem: Number(item.is_stock_item ?? 1) !== 0,
+        }))}
+        summary={cogsSummary}
+        revenue={revenueSubtotal}
+        currency={currency}
+        grossProfit={grossProfit}
+        grossMarginPct={grossMarginPct}
+      />
 
       {/* D – Xero Invoice */}
       <div style={lbl}>D — Xero Invoice (what will be sent)</div>
