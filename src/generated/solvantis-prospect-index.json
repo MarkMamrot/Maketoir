@@ -370,7 +370,7 @@
     {
       "id": "public-capability:ims-stock-allocation-backorders",
       "title": "Stock Allocation and Customer Backorders",
-      "summary": "Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.",
+      "summary": "Review required-date priority, protect confirmed incoming purchase-order quantities for outstanding customer demand, and identify quantities that still have no source.",
       "capabilities": [
         "ims",
         "orders"

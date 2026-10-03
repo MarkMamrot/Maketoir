@@ -15,6 +15,27 @@ import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
+import { notifyStockAllocationSuggestionsForPurchaseOrder } from '@/lib/ims/stockAllocation/suggestionNotifications';
+
+async function notifyAllocationSuggestions(input: {
+  businessId: string;
+  poId: number;
+  poNumber?: string | null;
+}): Promise<void> {
+  try {
+    await notifyStockAllocationSuggestionsForPurchaseOrder(input);
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId: input.businessId,
+      source: 'ims_stock_allocations',
+      operation: 'notify_po_supply_suggestions',
+      title: 'Incoming supply suggestions could not be notified',
+      error,
+      context: { poId: input.poId },
+      reference: { type: 'purchase_order', id: input.poId },
+    }).catch(() => {});
+  }
+}
 
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -179,6 +200,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         triggerPOXeroSync(businessId, Number(params.id), status).catch(() => {});
       }
       // 'partially_received' → no Xero action (not fully received yet)
+      if (status === 'confirmed') {
+        await notifyAllocationSuggestions({
+          businessId,
+          poId: Number(params.id),
+          poNumber: poDataFull?.po_number ?? null,
+        });
+      }
 
     } else {
       const existing = await ImsPORepo.get(Number(params.id), businessId);
@@ -235,6 +263,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             summary: result.warning, expected: { xeroUpdated: true }, actual: { xeroUpdated: false },
           });
         }
+      }
+      if (['confirmed', 'partially_received'].includes(String(existing.status))) {
+        await notifyAllocationSuggestions({
+          businessId,
+          poId: Number(params.id),
+          poNumber: existing.po_number ?? null,
+        });
       }
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });

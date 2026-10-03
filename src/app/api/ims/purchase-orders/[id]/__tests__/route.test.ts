@@ -17,6 +17,7 @@ const {
   mockGetOrderResolutionFinancialSummaries,
   mockGetOrderActivityHistory,
   mockMainQuery,
+  mockNotifyAllocationSuggestions,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGet: vi.fn(),
@@ -34,6 +35,7 @@ const {
   mockGetOrderResolutionFinancialSummaries: vi.fn(),
   mockGetOrderActivityHistory: vi.fn(),
   mockMainQuery: vi.fn(),
+  mockNotifyAllocationSuggestions: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
@@ -58,6 +60,7 @@ vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceEditState: mockGetX
 vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliationIssue: mockRecordXeroReconciliationIssue }));
 vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
 vi.mock('@/lib/ims/orderAmendmentHistory', () => ({ getOrderActivityHistory: mockGetOrderActivityHistory }));
+vi.mock('@/lib/ims/stockAllocation/suggestionNotifications', () => ({ notifyStockAllocationSuggestionsForPurchaseOrder: mockNotifyAllocationSuggestions }));
 
 import { DELETE, GET, PUT } from '../route';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
@@ -78,15 +81,31 @@ describe('/api/ims/purchase-orders/[id]', () => {
     mockGetImsSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin', userId: 7, name: 'Alex' });
     mockImsQuery.mockResolvedValue([]);
     mockMainQuery.mockResolvedValue([]);
+    mockRefreshVariantCache.mockResolvedValue(undefined);
+    mockTriggerPOXeroSync.mockResolvedValue(null);
     mockTriggerPOXeroVoid.mockResolvedValue(null);
     mockChangeStatus.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
     mockReportRuntimeIssue.mockResolvedValue(null);
     mockUpdate.mockResolvedValue(undefined);
+    mockNotifyAllocationSuggestions.mockResolvedValue(false);
     mockTriggerPOXeroUpdate.mockResolvedValue({ attempted: true, updated: true, warning: null });
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
     mockGetOrderResolutionFinancialSummaries.mockResolvedValue([]);
     mockGetOrderActivityHistory.mockResolvedValue([]);
+  });
+
+  it('notifies when a confirmed purchase order can supply waiting demand', async () => {
+    mockGet
+      .mockResolvedValueOnce({ id: 42, status: 'draft', items: [] })
+      .mockResolvedValueOnce({ id: 42, status: 'confirmed', po_number: 'PO-42', items: [] });
+
+    const response = await PUT(putRequest({ status: 'confirmed' }), params);
+
+    expect(response.status).toBe(200);
+    expect(mockNotifyAllocationSuggestions).toHaveBeenCalledWith({
+      businessId: 'biz-1', poId: 42, poNumber: 'PO-42',
+    });
   });
 
   it('returns core PO detail when optional shortfall financials fail', async () => {

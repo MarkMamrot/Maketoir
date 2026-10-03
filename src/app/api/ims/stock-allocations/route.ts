@@ -8,6 +8,8 @@ import {
   StockAllocationConflict,
 } from '@/lib/ims/stockAllocation/service';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { loadStockAllocationSuggestions } from '@/lib/ims/stockAllocation/suggestionService';
+import { createStockAllocationBatch } from '@/lib/ims/stockAllocation/batchService';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
@@ -16,6 +18,18 @@ export async function GET(req: Request) {
   const soId = Number(search.get('soId') ?? 0);
   const poId = Number(search.get('poId') ?? 0);
   const candidatesForSo = Number(search.get('candidatesForSo') ?? 0);
+  if (search.get('suggestions') === 'true') {
+    try {
+      const data = await loadStockAllocationSuggestions(session.businessId);
+      return NextResponse.json({ success: true, data });
+    } catch (error: any) {
+      await reportRuntimeIssue({
+        businessId: session.businessId, source: 'ims_stock_allocations', operation: 'list_suggestions',
+        title: 'Stock allocation suggestions could not be loaded', error,
+      }).catch(() => {});
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+  }
   if (candidatesForSo) {
     if (!Number.isInteger(candidatesForSo) || candidatesForSo <= 0) {
       return NextResponse.json({ success: false, error: 'A valid sales order is required.' }, { status: 400 });
@@ -54,6 +68,23 @@ export async function POST(req: Request) {
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   try {
     const body = await req.json();
+    if (Array.isArray(body.allocations)) {
+      const result = await createStockAllocationBatch({
+        businessId: session.businessId,
+        operationKey: String(body.operationKey ?? ''),
+        allocations: body.allocations.map((allocation: any) => ({
+          soItemId: Number(allocation.soItemId),
+          poItemId: Number(allocation.poItemId),
+          quantity: Number(allocation.quantity),
+          promisedDate: typeof allocation.promisedDate === 'string' ? allocation.promisedDate : null,
+          priority: Number(allocation.priority ?? 0),
+          overrideReason: typeof allocation.overrideReason === 'string' ? allocation.overrideReason : null,
+        })),
+        actorId: session.userId ?? null,
+        actorName: session.name ?? session.email ?? null,
+      });
+      return NextResponse.json({ success: true, data: result });
+    }
     const result = await createStockAllocation({
       businessId: session.businessId,
       operationKey: String(body.operationKey ?? ''),

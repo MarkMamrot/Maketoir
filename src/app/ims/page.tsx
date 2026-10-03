@@ -23712,6 +23712,18 @@ export default function ImsPage() {
                                   Open sales order
                                 </button>
                               )}
+                              {n.detail?.action === 'open_stock_allocation' && (
+                                <button
+                                  onClick={() => {
+                                    setNotifOpen(false);
+                                    setNotifExpanded(null);
+                                    setViewSafe('stock-availability');
+                                  }}
+                                  style={{ border: 'none', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}
+                                >
+                                  Review stock allocation
+                                </button>
+                              )}
                               {detailSections.map((section, sectionIndex) => (
                                 <div key={`${n.id}:detail:${sectionIndex}`} style={{ marginBottom: 10 }}>
                                   <div style={{ fontSize: 11, color: 'var(--sv-text-strong)', marginBottom: 5, fontWeight: 700 }}>{section.heading}</div>

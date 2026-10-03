@@ -1,5 +1,5 @@
 ---
-{"id":"ims-stock-allocation-backorders","title":"Stock Allocation and Customer Backorders","audiences":["ims"],"capability":"orders","screen":"Sales > Stock Allocation","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-purchase-orders"],"contexts":["stock-availability","backorders","customer-backorders","sales-orders"],"contextSections":{"stock-availability":"Step-by-step","backorders":"At a glance","customer-backorders":"At a glance","sales-orders":"Confirm with incoming supply"},"order":32,"summary":"Protect confirmed incoming purchase-order quantities for outstanding customer demand and identify quantities that still have no source.","lastReviewed":"2026-09-30","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-stock-allocation-backorders","title":"Stock Allocation and Customer Backorders","audiences":["ims"],"capability":"orders","screen":"Sales > Stock Allocation","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-purchase-orders"],"contexts":["stock-availability","backorders","customer-backorders","sales-orders"],"contextSections":{"stock-availability":"Step-by-step","backorders":"At a glance","customer-backorders":"At a glance","sales-orders":"Confirm with incoming supply"},"order":32,"summary":"Review required-date priority, protect confirmed incoming purchase-order quantities for outstanding customer demand, and identify quantities that still have no source.","lastReviewed":"2026-10-03","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 # Stock Allocation and Customer Backorders
 
@@ -10,6 +10,8 @@ A customer backorder is still a Sales Order. Find it from **Sales > Sales Orders
 ## Main operations
 
 - Find customer demand that is ready, incoming, at risk, overdue, or unsourced.
+- Compare on-hand stock, stock ready for each order, protected incoming supply, current shortfall, and required-date priority.
+- Review suggested allocations across waiting orders and apply only the selected quantities together.
 - Allocate free incoming purchase-order quantity to a customer order.
 - Review and protect eligible incoming supply while confirming a Draft Sales Order.
 - Add an optional customer promise date. This is the date communicated to the customer, not the Purchase Order's expected arrival date, and it does not allocate extra stock.
@@ -22,9 +24,10 @@ A customer backorder is still a Sales Order. Find it from **Sales > Sales Orders
 |---|---|---|
 | Outstanding | Customer quantity not yet fulfilled | Find available or incoming supply |
 | Protected | Incoming or received supply assigned to this demand | Avoid promising it to another order |
-| Ready | Protected supply has been received | Open the sales order and fulfil actual shipment |
-| Incoming | Protected supply is still on a purchase order | Monitor its expected date |
+| Ready now | Physical stock currently available to this order after protected stock and higher-priority demand are respected | Open the sales order and fulfil actual shipment |
+| Protected incoming | Protected supply is still on a purchase order | Monitor its expected date |
 | Unsourced | Outstanding demand has no protected supply | Allocate eligible incoming supply or plan another source |
+| Priority | Required date first, then oldest Sales Order | Review which waiting order should receive unprotected stock or incoming supply first |
 | At risk or overdue | Supply timing may miss the customer need | Review the purchase order and customer promise |
 
 ## Before you begin
@@ -47,13 +50,15 @@ Solvantis rechecks the order, stock, Purchase Orders, and existing allocations w
 ## Step-by-step
 
 1. Open **Sales > Stock Allocation**.
-2. Use the **Unsourced**, **Ready**, **At risk**, or **Overdue** view to focus the list.
+2. Use the **Unsourced**, **Ready**, **At risk**, or **Overdue** view to focus the list. Review **Priority**, **Required**, **On hand**, **Ready now**, **Protected incoming**, and **Shortfall** before assigning supply.
 3. Filter by location or supplier, or search by order, customer, SKU, or product.
-4. On an unsourced line, select the allocation action.
-5. Review the first eligible purchase order, expected date, free incoming quantity, and maximum quantity available for this demand.
-6. Enter the quantity to protect and, if useful, a **Customer promise date (optional)**. Use this only for the date communicated to the customer; the Purchase Order ETA remains separate.
-7. Confirm the allocation and check that **Protected**, **Incoming**, and **Unsourced** now show the intended split.
-8. When the goods arrive, receive the Purchase Order. Then open the Sales Order and fulfil only the quantity physically shipped.
+4. Choose **Review suggestions** to build a current required-date/FIFO plan across all waiting demand and free eligible incoming supply. Solvantis uses required date first, then Sales Order age, and uses the earliest eligible Purchase Orders first.
+5. Review every proposed Sales Order, Purchase Order, date, and quantity. Clear any link that should not be created or reduce its quantity. Choose **Apply selected** to create the reviewed links together. Solvantis locks and rechecks every selected demand and supply line; if any quantity changed, none of the reviewed links is created.
+6. For a single unsourced line, select its allocation action to review the first eligible Purchase Order, expected date, free incoming quantity, and maximum quantity available for that demand.
+7. Enter the quantity to protect and, if useful, a **Customer promise date (optional)**. Use this only for the date communicated to the customer; the Purchase Order ETA remains separate.
+8. Confirm the allocation and check that the readiness and incoming figures now show the intended split.
+9. When a confirmed or amended Purchase Order has free incoming supply matching waiting demand, the notification panel prompts staff to review Stock Allocation. The notice opens this workbench and is not repeated unless the suggested demand-to-supply quantities change.
+10. When protected goods arrive, receive the Purchase Order. The affected Sales Order notification opens that order. Fulfil only the quantity physically shipped.
 
 ## Troubleshooting
 
@@ -61,6 +66,7 @@ Solvantis rechecks the order, stock, Purchase Orders, and existing allocations w
 |---|---|---|
 | No eligible supply appears | The PO is Draft, the location or variant differs, or its free quantity is already allocated | Review the matching PO line and existing allocations |
 | Some demand remains unsourced | Incoming free quantity is lower than customer demand | Protect what is available and plan the remaining quantity separately |
+| Reviewed suggestions no longer apply | Demand, PO quantity, receipt, or another allocation changed after the review opened | Refresh suggestions and review the complete current set; the failed action did not create a partial batch |
 | Protected quantity is not ready | The linked PO has not been received | Check its expected date and receipt status |
 | An online order is absent | Native online orders do not use incoming PO allocation | Review the online order and its reserved available stock |
 | Revert to Draft is blocked | The Sales Order still protects incoming Purchase Order stock | Release each active allocation first, then revert the Sales Order |

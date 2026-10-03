@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ExternalLink, Link2, RefreshCw, Search, X } from 'lucide-react';
+import { ExternalLink, Link2, ListChecks, RefreshCw, Search, X } from 'lucide-react';
 import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
 import { getFifoAllocationDraft, type StockAllocationCandidate } from './stockAvailabilityActions';
 
@@ -19,6 +19,7 @@ type AvailabilityRow = {
   product_name: string;
   variant_label: string | null;
   supplier_names: string | null;
+  expected_date: string | null;
   earliest_incoming_date: string | null;
   qty_on_hand: number;
   outstanding: number;
@@ -26,6 +27,10 @@ type AvailabilityRow = {
   ready: number;
   incoming: number;
   unsourced: number;
+  priorityPosition: number;
+  readyNowQuantity: number;
+  protectedIncomingQuantity: number;
+  shortfallNowQuantity: number;
   issues: Issue[];
 };
 
@@ -40,6 +45,33 @@ type FifoModalState = {
   error: string;
 };
 
+type SuggestionRow = {
+  soId: number;
+  soItemId: number;
+  soNumber: string;
+  customerName: string;
+  requiredDate: string | null;
+  priorityPosition: number;
+  sku: string | null;
+  productName: string;
+  locationName: string;
+  poId: number;
+  poItemId: number;
+  poNumber: string;
+  supplierName: string | null;
+  expectedDate: string | null;
+  quantity: number;
+  selected: boolean;
+  reviewedQuantity: string;
+};
+
+type SuggestionReviewState = {
+  rows: SuggestionRow[];
+  loading: boolean;
+  submitting: boolean;
+  error: string;
+};
+
 const LENSES: Array<{ id: Lens; label: string }> = [
   { id: 'all', label: 'All demand' },
   { id: 'unsourced', label: 'Unsourced' },
@@ -49,7 +81,7 @@ const LENSES: Array<{ id: Lens; label: string }> = [
   { id: 'held', label: 'Held' },
 ];
 
-const COLUMN_WIDTHS = [110, 190, 250, 150, 150, 95, 95, 95, 95, 95, 120, 120, 104];
+const COLUMN_WIDTHS = [110, 75, 190, 250, 150, 150, 90, 95, 95, 115, 95, 95, 110, 110, 120, 104];
 const TABLE_WIDTH = COLUMN_WIDTHS.reduce((sum, width) => sum + width, 0);
 const control: React.CSSProperties = {
   height: 34,
@@ -86,6 +118,7 @@ export function StockAvailabilityWorkbenchView({
   const [location, setLocation] = useState('');
   const [supplier, setSupplier] = useState('');
   const [fifoModal, setFifoModal] = useState<FifoModalState | null>(null);
+  const [suggestionReview, setSuggestionReview] = useState<SuggestionReviewState | null>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   useTableArrowScroll(bodyScrollRef);
@@ -167,6 +200,68 @@ export function StockAvailabilityWorkbenchView({
     }
   };
 
+  const openSuggestionReview = async () => {
+    setSuggestionReview({ rows: [], loading: true, submitting: false, error: '' });
+    try {
+      const response = await fetch('/api/ims/stock-allocations?suggestions=true');
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Failed to load allocation suggestions.');
+      const suggestions = Array.isArray(body.data) ? body.data : [];
+      setSuggestionReview({
+        rows: suggestions.map((row: SuggestionRow) => ({
+          ...row,
+          selected: true,
+          reviewedQuantity: String(row.quantity),
+        })),
+        loading: false,
+        submitting: false,
+        error: '',
+      });
+    } catch (reviewError: any) {
+      setSuggestionReview({ rows: [], loading: false, submitting: false, error: reviewError.message || 'Failed to load allocation suggestions.' });
+    }
+  };
+
+  const applySuggestionReview = async () => {
+    if (!suggestionReview) return;
+    const selected = suggestionReview.rows.filter(row => row.selected);
+    if (selected.length === 0) {
+      setSuggestionReview(current => current ? { ...current, error: 'Select at least one suggestion.' } : current);
+      return;
+    }
+    const invalid = selected.find(row => !(Number(row.reviewedQuantity) > 0) || Number(row.reviewedQuantity) > row.quantity);
+    if (invalid) {
+      setSuggestionReview(current => current ? { ...current, error: `Quantity for ${invalid.soNumber} must be between 0 and ${number(invalid.quantity)}.` } : current);
+      return;
+    }
+    setSuggestionReview(current => current ? { ...current, submitting: true, error: '' } : current);
+    try {
+      const response = await fetch('/api/ims/stock-allocations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationKey: `workbench-review-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`,
+          allocations: selected.map(row => ({
+            soItemId: row.soItemId,
+            poItemId: row.poItemId,
+            quantity: Number(row.reviewedQuantity),
+            priority: row.priorityPosition,
+          })),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Allocation review failed. Refresh suggestions and try again.');
+      setSuggestionReview(null);
+      await load();
+    } catch (reviewError: any) {
+      setSuggestionReview(current => current ? {
+        ...current,
+        submitting: false,
+        error: reviewError.message || 'Allocation review failed. Refresh suggestions and try again.',
+      } : current);
+    }
+  };
+
   const locations = useMemo(() => [...new Set(rows.map(row => row.location_name).filter(Boolean))].sort(), [rows]);
   const suppliers = useMemo(() => [...new Set(rows.flatMap(row => String(row.supplier_names ?? '').split(', ')).filter(Boolean))].sort(), [rows]);
   const counts = useMemo(() => Object.fromEntries(LENSES.map(item => {
@@ -199,6 +294,9 @@ export function StockAvailabilityWorkbenchView({
           <h1 style={{ margin: 0, fontSize: 22, color: 'var(--sv-text-strong)' }}>Stock Allocation</h1>
           <div style={{ marginTop: 4, color: 'var(--sv-text-dim)', fontSize: 13 }}>Open customer demand, protected incoming stock, and supply exceptions.</div>
         </div>
+        {!isAdvisor && <button onClick={openSuggestionReview} disabled={loading} title="Review required-date/FIFO allocation suggestions" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <ListChecks size={15} /> Review suggestions
+        </button>}
         <button onClick={load} disabled={loading} title="Refresh stock allocation" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <RefreshCw size={15} /> Refresh
         </button>
@@ -239,8 +337,8 @@ export function StockAvailabilityWorkbenchView({
         <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 4, overflow: 'hidden', background: 'var(--sv-bg-2)' }}>
           <table style={{ width: TABLE_WIDTH, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
             {colGroup()}
-            <thead><tr>{['SO', 'Customer', 'Product', 'Location', 'Supplier', 'Outstanding', 'Protected', 'Ready', 'Incoming', 'Unsourced', 'ETA', 'State', ''].map((label, index) => <th key={label || index} style={{
-              ...(index === 0 ? stickyCell('var(--sv-bg-2)') : {}), padding: '10px 8px', textAlign: index >= 5 && index <= 9 ? 'right' : 'left',
+            <thead><tr>{['SO', 'Priority', 'Customer', 'Product', 'Location', 'Supplier', 'On hand', 'Outstanding', 'Ready now', 'Protected incoming', 'Shortfall', 'Unsourced', 'Required', 'Supply ETA', 'State', ''].map((label, index) => <th key={label || index} style={{
+              ...(index === 0 ? stickyCell('var(--sv-bg-2)') : {}), padding: '10px 8px', textAlign: index >= 6 && index <= 11 ? 'right' : 'left',
               borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 10, textTransform: 'uppercase', whiteSpace: 'nowrap', zIndex: index === 0 ? 5 : undefined,
             }}>{label}</th>)}</tr></thead>
           </table>
@@ -256,11 +354,13 @@ export function StockAvailabilityWorkbenchView({
               const product = [row.product_name, row.variant_label].filter(Boolean).join(' / ');
               const cells: React.ReactNode[] = [
                 <strong key="so">{row.so_number}</strong>,
+                <strong key="priority">#{row.priorityPosition}</strong>,
                 row.customer_name,
                 <span key="product"><strong style={{ display: 'block', color: 'var(--sv-text-strong)' }}>{row.sku || product}</strong><span style={{ display: 'block', marginTop: 2, color: 'var(--sv-text-dim)', fontSize: 11 }}>{product}</span></span>,
                 row.location_name,
                 row.supplier_names || 'Not allocated',
-                number(row.outstanding), number(row.protected), number(row.ready), number(row.incoming), number(row.unsourced),
+                number(row.qty_on_hand), number(row.outstanding), number(row.readyNowQuantity), number(row.protectedIncomingQuantity), number(row.shortfallNowQuantity), number(row.unsourced),
+                date(row.expected_date),
                 date(row.earliest_incoming_date),
                 <span key="state" style={{ color: state.color, fontWeight: 700 }}>{state.label}</span>,
                 <span key="actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
@@ -270,7 +370,7 @@ export function StockAvailabilityWorkbenchView({
               ];
               return <tr key={row.so_item_id}>{cells.map((cell, index) => <td key={index} style={{
                 ...(index === 0 ? stickyCell(background) : { background }), padding: '9px 8px', borderBottom: '1px solid var(--sv-etch)',
-                color: 'var(--sv-text-main)', fontSize: 12, verticalAlign: 'top', textAlign: index >= 5 && index <= 9 ? 'right' : 'left', overflowWrap: 'anywhere',
+                color: 'var(--sv-text-main)', fontSize: 12, verticalAlign: 'top', textAlign: index >= 6 && index <= 11 ? 'right' : 'left', overflowWrap: 'anywhere',
               }}>{cell}</td>)}</tr>;
             })}</tbody>
           </table>
@@ -315,6 +415,47 @@ export function StockAvailabilityWorkbenchView({
             <button type="button" onClick={() => setFifoModal(null)} disabled={fifoModal.submitting} style={{ ...control, cursor: 'pointer' }}>Cancel</button>
             <button type="button" onClick={submitFifoAllocation} disabled={fifoModal.loading || fifoModal.submitting || !fifoModal.candidate} style={{ ...control, borderColor: 'var(--sv-green)', background: 'var(--sv-green)', color: '#052e2b', fontWeight: 750, cursor: 'pointer', opacity: fifoModal.loading || fifoModal.submitting || !fifoModal.candidate ? .5 : 1 }}>
               {fifoModal.submitting ? 'Allocating...' : 'Confirm allocation'}
+            </button>
+          </div>
+        </div>
+      </div>}
+
+      {suggestionReview && <div role="dialog" aria-modal="true" aria-labelledby="suggestion-review-title" data-testid="allocation-suggestion-review" style={{
+        position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 16,
+      }}>
+        <div style={{ width: 'min(960px, 100%)', maxHeight: 'calc(100vh - 32px)', overflow: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 18px 55px rgba(0,0,0,.35)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)' }}>
+            <ListChecks size={17} aria-hidden="true" />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h2 id="suggestion-review-title" style={{ margin: 0, fontSize: 15, color: 'var(--sv-text-strong)' }}>Review allocation suggestions</h2>
+              <div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>Required date, then oldest demand; earliest eligible incoming supply first.</div>
+            </div>
+            <button type="button" onClick={() => setSuggestionReview(null)} disabled={suggestionReview.submitting} title="Close" aria-label="Close allocation suggestions" style={{ border: 0, background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 4 }}><X size={17} /></button>
+          </div>
+          <div style={{ padding: 16 }}>
+            {suggestionReview.loading && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Building current suggestions...</div>}
+            {!suggestionReview.loading && suggestionReview.rows.length === 0 && !suggestionReview.error && <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>No free incoming supply currently matches unsourced demand.</div>}
+            {!suggestionReview.loading && suggestionReview.rows.length > 0 && <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead><tr>{['', 'Priority', 'Sales order', 'Product', 'Required', 'Purchase order', 'Supply ETA', 'Quantity'].map(label => <th key={label} style={{ padding: '8px 7px', textAlign: 'left', color: 'var(--sv-text-dim)', borderBottom: '1px solid var(--sv-etch)', whiteSpace: 'nowrap' }}>{label}</th>)}</tr></thead>
+                <tbody>{suggestionReview.rows.map((row, index) => <tr key={`${row.soItemId}:${row.poItemId}`} style={{ opacity: row.selected ? 1 : .55 }}>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}><input aria-label={`Select ${row.soNumber} from ${row.poNumber}`} type="checkbox" checked={row.selected} onChange={event => setSuggestionReview(current => current ? { ...current, rows: current.rows.map((item, itemIndex) => itemIndex === index ? { ...item, selected: event.target.checked } : item), error: '' } : current)} /></td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}>#{row.priorityPosition}</td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}><strong>{row.soNumber}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim)', marginTop: 2 }}>{row.customerName}</span></td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}><strong>{row.sku || row.productName}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim)', marginTop: 2 }}>{row.locationName}</span></td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}>{date(row.requiredDate)}</td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}><strong>{row.poNumber}</strong><span style={{ display: 'block', color: 'var(--sv-text-dim)', marginTop: 2 }}>{row.supplierName || 'Unknown supplier'}</span></td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}>{date(row.expectedDate)}</td>
+                  <td style={{ padding: '8px 7px', borderBottom: '1px solid var(--sv-etch)' }}><input aria-label={`Quantity for ${row.soNumber} from ${row.poNumber}`} type="number" min="0.0001" max={row.quantity} step="0.0001" disabled={!row.selected} value={row.reviewedQuantity} onChange={event => setSuggestionReview(current => current ? { ...current, rows: current.rows.map((item, itemIndex) => itemIndex === index ? { ...item, reviewedQuantity: event.target.value } : item), error: '' } : current)} style={{ ...control, width: 90 }} /></td>
+                </tr>)}</tbody>
+              </table>
+            </div>}
+            {suggestionReview.error && <div role="alert" style={{ marginTop: 12, padding: '8px 10px', border: '1px solid var(--sv-red)', color: 'var(--sv-red)', fontSize: 12 }}>{suggestionReview.error}</div>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--sv-etch)' }}>
+            <button type="button" onClick={() => setSuggestionReview(null)} disabled={suggestionReview.submitting} style={{ ...control, cursor: 'pointer' }}>Cancel</button>
+            <button type="button" onClick={applySuggestionReview} disabled={suggestionReview.loading || suggestionReview.submitting || suggestionReview.rows.length === 0} style={{ ...control, borderColor: 'var(--sv-green)', background: 'var(--sv-green)', color: '#052e2b', fontWeight: 750, cursor: 'pointer', opacity: suggestionReview.loading || suggestionReview.submitting || suggestionReview.rows.length === 0 ? .5 : 1 }}>
+              {suggestionReview.submitting ? 'Applying...' : 'Apply selected'}
             </button>
           </div>
         </div>
