@@ -665,6 +665,16 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
   const showLocations = showMultipleLocations || showLocationDaybooks;
   const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
 
+  useEffect(() => {
+    const narrowViewport = window.matchMedia('(max-width: 700px)');
+    const collapseForNarrowViewport = () => {
+      if (narrowViewport.matches) setCollapsed(true);
+    };
+    collapseForNarrowViewport();
+    narrowViewport.addEventListener('change', collapseForNarrowViewport);
+    return () => narrowViewport.removeEventListener('change', collapseForNarrowViewport);
+  }, []);
+
   const toggleSection = (id: string) => setSectionOpen(prev => {
     const shouldOpen = !prev[id];
     const next: Record<string, boolean> = {};

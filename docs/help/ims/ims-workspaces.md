@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-02","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-04","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -14,6 +14,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
+- On a narrow screen, the sidebar collapses automatically so the active workspace retains usable width. Use its arrow to expand it when needed.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
 - Use Team Chat to communicate with POS locations as the configured default warehouse.
 - Open Notifications in the top bar to review stock, order, and integration actions that need attention.
