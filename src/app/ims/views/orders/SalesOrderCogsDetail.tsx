@@ -4,26 +4,21 @@ import type { SalesOrderCogsSummary } from '@/lib/ims/salesOrderCogs';
 export interface SalesOrderCogsDisplayLine {
   sku?: string | null;
   qtyFulfilled: number;
+  qtyOrdered: number;
   qtyRemaining: number;
   actualCogs: number | null;
   estimatedRemainingCogs: number | null;
-  revenue: number;
-  marginPct: number | null;
   isStockItem: boolean;
 }
 
 export function SalesOrderCogsDetail({
   lines,
   summary,
-  revenue,
-  currency,
   grossProfit,
   grossMarginPct,
 }: {
   lines: SalesOrderCogsDisplayLine[];
   summary: SalesOrderCogsSummary;
-  revenue: number;
-  currency: string;
   grossProfit: number | null;
   grossMarginPct: number | null;
 }) {
@@ -33,63 +28,56 @@ export function SalesOrderCogsDetail({
   const unresolvedShippedCost = lines.some(line => line.isStockItem && line.qtyFulfilled > 0 && line.actualCogs === null);
 
   const formatAud = (amount: number) => `$${amount.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const formatRevenue = (amount: number) => currency === 'AUD'
-    ? formatAud(amount)
-    : `${currency} ${amount.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
   return (
     <section aria-label="Shipped COGS and gross margin">
-      <div style={{ color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 8 }}>
-        C — Shipped COGS &amp; Gross Margin
+      <div style={{ color: 'var(--sv-text-dim)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 8 }}>
+        C — Cost Summary
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-            <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>SKU</th>
-            <th style={{ ...num, fontWeight: 600 }}>Shipped</th>
-            <th style={{ ...num, fontWeight: 600 }}>Remaining</th>
+            <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>Product / SKU</th>
+            <th style={{ ...num, fontWeight: 600 }}>Shipped / Ordered</th>
             <th style={{ ...num, fontWeight: 600 }}>Actual COGS (AUD)</th>
-            <th style={{ ...num, fontWeight: 600 }}>Estimate (AUD)</th>
-            <th style={{ ...num, fontWeight: 600 }}>Revenue ({currency})</th>
-            <th style={{ ...num, fontWeight: 600 }}>Margin</th>
+            <th style={{ ...num, fontWeight: 600 }}>Estimate for Remaining (AUD)</th>
           </tr>
         </thead>
         <tbody>
           {lines.map((line, index) => (
             <tr key={`${line.sku ?? 'line'}-${index}`} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
               <td style={cell}>{line.sku || '—'}</td>
-              <td style={num}>{line.qtyFulfilled}</td>
-              <td style={num}>{line.qtyRemaining}</td>
+              <td style={num}>{line.qtyFulfilled} / {line.qtyOrdered}</td>
               <td style={num}>{line.actualCogs === null ? (line.qtyFulfilled > 0 ? 'Unresolved' : '—') : formatAud(line.actualCogs)}</td>
               <td style={num}>{!line.isStockItem || line.qtyRemaining === 0 ? '—' : line.estimatedRemainingCogs !== null ? formatAud(line.estimatedRemainingCogs) : 'Unavailable'}</td>
-              <td style={{ ...num, color: 'var(--sv-text-main)' }}>{formatRevenue(line.revenue)}</td>
-              <td style={{ ...num, color: line.marginPct !== null && line.marginPct >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-                {line.marginPct !== null ? `${line.marginPct.toFixed(1)}%` : '—'}
-              </td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr style={{ borderTop: '2px solid var(--sv-etch)' }}>
-            <td colSpan={3} style={{ ...cell, fontWeight: 700 }}>Actual totals</td>
+            <td colSpan={2} style={{ ...cell, fontWeight: 700 }}>Totals</td>
             <td style={{ ...num, fontWeight: 700 }}>{summary.actualCogs !== null ? formatAud(summary.actualCogs) : 'Unresolved'}</td>
             <td style={{ ...num, fontWeight: 700 }}>{summary.hasRemainingStock ? (summary.estimatedRemainingCogs !== null ? formatAud(summary.estimatedRemainingCogs) : 'Unavailable') : '—'}</td>
-            <td style={{ ...num, fontWeight: 700 }}>{formatRevenue(revenue)}</td>
-            <td style={{ ...num, fontWeight: 700, color: grossMarginPct !== null && grossMarginPct >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-              {grossMarginPct !== null ? `${grossMarginPct.toFixed(1)}%` : '—'}
-            </td>
-          </tr>
-          <tr>
-            <td colSpan={5} style={dim}>Gross Profit = Revenue − actual shipped COGS; only shown after all units ship with captured cost.</td>
-            <td colSpan={2} style={{ ...dim, textAlign: 'right', fontWeight: 700, color: grossProfit !== null && grossProfit >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)' }}>
-              {grossProfit !== null ? formatAud(grossProfit) : '—'}
-            </td>
           </tr>
         </tfoot>
       </table>
-      <div style={{ ...dim, marginTop: 3 }}>Actual COGS uses captured cost for shipped units only. Estimates for remaining units use current business-wide Average Cost, falling back to Standard Cost. Estimates are not actual COGS or included in margin.</div>
-      {unresolvedShippedCost && (
-        <div style={{ ...dim, marginTop: 3, color: 'var(--sv-amber,#f59e0b)' }}>Some shipped stock has no positive cost captured; actual COGS and gross margin are unresolved.</div>
+      <div style={{ ...dim, marginTop: 6 }}>Actual COGS uses captured cost for shipped units. The remaining estimate uses current business-wide Average Cost, falling back to Standard Cost; it is not included in actual COGS or margin.</div>
+      {summary.grossMarginAvailable && grossProfit !== null && grossMarginPct !== null ? (
+        <div aria-label="Gross profit and margin" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          <div style={{ minWidth: 150, padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)' }}>
+            <div style={{ ...dim, textTransform: 'uppercase', fontWeight: 700 }}>Gross Profit</div>
+            <strong style={{ color: grossProfit >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)', fontSize: 13 }}>{formatAud(grossProfit)}</strong>
+          </div>
+          <div style={{ minWidth: 150, padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)' }}>
+            <div style={{ ...dim, textTransform: 'uppercase', fontWeight: 700 }}>Gross Margin</div>
+            <strong style={{ color: grossMarginPct >= 0 ? 'var(--sv-mint,#0c9)' : 'var(--sv-red)', fontSize: 13 }}>{grossMarginPct.toFixed(1)}%</strong>
+          </div>
+        </div>
+      ) : (
+        <div role="status" style={{ ...dim, marginTop: 8, padding: '7px 9px', border: '1px solid var(--sv-etch)', borderRadius: 6, color: unresolvedShippedCost ? 'var(--sv-amber,#f59e0b)' : 'var(--sv-text-dim)' }}>
+          {unresolvedShippedCost
+            ? 'Gross margin unavailable: one or more shipped stock lines have unresolved cost.'
+            : 'Gross margin available after all units ship with captured cost.'}
+        </div>
       )}
     </section>
   );
