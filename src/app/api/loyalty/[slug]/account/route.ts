@@ -16,7 +16,7 @@ export async function GET(_: Request, { params }: { params: { slug: string } }) 
         `SELECT contact.loyalty_member, contact.name
            FROM ims_contacts contact
            JOIN ims_contact_channel_mappings mapping
-             ON mapping.business_id = contact.business_id AND mapping.contact_id = contact.id
+             ON BINARY mapping.business_id = BINARY contact.business_id AND mapping.contact_id = contact.id
             AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
           WHERE contact.id=? AND contact.business_id=? AND contact.is_active=1 LIMIT 1`,
         [auth.session.channelInstanceId, auth.session.contactId, auth.profile.businessId]);
@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
           `SELECT contact.loyalty_member
              FROM ims_contacts contact
              JOIN ims_contact_channel_mappings mapping
-               ON mapping.business_id = contact.business_id AND mapping.contact_id = contact.id
+               ON BINARY mapping.business_id = BINARY contact.business_id AND mapping.contact_id = contact.id
               AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
             WHERE contact.id=? AND contact.business_id=? AND contact.is_active=1 FOR UPDATE`,
           [auth.session.channelInstanceId, auth.session.contactId, auth.profile.businessId]);

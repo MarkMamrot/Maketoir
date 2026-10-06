@@ -82,6 +82,7 @@ describe('POST /api/ims/loyalty/shopify-rewards', () => {
 
     expect(response.status).toBe(200);
     expect(mockImsQuery).toHaveBeenCalledWith(expect.stringContaining('mapping.channel_instance_id = ?'), ['instance-1', 42, 'business-1']);
+    expect(mockImsQuery.mock.calls[0][0]).toContain('BINARY mapping.business_id = BINARY contact.business_id');
     expect(body.loyalty).toMatchObject({
       active: true,
       member: true,

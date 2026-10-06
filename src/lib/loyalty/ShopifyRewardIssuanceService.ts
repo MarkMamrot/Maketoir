@@ -108,7 +108,7 @@ export const ShopifyRewardIssuanceService = {
             `SELECT mapping.external_customer_id AS shopify_customer_id
                FROM ims_contacts contact
                JOIN ims_contact_channel_mappings mapping
-                 ON mapping.business_id = contact.business_id AND mapping.contact_id = contact.id
+                 ON BINARY mapping.business_id = BINARY contact.business_id AND mapping.contact_id = contact.id
                 AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
               WHERE contact.id = ? AND contact.business_id = ? AND contact.is_active = 1 AND contact.loyalty_member = 1
                 AND contact.type IN ('retail_customer','b2b_customer','both')

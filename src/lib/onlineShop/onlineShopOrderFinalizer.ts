@@ -81,8 +81,10 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
       `SELECT item.variant_id, item.quantity, item.unit_price_cents, item.tax_cents, item.line_total_cents,
               COALESCE(product.is_stock_item, 1) AS is_stock_item
          FROM ims_online_shop_checkout_items item
-         JOIN ims_product_variants variant ON variant.business_id = item.business_id AND variant.variant_id = item.variant_id
-         JOIN ims_products product ON product.business_id = variant.business_id AND product.product_id = variant.product_id
+         JOIN ims_product_variants variant ON BINARY variant.business_id = BINARY item.business_id
+          AND BINARY variant.variant_id = BINARY item.variant_id
+         JOIN ims_products product ON BINARY product.business_id = BINARY variant.business_id
+          AND BINARY product.product_id = BINARY variant.product_id
         WHERE item.business_id = ? AND item.checkout_id = ? ORDER BY item.id FOR UPDATE`,
       [input.businessId, input.checkoutId],
     );

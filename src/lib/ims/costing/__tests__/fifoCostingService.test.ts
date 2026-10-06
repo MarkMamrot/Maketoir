@@ -371,6 +371,10 @@ describe('FIFO costing service', () => {
       expect.stringContaining("cost_method_snapshot = 'fifo'"),
       [32 / 3, 4, 101, 'biz-1'],
     );
+    const allocationSql = String(execute.mock.calls.find(([sql]) =>
+      String(sql).includes('FROM ims_fifo_cost_allocations allocation'))?.[0]);
+    expect(allocationSql).toContain('BINARY movement.business_id = BINARY allocation.business_id');
+    expect(allocationSql).toContain('BINARY layer.business_id = BINARY allocation.business_id');
   });
 
   it('restores linked sales-order returns after subtracting prior returned quantities', async () => {
@@ -413,5 +417,9 @@ describe('FIFO costing service', () => {
       expect.stringContaining("cost_method_snapshot = 'fifo'"),
       [34 / 3, 4, 101, 'biz-1'],
     );
+    const allocationSql = String(execute.mock.calls.find(([sql]) =>
+      String(sql).includes('FROM ims_fifo_cost_allocations allocation'))?.[0]);
+    expect(allocationSql).toContain('BINARY movement.business_id = BINARY allocation.business_id');
+    expect(allocationSql).toContain('BINARY layer.business_id = BINARY allocation.business_id');
   });
 });

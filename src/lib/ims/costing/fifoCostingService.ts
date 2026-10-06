@@ -503,9 +503,11 @@ export async function createFifoPosReturnLayers(
             MAX(allocation.unit_cost) AS unit_cost, MIN(layer.fifo_date) AS fifo_date
        FROM ims_fifo_cost_allocations allocation
        JOIN ims_stock_movements movement
-         ON movement.id = allocation.stock_movement_id AND movement.business_id = allocation.business_id
+         ON movement.id = allocation.stock_movement_id
+        AND BINARY movement.business_id = BINARY allocation.business_id
        JOIN ims_fifo_cost_layers layer
-         ON layer.id = allocation.layer_id AND layer.business_id = allocation.business_id
+         ON layer.id = allocation.layer_id
+        AND BINARY layer.business_id = BINARY allocation.business_id
       WHERE allocation.business_id = ? AND allocation.epoch_id = ?
         AND movement.movement_type = 'pos_sale' AND movement.reference_type = 'pos_sale'
         AND movement.reference_id = ? AND movement.variant_id = ? AND movement.location_id = ?
@@ -615,9 +617,11 @@ export async function createFifoSalesOrderReturnLayers(
             MAX(allocation.unit_cost) AS unit_cost, MIN(layer.fifo_date) AS fifo_date
        FROM ims_fifo_cost_allocations allocation
        JOIN ims_stock_movements movement
-         ON movement.id = allocation.stock_movement_id AND movement.business_id = allocation.business_id
+         ON movement.id = allocation.stock_movement_id
+        AND BINARY movement.business_id = BINARY allocation.business_id
        JOIN ims_fifo_cost_layers layer
-         ON layer.id = allocation.layer_id AND layer.business_id = allocation.business_id
+         ON layer.id = allocation.layer_id
+        AND BINARY layer.business_id = BINARY allocation.business_id
       WHERE allocation.business_id = ? AND allocation.epoch_id = ?
         AND movement.movement_type = 'so_fulfilled' AND movement.reference_type = 'sales_order'
         AND movement.reference_id = ? AND movement.source_line_id = ?

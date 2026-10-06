@@ -33,7 +33,7 @@ export async function POST(request: Request) {
            `SELECT ims_contacts.id
              FROM ims_contacts
             JOIN ims_contact_channel_mappings mapping
-              ON mapping.business_id = ims_contacts.business_id AND mapping.contact_id = ims_contacts.id
+              ON BINARY mapping.business_id = BINARY ims_contacts.business_id AND mapping.contact_id = ims_contacts.id
              AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
             WHERE ims_contacts.business_id = ? AND ims_contacts.is_active = 1
               AND ims_contacts.type IN ('retail_customer','b2b_customer','both') AND ims_contacts.id > ?

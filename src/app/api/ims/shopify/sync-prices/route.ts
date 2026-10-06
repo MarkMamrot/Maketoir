@@ -26,7 +26,8 @@ export async function GET(req: Request) {
        FROM ims_products p
        JOIN ims_product_variants v ON v.product_id = p.product_id
        JOIN ims_sales_channel_product_mappings mapping
-         ON mapping.business_id = p.business_id AND mapping.variant_id = v.variant_id
+         ON BINARY mapping.business_id = BINARY p.business_id
+        AND BINARY mapping.variant_id = BINARY v.variant_id
        WHERE p.business_id = ? AND mapping.channel_instance_id = ?
          AND mapping.mapping_status = 'linked'
          AND mapping.external_product_id IS NOT NULL
@@ -69,7 +70,8 @@ export async function POST(req: Request) {
                FROM ims_product_variants v
                JOIN ims_products p ON p.product_id = v.product_id
                JOIN ims_sales_channel_product_mappings mapping
-                 ON mapping.business_id = p.business_id AND mapping.variant_id = v.variant_id
+                 ON BINARY mapping.business_id = BINARY p.business_id
+                AND BINARY mapping.variant_id = BINARY v.variant_id
                WHERE p.business_id = ? AND mapping.channel_instance_id = ?
                  AND mapping.mapping_status = 'linked' AND v.is_active = 1
                  AND mapping.external_variant_id IS NOT NULL

@@ -49,6 +49,8 @@ describe('exact-instance Shopify price sync route', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.context).toHaveBeenCalledWith({ businessId: 'biz-1', channelInstanceId: 'store-b' });
+    expect(mocks.query.mock.calls[0][0]).toContain('BINARY mapping.business_id = BINARY p.business_id');
+    expect(mocks.query.mock.calls[0][0]).toContain('BINARY mapping.variant_id = BINARY v.variant_id');
     expect(mocks.query.mock.calls[0][1]).toEqual(['biz-1', 'store-b', 'product-1']);
     expect(mocks.bulkUpdate).toHaveBeenCalledWith(
       'store-b.myshopify.com', 'external-product-b',
@@ -59,5 +61,14 @@ describe('exact-instance Shopify price sync route', () => {
   it('requires an exact instance when listing mapped products', async () => {
     const response = await GET(new Request('http://localhost/api/ims/shopify/sync-prices'));
     expect(response.status).toBe(400);
+  });
+
+  it('uses collation-safe canonical mappings when listing products', async () => {
+    mocks.query.mockResolvedValue([]);
+    const response = await GET(new Request('http://localhost/api/ims/shopify/sync-prices?channelInstanceId=store-b'));
+
+    expect(response.status).toBe(200);
+    expect(mocks.query.mock.calls[0][0]).toContain('BINARY mapping.business_id = BINARY p.business_id');
+    expect(mocks.query.mock.calls[0][0]).toContain('BINARY mapping.variant_id = BINARY v.variant_id');
   });
 });
