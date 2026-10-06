@@ -14,6 +14,9 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
 import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+
+const SLOW_POS_SALE_MS = 10_000;
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -191,6 +194,7 @@ export async function POST(req: Request) {
       'SELECT `value` FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
       [businessId, posLocationSettingsKey(locationId)],
     );
+    const saleStartedAt = Date.now();
     const { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption } = await PosSalesRepo.complete({
       business_id:       businessId,
       local_id:          body.local_id ?? null,
@@ -219,6 +223,35 @@ export async function POST(req: Request) {
       items:             (body.items ?? []).map((item: any) => ({ ...item, is_gift_card: Boolean(item.is_gift_card) })),
       payments:          body.payments ?? [],
     });
+    const saleDurationMs = Date.now() - saleStartedAt;
+    console.info('[pos-sale] complete', JSON.stringify({
+      deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+      businessId,
+      saleId,
+      locationId,
+      durationMs: saleDurationMs,
+      itemCount: Array.isArray(body.items) ? body.items.length : 0,
+      paymentCount: Array.isArray(body.payments) ? body.payments.length : 0,
+    }));
+    if (saleDurationMs >= SLOW_POS_SALE_MS) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'pos_sale',
+        operation: 'slow_completion',
+        severity: 'warning',
+        title: 'POS sale completion was unusually slow',
+        error: `POS sale completion exceeded ${SLOW_POS_SALE_MS}ms.`,
+        context: {
+          saleId,
+          locationId,
+          durationMs: saleDurationMs,
+          itemCount: Array.isArray(body.items) ? body.items.length : 0,
+          paymentCount: Array.isArray(body.payments) ? body.payments.length : 0,
+          deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+        },
+        reference: { type: 'pos_sale', id: saleId },
+      }).catch(() => null);
+    }
     const creditNoteId = await ensurePosReturnCreditNote(body, saleId, businessId, locationId, session.username ?? session.full_name);
 
     // EVENT-DRIVEN CACHE UPDATE: update sales velocity and stock for the variants sold
@@ -280,8 +313,11 @@ export async function POST(req: Request) {
     const status = err instanceof LoyaltyReturnBlockedError ? err.status
       : err instanceof LoyaltyValidationError || err instanceof ProductBuildValidationError ? 400
         : err instanceof ProductBuildConflictError || err instanceof FifoCostingConflict ? 409 : 500;
+    const safeError = status >= 500
+      ? 'The sale could not be completed and was not recorded. If a card payment was approved, keep it in the cart and retry Complete Sale without charging the customer again.'
+      : err.message || String(err);
     return NextResponse.json({
-      error: err.message || String(err),
+      error: safeError,
       ...(err instanceof ProductBuildConflictError ? { code: err.code, ...err.details }
         : err instanceof FifoCostingConflict ? { code: err.code } : {}),
     }, { status });

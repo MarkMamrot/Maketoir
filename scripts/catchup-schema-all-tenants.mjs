@@ -1788,6 +1788,8 @@ async function ensureColumnCollationMatches(schema, table, column, referenceTabl
 async function repairLoyaltyCollations(schema) {
   await ensureColumnCollationMatches(schema, 'loyalty_accounts', 'business_id', 'ims_sales_orders', 'business_id');
   await ensureColumnCollationMatches(schema, 'loyalty_transactions', 'business_id', 'ims_sales_orders', 'business_id');
+  await ensureColumnCollationMatches(schema, 'loyalty_rewards', 'business_id', 'ims_sales_orders', 'business_id');
+  await ensureColumnCollationMatches(schema, 'loyalty_redemptions', 'business_id', 'ims_sales_orders', 'business_id');
   await ensureColumnCollationMatches(schema, 'loyalty_transactions', 'source_id', 'ims_sales_orders', 'shopify_order_id');
   console.log(`  verified ${schema} loyalty join collations`);
 }

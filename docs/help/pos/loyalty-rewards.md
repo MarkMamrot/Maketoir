@@ -1,5 +1,5 @@
 ---
-{"id":"pos-loyalty-rewards","title":"Loyalty Rewards at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Customer > Loyalty","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-customers","pos-selling-payments-manager-approval","pos-store-credit"],"contexts":["pos-loyalty"],"contextSections":{"pos-loyalty":"Step-by-step"},"order":14,"summary":"Check a linked customer's loyalty balance and apply an eligible reward to an ordinary online sale.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-loyalty-rewards","title":"Loyalty Rewards at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Customer > Loyalty","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-customers","pos-selling-payments-manager-approval","pos-store-credit"],"contexts":["pos-loyalty"],"contextSections":{"pos-loyalty":"Step-by-step"},"order":14,"summary":"Check a linked customer's loyalty balance and apply an eligible reward to an ordinary online sale.","lastReviewed":"2026-10-06","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Loyalty Rewards at POS
 
@@ -54,6 +54,7 @@ Use the loyalty panel under a linked customer to confirm membership, points, and
 | **Use** is disabled despite enough points | The cart has insufficient eligible value, contains a return, or is a layby | Correct the cart or continue without the reward |
 | Loyalty details require an online connection | POS cannot validate the current balance | Reconnect; do not estimate or manually promise points |
 | Selected reward becomes invalid | The cart changed after selection | Remove the reward or restore enough eligible merchandise before completing |
+| Card payment is approved but **Complete Sale** reports an error | The payment succeeded but the sale and reward were not recorded | Do not charge the customer again. Keep the approved payment in the cart and retry **Complete Sale**. If it still fails, ask a manager to compare Zeller with POS Reports before changing the cart |
 
 ## Worked examples
 

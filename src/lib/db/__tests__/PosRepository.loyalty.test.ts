@@ -148,7 +148,8 @@ describe('PosSalesRepo loyalty earning', () => {
       idempotencyKey: 'pos:sale:101:earn',
     }));
     expect(mockApplyTransaction.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
-    expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+    expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.release.mock.invocationCallOrder[0]);
+    expect(saleConnection.release.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
     expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(result).toMatchObject({ saleId: 101, loyaltyPoints: 100, loyalty: { transactionId: 8 } });
   });

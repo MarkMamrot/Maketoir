@@ -36,7 +36,7 @@ describe('channel product assignment cron', () => {
     expect(sql).not.toContain('full_sync');
     expect(sql).toContain("instance.runtime_status = 'active'");
     expect(sql).toContain("instance.readiness_status = 'ready'");
-    expect(sql).toContain('instance.enabled = 1');
+    expect(sql).toContain('instance.is_enabled = 1');
     expect(sql).toContain('COALESCE(business.automation_paused, 0) = 0');
     expect(mocks.run).toHaveBeenCalledWith({ businessId: 'business-1', channelInstanceId: 'channel-1',
       mode: 'add_matches', batchSize: 250 });
@@ -53,6 +53,15 @@ describe('channel product assignment cron', () => {
     expect(await response.json()).toMatchObject({ success: false, channels: 2, evaluated: 3, failedChannels: 1 });
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'business-1', operation: 'automatic_product_assignment',
+    }));
+  });
+
+  it('reports a route-wide channel discovery failure', async () => {
+    mocks.query.mockRejectedValue(new Error('unknown column'));
+    const response = await POST(request());
+    expect(response.status).toBe(500);
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'load_automatic_product_assignment_channels', severity: 'critical',
     }));
   });
 });

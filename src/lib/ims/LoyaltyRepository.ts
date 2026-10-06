@@ -188,7 +188,7 @@ async function findTransactionByKey(
   const [rows] = await connection.execute<TransactionRow[]>(
     `SELECT t.id, t.account_id, a.contact_id, t.type, t.points_delta, t.balance_after
        FROM loyalty_transactions t
-       JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+       JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
       WHERE t.business_id = ? AND t.idempotency_key = ?
       LIMIT 1
       FOR UPDATE`,
@@ -218,9 +218,9 @@ export const LoyaltyRepository = {
       `SELECT r.id, r.reward_id, r.points_deducted, rw.value_aud, r.status, r.transaction_id,
               r.account_id, t.balance_after, a.contact_id, r.shopify_discount_id, r.voucher_code
          FROM loyalty_redemptions r
-         JOIN loyalty_rewards rw ON rw.id = r.reward_id AND rw.business_id = r.business_id
-         JOIN loyalty_transactions t ON t.id = r.transaction_id AND t.business_id = r.business_id
-         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+         JOIN loyalty_rewards rw ON rw.id = r.reward_id AND BINARY rw.business_id = BINARY r.business_id
+         JOIN loyalty_transactions t ON t.id = r.transaction_id AND BINARY t.business_id = BINARY r.business_id
+         JOIN loyalty_accounts a ON a.id = r.account_id AND BINARY a.business_id = BINARY r.business_id
         WHERE r.business_id = ? AND r.idempotency_key = ?
         LIMIT 1`,
       [businessId, idempotencyKey],
@@ -247,7 +247,7 @@ export const LoyaltyRepository = {
     const rows = await imsQuery<TransactionRow>(
       `SELECT t.id, t.account_id, a.contact_id, t.type, t.points_delta, t.balance_after
          FROM loyalty_transactions t
-         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+        JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
         WHERE t.business_id = ? AND t.idempotency_key = ?
         LIMIT 1`,
       [businessId, idempotencyKey],
@@ -282,9 +282,9 @@ export const LoyaltyRepository = {
     const result = channelInstanceId
       ? await imsExecute(
         `UPDATE loyalty_redemptions r
-           JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+           JOIN loyalty_accounts a ON a.id = r.account_id AND BINARY a.business_id = BINARY r.business_id
            JOIN ims_contact_channel_mappings mapping
-             ON mapping.business_id = r.business_id AND mapping.contact_id = a.contact_id
+             ON BINARY mapping.business_id = BINARY r.business_id AND mapping.contact_id = a.contact_id
             AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
             AND mapping.external_customer_id = ?
             SET r.status = 'used', r.used_at = COALESCE(r.used_at, NOW())
@@ -293,8 +293,8 @@ export const LoyaltyRepository = {
       )
       : await imsExecute(
         `UPDATE loyalty_redemptions r
-           JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
-           JOIN ims_contacts c ON c.id = a.contact_id AND c.business_id = r.business_id
+            JOIN loyalty_accounts a ON a.id = r.account_id AND BINARY a.business_id = BINARY r.business_id
+            JOIN ims_contacts c ON c.id = a.contact_id AND BINARY c.business_id = BINARY r.business_id
             SET r.status = 'used', r.used_at = COALESCE(r.used_at, NOW())
           WHERE r.business_id = ? AND r.status = 'issued' AND r.voucher_code = ?
             AND c.shopify_customer_id = ?`,
@@ -408,9 +408,9 @@ export const LoyaltyRepository = {
       `SELECT r.id, r.reward_id, r.points_deducted, rw.value_aud, r.status, r.transaction_id,
               t.account_id, t.balance_after
          FROM loyalty_redemptions r
-        JOIN loyalty_rewards rw ON rw.id = r.reward_id AND rw.business_id = r.business_id
-         JOIN loyalty_transactions t ON t.id = r.transaction_id AND t.business_id = r.business_id
-         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+        JOIN loyalty_rewards rw ON rw.id = r.reward_id AND BINARY rw.business_id = BINARY r.business_id
+         JOIN loyalty_transactions t ON t.id = r.transaction_id AND BINARY t.business_id = BINARY r.business_id
+         JOIN loyalty_accounts a ON a.id = r.account_id AND BINARY a.business_id = BINARY r.business_id
         WHERE r.business_id = ? AND r.idempotency_key = ? AND a.contact_id = ?
         LIMIT 1
         FOR UPDATE`,
@@ -537,7 +537,7 @@ export const LoyaltyRepository = {
     const [rows] = await connection.execute<RedemptionRow[]>(
       `SELECT r.id, r.status, r.points_deducted, a.contact_id
          FROM loyalty_redemptions r
-         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+         JOIN loyalty_accounts a ON a.id = r.account_id AND BINARY a.business_id = BINARY r.business_id
         WHERE r.id = ? AND r.business_id = ?
         LIMIT 1
         FOR UPDATE`,
@@ -578,7 +578,7 @@ export const LoyaltyRepository = {
     const [redemptions] = await connection.execute<PosSaleRedemptionRow[]>(
       `SELECT r.id, a.contact_id, r.points_deducted
          FROM loyalty_redemptions r
-         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+         JOIN loyalty_accounts a ON a.id = r.account_id AND BINARY a.business_id = BINARY r.business_id
         WHERE r.business_id = ? AND r.pos_sale_id = ? AND r.status = 'used'
         ORDER BY r.id
         FOR UPDATE`,
@@ -610,7 +610,7 @@ export const LoyaltyRepository = {
     const [earns] = await connection.execute<PosSaleEarnRow[]>(
       `SELECT t.id, a.contact_id, t.points_delta
          FROM loyalty_transactions t
-         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+         JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
         WHERE t.business_id = ? AND t.type = 'earn'
           AND t.source_type = 'pos_sale' AND t.source_id = ?
         ORDER BY t.id
@@ -668,7 +668,7 @@ export const LoyaltyRepository = {
     const [earns] = await connection.execute<PosSaleEarnRow[]>(
       `SELECT t.id, a.contact_id, t.points_delta
          FROM loyalty_transactions t
-         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+         JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
         WHERE t.business_id = ? AND t.type = 'earn'
           AND t.source_type = 'pos_sale' AND t.source_id = ?
         ORDER BY t.id
@@ -742,7 +742,7 @@ export const LoyaltyRepository = {
     const [earns] = await connection.execute<PosSaleEarnRow[]>(
       `SELECT t.id, a.contact_id, t.points_delta
          FROM loyalty_transactions t
-         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+         JOIN loyalty_accounts a ON a.id = t.account_id AND BINARY a.business_id = BINARY t.business_id
         WHERE t.business_id = ? AND t.type = 'earn'
           AND t.source_type = 'pos_sale' AND t.source_id = ?
         ORDER BY t.id

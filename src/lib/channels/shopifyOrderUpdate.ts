@@ -6,6 +6,8 @@ import { getShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 import { getOrCreateOnlineFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
+import { reportUnmappedShopifyOrderLines, unmappedTrackedShopifyOrderLines } from './shopifyOrderLineMapping';
+
 function amount(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -43,6 +45,7 @@ export async function updateShopifyOrder(input: {
   const deliveryMethod = parseShopifyOrderDeliveryMethod(input.order);
   const canReplaceLines = ['draft', 'confirmed'].includes(order.status) && Array.isArray(input.order.line_items);
   let items: Array<Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>> | undefined;
+  let unmappedTrackedLines = [] as ReturnType<typeof unmappedTrackedShopifyOrderLines>;
   if (canReplaceLines) {
     const mappings = await imsQuery<{ external_variant_id: string; variant_id: string }>(
       `SELECT external_variant_id, variant_id FROM ims_sales_channel_product_mappings
@@ -51,6 +54,10 @@ export async function updateShopifyOrder(input: {
       [input.businessId, input.channelInstanceId],
     );
     const variantByExternalId = new Map(mappings.map(row => [String(row.external_variant_id), String(row.variant_id)]));
+    unmappedTrackedLines = unmappedTrackedShopifyOrderLines(
+      input.order.line_items,
+      new Set(variantByExternalId.keys()),
+    );
     const hasUnmappedLine = input.order.line_items.some((line: any) =>
       !variantByExternalId.has(String(line.variant_id ?? '')),
     );
@@ -104,6 +111,13 @@ export async function updateShopifyOrder(input: {
     await recomputeBuildRequirementsSafely({
       businessId: input.businessId, salesOrderId: order.id, sourceChannel: 'shopify',
     });
+    await reportUnmappedShopifyOrderLines({
+      businessId: input.businessId,
+      channelInstanceId: input.channelInstanceId,
+      externalOrderId,
+      externalOrderName: text(input.order.name),
+      lines: unmappedTrackedLines,
+    }).catch(() => undefined);
   }
   return { outcome: 'updated', salesOrderId: order.id };
 }

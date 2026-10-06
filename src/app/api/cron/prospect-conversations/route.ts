@@ -8,11 +8,13 @@ export const maxDuration = 300;
 
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
+  const cronSecret = request.headers.get('x-cron-secret') || '';
   const authorization = request.headers.get('authorization') || '';
   const supplied = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
-  if (!secret || !supplied) return false;
+  const candidate = cronSecret || supplied;
+  if (!secret || !candidate) return false;
   const expectedBuffer = Buffer.from(secret);
-  const suppliedBuffer = Buffer.from(supplied);
+  const suppliedBuffer = Buffer.from(candidate);
   return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer);
 }
 

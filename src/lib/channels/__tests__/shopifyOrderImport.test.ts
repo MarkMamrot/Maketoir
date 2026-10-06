@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), execute: vi.fn(), getPool: vi.fn(), changeStatus: vi.fn(), fallbackVariant: vi.fn(),
   onlineCustomer: vi.fn(), customerMapping: vi.fn(), connectionExecute: vi.fn(), begin: vi.fn(), commit: vi.fn(),
-  rollback: vi.fn(), release: vi.fn(), recomputeBuilds: vi.fn(),
+  rollback: vi.fn(), release: vi.fn(), recomputeBuilds: vi.fn(), reportIssue: vi.fn(),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({
   imsQuery: mocks.query, imsExecute: mocks.execute, getIMSPool: mocks.getPool,
@@ -18,6 +18,7 @@ vi.mock('@/lib/ims/contactChannelMappings', () => ({ getContactChannelMapping: m
 vi.mock('@/lib/ims/builds/buildRequirementService', () => ({
   recomputeBuildRequirementsSafely: mocks.recomputeBuilds,
 }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportIssue }));
 
 import { cancelShopifyOrder, importShopifyOrder } from '@/lib/channels/shopifyOrderImport';
 
@@ -40,6 +41,7 @@ describe('importShopifyOrder', () => {
     mocks.connectionExecute.mockResolvedValueOnce([{ insertId: 44 }]).mockResolvedValue([{ affectedRows: 1 }]);
     mocks.changeStatus.mockResolvedValue(undefined);
     mocks.recomputeBuilds.mockResolvedValue([]);
+    mocks.reportIssue.mockResolvedValue(null);
   });
 
   it('imports through exact instance mappings and provider-neutral order identity', async () => {
@@ -66,6 +68,28 @@ describe('importShopifyOrder', () => {
     expect(mocks.fallbackVariant).toHaveBeenCalledWith('business-1');
     expect(mocks.connectionExecute.mock.calls[0][1]).toEqual(expect.arrayContaining([5]));
     expect(mocks.connectionExecute.mock.calls[1][1]).toEqual(expect.arrayContaining(['fallback-1']));
+  });
+
+  it('reports a tracked catalogue line that uses the fallback with safe external identity', async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    mocks.fallbackVariant.mockResolvedValue('fallback-1');
+    const trackedOrder = {
+      ...order,
+      line_items: [{ ...order.line_items[0], product_id: 7002, sku: 'BLUE-1',
+        variant_inventory_management: 'shopify' }],
+    };
+
+    await importShopifyOrder({ businessId: 'business-1', channelInstanceId: 'instance-2',
+      locationId: 7, topic: 'orders/create', order: trackedOrder });
+
+    expect(mocks.reportIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', operation: 'unmapped_catalogue_line',
+      reference: { type: 'shopify_order', id: '1001' },
+      context: expect.objectContaining({ lines: [{
+        externalOrderItemId: '9001', externalProductId: '7002', externalVariantId: '8001',
+        sku: 'BLUE-1', title: 'Blue Shirt',
+      }] }),
+    }));
   });
 
   it('updates only the exact owned order and does not duplicate lines', async () => {

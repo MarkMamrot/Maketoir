@@ -19,16 +19,28 @@ export async function POST(request: Request) {
   }
   const body = await request.json().catch(() => ({}));
   const batchSize = Math.max(1, Math.min(500, Math.floor(Number(body?.batchSize ?? 500))));
-  const channels = await query<AssignmentChannelRow>(
-    `SELECT instance.business_id, instance.channel_instance_id,
-            JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) AS assignment_mode
-       FROM sales_channel_instances instance
-       JOIN businesses business ON BINARY business.business_id = BINARY instance.business_id
-      WHERE JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) = 'add_matches'
-        AND instance.enabled = 1 AND instance.runtime_status = 'active' AND instance.readiness_status = 'ready'
-        AND business.deleted_at IS NULL AND COALESCE(business.automation_paused, 0) = 0
-      ORDER BY instance.business_id, instance.channel_instance_id`,
-  );
+  let channels: AssignmentChannelRow[];
+  try {
+    channels = await query<AssignmentChannelRow>(
+      `SELECT instance.business_id, instance.channel_instance_id,
+              JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) AS assignment_mode
+         FROM sales_channel_instances instance
+         JOIN businesses business ON BINARY business.business_id = BINARY instance.business_id
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(instance.settings_json, '$.productAssignmentMode')) = 'add_matches'
+          AND instance.is_enabled = 1 AND instance.runtime_status = 'active' AND instance.readiness_status = 'ready'
+          AND business.deleted_at IS NULL AND COALESCE(business.automation_paused, 0) = 0
+        ORDER BY instance.business_id, instance.channel_instance_id`,
+    );
+  } catch (error) {
+    await reportRuntimeIssue({
+      source: 'sales_channels',
+      operation: 'load_automatic_product_assignment_channels',
+      severity: 'critical',
+      title: 'Automatic channel product assignment could not load channels',
+      error,
+    }).catch(() => null);
+    return NextResponse.json({ success: false, error: 'Channel product assignment could not start.' }, { status: 500 });
+  }
   let evaluated = 0;
   let failedChannels = 0;
   for (const channel of channels) {

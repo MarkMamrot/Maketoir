@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   completeSale: vi.fn(),
   getCurrentRegisterSession: vi.fn(),
   imsQuery: vi.fn(),
+  reportRuntimeIssue: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({ cookies: () => ({ get: mocks.cookiesGet }) }));
@@ -21,6 +22,7 @@ vi.mock('@/lib/ims/createNotification', () => ({ createNotification: vi.fn() }))
 vi.mock('@/lib/ims/ImsRepository', () => ({ ImsCNRepo: {} }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: vi.fn() }));
 vi.mock('@/lib/ims/posReturnCreditNote', () => ({ buildPosReturnCreditNoteItems: vi.fn(), isPosExchange: vi.fn() }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
 vi.mock('@/lib/ims/LoyaltyRepository', () => ({
   LoyaltyRepository: {},
   LoyaltyReturnBlockedError: class extends Error {},
@@ -38,6 +40,10 @@ describe('POST /api/pos/sales training mode', () => {
     mocks.imsExecute.mockResolvedValue({ insertId: 91 });
     mocks.imsQuery.mockResolvedValue([]);
     mocks.getCurrentRegisterSession.mockResolvedValue(null);
+    mocks.completeSale.mockResolvedValue({
+      saleId: 101, stockError: undefined, stockWarnings: [], loyalty: null, loyaltyPoints: 0, loyaltyRedemption: null,
+    });
+    mocks.reportRuntimeIssue.mockResolvedValue(undefined);
   });
 
   it('records an isolated audit snapshot without invoking the real sale repository', async () => {
@@ -126,5 +132,58 @@ describe('POST /api/pos/sales training mode', () => {
       code: 'FIFO_COSTING_CONFLICT',
       error: expect.stringContaining('Reconcile the missing 1 units'),
     });
+  });
+
+  it('does not expose unexpected database errors to checkout staff', async () => {
+    mocks.completeSale.mockRejectedValue(new Error(
+      "Illegal mix of collations (utf8mb4_general_ci,IMPLICIT) and (utf8mb4_0900_ai_ci,IMPLICIT) for operation '='",
+    ));
+
+    const response = await POST(new Request('http://localhost/api/pos/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location_id: 2,
+        status: 'completed',
+        sale_type: 'sale',
+        customer_id: 42,
+        loyalty_reward_id: 1,
+        loyalty_discount_total: 10,
+        items: [{ variant_id: 'variant-1', name: 'Product', qty: 1, unit_price: 20, line_total: 10 }],
+        payments: [{ payment_method: 'Card', amount: 10, reference: 'approved-payment' }],
+      }),
+    }));
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toContain('keep it in the cart');
+    expect(body.error).not.toContain('collation');
+    expect(body.error).not.toContain('approved-payment');
+  });
+
+  it('reports slow successful sales without payment or customer data', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(12_050);
+    const response = await POST(new Request('http://localhost/api/pos/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        local_id: 'zeller:secret-transaction-reference',
+        location_id: 2,
+        status: 'completed',
+        sale_type: 'sale',
+        items: [{ variant_id: null, name: 'Product', qty: 1, unit_price: 10, line_total: 10 }],
+        payments: [{ payment_method: 'Card', amount: 10, reference: 'secret-transaction-reference' }],
+      }),
+    }));
+    now.mockRestore();
+
+    expect(response.status).toBe(200);
+    expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'sage',
+      operation: 'slow_completion',
+      context: expect.objectContaining({ saleId: 101, locationId: 2, durationMs: 11_050, itemCount: 1, paymentCount: 1 }),
+      reference: { type: 'pos_sale', id: 101 },
+    }));
+    expect(JSON.stringify(mocks.reportRuntimeIssue.mock.calls[0][0])).not.toContain('secret-transaction-reference');
   });
 });

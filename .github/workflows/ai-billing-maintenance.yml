@@ -2,8 +2,12 @@ name: AI Billing Maintenance
 
 on:
   schedule:
-    - cron: '23 * * * *'
+    - cron: '29 * * * *'
   workflow_dispatch:
+
+concurrency:
+  group: ai-billing-maintenance
+  cancel-in-progress: false
 
 jobs:
   maintain:
@@ -11,8 +15,11 @@ jobs:
     steps:
       - name: Reconcile billing and discover Google models
         run: |
-          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+          BODY=$(curl -sS -L --connect-timeout 10 --max-time 240 -w '\n__STATUS__%{http_code}' \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             "${{ secrets.APP_URL }}/api/cron/ai-billing-maintenance")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
           echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
           [ "$RESPONSE" = "200" ] || exit 1

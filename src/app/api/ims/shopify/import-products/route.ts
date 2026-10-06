@@ -260,9 +260,11 @@ export async function POST(req: Request) {
         }
         await ImsShopifyRepo.linkVariant(
           variantId,
+          String(shopifyProduct.id),
           String(shopifyVariant.id),
           text(shopifyVariant.inventory_item_id) ?? '',
           businessId,
+          channelInstanceId,
         );
       }
 

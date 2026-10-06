@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), execute: vi.fn(), update: vi.fn(), mapping: vi.fn(), fallback: vi.fn(), recompute: vi.fn(),
+  reportIssue: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute }));
@@ -11,6 +12,7 @@ vi.mock('@/lib/shopifyFallbackVariant', () => ({ getOrCreateOnlineFallbackVarian
 vi.mock('@/lib/ims/builds/buildRequirementService', () => ({
   recomputeBuildRequirementsSafely: mocks.recompute,
 }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportIssue }));
 
 import { updateShopifyOrder } from '@/lib/channels/shopifyOrderUpdate';
 
@@ -34,6 +36,7 @@ describe('updateShopifyOrder', () => {
     mocks.update.mockResolvedValue(undefined);
     mocks.recompute.mockResolvedValue([]);
     mocks.mapping.mockResolvedValue({ contactId: 9, mappingStatus: 'linked' });
+    mocks.reportIssue.mockResolvedValue(null);
   });
 
   it('updates editable lines through exact mappings and canonical external IDs', async () => {
@@ -66,6 +69,21 @@ describe('updateShopifyOrder', () => {
     expect(mocks.fallback).not.toHaveBeenCalled();
     expect(mocks.execute).toHaveBeenCalledOnce();
     expect(mocks.recompute).not.toHaveBeenCalled();
+  });
+
+  it('reports a tracked catalogue line when an editable update uses the fallback', async () => {
+    mocks.query.mockResolvedValueOnce([{ id: 44, status: 'confirmed' }]).mockResolvedValueOnce([]);
+    mocks.fallback.mockResolvedValue('fallback-1');
+
+    await updateShopifyOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      order: { ...payload, line_items: [{ ...payload.line_items[0], product_id: 7002, sku: 'BLUE-1',
+        variant_inventory_management: 'shopify' }] },
+    });
+
+    expect(mocks.reportIssue).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'unmapped_catalogue_line', reference: { type: 'shopify_order', id: '1001' },
+    }));
   });
 
   it('does not update an order with the same external ID in another instance', async () => {

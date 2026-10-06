@@ -47,6 +47,17 @@ describe('loyalty calculations', () => {
     })).toBe(100);
   });
 
+  it('does not subtract a fully discounted line twice from POS eligible spend', () => {
+    expect(calculatePosEligibleSpend({
+      items: [
+        { lineTotal: 119.85 },
+        { lineTotal: 0, discountAmount: 25 },
+        { lineTotal: 92.84, discountAmount: 10 },
+      ],
+      discountTotal: 35,
+    })).toBe(212.69);
+  });
+
   it('excludes only the net discounted value of Shopify gift-card products', () => {
     expect(calculateShopifyEligibleSpend({
       subtotalPrice: 135,
@@ -83,6 +94,17 @@ describe('loyalty calculations', () => {
       originalDiscountTotal: 33,
       cumulativeReturnedQtyByItemId: new Map([[1, 1], [2, 1]]),
     })).toEqual({ originalEligibleCents: 7200, cumulativeReturnedCents: 3600 });
+  });
+
+  it('does not subtract a fully discounted line twice from return eligibility', () => {
+    expect(calculatePosReturnEligibleCents({
+      originalItems: [
+        { id: 1, qty: 1, lineTotal: 119.85 },
+        { id: 2, qty: 1, lineTotal: 0, discountAmount: 25 },
+      ],
+      originalDiscountTotal: 25,
+      cumulativeReturnedQtyByItemId: new Map(),
+    })).toEqual({ originalEligibleCents: 11985, cumulativeReturnedCents: 0 });
   });
 
   it('never awards negative or invalid points', () => {

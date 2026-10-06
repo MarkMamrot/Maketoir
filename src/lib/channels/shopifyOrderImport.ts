@@ -7,6 +7,8 @@ import { getOrCreateOnlineFallbackVariantId } from '@/lib/shopifyFallbackVariant
 import { toBusinessDateTime } from '@/lib/shopifyDate';
 import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
+import { reportUnmappedShopifyOrderLines, unmappedTrackedShopifyOrderLines } from './shopifyOrderLineMapping';
+
 type ShopifyOrderPayload = Record<string, any>;
 
 export type ShopifyOrderImportResult = {
@@ -101,6 +103,7 @@ export async function importShopifyOrder(input: {
     [input.businessId, input.channelInstanceId],
   );
   const variantByExternalId = new Map(mappingRows.map(row => [String(row.external_variant_id), String(row.variant_id)]));
+  const unmappedTrackedLines = unmappedTrackedShopifyOrderLines(lines, new Set(variantByExternalId.keys()));
   const fallbackVariantId = lines.some(line => !variantByExternalId.has(String(line.variant_id ?? '')))
     ? await getOrCreateOnlineFallbackVariantId(input.businessId)
     : null;
@@ -168,5 +171,12 @@ export async function importShopifyOrder(input: {
     connection.release();
   }
   await ImsSORepo.changeStatus(salesOrderId, 'confirmed');
+  await reportUnmappedShopifyOrderLines({
+    businessId: input.businessId,
+    channelInstanceId: input.channelInstanceId,
+    externalOrderId,
+    externalOrderName: text(input.order.name),
+    lines: unmappedTrackedLines,
+  }).catch(() => undefined);
   return { outcome: 'imported', salesOrderId };
 }

@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Apply opted-in channel product rules
         run: |
-          BODY=$(curl -s -L -w '\n__STATUS__%{http_code}' \
+          BODY=$(curl -sS -L --connect-timeout 10 --max-time 240 -w '\n__STATUS__%{http_code}' \
             -X POST \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \

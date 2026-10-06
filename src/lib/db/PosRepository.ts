@@ -560,6 +560,7 @@ export const PosSalesRepo = {
     let loyaltyPoints = 0;
     let loyaltyRedemption: LoyaltyRedemptionResult | null = null;
     let atomicStockWarnings: PosStockWarning[] | null = null;
+    let saleConnectionReleased = false;
     try {
       await conn.beginTransaction();
 
@@ -894,6 +895,8 @@ export const PosSalesRepo = {
       }
 
       await conn.commit();
+      conn.release();
+      saleConnectionReleased = true;
 
       // 4. Deduct IMS stock AFTER the sale transaction has committed.
       //    Separated so a stock failure (e.g. unsynced variant FK error) never
@@ -928,7 +931,7 @@ export const PosSalesRepo = {
 
       return { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption };
     } catch (err) {
-      await conn.rollback();
+      if (!saleConnectionReleased) await conn.rollback();
       if (loyaltyWriteAttempted && !(err instanceof LoyaltyValidationError)) {
         await reportRuntimeIssue({
           businessId: data.business_id,
@@ -948,7 +951,7 @@ export const PosSalesRepo = {
       }
       throw err;
     } finally {
-      conn.release();
+      if (!saleConnectionReleased) conn.release();
     }
   },
 

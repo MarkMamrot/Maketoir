@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-10-06","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Shopify Sync and Product Mapping
 
@@ -68,6 +68,8 @@ An administrator can run the same check immediately for one storefront. Open **I
 8. Confirm the imported products, variants, prices, images, brands, and suppliers in IMS before using them in normal operations.
 
 The import creates active Shopify products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Draft and archived Shopify products are not imported. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear, unlinked product. When an imported SKU or barcode is already used in Solvantis, the later value receives the next available numeric suffix, such as `-2` or `-3`, so identifiers remain unique without moving an existing Shopify link.
+
+Each Shopify variant and inventory item can belong to only one Solvantis variant in that storefront. If an import, publication, or manual link finds that identity on another local variant, Solvantis stops the link and leaves the existing owner unchanged. Resolve the conflicting local records before retrying; Solvantis does not guess which record should own stock synchronization.
 
 Shopify supplies one standard **vendor** value rather than separate brand and supplier values. The two import options use that vendor independently: the brand option maintains the brand list, while the supplier option creates or reuses an active supplier contact and assigns it to the product. Both options are off by default, and blank vendor values are ignored.
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-loyalty-customer-rewards","title":"Loyalty Program and Customer Rewards","audiences":["ims","pos"],"capability":"navigation","screen":"IMS Settings > Loyalty","product":"ims","format":"task","parentId":"ims-contacts-crm","relatedTopics":["ims-contacts-crm","ims-customer-orders","pos-selling-payments-manager-approval"],"contexts":["loyalty","contact-profile","pos","online-sales"],"contextSections":{"loyalty":"Step-by-step","contact-profile":"Customer enrolment","pos":"Use points at POS","online-sales":"Convert points for Shopify"},"order":42,"summary":"Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.","lastReviewed":"2026-09-08","owner":"customer","quickSections":["Main operations","At a glance"]}
+{"id":"ims-loyalty-customer-rewards","title":"Loyalty Program and Customer Rewards","audiences":["ims","pos"],"capability":"navigation","screen":"IMS Settings > Loyalty","product":"ims","format":"task","parentId":"ims-contacts-crm","relatedTopics":["ims-contacts-crm","ims-customer-orders","pos-selling-payments-manager-approval"],"contexts":["loyalty","contact-profile","pos","online-sales"],"contextSections":{"loyalty":"Step-by-step","contact-profile":"Customer enrolment","pos":"Use points at POS","online-sales":"Convert points for Shopify"},"order":42,"summary":"Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.","lastReviewed":"2026-10-06","owner":"customer","quickSections":["Main operations","At a glance"]}
 ---
 # Loyalty Program and Customer Rewards
 
@@ -87,6 +87,10 @@ The issued code appears in the portal with a copy action and a **Shop now** link
 | An expired code still reduced the balance | Converting the reward deducted points immediately | Expired issued codes do not automatically return points |
 
 ## Worked examples
+
+### Earn after promotions and rewards
+
+A tax-inclusive merchandise basket is $247.69 before discounts. A fully discounted promotional item reduces it by $25, and a loyalty reward reduces it by another $10. The eligible spend is the $212.69 paid merchandise value. At one point per dollar, Solvantis awards 212 whole points. The fully discounted item contributes no spend, and its $25 discount is not deducted a second time from the other items.
 
 ### Redeem directly in store
 

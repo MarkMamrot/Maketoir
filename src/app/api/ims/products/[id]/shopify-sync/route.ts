@@ -165,6 +165,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           `DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${variantIds.map(() => '?').join(',')})`,
           variantIds,
         );
+        await connection.execute(
+          `DELETE FROM ims_sales_channel_product_mappings
+            WHERE business_id = ? AND channel_instance_id = ?
+              AND variant_id IN (${variantIds.map(() => '?').join(',')})`,
+          [businessId, channelInstanceId, ...variantIds],
+        );
       }
       await connection.execute(
         `UPDATE ims_product_variants
@@ -202,11 +208,48 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       [params.id, businessId],
     );
     for (const match of variantMatches) {
+      const [mappingConflicts] = await connection.execute<any[]>(
+        `SELECT variant_id
+           FROM ims_sales_channel_product_mappings
+          WHERE business_id = ? AND channel_instance_id = ?
+            AND (external_variant_id = ? OR (? <> '' AND external_inventory_id = ?))
+            AND BINARY variant_id <> BINARY ?
+          LIMIT 1 FOR UPDATE`,
+        [businessId, channelInstanceId, match.shopifyVariantId, match.shopifyInventoryItemId,
+          match.shopifyInventoryItemId, match.variantId],
+      );
+      if (mappingConflicts.length) {
+        throw new Error('This Shopify variant is already linked to another Solvantis variant.');
+      }
+      const [legacyConflicts] = await connection.execute<any[]>(
+        `SELECT variant_id
+           FROM ims_product_variants
+          WHERE business_id = ? AND BINARY variant_id <> BINARY ?
+            AND (shopify_variant_id = ? OR (? <> '' AND shopify_inventory_item_id = ?))
+          LIMIT 1 FOR UPDATE`,
+        [businessId, match.variantId, match.shopifyVariantId, match.shopifyInventoryItemId,
+          match.shopifyInventoryItemId],
+      );
+      if (legacyConflicts.length) {
+        throw new Error('This Shopify variant is already linked to another Solvantis variant.');
+      }
       await connection.execute(
         `UPDATE ims_product_variants
             SET shopify_variant_id = ?, shopify_inventory_item_id = ?
           WHERE variant_id = ? AND product_id = ? AND business_id = ?`,
         [match.shopifyVariantId, match.shopifyInventoryItemId, match.variantId, params.id, businessId],
+      );
+      await connection.execute(
+        `INSERT INTO ims_sales_channel_product_mappings
+           (business_id, channel_instance_id, variant_id, external_product_id, external_variant_id,
+            external_inventory_id, mapping_status, metadata_json, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'linked', JSON_OBJECT('source', 'shopify_manual_link'), CURRENT_TIMESTAMP(3))
+         ON DUPLICATE KEY UPDATE external_product_id = VALUES(external_product_id),
+           external_variant_id = VALUES(external_variant_id), external_inventory_id = VALUES(external_inventory_id),
+           mapping_status = 'linked', metadata_json = VALUES(metadata_json), last_seen_at = CURRENT_TIMESTAMP(3),
+           updated_at = CURRENT_TIMESTAMP(3)`,
+        [businessId, channelInstanceId, match.variantId, shopifyProductId, match.shopifyVariantId,
+          match.shopifyInventoryItemId || null],
       );
     }
     await connection.commit();
@@ -297,7 +340,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       await ImsShopifyRepo.linkProduct(params.id, String(created.id), session.businessId);
       for (let i = 0; i < variants.length; i++) {
         const sv = created.variants?.[i];
-        if (sv) await ImsShopifyRepo.linkVariant(variants[i].variant_id, String(sv.id), String(sv.inventory_item_id ?? ''), session.businessId);
+        if (sv) await ImsShopifyRepo.linkVariant(
+          variants[i].variant_id,
+          String(created.id),
+          String(sv.id),
+          String(sv.inventory_item_id ?? ''),
+          session.businessId,
+          shop.channelInstanceId,
+        );
       }
       // Push images one-by-one so we can update IMS URLs to Shopify CDN URLs (prevents re-upload on future syncs)
       let imagesAdded = 0;

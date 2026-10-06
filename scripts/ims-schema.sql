@@ -3106,7 +3106,7 @@ CREATE TABLE IF NOT EXISTS loyalty_rewards (
   updated_at                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_loyalty_reward_code (business_id, reward_code),
   INDEX idx_loyalty_reward_active (business_id, is_active, sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_redemptions (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -3134,4 +3134,4 @@ CREATE TABLE IF NOT EXISTS loyalty_redemptions (
   CONSTRAINT fk_loyalty_redemption_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT,
   CONSTRAINT fk_loyalty_redemption_reward FOREIGN KEY (reward_id) REFERENCES loyalty_rewards(id) ON DELETE RESTRICT,
   CONSTRAINT fk_loyalty_redemption_transaction FOREIGN KEY (transaction_id) REFERENCES loyalty_transactions(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

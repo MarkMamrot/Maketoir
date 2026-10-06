@@ -214,6 +214,9 @@ describe('LoyaltyRepository', () => {
       duplicate: false,
     });
     expect(execute.mock.calls[0][0]).toContain('FOR UPDATE');
+    expect(execute.mock.calls[0][0]).toContain('BINARY rw.business_id = BINARY r.business_id');
+    expect(execute.mock.calls[0][0]).toContain('BINARY t.business_id = BINARY r.business_id');
+    expect(execute.mock.calls[0][0]).toContain('BINARY a.business_id = BINARY r.business_id');
     expect(execute.mock.calls[1][1]).toEqual([3, 'business-1']);
     expect(execute.mock.calls[9][0]).toContain('INSERT INTO loyalty_redemptions');
   });

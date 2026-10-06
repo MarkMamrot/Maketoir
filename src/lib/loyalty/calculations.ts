@@ -29,7 +29,7 @@ export function calculatePosEligibleSpend(input: {
     .reduce((sum, item) => sum + nonNegativeMoney(item.lineTotal), 0);
   if (allLineCents === 0 || eligibleLineCents === 0) return 0;
 
-  const itemDiscountCents = saleLines.reduce((sum, item) => sum + nonNegativeMoney(item.discountAmount), 0);
+  const itemDiscountCents = input.items.reduce((sum, item) => sum + nonNegativeMoney(item.discountAmount), 0);
   const orderDiscountCents = Math.max(0, nonNegativeMoney(input.discountTotal) - itemDiscountCents);
   const eligibleOrderDiscountCents = Math.round(orderDiscountCents * eligibleLineCents / allLineCents);
   return Math.max(0, eligibleLineCents - eligibleOrderDiscountCents) / 100;
@@ -91,7 +91,10 @@ export function calculatePosReturnEligibleCents(input: {
   const eligibleLineCents = eligibleLines.reduce((sum, item) => sum + nonNegativeMoney(item.lineTotal), 0);
   if (allLineCents === 0 || eligibleLineCents === 0) return { originalEligibleCents: 0, cumulativeReturnedCents: 0 };
 
-  const itemDiscountCents = saleLines.reduce((sum, item) => sum + nonNegativeMoney(item.discountAmount), 0);
+  const itemDiscountCents = input.originalItems.reduce(
+    (sum, item) => sum + nonNegativeMoney(item.discountAmount),
+    0,
+  );
   const orderDiscountCents = Math.max(0, nonNegativeMoney(input.originalDiscountTotal) - itemDiscountCents);
   const eligibleOrderDiscountCents = Math.round(orderDiscountCents * eligibleLineCents / allLineCents);
   const originalEligibleCents = Math.max(0, eligibleLineCents - eligibleOrderDiscountCents);

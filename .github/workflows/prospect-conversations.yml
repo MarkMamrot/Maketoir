@@ -2,8 +2,12 @@ name: Prospect Conversation Maintenance
 
 on:
   schedule:
-    - cron: '11 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
+
+concurrency:
+  group: prospect-conversation-maintenance
+  cancel-in-progress: false
 
 jobs:
   maintain:
@@ -11,10 +15,13 @@ jobs:
     steps:
       - name: Maintain prospect conversations and lead alerts
         run: |
-          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+          BODY=$(curl -sS -L --connect-timeout 10 --max-time 240 -w '\n__STATUS__%{http_code}' \
             -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             "${{ secrets.APP_URL }}/api/cron/prospect-conversations")
+          RESPONSE=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          RESPONSE_BODY=$(echo "$BODY" | head -n -1)
           echo "HTTP status: $RESPONSE"
+          echo "Response: $RESPONSE_BODY"
           [ "$RESPONSE" = "200" ] || exit 1
