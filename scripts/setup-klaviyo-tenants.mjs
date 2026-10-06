@@ -40,7 +40,9 @@ const tableContracts = {
 };
 
 function extractDefinition(schema, table) {
-  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const expression = new RegExp(
+    `CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+  );
   const match = schema.match(expression);
   if (!match) throw new Error(`Canonical definition not found for ${table}.`);
   return match[0]

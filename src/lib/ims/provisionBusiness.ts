@@ -12,9 +12,12 @@ import mysql from 'mysql2/promise';
 import { execute, getPool, query } from '@/services/MySQLService';
 import { invalidateImsDbCache } from '@/lib/db/BusinessRegistry';
 import {
+  IMS_SCHEMA_IDENTITY_COLLATION,
+  IMS_SCHEMA_IDENTITY_COLUMNS,
   IMS_SCHEMA_REQUIRED_COLUMNS,
   IMS_SCHEMA_REQUIRED_INDEXES,
   IMS_SCHEMA_REQUIRED_TABLES,
+  IMS_SCHEMA_TEXT_COLLATION,
 } from '@/lib/ims/schemaContract';
 
 /** MySQL identifiers can't be parameterised — allow only safe characters. */
@@ -182,7 +185,7 @@ export async function validateImsSchema(dbName: string): Promise<void> {
   const connection = await serverConnection();
   try {
     const [columnRows] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT TABLE_NAME, COLUMN_NAME
+      `SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
          FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = ?`,
       [db],
@@ -193,6 +196,23 @@ export async function validateImsSchema(dbName: string): Promise<void> {
     const missingColumns = Object.entries(IMS_SCHEMA_REQUIRED_COLUMNS).flatMap(([table, required]) =>
       required.filter(column => !columns.has(`${table}.${column}`)).map(column => `${table}.${column}`),
     );
+    const identityColumns = new Set<string>(IMS_SCHEMA_IDENTITY_COLUMNS);
+    const invalidIdentityCollations = columnRows
+      .filter(row => identityColumns.has(String(row.COLUMN_NAME)))
+      .filter(row => row.COLLATION_NAME !== null)
+      .filter(row => row.COLLATION_NAME !== IMS_SCHEMA_IDENTITY_COLLATION)
+      .map(row => `${row.TABLE_NAME}.${row.COLUMN_NAME} (${row.COLLATION_NAME ?? 'none'})`);
+
+    const [tableRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT TABLE_NAME, TABLE_COLLATION
+         FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_TYPE = 'BASE TABLE'`,
+      [db],
+    );
+    const invalidTableCollations = tableRows
+      .filter(row => row.TABLE_COLLATION !== IMS_SCHEMA_TEXT_COLLATION)
+      .map(row => `${row.TABLE_NAME} (${row.TABLE_COLLATION ?? 'none'})`);
 
     const [indexRows] = await connection.query<mysql.RowDataPacket[]>(
       `SELECT TABLE_NAME, INDEX_NAME
@@ -215,7 +235,14 @@ export async function validateImsSchema(dbName: string): Promise<void> {
     const missingTriggers = ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid']
       .filter(trigger => !triggers.has(trigger));
 
-    const gaps = [...missingTables, ...missingColumns, ...missingIndexes, ...missingTriggers];
+    const gaps = [
+      ...missingTables,
+      ...missingColumns,
+      ...missingIndexes,
+      ...missingTriggers,
+      ...invalidIdentityCollations.map(column => `collation:${column}`),
+      ...invalidTableCollations.map(table => `table-collation:${table}`),
+    ];
     if (gaps.length > 0) throw new Error(`IMS schema validation failed: ${gaps.join(', ')}`);
   } finally {
     await connection.end();

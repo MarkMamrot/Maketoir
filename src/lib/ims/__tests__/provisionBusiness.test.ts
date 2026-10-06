@@ -32,6 +32,7 @@ import {
   cleanupFailedBusinessProvision,
   deriveProvisionedImsDbName,
   parseSchemaStatements,
+  validateImsSchema,
 } from '../provisionBusiness';
 
 describe('IMS schema statement parsing', () => {
@@ -126,5 +127,24 @@ describe('new business IMS provisioning ownership', () => {
     expect(mocks.createConnection).not.toHaveBeenCalled();
     expect(result.schemaDropped).toBe(false);
     expect(result.errors[0]).toContain('referenced by another active business');
+  });
+
+  it('rejects a fresh schema with a non-binary textual identity', async () => {
+    mocks.serverConnection.query
+      .mockResolvedValueOnce([[{
+        TABLE_NAME: 'ims_products',
+        COLUMN_NAME: 'business_id',
+        COLLATION_NAME: 'utf8mb4_general_ci',
+      }], []])
+      .mockResolvedValueOnce([[{
+        TABLE_NAME: 'ims_products',
+        TABLE_COLLATION: 'utf8mb4_unicode_ci',
+      }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[], []]);
+
+    await expect(validateImsSchema('readyedu_TestIMS')).rejects.toThrow(
+      'collation:ims_products.business_id (utf8mb4_general_ci)',
+    );
   });
 });

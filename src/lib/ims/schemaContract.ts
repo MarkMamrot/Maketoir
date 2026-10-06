@@ -1,3 +1,10 @@
+import collationContract from '../../../scripts/collation-contract.json';
+
+export const IMS_SCHEMA_CHARACTER_SET = collationContract.characterSet;
+export const IMS_SCHEMA_TEXT_COLLATION = collationContract.textCollation;
+export const IMS_SCHEMA_IDENTITY_COLLATION = collationContract.identityCollation;
+export const IMS_SCHEMA_IDENTITY_COLUMNS = collationContract.tenantIdentityColumns;
+
 export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_contacts',
   'ims_crm_interactions',

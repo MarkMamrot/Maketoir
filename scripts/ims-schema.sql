@@ -9,7 +9,7 @@ SET NAMES utf8mb4;
 -- ── Contacts (Suppliers + Customers + Leads) ────────────────
 CREATE TABLE IF NOT EXISTS ims_contacts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   type        ENUM('supplier','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier',
   -- Name fields
   name        VARCHAR(255) NOT NULL,
@@ -63,11 +63,11 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_business_id (business_id),
   UNIQUE KEY idx_shopify_customer_id (business_id, shopify_customer_id),
   INDEX idx_customer_code (business_id, customer_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_lead_discoveries (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id INT NOT NULL,
   idempotency_key CHAR(64) NOT NULL,
   batch_id VARCHAR(100) NOT NULL,
@@ -81,11 +81,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_lead_discoveries (
   INDEX idx_crm_lead_discovery_contact (business_id, contact_id, discovered_at, id),
   INDEX idx_crm_lead_discovery_batch (business_id, batch_id, id),
   CONSTRAINT fk_crm_lead_discovery_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_lead_people (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id INT NOT NULL,
   idempotency_key CHAR(64) NOT NULL,
   full_name VARCHAR(255) NOT NULL,
@@ -96,11 +96,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_lead_people (
   UNIQUE KEY uq_crm_lead_person (business_id, idempotency_key),
   INDEX idx_crm_lead_person_contact (business_id, contact_id, id),
   CONSTRAINT fk_crm_lead_person_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_lead_contact_points (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id INT NOT NULL,
   person_id BIGINT DEFAULT NULL,
   idempotency_key CHAR(64) NOT NULL,
@@ -115,24 +115,24 @@ CREATE TABLE IF NOT EXISTS ims_crm_lead_contact_points (
   INDEX idx_crm_lead_contact_point_contact (business_id, contact_id, evidence_status, id),
   CONSTRAINT fk_crm_lead_contact_point_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE,
   CONSTRAINT fk_crm_lead_contact_point_person FOREIGN KEY (person_id) REFERENCES ims_crm_lead_people(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Product brands ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_brands (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   name        VARCHAR(255) NOT NULL,
   website_url VARCHAR(500) DEFAULT NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_ims_brand_per_tenant (business_id, name),
   INDEX idx_ims_brand_business (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Wholesale company accounts ─────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_wholesale_companies (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   primary_contact_id INT NULL,
   company_name VARCHAR(255) NOT NULL,
   tax_id VARCHAR(50) NULL,
@@ -144,11 +144,11 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_companies (
   UNIQUE KEY uq_wholesale_company_contact (business_id, primary_contact_id),
   INDEX idx_wholesale_company_status (business_id, status, company_name),
   CONSTRAINT fk_wholesale_company_contact FOREIGN KEY (primary_contact_id) REFERENCES ims_contacts(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_company_locations (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   company_id INT NOT NULL,
   location_name VARCHAR(255) NOT NULL,
   billing_address VARCHAR(255) NULL,
@@ -172,11 +172,11 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_company_locations (
   UNIQUE KEY uq_wholesale_company_location (business_id, company_id, location_name),
   INDEX idx_wholesale_location_primary (business_id, company_id, is_primary, status),
   CONSTRAINT fk_wholesale_location_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_company_members (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   company_id INT NOT NULL,
   location_id INT NOT NULL,
   contact_id INT NOT NULL,
@@ -190,11 +190,11 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_company_members (
   CONSTRAINT fk_wholesale_member_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_wholesale_member_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
   CONSTRAINT fk_wholesale_member_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_member_locations (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   company_id INT NOT NULL,
   member_id INT NOT NULL,
   location_id INT NOT NULL,
@@ -204,11 +204,11 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_member_locations (
   CONSTRAINT fk_wholesale_member_location_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE,
   CONSTRAINT fk_wholesale_member_location_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
   CONSTRAINT fk_wholesale_member_location_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_saved_lists (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   company_id INT NOT NULL,
   created_by_member_id INT NOT NULL,
   name VARCHAR(80) NOT NULL,
@@ -218,36 +218,36 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_saved_lists (
   INDEX idx_wholesale_saved_list_company (business_id, company_id, updated_at, id),
   CONSTRAINT fk_wholesale_saved_list_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_wholesale_saved_list_member FOREIGN KEY (created_by_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_saved_list_items (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   list_id BIGINT NOT NULL,
-  variant_id VARCHAR(64) NOT NULL,
+  variant_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   quantity INT NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_wholesale_saved_list_variant (business_id, list_id, variant_id),
   INDEX idx_wholesale_saved_list_items (business_id, list_id, id),
   CONSTRAINT fk_wholesale_saved_list_item_list FOREIGN KEY (list_id) REFERENCES ims_wholesale_saved_lists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_favourites (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   company_id INT NOT NULL,
   member_id INT NOT NULL,
-  variant_id VARCHAR(64) NOT NULL,
+  variant_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_wholesale_favourite_variant (business_id, company_id, member_id, variant_id),
   INDEX idx_wholesale_favourites_member (business_id, company_id, member_id, created_at),
   CONSTRAINT fk_wholesale_favourite_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_wholesale_favourite_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_wholesale_team_events (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   company_id INT NOT NULL,
   actor_member_id INT NULL,
   actor_name VARCHAR(255) NOT NULL,
@@ -265,12 +265,12 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_team_events (
   CONSTRAINT fk_wholesale_team_event_actor FOREIGN KEY (actor_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL,
   CONSTRAINT fk_wholesale_team_event_member FOREIGN KEY (target_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL,
   CONSTRAINT fk_wholesale_team_event_contact FOREIGN KEY (target_contact_id) REFERENCES ims_contacts(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── CRM (customer interactions, follow-ups and tags) ───────
 CREATE TABLE IF NOT EXISTS ims_crm_interactions (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id    INT NOT NULL,
   interaction_type VARCHAR(32) NOT NULL DEFAULT 'note',
   body          MEDIUMTEXT NOT NULL,
@@ -281,11 +281,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_interactions (
   INDEX idx_crm_interaction_timeline (business_id, contact_id, occurred_at, id),
   CONSTRAINT fk_crm_interaction_contact FOREIGN KEY (contact_id)
     REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_tasks (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id    INT NOT NULL,
   title         VARCHAR(255) NOT NULL,
   description   TEXT NULL,
@@ -305,11 +305,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_tasks (
   INDEX idx_crm_task_assignee (business_id, assigned_user_id, status, due_date),
   CONSTRAINT fk_crm_task_contact FOREIGN KEY (contact_id)
     REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_tags (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   name          VARCHAR(100) NOT NULL,
   normalized_name VARCHAR(100) NOT NULL,
   color         VARCHAR(32) NULL,
@@ -319,11 +319,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_tags (
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_crm_tag_name (business_id, normalized_name),
   INDEX idx_crm_tag_lookup (business_id, name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_contact_tags (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id    INT NOT NULL,
   tag_id        INT NOT NULL,
   created_by    INT NULL,
@@ -335,11 +335,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_contact_tags (
     REFERENCES ims_contacts(id) ON DELETE CASCADE,
   CONSTRAINT fk_crm_contact_tag_tag FOREIGN KEY (tag_id)
     REFERENCES ims_crm_tags(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_segments (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   name          VARCHAR(120) NOT NULL,
   normalized_name VARCHAR(120) NOT NULL,
   description   VARCHAR(500) NULL,
@@ -350,11 +350,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_segments (
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_crm_segment_name (business_id, normalized_name),
   INDEX idx_crm_segment_lookup (business_id, name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_pipeline_stages (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   name          VARCHAR(80) NOT NULL,
   normalized_name VARCHAR(80) NOT NULL,
   position      INT NOT NULL DEFAULT 0,
@@ -366,11 +366,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_pipeline_stages (
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_crm_pipeline_stage_name (business_id, normalized_name),
   INDEX idx_crm_pipeline_stage_order (business_id, is_active, position, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_opportunities (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id    INT NOT NULL,
   stage_id      INT NOT NULL,
   title         VARCHAR(255) NOT NULL,
@@ -393,11 +393,11 @@ CREATE TABLE IF NOT EXISTS ims_crm_opportunities (
     REFERENCES ims_contacts(id) ON DELETE CASCADE,
   CONSTRAINT fk_crm_opportunity_stage FOREIGN KEY (stage_id)
     REFERENCES ims_crm_pipeline_stages(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_contact_merges (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   source_contact_id   INT NOT NULL,
   target_contact_id   INT NOT NULL,
   source_snapshot_json JSON NOT NULL,
@@ -407,12 +407,12 @@ CREATE TABLE IF NOT EXISTS ims_crm_contact_merges (
   merged_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_crm_contact_merge_source (business_id, source_contact_id, merged_at),
   INDEX idx_crm_contact_merge_target (business_id, target_contact_id, merged_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Locations (Branches / Warehouses) ───────────────────────
 CREATE TABLE IF NOT EXISTS ims_locations (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   name        VARCHAR(255) NOT NULL,
   code        VARCHAR(50),
   phone       VARCHAR(50) NULL,
@@ -433,7 +433,7 @@ CREATE TABLE IF NOT EXISTS ims_locations (
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY idx_pos_location_code (pos_location_code),
   INDEX idx_business_id (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_chat_messages (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -446,7 +446,7 @@ CREATE TABLE IF NOT EXISTS pos_chat_messages (
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_pos_chat_created (created_at),
   INDEX idx_pos_chat_dm (location_id, to_location_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_chat_attachments (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -459,22 +459,22 @@ CREATE TABLE IF NOT EXISTS pos_chat_attachments (
   INDEX idx_pos_chat_attachment_message (message_id),
   CONSTRAINT fk_pos_chat_attachment_message FOREIGN KEY (message_id)
     REFERENCES pos_chat_messages(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Settings (per-business IMS configuration) ───────────────
 CREATE TABLE IF NOT EXISTS ims_settings (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `key`       VARCHAR(120) NOT NULL,
   value       MEDIUMTEXT,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_ims_settings_business_key (business_id, `key`),
   INDEX idx_business_id (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_bulk_product_presets (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   user_key      VARCHAR(191) NOT NULL,
   name          VARCHAR(80) NOT NULL,
   settings_json MEDIUMTEXT NOT NULL,
@@ -483,11 +483,11 @@ CREATE TABLE IF NOT EXISTS ims_bulk_product_presets (
   updated_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_bulk_product_preset_name (business_id, user_key, name),
   INDEX idx_bulk_product_preset_user (business_id, user_key, last_used_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_purchase_order_presets (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   user_key VARCHAR(191) NOT NULL,
   name VARCHAR(80) NOT NULL,
   settings_json MEDIUMTEXT NOT NULL,
@@ -496,11 +496,11 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_presets (
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_purchase_order_preset_name (business_id, user_key, name),
   INDEX idx_purchase_order_preset_user (business_id, user_key, last_used_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Customer Service Inbox settings and durable Gmail cache
 CREATE TABLE IF NOT EXISTS ims_cs_settings (
-  business_id          VARCHAR(100) NOT NULL PRIMARY KEY,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
   enabled              TINYINT(1) NOT NULL DEFAULT 0,
   timezone_override    VARCHAR(100) NULL,
   run_times_json       TEXT NOT NULL,
@@ -524,11 +524,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_settings (
   legacy_imported_at   DATETIME NULL,
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_threads (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   gmail_thread_id      VARCHAR(255) NOT NULL,
   latest_message_id    VARCHAR(255) NULL,
   customer_id          INT NULL,
@@ -563,11 +563,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_threads (
   INDEX idx_cs_thread_starred (business_id, is_starred, last_message_at),
   INDEX idx_cs_thread_customer (business_id, customer_email),
   INDEX idx_cs_thread_unread (business_id, unread_count)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_messages (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   thread_id            BIGINT NOT NULL,
   gmail_message_id     VARCHAR(255) NOT NULL,
   gmail_thread_id      VARCHAR(255) NOT NULL,
@@ -592,11 +592,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_messages (
   UNIQUE KEY uq_cs_message_gmail (business_id, gmail_message_id),
   INDEX idx_cs_message_thread (business_id, thread_id, message_at),
   INDEX idx_cs_message_date (business_id, message_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_drafts (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   thread_id            BIGINT NOT NULL,
   target_message_id    BIGINT NULL,
   operation_key        VARCHAR(191) NOT NULL,
@@ -625,11 +625,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_drafts (
   UNIQUE KEY uq_cs_draft_operation (business_id, operation_key),
   INDEX idx_cs_draft_thread (business_id, thread_id, status),
   INDEX idx_cs_draft_target (business_id, target_message_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_draft_revisions (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   draft_id             BIGINT NOT NULL,
   version              INT NOT NULL,
   body                 MEDIUMTEXT NOT NULL,
@@ -638,11 +638,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_draft_revisions (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_cs_draft_revision (business_id, draft_id, version),
   INDEX idx_cs_revision_draft (business_id, draft_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_processing_runs (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   run_type             ENUM('sync','classify','generate','send','cleanup','learn') NOT NULL,
   trigger_type         ENUM('manual','schedule','system') NOT NULL,
   status               ENUM('running','success','partial','error') NOT NULL,
@@ -653,11 +653,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_processing_runs (
   duration_ms          INT NULL,
   INDEX idx_cs_run_business (business_id, started_at),
   INDEX idx_cs_run_status (business_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_events (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   thread_id            BIGINT NULL,
   draft_id             BIGINT NULL,
   event_type           VARCHAR(80) NOT NULL,
@@ -667,11 +667,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_events (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_cs_event_thread (business_id, thread_id, created_at),
   INDEX idx_cs_event_type (business_id, event_type, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_learning_evidence (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   draft_id             BIGINT NULL,
   evidence_type        ENUM('draft_edit','rating','classification_correction','manual_finding','rejection') NOT NULL,
   sanitized_summary    TEXT NOT NULL,
@@ -682,11 +682,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_learning_evidence (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_cs_evidence_hash (business_id, evidence_hash),
   INDEX idx_cs_evidence_type (business_id, evidence_type, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_learning_candidates (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   rule_key             VARCHAR(191) NOT NULL,
   rule_type            ENUM('style','fact','policy') NOT NULL,
   title                VARCHAR(255) NOT NULL,
@@ -701,11 +701,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_learning_candidates (
   updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_cs_learning_rule (business_id, rule_key),
   INDEX idx_cs_learning_status (business_id, status, rule_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_knowledge_documents (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   document_key         ENUM('style','knowledge') NOT NULL,
   filename             VARCHAR(100) NOT NULL,
   markdown_content     MEDIUMTEXT NOT NULL,
@@ -715,11 +715,11 @@ CREATE TABLE IF NOT EXISTS ims_cs_knowledge_documents (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_cs_document (business_id, document_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_cs_knowledge_versions (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   document_key         ENUM('style','knowledge') NOT NULL,
   version              INT NOT NULL,
   markdown_content     MEDIUMTEXT NOT NULL,
@@ -729,13 +729,13 @@ CREATE TABLE IF NOT EXISTS ims_cs_knowledge_versions (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_cs_document_version (business_id, document_key, version),
   INDEX idx_cs_document_history (business_id, document_key, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Products ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_products (
   id                    INT AUTO_INCREMENT PRIMARY KEY,
-  business_id           VARCHAR(100) NOT NULL DEFAULT '',
-  product_id            VARCHAR(36) NOT NULL UNIQUE,
+  business_id           VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  product_id            VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
   name                  VARCHAR(255) NOT NULL,
   description           MEDIUMTEXT,
   product_type          VARCHAR(100),
@@ -763,14 +763,14 @@ CREATE TABLE IF NOT EXISTS ims_products (
   created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Product Variants ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_product_variants (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL DEFAULT '',
-  variant_id          VARCHAR(36) NOT NULL UNIQUE,
-  product_id          VARCHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  variant_id          VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
+  product_id          VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   sku                 VARCHAR(100),
   barcode             VARCHAR(100),
   option1_name        VARCHAR(100),
@@ -808,15 +808,15 @@ CREATE TABLE IF NOT EXISTS ims_product_variants (
   INDEX idx_business_id (business_id),
   INDEX idx_pv_product (product_id),
   INDEX idx_pv_sku (sku)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Provider-neutral sales-channel state. channel_instance_id references the
 -- main control-plane database and therefore cannot use a cross-schema FK.
 CREATE TABLE IF NOT EXISTS ims_sales_channel_product_selections (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
-  variant_id          VARCHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  variant_id          VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   is_selected         TINYINT(1) NOT NULL DEFAULT 0,
   inventory_enabled   TINYINT(1) NOT NULL DEFAULT 0,
   price_enabled       TINYINT(1) NOT NULL DEFAULT 0,
@@ -826,13 +826,13 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_product_selections (
   UNIQUE KEY uq_channel_variant_selection (business_id, channel_instance_id, variant_id),
   INDEX idx_channel_selected (business_id, channel_instance_id, is_selected, variant_id),
   CONSTRAINT fk_channel_selection_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_sales_channel_product_mappings (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
-  variant_id          VARCHAR(36) NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  variant_id          VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   external_product_id VARCHAR(191) NULL,
   external_variant_id VARCHAR(191) NOT NULL,
   external_inventory_id VARCHAR(191) NULL,
@@ -845,12 +845,12 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_product_mappings (
   UNIQUE KEY uq_channel_ims_variant (business_id, channel_instance_id, variant_id),
   INDEX idx_channel_external_product (business_id, channel_instance_id, external_product_id),
   CONSTRAINT fk_channel_mapping_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_contact_channel_mappings (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
-  channel_instance_id  CHAR(36) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id  CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id            INT NOT NULL,
   external_customer_id  VARCHAR(191) NOT NULL,
   mapping_status        ENUM('linked','conflict','archived') NOT NULL DEFAULT 'linked',
@@ -865,11 +865,11 @@ CREATE TABLE IF NOT EXISTS ims_contact_channel_mappings (
   UNIQUE KEY uq_contact_channel_contact (business_id, channel_instance_id, contact_id),
   INDEX idx_contact_channel_contact (business_id, contact_id, mapping_status),
   CONSTRAINT fk_contact_channel_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_klaviyo_profile_mappings (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id           VARCHAR(100) NOT NULL,
+  business_id           VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id            INT NOT NULL,
   klaviyo_profile_id    VARCHAR(191) NULL,
   external_id           VARCHAR(191) NOT NULL,
@@ -885,11 +885,11 @@ CREATE TABLE IF NOT EXISTS ims_klaviyo_profile_mappings (
   UNIQUE KEY uq_klaviyo_mapping_external (business_id, external_id),
   INDEX idx_klaviyo_mapping_status (business_id, reconciliation_status, updated_at),
   CONSTRAINT fk_klaviyo_mapping_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_klaviyo_outbox (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id      INT NOT NULL,
   operation_key   VARCHAR(191) NOT NULL,
   source_type     VARCHAR(32) NOT NULL,
@@ -910,12 +910,12 @@ CREATE TABLE IF NOT EXISTS ims_klaviyo_outbox (
   INDEX idx_klaviyo_outbox_work (business_id, status, available_at),
   INDEX idx_klaviyo_outbox_contact (business_id, contact_id, occurred_at),
   CONSTRAINT fk_klaviyo_outbox_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_sales_channel_product_rules (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   name                VARCHAR(120) NOT NULL,
   priority            INT NOT NULL DEFAULT 100,
   is_enabled          TINYINT(1) NOT NULL DEFAULT 1,
@@ -927,13 +927,13 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_product_rules (
   created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   INDEX idx_channel_product_rules (business_id, channel_instance_id, priority, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_sales_channel_product_assignments (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
-  product_id          VARCHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  product_id          VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   rule_decision       ENUM('include','exclude') NOT NULL DEFAULT 'exclude',
   matched_rule_id     BIGINT NULL,
   override_mode       ENUM('automatic','include','exclude') NOT NULL DEFAULT 'automatic',
@@ -953,12 +953,12 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_product_assignments (
   INDEX idx_channel_product_provider_state (business_id, channel_instance_id, provider_state),
   CONSTRAINT fk_channel_assignment_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE,
   CONSTRAINT fk_channel_assignment_rule FOREIGN KEY (matched_rule_id) REFERENCES ims_sales_channel_product_rules(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_sales_channel_events (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   provider            VARCHAR(32) NOT NULL,
   event_type          VARCHAR(100) NOT NULL,
   external_event_id   VARCHAR(191) NOT NULL,
@@ -971,12 +971,12 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_events (
   processed_at        DATETIME(3) NULL,
   UNIQUE KEY uq_channel_event (business_id, channel_instance_id, external_event_id),
   INDEX idx_channel_event_work (business_id, provider, status, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_sales_channel_jobs (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  channel_instance_id CHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   provider            VARCHAR(32) NOT NULL,
   operation           VARCHAR(64) NOT NULL,
   operation_key       VARCHAR(191) NOT NULL,
@@ -991,14 +991,14 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_jobs (
   updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_channel_job_operation (business_id, channel_instance_id, operation_key),
   INDEX idx_channel_job_work (provider, status, available_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Product Images ───────────────────────────────────────────
 -- Up to 8 images per product; one marked is_primary (used by POS/website).
 -- updated_at enables incremental "since" sync from the POS product cache.
 CREATE TABLE IF NOT EXISTS ims_product_images (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  product_id    VARCHAR(36) NOT NULL,
+  product_id    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   url           TEXT NOT NULL,
   source        ENUM('shopify','google_drive','external','volume') NOT NULL DEFAULT 'external',
   drive_file_id VARCHAR(200) NULL,
@@ -1010,12 +1010,12 @@ CREATE TABLE IF NOT EXISTS ims_product_images (
   FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE,
   INDEX idx_pi_product (product_id),
   INDEX idx_pi_primary (product_id, is_primary)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
-  channel_instance_id VARCHAR(36) NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  channel_instance_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   action      ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
   status      ENUM('success','error','partial') NOT NULL,
   summary     TEXT NOT NULL,
@@ -1024,20 +1024,20 @@ CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
   INDEX idx_ssl_created (created_at),
   INDEX idx_ssl_biz_created (business_id, created_at),
   INDEX idx_ssl_channel_created (channel_instance_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Website Content Attempts ────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
-  product_id          VARCHAR(36) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  product_id          VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   outcome             VARCHAR(32) NOT NULL,
   workflow            VARCHAR(32) NOT NULL DEFAULT 'pending_online_bulk',
   candidate_urls_json MEDIUMTEXT NOT NULL,
   decisions_json      MEDIUMTEXT NOT NULL,
   attempted_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_website_attempt_product (business_id, product_id, outcome, attempted_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Stock Levels ─────────────────────────────────────────────
 -- qty_on_hand   = physical stock at location
@@ -1046,8 +1046,8 @@ CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
 -- avg_cost      = weighted average cost per unit
 CREATE TABLE IF NOT EXISTS ims_stock (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL DEFAULT '',
-  variant_id    VARCHAR(36) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  variant_id    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id   INT NOT NULL,
   qty_on_hand   DECIMAL(12,4) NOT NULL DEFAULT 0,
   qty_incoming  DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -1062,12 +1062,12 @@ CREATE TABLE IF NOT EXISTS ims_stock (
   INDEX idx_business_id (business_id),
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Inventory Costing ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_inventory_cost_state (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   active_method ENUM('average_cost','fifo') NOT NULL DEFAULT 'average_cost',
   active_epoch_id BIGINT NULL,
   revision INT UNSIGNED NOT NULL DEFAULT 1,
@@ -1077,11 +1077,11 @@ CREATE TABLE IF NOT EXISTS ims_inventory_cost_state (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_inventory_cost_state_business (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_inventory_cost_epochs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   method ENUM('average_cost','fifo') NOT NULL,
   status ENUM('active','closed') NOT NULL DEFAULT 'active',
   operation_key VARCHAR(191) NOT NULL,
@@ -1096,13 +1096,13 @@ CREATE TABLE IF NOT EXISTS ims_inventory_cost_epochs (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_inventory_cost_epoch_operation (business_id, operation_key),
   INDEX idx_inventory_cost_epoch_active (business_id, status, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_fifo_cost_layers (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   epoch_id BIGINT NOT NULL,
-  variant_id VARCHAR(36) NOT NULL,
+  variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id INT NOT NULL,
   source_type VARCHAR(32) NOT NULL,
   source_movement_id INT NULL,
@@ -1120,11 +1120,11 @@ CREATE TABLE IF NOT EXISTS ims_fifo_cost_layers (
   INDEX idx_fifo_layer_consume (business_id, epoch_id, variant_id, location_id, fifo_date, id),
   INDEX idx_fifo_layer_source (business_id, source_reference_type, source_reference_id, source_line_id),
   INDEX idx_fifo_layer_parent (business_id, parent_layer_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_fifo_cost_allocations (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   epoch_id BIGINT NOT NULL,
   stock_movement_id INT NOT NULL,
   layer_id BIGINT NOT NULL,
@@ -1137,7 +1137,7 @@ CREATE TABLE IF NOT EXISTS ims_fifo_cost_allocations (
   UNIQUE KEY uq_fifo_allocation_movement_layer (business_id, stock_movement_id, layer_id, allocation_type),
   INDEX idx_fifo_allocation_layer (business_id, layer_id, id),
   INDEX idx_fifo_allocation_movement (business_id, stock_movement_id, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Purchase Orders ──────────────────────────────────────────
 -- draft     → approved (adds qty_incoming)
@@ -1146,7 +1146,7 @@ CREATE TABLE IF NOT EXISTS ims_fifo_cost_allocations (
 -- any       → cancelled
 CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL DEFAULT '',
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   po_number     VARCHAR(50) NOT NULL UNIQUE,
   supplier_id   INT,
   location_id   INT NOT NULL,
@@ -1182,7 +1182,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   UNIQUE INDEX uq_po_replacement_source (business_id, replacement_of_po_id),
   FOREIGN KEY (supplier_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Purchase Order Landed Costs ───────────────────────────────
 -- Separate-invoice import costs (customs, duties, etc).
@@ -1190,7 +1190,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
 -- proportionally to variant avg_cost when the PO is received.
 CREATE TABLE IF NOT EXISTS ims_po_landed_costs (
   id         INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   po_id      INT NOT NULL,
   label      VARCHAR(200) NOT NULL,
   reference  VARCHAR(200),
@@ -1199,14 +1199,14 @@ CREATE TABLE IF NOT EXISTS ims_po_landed_costs (
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
   INDEX idx_business_id (business_id),
   INDEX idx_polc_po (po_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Purchase Order Items ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   id           INT AUTO_INCREMENT PRIMARY KEY,
-  business_id  VARCHAR(100) NOT NULL DEFAULT '',
+  business_id  VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   po_id        INT NOT NULL,
-  variant_id   VARCHAR(36) NOT NULL,
+  variant_id   VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   qty_ordered  DECIMAL(12,4) NOT NULL,
   qty_received DECIMAL(12,4) NOT NULL DEFAULT 0,
   unit_cost    DECIMAL(12,4) NOT NULL,
@@ -1219,11 +1219,11 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),
   INDEX idx_poi_po (po_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
   id               INT AUTO_INCREMENT PRIMARY KEY,
-  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  business_id      VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   po_id             INT NOT NULL,
   payment_date      DATE NOT NULL,
   amount            DECIMAL(12,4) NOT NULL,
@@ -1240,7 +1240,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
   INDEX idx_pop_po (po_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Sales Orders ─────────────────────────────────────────────
 -- draft     → confirmed  (adds qty_committed)
@@ -1249,7 +1249,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
 -- any       → cancelled
 CREATE TABLE IF NOT EXISTS ims_sales_orders (
   id               INT AUTO_INCREMENT PRIMARY KEY,
-  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  business_id      VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   so_number        VARCHAR(50) NOT NULL UNIQUE,
   customer_id      INT,
   wholesale_company_id INT NULL,
@@ -1263,7 +1263,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
   so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
   sales_channel    ENUM('shopify','native_shop','amazon') NULL,
-  channel_instance_id CHAR(36) NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   external_order_id VARCHAR(100) NULL,
   native_checkout_id CHAR(36) NULL,
   location_id      INT NOT NULL,
@@ -1321,16 +1321,16 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   CONSTRAINT fk_so_wholesale_company FOREIGN KEY (wholesale_company_id) REFERENCES ims_wholesale_companies(id) ON DELETE SET NULL,
   CONSTRAINT fk_so_wholesale_location FOREIGN KEY (wholesale_location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE SET NULL,
   CONSTRAINT fk_so_wholesale_member FOREIGN KEY (wholesale_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Sales Order Items ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL DEFAULT '',
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   so_id         INT NOT NULL,
   shopify_line_item_id BIGINT NULL,
   external_order_item_id VARCHAR(100) NULL,
-  variant_id    VARCHAR(36) NOT NULL,
+  variant_id    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   qty_ordered   DECIMAL(12,4) NOT NULL,
   qty_fulfilled DECIMAL(12,4) NOT NULL DEFAULT 0,
   unit_price    DECIMAL(12,4) NOT NULL,
@@ -1345,11 +1345,11 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   INDEX idx_soi_so (so_id),
   INDEX idx_soitem_shopify_li (shopify_line_item_id),
   INDEX idx_soitem_external (business_id, external_order_item_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
   id               INT AUTO_INCREMENT PRIMARY KEY,
-  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  business_id      VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   so_id             INT NOT NULL,
   payment_date      DATE NOT NULL,
   amount            DECIMAL(12,4) NOT NULL,
@@ -1366,11 +1366,11 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE,
   INDEX idx_sop_so (so_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL,
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key  VARCHAR(191) NOT NULL,
   request_hash   CHAR(64) NOT NULL,
   so_id          INT NOT NULL,
@@ -1382,12 +1382,12 @@ CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
   UNIQUE KEY uq_so_fulfilment_operation (business_id, operation_key),
   INDEX idx_so_fulfilment_order (business_id, so_id, created_at),
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_shipments (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
-  channel_instance_id      CHAR(36) NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id      CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   so_id                    INT NOT NULL,
   shopify_fulfilment_id    VARCHAR(100) NOT NULL,
   status                   VARCHAR(100) NULL,
@@ -1398,32 +1398,32 @@ CREATE TABLE IF NOT EXISTS ims_so_shipments (
   UNIQUE KEY uq_so_shipment_shopify_instance (business_id, channel_instance_id, shopify_fulfilment_id),
   INDEX idx_so_shipment_order (business_id, so_id, fulfilled_at, id),
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_shipment_items (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   shipment_id              BIGINT NOT NULL,
   shopify_line_item_id     VARCHAR(100) NOT NULL,
   quantity                 DECIMAL(12,4) NOT NULL,
   INDEX idx_so_shipment_item (business_id, shipment_id, id),
   FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_shipment_tracking (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   shipment_id              BIGINT NOT NULL,
   company                  VARCHAR(255) NULL,
   tracking_number          VARCHAR(255) NULL,
   tracking_url             VARCHAR(2000) NULL,
   INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
   FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_carrier_accounts (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   provider                 VARCHAR(50) NOT NULL,
   display_name             VARCHAR(120) NOT NULL,
   environment              VARCHAR(20) NOT NULL DEFAULT 'test',
@@ -1443,11 +1443,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_carrier_accounts (
   INDEX idx_shipping_carrier_provider (business_id, provider, is_active),
   INDEX idx_shipping_carrier_location (business_id, dispatch_location_id, is_active),
   FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_package_presets (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   name                     VARCHAR(120) NOT NULL,
   package_type             VARCHAR(30) NOT NULL DEFAULT 'box',
   length_mm                DECIMAL(10,2) NOT NULL,
@@ -1462,11 +1462,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_package_presets (
   updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_shipping_package_name (business_id, name),
   INDEX idx_shipping_package_active (business_id, is_active, sort_priority, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   carrier_account_id       BIGINT NOT NULL,
   dispatch_location_id     INT NULL,
   provider_order_id        VARCHAR(150) NULL,
@@ -1481,11 +1481,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
   INDEX idx_shipping_manifest_status (business_id, status, created_at),
   FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
   FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key            VARCHAR(191) NOT NULL,
   request_hash             CHAR(64) NOT NULL,
   so_id                    INT NOT NULL,
@@ -1530,11 +1530,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
   FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
   FOREIGN KEY (manifest_id) REFERENCES ims_shipping_manifests(id) ON DELETE SET NULL,
   FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   shipment_id              BIGINT NOT NULL,
   package_preset_id        BIGINT NULL,
   parcel_number            INT NOT NULL,
@@ -1553,11 +1553,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
   INDEX idx_shipping_parcel_tracking (business_id, article_id),
   FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE,
   FOREIGN KEY (package_preset_id) REFERENCES ims_shipping_package_presets(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_parcel_items (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   parcel_id                BIGINT NOT NULL,
   so_item_id               INT NOT NULL,
   quantity                 DECIMAL(12,4) NOT NULL,
@@ -1566,11 +1566,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_parcel_items (
   INDEX idx_shipping_parcel_item_order (business_id, so_item_id, parcel_id),
   FOREIGN KEY (parcel_id) REFERENCES ims_shipping_parcels(id) ON DELETE CASCADE,
   FOREIGN KEY (so_item_id) REFERENCES ims_sales_order_items(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_labels (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   shipment_id              BIGINT NOT NULL,
   provider_request_id      VARCHAR(150) NULL,
   format                   VARCHAR(20) NOT NULL,
@@ -1586,11 +1586,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_labels (
   UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id),
   INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
   FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id              VARCHAR(100) NOT NULL,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   shipment_id              BIGINT NOT NULL,
   sales_channel            VARCHAR(50) NOT NULL,
   operation_key            VARCHAR(191) NOT NULL,
@@ -1608,11 +1608,11 @@ CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (
   INDEX idx_shipping_channel_queue (business_id, status, next_attempt_at, id),
   INDEX idx_shipping_channel_external (business_id, sales_channel, external_fulfilment_id),
   FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL,
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key  VARCHAR(191) NOT NULL,
   request_hash   CHAR(64) NOT NULL,
   po_id          INT NOT NULL,
@@ -1624,16 +1624,16 @@ CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
   UNIQUE KEY uq_po_receive_operation (business_id, operation_key),
   INDEX idx_po_receive_order (business_id, po_id, created_at),
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_stock_allocations (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id           VARCHAR(100) NOT NULL,
+  business_id           VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   so_id                 INT NOT NULL,
   so_item_id            INT NOT NULL,
   po_id                 INT NOT NULL,
   po_item_id             INT NOT NULL,
-  variant_id            VARCHAR(36) NOT NULL,
+  variant_id            VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id           INT NOT NULL,
   qty_allocated         DECIMAL(12,4) NOT NULL,
   qty_received_assigned DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -1658,11 +1658,11 @@ CREATE TABLE IF NOT EXISTS ims_stock_allocations (
   INDEX idx_stock_allocation_po (business_id, po_id, po_item_id, state),
   INDEX idx_stock_allocation_supply (business_id, variant_id, location_id, state, priority),
   INDEX idx_stock_allocation_promise (business_id, promise_status, promised_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_stock_allocation_operations (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL,
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key  VARCHAR(191) NOT NULL,
   request_hash   CHAR(64) NOT NULL,
   action         ENUM('allocate','resize','release','reassign','revise_promise','merge_retarget') NOT NULL,
@@ -1677,11 +1677,11 @@ CREATE TABLE IF NOT EXISTS ims_stock_allocation_operations (
   completed_at   DATETIME NULL,
   UNIQUE KEY uq_stock_allocation_operation (business_id, operation_key),
   INDEX idx_stock_allocation_history (business_id, allocation_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_order_amendment_operations (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key     VARCHAR(191) NOT NULL,
   request_hash      CHAR(64) NOT NULL,
   order_kind        VARCHAR(32) NOT NULL,
@@ -1697,11 +1697,11 @@ CREATE TABLE IF NOT EXISTS ims_order_amendment_operations (
   completed_at      DATETIME NULL,
   UNIQUE KEY uq_order_amendment_operation (business_id, operation_key),
   INDEX idx_order_amendment_order (business_id, order_kind, order_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_inventory_document_operations (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key       VARCHAR(191) NOT NULL,
   request_hash        CHAR(64) NOT NULL,
   document_kind       ENUM('customer_credit_note','supplier_credit_note','stocktake') NOT NULL,
@@ -1720,11 +1720,11 @@ CREATE TABLE IF NOT EXISTS ims_inventory_document_operations (
   completed_at        DATETIME NULL,
   UNIQUE KEY uq_inventory_document_operation (business_id, operation_key),
   INDEX idx_inventory_document_history (business_id, document_kind, document_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_order_amendment_lines (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id          VARCHAR(100) NOT NULL,
+  business_id          VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   amendment_id         BIGINT NOT NULL,
   source_line_id       INT NULL,
   result_line_id       INT NULL,
@@ -1734,11 +1734,11 @@ CREATE TABLE IF NOT EXISTS ims_order_amendment_lines (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_order_amendment_lines (business_id, amendment_id, id),
   CONSTRAINT fk_order_amendment_lines_operation FOREIGN KEY (amendment_id) REFERENCES ims_order_amendment_operations(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_shortfall_resolutions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key VARCHAR(191) NOT NULL,
   request_hash CHAR(64) NOT NULL,
   source_so_id INT NOT NULL,
@@ -1757,11 +1757,11 @@ CREATE TABLE IF NOT EXISTS ims_so_shortfall_resolutions (
   UNIQUE KEY uq_so_shortfall_operation (business_id, operation_key),
   INDEX idx_so_shortfall_source (business_id, source_so_id, created_at),
   INDEX idx_so_shortfall_child (business_id, child_so_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_customer_credit_settlements (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   resolution_id BIGINT NOT NULL,
   action_key VARCHAR(191) NOT NULL,
   action_type ENUM('refund','leave_unapplied','reserve_for_order','allocate_to_invoice','allocate_to_source') NOT NULL,
@@ -1777,11 +1777,11 @@ CREATE TABLE IF NOT EXISTS ims_customer_credit_settlements (
   UNIQUE KEY uq_customer_credit_action (business_id, action_key),
   INDEX idx_customer_credit_resolution (business_id, resolution_id),
   INDEX idx_customer_credit_target (business_id, target_so_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_po_shortfall_resolutions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key VARCHAR(191) NOT NULL,
   request_hash CHAR(64) NOT NULL,
   source_po_id INT NOT NULL,
@@ -1802,11 +1802,11 @@ CREATE TABLE IF NOT EXISTS ims_po_shortfall_resolutions (
   UNIQUE KEY uq_po_shortfall_operation (business_id, operation_key),
   INDEX idx_po_shortfall_source (business_id, source_po_id, created_at),
   INDEX idx_po_shortfall_child (business_id, child_po_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_supplier_credit_settlements (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   resolution_id BIGINT NOT NULL,
   action_key VARCHAR(191) NOT NULL,
   action_type ENUM('supplier_refund','leave_unapplied','reserve_for_order','allocate_to_bill','allocate_to_source') NOT NULL,
@@ -1822,13 +1822,13 @@ CREATE TABLE IF NOT EXISTS ims_supplier_credit_settlements (
   UNIQUE KEY uq_supplier_credit_action (business_id, action_key),
   INDEX idx_supplier_credit_resolution (business_id, resolution_id),
   INDEX idx_supplier_credit_target (business_id, target_po_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Backorder Line Provenance ───────────────────────────────
 -- A destination backorder may contain quantities from multiple source orders.
 CREATE TABLE IF NOT EXISTS ims_po_backorder_lines (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key       VARCHAR(191) NOT NULL,
   source_po_id        INT NOT NULL,
   source_po_item_id   INT NOT NULL,
@@ -1843,11 +1843,11 @@ CREATE TABLE IF NOT EXISTS ims_po_backorder_lines (
   FOREIGN KEY (source_po_id) REFERENCES ims_purchase_orders(id),
   FOREIGN KEY (backorder_po_id) REFERENCES ims_purchase_orders(id),
   FOREIGN KEY (backorder_po_item_id) REFERENCES ims_purchase_order_items(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_backorder_lines (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key       VARCHAR(191) NOT NULL,
   source_so_id        INT NOT NULL,
   source_so_item_id   INT NOT NULL,
@@ -1862,12 +1862,12 @@ CREATE TABLE IF NOT EXISTS ims_so_backorder_lines (
   FOREIGN KEY (source_so_id) REFERENCES ims_sales_orders(id),
   FOREIGN KEY (backorder_so_id) REFERENCES ims_sales_orders(id),
   FOREIGN KEY (backorder_so_item_id) REFERENCES ims_sales_order_items(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Customer Credit Notes / Returns ─────────────────────────
 CREATE TABLE IF NOT EXISTS ims_credit_notes (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(150) NOT NULL,
+  business_id         VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   cn_number           VARCHAR(30)  NOT NULL,
   customer_id         INT          NULL,
   so_id               INT          NULL,
@@ -1881,7 +1881,7 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   settlement_status   ENUM('pending','complete','error') NOT NULL DEFAULT 'pending',
   store_credit_transaction_id INT NULL,
   shopify_return_id   VARCHAR(100) NULL,
-  channel_instance_id CHAR(36) NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   external_return_id  VARCHAR(191) NULL,
   external_refund_id  VARCHAR(191) NULL,
   cn_date             DATE         NOT NULL,
@@ -1914,12 +1914,12 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   UNIQUE KEY uq_cn_channel_refund (business_id, channel_instance_id, external_refund_id),
   UNIQUE KEY uq_business_cn (business_id, cn_number),
   UNIQUE INDEX uq_cn_pos_sale (business_id, pos_sale_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_credit_note_items (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   cn_id        INT           NOT NULL,
-  variant_id   VARCHAR(100)  NULL,
+  variant_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin  NULL,
   code         VARCHAR(100)  NULL,
   name         VARCHAR(255)  NULL,
   qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
@@ -1931,12 +1931,12 @@ CREATE TABLE IF NOT EXISTS ims_credit_note_items (
   line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
   INDEX idx_cn (cn_id),
   INDEX idx_cn_source_so_item (source_so_item_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Supplier Credit Notes ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_supplier_credit_notes (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(150) NOT NULL,
+  business_id         VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   scn_number          VARCHAR(30)  NOT NULL,
   supplier_id         INT          NULL,
   po_id               INT          NULL,
@@ -1970,12 +1970,12 @@ CREATE TABLE IF NOT EXISTS ims_supplier_credit_notes (
   INDEX idx_status (status),
   INDEX idx_supplier (supplier_id),
   INDEX idx_po (po_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_items (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   scn_id       INT           NOT NULL,
-  variant_id   VARCHAR(100)  NULL,
+  variant_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin  NULL,
   code         VARCHAR(100)  NULL,
   name         VARCHAR(255)  NULL,
   qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
@@ -1986,25 +1986,25 @@ CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_items (
   line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
   INDEX idx_scn (scn_id),
   INDEX idx_scn_source_po_item (source_po_item_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_files (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   scn_id        INT          NOT NULL,
-  business_id   VARCHAR(100) NOT NULL,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   filename      VARCHAR(255) NOT NULL,
   original_name VARCHAR(255),
   mime_type     VARCHAR(100),
   file_size     INT,
   uploaded_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_scn (scn_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Stock Movements (audit trail) ────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_stock_movements (
   id             INT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL DEFAULT '',
-  variant_id     VARCHAR(36) NOT NULL,
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  variant_id     VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id    INT NOT NULL,
   movement_type  ENUM(
     'po_approved','po_unapproved','po_received',
@@ -2030,12 +2030,12 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   INDEX idx_sm_ref      (reference_type, reference_id),
   INDEX idx_sm_cost_epoch (business_id, cost_epoch_id, id),
   INDEX idx_sm_source_line (business_id, reference_type, reference_id, source_line_id, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Stocktakes ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_stocktakes (
   id             INT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL DEFAULT '',
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   reference      VARCHAR(100) NOT NULL,
   location_id    INT NOT NULL,
   status         ENUM('draft','in_progress','completed','cancelled','reverted') NOT NULL DEFAULT 'draft',
@@ -2056,12 +2056,12 @@ CREATE TABLE IF NOT EXISTS ims_stocktakes (
   INDEX idx_business_id (business_id),
   INDEX idx_st_location (location_id),
   INDEX idx_st_status   (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_stocktake_items (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   stocktake_id  INT NOT NULL,
-  variant_id    VARCHAR(36) NOT NULL,
+  variant_id    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   expected_qty  DECIMAL(12,4) NOT NULL DEFAULT 0,
   counted_qty   DECIMAL(12,4) NULL,
   soh_at_apply  DECIMAL(12,4) NULL,
@@ -2070,12 +2070,12 @@ CREATE TABLE IF NOT EXISTS ims_stocktake_items (
   notes         VARCHAR(255) NULL,
   INDEX idx_sti_stocktake (stocktake_id),
   UNIQUE KEY uq_sti_variant (stocktake_id, variant_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Branch Transfers ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_branch_transfers (
   id               INT AUTO_INCREMENT PRIMARY KEY,
-  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  business_id      VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   transfer_number  VARCHAR(50) NOT NULL UNIQUE,
   from_location_id INT NOT NULL,
   to_location_id   INT NOT NULL,
@@ -2087,19 +2087,19 @@ CREATE TABLE IF NOT EXISTS ims_branch_transfers (
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_branch_transfer_items (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   transfer_id  INT NOT NULL,
-  variant_id   VARCHAR(50) NOT NULL,
+  variant_id   VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   qty_sent     DECIMAL(10,4) NOT NULL DEFAULT 0,
   qty_received DECIMAL(10,4) NULL,
   unit_cost    DECIMAL(10,4) NOT NULL DEFAULT 0,
   line_value   DECIMAL(12,2) NOT NULL DEFAULT 0,
   notes        TEXT NULL,
   FOREIGN KEY (transfer_id) REFERENCES ims_branch_transfers(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
 -- POS Tables
@@ -2108,7 +2108,7 @@ CREATE TABLE IF NOT EXISTS ims_branch_transfer_items (
 -- ── POS Users ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_users (
   id            INT AUTO_INCREMENT PRIMARY KEY,
-  business_id   VARCHAR(100) NOT NULL DEFAULT '',
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   username      VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   full_name     VARCHAR(255),
@@ -2119,7 +2119,7 @@ CREATE TABLE IF NOT EXISTS pos_users (
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Registers ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_registers (
@@ -2136,7 +2136,7 @@ CREATE TABLE IF NOT EXISTS pos_registers (
   created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   INDEX idx_register_location (location_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Register Sessions ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_register_sessions (
@@ -2156,12 +2156,12 @@ CREATE TABLE IF NOT EXISTS pos_register_sessions (
   FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   INDEX idx_prs_register (register_id, session_date),
   INDEX idx_prs_status (register_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Sales ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sales (
   id                INT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL DEFAULT '',
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   local_id          VARCHAR(100) UNIQUE,
   location_id       INT NOT NULL,
   register_id       INT NULL,
@@ -2194,14 +2194,14 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   INDEX idx_ps_session (register_session_id),
   INDEX idx_ps_customer (customer_id),
   UNIQUE INDEX uq_ps_credit_note (business_id, credit_note_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Training Sales ───────────────────────────────────────
 -- Isolated receipt/audit snapshots. These rows never participate in stock,
 -- customer-value, EOD, reporting, or accounting ledgers.
 CREATE TABLE IF NOT EXISTS pos_training_sales (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   local_id          VARCHAR(100) NOT NULL,
   location_id       INT NOT NULL,
   register_id       INT NULL,
@@ -2221,12 +2221,12 @@ CREATE TABLE IF NOT EXISTS pos_training_sales (
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_pos_training_local (business_id, local_id),
   INDEX idx_pos_training_location (business_id, location_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Store Daybook ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_daybook_staff_identities (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NOT NULL,
   name            VARCHAR(120) NOT NULL,
   initials        VARCHAR(8) NOT NULL,
@@ -2235,11 +2235,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_staff_identities (
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_staff (business_id, location_id, initials),
   INDEX idx_daybook_staff_active (business_id, location_id, is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_task_templates (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NOT NULL,
   phase           ENUM('opening','during_day','closing') NOT NULL,
   title           VARCHAR(255) NOT NULL,
@@ -2259,11 +2259,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_task_templates (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_daybook_templates (business_id, location_id, is_active, phase, sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_task_instances (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NOT NULL,
   task_date       DATE NOT NULL,
   template_id     BIGINT NOT NULL,
@@ -2275,11 +2275,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_task_instances (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_task_instance (business_id, location_id, task_date, template_id),
   INDEX idx_daybook_tasks_date (business_id, location_id, task_date, phase, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_task_signoffs (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   instance_id       BIGINT NOT NULL,
   action            ENUM('completed','reopened') NOT NULL,
   staff_identity_id BIGINT NULL,
@@ -2291,11 +2291,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_task_signoffs (
   reason            VARCHAR(500) NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_daybook_signoffs (business_id, instance_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_communications (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   title           VARCHAR(255) NOT NULL,
   message         MEDIUMTEXT NOT NULL,
   priority        ENUM('normal','important','urgent') NOT NULL DEFAULT 'normal',
@@ -2313,20 +2313,20 @@ CREATE TABLE IF NOT EXISTS pos_daybook_communications (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_communication_import (business_id, import_key),
   INDEX idx_daybook_communications (business_id, archived_at, published_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_communication_targets (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   communication_id BIGINT NOT NULL,
   location_id       INT NOT NULL,
   UNIQUE KEY uq_daybook_communication_target (business_id, communication_id, location_id),
   INDEX idx_daybook_target_location (business_id, location_id, communication_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_communication_reads (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   communication_id BIGINT NOT NULL,
   location_id       INT NOT NULL,
   staff_identity_id BIGINT NULL,
@@ -2337,11 +2337,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_communication_reads (
   read_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_read (business_id, communication_id, location_id, staff_initials),
   INDEX idx_daybook_reads (business_id, communication_id, read_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_communication_attachments (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   communication_id  BIGINT NOT NULL,
   original_name     VARCHAR(255) NOT NULL,
   stored_name       VARCHAR(255) NOT NULL,
@@ -2351,11 +2351,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_communication_attachments (
   INDEX idx_daybook_communication_attachment (business_id, communication_id),
   CONSTRAINT fk_daybook_communication_attachment FOREIGN KEY (communication_id)
     REFERENCES pos_daybook_communications(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_records (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id       INT NOT NULL,
   record_type       ENUM('customer_request','store_need','stock_discrepancy','incident') NOT NULL,
   status            VARCHAR(32) NOT NULL DEFAULT 'open',
@@ -2377,11 +2377,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_records (
   UNIQUE KEY uq_daybook_record_import (business_id, import_key),
   INDEX idx_daybook_records (business_id, location_id, record_type, status, created_at),
   INDEX idx_daybook_warehouse (business_id, destination_location_id, record_type, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_record_events (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   record_id         BIGINT NOT NULL,
   from_status       VARCHAR(32) NULL,
   to_status         VARCHAR(32) NOT NULL,
@@ -2394,11 +2394,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_record_events (
   actor_tier        VARCHAR(50) NOT NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_daybook_record_events (business_id, record_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_comments (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id       INT NOT NULL,
   item_type         ENUM('task','communication','record') NOT NULL,
   item_id           BIGINT NOT NULL,
@@ -2410,11 +2410,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_comments (
   actor_name        VARCHAR(255) NOT NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_daybook_comments (business_id, location_id, item_type, item_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_reference_categories (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NOT NULL,
   name            VARCHAR(50) NOT NULL,
   is_active       TINYINT(1) NOT NULL DEFAULT 1,
@@ -2422,11 +2422,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_reference_categories (
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_reference_category (business_id, location_id, name),
   INDEX idx_daybook_reference_categories (business_id, location_id, is_active, name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_references (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NULL,
   category        VARCHAR(50) NOT NULL,
   title           VARCHAR(255) NOT NULL,
@@ -2447,13 +2447,13 @@ CREATE TABLE IF NOT EXISTS pos_daybook_references (
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_reference_import (business_id, import_key),
   INDEX idx_daybook_references (business_id, location_id, category, is_active, sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_product_guides (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NULL,
-  variant_id      VARCHAR(36) NULL,
+  variant_id      VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   sku             VARCHAR(100) NULL,
   product_name    VARCHAR(500) NOT NULL,
   category        VARCHAR(120) NULL,
@@ -2475,11 +2475,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_product_guides (
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_guide_import (business_id, import_key),
   INDEX idx_daybook_guides (business_id, location_id, category, status, product_name(120))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_import_runs (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id     INT NOT NULL,
   source_name     VARCHAR(255) NOT NULL,
   source_checksum CHAR(64) NOT NULL,
@@ -2487,11 +2487,11 @@ CREATE TABLE IF NOT EXISTS pos_daybook_import_runs (
   imported_by     VARCHAR(255) NOT NULL,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_import_run (business_id, location_id, source_checksum)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_content_events (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id       INT NOT NULL,
   item_type         VARCHAR(32) NOT NULL,
   item_id           BIGINT NOT NULL,
@@ -2504,16 +2504,16 @@ CREATE TABLE IF NOT EXISTS pos_daybook_content_events (
   actor_tier        VARCHAR(50) NOT NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_daybook_content_events (business_id, item_type, item_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Sale Items ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sale_items (
   id              INT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL DEFAULT '',
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   sale_id         INT NOT NULL,
   return_of_sale_item_id INT NULL,
   is_gift_card    TINYINT(1) NOT NULL DEFAULT 0,
-  variant_id      VARCHAR(36),
+  variant_id      VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   code            VARCHAR(100),
   name            VARCHAR(500) NOT NULL,
   qty             DECIMAL(12,4) NOT NULL,
@@ -2528,12 +2528,12 @@ CREATE TABLE IF NOT EXISTS pos_sale_items (
   INDEX idx_business_id (business_id),
   INDEX idx_psi_sale (sale_id),
   INDEX idx_psi_return_source (return_of_sale_item_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Payments ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_payments (
   id             INT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL DEFAULT '',
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   sale_id        INT NOT NULL,
   payment_method VARCHAR(100) NOT NULL,
   amount         DECIMAL(12,2) NOT NULL,
@@ -2543,12 +2543,12 @@ CREATE TABLE IF NOT EXISTS pos_payments (
   INDEX idx_business_id (business_id),
   INDEX idx_pp_sale   (sale_id),
   INDEX idx_pp_method (payment_method, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS EOD Reconciliations ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   id                INT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL DEFAULT '',
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   location_id       INT NOT NULL,
   register_id       INT NULL,
   register_session_id INT NULL,
@@ -2572,12 +2572,12 @@ CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   UNIQUE KEY uq_eod (location_id, register_id, recon_date, payment_method),
   INDEX idx_eod_loc_date (location_id, recon_date),
   INDEX idx_business_id (business_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Petty Cash Withdrawals ───────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_petty_cash_transactions (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   operation_key       VARCHAR(191) NOT NULL,
   location_id         INT NOT NULL,
   register_id         INT NULL,
@@ -2603,11 +2603,11 @@ CREATE TABLE IF NOT EXISTS pos_petty_cash_transactions (
   UNIQUE KEY uq_pos_petty_cash_operation (business_id, operation_key),
   INDEX idx_pos_petty_cash_session (business_id, register_session_id, status),
   INDEX idx_pos_petty_cash_location_date (business_id, location_id, transaction_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wholesale_draft_orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(64) NOT NULL,
+  business_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id INT NOT NULL,
   wholesale_company_id INT NULL,
   wholesale_location_id INT NULL,
@@ -2632,13 +2632,13 @@ CREATE TABLE IF NOT EXISTS wholesale_draft_orders (
   CONSTRAINT fk_wholesale_draft_company FOREIGN KEY (wholesale_company_id) REFERENCES ims_wholesale_companies(id) ON DELETE SET NULL,
   CONSTRAINT fk_wholesale_draft_location FOREIGN KEY (wholesale_location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE SET NULL,
   CONSTRAINT fk_wholesale_draft_member FOREIGN KEY (wholesale_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (
   id INT AUTO_INCREMENT PRIMARY KEY,
   order_id INT NOT NULL,
-  variant_id VARCHAR(64) NOT NULL,
-  product_id VARCHAR(64) NOT NULL,
+  variant_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  product_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   product_name VARCHAR(255) NOT NULL,
   variant_label VARCHAR(255) NULL,
   sku VARCHAR(100) NULL,
@@ -2651,14 +2651,14 @@ CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_order (order_id),
   CONSTRAINT fk_wdoi_order FOREIGN KEY (order_id) REFERENCES wholesale_draft_orders(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Sales Cache (precomputed aggregates — mirrors Cin7 products table) ────────
 CREATE TABLE IF NOT EXISTS ims_sales_history (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id    VARCHAR(100) NOT NULL DEFAULT '',
+  business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   cin7_order_id  VARCHAR(100) NOT NULL,
-  variant_id     VARCHAR(100) NULL,
+  variant_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
   cin7_option_id INT NULL,
   sku            VARCHAR(100) NULL,
   product_name   VARCHAR(255) NULL,
@@ -2675,13 +2675,13 @@ CREATE TABLE IF NOT EXISTS ims_sales_history (
   INDEX idx_variant_id (variant_id),
   INDEX idx_invoice_date (invoice_date),
   INDEX idx_cin7_order_id (cin7_order_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Refreshed on demand via POST /api/ims/refresh-sales-cache
 -- Combines ims_sales_orders (fulfilled) + pos_sales (completed) + ims_stock
 CREATE TABLE IF NOT EXISTS ims_sales_cache (
-  variant_id       VARCHAR(36)    NOT NULL,
-  business_id      VARCHAR(100)   NOT NULL DEFAULT '',
+  variant_id       VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin    NOT NULL,
+  business_id      VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin   NOT NULL DEFAULT '',
   sales_qty_7d     DECIMAL(12,4)  NOT NULL DEFAULT 0,
   sales_qty_90d    DECIMAL(12,4)  NOT NULL DEFAULT 0,
   sales_qty_180d   DECIMAL(12,4)  NOT NULL DEFAULT 0,
@@ -2694,12 +2694,12 @@ CREATE TABLE IF NOT EXISTS ims_sales_cache (
   INDEX idx_business_id (business_id),
   CONSTRAINT fk_isc_variant FOREIGN KEY (variant_id)
     REFERENCES ims_product_variants(variant_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- In-app notifications (errors, warnings, info from background processes)
 CREATE TABLE IF NOT EXISTS ims_notifications (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(64)  NOT NULL,
+  business_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin  NOT NULL,
   type        VARCHAR(20)  NOT NULL DEFAULT 'error',
   source      VARCHAR(64)  NOT NULL,
   title       VARCHAR(255) NOT NULL,
@@ -2714,7 +2714,7 @@ CREATE TABLE IF NOT EXISTS ims_notifications (
 -- Gift cards (manually created or imported from Shopify/Sage)
 CREATE TABLE IF NOT EXISTS gift_cards (
   id                      INT AUTO_INCREMENT PRIMARY KEY,
-  channel_instance_id     CHAR(36)       NULL     COMMENT 'Owning exact sales channel instance; NULL for local/manual or unresolved legacy cards',
+  channel_instance_id     CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin       NULL     COMMENT 'Owning exact sales channel instance; NULL for local/manual or unresolved legacy cards',
   shopify_gc_id           BIGINT         NULL     COMMENT 'Shopify gift card numeric ID',
   shopify_line_item_id    BIGINT         NULL     COMMENT 'Shopify line_item_id (order line)',
   code                    VARCHAR(100)   NOT NULL,
@@ -2741,7 +2741,7 @@ CREATE TABLE IF NOT EXISTS gift_cards (
   INDEX idx_gc_status              (status),
   INDEX idx_gc_customer            (customer_id),
   INDEX idx_gc_reconciliation      (reconciliation_state, updated_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gift_card_transactions (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -2770,7 +2770,7 @@ CREATE TABLE IF NOT EXISTS gift_card_transactions (
   INDEX idx_gct_sale (pos_sale_id),
   INDEX idx_gct_sync (sync_state, created_at),
   CONSTRAINT fk_gct_card FOREIGN KEY (card_id) REFERENCES gift_cards(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS store_credit_transactions (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -2788,12 +2788,12 @@ CREATE TABLE IF NOT EXISTS store_credit_transactions (
   INDEX idx_sct_credit_note (credit_note_id),
   UNIQUE INDEX uq_sct_idempotency (idempotency_key),
   CONSTRAINT fk_sct_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Loyalty Program ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS loyalty_accounts (
   id                INT AUTO_INCREMENT PRIMARY KEY,
-  business_id       VARCHAR(100) NOT NULL,
+  business_id       VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id        INT NOT NULL,
   balance_points    INT NOT NULL DEFAULT 0,
   lifetime_earned   BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -2804,11 +2804,11 @@ CREATE TABLE IF NOT EXISTS loyalty_accounts (
   UNIQUE KEY uq_loyalty_account (business_id, contact_id),
   INDEX idx_loyalty_account_business (business_id),
   CONSTRAINT fk_loyalty_account_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_membership_events (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id      INT NOT NULL,
   action          ENUM('enrolled','opted_out') NOT NULL,
   source          VARCHAR(50) NOT NULL,
@@ -2817,11 +2817,11 @@ CREATE TABLE IF NOT EXISTS loyalty_membership_events (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_loyalty_membership_contact (business_id, contact_id, created_at),
   CONSTRAINT fk_loyalty_membership_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id     VARCHAR(100) NOT NULL,
+  business_id     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   account_id      INT NOT NULL,
   type            ENUM('earn','redeem','earn_reversal','redeem_reversal','adjustment','migration') NOT NULL,
   points_delta    INT NOT NULL,
@@ -2839,13 +2839,13 @@ CREATE TABLE IF NOT EXISTS loyalty_transactions (
   INDEX idx_loyalty_transaction_source (business_id, source_type, source_id),
   INDEX idx_loyalty_transaction_type (business_id, type, created_at),
   CONSTRAINT fk_loyalty_transaction_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Native Online Shop ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_online_shop_products (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
-  product_id VARCHAR(36) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  product_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   slug VARCHAR(120) NOT NULL,
   meta_title VARCHAR(255) NULL,
   meta_description VARCHAR(500) NULL,
@@ -2857,11 +2857,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_products (
   UNIQUE KEY uq_online_shop_product_slug (business_id, slug),
   INDEX idx_online_shop_product_public (business_id, is_published, slug),
   CONSTRAINT fk_online_shop_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_customers (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   contact_id INT NOT NULL,
   normalized_email VARCHAR(320) NOT NULL,
   email_verified_at DATETIME NULL,
@@ -2871,11 +2871,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_customers (
   UNIQUE KEY uq_online_shop_customer_email (business_id, normalized_email),
   UNIQUE KEY uq_online_shop_customer_contact (business_id, contact_id),
   CONSTRAINT fk_online_shop_customer_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_addresses (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   customer_id BIGINT NOT NULL,
   label VARCHAR(80) NULL,
   recipient_name VARCHAR(255) NOT NULL,
@@ -2891,11 +2891,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_addresses (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_online_shop_address_customer (business_id, customer_id, is_primary, id),
   CONSTRAINT fk_online_shop_address_customer FOREIGN KEY (customer_id) REFERENCES ims_online_shop_customers(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_shipping_rules (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   name VARCHAR(120) NOT NULL,
   rule_type VARCHAR(32) NOT NULL DEFAULT 'flat',
   amount_cents INT UNSIGNED NOT NULL DEFAULT 0,
@@ -2907,10 +2907,10 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_shipping_rules (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_online_shipping_rule_active (business_id, is_active, sort_order, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_pickup_locations (
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id INT NOT NULL,
   display_name VARCHAR(255) NULL,
   instructions VARCHAR(1000) NULL,
@@ -2921,11 +2921,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_pickup_locations (
   PRIMARY KEY (business_id, location_id),
   INDEX idx_online_pickup_active (business_id, is_active, sort_order),
   CONSTRAINT fk_online_pickup_location FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_checkouts (
   checkout_id CHAR(36) PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   customer_id BIGINT NULL,
   guest_email VARCHAR(320) NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'open',
@@ -2952,11 +2952,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_checkouts (
   CONSTRAINT fk_online_checkout_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   CONSTRAINT fk_online_checkout_shipping_rule FOREIGN KEY (shipping_rule_id) REFERENCES ims_online_shop_shipping_rules(id) ON DELETE SET NULL,
   CONSTRAINT fk_online_checkout_so FOREIGN KEY (completed_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_fulfilment_groups (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   checkout_id CHAR(36) NOT NULL,
   location_id INT NOT NULL,
   completed_so_id INT NULL,
@@ -2968,13 +2968,13 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_fulfilment_groups (
   CONSTRAINT fk_online_fulfilment_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
   CONSTRAINT fk_online_fulfilment_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   CONSTRAINT fk_online_fulfilment_so FOREIGN KEY (completed_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_checkout_items (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   checkout_id CHAR(36) NOT NULL,
-  variant_id VARCHAR(36) NOT NULL,
+  variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   quantity INT UNSIGNED NOT NULL,
   unit_price_cents INT UNSIGNED NOT NULL,
   tax_cents INT UNSIGNED NOT NULL,
@@ -2987,13 +2987,13 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_checkout_items (
   INDEX idx_online_checkout_item_business (business_id, checkout_id),
   CONSTRAINT fk_online_checkout_item_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
   CONSTRAINT fk_online_checkout_item_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_stock_reservations (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   checkout_id CHAR(36) NOT NULL,
-  variant_id VARCHAR(36) NOT NULL,
+  variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   location_id INT NOT NULL,
   quantity INT UNSIGNED NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'active',
@@ -3007,11 +3007,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_stock_reservations (
   CONSTRAINT fk_online_stock_reservation_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   CONSTRAINT fk_online_stock_reservation_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   CONSTRAINT fk_online_stock_reservation_so FOREIGN KEY (converted_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_payment_attempts (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   checkout_id CHAR(36) NOT NULL,
   provider VARCHAR(50) NOT NULL,
   provider_payment_id VARCHAR(191) NOT NULL,
@@ -3026,11 +3026,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_payment_attempts (
   UNIQUE KEY uq_online_payment_idempotency (business_id, idempotency_key),
   INDEX idx_online_payment_checkout (business_id, checkout_id, created_at),
   CONSTRAINT fk_online_payment_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_payment_events (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   provider VARCHAR(50) NOT NULL,
   provider_event_id VARCHAR(191) NOT NULL,
   provider_payment_id VARCHAR(191) NULL,
@@ -3041,11 +3041,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_payment_events (
   processed_at DATETIME NULL,
   UNIQUE KEY uq_online_payment_event (business_id, provider, provider_event_id),
   INDEX idx_online_payment_event_status (business_id, status, received_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_value_reservations (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   checkout_id CHAR(36) NOT NULL,
   contact_id INT NOT NULL,
   value_type VARCHAR(32) NOT NULL,
@@ -3063,11 +3063,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_value_reservations (
   INDEX idx_online_value_reservation_active (business_id, contact_id, value_type, status, expires_at),
   CONSTRAINT fk_online_value_reservation_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
   CONSTRAINT fk_online_value_reservation_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_refunds (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   credit_note_id INT NOT NULL,
   checkout_id CHAR(36) NOT NULL,
   so_id INT NOT NULL,
@@ -3088,11 +3088,11 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_refunds (
   CONSTRAINT fk_online_shop_refund_cn FOREIGN KEY (credit_note_id) REFERENCES ims_credit_notes(id) ON DELETE RESTRICT,
   CONSTRAINT fk_online_shop_refund_so FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE RESTRICT,
   CONSTRAINT fk_online_shop_refund_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_rewards (
   id                           INT AUTO_INCREMENT PRIMARY KEY,
-  business_id                  VARCHAR(100) NOT NULL,
+  business_id                  VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   reward_code                  VARCHAR(50) NOT NULL,
   display_name                 VARCHAR(255) NOT NULL,
   description                  TEXT NULL,
@@ -3106,11 +3106,11 @@ CREATE TABLE IF NOT EXISTS loyalty_rewards (
   updated_at                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_loyalty_reward_code (business_id, reward_code),
   INDEX idx_loyalty_reward_active (business_id, is_active, sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS loyalty_redemptions (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-  business_id         VARCHAR(100) NOT NULL,
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   account_id          INT NOT NULL,
   reward_id           INT NOT NULL,
   transaction_id      BIGINT NOT NULL,
@@ -3134,4 +3134,4 @@ CREATE TABLE IF NOT EXISTS loyalty_redemptions (
   CONSTRAINT fk_loyalty_redemption_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT,
   CONSTRAINT fk_loyalty_redemption_reward FOREIGN KEY (reward_id) REFERENCES loyalty_rewards(id) ON DELETE RESTRICT,
   CONSTRAINT fk_loyalty_redemption_transaction FOREIGN KEY (transaction_id) REFERENCES loyalty_transactions(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

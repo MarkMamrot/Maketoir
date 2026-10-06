@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "characterSet": "utf8mb4",
+  "textCollation": "utf8mb4_unicode_ci",
+  "identityCollation": "utf8mb4_bin",
+  "tenantIdentityColumns": [
+    "business_id",
+    "product_id",
+    "variant_id",
+    "channel_instance_id"
+  ]
+}

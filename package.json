@@ -8,6 +8,8 @@
     "assistant:setup-findings": "node scripts/setup-assistant-findings.mjs",
     "klaviyo:schema:plan": "node scripts/setup-klaviyo-main.mjs && node scripts/setup-klaviyo-tenants.mjs",
     "klaviyo:schema:apply": "node scripts/setup-klaviyo-main.mjs --apply && node scripts/setup-klaviyo-tenants.mjs --apply",
+    "schema:collations:audit": "node scripts/migrate-collations-all-tenants.mjs --audit",
+    "schema:collations:verify": "node scripts/migrate-collations-all-tenants.mjs --verify",
     "leads:preflight": "tsx scripts/import-solvantis-leads.ts",
     "leads:commit": "tsx scripts/import-solvantis-leads.ts --commit --confirm=IMPORT-SOLVANTIS-LEADS",
     "leads:check-domains": "tsx scripts/check-lead-email-domains.ts",

@@ -3,9 +3,13 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  IMS_SCHEMA_CHARACTER_SET,
+  IMS_SCHEMA_IDENTITY_COLLATION,
+  IMS_SCHEMA_IDENTITY_COLUMNS,
   IMS_SCHEMA_REQUIRED_COLUMNS,
   IMS_SCHEMA_REQUIRED_INDEXES,
   IMS_SCHEMA_REQUIRED_TABLES,
+  IMS_SCHEMA_TEXT_COLLATION,
 } from '../schemaContract';
 
 const schemaSql = fs.readFileSync(path.join(process.cwd(), 'scripts', 'ims-schema.sql'), 'utf8');
@@ -15,6 +19,12 @@ function tableBody(table: string): string {
   const match = schemaSql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\) ENGINE=`, 'i'));
   if (!match) throw new Error(`Missing CREATE TABLE for ${table}`);
   return match[1];
+}
+
+function tableDefinition(table: string): string {
+  const match = schemaSql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB[^;]*;`, 'i'));
+  if (!match) throw new Error(`Missing CREATE TABLE for ${table}`);
+  return match[0];
 }
 
 function declaredColumns(body: string): Set<string> {
@@ -41,6 +51,27 @@ function manifestPairs(sectionStart: string, sectionEnd: string): Array<[string,
 }
 
 describe('fresh IMS schema contract', () => {
+  it('uses Unicode table defaults and binary shared identity columns', () => {
+    const identityDefinition = new RegExp(
+      `(?:${IMS_SCHEMA_IDENTITY_COLUMNS.join('|')})\\s+(?:VAR)?CHAR\\([^)]*\\)[^,\\n]*COLLATE\\s+${IMS_SCHEMA_IDENTITY_COLLATION}`,
+      'i',
+    );
+
+    for (const table of IMS_SCHEMA_REQUIRED_TABLES) {
+      const definition = tableDefinition(table);
+      expect(definition, `${table} default collation`).toMatch(
+        new RegExp(`DEFAULT CHARSET=${IMS_SCHEMA_CHARACTER_SET} COLLATE=${IMS_SCHEMA_TEXT_COLLATION}`, 'i'),
+      );
+
+      const body = tableBody(table);
+      for (const column of IMS_SCHEMA_IDENTITY_COLUMNS) {
+        if (!new RegExp(`^\\s*${column}\\s+(?:VAR)?CHAR\\(`, 'im').test(body)) continue;
+        const line = body.split('\n').find(candidate => new RegExp(`^\\s*${column}\\s+`, 'i').test(candidate));
+        expect(line, `${table}.${column}`).toMatch(identityDefinition);
+      }
+    }
+  });
+
   it('declares every required tenant table exactly once', () => {
     const declaredTables = Array.from(schemaSql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-zA-Z0-9_]+)\s*\(/gi))
       .map(match => match[1]);
