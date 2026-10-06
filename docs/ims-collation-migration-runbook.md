@@ -4,7 +4,7 @@ This runbook covers the controlled normalization of shared textual machine IDs. 
 
 ## Current Safety Boundary
 
-The migration tool currently supports read-only audit, verification, data preflight, and SQL plan generation. It does not support or perform `--apply`.
+The migration tool supports read-only audit, verification, data preflight, SQL plan generation, and guarded apply/resume for registered sandbox tenants only. Production tenants are rejected in code.
 
 The retired `fix-all-collations.mjs` script must not be restored or used. Its broad conversion behavior would rewrite unrelated human text.
 
@@ -45,16 +45,49 @@ Before approving any apply implementation or execution, verify:
 
 ## Sandbox Apply Prerequisites
 
-Apply mode must not be added or used until all of the following exist:
+Do not run apply until all of the following are true:
 
-- Explicit schema and confirmation-token requirements.
-- Fresh metadata-hash and plan-hash validation immediately before execution.
-- A durable per-statement journal with interrupted-operation reconciliation.
 - Verified Railway backup or point-in-time restore checkpoint.
 - A tested restore rehearsal against a disposable or cloned schema.
 - Write suspension for the Railway application, cron workflows, workers, webhooks, and detached jobs.
 - Active-transaction and lock inspection before the first DDL statement.
-- Table-specific lock and duration abort thresholds.
+- The registered sandbox business has `automation_paused = 1`.
+
+Apply uses an advisory schema lock, requires zero other active InnoDB transactions, sets short metadata/InnoDB lock waits, and journals every operation before execution. On retry it verifies actual table/FK state before deciding whether to skip, reconcile, or execute a step.
+
+## Sandbox Apply
+
+Generate and review a fresh plan. Record its source metadata hash and plan hash, then construct the confirmation token shown by the tool:
+
+```powershell
+npm run schema:collations:plan -- --schema=readyedu_ExampleSandboxIMS
+```
+
+After writes are suspended, apply the exact reviewed plan:
+
+```powershell
+npm run schema:collations:apply -- `
+	--schema=readyedu_ExampleSandboxIMS `
+	--metadata-hash=<reviewed-metadata-sha256> `
+	--plan-hash=<reviewed-plan-sha256> `
+	--backup-reference=<non-secret-verified-backup-reference> `
+	--confirm=APPLY-COLLATION-readyedu_ExampleSandboxIMS-<first-12-plan-hash> `
+	--maintenance-confirmed
+```
+
+If execution is interrupted, do not generate a replacement plan. Resume the exact journaled plan:
+
+```powershell
+npm run schema:collations:resume -- `
+	--schema=readyedu_ExampleSandboxIMS `
+	--metadata-hash=<original-reviewed-metadata-sha256> `
+	--plan-hash=<original-reviewed-plan-sha256> `
+	--backup-reference=<same-backup-reference> `
+	--confirm=APPLY-COLLATION-readyedu_ExampleSandboxIMS-<first-12-plan-hash> `
+	--maintenance-confirmed
+```
+
+The journal tables are `_solvantis_collation_migration_runs` and `_solvantis_collation_migration_steps` inside the sandbox schema. They contain schema-operation metadata only, not customer payloads.
 
 ## Post-Apply Verification
 

@@ -1,0 +1,1319 @@
+{
+  "contract": {
+    "version": 3,
+    "characterSet": "utf8mb4",
+    "textCollation": "utf8mb4_unicode_ci",
+    "identityCollation": "utf8mb4_bin",
+    "tenantIdentityColumns": [
+      "business_id",
+      "product_id",
+      "variant_id",
+      "component_variant_id",
+      "output_variant_id",
+      "channel_instance_id"
+    ],
+    "relationships": [
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_product_variants",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_product_images",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_sales_channel_product_assignments",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_online_shop_products",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_stock",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_channel_product_selections",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_channel_product_mappings",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_fifo_cost_layers",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_purchase_order_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_order_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_stock_movements",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_online_shop_checkout_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_online_shop_stock_reservations",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_branch_transfer_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_item_components",
+        "childColumn": "component_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_items",
+        "childColumn": "output_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_recipe_components",
+        "childColumn": "component_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_recipes",
+        "childColumn": "output_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_requirements",
+        "childColumn": "output_variant_id"
+      }
+    ]
+  },
+  "reports": [
+    {
+      "schema": "readyedu_MonsterthreadsSandboxIMS",
+      "contractVersion": 3,
+      "metadataHash": "d0466a1c073def8b5d769f5ac8c38fa9e60deed80d142ef3c100fa798bbdca1e",
+      "inspectedAt": "2026-10-06T10:45:41.833Z",
+      "counts": {
+        "tables": 173,
+        "identityColumns": 215,
+        "identityMismatches": 5,
+        "tableDefaultMismatches": 0,
+        "ownershipMismatches": 0,
+        "relationshipIssues": 0
+      },
+      "metadataCompliant": false,
+      "preflightRun": true,
+      "preflightPassed": true,
+      "compliant": false,
+      "identityMismatches": [
+        {
+          "table": "ims_product_build_item_components",
+          "column": "component_variant_id",
+          "columnType": "varchar(36)",
+          "collation": "utf8mb4_general_ci",
+          "targetCollation": "utf8mb4_bin"
+        },
+        {
+          "table": "ims_product_build_items",
+          "column": "output_variant_id",
+          "columnType": "varchar(36)",
+          "collation": "utf8mb4_general_ci",
+          "targetCollation": "utf8mb4_bin"
+        },
+        {
+          "table": "ims_product_build_recipe_components",
+          "column": "component_variant_id",
+          "columnType": "varchar(36)",
+          "collation": "utf8mb4_general_ci",
+          "targetCollation": "utf8mb4_bin"
+        },
+        {
+          "table": "ims_product_build_recipes",
+          "column": "output_variant_id",
+          "columnType": "varchar(36)",
+          "collation": "utf8mb4_general_ci",
+          "targetCollation": "utf8mb4_bin"
+        },
+        {
+          "table": "ims_product_build_requirements",
+          "column": "output_variant_id",
+          "columnType": "varchar(36)",
+          "collation": "utf8mb4_general_ci",
+          "targetCollation": "utf8mb4_bin"
+        }
+      ],
+      "tableDefaultMismatches": [],
+      "ownershipChecks": [
+        {
+          "table": "ims_backorder_merges",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_branch_transfer_items",
+          "status": "ok",
+          "exactMismatches": 4753,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_branch_transfers",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_brands",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_bulk_product_presets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_customer_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_product_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_product_selections",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_sync_jobs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_variant_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_contact_channel_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_contacts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_credit_notes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_contact_merges",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_contact_tags",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_interactions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_lead_contact_points",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_lead_discoveries",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_lead_people",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_opportunities",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_pipeline_stages",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_segments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_tags",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_tasks",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_draft_revisions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_drafts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_knowledge_documents",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_knowledge_versions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_learning_candidates",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_learning_evidence",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_messages",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_processing_runs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_settings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_threads",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_customer_credit_settlements",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_early_payment_discount_applications",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_early_payment_discount_rules",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_fifo_cost_allocations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_fifo_cost_layers",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_inventory_cost_epochs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_inventory_cost_state",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_inventory_document_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_klaviyo_outbox",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_klaviyo_profile_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_notifications",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_addresses",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_checkout_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_checkouts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_customers",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_fulfilment_groups",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_payment_attempts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_payment_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_pickup_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_products",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_refunds",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_shipping_rules",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_stock_reservations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_value_reservations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_order_amendment_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_order_amendment_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_payment_methods",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_backorder_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_files",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_landed_costs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_receive_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_shortfall_resolutions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_batches",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_item_components",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_recipe_components",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_recipe_versions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_recipes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_requirements",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_reversals",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_variants",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_products",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_order_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_order_payments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_order_presets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_orders",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_cache",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_jobs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_assignments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_rules",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_selections",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_history",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_order_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_order_payments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_orders",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_settings",
+          "status": "ok",
+          "exactMismatches": 1,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_carrier_accounts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_channel_jobs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_labels",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_manifests",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_package_presets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_parcel_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_parcels",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_shipments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shopify_payout_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shopify_payouts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shopify_sync_log",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_backorder_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_fulfilment_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shipment_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shipment_tracking",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shipments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shortfall_resolutions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock_allocation_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock_allocations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock_movements",
+          "status": "ok",
+          "exactMismatches": 15799,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stocktake_items",
+          "status": "ok",
+          "exactMismatches": 16513,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stocktakes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_supplier_credit_note_files",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_supplier_credit_notes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_supplier_credit_settlements",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_website_content_attempts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_companies",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_company_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_company_members",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_favourites",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_member_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_saved_list_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_saved_lists",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_team_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_accounts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_membership_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_redemptions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_rewards",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_transactions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_comments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communication_attachments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communication_reads",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communication_targets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communications",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_content_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_import_runs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_product_guides",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_record_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_records",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_reference_categories",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_references",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_staff_identities",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_task_instances",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_task_signoffs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_task_templates",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_eod_reconciliations",
+          "status": "ok",
+          "exactMismatches": 489,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_payments",
+          "status": "ok",
+          "exactMismatches": 5970,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_petty_cash_transactions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_sale_items",
+          "status": "ok",
+          "exactMismatches": 350809,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_sales",
+          "status": "ok",
+          "exactMismatches": 203826,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_training_sales",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_users",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "wholesale_draft_orders",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        }
+      ],
+      "relationshipChecks": [
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_product_variants",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_product_images",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_sales_channel_product_assignments",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_online_shop_products",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_stock",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_sales_channel_product_selections",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_sales_channel_product_mappings",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_fifo_cost_layers",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_purchase_order_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_sales_order_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_stock_movements",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 1,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_online_shop_checkout_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_online_shop_stock_reservations",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_branch_transfer_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 37,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_item_components",
+          "childColumn": "component_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_items",
+          "childColumn": "output_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_recipe_components",
+          "childColumn": "component_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_recipes",
+          "childColumn": "output_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_requirements",
+          "childColumn": "output_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        }
+      ]
+    }
+  ]
+}

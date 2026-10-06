@@ -5,6 +5,7 @@
  * Run data preflights: append --preflight to a one-tenant audit
  * Generate reviewed DDL: node scripts/migrate-collations-all-tenants.mjs --plan --schema=readyedu_ExampleIMS
  * Verify contract: node scripts/migrate-collations-all-tenants.mjs --verify [--schema=...]
+ * Apply to sandbox only: requires reviewed hashes, backup reference, maintenance confirmation, and confirmation token
  */
 import 'dotenv/config';
 import fs from 'node:fs/promises';
@@ -12,24 +13,62 @@ import path from 'node:path';
 import mysql from 'mysql2/promise';
 
 import { buildCollationAuditReport, validateCollationContract } from './lib/collation-audit.mjs';
+import {
+  applyCollationMigrationPlan,
+  loadJournaledCollationPlan,
+  validateApplyRequest,
+} from './lib/collation-apply.mjs';
 import { buildCollationMigrationPlan } from './lib/collation-plan.mjs';
 
-const supportedFlags = new Set(['--audit', '--verify', '--preflight', '--plan']);
-const positionalFlags = process.argv.slice(2).filter(argument => !argument.startsWith('--schema='));
+const valueOptions = [
+  '--schema=',
+  '--metadata-hash=',
+  '--plan-hash=',
+  '--confirm=',
+  '--backup-reference=',
+  '--lock-wait-seconds=',
+];
+const supportedFlags = new Set([
+  '--audit',
+  '--verify',
+  '--preflight',
+  '--plan',
+  '--apply',
+  '--resume',
+  '--maintenance-confirmed',
+]);
+const positionalFlags = process.argv.slice(2).filter(argument =>
+  !valueOptions.some(prefix => argument.startsWith(prefix)),
+);
 const unsupportedFlags = positionalFlags.filter(argument => !supportedFlags.has(argument));
 if (unsupportedFlags.length > 0) throw new Error(`Unsupported option(s): ${unsupportedFlags.join(', ')}`);
-const modes = ['--audit', '--verify', '--plan'].filter(flag => process.argv.includes(flag));
+const modes = ['--audit', '--verify', '--plan', '--apply', '--resume'].filter(flag => process.argv.includes(flag));
 if (modes.length > 1) {
-  throw new Error('Choose one of --audit, --verify, or --plan.');
+  throw new Error('Choose one of --audit, --verify, --plan, --apply, or --resume.');
 }
 
 const verify = process.argv.includes('--verify');
 const plan = process.argv.includes('--plan');
-const preflight = process.argv.includes('--preflight') || plan;
+const apply = process.argv.includes('--apply');
+const resume = process.argv.includes('--resume');
+const generatePlan = plan || apply;
+const preflight = process.argv.includes('--preflight') || generatePlan || resume;
+const argumentValue = name => process.argv
+  .find(argument => argument.startsWith(`--${name}=`))
+  ?.slice(name.length + 3);
 const requestedSchema = process.argv.find(argument => argument.startsWith('--schema='))?.slice('--schema='.length);
+const reviewedMetadataHash = argumentValue('metadata-hash');
+const reviewedPlanHash = argumentValue('plan-hash');
+const confirmation = argumentValue('confirm');
+const backupReference = argumentValue('backup-reference');
+const lockWaitSeconds = Number(argumentValue('lock-wait-seconds') ?? 10);
+const maintenanceConfirmed = process.argv.includes('--maintenance-confirmed');
 const identifierPattern = /^[A-Za-z0-9_]+$/;
 if (requestedSchema && !identifierPattern.test(requestedSchema)) throw new Error('Requested schema is invalid.');
 if (preflight && !requestedSchema) throw new Error('--preflight requires one explicit --schema.');
+if ((apply || resume) && (!reviewedMetadataHash || !reviewedPlanHash || !confirmation || !backupReference)) {
+  throw new Error('--apply/--resume requires --metadata-hash, --plan-hash, --confirm, and --backup-reference.');
+}
 
 const mainDatabase = process.env.MYSQL_DATABASE;
 if (!mainDatabase || !identifierPattern.test(mainDatabase)) {
@@ -138,7 +177,7 @@ async function runDataPreflights(connection, schema, expectedBusinessId, columnR
 
 try {
   const [businesses] = await connection.query(
-    `SELECT business_id, ims_db_name
+    `SELECT business_id, ims_db_name, is_sandbox, automation_paused
        FROM \`${mainDatabase}\`.businesses
       WHERE ims_db_name IS NOT NULL
         AND deleted_at IS NULL
@@ -147,6 +186,9 @@ try {
   const registeredSchemas = new Set(businesses.map(row => String(row.ims_db_name)).filter(Boolean));
   const businessIdBySchema = new Map(
     businesses.map(row => [String(row.ims_db_name), String(row.business_id)]),
+  );
+  const businessBySchema = new Map(
+    businesses.map(row => [String(row.ims_db_name), row]),
   );
   if (process.env.IMS_MYSQL_DATABASE) registeredSchemas.add(process.env.IMS_MYSQL_DATABASE);
   if (requestedSchema && !registeredSchemas.has(requestedSchema)) {
@@ -185,7 +227,7 @@ try {
       ...preflightResults,
       preflightRun: preflight,
     });
-    if (plan) {
+    if (generatePlan) {
       if (!report.preflightPassed) throw new Error(`${schema} has blocking collation preflight issues.`);
       const changedTables = [...new Set([
         ...report.identityMismatches.map(mismatch => mismatch.table),
@@ -225,6 +267,51 @@ try {
         foreignKeyRows,
         contract,
       });
+    }
+    if (resume) {
+      report.migrationPlan = await loadJournaledCollationPlan(connection, schema, reviewedPlanHash);
+    }
+    if (apply || resume) {
+      const business = businessBySchema.get(schema);
+      if (Number(business?.is_sandbox ?? 0) !== 1) {
+        throw new Error('Apply mode is currently restricted to registered sandbox tenants.');
+      }
+      if (Number(business?.automation_paused ?? 0) !== 1) {
+        throw new Error('Sandbox automation_paused must be enabled before apply.');
+      }
+      validateApplyRequest({
+        schema,
+        plan: report.migrationPlan,
+        expectedMetadataHash: reviewedMetadataHash,
+        expectedPlanHash: reviewedPlanHash,
+        confirmation,
+        backupReference,
+        maintenanceConfirmed,
+      });
+      const lockName = `solvantis:collation:${schema}`;
+      const [lockRows] = await connection.query('SELECT GET_LOCK(?, 0) AS acquired', [lockName]);
+      if (Number(lockRows[0]?.acquired) !== 1) throw new Error('Another collation migration holds the schema lock.');
+      try {
+        const [transactionRows] = await connection.query(
+          `SELECT COUNT(*) AS active_transactions
+             FROM information_schema.INNODB_TRX
+            WHERE trx_mysql_thread_id <> CONNECTION_ID()`,
+        );
+        if (Number(transactionRows[0]?.active_transactions ?? 0) !== 0) {
+          throw new Error('Active database transactions remain; apply is blocked.');
+        }
+        report.applyResult = await applyCollationMigrationPlan({
+          connection,
+          schema,
+          plan: report.migrationPlan,
+          contract,
+          backupReference,
+          lockWaitSeconds,
+        });
+        console.log(`${schema}: migration applied ${JSON.stringify(report.applyResult)}`);
+      } finally {
+        await connection.query('SELECT RELEASE_LOCK(?)', [lockName]);
+      }
     }
     reports.push(report);
     console.log(

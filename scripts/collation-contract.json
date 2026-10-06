@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "characterSet": "utf8mb4",
   "textCollation": "utf8mb4_unicode_ci",
   "identityCollation": "utf8mb4_bin",
@@ -7,6 +7,8 @@
     "business_id",
     "product_id",
     "variant_id",
+    "component_variant_id",
+    "output_variant_id",
     "channel_instance_id"
   ],
   "relationships": [
@@ -23,6 +25,11 @@
     { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_stock_movements", "childColumn": "variant_id" },
     { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_online_shop_checkout_items", "childColumn": "variant_id" },
     { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_online_shop_stock_reservations", "childColumn": "variant_id" },
-    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_branch_transfer_items", "childColumn": "variant_id" }
+    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_branch_transfer_items", "childColumn": "variant_id" },
+    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_product_build_item_components", "childColumn": "component_variant_id" },
+    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_product_build_items", "childColumn": "output_variant_id" },
+    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_product_build_recipe_components", "childColumn": "component_variant_id" },
+    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_product_build_recipes", "childColumn": "output_variant_id" },
+    { "parentTable": "ims_product_variants", "parentColumn": "variant_id", "childTable": "ims_product_build_requirements", "childColumn": "output_variant_id" }
   ]
 }

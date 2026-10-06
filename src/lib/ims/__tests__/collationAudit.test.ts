@@ -181,7 +181,76 @@ describe('collation migration planning', () => {
     expect(plan.statements[1]).toContain('DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
     expect(plan.statements[1]).toContain('COLLATE utf8mb4_bin NOT NULL');
     expect(plan.statements[2]).toContain('ADD CONSTRAINT `fk_variant_product`');
+    expect(plan.operations.map(operation => operation.kind)).toEqual([
+      'drop_foreign_key',
+      'alter_table_collations',
+      'add_foreign_key',
+    ]);
+    expect(plan.operations[1]).toMatchObject({
+      table: 'ims_product_variants',
+      updateTableDefault: true,
+      identityColumns: ['product_id'],
+    });
     expect(plan.planHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('normalizes variant aliases before recreating their foreign keys', () => {
+    const report = buildCollationAuditReport({
+      schema: 'readyedu_TestIMS',
+      contract,
+      columnRows: [
+        {
+          TABLE_NAME: 'ims_product_build_items',
+          COLUMN_NAME: 'output_variant_id',
+          COLUMN_TYPE: 'varchar(36)',
+          IS_NULLABLE: 'NO',
+          COLUMN_DEFAULT: null,
+          EXTRA: '',
+          COLLATION_NAME: 'utf8mb4_general_ci',
+        },
+        {
+          TABLE_NAME: 'ims_product_variants',
+          COLUMN_NAME: 'variant_id',
+          COLUMN_TYPE: 'varchar(36)',
+          IS_NULLABLE: 'NO',
+          COLUMN_DEFAULT: null,
+          EXTRA: '',
+          COLLATION_NAME: 'utf8mb4_general_ci',
+        },
+      ],
+      tableRows: [],
+      preflightRun: true,
+      ownershipChecks: [],
+      relationshipChecks: [],
+    });
+    const plan = buildCollationMigrationPlan({
+      schema: 'readyedu_TestIMS',
+      report,
+      contract,
+      createStatements: {
+        ims_product_build_items: `CREATE TABLE \`ims_product_build_items\` (\n  \`output_variant_id\` varchar(36) NOT NULL\n) ENGINE=InnoDB`,
+        ims_product_variants: `CREATE TABLE \`ims_product_variants\` (\n  \`variant_id\` varchar(36) NOT NULL\n) ENGINE=InnoDB`,
+      },
+      foreignKeyRows: [{
+        CONSTRAINT_NAME: 'fk_build_output_variant',
+        TABLE_NAME: 'ims_product_build_items',
+        COLUMN_NAME: 'output_variant_id',
+        REFERENCED_TABLE_NAME: 'ims_product_variants',
+        REFERENCED_COLUMN_NAME: 'variant_id',
+        ORDINAL_POSITION: 1,
+        UPDATE_RULE: 'RESTRICT',
+        DELETE_RULE: 'RESTRICT',
+      }],
+    });
+
+    expect(plan.operations.map(operation => operation.kind)).toEqual([
+      'drop_foreign_key',
+      'alter_table_collations',
+      'alter_table_collations',
+      'add_foreign_key',
+    ]);
+    expect(plan.statements[1]).toContain('MODIFY COLUMN `output_variant_id`');
+    expect(plan.statements[1]).toContain('COLLATE utf8mb4_bin');
   });
 
   it('keeps the retired broad converter non-operational', () => {

@@ -1,0 +1,3390 @@
+{
+  "contract": {
+    "version": 3,
+    "characterSet": "utf8mb4",
+    "textCollation": "utf8mb4_unicode_ci",
+    "identityCollation": "utf8mb4_bin",
+    "tenantIdentityColumns": [
+      "business_id",
+      "product_id",
+      "variant_id",
+      "component_variant_id",
+      "output_variant_id",
+      "channel_instance_id"
+    ],
+    "relationships": [
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_product_variants",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_product_images",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_sales_channel_product_assignments",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_online_shop_products",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_stock",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_channel_product_selections",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_channel_product_mappings",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_fifo_cost_layers",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_purchase_order_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_order_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_stock_movements",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_online_shop_checkout_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_online_shop_stock_reservations",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_branch_transfer_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_item_components",
+        "childColumn": "component_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_items",
+        "childColumn": "output_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_recipe_components",
+        "childColumn": "component_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_recipes",
+        "childColumn": "output_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_requirements",
+        "childColumn": "output_variant_id"
+      }
+    ]
+  },
+  "reports": [
+    {
+      "schema": "readyedu_MonsterthreadsSandboxIMS",
+      "contractVersion": 3,
+      "metadataHash": "b24540674e8f54c742f1bc169110a41eed28394c7a0d2100ff7ad133894b57aa",
+      "inspectedAt": "2026-10-06T10:49:23.592Z",
+      "counts": {
+        "tables": 173,
+        "identityColumns": 215,
+        "identityMismatches": 0,
+        "tableDefaultMismatches": 0,
+        "ownershipMismatches": 0,
+        "relationshipIssues": 0
+      },
+      "metadataCompliant": true,
+      "preflightRun": true,
+      "preflightPassed": true,
+      "compliant": true,
+      "identityMismatches": [],
+      "tableDefaultMismatches": [],
+      "ownershipChecks": [
+        {
+          "table": "ims_backorder_merges",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_branch_transfer_items",
+          "status": "ok",
+          "exactMismatches": 4753,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_branch_transfers",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_brands",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_bulk_product_presets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_customer_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_product_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_product_selections",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_sync_jobs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_channel_variant_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_contact_channel_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_contacts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_credit_notes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_contact_merges",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_contact_tags",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_interactions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_lead_contact_points",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_lead_discoveries",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_lead_people",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_opportunities",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_pipeline_stages",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_segments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_tags",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_crm_tasks",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_draft_revisions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_drafts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_knowledge_documents",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_knowledge_versions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_learning_candidates",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_learning_evidence",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_messages",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_processing_runs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_settings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_cs_threads",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_customer_credit_settlements",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_early_payment_discount_applications",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_early_payment_discount_rules",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_fifo_cost_allocations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_fifo_cost_layers",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_inventory_cost_epochs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_inventory_cost_state",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_inventory_document_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_klaviyo_outbox",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_klaviyo_profile_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_notifications",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_addresses",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_checkout_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_checkouts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_customers",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_fulfilment_groups",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_payment_attempts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_payment_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_pickup_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_products",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_refunds",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_shipping_rules",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_stock_reservations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_online_shop_value_reservations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_order_amendment_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_order_amendment_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_payment_methods",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_backorder_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_files",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_landed_costs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_receive_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_po_shortfall_resolutions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_batches",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_item_components",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_recipe_components",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_recipe_versions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_recipes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_requirements",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_build_reversals",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_product_variants",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_products",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_order_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_order_payments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_order_presets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_purchase_orders",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_cache",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_jobs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_assignments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_mappings",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_rules",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_channel_product_selections",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_history",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_order_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_order_payments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_sales_orders",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_settings",
+          "status": "ok",
+          "exactMismatches": 1,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_carrier_accounts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_channel_jobs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_labels",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_manifests",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_package_presets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_parcel_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_parcels",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shipping_shipments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shopify_payout_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shopify_payouts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_shopify_sync_log",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_backorder_lines",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_fulfilment_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shipment_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shipment_tracking",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shipments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_so_shortfall_resolutions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock_allocation_operations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock_allocations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stock_movements",
+          "status": "ok",
+          "exactMismatches": 15799,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stocktake_items",
+          "status": "ok",
+          "exactMismatches": 16513,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_stocktakes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_supplier_credit_note_files",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_supplier_credit_notes",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_supplier_credit_settlements",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_website_content_attempts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_companies",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_company_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_company_members",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_favourites",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_member_locations",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_saved_list_items",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_saved_lists",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "ims_wholesale_team_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_accounts",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_membership_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_redemptions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_rewards",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "loyalty_transactions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_comments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communication_attachments",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communication_reads",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communication_targets",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_communications",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_content_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_import_runs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_product_guides",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_record_events",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_records",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_reference_categories",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_references",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_staff_identities",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_task_instances",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_task_signoffs",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_daybook_task_templates",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_eod_reconciliations",
+          "status": "ok",
+          "exactMismatches": 489,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_payments",
+          "status": "ok",
+          "exactMismatches": 5970,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_petty_cash_transactions",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_sale_items",
+          "status": "ok",
+          "exactMismatches": 350809,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_sales",
+          "status": "ok",
+          "exactMismatches": 203826,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_training_sales",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "pos_users",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        },
+        {
+          "table": "wholesale_draft_orders",
+          "status": "ok",
+          "exactMismatches": 0,
+          "caseOnlyMismatches": 0
+        }
+      ],
+      "relationshipChecks": [
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_product_variants",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_product_images",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_sales_channel_product_assignments",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_products",
+          "parentColumn": "product_id",
+          "childTable": "ims_online_shop_products",
+          "childColumn": "product_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_stock",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_sales_channel_product_selections",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_sales_channel_product_mappings",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_fifo_cost_layers",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_purchase_order_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_sales_order_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_stock_movements",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 1,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_online_shop_checkout_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_online_shop_stock_reservations",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_branch_transfer_items",
+          "childColumn": "variant_id",
+          "status": "ok",
+          "exactOrphans": 37,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_item_components",
+          "childColumn": "component_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_items",
+          "childColumn": "output_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_recipe_components",
+          "childColumn": "component_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_recipes",
+          "childColumn": "output_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        },
+        {
+          "parentTable": "ims_product_variants",
+          "parentColumn": "variant_id",
+          "childTable": "ims_product_build_requirements",
+          "childColumn": "output_variant_id",
+          "status": "ok",
+          "exactOrphans": 0,
+          "caseOnlyMatches": 0
+        }
+      ],
+      "migrationPlan": {
+        "schema": "readyedu_MonsterthreadsSandboxIMS",
+        "contractVersion": 2,
+        "sourceMetadataHash": "c45ed5c95937ebd86b75fcf87b5e3d2a8adc3fa743ad1344b10a317cbb27637f",
+        "planHash": "149a9635c9b21870c38a36c645db73b2ba050919b1e7338ddab0239afe2ddc61",
+        "generatedAt": "2026-10-06T10:36:34.784Z",
+        "counts": {
+          "foreignKeysToRecreate": 9,
+          "tablesToAlter": 171,
+          "identityColumnsToAlter": 210,
+          "tableDefaultsToAlter": 170
+        },
+        "operations": [
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_product_build_item_components",
+            "foreignKey": {
+              "name": "ims_product_build_item_components_ibfk_2",
+              "table": "ims_product_build_item_components",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "component_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_item_components` DROP FOREIGN KEY `ims_product_build_item_components_ibfk_2`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_product_build_items",
+            "foreignKey": {
+              "name": "ims_product_build_items_ibfk_2",
+              "table": "ims_product_build_items",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "output_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_items` DROP FOREIGN KEY `ims_product_build_items_ibfk_2`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_product_build_recipe_components",
+            "foreignKey": {
+              "name": "ims_product_build_recipe_components_ibfk_2",
+              "table": "ims_product_build_recipe_components",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "component_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_components` DROP FOREIGN KEY `ims_product_build_recipe_components_ibfk_2`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_product_build_recipes",
+            "foreignKey": {
+              "name": "ims_product_build_recipes_ibfk_1",
+              "table": "ims_product_build_recipes",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "output_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipes` DROP FOREIGN KEY `ims_product_build_recipes_ibfk_1`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_product_build_requirements",
+            "foreignKey": {
+              "name": "ims_product_build_requirements_ibfk_4",
+              "table": "ims_product_build_requirements",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "output_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_requirements` DROP FOREIGN KEY `ims_product_build_requirements_ibfk_4`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_product_variants",
+            "foreignKey": {
+              "name": "ims_product_variants_ibfk_1",
+              "table": "ims_product_variants",
+              "referencedTable": "ims_products",
+              "updateRule": "NO ACTION",
+              "deleteRule": "CASCADE",
+              "columns": [
+                "product_id"
+              ],
+              "referencedColumns": [
+                "product_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` DROP FOREIGN KEY `ims_product_variants_ibfk_1`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_purchase_order_items",
+            "foreignKey": {
+              "name": "ims_purchase_order_items_ibfk_2",
+              "table": "ims_purchase_order_items",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "NO ACTION",
+              "columns": [
+                "variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_items` DROP FOREIGN KEY `ims_purchase_order_items_ibfk_2`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_sales_cache",
+            "foreignKey": {
+              "name": "fk_isc_variant",
+              "table": "ims_sales_cache",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "CASCADE",
+              "columns": [
+                "variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_cache` DROP FOREIGN KEY `fk_isc_variant`;"
+          },
+          {
+            "kind": "drop_foreign_key",
+            "table": "ims_stock",
+            "foreignKey": {
+              "name": "ims_stock_ibfk_1",
+              "table": "ims_stock",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "CASCADE",
+              "columns": [
+                "variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock` DROP FOREIGN KEY `ims_stock_ibfk_1`;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "gift_card_transactions",
+            "updateTableDefault": true,
+            "identityColumns": [],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`gift_card_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "gift_cards",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`gift_cards`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_backorder_merges",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_backorder_merges`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_branch_transfer_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_branch_transfer_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_branch_transfers",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_branch_transfers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_brands",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_brands`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_bulk_product_presets",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_bulk_product_presets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_channel_customer_mappings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_customer_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_channel_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_channel_product_mappings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id",
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_product_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_channel_product_selections",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id",
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_product_selections`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_channel_sync_jobs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_sync_jobs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_channel_variant_mappings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_variant_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_contact_channel_mappings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_contact_channel_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_contacts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_contacts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_credit_note_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_credit_note_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `variant_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_credit_notes",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_credit_notes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_contact_merges",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_contact_merges`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_contact_tags",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_contact_tags`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_interactions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_interactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_lead_contact_points",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_lead_contact_points`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_lead_discoveries",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_lead_discoveries`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_lead_people",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_lead_people`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_opportunities",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_opportunities`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_pipeline_stages",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_pipeline_stages`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_segments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_segments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_tags",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_tags`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_crm_tasks",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_tasks`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_draft_revisions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_draft_revisions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_drafts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_drafts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_knowledge_documents",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_knowledge_documents`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_knowledge_versions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_knowledge_versions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_learning_candidates",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_learning_candidates`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_learning_evidence",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_learning_evidence`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_messages",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_messages`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_processing_runs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_processing_runs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_settings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_settings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_cs_threads",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_threads`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_customer_credit_settlements",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_customer_credit_settlements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_early_payment_discount_applications",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_early_payment_discount_applications`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_early_payment_discount_rules",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_early_payment_discount_rules`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_fifo_cost_allocations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_fifo_cost_allocations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_fifo_cost_layers",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_fifo_cost_layers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_inventory_cost_epochs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_inventory_cost_epochs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_inventory_cost_state",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_inventory_cost_state`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_inventory_document_operations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_inventory_document_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_klaviyo_outbox",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_klaviyo_outbox`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_klaviyo_profile_mappings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_klaviyo_profile_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_locations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_notifications",
+            "updateTableDefault": false,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_notifications`\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_addresses",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_addresses`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_checkout_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_checkout_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_checkouts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_checkouts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_customers",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_customers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_fulfilment_groups",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_fulfilment_groups`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_payment_attempts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_payment_attempts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_payment_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_payment_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_pickup_locations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_pickup_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_products",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_products`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_refunds",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_refunds`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_shipping_rules",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_shipping_rules`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_stock_reservations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_stock_reservations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_online_shop_value_reservations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_value_reservations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_order_amendment_lines",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_order_amendment_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_order_amendment_operations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_order_amendment_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_payment_methods",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_payment_methods`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_po_backorder_lines",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_backorder_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_po_files",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_files`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_po_landed_costs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_landed_costs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_po_receive_operations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_receive_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_po_shortfall_resolutions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_shortfall_resolutions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_batches",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_batches`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_item_components",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_item_components`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_recipe_components",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_components`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_recipe_versions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_versions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_recipes",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_requirements",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_requirements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_build_reversals",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_reversals`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_images",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_images`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_product_variants",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "product_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_products",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_products`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_purchase_order_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_purchase_order_payments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_payments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_purchase_order_presets",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_presets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_purchase_orders",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_orders`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_cache",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_cache`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_channel_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_channel_jobs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_jobs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_channel_product_assignments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id",
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_assignments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_channel_product_mappings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_channel_product_rules",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_rules`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_channel_product_selections",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_selections`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_history",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_history`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_order_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_order_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_order_payments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_order_payments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_sales_orders",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_orders`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_settings",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_settings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_carrier_accounts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_carrier_accounts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_channel_jobs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_channel_jobs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_labels",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_labels`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_manifests",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_manifests`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_package_presets",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_package_presets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_parcel_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_parcel_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_parcels",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_parcels`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shipping_shipments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_shipments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shopify_inventory_queue",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_inventory_queue`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shopify_payout_lines",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_payout_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shopify_payouts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_payouts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_shopify_sync_log",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_sync_log`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `channel_instance_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_so_backorder_lines",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_backorder_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_so_fulfilment_operations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_fulfilment_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_so_shipment_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shipment_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_so_shipment_tracking",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shipment_tracking`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_so_shipments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "channel_instance_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shipments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_so_shortfall_resolutions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shortfall_resolutions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_stock",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_stock_allocation_operations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock_allocation_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_stock_allocations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock_allocations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_stock_movements",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock_movements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_stocktake_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stocktake_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_stocktakes",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stocktakes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_supplier_credit_note_files",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_note_files`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_supplier_credit_note_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_note_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `variant_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_supplier_credit_notes",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_notes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_supplier_credit_settlements",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_settlements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_website_content_attempts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "product_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_website_content_attempts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_companies",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_companies`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_company_locations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_company_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_company_members",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_company_members`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_favourites",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_favourites`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_member_locations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_member_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_saved_list_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_saved_list_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_saved_lists",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_saved_lists`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "ims_wholesale_team_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_team_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "loyalty_accounts",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_accounts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "loyalty_membership_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_membership_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "loyalty_redemptions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_redemptions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "loyalty_rewards",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_rewards`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "loyalty_transactions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_chat_attachments",
+            "updateTableDefault": true,
+            "identityColumns": [],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_chat_attachments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_chat_messages",
+            "updateTableDefault": true,
+            "identityColumns": [],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_chat_messages`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_comments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_comments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_communication_attachments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communication_attachments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_communication_reads",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communication_reads`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_communication_targets",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communication_targets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_communications",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communications`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_content_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_content_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_import_runs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_import_runs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_product_guides",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_product_guides`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_record_events",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_record_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_records",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_records`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_reference_categories",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_reference_categories`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_references",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_references`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_staff_identities",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_staff_identities`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_task_instances",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_task_instances`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_task_signoffs",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_task_signoffs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_daybook_task_templates",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_task_templates`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_eod_reconciliations",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_eod_reconciliations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_payments",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_payments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_petty_cash_transactions",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_petty_cash_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_register_sessions",
+            "updateTableDefault": true,
+            "identityColumns": [],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_register_sessions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_registers",
+            "updateTableDefault": true,
+            "identityColumns": [],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_registers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_sale_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_sale_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_sales",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_sales`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_training_sales",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_training_sales`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "pos_users",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_users`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "store_credit_transactions",
+            "updateTableDefault": true,
+            "identityColumns": [],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`store_credit_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "wholesale_draft_order_items",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "product_id",
+              "variant_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`wholesale_draft_order_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `product_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "alter_table_collations",
+            "table": "wholesale_draft_orders",
+            "updateTableDefault": true,
+            "identityColumns": [
+              "business_id"
+            ],
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`wholesale_draft_orders`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_product_build_item_components",
+            "foreignKey": {
+              "name": "ims_product_build_item_components_ibfk_2",
+              "table": "ims_product_build_item_components",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "component_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_item_components` ADD CONSTRAINT `ims_product_build_item_components_ibfk_2` FOREIGN KEY (`component_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_product_build_items",
+            "foreignKey": {
+              "name": "ims_product_build_items_ibfk_2",
+              "table": "ims_product_build_items",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "output_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_items` ADD CONSTRAINT `ims_product_build_items_ibfk_2` FOREIGN KEY (`output_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_product_build_recipe_components",
+            "foreignKey": {
+              "name": "ims_product_build_recipe_components_ibfk_2",
+              "table": "ims_product_build_recipe_components",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "component_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_components` ADD CONSTRAINT `ims_product_build_recipe_components_ibfk_2` FOREIGN KEY (`component_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_product_build_recipes",
+            "foreignKey": {
+              "name": "ims_product_build_recipes_ibfk_1",
+              "table": "ims_product_build_recipes",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "output_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipes` ADD CONSTRAINT `ims_product_build_recipes_ibfk_1` FOREIGN KEY (`output_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_product_build_requirements",
+            "foreignKey": {
+              "name": "ims_product_build_requirements_ibfk_4",
+              "table": "ims_product_build_requirements",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "RESTRICT",
+              "columns": [
+                "output_variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_requirements` ADD CONSTRAINT `ims_product_build_requirements_ibfk_4` FOREIGN KEY (`output_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_product_variants",
+            "foreignKey": {
+              "name": "ims_product_variants_ibfk_1",
+              "table": "ims_product_variants",
+              "referencedTable": "ims_products",
+              "updateRule": "NO ACTION",
+              "deleteRule": "CASCADE",
+              "columns": [
+                "product_id"
+              ],
+              "referencedColumns": [
+                "product_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` ADD CONSTRAINT `ims_product_variants_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_products` (`product_id`) ON DELETE CASCADE ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_purchase_order_items",
+            "foreignKey": {
+              "name": "ims_purchase_order_items_ibfk_2",
+              "table": "ims_purchase_order_items",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "NO ACTION",
+              "columns": [
+                "variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_items` ADD CONSTRAINT `ims_purchase_order_items_ibfk_2` FOREIGN KEY (`variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE NO ACTION ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_sales_cache",
+            "foreignKey": {
+              "name": "fk_isc_variant",
+              "table": "ims_sales_cache",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "CASCADE",
+              "columns": [
+                "variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_cache` ADD CONSTRAINT `fk_isc_variant` FOREIGN KEY (`variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;"
+          },
+          {
+            "kind": "add_foreign_key",
+            "table": "ims_stock",
+            "foreignKey": {
+              "name": "ims_stock_ibfk_1",
+              "table": "ims_stock",
+              "referencedTable": "ims_product_variants",
+              "updateRule": "NO ACTION",
+              "deleteRule": "CASCADE",
+              "columns": [
+                "variant_id"
+              ],
+              "referencedColumns": [
+                "variant_id"
+              ]
+            },
+            "statement": "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock` ADD CONSTRAINT `ims_stock_ibfk_1` FOREIGN KEY (`variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;"
+          }
+        ],
+        "statements": [
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_item_components` DROP FOREIGN KEY `ims_product_build_item_components_ibfk_2`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_items` DROP FOREIGN KEY `ims_product_build_items_ibfk_2`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_components` DROP FOREIGN KEY `ims_product_build_recipe_components_ibfk_2`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipes` DROP FOREIGN KEY `ims_product_build_recipes_ibfk_1`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_requirements` DROP FOREIGN KEY `ims_product_build_requirements_ibfk_4`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` DROP FOREIGN KEY `ims_product_variants_ibfk_1`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_items` DROP FOREIGN KEY `ims_purchase_order_items_ibfk_2`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_cache` DROP FOREIGN KEY `fk_isc_variant`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock` DROP FOREIGN KEY `ims_stock_ibfk_1`;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`gift_card_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`gift_cards`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_backorder_merges`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_branch_transfer_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_branch_transfers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_brands`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_bulk_product_presets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_customer_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_product_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_product_selections`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_sync_jobs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_channel_variant_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_contact_channel_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_contacts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_credit_note_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `variant_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_credit_notes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_contact_merges`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_contact_tags`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_interactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_lead_contact_points`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_lead_discoveries`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_lead_people`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_opportunities`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_pipeline_stages`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_segments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_tags`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_crm_tasks`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_draft_revisions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_drafts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_knowledge_documents`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_knowledge_versions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_learning_candidates`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_learning_evidence`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_messages`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_processing_runs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_settings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_cs_threads`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_customer_credit_settlements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_early_payment_discount_applications`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_early_payment_discount_rules`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_fifo_cost_allocations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_fifo_cost_layers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_inventory_cost_epochs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_inventory_cost_state`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_inventory_document_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_klaviyo_outbox`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_klaviyo_profile_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_notifications`\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_addresses`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_checkout_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_checkouts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_customers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_fulfilment_groups`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_payment_attempts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_payment_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_pickup_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_products`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_refunds`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_shipping_rules`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_stock_reservations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_online_shop_value_reservations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_order_amendment_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_order_amendment_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_payment_methods`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_backorder_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_files`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_landed_costs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_receive_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_po_shortfall_resolutions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_batches`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_item_components`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_components`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_versions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_requirements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_reversals`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_images`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_products`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_payments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_presets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_orders`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_cache`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_jobs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_assignments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_mappings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_rules`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_channel_product_selections`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_history`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_order_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_order_payments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_orders`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_settings`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_carrier_accounts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_channel_jobs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_labels`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_manifests`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_package_presets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_parcel_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_parcels`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shipping_shipments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_inventory_queue`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_payout_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_payouts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_shopify_sync_log`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `channel_instance_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_backorder_lines`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_fulfilment_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shipment_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shipment_tracking`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shipments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `channel_instance_id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_so_shortfall_resolutions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock_allocation_operations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock_allocations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock_movements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stocktake_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stocktakes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_note_files`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_note_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `variant_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_notes`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_supplier_credit_settlements`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_website_content_attempts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `product_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_companies`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_company_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_company_members`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_favourites`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_member_locations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_saved_list_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_saved_lists`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_wholesale_team_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_accounts`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_membership_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_redemptions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_rewards`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`loyalty_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_chat_attachments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_chat_messages`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_comments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communication_attachments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communication_reads`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communication_targets`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_communications`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_content_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_import_runs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_product_guides`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_record_events`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_records`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_reference_categories`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_references`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_staff_identities`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_task_instances`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_task_signoffs`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_daybook_task_templates`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_eod_reconciliations`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_payments`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_petty_cash_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_register_sessions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_registers`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_sale_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',\n  MODIFY COLUMN `variant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_sales`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_training_sales`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`pos_users`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '';",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`store_credit_transactions`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`wholesale_draft_order_items`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `product_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,\n  MODIFY COLUMN `variant_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`wholesale_draft_orders`\n  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,\n  MODIFY COLUMN `business_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_item_components` ADD CONSTRAINT `ims_product_build_item_components_ibfk_2` FOREIGN KEY (`component_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_items` ADD CONSTRAINT `ims_product_build_items_ibfk_2` FOREIGN KEY (`output_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipe_components` ADD CONSTRAINT `ims_product_build_recipe_components_ibfk_2` FOREIGN KEY (`component_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_recipes` ADD CONSTRAINT `ims_product_build_recipes_ibfk_1` FOREIGN KEY (`output_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_build_requirements` ADD CONSTRAINT `ims_product_build_requirements_ibfk_4` FOREIGN KEY (`output_variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE RESTRICT ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` ADD CONSTRAINT `ims_product_variants_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_products` (`product_id`) ON DELETE CASCADE ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_purchase_order_items` ADD CONSTRAINT `ims_purchase_order_items_ibfk_2` FOREIGN KEY (`variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE NO ACTION ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_sales_cache` ADD CONSTRAINT `fk_isc_variant` FOREIGN KEY (`variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;",
+          "ALTER TABLE `readyedu_MonsterthreadsSandboxIMS`.`ims_stock` ADD CONSTRAINT `ims_stock_ibfk_1` FOREIGN KEY (`variant_id`) REFERENCES `readyedu_MonsterthreadsSandboxIMS`.`ims_product_variants` (`variant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;"
+        ]
+      },
+      "applyResult": {
+        "applied": 9,
+        "reconciled": 0,
+        "skipped": 180
+      }
+    }
+  ]
+}

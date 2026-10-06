@@ -68,13 +68,21 @@ export function buildCollationMigrationPlan({ schema, report, createStatements, 
         changedColumns.has(`${foreignKey.referencedTable}.${column}`),
       ),
   );
-  const dropForeignKeys = affectedForeignKeys.map(foreignKey =>
-    `ALTER TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(foreignKey.table)} DROP FOREIGN KEY ${quoteIdentifier(foreignKey.name)};`,
-  );
+  const dropForeignKeys = affectedForeignKeys.map(foreignKey => ({
+    kind: 'drop_foreign_key',
+    table: foreignKey.table,
+    foreignKey,
+    statement: `ALTER TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(foreignKey.table)} DROP FOREIGN KEY ${quoteIdentifier(foreignKey.name)};`,
+  }));
   const addForeignKeys = affectedForeignKeys.map(foreignKey => {
     const columns = foreignKey.columns.map(quoteIdentifier).join(', ');
     const referencedColumns = foreignKey.referencedColumns.map(quoteIdentifier).join(', ');
-    return `ALTER TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(foreignKey.table)} ADD CONSTRAINT ${quoteIdentifier(foreignKey.name)} FOREIGN KEY (${columns}) REFERENCES ${quoteIdentifier(schema)}.${quoteIdentifier(foreignKey.referencedTable)} (${referencedColumns}) ON DELETE ${foreignKey.deleteRule} ON UPDATE ${foreignKey.updateRule};`;
+    return {
+      kind: 'add_foreign_key',
+      table: foreignKey.table,
+      foreignKey,
+      statement: `ALTER TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(foreignKey.table)} ADD CONSTRAINT ${quoteIdentifier(foreignKey.name)} FOREIGN KEY (${columns}) REFERENCES ${quoteIdentifier(schema)}.${quoteIdentifier(foreignKey.referencedTable)} (${referencedColumns}) ON DELETE ${foreignKey.deleteRule} ON UPDATE ${foreignKey.updateRule};`,
+    };
   });
 
   const changedTables = [...new Set([
@@ -98,10 +106,17 @@ export function buildCollationMigrationPlan({ schema, report, createStatements, 
         contract,
       })}`);
     }
-    return `ALTER TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(table)}\n  ${clauses.join(',\n  ')};`;
+    return {
+      kind: 'alter_table_collations',
+      table,
+      updateTableDefault: defaultMismatchTables.has(table),
+      identityColumns: (mismatchesByTable.get(table) ?? []).map(mismatch => mismatch.column).sort(),
+      statement: `ALTER TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(table)}\n  ${clauses.join(',\n  ')};`,
+    };
   });
 
-  const statements = [...dropForeignKeys, ...alterTables, ...addForeignKeys];
+  const operations = [...dropForeignKeys, ...alterTables, ...addForeignKeys];
+  const statements = operations.map(operation => operation.statement);
   return {
     schema,
     contractVersion: contract.version,
@@ -114,6 +129,7 @@ export function buildCollationMigrationPlan({ schema, report, createStatements, 
       identityColumnsToAlter: report.identityMismatches.length,
       tableDefaultsToAlter: report.tableDefaultMismatches.length,
     },
+    operations,
     statements,
   };
 }
