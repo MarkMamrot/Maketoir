@@ -1,5 +1,5 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day-xero"],"contexts":["pos-settings","pos-offline"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Settings and recovery decisions"},"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day-xero"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Settings and recovery decisions","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Settings, Terminals, and Offline Recovery
 
@@ -15,6 +15,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 - Continue supported ordinary sales from the device's persisted product catalogue while offline.
 - Inspect queued and failed sales, retry them, and confirm they reached Reports.
 - Stop online-only workflows until connectivity returns.
+- Open **Help > Contact Support** to report an issue with optional screenshots while online.
 
 ## At a glance
 
@@ -30,8 +31,15 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 | Petty cash | No | The register entry and receipt upload require an open online session |
 | Branch transfer, Reports, register open/close, or End of Day | No | These workflows require current shared records |
 | Ask Solvantis | No | Assistant questions are not queued |
+| Support tickets and image attachments | No | Submit from Help while connected; support requests are not queued |
 | Complete a Training Mode sale | No | A separate training audit is recorded online; no live sale, stock, customer value, EOD, report, or accounting record is created |
 | Reprint a receipt from Reports | No | One print request is allowed from each receipt preview; close and reopen the receipt for a deliberate additional copy |
+
+## Contact Support
+
+Open **Help > Contact Support**, enter a subject and description, then select **Submit ticket**. Paste an image directly into **Description** or select **Attach images**. Review the previews and remove unwanted images before submitting. Each ticket accepts up to five JPEG, PNG, WebP or GIF images, with a maximum size of 5 MB each. Do not include credentials or private customer details in screenshots.
+
+Support tickets require an internet connection. If submission fails, the description and images remain in the form for a retry. A successful submission displays **Ticket submitted**. Super Admins can view the ticket and its images in Admin or IMS Team Communications; POS staff do not have a ticket-management list.
 
 ## Before you begin
 

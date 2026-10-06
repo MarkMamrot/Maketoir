@@ -19,6 +19,7 @@ export interface SupportTicket {
   resolved_at: string | null;
   created_at: string;
   updated_at: string;
+  images?: Array<{ filename: string; url: string }>;
 }
 
 const panel = { background: 'var(--sv-bg-1,#1e293b)', border: '1px solid var(--sv-etch,rgba(255,255,255,.1))', borderRadius: 8 };
@@ -198,6 +199,14 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
             <div style={{ padding: '20px clamp(16px, 4vw, 28px) 32px' }}>
               <h2 style={{ margin: '0 0 8px', color: '#f8fafc', fontSize: 20, lineHeight: 1.3 }}>{selected.subject}</h2>
               <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.55, fontSize: 13, whiteSpace: 'pre-wrap' }}>{selected.description}</p>
+              {Boolean(selected.images?.length) && <section aria-label="Ticket images" style={{ marginTop: 16 }}>
+                <h3 style={{ fontSize: 13 }}>Images</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
+                  {selected.images?.map((image, index) => <a key={image.filename} href={image.url} target="_blank" rel="noopener noreferrer" title={`Open image ${index + 1}`}>
+                    <img src={image.url} alt={`Ticket attachment ${index + 1}`} style={{ width: '100%', height: 160, objectFit: 'contain', background: '#fff', borderRadius: 6 }} />
+                  </a>)}
+                </div>
+              </section>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, ...drawerPanel, padding: 14, margin: '18px 0' }}>
                 <div><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>Submitted by</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{selected.submitted_by_name ?? 'Unknown'}</p></div>
                 <div><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>App</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{selected.source_app.toUpperCase()}{selected.screen_context ? ` · ${selected.screen_context}` : ''}</p></div>

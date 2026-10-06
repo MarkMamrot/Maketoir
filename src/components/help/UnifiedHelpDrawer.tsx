@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, HelpCircle, LifeBuoy, MessageCircle, Search, X } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, HelpCircle, LifeBuoy, MessageCircle, Paperclip, Search, X } from 'lucide-react';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
@@ -303,9 +303,25 @@ export function UnifiedHelpDrawer({
 function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; screenContext: string | null }) {
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [images, setImages] = useState<File[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const attachImages = (files: File[]) => {
+    if (submitting) return;
+    if (images.length + files.length > 5) {
+      setError('Attach up to five images.');
+      return;
+    }
+    if (files.some(file => !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024)) {
+      setError('Choose JPEG, PNG, WebP or GIF images, up to 5 MB each.');
+      return;
+    }
+    setError(null);
+    setImages(current => [...current, ...files]);
+  };
 
   const submit = async () => {
     if (!subject.trim() || !description.trim()) {
@@ -315,10 +331,14 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
     setSubmitting(true);
     setError(null);
     try {
+      const form = new FormData();
+      form.set('subject', subject.trim());
+      form.set('description', description.trim());
+      if (screenContext) form.set('screenContext', screenContext);
+      for (const image of images) form.append('images', image);
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), screenContext }),
+        body: form,
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
@@ -328,6 +348,7 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
       setSubmitted(true);
       setSubject('');
       setDescription('');
+      setImages([]);
     } catch {
       setError('Your ticket could not be submitted. Please try again.');
     } finally {
@@ -354,16 +375,47 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
       </p>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
         Subject
-        <input value={subject} onChange={event => setSubject(event.target.value)} maxLength={255} placeholder="Brief summary of the issue" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13 }} />
+        <input value={subject} disabled={submitting} onChange={event => setSubject(event.target.value)} maxLength={255} placeholder="Brief summary of the issue" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13 }} />
       </label>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
         Description
-        <textarea value={description} onChange={event => setDescription(event.target.value)} rows={6} placeholder="What happened? What were you trying to do?" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13, resize: 'vertical' }} />
+        <textarea value={description} disabled={submitting} maxLength={10_000} onChange={event => setDescription(event.target.value)} onPaste={event => {
+          const pastedImages = Array.from(event.clipboardData.items)
+            .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+            .map(item => item.getAsFile()).filter((file): file is File => Boolean(file));
+          if (!pastedImages.length) return;
+          if (!event.clipboardData.getData('text/plain')) event.preventDefault();
+          attachImages(pastedImages);
+        }} rows={6} placeholder="What happened? What were you trying to do?" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13, resize: 'vertical' }} />
       </label>
-      {error && <p style={{ color: '#dc2626', fontSize: 12, margin: 0 }}>{error}</p>}
+      <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden onChange={event => {
+        attachImages(Array.from(event.target.files ?? []));
+        event.target.value = '';
+      }} />
+      <button type="button" className="sv-button-flat" disabled={submitting || images.length >= 5} onClick={() => imageInputRef.current?.click()} title="Attach images" style={{ alignSelf: 'flex-start', display: 'flex', gap: 6, alignItems: 'center' }}>
+        <Paperclip size={16} /> Attach images {images.length > 0 ? `(${images.length}/5)` : ''}
+      </button>
+      {images.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8 }}>
+        {images.map((image, index) => <SupportImagePreview key={`${image.name}-${image.lastModified}-${index}`} file={image} disabled={submitting} onRemove={() => setImages(current => current.filter((_, imageIndex) => imageIndex !== index))} />)}
+      </div>}
+      {error && <p role="alert" style={{ color: '#dc2626', fontSize: 12, margin: 0 }}>{error}</p>}
       <button className="sv-button-flat" onClick={() => void submit()} disabled={submitting} style={{ alignSelf: 'flex-start', fontWeight: 700 }}>
         {submitting ? 'Submitting…' : 'Submit ticket'}
       </button>
     </div>
   );
+}
+
+function SupportImagePreview({ file, disabled, onRemove }: { file: File; disabled: boolean; onRemove: () => void }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+  return <div style={{ position: 'relative', minWidth: 0 }}>
+    {url && <img src={url} alt={file.name} style={{ width: '100%', height: 100, objectFit: 'contain', border: '1px solid var(--sv-etch,#cbd5e1)', borderRadius: 6 }} />}
+    <button type="button" disabled={disabled} aria-label={`Remove ${file.name}`} title="Remove image" onClick={onRemove} style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'var(--sv-bg-1,#fff)', border: '1px solid var(--sv-etch,#cbd5e1)', borderRadius: 4 }}><X size={16} /></button>
+    <small style={{ display: 'block', overflowWrap: 'anywhere' }}>{file.name}</small>
+  </div>;
 }

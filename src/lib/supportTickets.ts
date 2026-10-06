@@ -1,4 +1,6 @@
-import { execute, query } from '@/services/MySQLService';
+import { execute, getPool, query } from '@/services/MySQLService';
+import type { ResultSetHeader } from 'mysql2';
+import { removeSupportImages, saveSupportImages } from '@/lib/supportTicketImages';
 
 export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type SupportTicketSourceApp = 'ims' | 'pos';
@@ -40,28 +42,42 @@ export function isSupportTicketStatus(value: unknown): value is SupportTicketSta
   return typeof value === 'string' && STATUSES.has(value as SupportTicketStatus);
 }
 
-export async function createSupportTicket(input: CreateSupportTicketInput): Promise<number> {
+export async function createSupportTicket(input: CreateSupportTicketInput, images: Array<{ bytes: Buffer; extension: string }> = []): Promise<number> {
   const subject = input.subject.trim().slice(0, 255);
   const description = input.description.trim().slice(0, 10_000);
   if (!subject || !description) throw new Error('subject and description are required.');
 
-  const result = await execute(
-    `INSERT INTO support_tickets
-       (business_id, submitted_by_user_id, submitted_by_name, submitted_by_email,
-        source_app, screen_context, subject, description, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
-    [
-      input.businessId,
-      input.submittedByUserId,
-      input.submittedByName,
-      input.submittedByEmail,
-      input.sourceApp,
-      input.screenContext,
-      subject,
-      description,
-    ],
-  );
-  return result.insertId;
+  const connection = await getPool().getConnection();
+  let id: number | undefined;
+  try {
+    await connection.beginTransaction();
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO support_tickets
+         (business_id, submitted_by_user_id, submitted_by_name, submitted_by_email,
+          source_app, screen_context, subject, description, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
+      [
+        input.businessId,
+        input.submittedByUserId,
+        input.submittedByName,
+        input.submittedByEmail,
+        input.sourceApp,
+        input.screenContext,
+        subject,
+        description,
+      ],
+    );
+    id = result.insertId;
+    await saveSupportImages(id, images);
+    await connection.commit();
+    return id;
+  } catch (error) {
+    await connection.rollback();
+    if (id) await removeSupportImages(id);
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export interface ListSupportTicketsFilters {

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-04","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Choose a workspace","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-07","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -19,6 +19,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Use Team Chat to communicate with POS locations as the configured default warehouse.
 - Open Notifications in the top bar to review stock, order, and integration actions that need attention.
 - Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.
+- Choose **Help > Contact Support** to submit a support ticket with optional images.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
 
 ## Choose a workspace
@@ -40,6 +41,16 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 | Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |
 | Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
+
+## Contact Support
+
+Open **Help > Contact Support**, enter a subject and description, then press **Submit ticket**. An internet connection is required. The ticket includes the screen where Help was opened.
+
+Paste an image directly into the **Description** box or press **Attach images** to choose files. Images appear as previews below the description; remove any unwanted image before submitting. Each ticket accepts up to five JPEG, PNG, WebP or GIF images, up to 5 MB each. Remove private customer details and credentials from screenshots before sending.
+
+Super Admins review tickets and images in **Admin > Support Tickets** or the **Support Tickets** tab in IMS Team Communications. They can assign a ticket to a Super Admin, change its status, and enter resolution notes. The badge counts Open and In Progress tickets. The notification email address is configured in **Admin > Support Tickets**; images are viewed securely in the ticket rather than attached to the notification email.
+
+If submission fails, the form keeps the description and selected images for another attempt. A successful submission displays **Ticket submitted**; there is no requester-facing ticket list.
 
 ## How summaries work
 

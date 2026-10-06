@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 
 import { requireSuperAdminTier } from '@/lib/sessionUtils';
 import { getSupportTicket, isSupportTicketStatus, updateSupportTicket } from '@/lib/supportTickets';
+import { listSupportImages } from '@/lib/supportTicketImages';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const auth = requireSuperAdminTier();
@@ -11,7 +13,13 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   const ticket = await getSupportTicket(id);
   if (!ticket) return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-  return NextResponse.json({ success: true, ticket });
+  try {
+    const images = await listSupportImages(id);
+    return NextResponse.json({ success: true, ticket: { ...ticket, images } });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: ticket.business_id, source: 'support-tickets', operation: 'list_images', title: 'Support ticket images could not be loaded', error, reference: { type: 'support_ticket', id } });
+    return NextResponse.json({ error: 'Ticket images could not be loaded.' }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {

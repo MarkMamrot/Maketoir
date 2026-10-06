@@ -4,6 +4,7 @@ import { getPosSession } from '@/lib/sessionUtils';
 import { createSupportTicket, getSupportTicket } from '@/lib/supportTickets';
 import { sendNewSupportTicketAlert } from '@/lib/supportTicketAlerts';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { readSupportTicketSubmission, SupportTicketValidationError } from '@/lib/supportTicketImages';
 
 export async function POST(request: Request) {
   const session = getPosSession() as (ReturnType<typeof getPosSession> & { businessId?: string });
@@ -11,23 +12,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => null) as { subject?: string; description?: string; screenContext?: string } | null;
-  const subject = body?.subject?.trim() ?? '';
-  const description = body?.description?.trim() ?? '';
-  if (!subject || !description) {
-    return NextResponse.json({ error: 'subject and description are required.' }, { status: 400 });
+  let body;
+  try { body = await readSupportTicketSubmission(request); }
+  catch (error) {
+    if (error instanceof SupportTicketValidationError || error instanceof SyntaxError || error instanceof TypeError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
   }
 
-  const id = await createSupportTicket({
+  let id: number;
+  try { id = await createSupportTicket({
     businessId: session.businessId,
     submittedByUserId: session.pos_user_id,
     submittedByName: session.full_name ?? null,
     submittedByEmail: null,
     sourceApp: 'pos',
-    screenContext: body?.screenContext?.trim().slice(0, 255) || null,
-    subject,
-    description,
-  });
+    screenContext: body.screenContext,
+    subject: body.subject,
+    description: body.description,
+  }, body.images); }
+  catch (error) {
+    await reportRuntimeIssue({ businessId: session.businessId, source: 'support-tickets', operation: 'create_ticket', title: 'Support ticket upload failed', error });
+    return NextResponse.json({ error: 'Your ticket could not be saved. Please try again.' }, { status: 500 });
+  }
 
   try {
     const ticket = await getSupportTicket(id);
