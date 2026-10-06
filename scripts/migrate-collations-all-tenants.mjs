@@ -16,6 +16,7 @@ import { buildCollationAuditReport, validateCollationContract } from './lib/coll
 import {
   applyCollationMigrationPlan,
   loadJournaledCollationPlan,
+  validateApplyTenant,
   validateApplyRequest,
 } from './lib/collation-apply.mjs';
 import { buildCollationMigrationPlan } from './lib/collation-plan.mjs';
@@ -36,6 +37,7 @@ const supportedFlags = new Set([
   '--apply',
   '--resume',
   '--maintenance-confirmed',
+  '--production-confirmed',
 ]);
 const positionalFlags = process.argv.slice(2).filter(argument =>
   !valueOptions.some(prefix => argument.startsWith(prefix)),
@@ -63,6 +65,7 @@ const confirmation = argumentValue('confirm');
 const backupReference = argumentValue('backup-reference');
 const lockWaitSeconds = Number(argumentValue('lock-wait-seconds') ?? 10);
 const maintenanceConfirmed = process.argv.includes('--maintenance-confirmed');
+const productionConfirmed = process.argv.includes('--production-confirmed');
 const identifierPattern = /^[A-Za-z0-9_]+$/;
 if (requestedSchema && !identifierPattern.test(requestedSchema)) throw new Error('Requested schema is invalid.');
 if (preflight && !requestedSchema) throw new Error('--preflight requires one explicit --schema.');
@@ -273,12 +276,7 @@ try {
     }
     if (apply || resume) {
       const business = businessBySchema.get(schema);
-      if (Number(business?.is_sandbox ?? 0) !== 1) {
-        throw new Error('Apply mode is currently restricted to registered sandbox tenants.');
-      }
-      if (Number(business?.automation_paused ?? 0) !== 1) {
-        throw new Error('Sandbox automation_paused must be enabled before apply.');
-      }
+      validateApplyTenant({ business, productionConfirmed });
       validateApplyRequest({
         schema,
         plan: report.migrationPlan,
@@ -314,8 +312,9 @@ try {
       }
     }
     reports.push(report);
+    const snapshotLabel = apply || resume ? 'pre-apply snapshot: ' : '';
     console.log(
-      `${schema}: ${report.counts.identityMismatches} identity mismatch(es), `
+      `${schema}: ${snapshotLabel}${report.counts.identityMismatches} identity mismatch(es), `
       + `${report.counts.tableDefaultMismatches} table-default mismatch(es), `
       + `${report.counts.ownershipMismatches} ownership issue(s), `
       + `${report.counts.relationshipIssues} relationship issue(s)`,
@@ -330,13 +329,15 @@ await fs.mkdir(outputDirectory, { recursive: true });
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outputPath = path.join(outputDirectory, `collation-audit-${timestamp}.json`);
 await fs.writeFile(outputPath, `${JSON.stringify({ contract, reports }, null, 2)}\n`, 'utf8');
-console.log(`Wrote read-only collation audit to ${outputPath}`);
+console.log(`Wrote ${apply || resume ? 'pre-apply collation snapshot' : 'read-only collation audit'} to ${outputPath}`);
 
 for (const report of reports) {
   if (!report.migrationPlan) continue;
   const planPath = path.join(outputDirectory, `collation-plan-${report.schema}-${timestamp}.sql`);
   const header = [
-    '-- REVIEW ONLY: this file was generated read-only and has not been executed.',
+    apply || resume
+      ? '-- EXECUTION SNAPSHOT: this journaled plan was submitted through guarded apply/resume.'
+      : '-- REVIEW ONLY: this file was generated read-only and has not been executed.',
     `-- Schema: ${report.schema}`,
     `-- Contract version: ${report.migrationPlan.contractVersion}`,
     `-- Source metadata hash: ${report.migrationPlan.sourceMetadataHash}`,
@@ -348,7 +349,7 @@ for (const report of reports) {
     `${header}${report.migrationPlan.statements.join('\n\n')}\n`,
     'utf8',
   );
-  console.log(`Wrote unexecuted DDL plan to ${planPath}`);
+  console.log(`Wrote ${apply || resume ? 'executed plan snapshot' : 'unexecuted DDL plan'} to ${planPath}`);
 }
 
 if (verify && reports.some(report => !report.compliant)) process.exitCode = 1;

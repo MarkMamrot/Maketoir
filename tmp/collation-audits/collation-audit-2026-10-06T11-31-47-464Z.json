@@ -1,0 +1,156 @@
+{
+  "contract": {
+    "version": 3,
+    "characterSet": "utf8mb4",
+    "textCollation": "utf8mb4_unicode_ci",
+    "identityCollation": "utf8mb4_bin",
+    "tenantIdentityColumns": [
+      "business_id",
+      "product_id",
+      "variant_id",
+      "component_variant_id",
+      "output_variant_id",
+      "channel_instance_id"
+    ],
+    "relationships": [
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_product_variants",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_product_images",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_sales_channel_product_assignments",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_products",
+        "parentColumn": "product_id",
+        "childTable": "ims_online_shop_products",
+        "childColumn": "product_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_stock",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_channel_product_selections",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_channel_product_mappings",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_fifo_cost_layers",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_purchase_order_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_sales_order_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_stock_movements",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_online_shop_checkout_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_online_shop_stock_reservations",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_branch_transfer_items",
+        "childColumn": "variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_item_components",
+        "childColumn": "component_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_items",
+        "childColumn": "output_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_recipe_components",
+        "childColumn": "component_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_recipes",
+        "childColumn": "output_variant_id"
+      },
+      {
+        "parentTable": "ims_product_variants",
+        "parentColumn": "variant_id",
+        "childTable": "ims_product_build_requirements",
+        "childColumn": "output_variant_id"
+      }
+    ]
+  },
+  "reports": [
+    {
+      "schema": "readyedu_SolvantisPtyLtd_1dNtvCAmSU8QIMS",
+      "contractVersion": 3,
+      "metadataHash": "6b15dc022c1bb42dccbe6b50400b868c7b52875fa6641fe27449a9c8a6340185",
+      "inspectedAt": "2026-10-06T11:31:47.459Z",
+      "counts": {
+        "tables": 166,
+        "identityColumns": 206,
+        "identityMismatches": 0,
+        "tableDefaultMismatches": 0,
+        "ownershipMismatches": 0,
+        "relationshipIssues": 0
+      },
+      "metadataCompliant": true,
+      "preflightRun": false,
+      "preflightPassed": false,
+      "compliant": true,
+      "identityMismatches": [],
+      "tableDefaultMismatches": [],
+      "ownershipChecks": [],
+      "relationshipChecks": []
+    }
+  ]
+}

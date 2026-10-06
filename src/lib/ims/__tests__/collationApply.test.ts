@@ -7,6 +7,7 @@ import {
   loadJournaledCollationPlan,
   operationSatisfied,
   validateApplyRequest,
+  validateApplyTenant,
 } from '../../../../scripts/lib/collation-apply.mjs';
 
 const planHash = 'a'.repeat(64);
@@ -32,6 +33,21 @@ function plan() {
 }
 
 describe('collation apply safeguards', () => {
+  it('requires explicit production approval while retaining the sandbox pause gate', () => {
+    expect(() => validateApplyTenant({
+      business: { is_sandbox: 0, automation_paused: 0 },
+      productionConfirmed: false,
+    })).toThrow('production confirmation');
+    expect(() => validateApplyTenant({
+      business: { is_sandbox: 0, automation_paused: 0 },
+      productionConfirmed: true,
+    })).not.toThrow();
+    expect(() => validateApplyTenant({
+      business: { is_sandbox: 1, automation_paused: 0 },
+      productionConfirmed: true,
+    })).toThrow('automation_paused');
+  });
+
   it('accepts an exact reviewed sandbox request', () => {
     const reviewedPlan = plan();
     reviewedPlan.planHash = createHash('sha256')

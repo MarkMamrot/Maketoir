@@ -26,6 +26,22 @@ export function expectedApplyConfirmation(schema, planHash) {
   return `APPLY-COLLATION-${schema}-${planHash.slice(0, 12)}`;
 }
 
+export function validateApplyTenant({ business, productionConfirmed }) {
+  const sandboxState = Number(business?.is_sandbox);
+  if (sandboxState !== 0 && sandboxState !== 1) {
+    throw new Error('Apply requires a registered tenant with an explicit sandbox classification.');
+  }
+  if (sandboxState === 1) {
+    if (Number(business?.automation_paused ?? 0) !== 1) {
+      throw new Error('Sandbox automation_paused must be enabled before apply.');
+    }
+    return;
+  }
+  if (!productionConfirmed) {
+    throw new Error('Production apply requires explicit production confirmation.');
+  }
+}
+
 export function validateApplyRequest({
   schema,
   plan,

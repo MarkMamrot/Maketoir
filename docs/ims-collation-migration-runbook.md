@@ -4,7 +4,7 @@ This runbook covers the controlled normalization of shared textual machine IDs. 
 
 ## Current Safety Boundary
 
-The migration tool supports read-only audit, verification, data preflight, SQL plan generation, and guarded apply/resume for registered sandbox tenants only. Production tenants are rejected in code.
+The migration tool supports read-only audit, verification, data preflight, SQL plan generation, and guarded apply/resume for registered tenants. Production apply/resume additionally requires `--production-confirmed`; omitting it fails closed.
 
 The retired `fix-all-collations.mjs` script must not be restored or used. Its broad conversion behavior would rewrite unrelated human text.
 
@@ -101,4 +101,10 @@ After a future approved sandbox apply:
 6. Run the full test suite and production build.
 7. Compare high-volume query plans and latency before considering production rollout.
 
-Production rollout remains a separate approval after the sandbox migration and restore rehearsal succeed.
+For an explicitly approved production tenant, use the same reviewed single-schema apply/resume command and add:
+
+```powershell
+--production-confirmed
+```
+
+Apply production tenants sequentially. Verify each tenant twice and confirm its journal and foreign keys before starting the next tenant.
