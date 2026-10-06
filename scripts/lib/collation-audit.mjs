@@ -16,6 +16,25 @@ export function validateCollationContract(contract) {
   if (uniqueColumns.size !== contract.tenantIdentityColumns.length) {
     throw new Error('Collation contract tenantIdentityColumns contains duplicates.');
   }
+  if (!Array.isArray(contract.relationships) || contract.relationships.length === 0) {
+    throw new Error('Collation contract relationships must not be empty.');
+  }
+  const identifierPattern = /^[A-Za-z0-9_]+$/;
+  const relationshipKeys = new Set();
+  for (const relationship of contract.relationships) {
+    const values = [
+      relationship?.parentTable,
+      relationship?.parentColumn,
+      relationship?.childTable,
+      relationship?.childColumn,
+    ];
+    if (values.some(value => typeof value !== 'string' || !identifierPattern.test(value))) {
+      throw new Error('Collation contract contains an invalid relationship identifier.');
+    }
+    const key = values.join('.');
+    if (relationshipKeys.has(key)) throw new Error(`Duplicate collation relationship: ${key}`);
+    relationshipKeys.add(key);
+  }
 }
 
 function metadataHash(columnRows, tableRows) {
@@ -40,7 +59,15 @@ function metadataHash(columnRows, tableRows) {
   return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
 
-export function buildCollationAuditReport({ schema, columnRows, tableRows, contract }) {
+export function buildCollationAuditReport({
+  schema,
+  columnRows,
+  tableRows,
+  contract,
+  ownershipChecks = [],
+  relationshipChecks = [],
+  preflightRun = false,
+}) {
   validateCollationContract(contract);
   const identityColumns = new Set(contract.tenantIdentityColumns);
   const inspectedIdentityColumns = columnRows
@@ -64,6 +91,13 @@ export function buildCollationAuditReport({ schema, columnRows, tableRows, contr
       estimatedRows: Number(row.TABLE_ROWS ?? 0),
       estimatedBytes: Number(row.DATA_LENGTH ?? 0) + Number(row.INDEX_LENGTH ?? 0),
     }));
+  const blockingOwnershipChecks = ownershipChecks.filter(check => check.caseOnlyMismatches > 0);
+  const blockingRelationshipChecks = relationshipChecks.filter(check =>
+    check.status === 'ok' && check.caseOnlyMatches > 0,
+  );
+  const preflightPassed = preflightRun
+    && blockingOwnershipChecks.length === 0
+    && blockingRelationshipChecks.length === 0;
 
   return {
     schema,
@@ -75,9 +109,18 @@ export function buildCollationAuditReport({ schema, columnRows, tableRows, contr
       identityColumns: inspectedIdentityColumns.length,
       identityMismatches: identityMismatches.length,
       tableDefaultMismatches: tableDefaultMismatches.length,
+      ownershipMismatches: blockingOwnershipChecks.length,
+      relationshipIssues: blockingRelationshipChecks.length,
     },
-    compliant: identityMismatches.length === 0 && tableDefaultMismatches.length === 0,
+    metadataCompliant: identityMismatches.length === 0 && tableDefaultMismatches.length === 0,
+    preflightRun,
+    preflightPassed,
+    compliant: identityMismatches.length === 0
+      && tableDefaultMismatches.length === 0
+      && (!preflightRun || preflightPassed),
     identityMismatches,
     tableDefaultMismatches,
+    ownershipChecks,
+    relationshipChecks,
   };
 }
