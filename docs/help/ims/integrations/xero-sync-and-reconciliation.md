@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero"],"contextSections":{"xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-09-24","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero"],"contextSections":{"xero":"Step-by-step","settings-xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-07","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Xero Sync and Reconciliation
 
@@ -48,6 +48,8 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 ## Step-by-step
 
 ### Configure a posting path
+
+**Settings > Xero** contains advisor access controls and quick links. Select **Open Accounts & Tracking** to change account mappings in the Xero integration workspace. Mapping access and read-only Shopify payout access are separate advisor permissions.
 
 1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.
 2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.

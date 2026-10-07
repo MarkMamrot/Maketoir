@@ -24,6 +24,7 @@ interface MainSectionsProps {
   buildsEnabled: boolean;
   isAdvisor: boolean;
   advisorMappingEnabled: boolean;
+  advisorPayoutsEnabled: boolean;
   businessId: string;
   hasForesight: boolean;
   userName: string;
@@ -105,6 +106,7 @@ export function MainSections(props: MainSectionsProps) {
     buildsEnabled,
     isAdvisor,
     advisorMappingEnabled,
+    advisorPayoutsEnabled,
     businessId,
     hasForesight,
     userName,
@@ -311,6 +313,7 @@ export function MainSections(props: MainSectionsProps) {
           businessId={businessId}
           isAdvisor={isAdvisor}
           advisorMappingEnabled={advisorMappingEnabled}
+          advisorPayoutsEnabled={advisorPayoutsEnabled}
           onOpenPurchaseOrder={onOpenPurchaseOrder}
           onOpenSalesOrder={onOpenSalesOrder}
           onOpenCreditNote={(id: number) => { setView('credit-notes'); setPendingOpenCN(id); }}

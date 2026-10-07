@@ -27853,6 +27853,7 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
   const [taxSaveError, setTaxSaveError] = useState('');
   const [taxSaved, setTaxSaved] = useState(false);
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
+  const [xeroAdvisorPayoutsEnabled, setXeroAdvisorPayoutsEnabled] = useState(false);
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
     setTaxDraft({
@@ -27904,6 +27905,8 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
     const v = settings['advisor_xero_mapping_enabled'];
     const parsed = String(v ?? '').toLowerCase();
     setXeroAdvisorEnabled(parsed === 'true' || parsed === '1');
+    const payouts = String(settings['advisor_xero_payouts_enabled'] ?? '').toLowerCase();
+    setXeroAdvisorPayoutsEnabled(payouts === 'true' || payouts === '1');
   }, [settings]);
   const saveXeroAdvisorAccess = async (enabled: boolean) => {
     setXeroAdvisorSaving(true);
@@ -27916,7 +27919,7 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
   };
   const saveXeroAdvisorPayoutAccess = async (enabled: boolean) => {
     setXeroAdvisorSaving(true);
-    setAdvisorXeroPayoutsEnabled(enabled);
+    setXeroAdvisorPayoutsEnabled(enabled);
     try {
       await saveSettings({ advisor_xero_payouts_enabled: enabled ? 'true' : 'false' });
     } finally {
@@ -28241,13 +28244,13 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
                   type="checkbox"
-                  checked={advisorXeroPayoutsEnabled}
+                  checked={xeroAdvisorPayoutsEnabled}
                   disabled={xeroAdvisorSaving}
                   onChange={e => saveXeroAdvisorPayoutAccess(e.target.checked)}
                   style={{ width: 16, height: 16, cursor: 'inherit' }}
                 />
                 <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
-                  {advisorXeroPayoutsEnabled
+                  {xeroAdvisorPayoutsEnabled
                     ? 'Enabled - Advisors can review Shopify payouts (read-only)'
                     : 'Disabled - Advisors cannot access Shopify payouts'}
                 </span>
