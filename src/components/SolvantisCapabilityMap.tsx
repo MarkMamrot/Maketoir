@@ -31,6 +31,7 @@ type Capability = {
   y: number;
   size: number;
   comingSoon?: boolean;
+  sectionHref?: string;
   groups: Array<{
     title: string;
     features: string[];
@@ -313,6 +314,82 @@ const capabilities: Capability[] = [
   },
 ];
 
+const refreshedCapabilities: Capability[] = capabilities.map((capability) => {
+  const updates: Record<string, Partial<Capability>> = {
+    pos: {
+      sectionHref: '#pos',
+      groups: [
+        { title: 'Serving customers', features: ['Product search by name, SKU or barcode', 'Integrated Zeller EFTPOS, cash and split payments', 'Parked sales, layby deposits and printed receipts', 'Linked returns, store credit and eligible loyalty rewards'] },
+        { title: 'Running the store', features: ['Staff PIN access and manager permissions', 'Register closing and end-of-day reconciliation', 'Store Daybooks for checklists, notices and handovers', 'Supported ordinary checkout while disconnected, with later sync; online-dependent actions require a connection'] },
+      ],
+    },
+    inventory: {
+      sectionHref: '#inventory',
+      groups: [
+        { title: 'Know your stock', features: ['Products, variants, suppliers and location stock', 'On-hand, committed, incoming and available quantities', 'Bulk catalogue updates and guided stocktakes', 'Branch transfers with sending and receiving confirmation'] },
+        { title: 'Receive and fulfil', features: ['Purchase orders and partial delivery receiving', 'Sales-order allocation and incremental fulfilment', 'Backorders and outstanding-order follow-up', 'Multi-currency purchasing where included in your plan'] },
+      ],
+    },
+    wholesale: {
+      sectionHref: '#wholesale',
+      groups: [
+        { title: 'Repeat buyer orders', features: ['Approved buyers access the wholesale catalogue', 'Customer pricing tiers and product visibility', 'Saved lists, draft baskets and repeat ordering', 'Order submission and order history'] },
+        { title: 'Connected fulfilment', features: ['Review buyer orders alongside shared stock', 'Customer terms and account controls where configured', 'Indent ordering for approved out-of-stock products', 'Wholesale portal on Core, Scale and Enterprise plans'] },
+      ],
+    },
+    channels: {
+      sectionHref: '#sales-channels',
+      summary: 'Connect multiple Shopify stores, configured Amazon Australia seller accounts and a native Solvantis Online Shop to your retail operation.',
+      groups: [
+        { title: 'Your storefronts', features: ['Multiple Shopify stores with separate connections and settings', 'Amazon Australia seller-fulfilled orders and existing-ASIN offers, subject to readiness checks', 'Native Online Shop independent of Shopify', 'POS, online and wholesale orders identified by channel'] },
+        { title: 'Control each channel', features: ['Product publication and stock settings for each connection', 'Channel-specific orders and accounting configuration', 'Supported returns and refunds with provider-specific handling', 'Configured dispatch, tracking and eParcel shipping workflows'] },
+      ],
+    },
+    locations: {
+      sectionHref: '#daybooks',
+      groups: [
+        { title: 'Daily store work', features: ['Opening, daily and closing Daybook sign-offs', 'Staff notices and read acknowledgements', 'Customer follow-up, incidents and product references', 'Store and warehouse requests with packed, sent and received statuses'] },
+        { title: 'Across locations', features: ['Location stock, registers and access controls', 'Auditable branch transfers, separate from Daybook requests', 'Sales and margin comparisons by branch', 'Shared products, suppliers and customer records'] },
+      ],
+    },
+    integrations: {
+      sectionHref: '#integrations',
+      groups: [
+        { title: 'Accounting', features: ['Xero POS and online accounting workflows', 'Payment clearing and Shopify payout reconciliation', 'Supplier bills, credit notes and configured journals', 'Account, GST and tracking-category mappings'] },
+        { title: 'Commerce and dispatch', features: ['Separate Shopify storefront connections', 'Amazon Australia integration subject to account readiness', 'Configured Australia Post eParcel quotes, labels and manifests', 'Supported 3PL and custom integrations subject to plan and agreed scope'] },
+      ],
+    },
+    crm: {
+      title: 'Customer Relationships', shortTitle: 'CRM', sectionHref: '#customers',
+      summary: 'Keep customer profiles, purchase history and retail or wholesale pricing close to the work your team does.',
+      outcome: 'Follow up with the context of previous orders, returns and customer activity.',
+      groups: [
+        { title: 'Customer context', features: ['Customer profiles and purchase history', 'Retail and wholesale pricing tiers', 'Supported Shopify customer linking', 'Customer follow-up alongside store operations'] },
+        { title: 'Customer service', features: ['Linked order and return history', 'Auditable store-credit transactions', 'Shared contacts across locations', 'Customer service supported by the operational record'] },
+      ],
+    },
+    marketing: {
+      comingSoon: false, eyebrow: 'Connect insight to action', sectionHref: '#analytics',
+      summary: 'Bring supported advertising and commerce analysis closer to retail decisions, with availability depending on your plan and connections.',
+      outcome: 'Review connected performance and prepare creative work with human approval.',
+      groups: [
+        { title: 'Connected analysis', features: ['Supported Google Ads, Meta Ads and Google Analytics connections', 'Campaign and commerce analysis where enabled', 'Plan-dependent marketing insight and planning'] },
+        { title: 'Creative support', features: ['AI Creative Studio for product imagery', 'Product Content Studio for reviewable listing drafts', 'Generative actions use separately purchased AI credits'] },
+      ],
+    },
+  };
+  return { ...capability, ...updates[capability.id] };
+}).concat({
+  id: 'loyalty', title: 'Loyalty and Store Credit', shortTitle: 'Loyalty', eyebrow: 'Reward repeat business',
+  summary: 'Connect eligible earning, rewards, returns and store credit to customer purchases.',
+  outcome: 'Give staff a clear view of the value a customer can use, with supported online workflows where configured.',
+  icon: UsersRound, x: 14.2, y: 40.6, size: 15, sectionHref: '#customers',
+  groups: [
+    { title: 'Rewards', features: ['Configurable earning on eligible purchases', 'Eligible reward redemption at POS', 'Supported Shopify customer-account rewards', 'Native-shop loyalty where enabled'] },
+    { title: 'Customer value', features: ['Store credit issued through linked credit notes', 'Eligible in-store and native-shop redemption', 'Provider-specific return and refund handling', 'Online loyalty actions require a connection'] },
+  ],
+});
+
 type CapabilityHotspot = {
   capabilityId: string;
   label: string;
@@ -361,11 +438,13 @@ const capabilityMapFlows = {
 
 const activeMapFlow = capabilityMapFlows.picto;
 
-export default function SolvantisCapabilityMap() {
+export default function SolvantisCapabilityMap({ refreshed = false }: { refreshed?: boolean }) {
+  const displayedCapabilities = refreshed ? refreshedCapabilities : capabilities;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const selected = capabilities.find((capability) => capability.id === selectedId) ?? null;
+  const selected = displayedCapabilities.find((capability) => capability.id === selectedId) ?? null;
 
   const openCapability = (capabilityId: string, trigger: HTMLButtonElement) => {
     triggerRef.current = trigger;
@@ -380,6 +459,18 @@ export default function SolvantisCapabilityMap() {
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeCapability();
+      if (refreshed && event.key === 'Tab' && dialogRef.current) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'));
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
     };
 
     document.body.style.overflow = 'hidden';
@@ -391,7 +482,7 @@ export default function SolvantisCapabilityMap() {
       window.removeEventListener('keydown', handleKeyDown);
       requestAnimationFrame(() => triggerRef.current?.focus());
     };
-  }, [selected]);
+  }, [selected, refreshed]);
 
   return (
     <>
@@ -401,11 +492,11 @@ export default function SolvantisCapabilityMap() {
             <MousePointerClick className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-black">Interactive feature map</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-slate-300 sm:text-sm">
+            <p className="text-sm font-black">{refreshed ? 'One connected operation' : 'Interactive feature map'}</p>
+            {!refreshed && <p className="mt-0.5 text-xs leading-relaxed text-slate-300 sm:text-sm">
               <span className="hidden sm:inline">Click any capability area to open its full feature list.</span>
               <span className="sm:hidden">Tap a capability button below to open its full feature list.</span>
-            </p>
+            </p>}
           </div>
         </div>
 
@@ -422,7 +513,7 @@ export default function SolvantisCapabilityMap() {
             priority={false}
           />
 
-          <span
+          {!refreshed && <span
             aria-hidden="true"
             className="pointer-events-none absolute hidden sm:block"
             style={{
@@ -434,13 +525,13 @@ export default function SolvantisCapabilityMap() {
             }}
           >
             <span className="solvantis-center-pulse absolute inset-0 rounded-full" />
-          </span>
+          </span>}
 
           {activeMapFlow.hotspots.map((hotspot) => (
             <button
               key={hotspot.label}
               type="button"
-              onClick={(event) => openCapability(hotspot.capabilityId, event.currentTarget)}
+              onClick={(event) => openCapability(refreshed && hotspot.label === 'Loyalty' ? 'loyalty' : hotspot.capabilityId, event.currentTarget)}
               className="group absolute hidden cursor-pointer rounded-md border border-transparent outline-none transition duration-200 hover:border-slate-900/35 hover:bg-white/10 focus-visible:border-blue-800 focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2 sm:block"
               style={{
                 left: `${hotspot.x}%`,
@@ -456,13 +547,13 @@ export default function SolvantisCapabilityMap() {
           ))}
         </div>
 
-        <p className="mt-5 hidden items-center justify-center gap-2 text-center text-sm font-semibold text-slate-700 sm:flex">
+        {!refreshed && <p className="mt-5 hidden items-center justify-center gap-2 text-center text-sm font-semibold text-slate-700 sm:flex">
           <MousePointerClick className="h-4 w-4 flex-none text-blue-600" aria-hidden="true" />
           <span>Choose an area to explore what your team can do</span>
-        </p>
+        </p>}
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:hidden">
-          {capabilities.map((capability) => {
+          {displayedCapabilities.map((capability) => {
             const Icon = capability.icon;
             return (
               <button
@@ -514,6 +605,7 @@ export default function SolvantisCapabilityMap() {
           aria-labelledby="capability-title"
         >
           <div
+            ref={dialogRef}
             className="relative max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
@@ -584,6 +676,7 @@ export default function SolvantisCapabilityMap() {
                   <ScanLine className="h-5 w-5 flex-none text-blue-600" aria-hidden="true" />
                   <p>Availability varies by plan. Compare tiers in the pricing section below.</p>
                 </div>
+                {selected.sectionHref && <a href={selected.sectionHref} onClick={() => { triggerRef.current = null; closeCapability(); }} className="mt-5 inline-block font-semibold text-blue-700 underline underline-offset-4">More about {selected.shortTitle}</a>}
               </div>
             </div>
           </div>

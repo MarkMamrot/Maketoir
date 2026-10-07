@@ -1,5 +1,5 @@
 ---
-{"id":"prospect-pricing-offer","title":"Plans, Pricing and Current Offer","audiences":["prospect"],"product":"prospect","summary":"Starter supports annual turnover up to A$600,000 and is advertised from $59 per month with eligible Connected Payments volume, or $99 per month without Connected Payments. Core supports annual turnover up to A$5 million and is $349 per month. Scale is for annual turnover of A$5 million or more and is $749 per month. Enterprise starts from $1,999 per month. Prices exclude GST.","capabilityTags":["pricing"],"lastReviewed":"2026-09-28","owner":"sales"}
+{"id":"prospect-pricing-offer","title":"Plans, Pricing and Current Offer","audiences":["prospect"],"product":"prospect","summary":"Starter: turnover up to A$600,000; from $59/month with eligible Connected Payments volume or $99/month without. Core: up to A$5 million, $349/month. Scale: A$5 million+, $749/month. Enterprise: from $1,999/month. The introductory offer is 3 months of Starter for a one-time $1 payment; normal Starter pricing applies afterwards unless cancelled beforehand. Prices are AUD excluding GST.","capabilityTags":["pricing"],"lastReviewed":"2026-10-07","owner":"sales"}
 ---
 # Plans, Pricing and Current Offer
 

@@ -618,7 +618,7 @@
     {
       "id": "prospect-integrations",
       "title": "Integration Approach",
-      "summary": "Solvantis connects Xero, Shopify, Amazon Australia, Australia Post, Cin7, Google business tools, and Google and Meta marketing data. Scale and Enterprise include supported standard 3PL workflows. Provider-specific development, third-party fees and complex warehouse processes are confirmed during discovery and may be separately quoted.",
+      "summary": "Solvantis connects Xero, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, Australia Post eParcel, Cin7 and supported Google and Meta tools. Scale and Enterprise include supported standard 3PL workflows. Setup, plan allowances, provider readiness and separately scoped costs still apply.",
       "capabilities": [
         "integrations",
         "accounting",
@@ -646,7 +646,7 @@
     {
       "id": "prospect-pricing-offer",
       "title": "Plans, Pricing and Current Offer",
-      "summary": "Starter supports annual turnover up to A$600,000 and is advertised from $59 per month with eligible Connected Payments volume, or $99 per month without Connected Payments. Core supports annual turnover up to A$5 million and is $349 per month. Scale is for annual turnover of A$5 million or more and is $749 per month. Enterprise starts from $1,999 per month. Prices exclude GST.",
+      "summary": "Starter: turnover up to A$600,000; from $59/month with eligible Connected Payments volume or $99/month without. Core: up to A$5 million, $349/month. Scale: A$5 million+, $749/month. Enterprise: from $1,999/month. The introductory offer is 3 months of Starter for a one-time $1 payment; normal Starter pricing applies afterwards unless cancelled beforehand. Prices are AUD excluding GST.",
       "capabilities": [
         "pricing"
       ],
@@ -656,7 +656,7 @@
     {
       "id": "prospect-product-fit",
       "title": "Solvantis Product and Fit",
-      "summary": "Solvantis brings inventory, purchasing, in-store point of sale, customer management, wholesale, online commerce and business analysis together for Australian retailers. It is a strong fit for teams that want shared product and stock visibility across one or many locations, with deeper planning and control available as operations grow.",
+      "summary": "Solvantis connects inventory, purchasing, POS, Store Daybooks, customers, wholesale ordering and online commerce for Australian retailers and wholesalers. Shaped through close collaboration with operators, it supports shared stock visibility and daily work across locations and supported sales channels.",
       "capabilities": [
         "inventory",
         "purchasing",
@@ -672,7 +672,7 @@
     {
       "id": "prospect-retail-use-cases",
       "title": "Retail Use Cases",
-      "summary": "Solvantis supports single-store and multi-location retailers that need coordinated stock, purchasing, point of sale, customer orders, loyalty, wholesale or online sales. Common use cases include shared product control across locations, replenishment planning, combined in-store and online operations, and business analysis grounded in retail activity.",
+      "summary": "Store Daybook supports checklists, staff notices with read acknowledgements, handovers, customer follow-up and warehouse requests without itself moving stock. Solvantis also supports stock and purchasing across locations, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, native online selling and repeat wholesale ordering. Provider capabilities, integration allowances and portal availability follow setup and plan.",
       "capabilities": [
         "inventory",
         "purchasing",
@@ -688,7 +688,7 @@
     {
       "id": "prospect-shopify-loyalty",
       "title": "Shopify and Loyalty",
-      "summary": "Yes. Solvantis can run one loyalty program across its POS and a connected Shopify store. Supported Shopify customer, order, return and loyalty flows keep eligible in-store and online activity in the same customer loyalty experience. The exact migration and launch setup is confirmed during onboarding; separate third-party loyalty platforms may require discovery.",
+      "summary": "Yes. Solvantis can run one loyalty program across its POS and a connected Shopify store. It also supports multiple separately configured Shopify stores, with product rules, stock settings, order handling and accounting per connection. Customer matching and loyalty rules across storefronts are confirmed during onboarding, not assumed.",
       "capabilities": [
         "commerce",
         "crm",

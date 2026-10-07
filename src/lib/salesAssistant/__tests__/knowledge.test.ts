@@ -54,6 +54,16 @@ describe('prospect knowledge projection', () => {
   });
 
   it.each([
+    ['Can I connect two Shopify stores?', /multiple separately configured Shopify stores/i],
+    ['What is Store Daybook?', /Daybook supports checklists/i],
+    ['Can I use Amazon Australia?', /Amazon Australia seller-fulfilled/i],
+    ['What does the $1 Starter offer include?', /3 months of Starter for a one-time \$1 payment/i],
+  ])('keeps refreshed landing facts retrievable for %s', (query, expectedSummary) => {
+    const results = retrieveProspectKnowledge({ query });
+    expect(results.some(source => expectedSummary.test(source.summary))).toBe(true);
+  });
+
+  it.each([
     ['Can POS work offline?', 'public-capability:pos-settings-terminals-offline-recovery'],
     ['Can I partially receive purchase orders?', 'public-capability:ims-po-receiving-resolution'],
     ['Do you support gift cards and store credit?', 'public-capability:pos-gift-cards'],
