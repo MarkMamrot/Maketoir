@@ -64,6 +64,7 @@ vi.mock('@/lib/ims/stockAllocation/suggestionNotifications', () => ({ notifyStoc
 
 import { DELETE, GET, PUT } from '../route';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
+import { StockAllocationConflict } from '@/lib/ims/stockAllocation/service';
 
 const params = { params: { id: '42' } };
 
@@ -106,6 +107,16 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockNotifyAllocationSuggestions).toHaveBeenCalledWith({
       businessId: 'biz-1', poId: 42, poNumber: 'PO-42',
     });
+  });
+
+  it('returns an allocation safeguard as a conflict without reporting a runtime failure', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'draft', items: [] });
+    mockChangeStatus.mockRejectedValueOnce(new StockAllocationConflict('Release or reassign active incoming allocations before changing this purchase order.'));
+    const response = await PUT(putRequest({ status: 'confirmed' }), params);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ success: false, error: expect.stringContaining('Release or reassign') });
+    expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
   it('returns core PO detail when optional shortfall financials fail', async () => {

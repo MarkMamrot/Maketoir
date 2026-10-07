@@ -291,7 +291,7 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
     return failOrderPaymentXeroPost('po', businessId, paymentId, 'The Xero bill could not be Authorised, so the payment was not posted.');
   }
 
-  const xeroPaymentId = await syncPOPayment(businessId, xeroInvoiceId, poId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  const xeroPaymentId = await syncPOPayment(businessId, xeroInvoiceId, poId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code, payment.exchange_rate == null ? undefined : Number(payment.exchange_rate));
   if (!xeroPaymentId) return resolveAccountingActionFailure('po', businessId, poId, paymentId);
   await setOrderPaymentXeroState('po', businessId, paymentId, 'posted', xeroPaymentId);
   return { posted: true, status: 'posted', xeroPaymentId, warning: null };
@@ -350,7 +350,7 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
     return failOrderPaymentXeroPost('so', businessId, paymentId, 'The Xero invoice could not be Authorised, so the payment was not posted.');
   }
 
-  const xeroPaymentId = await syncSOPayment(businessId, xeroInvoiceId, soId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  const xeroPaymentId = await syncSOPayment(businessId, xeroInvoiceId, soId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code, payment.exchange_rate == null ? undefined : Number(payment.exchange_rate));
   if (!xeroPaymentId) return resolveAccountingActionFailure('so', businessId, soId, paymentId);
   await setOrderPaymentXeroState('so', businessId, paymentId, 'posted', xeroPaymentId);
   return { posted: true, status: 'posted', xeroPaymentId, warning: null };

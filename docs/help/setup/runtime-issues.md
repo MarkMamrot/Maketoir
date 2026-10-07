@@ -1,5 +1,5 @@
 ---
-{"id":"setup-runtime-issues","title":"Runtime Issues","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Runtime Issues","product":"setup","format":"task","parentId":"setup-connections","contexts":["runtime-issues"],"contextSections":{"runtime-issues":"Step-by-step"},"relatedTopics":["setup-integration-readiness-troubleshooting","setup-team-access-security"],"order":6,"summary":"Review operational failures, record the outcome, and close only issues that have been verified.","lastReviewed":"2026-08-26","owner":"platform","quickSections":["Main operations","At a glance"]}
+{"id":"setup-runtime-issues","title":"Runtime Issues","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Runtime Issues","product":"setup","format":"task","parentId":"setup-connections","contexts":["runtime-issues"],"contextSections":{"runtime-issues":"Step-by-step"},"relatedTopics":["setup-integration-readiness-troubleshooting","setup-team-access-security","pos-store-daybook","ims-workspaces"],"order":6,"summary":"Review operational failures, record the outcome, and close only issues that have been verified.","lastReviewed":"2026-10-08","owner":"platform","quickSections":["Main operations","At a glance"]}
 ---
 # Runtime Issues
 
@@ -50,6 +50,8 @@ The fixed header keeps the severity, source, operation, and close control visibl
 
 Useful notes state the verified outcome in plain language. Include whether the issue was a code correction, configuration change, completed migration, resolved external incident, or reviewed business record. If no data was changed, say so when that distinction matters.
 
+Keep an issue **In progress** when a correction is prepared but the affected business has not yet been verified. An earlier note saying that an issue stopped recurring is superseded by a newer occurrence. An age-based closure is not proof that an order, payment or customer balance was corrected.
+
 Avoid credentials, access tokens, customer details, or raw external payloads in resolution notes.
 
 ## Troubleshooting
@@ -58,8 +60,10 @@ Avoid credentials, access tokens, customer details, or raw external payloads in 
 | --- | --- | --- |
 | A fixed issue appears under New again | The same fingerprint occurred after it was closed | Review the newest occurrence; do not assume the earlier fix covered it |
 | A recurring issue has many occurrences | Repeated events were grouped together | Start with the latest event and compare only enough history to establish the pattern |
+| A full-page error returns after recovery | Recovery did not resolve the original failure | Select **Reload page** to reopen the current address; keep the issue open until the original cause is verified, and check source records before repeating an action |
 | An issue references stock, money, or customer value | Operational data may need review | Keep it open until the intended correction is authorised and verified |
 | An issue references an external ID that no longer exists | The local integration link may be stale | Verify identity in the external service before relinking or clearing anything |
+| An action is rejected because incoming stock is protected | The purchase order supplies a customer order | Release or reassign the protection through Stock Allocation before changing the protected lines; do not bypass it |
 | A button is disabled | A status update is already saving | Wait for the list to refresh before taking another action |
 
 ## Worked examples

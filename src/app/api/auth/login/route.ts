@@ -58,11 +58,20 @@ function getClientIp(req: Request): string {
 }
 
 export async function POST(req: Request) {
+  let body: unknown;
   try {
-    const { email, password, destination: rawDestination } = await req.json();
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'A valid JSON request is required.' }, { status: 400 });
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ success: false, error: 'A valid JSON object is required.' }, { status: 400 });
+  }
+  try {
+    const { email, password, destination: rawDestination } = body as Record<string, unknown>;
 
     const destination = parseLoginDestination(rawDestination);
-    if (!email || !password || !destination) {
+    if (typeof email !== 'string' || !email || typeof password !== 'string' || !password || !destination) {
       return NextResponse.json({ success: false, error: 'Email, password, and destination are required.' }, { status: 400 });
     }
 

@@ -42,14 +42,14 @@ export async function GET(req: NextRequest) {
     const orderIds = orders.map((o: any) => o.id);
     const items = await imsQuery<any>(
       `SELECT i.*,
-              COALESCE(p.name, i.name) AS product_name,
+              p.name AS product_name,
               p.product_id AS product_id,
               v.sku,
               v.avg_cost,
               v.cost_aud
        FROM ims_sales_order_items i
-       LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
-       LEFT JOIN ims_products p ON p.product_id = v.product_id
+      LEFT JOIN ims_product_variants v ON BINARY v.variant_id = BINARY i.variant_id
+      LEFT JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id
        WHERE i.so_id IN (${orderIds.map(() => '?').join(',')})
        ORDER BY i.id`,
       orderIds,
@@ -205,7 +205,7 @@ export async function GET(req: NextRequest) {
     const result = orders.map((o: any) => {
       const its = (itemsByOrder.get(o.id) ?? []).map((it: any) => {
         const pick = resolvePick(it.variant_id, Number(it.qty_ordered ?? 0));
-        return { ...it, ...pick };
+        return { ...it, product_name: it.product_name ?? it.name, ...pick };
       });
       const has_missing  = its.some((it: any) => it.missing);
       const has_transfer = its.some((it: any) => it.needs_transfer && !it.missing);

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero"],"contextSections":{"xero":"Step-by-step","settings-xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-07","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero"],"contextSections":{"xero":"Step-by-step","settings-xero":"Main operations"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-08","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Xero Sync and Reconciliation
 
@@ -8,6 +8,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 ## Main operations
 
 - Maintain sync rules, account and tracking mappings, and payment routing.
+- For foreign order payments, verify the saved payment rate and AUD account mapping, then compare the posted bank amount; do not replay an already posted payment with an incorrect conversion.
 - Review Sync History for pending, successful, blocked, partial, or dismissed work.
 - Ask Assistant for a bounded local summary of queued documents and categorized recent failures.
 - Use COGS Reconciliation to investigate cost posting coverage.
@@ -61,6 +62,10 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 8. Open **Sync History** and confirm the resulting status before enabling broader automation.
 
 Online Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.
+
+Foreign-currency Purchase Order and ordinary Sales Order payments use the payment's saved exchange rate when posting to an AUD Xero account in an AUD-base organisation. Xero's rate display is the reciprocal of **AUD per foreign currency unit**; changing display direction does not change the value. Missing or invalid saved rates and unsupported payment-account currencies block posting rather than silently using a one-to-one conversion.
+
+Check the resulting foreign amount and AUD bank amount against the actual payment. Previously posted payments are not automatically rewritten after a posting correction. If an existing payment has the wrong conversion, ask your bookkeeper to review its reversal and replacement and the Solvantis link before retrying; do not delete the Solvantis payment or create a second settlement to work around it.
 
 For POS laybys, map **Layby Deposits** to a liability account, each branch's revenue to an income account, and every cash/card method to that branch's clearing account. POS clearing payments must be enabled. Deposits and refunds post to liability rather than ordinary sales invoices. Final payment recognises GST; collection recognises GST-exclusive merchandise revenue. Cancellation reverses final-payment GST when necessary and posts any retained fee as taxable revenue. These events use POS End of Day and its retry, including deposit-only days. Missing mappings block posting, and earlier layby accounting must finish before later events. Historical deposit sales invoices need explicit bookkeeper reconciliation rather than an automatic rewrite.
 

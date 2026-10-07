@@ -15,12 +15,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const businessId = String(session.businessId);
   const soId = Number(params.id);
 
+  const body = await req.json().catch(() => null) as {
+    operationKey?: string;
+    fulfilQuantities?: Array<{ itemId: number; quantity: number }>;
+    allowNegativeStock?: boolean;
+  } | null;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ success: false, error: 'A valid JSON object is required.' }, { status: 400 });
+  }
   try {
-    const body = await req.json() as {
-      operationKey?: string;
-      fulfilQuantities?: Array<{ itemId: number; quantity: number }>;
-      allowNegativeStock?: boolean;
-    };
     const existing = await ImsSORepo.get(soId, businessId);
     if (!existing) return NextResponse.json({ error: 'Sales order not found.' }, { status: 404 });
     const xeroInvoiceId = String((existing as any).xero_invoice_id ?? '').trim() || null;

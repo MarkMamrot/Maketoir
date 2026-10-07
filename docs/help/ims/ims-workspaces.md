@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Choose a workspace","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-07","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-08","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -21,6 +21,8 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.
 - Choose **Help > Contact Support** to submit a support ticket with optional images.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
+
+If the full-page **Something went wrong** screen appears, select **Reload page** to reopen the current address, including its workspace or record link. Unsaved form changes may be lost. Check the source record before repeating a sale, receipt, fulfilment, payment, or other action: a page error does not prove the action failed.
 
 ## Choose a workspace
 
@@ -76,6 +78,7 @@ Notifications show a plain-language title and action summary. Open one to see la
 
 | Symptom | Check first | Next step |
 |---|---|---|
+| The full-page error screen appears | Whether your last action completed on its source record | Select **Reload page**, then verify the record before retrying an action; contact support if the error returns |
 | A list is empty | Search text, date range, location, and status | Clear one filter at a time |
 | An action is unavailable | Your access and the record's current status | Use the action offered on the source record |
 | A total needs explaining | The detailed report or source links | Trace representative transactions |

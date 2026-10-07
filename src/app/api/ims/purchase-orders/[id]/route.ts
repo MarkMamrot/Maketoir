@@ -14,7 +14,7 @@ import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/reposit
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
-import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
+import { listStockAllocations, StockAllocationConflict } from '@/lib/ims/stockAllocation/service';
 import { notifyStockAllocationSuggestionsForPurchaseOrder } from '@/lib/ims/stockAllocation/suggestionNotifications';
 
 async function notifyAllocationSuggestions(input: {
@@ -274,6 +274,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    if (e instanceof StockAllocationConflict) {
+      return NextResponse.json({ success: false, error: e.message }, { status: e.status });
+    }
     if (e instanceof OrderAmendmentConflict) {
       return NextResponse.json({
         success: false,

@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-09-16","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Store Daybook
 
@@ -168,6 +168,7 @@ The Store Daybook option opens in a new browser tab so the active POS sale remai
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
+| Daybook cannot be loaded | A temporary service failure interrupted opening the workspace | Reopen Daybook once. Existing sign-offs remain recorded; if the error persists, ask an administrator to review it rather than signing the same task again |
 | A task expected today is missing | Its recurrence, weekday or effective date does not include today | Ask a manager to review the task schedule |
 | A previous-day cell says **Not signed** | The task was scheduled but no completion was recorded for that day | Confirm the work with the store team and follow the manager's process for missed checks |
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |

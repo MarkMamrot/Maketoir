@@ -33,6 +33,21 @@ describe('POST sales order backorder split', () => {
     mocks.getOrder.mockResolvedValue({ id: 42, xero_invoice_id: null });
   });
 
+  it.each(['{', '', 'null', '[]', 'true'])('rejects invalid body %s before touching order or stock', async body => {
+    const response = await POST(new Request('http://localhost/api/ims/sales-orders/42/backorder', { method: 'POST', body }), { params: { id: '42' } });
+    expect(response.status).toBe(400);
+    expect(mocks.getOrder).not.toHaveBeenCalled();
+    expect(mocks.split).not.toHaveBeenCalled();
+    expect(mocks.report).not.toHaveBeenCalled();
+  });
+
+  it('still requires authentication for malformed requests', async () => {
+    mocks.session.mockResolvedValue(null);
+    const response = await POST(new Request('http://localhost/api/ims/sales-orders/42/backorder', { method: 'POST', body: '{' }), { params: { id: '42' } });
+    expect(response.status).toBe(401);
+    expect(mocks.split).not.toHaveBeenCalled();
+  });
+
   it('returns FIFO reconciliation conflicts without reporting an operational issue', async () => {
     mocks.split.mockRejectedValue(new FifoCostingConflict(
       'Cannot complete this stock movement: reconcile the missing 1 FIFO unit before retrying.',

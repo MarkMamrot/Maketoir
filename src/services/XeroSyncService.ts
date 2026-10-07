@@ -1114,10 +1114,11 @@ export async function syncPOPayment(
   paymentDate: string,
   currencyCode: string = 'AUD',
   xeroAccountCode: string,
+  exchangeRate?: number,
 ): Promise<string | null> {
   return syncOrderPayment({
     businessId, xeroInvoiceId, orderId: poId, paymentId, amount, paymentDate,
-    currencyCode, xeroAccountCode, orderType: 'po', expectedInvoiceType: 'ACCPAY',
+    currencyCode, xeroAccountCode, exchangeRate, orderType: 'po', expectedInvoiceType: 'ACCPAY',
   });
 }
 
@@ -1130,10 +1131,11 @@ export async function syncSOPayment(
   paymentDate: string,
   currencyCode: string = 'AUD',
   xeroAccountCode: string,
+  exchangeRate?: number,
 ): Promise<string | null> {
   return syncOrderPayment({
     businessId, xeroInvoiceId, orderId: soId, paymentId, amount, paymentDate,
-    currencyCode, xeroAccountCode, orderType: 'so', expectedInvoiceType: 'ACCREC',
+    currencyCode, xeroAccountCode, exchangeRate, orderType: 'so', expectedInvoiceType: 'ACCREC',
   });
 }
 
@@ -1153,16 +1155,23 @@ async function syncOrderPayment(input: {
   paymentDate: string;
   currencyCode: string;
   xeroAccountCode: string;
+  exchangeRate?: number;
   orderType: 'po' | 'so';
   expectedInvoiceType: 'ACCPAY' | 'ACCREC';
 }): Promise<string | null> {
   const amount = Math.round(Number(input.amount) * 100) / 100;
+  const exchangeRate = input.exchangeRate ?? (input.currencyCode.toUpperCase() === 'AUD' ? 1 : NaN);
+  if (!Number.isFinite(exchangeRate) || exchangeRate <= 0 || !Number.isFinite(1 / exchangeRate)
+    || (input.currencyCode.toUpperCase() === 'AUD' && exchangeRate !== 1)) {
+    await logSync(input.businessId, `${input.orderType}_payment`, input.orderId, null, 'error', 'Payment exchange rate must be a positive finite AUD amount per unit of payment currency.');
+    return null;
+  }
   const payment = {
     Invoice: { InvoiceID: input.xeroInvoiceId },
     Account: { Code: input.xeroAccountCode },
     Amount: amount,
     Date: input.paymentDate,
-    CurrencyRate: 1,
+    CurrencyRate: 1 / exchangeRate,
   };
   const body = { Payments: [payment] };
   const operationKey = `${input.orderType}-payment:${input.orderId}:${input.paymentId}`;
@@ -1203,6 +1212,19 @@ async function syncOrderPayment(input: {
     const amountDue = Math.round(Number(invoice.AmountDue ?? 0) * 100) / 100;
     if (!(amount > 0) || amount - amountDue > 0.01) {
       throw new Error(`The Xero document has ${amountDue.toFixed(2)} due, below payment ${amount.toFixed(2)}.`);
+    }
+    if (liveCurrency !== 'AUD') {
+      const [organisationResponse, accountResponse] = await Promise.all([
+        xeroApiFetch(input.businessId, '/Organisation', { method: 'GET' }),
+        xeroApiFetch(input.businessId, '/Accounts', { method: 'GET' }),
+      ]);
+      if (organisationResponse?.Organisations?.[0]?.BaseCurrency !== 'AUD') {
+        throw new Error('Foreign-currency payment posting requires an AUD-base Xero organisation.');
+      }
+      const account = accountResponse?.Accounts?.find((candidate: any) => String(candidate.Code) === input.xeroAccountCode);
+      if (account?.CurrencyCode !== 'AUD') {
+        throw new Error('Foreign-currency payment posting requires a mapped AUD Xero payment account.');
+      }
     }
   } catch (error: any) {
     await failXeroAccountingAction(claim.action.id, 'failed', error?.message ?? String(error));

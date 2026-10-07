@@ -50,6 +50,60 @@ describe('Xero payment and receipt-journal actions', () => {
     expect(mocks.complete).toHaveBeenCalledWith(17, 'payment-1');
   });
 
+  it('posts the reciprocal saved AUD-per-USD rate without converting the invoice amount', async () => {
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ Invoices: [{ Type: 'ACCPAY', Status: 'AUTHORISED', CurrencyCode: 'USD', AmountDue: 6086 }] })
+      .mockResolvedValueOnce({ Organisations: [{ BaseCurrency: 'AUD' }] })
+      .mockResolvedValueOnce({ Accounts: [{ Code: '090', CurrencyCode: 'AUD' }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'foreign-payment' }] });
+
+    await expect(syncPOPayment('biz-1', 'bill-1', 42, 9, 3000, '2026-09-11', 'USD', '090', 1.4)).resolves.toBe('foreign-payment');
+
+    const payment = mocks.xeroFetch.mock.calls.find(call => call[1] === '/Payments')![2].body.Payments[0];
+    expect(payment.Amount).toBe(3000);
+    expect(payment.CurrencyRate).toBeCloseTo(1 / 1.4, 10);
+    expect(payment.Amount / payment.CurrencyRate).toBeCloseTo(4200, 2);
+  });
+
+  it('uses the saved rate for foreign-currency SO payments too', async () => {
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ Invoices: [{ Type: 'ACCREC', Status: 'AUTHORISED', CurrencyCode: 'USD', AmountDue: 100 }] })
+      .mockResolvedValueOnce({ Organisations: [{ BaseCurrency: 'AUD' }] })
+      .mockResolvedValueOnce({ Accounts: [{ Code: '090', CurrencyCode: 'AUD' }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'foreign-so-payment' }] });
+
+    await syncSOPayment('biz-1', 'invoice-1', 12, 5, 100, '2026-09-11', 'USD', '090', 1.5);
+
+    expect(mocks.xeroFetch.mock.calls.find(call => call[1] === '/Payments')![2].body.Payments[0].CurrencyRate).toBeCloseTo(1 / 1.5, 10);
+  });
+
+  it.each([['USD', 'AUD'], ['AUD', 'USD']])('blocks unsupported organisation/account currency %s/%s', async (baseCurrency, accountCurrency) => {
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ Invoices: [{ Type: 'ACCPAY', Status: 'AUTHORISED', CurrencyCode: 'USD', AmountDue: 6086 }] })
+      .mockResolvedValueOnce({ Organisations: [{ BaseCurrency: baseCurrency }] })
+      .mockResolvedValueOnce({ Accounts: [{ Code: '090', CurrencyCode: accountCurrency }] });
+
+    await expect(syncPOPayment('biz-1', 'bill-1', 42, 9, 3000, '2026-09-11', 'USD', '090', 1.4021)).resolves.toBeNull();
+
+    expect(mocks.xeroFetch.mock.calls.some(call => call[1] === '/Payments')).toBe(false);
+    expect(mocks.fail).toHaveBeenCalledWith(17, 'failed', expect.stringContaining('requires'));
+  });
+
+  it.each([undefined, 0, -1, NaN, Infinity])('does not post a foreign payment with invalid or missing rate %s', async exchangeRate => {
+    await expect(syncPOPayment('biz-1', 'bill-1', 42, 9, 3000, '2026-09-11', 'USD', '090', exchangeRate)).resolves.toBeNull();
+
+    expect(mocks.xeroFetch).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+  });
+
+  it('does not send a second payment when the accounting action is already completed', async () => {
+    mocks.claim.mockResolvedValueOnce({ claimed: false, action: { id: 17, status: 'succeeded', xeroId: 'existing-payment' } });
+
+    await expect(syncPOPayment('biz-1', 'bill-1', 42, 9, 3000, '2026-09-11', 'USD', '090', 1.4)).resolves.toBe('existing-payment');
+
+    expect(mocks.xeroFetch).not.toHaveBeenCalled();
+  });
+
   it('rejects an SO payment above the live amount due before POST', async () => {
     mocks.xeroFetch.mockResolvedValueOnce({
       Invoices: [{ Type: 'ACCREC', Status: 'AUTHORISED', CurrencyCode: 'AUD', AmountDue: 20 }],

@@ -345,6 +345,20 @@ describe('PO and SO Xero document policies', () => {
     expect(mockApproveBill).not.toHaveBeenCalled();
   });
 
+  it('passes the saved foreign-payment rate to the Xero service', async () => {
+    mockPOGet.mockResolvedValue({
+      id: 12, po_number: 'PO-00012', status: 'complete', xero_bill_id: 'xero-po-12',
+      payments: [{ id: 31, payment_method_id: 5, amount: 3000, payment_date: '2026-09-11', currency_code: 'USD', exchange_rate: '1.402100' }],
+    });
+    mockImsQuery.mockResolvedValue([{ xero_account_code: '090' }]);
+    mockApproveBill.mockResolvedValue(true);
+    mockSyncPOPayment.mockResolvedValue('payment-31');
+
+    await triggerPOPaymentXeroSync('biz-1', 12, 31);
+
+    expect(mockSyncPOPayment).toHaveBeenCalledWith('biz-1', 'xero-po-12', 12, 31, 3000, '2026-09-11', 'USD', '090', 1.4021);
+  });
+
   it('does not create or authorise a bill for an unmapped payment method', async () => {
     mockPOGet.mockResolvedValue({
       id: 12,

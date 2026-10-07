@@ -32,13 +32,12 @@ export async function GET() {
 
     const orderIds = orders.map((o: any) => Number(o.id));
     const items = await imsQuery<any>(
-      `SELECT i.id, i.so_id, i.variant_id, i.name, i.qty_ordered, i.unit_price, i.line_total,
-              COALESCE(v.sku, i.code) AS sku,
-              i.code,
-              COALESCE(p.name, i.name) AS product_name
+                  `SELECT i.*,
+                    v.sku AS catalogue_sku,
+              p.name AS product_name
        FROM ims_sales_order_items i
-       LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
-       LEFT JOIN ims_products p ON p.product_id = v.product_id
+             LEFT JOIN ims_product_variants v ON BINARY v.variant_id = BINARY i.variant_id
+             LEFT JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id
        WHERE i.so_id IN (${orderIds.map(() => '?').join(',')})
        ORDER BY i.so_id ASC, i.id ASC`,
       orderIds,
@@ -48,7 +47,18 @@ export async function GET() {
     for (const item of items) {
       const soId = Number(item.so_id);
       if (!itemsByOrder.has(soId)) itemsByOrder.set(soId, []);
-      itemsByOrder.get(soId)!.push(item);
+      itemsByOrder.get(soId)!.push({
+        id: item.id,
+        so_id: item.so_id,
+        variant_id: item.variant_id,
+        name: item.name ?? item.product_name,
+        qty_ordered: item.qty_ordered,
+        unit_price: item.unit_price,
+        line_total: item.line_total,
+        sku: item.catalogue_sku ?? item.code,
+        code: item.code ?? item.catalogue_sku,
+        product_name: item.product_name ?? item.name,
+      });
     }
 
     const result = orders.map((order: any) => ({

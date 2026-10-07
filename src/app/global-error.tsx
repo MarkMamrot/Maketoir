@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     fetch('/api/runtime-issues/client', {
       method: 'POST',
@@ -24,7 +24,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <main style={{ width: 'min(440px,calc(100vw - 32px))', border: '1px solid rgba(255,255,255,.14)', background: '#1e293b', padding: 24, borderRadius: 8 }}>
           <h1 style={{ margin: '0 0 8px', fontSize: 20 }}>Something went wrong</h1>
           <p style={{ margin: '0 0 18px', color: '#94a3b8', lineHeight: 1.5, fontSize: 14 }}>The error has been recorded for review.</p>
-          <button onClick={reset} style={{ border: 0, borderRadius: 6, background: '#2563eb', color: '#fff', padding: '9px 14px', fontWeight: 700, cursor: 'pointer' }}>Try again</button>
+          <button onClick={() => window.location.reload()} style={{ border: 0, borderRadius: 6, background: '#2563eb', color: '#fff', padding: '9px 14px', fontWeight: 700, cursor: 'pointer' }}>Reload page</button>
         </main>
       </body>
     </html>

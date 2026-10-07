@@ -183,7 +183,9 @@ function mayManageTask(context: DaybookContext, staff: DaybookStaffIdentity, pol
 }
 
 async function materializeTasks(context: DaybookContext, taskDate: string) {
-  await imsExecute(
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await imsExecute(
     `INSERT IGNORE INTO pos_daybook_task_instances
        (business_id, location_id, task_date, template_id, title_snapshot, instructions_snapshot, phase)
      SELECT business_id, location_id, ?, id, title, instructions, phase
@@ -195,9 +197,15 @@ async function materializeTasks(context: DaybookContext, taskDate: string) {
          recurrence = 'daily'
          OR (recurrence = 'weekly' AND weekday = DAYOFWEEK(?) - 1)
          OR (recurrence = 'once' AND scheduled_date = ?)
-       )`,
+       )
+     ORDER BY id`,
     [taskDate, context.businessId, context.locationId, taskDate, taskDate, taskDate, taskDate],
-  );
+      );
+      return;
+    } catch (caught) {
+      if ((caught as { code?: string })?.code !== 'ER_LOCK_DEADLOCK' || attempt === 2) throw caught;
+    }
+  }
 }
 
 export async function GET(request: Request) {
