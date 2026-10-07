@@ -140,7 +140,7 @@ export function LaybyWorkspace({ session, onBack, onReceipt, renderPayment }: {
         <label>Retained fee $<input aria-label='Retained cancellation fee' type='number' min='0' max={Number(selected.layby.paid_total)} step='0.01' value={fee} onChange={event => setFee(event.target.value)} style={{ display: 'block', padding: 8, width: '100%' }} /></label>
         <label>Override reason<input aria-label='Cancellation fee override reason' value={reason} onChange={event => setReason(event.target.value)} style={{ display: 'block', padding: 8, width: '100%', marginBottom: 12 }} /></label>
         <p>Refund due: ${money(cancellation?.refund ?? 0)}</p>
-        <div style={{ display: 'flex', gap: 8 }}><button disabled={busy} style={button} onClick={() => setSelected(null)}>Back</button><button disabled={busy || !cancellation} style={button} onClick={() => { if (cancellation?.refund) setRefundReady(true); else void act(selected.layby, 'cancel', selected.key); }}>{cancellation?.refund ? 'Record refund' : 'Confirm cancellation'}</button></div>
+        <div style={{ display: 'flex', gap: 8 }}><button disabled={busy} style={button} onClick={() => setSelected(null)}>Back</button><button disabled={busy || !cancellation} style={button} onClick={() => { if (cancellation?.refund) setRefundReady(true); else void act(selected.layby, 'cancel', selected.key); }}>{cancellation?.refund ? 'Refund and cancel' : 'Confirm cancellation'}</button></div>
       </div>
     </div>}
     {selected?.action === 'cancel' && refundReady && cancellation && renderPayment({ total: -cancellation.refund, isLayby: false, error,

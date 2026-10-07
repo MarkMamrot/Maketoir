@@ -48,7 +48,7 @@ describe('Layby workspace recovery and cancellation', () => {
     fireEvent.change(screen.getByLabelText('Retained cancellation fee'), { target: { value: '5' } });
     expect((screen.getByRole('button', { name: 'Confirm cancellation' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Cancellation fee override reason'), { target: { value: 'Agreed adjustment' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Record refund' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refund and cancel' }));
     fireEvent.click(screen.getByRole('button', { name: 'Record payment' }));
     await waitFor(() => expect(onReceipt).toHaveBeenCalledOnce());
     const post = fetch.mock.calls.find(([, options]) => options?.method === 'POST');

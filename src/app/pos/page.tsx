@@ -6,7 +6,7 @@ import { isInStockAtLocation } from './_productFilters';
 import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
-import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
+import { executeZellerTransaction, getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import { canSaveLaybyDeposit } from '@/lib/pos/laybyPayments';
 import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import { SolvantisMark } from '@/components/SolvantisMark';
@@ -5287,7 +5287,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     // ── Standard payment methods ────────────────────────────────────────────
     // Check if this method routes to the Zeller terminal
     const isZellerMethod = zellerEnabled && !manualOverride && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase());
-    if (isZellerMethod) { handleZellerPurchase(); return; }
+    if (isZellerMethod) { handleZellerTransaction(); return; }
     // For cash payments, apply Australian cash rounding to the remaining balance
     const effectiveRemaining = isCashMethod && remaining > 0.004 ? cashDue : remaining;
     const tendered = parseFloat(amount) || effectiveRemaining;
@@ -5309,7 +5309,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     }
   }
 
-  async function handleZellerPurchase() {
+  async function handleZellerTransaction() {
     setZellerPending(true);
     setZellerError(null);
     // Zeller expects a positive integer in the smallest currency unit (cents).
@@ -5338,20 +5338,21 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         return;
       }
 
-      const result = await terminal.purchase({
+      const result = await executeZellerTransaction(terminal, {
         amount: amountCents,
+        isRefund,
         reference: ref,
         sessionUuid: (globalThis.crypto?.randomUUID?.() ?? ref),
       });
       if (result instanceof Error) {
         const t = (result as any).type ?? result.message;
-        setZellerError(`Payment ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
+        setZellerError(`${isRefund ? 'Refund' : 'Payment'} ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
       }
       const approved = getApprovedZellerPurchase(result);
       if (!approved) {
         const detail = result.responseText || result.status || 'Transaction declined';
-        setZellerError(`Payment declined: ${detail} (sent $${(amountCents / 100).toFixed(2)})`);
+        setZellerError(`${isRefund ? 'Refund' : 'Payment'} declined: ${detail} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
       }
       const txId = approved.transactionUuid;
@@ -5422,7 +5423,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         </div>}
 
         {/* Zeller Terminal payment UI */}
-        {!isZeroTotal && isZellerActive && !isRefund ? (
+        {!isZeroTotal && isZellerActive ? (
           <div style={{ marginBottom: '.75rem' }}>
             {isLayby && (
               <input ref={amountRef} type='number' step='0.01' min='0.01' max={remaining}
@@ -5435,11 +5436,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
               </div>
             )}
             <button
-              onClick={handleZellerPurchase}
+              onClick={handleZellerTransaction}
               disabled={zellerPending || remaining <= 0}
               style={{ width: '100%', padding: '.85rem', background: zellerPending ? 'var(--sv-etch)' : 'var(--sv-action)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: '1.1rem', cursor: zellerPending ? 'default' : 'pointer', marginBottom: '.4rem' }}
             >
-              {zellerPending ? '⏳ Waiting for terminal…' : `💳 Pay $${fmt(isLayby ? Math.max(0, Math.min(Number(amount) || 0, remaining)) : remaining)} via Terminal`}
+              {zellerPending ? '⏳ Waiting for terminal…' : `💳 ${isRefund ? 'Refund' : 'Pay'} $${fmt(isLayby ? Math.max(0, Math.min(Number(amount) || 0, remaining)) : remaining)} via Terminal`}
             </button>
             <button
               onClick={() => setManualOverride(true)}

@@ -1,3 +1,14 @@
+import type { TerminalClient } from '@zeller-public/payments-sdk-react';
+
+export function executeZellerTransaction(terminal: Pick<TerminalClient, 'purchase' | 'refund'>, input: {
+  amount: number; isRefund: boolean; reference: string; sessionUuid: string;
+}) {
+  if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new Error('A positive transaction amount in cents is required.');
+  return input.isRefund
+    ? terminal.refund({ amount: input.amount, reference: input.reference, cardPresent: true })
+    : terminal.purchase({ amount: input.amount, reference: input.reference, sessionUuid: input.sessionUuid });
+}
+
 export interface ApprovedZellerPurchase {
   status: 'APPROVED';
   transactionUuid: string;
