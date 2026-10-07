@@ -3,6 +3,7 @@ import { redactLiveE2EValue } from './safety';
 export type LiveRunState =
   | 'initialized'
   | 'preflight_passed'
+  | 'campaign_baseline_recorded'
   | 'fifo_negative_stock_reconciled'
   | 'fifo_activated'
   | 'p1_created'
@@ -31,7 +32,8 @@ export type LiveRunEvent = {
 
 const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   initialized: new Set(['preflight_passed', 'blocked']),
-  preflight_passed: new Set(['fifo_negative_stock_reconciled', 'fifo_activated', 'p1_created', 'p2_created', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created', 'blocked']),
+  preflight_passed: new Set(['campaign_baseline_recorded', 'fifo_negative_stock_reconciled', 'fifo_activated', 'p1_created', 'p2_created', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created', 'blocked']),
+  campaign_baseline_recorded: new Set(['clean', 'blocked']),
   fifo_negative_stock_reconciled: new Set(['clean', 'blocked']),
   fifo_activated: new Set(['clean', 'blocked']),
   p1_created: new Set(['p1_created', 'awaiting_operator', 'blocked']),

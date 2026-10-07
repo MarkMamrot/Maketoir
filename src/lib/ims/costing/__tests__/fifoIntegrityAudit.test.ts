@@ -60,6 +60,41 @@ describe('FIFO tenant integrity audit', () => {
     expect(query.mock.calls[1][0]).toContain("state.active_method = 'fifo'");
   });
 
+  it.each([
+    { name: 'valid switched Average Cost epoch', change: {}, valid: true },
+    { name: 'foreign epoch owner', change: { epoch_business_id: 'other-business' }, valid: false },
+    { name: 'FIFO epoch under Average Cost', change: { epoch_method: 'fifo' }, valid: false },
+    { name: 'closed epoch', change: { epoch_status: 'closed' }, valid: false },
+    { name: 'missing referenced epoch', change: { epoch_business_id: null, epoch_method: null, epoch_status: null }, valid: false },
+    { name: 'multiple active epochs', change: { active_epoch_count: 2 }, valid: false },
+    { name: 'no active epoch', change: { active_epoch_count: 0 }, valid: false },
+    { name: 'unreferenced active epoch', change: { active_epoch_id: null }, valid: false },
+    { name: 'unknown costing method', change: { active_method: 'lifo', active_epoch_id: null, active_epoch_count: 0 }, valid: false },
+  ])('validates $name', async ({ change, valid }) => {
+    const query = vi.fn()
+      .mockResolvedValueOnce([[{
+        id: 1,
+        active_method: 'average_cost',
+        active_epoch_id: 5,
+        epoch_business_id: 'biz-1',
+        epoch_method: 'average_cost',
+        epoch_status: 'active',
+        active_epoch_count: 1,
+        ...change,
+      }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ column_count: 1 }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]]);
+
+    const result = await auditFifoTenant({ query } as any, { schema: 'tenant_one', businessId: 'biz-1' });
+    expect(result.status).toBe(valid ? 'balanced' : 'mismatch');
+    expect(result.findings).toEqual(valid ? [] : [{ code: 'invalid_costing_state', count: 1, sampleIds: [1] }]);
+    for (const [sql] of query.mock.calls) expect(String(sql)).toMatch(/^SELECT/i);
+  });
+
   it('reports state, location, layer, allocation, and movement discrepancies without business data', async () => {
     const query = vi.fn()
       .mockResolvedValueOnce([[{

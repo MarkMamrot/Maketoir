@@ -1547,14 +1547,16 @@ export const PosEodRepo = {
           ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
-           WHERE s.location_id = ? AND s.register_id = ? AND DATE(s.completed_at) = ?
-             AND s.status IN ('completed','layby_complete')
+           WHERE s.location_id = ? AND s.register_id = ?
+             AND DATE(CASE WHEN s.sale_type = 'layby' THEN s.created_at ELSE s.completed_at END) = ?
+             AND s.status IN ('completed','layby_active','layby_complete')
            GROUP BY p.payment_method`
           : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
-           WHERE s.location_id = ? AND DATE(s.completed_at) = ?
-             AND s.status IN ('completed','layby_complete')
+           WHERE s.location_id = ?
+             AND DATE(CASE WHEN s.sale_type = 'layby' THEN s.created_at ELSE s.completed_at END) = ?
+             AND s.status IN ('completed','layby_active','layby_complete')
            GROUP BY p.payment_method`,
         registerId != null ? [locationId, registerId, date] : [locationId, date],
       ),
@@ -1594,7 +1596,11 @@ export const PosEodRepo = {
     registerSessionId: number,
     prefix: string,
     fallback?: { locationId: number; date: string; registerId: number | null },
+    laybyDepositDate = false,
   ): Promise<{ clause: string; params: any[] }> {
+    const timestamp = laybyDepositDate
+      ? `(CASE WHEN ${prefix}sale_type = 'layby' THEN ${prefix}created_at ELSE ${prefix}completed_at END)`
+      : `${prefix}completed_at`;
     if (fallback?.registerId == null) {
       return { clause: `${prefix}register_session_id = ?`, params: [registerSessionId] };
     }
@@ -1617,7 +1623,7 @@ export const PosEodRepo = {
           clause:
             `(${prefix}register_session_id = ? ` +
             `OR (${prefix}register_session_id IS NULL AND ${prefix}location_id = ? ` +
-            `AND ${prefix}completed_at >= ? AND ${prefix}completed_at <= ?))`,
+            `AND ${timestamp} >= ? AND ${timestamp} <= ?))`,
           params: [registerSessionId, fallback.locationId, openedAt, closedAt],
         };
       }
@@ -1625,7 +1631,7 @@ export const PosEodRepo = {
         clause:
           `(${prefix}register_session_id = ? ` +
           `OR (${prefix}register_session_id IS NULL AND ${prefix}location_id = ? ` +
-          `AND ${prefix}completed_at >= ?))`,
+          `AND ${timestamp} >= ?))`,
         params: [registerSessionId, fallback.locationId, openedAt],
       };
     }
@@ -1634,7 +1640,7 @@ export const PosEodRepo = {
       clause:
         `(${prefix}register_session_id = ? ` +
         `OR (${prefix}register_session_id IS NULL AND ${prefix}location_id = ? ` +
-        `AND DATE(${prefix}completed_at) = ?))`,
+        `AND DATE(${timestamp}) = ?))`,
       params: [registerSessionId, fallback.locationId, fallback.date],
     };
   },
@@ -1648,13 +1654,13 @@ export const PosEodRepo = {
     registerSessionId: number,
     fallback?: { locationId: number; date: string; registerId: number | null },
   ): Promise<Record<string, number>> {
-    const { clause, params } = await this._sessionMatchClause(registerSessionId, 's.', fallback);
+    const { clause, params } = await this._sessionMatchClause(registerSessionId, 's.', fallback, true);
     const [rows, pettyCashRows] = await Promise.all([
       imsQuery<any>(
         `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
          FROM pos_payments p
          JOIN pos_sales s ON s.id = p.sale_id
-        WHERE s.status IN ('completed','layby_complete')
+        WHERE s.status IN ('completed','layby_active','layby_complete')
           AND ${clause}
         GROUP BY p.payment_method`,
         params,
@@ -2050,7 +2056,7 @@ export const PosReportsRepo = {
       `SELECT s.*
        FROM pos_sales s
        WHERE s.location_id = ? AND DATE(s.created_at) = ?
-         AND s.status IN ('completed','layby_complete')
+         AND s.status IN ('completed','layby_active','layby_complete')
        ORDER BY s.created_at`,
       [locationId, date],
     );

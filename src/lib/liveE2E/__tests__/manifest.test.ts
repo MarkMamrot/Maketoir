@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { appendLiveRunEvent, assertRunMayStart } from '../manifest';
 
 describe('live E2E manifest', () => {
+  it('closes a read-only campaign baseline without authorizing stock mutation', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', {});
+    events = appendLiveRunEvent(events, 'campaign_baseline_recorded', { transitionBlockers: ['Reconcile stock'] });
+    expect(() => appendLiveRunEvent(events, 'p1_created', {})).toThrow('invalid manifest transition');
+    events = appendLiveRunEvent(events, 'clean', { readOnly: true });
+    expect(events.at(-1)?.state).toBe('clean');
+    expect(() => appendLiveRunEvent(events, 'fifo_activated', {})).toThrow('invalid manifest transition');
+  });
+
   it('records negative-stock reconciliation as a completed auditable run', () => {
     let events = appendLiveRunEvent([], 'initialized', {});
     events = appendLiveRunEvent(events, 'preflight_passed', {});

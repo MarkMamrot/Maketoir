@@ -180,3 +180,33 @@ node scripts/audit-fifo-integrity-all-tenants.mjs --schema=readyedu_Monsterthrea
 The existing P1 purchase-order and P3 partial-fulfilment scenarios become FIFO-aware under that setting. They record FIFO integrity snapshots after stock mutation and compensation. P3 requires at least one unit of positive layer-backed fixture stock; fulfilling from zero stock is an Average Cost-only test assumption and is intentionally blocked under FIFO.
 
 Xero and Shopify scenarios retain their existing low-value cap, exact integration identity checks, operator acknowledgement, and compensating workflow. External voids, cancellations, and audit trails are permanent test artifacts even when local stock returns to baseline.
+
+## 10. Comprehensive inventory campaign
+
+The comprehensive campaign is separate from routine one-time FIFO activation verification. It may test Average Cost, FIFO, and prospective switches in both directions only after explicit operator approval. Never reuse the one-time activation action to imply approval for a switch back. Verify current method and revision rather than assuming the snapshot still uses its original method.
+
+Before creating campaign fixtures or changing costing:
+
+1. Confirm the exact paused sandbox identity and a usable local application server.
+2. Run authenticated preflight with a new run ID and the actual current costing method.
+3. Verify canonical Shopify channel ownership as well as the legacy connection. The expected development store must have exactly one sandbox owner, with the channel enabled, active, and ready.
+4. Run the read-only campaign baseline and sandbox-scoped integrity audit. A successful baseline records evidence; it does not authorize a costing switch or override audit findings.
+5. Review any unresolved manifests and confirm the restore point before a tenant-wide costing switch. Historical stock or cost repairs require separate approval.
+
+```powershell
+$env:LIVE_E2E_ACTION = 'preflight'
+$env:LIVE_E2E_RUN_ID = 'campaign-YYYYMMDD-baseline-001'
+$env:LIVE_E2E_EXPECTED_COSTING_METHOD = 'average_cost'
+npm run e2e:live:campaign:baseline
+npm run e2e:live:fifo:audit
+```
+
+Replace the example run ID and expected method with the reviewed values. Set `LIVE_E2E_BASE_URL` to the verified localhost server without editing or exposing credentials.
+
+The baseline compares independently read stock totals with the Inventory Costing preview and fingerprints stock, layer history, and historical movement costs before and after inspection. It records transition blockers without applying corrections. Read-only baseline runs can finish `clean` with documented transition blockers because they have no transactional compensation; this does not mean the mutating campaign passed.
+
+Playwright login traces and videos are disabled to avoid persisting credentials and session material. Screenshots remain available; keep reports and manifests local and private. The login helper clears the password input after submission before failed-navigation snapshots can be produced.
+
+Automation pause blocks schedulers, not all manual integrations or webhooks. Every external mutation still requires exact development/test identity checks, fixture scoping, the existing low-value cap, and the applicable operator gate. POS campaign fixtures must use a separately guarded sandbox register/location; do not weaken the ordinary isolated IMS fixture rules.
+
+If a costing-switch preview and integrity audit disagree, stop dependent mutation and record both results. Do not mark an audit finding repaired by modifying costing-state rows or bypassing the audit. Resolve the contract through a separately approved code fix and regression test.

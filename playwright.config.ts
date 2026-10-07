@@ -15,8 +15,8 @@ export default defineConfig({
   use: {
     baseURL: process.env.LIVE_E2E_BASE_URL ?? 'http://localhost:3000',
     screenshot: 'on',
-    trace: 'on',
-    video: 'retain-on-failure',
+    trace: 'off',
+    video: 'off',
   },
   projects: [{
     name: 'live-monsterthreads',

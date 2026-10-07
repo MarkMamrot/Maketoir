@@ -5,6 +5,8 @@
 
 Solvantis supports retail operations from product and supplier management through selling, fulfilment, customer relationships and performance review. Browser-based point of sale, multi-location stock visibility, purchasing, customer orders, loyalty, wholesale and online commerce can work as one operating platform.
 
+The public feature map presents customer relationships and loyalty separately. It includes Store Daybooks, multiple Shopify storefronts, configured Amazon Australia channels and native online selling. Feature availability depends on the plan and provider setup; feature details link to the relevant product overview.
+
 Smaller retailers can use the core retail foundation, while growing teams can add advanced inventory, planning, analytics and wholesale capabilities. Large groups can discuss tailored implementation, service and integration needs with the Solvantis team.
 
 Solvantis has been shaped through close collaboration with retailers and wholesalers around practical work: receiving partial deliveries, coordinating store handovers, following up customers, processing repeat wholesale orders and managing several storefronts. Store Daybooks complement sales and stock workflows with checklists, acknowledged notices and requests.

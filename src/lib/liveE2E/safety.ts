@@ -96,6 +96,33 @@ export function assertPreflightIdentity(
 
 const SECRET_KEY = /password|secret|token|cookie|authorization|pin/i;
 
+export function assertLiveShopifyOwnership(
+  config: Pick<LiveE2EConfig, 'expectedBusinessId' | 'expectedShopifyShop'>,
+  legacyShop: unknown,
+  instances: readonly {
+    business_id: string;
+    provider: string;
+    external_account_key: string | null;
+    is_enabled: number;
+    runtime_status: string;
+    readiness_status: string;
+  }[],
+): void {
+  const expectedShop = config.expectedShopifyShop.trim().toLowerCase();
+  if (String(legacyShop ?? '').trim().toLowerCase() !== expectedShop) {
+    throw new Error('Live E2E blocked: legacy Shopify identity does not match the expected test store.');
+  }
+  const matching = instances.filter(instance => instance.provider === 'shopify'
+    && instance.external_account_key?.trim().toLowerCase() === expectedShop);
+  if (matching.length !== 1 || matching[0].business_id !== config.expectedBusinessId) {
+    throw new Error('Live E2E blocked: the expected Shopify test store must have exactly one canonical owner in the expected sandbox.');
+  }
+  const instance = matching[0];
+  if (Number(instance.is_enabled) !== 1 || instance.runtime_status !== 'active' || instance.readiness_status !== 'ready') {
+    throw new Error('Live E2E blocked: the expected Shopify test channel must be enabled, active and ready.');
+  }
+}
+
 export function redactLiveE2EValue(value: unknown, key = ''): unknown {
   if (SECRET_KEY.test(key)) return '[REDACTED]';
   if (Array.isArray(value)) return value.map(item => redactLiveE2EValue(item));

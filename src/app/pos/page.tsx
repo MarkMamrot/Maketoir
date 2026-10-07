@@ -7,6 +7,7 @@ import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
 import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
+import { canSaveLaybyDeposit } from '@/lib/pos/laybyPayments';
 import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
@@ -2199,8 +2200,12 @@ function MainPos({
         setSaleSubmitError('Linked returns require an internet connection.');
         return;
       }
-      if ((selectedReward || linkedReturnSaleId != null) && !loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
-      const localId = selectedReward || linkedReturnSaleId != null ? loyaltySaleLocalIdRef.current! : (saleLocalId ?? newLocalId());
+      if (isLayby && !navigator.onLine) {
+        setSaleSubmitError('Saving a layby requires an internet connection. Keep the recorded deposit and retry without charging the customer again.');
+        return;
+      }
+      if ((isLayby || selectedReward || linkedReturnSaleId != null) && !loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
+      const localId = isLayby || selectedReward || linkedReturnSaleId != null ? loyaltySaleLocalIdRef.current! : (saleLocalId ?? newLocalId());
       const now = new Date().toISOString();
       const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
       const db_discount_total = discount_total + order_disc_amount + totals.loyalty_discount_amount;
@@ -2296,7 +2301,7 @@ function MainPos({
               );
             }
           }
-          else if (trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
+          else if (isLayby || trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
             setSaleSubmitError(data.error || (linkedReturnSaleId != null ? 'The linked return could not be completed.' : 'Loyalty redemption could not be completed.'));
             return;
           } else addToOfflineQueue(payload);
@@ -2312,8 +2317,8 @@ function MainPos({
           addToOfflineQueue(payload);
         }
       } catch {
-        if (trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
-          setSaleSubmitError(linkedReturnSaleId != null ? 'The linked return could not reach the server. Try again while online.' : 'Loyalty redemption could not reach the server. Try completing the sale again.');
+        if (isLayby || trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
+          setSaleSubmitError(isLayby ? 'The layby save could not be confirmed. Retry saving the recorded deposit without charging the customer again.' : linkedReturnSaleId != null ? 'The linked return could not reach the server. Try again while online.' : 'Loyalty redemption could not reach the server. Try completing the sale again.');
           return;
         }
         addToOfflineQueue(payload);
@@ -5119,6 +5124,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const cashDue       = isCashMethod && remaining > 0.004 ? roundCash(remaining) : remaining;
   const cashRoundAdj  = Math.round((cashDue - remaining) * 100) / 100;
   const change        = Math.max(0, paid - absTotal);
+  const canComplete = isLayby ? canSaveLaybyDeposit(absTotal, payments.map(payment => payment.amount)) : remaining <= 0.001;
 
   const isGcMethod = activeMethod === 'Gift Card' || activeMethod === 'Gift Card (Issue)';
   const isScMethod = activeMethod === 'Store Credit' || activeMethod === 'Store Credit (Issue)';
@@ -5264,7 +5270,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     setZellerError(null);
     // Zeller expects a positive integer in the smallest currency unit (cents).
     // e.g. $15.00 => 1500. Guard against floats/NaN/zero.
-    const amountCents = Math.round(Math.abs(Number(remaining)) * 100);
+    const chargeAmount = isLayby ? Math.min(Number(amount), remaining) : remaining;
+    const amountCents = Math.round(Number(chargeAmount) * 100);
     const ref = `POS${Date.now()}`;
     if (!Number.isInteger(amountCents) || amountCents <= 0) {
       setZellerError(`Invalid amount ($${fmt(remaining)}). Nothing to charge.`);
@@ -5304,8 +5311,10 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         return;
       }
       const txId = approved.transactionUuid;
-      const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: remaining, reference: txId };
+      const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: amountCents / 100, reference: txId };
       const newPayments = [...payments, newPayment];
+      setPayments(newPayments);
+      setAmount('');
       const rounding = isCashMethod ? cashRoundAdj : 0;
       onComplete(
         isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments,
@@ -5369,6 +5378,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         {/* Zeller Terminal payment UI */}
         {!isZeroTotal && isZellerActive && !isRefund ? (
           <div style={{ marginBottom: '.75rem' }}>
+            {isLayby && (
+              <input ref={amountRef} type='number' step='0.01' min='0.01' max={remaining}
+                aria-label='Layby deposit amount' value={amount} disabled={zellerPending}
+                onChange={event => setAmount(event.target.value)} style={{ ...inputStyle, marginBottom: '.5rem' }} />
+            )}
             {zellerError && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem .75rem', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, color: 'var(--sv-red)', fontSize: '.85rem' }}>
                 {zellerError}
@@ -5379,7 +5393,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
               disabled={zellerPending || remaining <= 0}
               style={{ width: '100%', padding: '.85rem', background: zellerPending ? 'var(--sv-etch)' : 'var(--sv-action)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: '1.1rem', cursor: zellerPending ? 'default' : 'pointer', marginBottom: '.4rem' }}
             >
-              {zellerPending ? '⏳ Waiting for terminal…' : `💳 Pay $${fmt(remaining)} via Terminal`}
+              {zellerPending ? '⏳ Waiting for terminal…' : `💳 Pay $${fmt(isLayby ? Math.max(0, Math.min(Number(amount) || 0, remaining)) : remaining)} via Terminal`}
             </button>
             <button
               onClick={() => setManualOverride(true)}
@@ -5515,8 +5529,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
           <button onClick={onCancel} style={{ ...smallBtn, flex: 1 }}>Cancel</button>
           <button
             onClick={() => isZeroTotal ? completeZeroTotal() : onComplete(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
-            disabled={remaining > 0.001}
-            style={{ flex: 2, padding: '.75rem', background: remaining <= 0.001 ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: remaining <= 0.001 ? '#fff' : 'var(--sv-text-muted)', cursor: remaining <= 0.001 ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
+            disabled={!canComplete || zellerPending}
+            style={{ flex: 2, padding: '.75rem', background: canComplete ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: canComplete ? '#fff' : 'var(--sv-text-muted)', cursor: canComplete ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
           >
             {isZeroTotal ? 'Complete No-Charge Sale' : isLayby ? `Save Layby` : isRefund ? `Complete Refund` : `Complete Sale`} ✓
           </button>
@@ -5772,6 +5786,16 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
                   <span>{p.method}</span><span>${fmt(p.amount)}</span>
                 </div>
               ))}
+              {sale.status === 'layby_active' && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.25rem' }}>
+                    <span>Layby deposit paid</span><span>${fmt(sale.payments.reduce((sum, payment) => sum + payment.amount, 0))}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <span>Balance owing</span><span>${fmt(Math.max(0, sale.total - sale.payments.reduce((sum, payment) => sum + payment.amount, 0)))}</span>
+                  </div>
+                </>
+              )}
               {changeDue > 0.004 && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', marginTop: '.25rem', paddingTop: '.25rem' }}>
@@ -7196,7 +7220,7 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
       location_name: session.location_name ?? '',
       cashier_name: t.sale.cashier_name ?? session.full_name ?? '',
       sale_type: (t.sale.sale_type ?? 'sale') as 'sale' | 'return' | 'layby',
-      status: 'completed',
+      status: t.sale.status,
       items: (t.items ?? []).map((item: any, idx: number) => ({
         localId: `item-${item.id ?? idx}`,
         variant_id: item.variant_id ?? null,
@@ -7297,7 +7321,7 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
             </div>
 
             {/* Transactions */}
-            {data.transactions?.length === 0 && <p style={{ color: 'var(--sv-text-muted)' }}>No completed transactions for this date.</p>}
+            {data.transactions?.length === 0 && <p style={{ color: 'var(--sv-text-muted)' }}>No transactions for this date.</p>}
             {data.transactions?.map((t: any, idx: number) => (
               <div key={t.sale.id ?? idx} style={{ background: 'var(--sv-bg-2)', borderRadius: 8, marginBottom: '.75rem', border: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
                 <div
@@ -7317,8 +7341,14 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
                   <span style={{ color: t.sale.sale_type === 'return' ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 700, flexShrink: 0 }}>
                     {t.sale.sale_type === 'return' ? '-' : ''}${fmt(t.sale.total)}
                   </span>
+                  {t.sale.status === 'layby_active' && (
+                    <span style={{ color: 'var(--sv-amber)', fontSize: '.85rem' }}>
+                      Active layby · ${fmt(Math.max(0, Number(t.sale.total) - t.payments.reduce((sum: number, payment: any) => sum + Number(payment.amount), 0)))} owing
+                    </span>
+                  )}
                   {/* Edit payment split button */}
                   <button
+                    disabled={t.sale.status === 'layby_active'}
                     onClick={e => {
                       e.stopPropagation();
                       setEditPaymentsSale({ saleId: t.sale.id, saleRef: t.sale.id ? `#${t.sale.id}` : '—', payments: t.payments, total: t.sale.total });
@@ -7338,7 +7368,7 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
                       style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', flexShrink: 0 }}
                     >↩ Return</button>
                   )}
-                  {regSession && typeof regSession === 'object' && t.sale.register_session_id === regSession.id && (
+                  {t.sale.status !== 'layby_active' && regSession && typeof regSession === 'object' && t.sale.register_session_id === regSession.id && (
                     <>
                       <button
                         onClick={e => { e.stopPropagation(); setPinAction({ type: 'edit', t }); }}

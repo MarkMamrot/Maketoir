@@ -2,15 +2,27 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import LandingPreview from '../LandingPreview';
+import Landing from '@/app/_landing';
 
 vi.mock('next/image', () => ({ default: ({ fill, priority, ...props }: any) => <img {...props} /> }));
-vi.mock('@/components/PricingPlanCards', () => ({ default: () => <div>Existing pricing</div> }));
-vi.mock('@/components/SolvantisCapabilityMap', () => ({ default: ({ refreshed }: { refreshed: boolean }) => <div data-testid="map">{refreshed ? 'Preview map' : 'Original map'}</div> }));
+vi.mock('@/components/SolvantisCapabilityMap', () => ({ default: ({ refreshed, sectionBasePath = '' }: { refreshed: boolean; sectionBasePath?: string }) => <div data-testid="map" data-section-base={sectionBasePath}>{refreshed ? 'Preview map' : 'Original map'}</div> }));
 vi.mock('@/components/assistant/ProspectSalesAssistant', () => ({ ProspectSalesAssistant: ({ sourcePath }: { sourcePath: string }) => <div data-testid="assistant">{sourcePath}</div> }));
 vi.mock('@/components/assistant/ProspectLeadForm', () => ({ ProspectLeadDialog: ({ open, sourcePath, onClose }: any) => open ? <div role="dialog" aria-label="Sales"><span>{sourcePath}</span><button onClick={onClose}>Close sales</button></div> : null }));
 afterEach(cleanup);
 
 describe('separate landing preview', () => {
+  it('shares identical pricing and refreshed feature content with the original landing', () => {
+    render(<Landing />);
+    const originalPricing = Array.from(document.querySelectorAll('#pricing article')).map(card => card.textContent);
+    expect(originalPricing).toHaveLength(5);
+    expect(screen.getByTestId('map').textContent).toBe('Preview map');
+    expect(screen.getByTestId('map').getAttribute('data-section-base')).toBe('/landing2.html');
+    cleanup();
+    render(<LandingPreview />);
+    expect(Array.from(document.querySelectorAll('#pricing article')).map(card => card.textContent)).toEqual(originalPricing);
+    expect(screen.getByTestId('map').textContent).toBe('Preview map');
+  });
+
   it('keeps uptime, uses the preview map and links to real sections', () => {
     render(<LandingPreview />);
     expect(screen.getByText('99.9%').className).toBe('text-4xl font-black text-blue-600');

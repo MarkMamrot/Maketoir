@@ -58,6 +58,8 @@ describe('prospect knowledge projection', () => {
     ['What is Store Daybook?', /Daybook supports checklists/i],
     ['Can I use Amazon Australia?', /Amazon Australia seller-fulfilled/i],
     ['What does the $1 Starter offer include?', /3 months of Starter for a one-time \$1 payment/i],
+    ['What does Growth cost?', /Growth:.*from \$159\/month.*\$199 without/i],
+    ['How many integrations does Core include?', /Core:.*5 integrations/i],
   ])('keeps refreshed landing facts retrievable for %s', (query, expectedSummary) => {
     const results = retrieveProspectKnowledge({ query });
     expect(results.some(source => expectedSummary.test(source.summary))).toBe(true);
@@ -74,6 +76,14 @@ describe('prospect knowledge projection', () => {
     ['What sales and margin reports are available?', 'public-capability:ims-operational-reports'],
   ])('ranks the owning capability for %s', (query, expectedId) => {
     expect(retrieveProspectKnowledge({ query })[0]?.id).toBe(expectedId);
+  });
+
+  it('answers Growth feature questions with its complete commercial scope', () => {
+    const result = retrieveProspectKnowledge({ query: 'Does Growth include wholesale and preferred AI credit rates?' })[0];
+    expect(result.id).toBe('prospect-growth-plan');
+    expect(result.summary).toMatch(/wholesale portal, preferred AI credit rates, self onboarding and a local helpdesk/);
+    expect(result.summary).toMatch(/Custom shop domains are not included/);
+    expect(result.summary).toMatch(/up to 10 users and 3 standard integrations/);
   });
 
   it('keeps every projected operational capability discoverable by its title', () => {

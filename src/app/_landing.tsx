@@ -485,7 +485,7 @@ export default function Landing() {
               All the tools a modern retailer needs — fully integrated, beautifully simple.
             </p>
           </div>
-          <SolvantisCapabilityMap />
+          <SolvantisCapabilityMap refreshed sectionBasePath="/landing2.html" />
         </div>
       </section>
 

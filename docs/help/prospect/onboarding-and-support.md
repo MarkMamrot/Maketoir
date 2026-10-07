@@ -1,13 +1,13 @@
 ---
-{"id":"prospect-onboarding-support","title":"Onboarding and Support","audiences":["prospect"],"product":"prospect","summary":"Starter and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding within an agreed scope. Starter includes email support, Core adds a local business-hours helpdesk, Scale includes priority local support, and Enterprise includes a dedicated account lead and contracted service levels.","capabilityTags":["onboarding","implementation","support"],"lastReviewed":"2026-08-24","owner":"sales"}
+{"id":"prospect-onboarding-support","title":"Onboarding and Support","audiences":["prospect"],"product":"prospect","summary":"Starter, Growth and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding within an agreed scope. Starter includes email support, Growth and Core include a local business-hours helpdesk, Scale includes priority local support, and Enterprise includes a dedicated account lead and contracted service levels.","capabilityTags":["onboarding","implementation","support"],"lastReviewed":"2026-10-07","owner":"sales"}
 ---
 # Onboarding and Support
 
-Starter and Core use self onboarding through guided setup, import templates, Help and support documentation. Scheduled migration, configuration or training assistance can be separately scoped.
+Starter, Growth and Core use self onboarding through guided setup, import templates, Help and support documentation. Scheduled migration, configuration or training assistance can be separately scoped.
 
 Scale and Enterprise include White Glove onboarding within an agreed scope. This can cover discovery, configuration, data-migration validation, integration setup, rollout planning, administrator and team training, go-live coordination and post-launch handover. Complex data repair, provider-specific connector development, third-party fees and extended on-site work may be separately quoted.
 
-Support varies by plan. Starter includes email support. Core includes a local business-hours helpdesk. Scale includes priority local support and a named implementation lead. Enterprise includes a dedicated account lead and contracted service levels; after-hours or 24-hour coverage applies only when included in the Enterprise agreement.
+Support varies by plan. Starter includes email support. Growth and Core include a local business-hours helpdesk. Scale includes priority local support and a named implementation lead. Enterprise includes a dedicated account lead and contracted service levels; after-hours or 24-hour coverage applies only when included in the Enterprise agreement.
 
 ## Sales Assistant and Contact
 

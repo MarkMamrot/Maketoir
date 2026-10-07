@@ -334,7 +334,7 @@ const refreshedCapabilities: Capability[] = capabilities.map((capability) => {
       sectionHref: '#wholesale',
       groups: [
         { title: 'Repeat buyer orders', features: ['Approved buyers access the wholesale catalogue', 'Customer pricing tiers and product visibility', 'Saved lists, draft baskets and repeat ordering', 'Order submission and order history'] },
-        { title: 'Connected fulfilment', features: ['Review buyer orders alongside shared stock', 'Customer terms and account controls where configured', 'Indent ordering for approved out-of-stock products', 'Wholesale portal on Core, Scale and Enterprise plans'] },
+        { title: 'Connected fulfilment', features: ['Review buyer orders alongside shared stock', 'Customer terms and account controls where configured', 'Indent ordering for approved out-of-stock products', 'Wholesale portal on Growth, Core, Scale and Enterprise plans'] },
       ],
     },
     channels: {
@@ -438,7 +438,7 @@ const capabilityMapFlows = {
 
 const activeMapFlow = capabilityMapFlows.picto;
 
-export default function SolvantisCapabilityMap({ refreshed = false }: { refreshed?: boolean }) {
+export default function SolvantisCapabilityMap({ refreshed = false, sectionBasePath = '' }: { refreshed?: boolean; sectionBasePath?: string }) {
   const displayedCapabilities = refreshed ? refreshedCapabilities : capabilities;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -598,7 +598,7 @@ export default function SolvantisCapabilityMap({ refreshed = false }: { refreshe
 
       {selected && (
         <div
-          className="fixed inset-0 z-[115] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm md:p-6"
+          className="fixed inset-0 z-[12110] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm md:p-6"
           onClick={closeCapability}
           role="dialog"
           aria-modal="true"
@@ -676,7 +676,7 @@ export default function SolvantisCapabilityMap({ refreshed = false }: { refreshe
                   <ScanLine className="h-5 w-5 flex-none text-blue-600" aria-hidden="true" />
                   <p>Availability varies by plan. Compare tiers in the pricing section below.</p>
                 </div>
-                {selected.sectionHref && <a href={selected.sectionHref} onClick={() => { triggerRef.current = null; closeCapability(); }} className="mt-5 inline-block font-semibold text-blue-700 underline underline-offset-4">More about {selected.shortTitle}</a>}
+                {selected.sectionHref && <a href={`${sectionBasePath}${selected.sectionHref}`} onClick={() => { triggerRef.current = null; closeCapability(); }} className="mt-5 inline-block font-semibold text-blue-700 underline underline-offset-4">More about {selected.shortTitle}</a>}
               </div>
             </div>
           </div>

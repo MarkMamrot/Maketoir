@@ -19,6 +19,7 @@ describe('landing map variants', () => {
     expect(document.querySelectorAll('.grid.grid-cols-2 button')).toHaveLength(10);
     fireEvent.click(screen.getByRole('button', { name: 'Explore Loyalty features' }));
     expect(screen.getByRole('heading', { name: 'Loyalty and Store Credit' })).toBeTruthy();
+    expect(screen.getByRole('dialog').className).toContain('z-[12110]');
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Explore CRM features' }));
@@ -31,6 +32,12 @@ describe('landing map variants', () => {
     expect(screen.getByText('Multiple Shopify stores with separate connections and settings')).toBeTruthy();
     expect(screen.getByText(/existing-ASIN offers, subject to readiness/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'More about Multi Channel' }).getAttribute('href')).toBe('#sales-channels');
+  });
+
+  it('links to the detailed landing sections when embedded on the original page', () => {
+    render(<SolvantisCapabilityMap refreshed sectionBasePath="/landing2.html" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore Multi Channel Commerce features' }));
+    expect(screen.getByRole('link', { name: 'More about Multi Channel' }).getAttribute('href')).toBe('/landing2.html#sales-channels');
   });
 
   it('keeps preview focus within details and returns it on Escape', async () => {

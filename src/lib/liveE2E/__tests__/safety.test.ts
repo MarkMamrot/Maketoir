@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertPreflightIdentity, LIVE_CONFIRMATION, loadLiveE2EConfig, redactLiveE2EValue } from '../safety';
+import { assertLiveShopifyOwnership, assertPreflightIdentity, LIVE_CONFIRMATION, loadLiveE2EConfig, redactLiveE2EValue } from '../safety';
 
 const validEnv: NodeJS.ProcessEnv = {
   LIVE_E2E_CONFIRM: LIVE_CONFIRMATION,
@@ -70,5 +70,25 @@ describe('live E2E safety contract', () => {
       password: '[REDACTED]',
       nested: { accessToken: '[REDACTED]', documentId: 41 },
     });
+  });
+
+  it('accepts only consistent canonical and legacy test-store ownership', () => {
+    const config = loadLiveE2EConfig(validEnv);
+    const instance = {
+      business_id: config.expectedBusinessId,
+      provider: 'shopify',
+      external_account_key: config.expectedShopifyShop,
+      is_enabled: 1,
+      runtime_status: 'active',
+      readiness_status: 'ready',
+    };
+    expect(() => assertLiveShopifyOwnership(config, config.expectedShopifyShop.toUpperCase(), [instance])).not.toThrow();
+    expect(() => assertLiveShopifyOwnership(config, 'other.myshopify.com', [instance])).toThrow('legacy Shopify');
+    expect(() => assertLiveShopifyOwnership(config, config.expectedShopifyShop, [])).toThrow('exactly one canonical owner');
+    expect(() => assertLiveShopifyOwnership(config, config.expectedShopifyShop, [instance, instance])).toThrow('exactly one canonical owner');
+    expect(() => assertLiveShopifyOwnership(config, config.expectedShopifyShop, [{ ...instance, business_id: 'other' }])).toThrow('expected sandbox');
+    for (const change of [{ is_enabled: 0 }, { runtime_status: 'paused' }, { readiness_status: 'setup_pending' }]) {
+      expect(() => assertLiveShopifyOwnership(config, config.expectedShopifyShop, [{ ...instance, ...change }])).toThrow('enabled, active and ready');
+    }
   });
 });

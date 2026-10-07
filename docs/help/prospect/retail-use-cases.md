@@ -1,5 +1,5 @@
 ---
-{"id":"prospect-retail-use-cases","title":"Retail Use Cases","audiences":["prospect"],"product":"prospect","summary":"Store Daybook supports checklists, staff notices with read acknowledgements, handovers, customer follow-up and warehouse requests without itself moving stock. Solvantis also supports stock and purchasing across locations, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, native online selling and repeat wholesale ordering. Provider capabilities, integration allowances and portal availability follow setup and plan.","capabilityTags":["inventory","purchasing","pos","crm","wholesale","commerce","analytics"],"lastReviewed":"2026-10-07","owner":"sales"}
+{"id":"prospect-retail-use-cases","title":"Store Daybook and Retail Use Cases","audiences":["prospect"],"product":"prospect","summary":"Store Daybook supports checklists, staff notices with read acknowledgements, handovers, customer follow-up and warehouse requests without itself moving stock. Solvantis also supports stock and purchasing across locations, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, native online selling and repeat wholesale ordering. Provider capabilities, integration allowances and portal availability follow setup and plan.","capabilityTags":["inventory","purchasing","pos","crm","wholesale","commerce","analytics"],"lastReviewed":"2026-10-07","owner":"sales"}
 ---
 # Retail Use Cases
 
@@ -15,4 +15,4 @@ Supported ordinary POS checkout can continue while disconnected and sync later. 
 
 ## Repeat wholesale orders
 
-Approved wholesale buyers can access their catalogue and pricing, prepare draft baskets, use saved lists and repeat orders, submit orders and review history. The wholesale portal is included on Core, Scale and Enterprise. Customer terms and indent ordering depend on configuration.
+Approved wholesale buyers can access their catalogue and pricing, prepare draft baskets, use saved lists and repeat orders, submit orders and review history. The wholesale portal is included on Growth, Core, Scale and Enterprise. Customer terms and indent ordering depend on configuration.

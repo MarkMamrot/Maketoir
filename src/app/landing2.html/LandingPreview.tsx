@@ -154,7 +154,7 @@ export default function LandingPreview() {
           <Feature icon={ClipboardCheck} title="Less rebuilding the same order">Saved lists, draft baskets and repeat ordering help regular buyers prepare their next order.</Feature>
           <Feature icon={Boxes} title="Back into your operation">Review and fulfil submitted orders using shared stock records. Keep buyer history and configured account terms close at hand.</Feature>
         </div>
-        <p className={styles.note}>The wholesale portal is included on Core, Scale and Enterprise. Indent ordering and customer terms depend on your configuration.</p>
+        <p className={styles.note}>The wholesale portal is included on Growth, Core, Scale and Enterprise. Indent ordering and customer terms depend on your configuration.</p>
         <a href="#pricing" className={styles.textLink}>Compare wholesale-ready plans <ArrowRight size={17} /></a>
       </div></section>
 
@@ -200,7 +200,7 @@ export default function LandingPreview() {
         <div><Bullets items={['Customer profiles and retail or wholesale pricing', 'Configurable loyalty earning on eligible purchases', 'Eligible reward redemption and supported online loyalty', 'Store credit with linked return and transaction history']} /><p className={styles.note}>Shopify and native-shop workflows depend on setup and provider support. Customer matching and reward rules are confirmed during onboarding.</p></div>
       </div></section>
 
-      <section id="pricing" className={styles.section}><div className={styles.container}><SectionHeading label="Plans & pricing" title="A foundation for today. Room for what comes next.">Choose the capacity and support that fit your operation. All prices are AUD excluding GST.</SectionHeading><PricingPlanCards /></div></section>
+      <section id="pricing" className={styles.section}><div className={styles.container}><SectionHeading label="Plans & pricing" title="A foundation for today. Room for what comes next.">Choose the capacity and support that fit your operation. All prices are AUD excluding GST.</SectionHeading><PricingPlanCards onContactSales={() => setDemoOpen(true)} /></div></section>
 
       <section id="daily-work" className={`${styles.section} ${styles.soft}`}><div className={styles.container}>
         <SectionHeading label="Everyday workflows" title="For the problems that keep coming back." />

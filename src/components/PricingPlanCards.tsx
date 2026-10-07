@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, ChevronRight, Minus, X } from 'lucide-react';
 
-type PlanId = 'starter' | 'core' | 'scale' | 'enterprise';
+type PlanId = 'starter' | 'growth' | 'core' | 'scale' | 'enterprise';
 type ComparisonValue = boolean | string;
 
 type ComparisonFeature = {
@@ -51,6 +51,24 @@ export const pricingPlans: PricingPlan[] = [
     ],
   },
   {
+    id: 'growth',
+    name: 'Growth',
+    audience: 'Complete retail, online and wholesale for a single store',
+    price: 'From $159',
+    priceSuffix: '/month',
+    secondaryPrice: '$199/month without Connected Payments',
+    pricingNote: 'Monthly. With eligible Connected Payments volume. Excludes GST.',
+    summaryFeatures: [
+      'Annual turnover up to A$2 million',
+      '1 location, 2 registers and up to 10 users',
+      'Complete operational feature set',
+      'Native online shop and wholesale portal',
+      'AI Automation with preferred credit rates',
+      '3 standard integrations',
+      'Self onboarding and local helpdesk',
+    ],
+  },
+  {
     id: 'core',
     name: 'Core',
     audience: 'Complete retail, online and wholesale operations',
@@ -64,7 +82,7 @@ export const pricingPlans: PricingPlan[] = [
       'Complete operational feature set',
       'Native online shop and wholesale portal',
       'AI Automation with preferred credit rates',
-      '3 standard integrations',
+      '5 standard integrations',
       'Self onboarding and local helpdesk',
     ],
   },
@@ -103,25 +121,21 @@ export const pricingPlans: PricingPlan[] = [
   },
 ];
 
-const includedForAll = { starter: true, core: true, scale: true, enterprise: true } as const;
-const coreAndAbove = { starter: false, core: true, scale: true, enterprise: true } as const;
-const scaleAndAbove = { starter: false, core: false, scale: true, enterprise: true } as const;
-const enterpriseOnly = { starter: false, core: false, scale: false, enterprise: true } as const;
+const includedForAll = { starter: true, growth: true, core: true, scale: true, enterprise: true } as const;
+const growthAndAbove = { starter: false, growth: true, core: true, scale: true, enterprise: true } as const;
+const coreAndAbove = { starter: false, growth: false, core: true, scale: true, enterprise: true } as const;
+const scaleAndAbove = { starter: false, growth: false, core: false, scale: true, enterprise: true } as const;
+const enterpriseOnly = { starter: false, growth: false, core: false, scale: false, enterprise: true } as const;
 
 export const pricingComparisonSections: ComparisonSection[] = [
   {
     title: 'Plan capacity',
     features: [
-      { label: 'Annual turnover', values: { starter: 'Up to A$600,000', core: 'Up to A$5 million', scale: 'A$5 million+', enterprise: 'Contracted' } },
-      { label: 'Retail locations included', values: { starter: '1', core: '3', scale: '10', enterprise: 'Contracted' } },
-      { label: 'Registers included', values: { starter: '1', core: '5', scale: '20', enterprise: 'Contracted' } },
-      { label: 'Team users included', values: { starter: '3', core: '15', scale: '50', enterprise: 'Contracted' } },
-      { label: 'Standard integrations included', values: { starter: '1', core: '3', scale: '8', enterprise: 'Contracted' } },
-      {
-        label: 'Indicative annual order allowance',
-        note: 'A commercial fair-use allowance; sales are not automatically interrupted.',
-        values: { starter: '3,000', core: '25,000', scale: '120,000', enterprise: 'Contracted' },
-      },
+      { label: 'Annual turnover', values: { starter: 'Up to A$600,000', growth: 'Up to A$2 million', core: 'Up to A$5 million', scale: 'A$5 million+', enterprise: 'Contracted' } },
+      { label: 'Retail locations included', values: { starter: '1', growth: '1', core: '3', scale: '10', enterprise: 'Contracted' } },
+      { label: 'Registers included', values: { starter: '1', growth: '2', core: '5', scale: '20', enterprise: 'Contracted' } },
+      { label: 'Team users included', values: { starter: '3', growth: '10', core: '15', scale: '50', enterprise: 'Contracted' } },
+      { label: 'Standard integrations included', values: { starter: '1', growth: '3', core: '5', scale: '8', enterprise: 'Contracted' } },
     ],
   },
   {
@@ -149,7 +163,7 @@ export const pricingComparisonSections: ComparisonSection[] = [
       {
         label: 'Wholesale portal integration',
         note: 'Use the Solvantis wholesale ordering portal or integrate with an external wholesale portal.',
-        values: coreAndAbove,
+        values: growthAndAbove,
       },
     ],
   },
@@ -190,7 +204,7 @@ export const pricingComparisonSections: ComparisonSection[] = [
       {
         label: 'AI credit pricing',
         note: 'Generative and agentic actions consume separately purchased credits.',
-        values: { starter: 'Standard rate', core: 'Preferred rate', scale: 'Volume rate', enterprise: 'Contracted bulk rate' },
+        values: { starter: 'Standard rate', growth: 'Preferred rate', core: 'Preferred rate', scale: 'Volume rate', enterprise: 'Contracted bulk rate' },
       },
     ],
   },
@@ -220,7 +234,7 @@ export const pricingComparisonSections: ComparisonSection[] = [
     features: [
       { label: 'Native online shop', values: includedForAll },
       { label: 'Custom online-shop domain', values: coreAndAbove },
-      { label: 'Wholesale ordering portal', values: coreAndAbove },
+      { label: 'Wholesale ordering portal', values: growthAndAbove },
       {
         label: '3PL workflows',
         note: 'Supported standard workflows are included; provider-specific connector work and third-party fees may be quoted separately.',
@@ -231,16 +245,16 @@ export const pricingComparisonSections: ComparisonSection[] = [
   {
     title: 'Implementation and support',
     features: [
-      { label: 'Onboarding', values: { starter: 'Self onboarding', core: 'Self onboarding', scale: 'White Glove', enterprise: 'White Glove' } },
-      { label: 'Data migration assistance', values: { starter: 'Templates', core: 'Templates', scale: 'Guided validation', enterprise: 'Scoped migration' } },
-      { label: 'Support', values: { starter: 'Email', core: 'Local helpdesk', scale: 'Priority local', enterprise: 'Dedicated + SLA' } },
+      { label: 'Onboarding', values: { starter: 'Self onboarding', growth: 'Self onboarding', core: 'Self onboarding', scale: 'White Glove', enterprise: 'White Glove' } },
+      { label: 'Data migration assistance', values: { starter: 'Templates', growth: 'Templates', core: 'Templates', scale: 'Guided validation', enterprise: 'Scoped migration' } },
+      { label: 'Support', values: { starter: 'Email', growth: 'Local helpdesk', core: 'Local helpdesk', scale: 'Priority local', enterprise: 'Dedicated + SLA' } },
       { label: 'Dedicated account manager', values: enterpriseOnly },
       { label: 'Service-level agreement', values: enterpriseOnly },
       { label: 'Dedicated app and database instances', values: enterpriseOnly },
       {
         label: 'Annual customisation allowance',
         note: 'Scheduled and governed under the Enterprise agreement.',
-        values: { starter: false, core: false, scale: false, enterprise: '100 hours' },
+        values: { starter: false, growth: false, core: false, scale: false, enterprise: '100 hours' },
       },
     ],
   },
@@ -293,7 +307,7 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
 
   return (
     <>
-      <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
         {pricingPlans.map((plan) => {
           const isEnterprise = plan.id === 'enterprise';
 
@@ -427,7 +441,7 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
                             ) : feature.label}
                           </p>
                           {feature.note && <p className="mt-1 text-xs leading-relaxed text-slate-500">{feature.note}</p>}
-                          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                             {pricingPlans.map((plan) => (
                               <div key={plan.id} className={`rounded-md p-2 text-center ${selectedPlan.id === plan.id ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-slate-50'}`}>
                                 <p className={`mb-1.5 text-[10px] font-black uppercase tracking-wide ${selectedPlan.id === plan.id ? 'text-blue-700' : 'text-slate-500'}`}>
@@ -446,14 +460,14 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
                 ))}
               </div>
 
-              <table className="hidden w-full min-w-[900px] border-collapse text-sm md:table">
+              <table className="hidden w-full min-w-[1000px] border-collapse text-sm md:table">
                 <thead className="sticky top-0 z-10 bg-white shadow-sm">
                   <tr>
-                    <th className="w-[40%] px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:px-8">Feature</th>
+                    <th className="w-[30%] px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:px-8">Feature</th>
                     {pricingPlans.map((plan) => (
                       <th
                         key={plan.id}
-                        className={`w-[20%] px-4 py-4 text-center text-sm font-black ${selectedPlan.id === plan.id ? 'bg-blue-50 text-blue-700' : 'text-slate-800'}`}
+                        className={`px-4 py-4 text-center text-sm font-black ${selectedPlan.id === plan.id ? 'bg-blue-50 text-blue-700' : 'text-slate-800'}`}
                       >
                         {plan.name}
                       </th>
@@ -464,7 +478,7 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
                   {pricingComparisonSections.map((section) => (
                     <Fragment key={section.title}>
                       <tr>
-                        <th colSpan={5} className="border-y border-slate-200 bg-slate-100 px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-700 md:px-8">
+                        <th colSpan={pricingPlans.length + 1} className="border-y border-slate-200 bg-slate-100 px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-700 md:px-8">
                           {section.title}
                         </th>
                       </tr>

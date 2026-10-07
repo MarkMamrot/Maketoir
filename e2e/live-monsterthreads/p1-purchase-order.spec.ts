@@ -4,7 +4,7 @@ import { loadLiveE2EConfig } from '../../src/lib/liveE2E/safety';
 import { loginToIms } from './support/auth';
 import { verifyLiveFifoIntegrity } from './support/fifo-database';
 import { appendManifestState, readManifest } from './support/manifest-store';
-import { verifyPurchaseOrderCompensation } from './support/database-preflight';
+import { verifyPurchaseOrderCompensation, verifyPurchaseOrderReceipt } from './support/database-preflight';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -93,12 +93,20 @@ test('@p1-receive fully receives the existing isolated low-value PO', async ({ p
     }).toBe('complete');
 
     const detail = await (await page.request.get(`/api/ims/purchase-orders/${poId}`)).json();
+    const stock = await verifyPurchaseOrderReceipt(config, poId);
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/ims/xero/bill-details?poId=${poId}`);
+      const bill = await response.json();
+      return { success: response.ok() && bill.success === true, total: Number(bill.total), taxTotal: Number(bill.taxTotal) };
+    }, { timeout: 30_000, message: 'Xero test bill does not match the received untaxed PO.' })
+      .toEqual({ success: true, total: config.maxDocumentTotal, taxTotal: 0 });
     const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
     await appendManifestState(config.runId, 'awaiting_operator', {
       scenario: 'P1',
       purchaseOrderId: poId,
       purchaseOrderNumber: detail?.data?.po_number ?? null,
       xeroBillId: detail?.data?.xero_bill_id ?? null,
+      stock,
       fifo,
       operatorChecks: ['IMS PO is complete with quantity 1 received', 'Xero bill exists and matches the low-value PO'],
     });

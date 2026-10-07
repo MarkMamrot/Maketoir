@@ -45,7 +45,36 @@ vi.mock('@/lib/ims/costing/fifoCostingService', () => ({
   reverseFifoStockMovementLayers: mockReverseFifoStockMovementLayers,
 }));
 
-import { PosSalesRepo } from '@/lib/db/PosRepository';
+import { PosEodRepo, PosSalesRepo } from '@/lib/db/PosRepository';
+import { imsQuery } from '@/services/IMSMySQLService';
+
+describe('PosEodRepo layby deposits', () => {
+  beforeEach(() => vi.mocked(imsQuery).mockReset());
+
+  it('includes active deposits by payment date without recognising full merchandise revenue', async () => {
+    vi.mocked(imsQuery).mockResolvedValueOnce([{ payment_method: 'Card', total: '26.00' }]).mockResolvedValueOnce([{ total: '0' }]);
+    expect(await PosEodRepo.getExpected(3, '2026-10-07', 1)).toEqual({ Card: 26 });
+    const sql = vi.mocked(imsQuery).mock.calls[0][0];
+    expect(sql).toContain("'layby_active'");
+    expect(sql).toContain("WHEN s.sale_type = 'layby' THEN s.created_at ELSE s.completed_at");
+    expect(sql).toContain('SUM(p.amount)');
+  });
+
+  it('includes active layby deposits in their opening register session', async () => {
+    vi.mocked(imsQuery).mockResolvedValueOnce([{ payment_method: 'Card', total: '26.00' }]).mockResolvedValueOnce([{ total: '0' }]);
+    expect(await PosEodRepo.getExpectedBySession(2)).toEqual({ Card: 26 });
+    expect(vi.mocked(imsQuery).mock.calls[0][0]).toContain("'layby_active'");
+  });
+
+  it('uses creation time for a layby synced without its register-session stamp', async () => {
+    vi.mocked(imsQuery).mockResolvedValueOnce([{ opened_at: '2026-10-07 10:38:24', closed_at: null }])
+      .mockResolvedValueOnce([{ payment_method: 'Card', total: '26.00' }]).mockResolvedValueOnce([{ total: '0' }]);
+    expect(await PosEodRepo.getExpectedBySession(2, { locationId: 3, date: '2026-10-07', registerId: 1 })).toEqual({ Card: 26 });
+    const sql = vi.mocked(imsQuery).mock.calls[1][0];
+    expect(sql).toContain("CASE WHEN s.sale_type = 'layby' THEN s.created_at ELSE s.completed_at END");
+    expect(sql).toContain('s.register_session_id IS NULL');
+  });
+});
 
 function saleData() {
   return {

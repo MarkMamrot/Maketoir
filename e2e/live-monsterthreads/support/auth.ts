@@ -10,6 +10,7 @@ export async function loginToIms(page: Page, config: LiveE2EConfig): Promise<voi
   const loginResponse = page.waitForResponse(response => response.url().endsWith('/api/auth/login') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Sign in to IMS' }).click();
   const response = await loginResponse;
+  await page.getByLabel('Password').fill('').catch(() => {});
   const login = await response.json() as { success?: boolean; requiresMfa?: boolean; nextRoute?: string; error?: string };
   if (login.requiresMfa || login.nextRoute?.startsWith('/auth/mfa/')) {
     throw new Error('Live E2E blocked: the configured admin account requires MFA.');

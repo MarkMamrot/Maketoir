@@ -8,6 +8,7 @@ Use End of Day to compare physical takings with recorded sales, close the regist
 ## Main operations
 
 - Count every payment method for the open register session.
+- Include actual opening layby deposits in payment-method takings. The unpaid balance is not money received.
 - Separate the cash opening float from cash sales.
 - Review and confirm any till variance before saving.
 - Close the register even when a separate Xero action needs repair.
@@ -18,12 +19,13 @@ Use End of Day to compare physical takings with recorded sales, close the regist
 
 | Value | How Solvantis treats it |
 |---|---|
-| Expected | Completed sales linked to this register session, grouped by payment method |
+| Expected | Actual payments on completed sales and active layby deposits linked to this register session, grouped by payment method |
 | Counted cash | All physical cash in the drawer, including the opening float |
 | Cash sales | Counted cash minus opening float |
 | Counted non-cash | The counted amount for that payment method |
 | Variance | Cash sales or counted non-cash minus the expected amount |
 | Petty cash | A separately recorded purchase paid from the open till |
+| Active layby | Its deposit contributes to expected takings; the full merchandise value is excluded from completed sales totals |
 
 ## Before you begin
 

@@ -498,7 +498,7 @@
     {
       "id": "public-capability:pos-laybys",
       "title": "Laybys at POS",
-      "summary": "Mark the current cart as a layby and save the currently supported fully allocated layby transaction.",
+      "summary": "Save a new layby with its actual partial deposit, check the unpaid balance, and review deposit takings. Later instalment collection against an existing layby is not available in POS.",
       "capabilities": [
         "pos"
       ],
@@ -616,6 +616,20 @@
       "availability": "confirmed"
     },
     {
+      "id": "prospect-growth-plan",
+      "title": "Growth Plan",
+      "summary": "Growth is monthly, from A$159/month with eligible Connected Payments volume, or A$199/month without. For turnover up to A$2 million: 1 store, 2 registers, up to 10 users and 3 standard integrations. Includes the complete operational feature set, native online shop, wholesale portal, preferred AI credit rates, self onboarding and a local helpdesk. Custom shop domains are not included. AI credits are purchased separately; prices exclude GST.",
+      "capabilities": [
+        "pricing",
+        "wholesale",
+        "commerce",
+        "onboarding",
+        "support"
+      ],
+      "product": "prospect",
+      "availability": "confirmed"
+    },
+    {
       "id": "prospect-integrations",
       "title": "Integration Approach",
       "summary": "Solvantis connects Xero, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, Australia Post eParcel, Cin7 and supported Google and Meta tools. Scale and Enterprise include supported standard 3PL workflows. Setup, plan allowances, provider readiness and separately scoped costs still apply.",
@@ -634,7 +648,7 @@
     {
       "id": "prospect-onboarding-support",
       "title": "Onboarding and Support",
-      "summary": "Starter and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding within an agreed scope. Starter includes email support, Core adds a local business-hours helpdesk, Scale includes priority local support, and Enterprise includes a dedicated account lead and contracted service levels.",
+      "summary": "Starter, Growth and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding within an agreed scope. Starter includes email support, Growth and Core include a local business-hours helpdesk, Scale includes priority local support, and Enterprise includes a dedicated account lead and contracted service levels.",
       "capabilities": [
         "onboarding",
         "implementation",
@@ -645,8 +659,8 @@
     },
     {
       "id": "prospect-pricing-offer",
-      "title": "Plans, Pricing and Current Offer",
-      "summary": "Starter: turnover up to A$600,000; from $59/month with eligible Connected Payments volume or $99/month without. Core: up to A$5 million, $349/month. Scale: A$5 million+, $749/month. Enterprise: from $1,999/month. The introductory offer is 3 months of Starter for a one-time $1 payment; normal Starter pricing applies afterwards unless cancelled beforehand. Prices are AUD excluding GST.",
+      "title": "Starter, Growth, Core, Scale and Enterprise Pricing",
+      "summary": "Starter: up to A$600,000, from $59/month ($99 without Connected Payments). Growth: up to A$2m, from $159/month ($199 without), monthly; 1 store, 2 registers, 10 users, 3 integrations. Core: up to A$5m, $349/month, 5 integrations. Scale: A$5m+, $749/month. Enterprise: from $1,999/month. Discounts require eligible payment volume. Offer: 3 months of Starter for a one-time $1 payment; normal pricing afterwards unless cancelled. AUD excluding GST.",
       "capabilities": [
         "pricing"
       ],
@@ -671,7 +685,7 @@
     },
     {
       "id": "prospect-retail-use-cases",
-      "title": "Retail Use Cases",
+      "title": "Store Daybook and Retail Use Cases",
       "summary": "Store Daybook supports checklists, staff notices with read acknowledgements, handovers, customer follow-up and warehouse requests without itself moving stock. Solvantis also supports stock and purchasing across locations, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, native online selling and repeat wholesale ordering. Provider capabilities, integration allowances and portal availability follow setup and plan.",
       "capabilities": [
         "inventory",

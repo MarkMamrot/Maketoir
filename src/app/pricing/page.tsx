@@ -16,12 +16,16 @@ const faqs = [
     a: 'Absolutely. You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle. There are no penalties for switching.',
   },
   {
+    q: 'Who is Growth for?',
+    a: 'Growth is for a single store with annual turnover up to A$2 million. It includes two registers, up to 10 users, three standard integrations, the complete operational feature set, the native online shop and wholesale portal, preferred AI credit rates, self onboarding and a local helpdesk. It is from $159 per month with eligible Connected Payments volume, or $199 per month without Connected Payments, excluding GST. Growth is monthly and does not include a custom online-shop domain.',
+  },
+  {
     q: 'What is the difference between Core and Scale?',
-    a: 'Core and Scale share the same complete operational feature set. Scale includes more locations, registers, users, integrations and order capacity, plus 3PL workflows, White Glove onboarding, priority support and better AI credit rates.',
+    a: 'Core and Scale share the same complete operational feature set. Scale includes more locations, registers, users and integrations, plus 3PL workflows, White Glove onboarding, priority support and better AI credit rates.',
   },
   {
     q: 'How does onboarding work?',
-    a: 'Starter and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding with discovery, migration validation, integration setup, training, rollout planning and go-live coordination within the agreed scope.',
+    a: 'Starter, Growth and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding with discovery, migration validation, integration setup, training, rollout planning and go-live coordination within the agreed scope.',
   },
   {
     q: 'Does the POS work offline?',
@@ -29,11 +33,11 @@ const faqs = [
   },
   {
     q: 'How are AI Automation tools charged?',
-    a: 'AI Automation is available on every plan. Generative and agentic actions use separately purchased AI credits. Core receives preferred rates, Scale receives volume-preferred rates and Enterprise receives contracted bulk rates. Standard reports and non-generative calculations do not use credits.',
+    a: 'AI Automation is available on every plan. Generative and agentic actions use separately purchased AI credits. Growth and Core receive preferred rates, Scale receives volume-preferred rates and Enterprise receives contracted bulk rates. Standard reports and non-generative calculations do not use credits.',
   },
   {
     q: 'Are there contracts?',
-    a: 'Starter is monthly. Core and Scale use 12-month agreements billed monthly. Enterprise is an annual scoped contract. All public prices exclude GST.',
+    a: 'Starter and Growth are monthly. Core and Scale use 12-month agreements billed monthly. Enterprise is an annual scoped contract. All public prices exclude GST.',
   },
   {
     q: 'What is included with Enterprise?',

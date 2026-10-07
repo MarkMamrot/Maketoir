@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto';
 import mysql from 'mysql2/promise';
 
 import { appendLiveRunEvent } from '../../../src/lib/liveE2E/manifest';
-import type { LiveE2EConfig } from '../../../src/lib/liveE2E/safety';
+import { assertLiveShopifyOwnership, type LiveE2EConfig } from '../../../src/lib/liveE2E/safety';
 import { verifyLiveFifoIntegrity } from './fifo-database';
 import { createManifest, readManifest } from './manifest-store';
 
@@ -55,6 +56,21 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     if (integration?.shopify_shop_id !== config.expectedShopifyShop || integration?.xero_tenant_id !== config.expectedXeroTenantId) {
       throw new Error('Live E2E blocked: stored Shopify or Xero identity does not match the expected identity.');
     }
+
+    const [shopifyInstances] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT business_id, provider, external_account_key, is_enabled, runtime_status, readiness_status
+         FROM sales_channel_instances
+        WHERE provider = 'shopify' AND LOWER(TRIM(external_account_key)) = ?`,
+      [config.expectedShopifyShop.trim().toLowerCase()],
+    );
+    assertLiveShopifyOwnership(config, integration.shopify_shop_id, shopifyInstances.map(instance => ({
+      business_id: String(instance.business_id),
+      provider: String(instance.provider),
+      external_account_key: instance.external_account_key == null ? null : String(instance.external_account_key),
+      is_enabled: Number(instance.is_enabled),
+      runtime_status: String(instance.runtime_status),
+      readiness_status: String(instance.readiness_status),
+    })));
 
     const schema = connection.escapeId(config.expectedImsSchema);
     const [[costingState]] = await connection.query<mysql.RowDataPacket[]>(
@@ -231,6 +247,19 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       && Number(checkpointedP3SourceOrder.qty_fulfilled) === 1;
     const p3CompensationStateAllowed = config.action === 'p3-compensate'
       && ['acknowledged', 'compensation_retry_authorized'].includes(currentState ?? '');
+    const latestP3Checkpoint = existingEvents.findLast(event => event.state === 'awaiting_operator');
+    const resumableP3NoStockCompensation = p3CompensationStateAllowed
+      && (latestP3Checkpoint?.details as { phase?: string })?.phase === 'no_stock_rejection_verified'
+      && Number.isInteger(checkpointedP3SoId)
+      && openPurchaseOrders.length === 0
+      && openSalesOrders.length === 1
+      && Number(openSalesOrders[0].id) === checkpointedP3SoId
+      && String(openSalesOrders[0].status) === 'confirmed'
+      && Number(openSalesOrders[0].customer_id) === config.fixtureCustomerId
+      && Number(openSalesOrders[0].location_id) === config.fixtureLocationId
+      && Number(openSalesOrders[0].qty_ordered) === 2
+      && Number(openSalesOrders[0].qty_fulfilled) === 0
+      && String(openSalesOrders[0].notes ?? '').includes(`LIVE E2E ${config.runId} P3`);
     const resumableP3Compensation = p3CompensationStateAllowed
       && Number.isInteger(checkpointedP3SoId)
       && checkpointedP3SourceOrder
@@ -305,7 +334,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const allowP7PreflightCarry = config.action === 'p7' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP8PreflightCarry = config.action === 'p8' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
-    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && !allowP8PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series && !resumableP8Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
+    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && !allowP8PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP3NoStockCompensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series && !resumableP8Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
     }
 
@@ -389,6 +418,126 @@ export async function releaseDatabasePreflightLock(): Promise<void> {
   if (!connection) return;
   if (lockName) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
   await connection.end().catch(() => {});
+}
+
+export async function loadCampaignInventoryBaseline(config: LiveE2EConfig) {
+  const connection = await mysql.createConnection({
+    host: envRequired('MYSQL_HOST'),
+    port: Number(process.env.MYSQL_PORT ?? 3306),
+    database: envRequired('MYSQL_DATABASE'),
+    user: envRequired('MYSQL_USER'),
+    password: envRequired('MYSQL_PASSWORD'),
+    connectTimeout: 20000,
+  });
+  try {
+    await connection.query('START TRANSACTION READ ONLY');
+    const schema = connection.escapeId(config.expectedImsSchema);
+    const [[state]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT active_method, active_epoch_id, revision FROM ${schema}.ims_inventory_cost_state
+        WHERE business_id = ?`,
+      [config.expectedBusinessId],
+    );
+    if (!state || state.active_method !== config.expectedCostingMethod) {
+      throw new Error('Live E2E blocked: costing changed before the campaign baseline.');
+    }
+    const [positions] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT stock.variant_id, stock.location_id, stock.qty_on_hand, stock.qty_incoming,
+              stock.qty_committed, COALESCE(variant.avg_cost, stock.avg_cost) AS unit_cost
+         FROM ${schema}.ims_stock stock
+         JOIN ${schema}.ims_product_variants variant ON variant.variant_id = stock.variant_id
+        WHERE stock.business_id = ? ORDER BY stock.variant_id, stock.location_id`,
+      [config.expectedBusinessId],
+    );
+    const [layers] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, epoch_id, variant_id, location_id, remaining_quantity, unit_cost
+         FROM ${schema}.ims_fifo_cost_layers WHERE business_id = ? ORDER BY id`,
+      [config.expectedBusinessId],
+    );
+    const [movementCosts] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, qty_change, unit_cost, cost_method_snapshot, cost_epoch_id
+         FROM ${schema}.ims_stock_movements WHERE business_id = ? ORDER BY id`,
+      [config.expectedBusinessId],
+    );
+    const positivePositions = positions.filter(position => Number(position.qty_on_hand) > 0.0001);
+    const baseline = {
+      method: String(state.active_method),
+      revision: Number(state.revision),
+      epochId: state.active_epoch_id == null ? null : Number(state.active_epoch_id),
+      stockRowCount: positions.length,
+      positiveStockRowCount: positivePositions.length,
+      positiveQuantity: positivePositions.reduce((total, position) => total + Number(position.qty_on_hand), 0),
+      averageStockValue: positivePositions.reduce((total, position) => total + Number(position.qty_on_hand) * Number(position.unit_cost ?? 0), 0),
+      activeLayerValue: layers.filter(layer => Number(layer.epoch_id) === Number(state.active_epoch_id))
+        .reduce((total, layer) => total + Number(layer.remaining_quantity) * Number(layer.unit_cost), 0),
+      negativeStockRows: positions.filter(position => Number(position.qty_on_hand) < -0.0001).length,
+      missingPositiveCostRows: positivePositions.filter(position => position.unit_cost == null
+        || !Number.isFinite(Number(position.unit_cost)) || Number(position.unit_cost) < 0.0000005).length,
+      historicalMovementCount: movementCosts.length,
+      stockFingerprint: createHash('sha256').update(JSON.stringify(positions)).digest('hex'),
+      layerFingerprint: createHash('sha256').update(JSON.stringify(layers)).digest('hex'),
+      movementCostFingerprint: createHash('sha256').update(JSON.stringify(movementCosts)).digest('hex'),
+    };
+    await connection.commit();
+    return baseline;
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function verifyPurchaseOrderReceipt(config: LiveE2EConfig, poId: number) {
+  const events = await readManifest(config.runId);
+  const baseline = (events[0]?.details as any)?.baseline;
+  if (!baseline) throw new Error('Live E2E blocked: manifest baseline is missing.');
+  const connection = await mysql.createConnection({
+    host: envRequired('MYSQL_HOST'),
+    port: Number(process.env.MYSQL_PORT ?? 3306),
+    database: envRequired('MYSQL_DATABASE'),
+    user: envRequired('MYSQL_USER'),
+    password: envRequired('MYSQL_PASSWORD'),
+    connectTimeout: 20000,
+  });
+  try {
+    await connection.query('START TRANSACTION READ ONLY');
+    const schema = connection.escapeId(config.expectedImsSchema);
+    const [[po]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT status, location_id, total_amount, tax_amount, tax_treatment, xero_bill_id
+         FROM ${schema}.ims_purchase_orders WHERE business_id = ? AND id = ?`,
+      [config.expectedBusinessId, poId],
+    );
+    const [items] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT item.variant_id, item.qty_ordered, item.qty_received
+         FROM ${schema}.ims_purchase_order_items item
+         JOIN ${schema}.ims_purchase_orders po ON po.id = item.po_id
+        WHERE po.business_id = ? AND po.id = ? ORDER BY item.id`,
+      [config.expectedBusinessId, poId],
+    );
+    const [[stock]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT qty_on_hand, qty_incoming, qty_committed FROM ${schema}.ims_stock
+        WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
+      [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
+    );
+    if (!po || po.status !== 'complete' || Number(po.location_id) !== config.fixtureLocationId
+      || Number(po.total_amount) !== config.maxDocumentTotal || Number(po.tax_amount) !== 0
+      || po.tax_treatment !== 'no_tax' || !po.xero_bill_id
+      || items.length !== 1 || items[0].variant_id !== config.fixtureVariantId
+      || Number(items[0].qty_ordered) !== 1 || Number(items[0].qty_received) !== 1) {
+      throw new Error('Live E2E blocked: received P1 document does not match the isolated one-unit fixture.');
+    }
+    const actual = {
+      qtyOnHand: Number(stock?.qty_on_hand),
+      qtyIncoming: Number(stock?.qty_incoming),
+      qtyCommitted: Number(stock?.qty_committed),
+    };
+    if (actual.qtyOnHand !== Number(baseline.qtyOnHand) + 1
+      || actual.qtyIncoming !== Number(baseline.qtyIncoming)
+      || actual.qtyCommitted !== Number(baseline.qtyCommitted)) {
+      throw new Error('Live E2E blocked: P1 receipt stock delta does not reconcile with the baseline.');
+    }
+    await connection.commit();
+    return actual;
+  } finally {
+    await connection.end();
+  }
 }
 
 export async function verifyPurchaseOrderCompensation(config: LiveE2EConfig, poId: number): Promise<{

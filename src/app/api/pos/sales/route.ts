@@ -15,6 +15,7 @@ import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
 import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { canSaveLaybyDeposit } from '@/lib/pos/laybyPayments';
 
 const SLOW_POS_SALE_MS = 10_000;
 
@@ -102,6 +103,10 @@ export async function POST(req: Request) {
     if (!businessId) return NextResponse.json({ error: 'Business context is required.' }, { status: 400 });
     const locationId = Number(body.location_id ?? session.location_id);
     if (!Number.isFinite(locationId)) return NextResponse.json({ error: 'POS location is required.' }, { status: 400 });
+    if (body.sale_type === 'layby' && body.status === 'layby_active'
+      && (!Array.isArray(body.payments) || !canSaveLaybyDeposit(Number(body.total), body.payments.map((payment: any) => Number(payment.amount))))) {
+      return NextResponse.json({ error: 'Record only the actual positive layby deposit, up to the merchandise total.' }, { status: 400 });
+    }
 
     if (body.is_training === true) {
       const items = Array.isArray(body.items) ? body.items : [];

@@ -1,9 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Dialog } from '@playwright/test';
 
 import { loadLiveE2EConfig } from '../../src/lib/liveE2E/safety';
 import { loginToIms } from './support/auth';
 import { appendManifestState, readManifest } from './support/manifest-store';
-import { verifySalesOrderPartialCompensation, verifySalesOrderPartialFulfilment } from './support/database-preflight';
+import { loadCampaignInventoryBaseline, verifySalesOrderCompensation, verifySalesOrderPartialCompensation, verifySalesOrderPartialFulfilment } from './support/database-preflight';
 import { verifyLiveFifoIntegrity } from './support/fifo-database';
 
 test.describe.configure({ timeout: 120_000 });
@@ -40,6 +40,7 @@ test('@p3-create creates the isolated two-unit Draft SO for partial fulfilment',
     const list = await listResponse.json() as { success?: boolean; data?: any[] };
     const existing = Array.isArray(list?.data)
       ? list.data.find(order => ['draft', 'confirmed'].includes(String(order.status))
+        && String(order.notes ?? '').includes(`LIVE E2E ${config.runId} P3`)
         && Number(order.location_id) === config.fixtureLocationId
         && Number(order.customer_id) === config.fixtureCustomerId
         && Number(order.qty_ordered ?? 0) === 2)
@@ -96,7 +97,7 @@ test('@p3-create creates the isolated two-unit Draft SO for partial fulfilment',
   }
 });
 
-test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) => {
+test('@p3-fulfil verifies a partial shipment or atomic no-stock rejection', async ({ page }) => {
   const config = loadLiveE2EConfig();
   const events = await readManifest(config.runId);
   const soId = p3SalesOrderId(events);
@@ -136,15 +137,31 @@ test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) 
     const soRow = page.getByTestId(`so-open-${soId}`).locator('xpath=ancestor::tr');
 
     if (soStatus === 'draft') {
-      page.once('dialog', dialog => dialog.accept());
-      const confirmResponse = page.waitForResponse(response => response.url().endsWith(`/api/ims/sales-orders/${soId}`)
-        && response.request().method() === 'PUT');
+      const handleConfirmationDialog = (dialog: Dialog) => dialog.accept();
+      page.once('dialog', handleConfirmationDialog);
+      const confirmResponse = page.waitForResponse(response =>
+        (response.url().endsWith(`/api/ims/sales-orders/${soId}`) && response.request().method() === 'PUT')
+        || (response.url().endsWith(`/api/ims/sales-orders/${soId}/sourcing`) && response.request().method() === 'POST'),
+      { timeout: 90_000 });
       await soRow.getByRole('combobox').selectOption('confirm');
       await soRow.getByRole('button', { name: 'Go' }).click();
+      const baseline = (events[0]?.details as { baseline?: { qtyOnHand: number; qtyCommitted: number } })?.baseline;
+      expect(baseline).toBeDefined();
+      const unsourcedQuantity = Math.max(0, 2 - (Number(baseline?.qtyOnHand) - Number(baseline?.qtyCommitted)));
+      if (unsourcedQuantity > 0) {
+        await expect(page.getByRole('heading', { name: /^Stock sourcing/ })).toBeVisible({ timeout: 45_000 });
+        await expect(page.getByText('No eligible confirmed incoming purchase order.', { exact: true })).toBeVisible();
+        const confirmUnsourced = page.getByRole('button', { name: 'Confirm with Unsourced Quantity', exact: true });
+        await expect(confirmUnsourced).toBeDisabled();
+        await page.getByRole('checkbox', { name: new RegExp(`^Leave ${unsourcedQuantity} unsourced\\.`) }).check();
+        await expect(confirmUnsourced).toBeEnabled();
+        await confirmUnsourced.click();
+      }
       const confirmResult = await confirmResponse;
       const confirmed = await confirmResult.json() as { success?: boolean; error?: string };
       expect(confirmResult.ok(), confirmed.error).toBe(true);
       expect(confirmed.success, confirmed.error).toBe(true);
+      page.off('dialog', handleConfirmationDialog);
       await expect(soRow.getByRole('combobox')).toHaveValue('fulfill');
     }
 
@@ -155,14 +172,52 @@ test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) 
     await page.getByTestId('so-fulfil-mode-backorder').check();
     await page.getByTestId(`so-fulfil-qty-${itemId}`).fill('1');
 
-    page.once('dialog', dialog => dialog.accept());
+    const beforeAttempt = await loadCampaignInventoryBaseline(config);
+    const baseline = (events[0]?.details as { baseline?: { qtyOnHand: number } })?.baseline;
+    const expectsNoStockRejection = config.expectedCostingMethod === 'average_cost' && Number(baseline?.qtyOnHand) < 1;
+    const declinedNegativeStock = expectsNoStockRejection
+      ? page.waitForEvent('dialog').then(async dialog => {
+        const message = dialog.message();
+        await dialog.dismiss();
+        expect(message).toContain('Continue and allow negative stock?');
+      })
+      : null;
     const fulfilResponse = page.waitForResponse(response => response.url().includes('/api/ims/sales-orders/')
       && response.url().endsWith('/backorder')
-      && response.request().method() === 'POST'
-      && response.status() === 200);
+      && response.request().method() === 'POST');
     await page.getByTestId('so-fulfil-confirm').click();
     const response = await fulfilResponse;
     const fulfilled = await response.json() as { success?: boolean; error?: string; data?: any };
+    if (expectsNoStockRejection) {
+      await declinedNegativeStock;
+      await expect(page.getByTestId('so-fulfil-confirm')).toBeEnabled();
+      expect(response.status()).toBe(409);
+      expect(fulfilled.success).toBe(false);
+      expect(fulfilled.error).toMatch(/enough stock on hand/i);
+      const unchanged = await (await page.request.get(`/api/ims/sales-orders/${soId}`)).json();
+      expect(unchanged.data.status).toBe('confirmed');
+      expect(unchanged.data.items).toHaveLength(1);
+      expect(Number(unchanged.data.items[0].qty_ordered)).toBe(2);
+      expect(Number(unchanged.data.items[0].qty_fulfilled)).toBe(0);
+      const afterAttempt = await loadCampaignInventoryBaseline(config);
+      expect(afterAttempt).toEqual(beforeAttempt);
+      const invoiceResponse = await page.request.get(`/api/ims/xero/invoice-details?soId=${soId}`);
+      expect(invoiceResponse.ok()).toBe(true);
+      const invoice = await invoiceResponse.json();
+      expect(invoice.status).toBe('DRAFT');
+      expect(Number(invoice.total)).toBe(1);
+      await appendManifestState(config.runId, 'awaiting_operator', {
+        scenario: 'P3 no-stock rejection',
+        phase: 'no_stock_rejection_verified',
+        salesOrderId: soId,
+        salesOrderNumber: soNumber,
+        beforeAttempt,
+        afterAttempt,
+        backorderSoId: null,
+        operatorChecks: ['SO remains Confirmed with 2 committed and 0 fulfilled', 'Xero invoice remains Draft for AUD 1.00', 'Stock and costing history were unchanged by rejected shipment'],
+      });
+      return;
+    }
     expect(response.ok(), fulfilled.error).toBe(true);
     expect(fulfilled.success, fulfilled.error).toBe(true);
 
@@ -238,21 +293,39 @@ test('@p3-compensate resolves the partial fulfilment with return credit and clos
     const sourceItem = sourceDetail?.data?.items?.[0];
     expect(Number(sourceItem?.id)).toBeGreaterThan(0);
 
-    const listResponse = await page.request.get('/api/ims/sales-orders');
-    const list = await listResponse.json() as { success?: boolean; data?: any[]; error?: string };
-    expect(listResponse.ok(), list.error).toBe(true);
-    const fixtureOpenOrders = (Array.isArray(list.data) ? list.data : []).filter(order =>
-      ['draft', 'confirmed', 'backordered', 'partially_fulfilled'].includes(String(order.status))
-      && Number(order.location_id) === config.fixtureLocationId
-      && Number(order.customer_id) === config.fixtureCustomerId,
-    );
-    const cancellableIds = fixtureOpenOrders
-      .map(order => Number(order.id))
-      .filter(id => Number.isInteger(id) && id > 0 && id !== soId);
+    const latestCheckpoint = events.findLast(event => event.state === 'awaiting_operator');
+    if ((latestCheckpoint?.details as { phase?: string })?.phase === 'no_stock_rejection_verified') {
+      expect(sourceDetail.data.status).toBe('confirmed');
+      expect(Number(sourceItem.qty_fulfilled)).toBe(0);
+      const cancelResponse = await page.request.put(`/api/ims/sales-orders/${soId}`, {
+        data: {
+          status: 'cancelled',
+          operationKey: `live-e2e-${config.runId}-no-stock-cancel`,
+          expectedUpdatedAt: sourceDetail.data.updated_at ?? null,
+        },
+      });
+      const cancelled = await cancelResponse.json();
+      expect(cancelResponse.ok(), cancelled.error).toBe(true);
+      expect(cancelled.success).toBe(true);
+      expect(cancelled.xeroWarning).toBeUndefined();
+      const verification = await verifySalesOrderCompensation(config, soId);
+      await appendManifestState(config.runId, 'clean', {
+        scenario: 'P3 no-stock rejection', salesOrderId: soId, ...verification,
+        successfulPartialShipmentTested: false,
+        permanentArtifacts: ['Cancelled unfulfilled SO and deleted Xero Draft audit history'],
+      });
+      return;
+    }
+
+    expect(expectedBackorderId).not.toBeNull();
+    expect(expectedBackorderId).not.toBe(soId);
+    const cancellableIds = [Number(expectedBackorderId)];
     for (const targetId of cancellableIds) {
       const detailResponse = await page.request.get(`/api/ims/sales-orders/${targetId}`);
       const detail = await detailResponse.json() as { success?: boolean; data?: any; error?: string };
-      if (!detailResponse.ok()) continue;
+      expect(detailResponse.ok()).toBe(true);
+      expect(Number(detail.data?.customer_id)).toBe(config.fixtureCustomerId);
+      expect(Number(detail.data?.location_id)).toBe(config.fixtureLocationId);
       const status = String(detail?.data?.status ?? '');
       if (!['draft', 'confirmed', 'backordered', 'partially_fulfilled'].includes(status)) continue;
       if (status === 'draft') {

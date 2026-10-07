@@ -1650,17 +1650,18 @@
       "relatedTopics": [
         "pos-selling-payments-manager-approval",
         "pos-reports-transactions",
-        "pos-settings-terminals-offline-recovery"
+        "pos-settings-terminals-offline-recovery",
+        "pos-end-of-day-xero"
       ],
       "contexts": [
         "pos-layby"
       ],
       "contextSections": {
-        "pos-layby": "Step-by-step"
+        "pos-layby": "Main operations"
       },
       "order": 22,
-      "summary": "Mark the current cart as a layby and save the currently supported fully allocated layby transaction.",
-      "lastReviewed": "2026-08-31",
+      "summary": "Save a new layby with its actual partial deposit, check the unpaid balance, and review deposit takings. Later instalment collection against an existing layby is not available in POS.",
+      "lastReviewed": "2026-10-07",
       "owner": "retail",
       "quickSections": [
         "Main operations",
@@ -12957,7 +12958,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-31",
-      "content": "- Count every payment method for the open register session.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action.\n- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.",
+      "content": "- Count every payment method for the open register session.\n- Include actual opening layby deposits in payment-method takings. The unpaid balance is not money received.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action.\n- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.",
       "sectionId": "pos-end-of-day-xero:2"
     },
     {
@@ -12980,7 +12981,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-31",
-      "content": "| Value | How Solvantis treats it |\n|---|---|\n| Expected | Completed sales linked to this register session, grouped by payment method |\n| Counted cash | All physical cash in the drawer, including the opening float |\n| Cash sales | Counted cash minus opening float |\n| Counted non-cash | The counted amount for that payment method |\n| Variance | Cash sales or counted non-cash minus the expected amount |\n| Petty cash | A separately recorded purchase paid from the open till |",
+      "content": "| Value | How Solvantis treats it |\n|---|---|\n| Expected | Actual payments on completed sales and active layby deposits linked to this register session, grouped by payment method |\n| Counted cash | All physical cash in the drawer, including the opening float |\n| Cash sales | Counted cash minus opening float |\n| Counted non-cash | The counted amount for that payment method |\n| Variance | Cash sales or counted non-cash minus the expected amount |\n| Petty cash | A separately recorded purchase paid from the open till |\n| Active layby | Its deposit contributes to expected takings; the full merchandise value is excluded from completed sales totals |",
       "sectionId": "pos-end-of-day-xero:3"
     },
     {
@@ -13406,8 +13407,8 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "Use Layby mode only after confirming that the current POS workflow matches the customer's arrangement.",
+      "lastReviewed": "2026-10-07",
+      "content": "Use Layby mode to record a new layby and the deposit actually received. Merchandise remains unfulfilled and the unpaid balance stays owing.",
       "sectionId": "pos-laybys:1"
     },
     {
@@ -13426,8 +13427,8 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "- Mark the current positive cart as a layby.\n- Review the tax-inclusive layby total.\n- Allocate payment lines to the full displayed amount.\n- Save the transaction with active layby status.\n- Recognise that later instalment collection is not available in the current POS workflow.",
+      "lastReviewed": "2026-10-07",
+      "content": "- Mark the current positive cart as a layby.\n- Review the tax-inclusive layby total.\n- Add only the deposit actually received; do not enter the unpaid balance as another payment.\n- Save the transaction with active layby status.\n- Review the deposit and balance owing on the receipt and in Reports.\n- Include the deposit in the opening day's payment-method takings and End of Day expected amounts, not completed merchandise revenue.\n- Recognise that later instalment collection is not available in the current POS workflow.",
       "sectionId": "pos-laybys:2"
     },
     {
@@ -13446,8 +13447,8 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "| Current behavior | Available? |\n|---|---|\n| Mark a cart as Layby | Yes |\n| Save after payment lines cover the full displayed amount | Yes |\n| Save with an unallocated remaining balance | No |\n| Collect later partial instalments against the layby in POS | No |\n| Apply a loyalty reward | No |\n| Use Layby in Training Mode | No |",
+      "lastReviewed": "2026-10-07",
+      "content": "| Current behavior | Available? |\n|---|---|\n| Mark a cart as Layby | Yes |\n| Save after payment lines cover the full displayed amount | Yes |\n| Save with a positive deposit and an unpaid remaining balance | Yes |\n| Collect later partial instalments against the layby in POS | No |\n| Apply a loyalty reward | No |\n| Use Layby in Training Mode | No |",
       "sectionId": "pos-laybys:3"
     },
     {
@@ -13466,8 +13467,8 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "- [ ] Confirm the register is open and POS is online.\n- [ ] Confirm the cart contains ordinary positive-quantity merchandise.\n- [ ] Explain the store's layby terms to the customer.\n- [ ] Confirm the customer understands the current payment requirement before proceeding.\n\n> **Important:** The current POS layby screen does not support saving an unpaid balance for later instalments. **Save Layby** becomes available only after payment lines allocate the full displayed amount.",
+      "lastReviewed": "2026-10-07",
+      "content": "- [ ] Confirm the register is open and POS is online.\n- [ ] Confirm the cart contains ordinary positive-quantity merchandise.\n- [ ] Explain the store's layby terms to the customer.\n- [ ] Confirm the deposit amount and the store's approved process for later payments and collection.\n\n> **Important:** Record only money actually received. Saving a deposit does not provide a POS action for later instalments or collection. Follow the store's approved process for those steps; never create a second sale or a fictitious payment to cover the remaining balance.",
       "sectionId": "pos-laybys:4"
     },
     {
@@ -13486,8 +13487,8 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "1. Build and check the cart.\n2. Open **More** and choose **Layby: Off** so it changes to **Layby: ON**.\n3. Confirm the main checkout button now says **Layby**.\n4. Choose the Layby button to open **Layby Deposit**.\n5. Add one or more payment lines until **Remaining** is zero.\n6. Choose **Save Layby**.\n7. Keep the receipt and transaction reference according to store procedure.\n8. Open **More > Layby: ON** again to turn Layby mode off before starting an ordinary sale.",
+      "lastReviewed": "2026-10-07",
+      "content": "1. Build and check the cart.\n2. Open **More** and choose **Layby: Off** so it changes to **Layby: ON**.\n3. Confirm the main checkout button now says **Layby**.\n4. Choose the Layby button to open **Layby Deposit**.\n5. Enter the deposit amount. For manual payment, charge the terminal separately and add only the approved amount. For integrated Card payment, enter the deposit amount before choosing **Pay via Terminal**.\n6. Choose **Save Layby**.\n7. Keep the receipt and transaction reference, checking **Layby deposit paid** and **Balance owing**.\n8. After a successful save, the cart clears and returns to ordinary sale mode. Check Reports for the active layby and its deposit.\n9. If saving fails, keep the payment window open and retry saving the recorded deposit. Do not charge the customer again.",
       "sectionId": "pos-laybys:5"
     },
     {
@@ -13506,8 +13507,8 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Layby is unavailable | Training Mode is active | Leave Training Mode before handling a live layby |\n| **Save Layby** is disabled | Payment lines do not cover the full displayed amount | Correct the payment allocation until **Remaining** is zero |\n| A loyalty reward cannot be selected | Rewards are unavailable on layby carts | Remove the reward and follow the business's layby policy |\n| Staff need to take a later instalment | The current POS workflow has no instalment collection action | Stop and follow the business's approved manual process; do not enter a second sale as the same layby |\n| The next cart still says Layby | Layby mode remained on | Turn **Layby: ON** off before building the next sale |",
+      "lastReviewed": "2026-10-07",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Layby is unavailable | Training Mode is active | Leave Training Mode before handling a live layby |\n| **Save Layby** is disabled | No positive deposit has been added, or payments exceed the total | Add only the actual positive deposit and check the remaining balance |\n| A loyalty reward cannot be selected | Rewards are unavailable on layby carts | Remove the reward and follow the business's layby policy |\n| Staff need to take a later instalment | The current POS workflow has no instalment collection action | Stop and follow the business's approved manual process; do not enter a second sale as the same layby |\n| Deposit is missing from completed merchandise revenue | The layby remains active | Check the Card or Cash takings and the active transaction; a deposit is not a completed merchandise sale |\n| Save fails after the terminal approves payment | The layby save could not be confirmed | Retry saving the same recorded deposit without charging again |",
       "sectionId": "pos-laybys:6"
     },
     {
@@ -13526,15 +13527,15 @@
         "pos-layby"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "### Do not promise a later POS instalment\n\nA customer asks to pay $50 now against a $200 cart and return next week. The payment window cannot save while $150 remains. Staff stop and follow the store's approved alternative rather than completing a misleading second transaction or promising that POS can collect the later balance.",
+      "lastReviewed": "2026-10-07",
+      "content": "### Save a real partial deposit\n\nA customer pays $26 Card against a $129.95 item. Staff add one $26 payment and save the layby with $103.95 owing. Reports and End of Day include $26 in Card takings. The $129.95 item is not counted as completed merchandise revenue and stock is not removed by saving the deposit.\n\n### Later instalments require the approved alternative\n\nThe customer returns to pay another $30. POS has no payment action against the existing layby. Staff retain the original reference and use the store's approved process rather than entering a second merchandise sale.",
       "sectionId": "pos-laybys:7"
     },
     {
       "id": "pos-laybys:7.1",
       "documentId": "pos-laybys",
       "title": "Laybys at POS",
-      "heading": "Worked examples > Do not promise a later POS instalment",
+      "heading": "Worked examples > Save a real partial deposit",
       "audiences": [
         "pos",
         "ims"
@@ -13546,8 +13547,28 @@
         "pos-layby"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
-      "content": "A customer asks to pay $50 now against a $200 cart and return next week. The payment window cannot save while $150 remains. Staff stop and follow the store's approved alternative rather than completing a misleading second transaction or promising that POS can collect the later balance.",
+      "lastReviewed": "2026-10-07",
+      "content": "A customer pays $26 Card against a $129.95 item. Staff add one $26 payment and save the layby with $103.95 owing. Reports and End of Day include $26 in Card takings. The $129.95 item is not counted as completed merchandise revenue and stock is not removed by saving the deposit.",
+      "sectionId": "pos-laybys:7"
+    },
+    {
+      "id": "pos-laybys:7.2",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Worked examples > Later instalments require the approved alternative",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "The customer returns to pay another $30. POS has no payment action against the existing layby. Staff retain the original reference and use the store's approved process rather than entering a second merchandise sale.",
       "sectionId": "pos-laybys:7"
     },
     {
@@ -14307,7 +14328,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-31",
-      "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion.\n- Ask the Assistant for up to 20 recent completed transactions from the verified register over the last 1 to 30 days.",
+      "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Review active layby deposits and balances owing. Their actual deposits contribute to payment-method totals, not completed merchandise revenue.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion.\n- Ask the Assistant for up to 20 recent completed transactions from the verified register over the last 1 to 30 days.",
       "sectionId": "pos-reports-transactions:2"
     },
     {
@@ -14387,7 +14408,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-08-31",
-      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| No transactions appear | The wrong date or location is selected, or the sale is still queued | Check the header and date; reconnect and sync queued sales |\n| Return is not shown | The record is not an eligible completed sale | Confirm status and use the owning correction workflow |\n| Transaction edit/delete is missing | The sale is outside the current open register session | Do not bypass the boundary; review it through the appropriate back-office workflow |\n| Payment split cannot save | Lines do not equal the fixed transaction total | Correct methods and amounts until the remaining difference is zero |\n| Receipt has unexpected location details | The device or receipt settings are assigned differently | Confirm the active location and ask an authorised user to review receipt settings |",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| No transactions appear | The wrong date or location is selected, or the sale is still queued | Check the header and date; reconnect and sync queued sales |\n| Return is not shown | The record is not an eligible completed sale | Confirm status and use the owning correction workflow |\n| Transaction edit/delete is missing | The sale is outside the current open register session | Do not bypass the boundary; review it through the appropriate back-office workflow |\n| Payment split cannot save | Lines do not equal the fixed transaction total | Correct methods and amounts until the remaining difference is zero |\n| Edit payment split is disabled for an active layby | The full merchandise total is not the amount paid | Check the deposit and balance owing; do not allocate the unpaid balance as a payment |\n| Active layby has no Transaction or Delete action | Completed-sale correction controls do not handle layby deposits or cancellation refunds | Follow the store's approved layby correction process |\n| Receipt has unexpected location details | The device or receipt settings are assigned differently | Confirm the active location and ask an authorised user to review receipt settings |",
       "sectionId": "pos-reports-transactions:6"
     },
     {

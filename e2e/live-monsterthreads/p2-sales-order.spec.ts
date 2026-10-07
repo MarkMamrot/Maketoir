@@ -72,15 +72,30 @@ test('@p2-confirm confirms the existing SO and pauses for IMS and Xero inspectio
   const events = await readManifest(config.runId);
   const soId = salesOrderId(events);
   expect(events.at(-1)?.state).toBe('p2_created');
+  const baseline = (events[0]?.details as { baseline?: { qtyOnHand: number; qtyCommitted: number } })?.baseline;
+  expect(baseline).toBeDefined();
+  const requiresSourcingReview = Number(baseline?.qtyOnHand) - Number(baseline?.qtyCommitted) < 1;
   await loginToIms(page, config);
   try {
     await openSalesOrders(page);
     page.once('dialog', dialog => dialog.accept());
-    const confirmResponse = page.waitForResponse(response => response.url().endsWith(`/api/ims/sales-orders/${soId}`)
-      && response.request().method() === 'PUT');
+    const confirmResponse = page.waitForResponse(response =>
+      (response.url().endsWith(`/api/ims/sales-orders/${soId}`) && response.request().method() === 'PUT')
+      || (response.url().endsWith(`/api/ims/sales-orders/${soId}/sourcing`) && response.request().method() === 'POST'),
+    { timeout: 90_000 });
     const soRow = page.getByTestId(`so-open-${soId}`).locator('xpath=ancestor::tr');
     await soRow.getByRole('combobox').selectOption('confirm');
     await soRow.getByRole('button', { name: 'Go' }).click();
+    if (requiresSourcingReview) {
+      await expect(page.getByRole('heading', { name: /^Stock sourcing/ })).toBeVisible({ timeout: 45_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'No stock is currently available' })).toBeVisible();
+      await expect(page.getByText('No eligible confirmed incoming purchase order.', { exact: true })).toBeVisible();
+      const confirmUnsourced = page.getByRole('button', { name: 'Confirm with Unsourced Quantity', exact: true });
+      await expect(confirmUnsourced).toBeDisabled();
+      await page.getByRole('checkbox', { name: /^Leave 1 unsourced\./ }).check();
+      await expect(confirmUnsourced).toBeEnabled();
+      await confirmUnsourced.click();
+    }
     const response = await confirmResponse;
     const confirmed = await response.json() as { success?: boolean; error?: string };
     expect(response.ok(), confirmed.error).toBe(true);
@@ -133,6 +148,30 @@ test('@p2-inspect reads back the exact Draft invoice from Xero', async ({ page }
   expect(invoice.status).toBe('DRAFT');
   expect(Number(invoice.total)).toBe(config.maxDocumentTotal);
   expect(Number(invoice.taxTotal)).toBe(0);
+
+  const baseline = (events[0]?.details as { baseline?: { qtyOnHand: number; qtyIncoming: number; qtyCommitted: number } })?.baseline;
+  if (baseline && Number(baseline.qtyOnHand) === 0 && Number(baseline.qtyIncoming) === 0 && Number(baseline.qtyCommitted) === 0) {
+    const availabilityResponse = await page.request.get('/api/ims/stock-availability');
+    expect(availabilityResponse.ok()).toBe(true);
+    const availability = await availabilityResponse.json();
+    expect(availability.success).toBe(true);
+    expect(Array.isArray(availability.data)).toBe(true);
+    const lines = availability.data.filter((line: { so_id: number }) => Number(line.so_id) === soId);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      variant_id: config.fixtureVariantId,
+      qty_on_hand: 0,
+      qty_incoming: 0,
+      qty_committed: 1,
+      readyNowQuantity: 0,
+      protectedIncomingQuantity: 0,
+      shortfallNowQuantity: 1,
+      unsourcedQuantity: 1,
+    });
+    expect(lines[0].issues).toContain('unsourced');
+    expect(lines[0].issues).not.toContain('ready');
+    expect(lines[0].issues).not.toContain('incoming');
+  }
 
   await appendManifestState(config.runId, 'awaiting_operator', {
     scenario: 'P2',

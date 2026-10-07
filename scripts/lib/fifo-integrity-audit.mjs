@@ -31,13 +31,15 @@ export async function auditFifoTenant(connection, input) {
     [businessId],
   );
   for (const state of stateRows) {
-    const invalid = state.active_method === 'fifo'
-      ? state.active_epoch_id == null
+    const supportedMethod = state.active_method === 'fifo' || state.active_method === 'average_cost';
+    const initialAverageCost = state.active_method === 'average_cost' && state.active_epoch_id == null;
+    const invalid = !supportedMethod || (initialAverageCost
+      ? number(state.active_epoch_count) !== 0
+      : state.active_epoch_id == null
         || state.epoch_business_id !== businessId
-        || state.epoch_method !== 'fifo'
+        || state.epoch_method !== state.active_method
         || state.epoch_status !== 'active'
-        || number(state.active_epoch_count) !== 1
-      : state.active_epoch_id != null || number(state.active_epoch_count) !== 0;
+        || number(state.active_epoch_count) !== 1);
     if (invalid) findings.push(finding('invalid_costing_state', 1, [state.id]));
   }
 

@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   const transactions = await PosReportsRepo.dailyTransactions(locationId, date);
 
   // Summarise
-  const totalRevenue = transactions.reduce((s, t) => s + t.sale.total, 0);
+  const totalRevenue = transactions.reduce((s, t) => s + (t.sale.status === 'layby_active' ? 0 : t.sale.total), 0);
   const totalCount   = transactions.length;
   const byMethod: Record<string, number> = {};
   for (const t of transactions) {
