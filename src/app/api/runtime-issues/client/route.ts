@@ -24,11 +24,12 @@ export async function POST(request: Request) {
   if (body.stack) error.stack = body.stack.slice(0, 16_000);
 
   const isPosCacheFailure = body.operation === 'pos_login_cache_write';
+  const isTerminalFailure = body.operation === 'pos_terminal_refund' || body.operation === 'pos_terminal_purchase';
   await reportRuntimeIssue({
     businessId: session.businessId,
-    source: 'browser',
-    operation: isPosCacheFailure ? 'pos_login_cache_write' : 'react_error_boundary',
-    title: isPosCacheFailure ? 'POS browser cache could not be persisted' : 'Unhandled browser application error',
+    source: isTerminalFailure ? 'pos_terminal' : 'browser',
+    operation: isTerminalFailure ? body.operation! : isPosCacheFailure ? 'pos_login_cache_write' : 'react_error_boundary',
+    title: isTerminalFailure ? `POS terminal ${body.operation === 'pos_terminal_refund' ? 'refund' : 'payment'} failed` : isPosCacheFailure ? 'POS browser cache could not be persisted' : 'Unhandled browser application error',
     error,
     context: {
       digest: body.digest?.slice(0, 255) || null,

@@ -5309,7 +5309,16 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     }
   }
 
+  function reportTerminalFailure() {
+    void fetch('/api/runtime-issues/client', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+      body: JSON.stringify({ name: 'PosTerminalError', operation: isRefund ? 'pos_terminal_refund' : 'pos_terminal_purchase',
+        message: `Terminal ${isRefund ? 'refund' : 'payment'} failed before an approved response was confirmed.`, pathname: window.location.pathname }),
+    }).catch(() => {});
+  }
+
   async function handleZellerTransaction() {
+    if (zellerPending || capturedPaymentIds.current.size > 0) return;
     setZellerPending(true);
     setZellerError(null);
     // Zeller expects a positive integer in the smallest currency unit (cents).
@@ -5346,6 +5355,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       });
       if (result instanceof Error) {
         const t = (result as any).type ?? result.message;
+        if (!/cancel|declin/i.test(String(t))) reportTerminalFailure();
         setZellerError(`${isRefund ? 'Refund' : 'Payment'} ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
       }
@@ -5369,6 +5379,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         `zeller:${txId}`,
       );
     } catch (e: any) {
+      reportTerminalFailure();
       setZellerError(`Terminal error: ${e?.type ?? e?.message ?? 'Unknown error'}`);
     } finally {
       setZellerPending(false);

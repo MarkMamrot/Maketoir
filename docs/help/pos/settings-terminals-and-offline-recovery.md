@@ -12,6 +12,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 - Choose whether the current location can sell against recorded incoming branch-transfer stock.
 - Turn Training Mode on or off for the current POS device.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
+- Use the paired terminal for supported card-present refunds as well as payments; a declined or cancelled refund does not complete the POS refund.
 - Continue supported ordinary sales from the device's persisted product catalogue while offline.
 - Inspect queued and failed sales, retry them, and confirm they reached Reports.
 - Stop online-only workflows until connectivity returns.

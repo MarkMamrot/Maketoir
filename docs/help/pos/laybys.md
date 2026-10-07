@@ -36,7 +36,7 @@ Use Layby mode for a new layby and **More > Laybys** for its later payments, col
 - [ ] Explain the store's layby terms to the customer.
 - [ ] Confirm the deposit and branch cancellation terms.
 
-> **Important:** Card refunds must be completed on the terminal through the store's approved refund process before recording the negative payment in POS. Recording a refund does not issue an integrated terminal refund. Never charge or refund again merely because a save response was lost.
+> **Important:** For a configured, paired Zeller method, **Refund via Terminal** issues a card-present refund and requires terminal approval before recording cancellation. The customer must present their card, and the merchant's terminal refund policy still applies. **Use manual entry instead** records a refund issued separately; it does not return money automatically. Never charge or refund again merely because a save response was lost.
 
 ## Step-by-step
 
@@ -50,7 +50,7 @@ Use Layby mode for a new layby and **More > Laybys** for its later payments, col
 8. After a successful save, the cart clears and returns to ordinary sale mode. Check Reports for the active layby and its deposit.
 9. For later instalments, open **More > Laybys**, find the original reference and select **Add payment**. Record the actual instalment only.
 10. For final payment, leave collection selected if goods are being handed over. Otherwise clear it, then use **Collect** when the customer returns.
-11. To cancel before collection, select **Cancel layby**, check the retained fee, enter a reason for any override and record exactly the refund due. If nothing is refundable, confirm cancellation directly.
+11. To cancel before collection, select **Cancel layby**, check the retained fee, enter a reason for any override and choose **Refund and cancel**. Select Cash, a configured integrated Card method, or another supported manual tender and refund exactly the amount due. Complete cash/manual refunds separately before recording them. An integrated card refund must be approved on the terminal. If nothing is refundable, confirm cancellation directly.
 12. If a save fails, use **Retry saved deposit** or **Retry saved action** in Laybys. These reuse the recorded request without another payment. A request tied to a register session that has since closed needs staff reconciliation rather than a new charge.
 
 ## Accounting and older laybys

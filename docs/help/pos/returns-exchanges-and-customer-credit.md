@@ -42,6 +42,8 @@ Use a linked return from POS Reports so the original quantities, refund value, s
 6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.
 7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required.
 
+For a configured, paired Zeller card method, **Refund via Terminal** requests a card-present refund and records the approved terminal reference. The customer presents their card and the merchant's refund policy applies. Cash and other manual tenders record money returned separately. **Use manual entry instead** does not issue a terminal refund. Uncollected laybys use **More > Laybys > Cancel layby > Refund and cancel** instead of a merchandise return; cancellation releases reserved stock without restocking it.
+
 ## Refund decision guide
 
 | Choose | Use when | Important distinction |
