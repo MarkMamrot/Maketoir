@@ -1,4 +1,5 @@
 import React from 'react';
+import { CogsTraceabilityView } from './reports/CogsTraceabilityView';
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
@@ -6,7 +7,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit' | 'report-cogs-traceability'
   | 'xero' | 'shopify';
 
 interface ReportsSectionProps {
@@ -57,6 +58,7 @@ export function ReportsSection({
       {view === 'report-cash-banking' && xeroAccountingEnabled && <CashBankingReportView onBack={() => setView('reports')} />}
       {view === 'report-stock-availability' && <StockAvailabilityManagementView onBack={() => setView('reports')} />}
       {view === 'report-bookkeeper-audit' && <BookkeeperAuditView onBack={() => setView('reports')} canReview={canReviewBookkeeperAudit} />}
+      {view === 'report-cogs-traceability' && <CogsTraceabilityView onBack={() => setView('reports')} />}
     </>
   );
 }

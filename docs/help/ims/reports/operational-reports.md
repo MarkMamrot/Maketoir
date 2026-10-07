@@ -19,6 +19,7 @@ Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify
 | Question | Report |
 |---|---|
 | What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |
+| Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |
 | What sold, by product and branch? | **Sales Detail** |
 | How do branches compare? | **Sales by Branch** |
 | How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |

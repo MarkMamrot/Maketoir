@@ -26,6 +26,7 @@ Open **Finances > Cash Banking** or use the direct `#cash-banking` link. See **C
 | Where is a known product sale? | Sales Search | POS Sales or the Sales Order |
 | What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |
 | What margin was recorded? | Product Margin or Sales Summary | Sale and movement history for cost coverage |
+| Can each sale be traced to captured COGS and stock location? | Sales & COGS Traceability | Detail evidence and Reconciliation |
 | Is a POS price change expected? | POS Price Changes | Product and sale source |
 | What happened in a register session? | POS Registers | POS Sales and End of Day records |
 | Does recorded banking match cash handling? | Cash Banking | Register and deposit references |

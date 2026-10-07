@@ -335,6 +335,17 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "summary": "Trace sales, returns and captured COGS by channel, product and stock location, inspect FIFO receipt evidence, and reconcile accounting-period differences.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-customer-orders",
       "title": "Customer Orders, Allocation, and Credits",
       "summary": "Choose the right Sales workspace for orders, incoming-stock allocation, returns, credits, and source sales activity.",

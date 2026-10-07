@@ -9,12 +9,15 @@ Solvantis supports Average Cost and first in, first out (FIFO) inventory costing
 
 Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.
 
+Average Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.
+
 | To answer... | Use |
 |---|---|
 | Which method is active? | **Settings > General > Inventory Costing** |
 | What is the current stock value at a location? | **Products > Stock Levels** |
 | What cost was attached to an earlier receipt, sale or return? | **Stock History** |
-| How does selling price compare with cost? | **Reports > Product Margin** |
+| How does current catalogue selling price compare with cost? | **Reports > Product Margin** |
+| What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |
 | Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |
 
 ## Cost terms in plain language

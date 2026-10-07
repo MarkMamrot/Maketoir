@@ -1119,6 +1119,40 @@
       "filename": "docs/help/ims/reports/operational-reports.md"
     },
     {
+      "id": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-operational-reports",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "contextSections": {
+        "report-cogs-traceability": "Main operations"
+      },
+      "relatedTopics": [
+        "ims-operational-reports",
+        "ims-report-guide",
+        "ims-inventory-costing",
+        "ims-bookkeeper-audit"
+      ],
+      "order": 62,
+      "summary": "Trace sales, returns and captured COGS by channel, product and stock location, inspect FIFO receipt evidence, and reconcile accounting-period differences.",
+      "lastReviewed": "2026-10-07",
+      "owner": "reporting",
+      "quickSections": [
+        "Main operations",
+        "At a glance",
+        "Before you begin"
+      ],
+      "filename": "docs/help/ims/reports/sales-and-cogs-traceability.md"
+    },
+    {
       "id": "ims-customer-orders",
       "title": "Customer Orders, Allocation, and Credits",
       "audiences": [
@@ -7386,7 +7420,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-09-14",
-      "content": "Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.\n\n| To answer... | Use |\n|---|---|\n| Which method is active? | **Settings > General > Inventory Costing** |\n| What is the current stock value at a location? | **Products > Stock Levels** |\n| What cost was attached to an earlier receipt, sale or return? | **Stock History** |\n| How does selling price compare with cost? | **Reports > Product Margin** |\n| Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |",
+      "content": "Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.\n\nAverage Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.\n\n| To answer... | Use |\n|---|---|\n| Which method is active? | **Settings > General > Inventory Costing** |\n| What is the current stock value at a location? | **Products > Stock Levels** |\n| What cost was attached to an earlier receipt, sale or return? | **Stock History** |\n| How does current catalogue selling price compare with cost? | **Reports > Product Margin** |\n| What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |\n| Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |",
       "sectionId": "ims-inventory-costing:2"
     },
     {
@@ -9710,7 +9744,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-09-24",
-      "content": "| Business question | Best starting report | Read next when needed |\n|---|---|---|\n| Which products sold and where? | Sales Detail | Sales Search for individual source lines |\n| How do locations compare? | Sales by Branch | Sales Detail with one branch selected |\n| What drives sales by brand, supplier, type, day, or hour? | Sales Summary | Sales Search for source activity |\n| Where is a known product sale? | Sales Search | POS Sales or the Sales Order |\n| What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |\n| What margin was recorded? | Product Margin or Sales Summary | Sale and movement history for cost coverage |\n| Is a POS price change expected? | POS Price Changes | Product and sale source |\n| What happened in a register session? | POS Registers | POS Sales and End of Day records |\n| Does recorded banking match cash handling? | Cash Banking | Register and deposit references |\n| Can demand be supplied? | Stock Availability | Sales Orders, allocation, and Purchase Orders |",
+      "content": "| Business question | Best starting report | Read next when needed |\n|---|---|---|\n| Which products sold and where? | Sales Detail | Sales Search for individual source lines |\n| How do locations compare? | Sales by Branch | Sales Detail with one branch selected |\n| What drives sales by brand, supplier, type, day, or hour? | Sales Summary | Sales Search for source activity |\n| Where is a known product sale? | Sales Search | POS Sales or the Sales Order |\n| What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |\n| What margin was recorded? | Product Margin or Sales Summary | Sale and movement history for cost coverage |\n| Can each sale be traced to captured COGS and stock location? | Sales & COGS Traceability | Detail evidence and Reconciliation |\n| Is a POS price change expected? | POS Price Changes | Product and sale source |\n| What happened in a register session? | POS Registers | POS Sales and End of Day records |\n| Does recorded banking match cash handling? | Cash Banking | Register and deposit references |\n| Can demand be supplied? | Stock Availability | Sales Orders, allocation, and Purchase Orders |",
       "sectionId": "ims-report-guide:3"
     },
     {
@@ -10075,7 +10109,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-09-23",
-      "content": "| Question | Report |\n|---|---|\n| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |\n| What sold, by product and branch? | **Sales Detail** |\n| How do branches compare? | **Sales by Branch** |\n| How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |\n| Where is a particular sale or product line? | **Sales Search** |\n| What is current stock worth? | **Inventory Valuation** |\n| What margin did products produce? | **Product Margin** or **Sales Summary** |\n| Who changed a POS selling price? | **POS Price Changes** |\n| What happened in daily register sessions? | **POS Registers** |\n| How do cash deposits and banking compare? | **Cash Banking** |\n| What is on hand, committed, incoming, or available? | **Stock Availability** |",
+      "content": "| Question | Report |\n|---|---|\n| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |\n| Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |\n| What sold, by product and branch? | **Sales Detail** |\n| How do branches compare? | **Sales by Branch** |\n| How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |\n| Where is a particular sale or product line? | **Sales Search** |\n| What is current stock worth? | **Inventory Valuation** |\n| What margin did products produce? | **Product Margin** or **Sales Summary** |\n| Who changed a POS selling price? | **POS Price Changes** |\n| What happened in daily register sessions? | **POS Registers** |\n| How do cash deposits and banking compare? | **Cash Banking** |\n| What is on hand, committed, incoming, or available? | **Stock Availability** |",
       "sectionId": "ims-operational-reports:3"
     },
     {
@@ -10172,6 +10206,272 @@
       "lastReviewed": "2026-09-23",
       "content": "Open **Inventory Valuation**, select the location, and compare each quantity with its value under the active method. Under Average Cost, review the current shared cost; under FIFO, review the remaining location layers and recent movements.",
       "sectionId": "ims-operational-reports:6"
+    },
+    {
+      "id": "ims-cogs-traceability:1",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by Sales Channel, then use **Detail** to inspect individual sales and stock events. **Reconciliation** compares recorded stock costs with the accounting COGS period.\n\n- Choose the shared date preset or custom range and the date basis.\n- Add filters for the required channel, customer, product, brand, location, reference, status, date or financial amount.\n- In Summary, choose up to four grouping fields. Numeric filters apply to grouped totals in Summary and individual records in Detail.\n- Use the column chooser in Detail to reveal additional requested fields.\n- Inspect transaction evidence for source references and recorded FIFO allocations.\n- Export CSV after checking the filters. CSV includes every matching record or group and all report fields, not only the current page or visible columns.",
+      "sectionId": "ims-cogs-traceability:1"
+    },
+    {
+      "id": "ims-cogs-traceability:2",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "At a glance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "| Figure or field | Meaning |\n|---|---|\n| Qty Sold | Signed sold, fulfilled or credited quantity according to the date basis |\n| Sales | Merchandise selling value before recorded discounts, excluding GST |\n| Discount | Sales less Net Sales; signed consistently with returns |\n| Net Sales | Selling value after discounts, excluding GST |\n| COGS | Tax-exclusive AUD cost captured on matched stock movements |\n| GP | Net Sales minus COGS; unavailable when either figure is incomplete |\n| GP % | Total GP divided by total Net Sales; blank when Net Sales is zero |\n| Tax/GST | GST shown separately from Net Sales |\n| Warehouse Location | Location attached to the stock event, or document location in sale-date results |\n| Receipt Layer / Batch | Internal FIFO cost-layer reference and purchase-order reference where directly recorded |\n| Invoice Status | Last verified accounting invoice status when available; not payment or sync status |\n\nAll primary financial totals are AUD. Original document-currency Net Sales and GST are separate columns. Foreign sales use the recorded exchange rate, never today's rate. Original-currency totals are unavailable when a group mixes currencies.",
+      "sectionId": "ims-cogs-traceability:2"
+    },
+    {
+      "id": "ims-cogs-traceability:3",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Before you begin",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "- Confirm whether the question concerns sales dates or the period when stock costs were recorded.\n- Use matching date ranges and scopes when comparing another report or accounting export.\n- Check incomplete-cost and incomplete-revenue counts before relying on GP.\n- Distinguish a FIFO costing allocation from proof of a physical supplier lot.\n\n> **Important:** Missing cost is not zero cost. A historical catalogue price or today's Average Cost is not substituted for missing recorded COGS.",
+      "sectionId": "ims-cogs-traceability:3"
+    },
+    {
+      "id": "ims-cogs-traceability:4",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Step-by-step",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "### Compare sales channels\n\n1. Open the report and keep **Summary** active.\n2. Choose a date range and date basis.\n3. Keep **Sales Channel** as the first grouping, adding **Channel Instance** to distinguish online storefronts or seller accounts.\n4. Add customer, brand, SKU or location filters as required.\n5. Review Net Sales, captured COGS and the evidence status before interpreting GP.\n6. Open Detail with the same filters to inspect the contributing records, then export CSV.\n\n### Understand the date basis\n\n**Stock movement date** is the default. Each stock event shows its recorded COGS and the attributable portion of the source line's revenue. Partial shipments therefore divide revenue across their fulfilled quantities; this is attributed fulfilment revenue, not necessarily invoiced revenue in that period. Completed non-stock and no-restock credit events appear as financial-only records without a stock COGS change.\n\n**Invoice / sale date** uses the recorded invoice date for imported history and completion/order date for live sales where invoice date is not recorded. It shows the source line's revenue and matched costs across stock dates. An incompletely fulfilled line has incomplete COGS rather than an assumed cost for outstanding units. Credit reversals appear on their recorded reversal date.\n\n### Trace the recorded cost\n\n1. Open Detail and find the source reference or SKU.\n2. Inspect its transaction evidence and source record.\n3. Check the stock movement reference, date, location and cost method.\n4. Under FIFO, review the allocated quantities, recorded unit costs, layer dates and available purchase-order references.\n5. Check evidence warnings for aggregated POS SKU lines, legacy ambiguous matches, historical imports or cost-only corrections.\n\nGrouping or filtering by FIFO receipt layer proportionally attributes the financial amount across recorded allocations. Ordinary Detail does not repeat the full selling amount for each layer.\n\n### Reconcile accounting COGS\n\nReconciliation shows the **full unfiltered movement period** used by accounting alongside the selected report movement figure. It separately identifies historical exclusions, orphaned movements, non-stock costs, missing/unexplained zero costs, corrections outside accounting movement types, stock events outside the selected sale period and allocation rounding differences. Report filters do not change the displayed full accounting-period total.\n\nThis report does not post accounting entries or change inventory.",
+      "sectionId": "ims-cogs-traceability:4"
+    },
+    {
+      "id": "ims-cogs-traceability:4.1",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Step-by-step > Compare sales channels",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "1. Open the report and keep **Summary** active.\n2. Choose a date range and date basis.\n3. Keep **Sales Channel** as the first grouping, adding **Channel Instance** to distinguish online storefronts or seller accounts.\n4. Add customer, brand, SKU or location filters as required.\n5. Review Net Sales, captured COGS and the evidence status before interpreting GP.\n6. Open Detail with the same filters to inspect the contributing records, then export CSV.",
+      "sectionId": "ims-cogs-traceability:4"
+    },
+    {
+      "id": "ims-cogs-traceability:4.2",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Step-by-step > Understand the date basis",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "**Stock movement date** is the default. Each stock event shows its recorded COGS and the attributable portion of the source line's revenue. Partial shipments therefore divide revenue across their fulfilled quantities; this is attributed fulfilment revenue, not necessarily invoiced revenue in that period. Completed non-stock and no-restock credit events appear as financial-only records without a stock COGS change.\n\n**Invoice / sale date** uses the recorded invoice date for imported history and completion/order date for live sales where invoice date is not recorded. It shows the source line's revenue and matched costs across stock dates. An incompletely fulfilled line has incomplete COGS rather than an assumed cost for outstanding units. Credit reversals appear on their recorded reversal date.",
+      "sectionId": "ims-cogs-traceability:4"
+    },
+    {
+      "id": "ims-cogs-traceability:4.3",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Step-by-step > Trace the recorded cost",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "1. Open Detail and find the source reference or SKU.\n2. Inspect its transaction evidence and source record.\n3. Check the stock movement reference, date, location and cost method.\n4. Under FIFO, review the allocated quantities, recorded unit costs, layer dates and available purchase-order references.\n5. Check evidence warnings for aggregated POS SKU lines, legacy ambiguous matches, historical imports or cost-only corrections.\n\nGrouping or filtering by FIFO receipt layer proportionally attributes the financial amount across recorded allocations. Ordinary Detail does not repeat the full selling amount for each layer.",
+      "sectionId": "ims-cogs-traceability:4"
+    },
+    {
+      "id": "ims-cogs-traceability:4.4",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Step-by-step > Reconcile accounting COGS",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "Reconciliation shows the **full unfiltered movement period** used by accounting alongside the selected report movement figure. It separately identifies historical exclusions, orphaned movements, non-stock costs, missing/unexplained zero costs, corrections outside accounting movement types, stock events outside the selected sale period and allocation rounding differences. Report filters do not change the displayed full accounting-period total.\n\nThis report does not post accounting entries or change inventory.",
+      "sectionId": "ims-cogs-traceability:4"
+    },
+    {
+      "id": "ims-cogs-traceability:5",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Data availability",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "All requested columns are available for inspection and filtering, but **Not recorded** means there is no verified value to display. Live invoice dates, sales-rep assignments, dispatch dates and confirmed delivery dates are not inferred. POS cashier is separate from sales rep; POS references are not individual accounting invoices. Shipment date identifies the recorded stock fulfilment timestamp, not a delivery confirmation. Brand is current catalogue metadata.\n\nImported history lacks captured tax, currency and cost evidence needed for verified financial margin. It remains visible in Invoice / sale date results with its recorded quantity and invoice date, but incomplete financial figures.\n\nSupplier batch/lot labels are not recorded. FIFO layer references are internal costing evidence, not physical-lot or recall guarantees. Average Cost does not identify which purchasing receipt supplied a sale. Transfers may show a parent layer rather than a direct purchase reference.\n\nLegacy duplicate POS SKU lines can be combined into one document/SKU record. Ambiguous historical line matches stay unresolved. When a manager edit or stock correction lacks the original financial snapshot, affected movement rows show cost only rather than applying today's selling amounts to old movements.",
+      "sectionId": "ims-cogs-traceability:5"
+    },
+    {
+      "id": "ims-cogs-traceability:6",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "| Symptom | Explanation | Action |\n|---|---|---|\n| GP or COGS is Not recorded | Missing cost, incomplete fulfilment or missing financial/FX evidence | Inspect the source and evidence status |\n| Stock-date and sale-date totals differ | Shipments and sales happened in different periods | Compare both dates and Reconciliation |\n| Refund reduces sales but not COGS | Credit did not restock inventory | Confirm the credit's restock choice |\n| Layer totals differ slightly from movement cost | Captured composite cost and allocation precision differ | Review the rounding difference |\n| Accounting differs from filtered report | Different scope, eligible movement types or exclusions | Compare the full-period figure and exception counts |\n| The date range is too large | More than 50,000 source records or too many allocations match | Run narrower periods; no figures are silently truncated |",
+      "sectionId": "ims-cogs-traceability:6"
+    },
+    {
+      "id": "ims-cogs-traceability:7",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-07",
+      "content": "### Discounted sale\n\nA tax-inclusive $110 sale receives an $11 discount. Sales excluding GST are $100, Discount is $10, Net Sales are $90 and GST is $9. With captured COGS of $50, GP is $40 and GP% is 44.44%.\n\n### Partial fulfilment across months\n\nAn order for ten units has $900 net merchandise value. Three units ship in September and seven in October. Stock-movement results attribute $270 to September and $630 to October, together with each shipment's captured costs. Sale-date results show $900 on the source sale date, with incomplete COGS until all ten units have matched cost evidence.\n\n### Refund without restocking\n\nA $100 net credit is completed without restocking. Net Sales decrease by $100, but inventory and stock COGS do not change. Its financial-only row has zero stock COGS, not a fabricated cost reversal.",
+      "sectionId": "ims-cogs-traceability:7"
+    },
+    {
+      "id": "ims-cogs-traceability:7.1",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Worked examples > Discounted sale",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "A tax-inclusive $110 sale receives an $11 discount. Sales excluding GST are $100, Discount is $10, Net Sales are $90 and GST is $9. With captured COGS of $50, GP is $40 and GP% is 44.44%.",
+      "sectionId": "ims-cogs-traceability:7"
+    },
+    {
+      "id": "ims-cogs-traceability:7.2",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Worked examples > Partial fulfilment across months",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "An order for ten units has $900 net merchandise value. Three units ship in September and seven in October. Stock-movement results attribute $270 to September and $630 to October, together with each shipment's captured costs. Sale-date results show $900 on the source sale date, with incomplete COGS until all ten units have matched cost evidence.",
+      "sectionId": "ims-cogs-traceability:7"
+    },
+    {
+      "id": "ims-cogs-traceability:7.3",
+      "documentId": "ims-cogs-traceability",
+      "title": "Sales and COGS Traceability",
+      "heading": "Worked examples > Refund without restocking",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Reports > Sales & COGS Traceability",
+      "topicId": "ims-cogs-traceability",
+      "contexts": [
+        "report-cogs-traceability"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-07",
+      "content": "A $100 net credit is completed without restocking. Net Sales decrease by $100, but inventory and stock COGS do not change. Its financial-only row has zero stock COGS, not a fabricated cost reversal.",
+      "sectionId": "ims-cogs-traceability:7"
     },
     {
       "id": "ims-customer-orders:1",

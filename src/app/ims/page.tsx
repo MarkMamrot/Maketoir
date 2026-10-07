@@ -114,7 +114,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit' | 'report-cogs-traceability'
   | 'xero' | 'sales-channels' | 'online-shop';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -18724,6 +18724,12 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 
 const REPORT_CATALOG = [
   {
+    id: 'report-cogs-traceability' as ImsView,
+    title: 'Sales & COGS Traceability',
+    description: 'Trace recorded sales and costs by channel, product and warehouse, with FIFO receipt evidence and accounting reconciliation.',
+    icon: '$',
+  },
+  {
     id: 'report-bookkeeper-audit' as ImsView,
     title: 'Bookkeeper Audit',
     description: 'Periodic accounting, stock, and incomplete-document exceptions with an accountable review history.',
@@ -23332,7 +23338,7 @@ export default function ImsPage() {
     'pos-sales','cash-banking','online-sales','stocktakes',
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
-    'report-pos-price-changes','report-pos-registers','report-cash-banking','report-stock-availability','report-bookkeeper-audit',
+    'report-pos-price-changes','report-pos-registers','report-cash-banking','report-stock-availability','report-bookkeeper-audit','report-cogs-traceability',
     'xero','sales-channels','online-shop',
   ]), []);
 
