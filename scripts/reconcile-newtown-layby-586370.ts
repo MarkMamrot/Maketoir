@@ -38,6 +38,15 @@ async function main() {
       assert.equal(Number(payments[0].id), 13061);
       assert.equal(Number(payments[0].amount), 26);
       assert.equal(payments[0].payment_method, 'Card');
+      const [reconciliations]: any = await connection.execute('SELECT payment_method,expected_amount,counted_amount,xero_invoice_id FROM pos_eod_reconciliations WHERE id = 1103 AND register_session_id = 322 FOR UPDATE');
+      assert.equal(reconciliations.length, 1);
+      assert.equal(reconciliations[0].payment_method, 'Card');
+      assert.equal(reconciliations[0].xero_invoice_id, invoiceId);
+      assert.equal(Number(reconciliations[0].counted_amount), 1006.72);
+      assert.ok([980.72, 1006.72].includes(Number(reconciliations[0].expected_amount)));
+      const correctExpected = async () => {
+        await connection.execute('UPDATE pos_eod_reconciliations SET expected_amount = ? WHERE id = 1103 AND register_session_id = 322 AND xero_invoice_id = ? AND counted_amount = ?', [1006.72, invoiceId, 1006.72]);
+      };
       const [items]: any = await connection.execute('SELECT * FROM pos_sale_items WHERE sale_id = ? FOR UPDATE', [saleId]);
       assert.equal(items.length, 1);
       assert.equal(items[0].code, 'PSN1703');
@@ -59,8 +68,10 @@ async function main() {
         const verified = (await xeroApiFetch(businessId, `/ManualJournals/${journalId}`)).ManualJournals?.[0];
         assert.equal(verified?.Narration, narration);
         assert.equal(verified?.Status, 'POSTED');
-        await connection.rollback();
-        return { alreadyCorrected: true, journalId, paid: 26, balance: 103.95, reserved: 1 };
+        if (apply) { await correctExpected(); await connection.commit(); }
+        else await connection.rollback();
+        return { alreadyCorrected: true, journalId, paid: 26, balance: 103.95, reserved: 1,
+          cardExpected: apply ? 1006.72 : Number(reconciliations[0].expected_amount), expectedCorrectionNeeded: !apply && Number(reconciliations[0].expected_amount) !== 1006.72 };
       }
       const [stocks]: any = await connection.execute('SELECT qty_on_hand,qty_committed FROM ims_stock WHERE variant_id = ? AND location_id = 1 FOR UPDATE', [variants[0]]);
       assert.equal(stocks.length, 1);
@@ -113,6 +124,7 @@ async function main() {
       await connection.execute(`INSERT INTO pos_layby_events (business_id,sale_id,operation_key,kind,amount,location_id,register_id,register_session_id,reason,created_at,xero_status,xero_id)
         VALUES (?, ?, ?, 'cancellation', 0, 1, 1, 322, ?, ?, 'posted', ?)`, [businessId, saleId, `adopt:${saleId}`, 'Approved historical adoption; no payment or refund', sale.created_at, journalId]);
       await connection.execute('UPDATE pos_sales SET notes = CONCAT_WS(CHAR(10), NULLIF(notes, ?), ?) WHERE id = ? AND business_id = ?', ['', `2026-10-07 approved layby adoption: reserved 1 unit; retained AUD 26 deposit and AUD 103.95 balance; Xero reclassification ${journalId}. No charge or refund.`, saleId, businessId]);
+      await correctExpected();
       await connection.commit();
       await refreshVariantCache(variants);
       return { applied: true, journalId, paid: 26, balance: 103.95, reserved: 1, stockOnHand: 1 };

@@ -5141,6 +5141,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const terminal = Zeller.useTerminal();
   const [zellerPending, setZellerPending] = useState(false);
   const [zellerError,   setZellerError]   = useState<string | null>(null);
+  const terminalInFlight = useRef(false);
+  const [terminalOutcomeUnknown, setTerminalOutcomeUnknown] = useState(false);
   const capturedPaymentIds = useRef(new Set<string>());
   const [manualOverride, setManualOverride] = useState(false);
   const isRefund  = total < 0;
@@ -5318,9 +5320,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   }
 
   async function handleZellerTransaction() {
-    if (zellerPending || capturedPaymentIds.current.size > 0) return;
+    if (terminalInFlight.current || terminalOutcomeUnknown || capturedPaymentIds.current.size > 0) return;
+    terminalInFlight.current = true;
     setZellerPending(true);
     setZellerError(null);
+    let sentToTerminal = false;
     // Zeller expects a positive integer in the smallest currency unit (cents).
     // e.g. $15.00 => 1500. Guard against floats/NaN/zero.
     const chargeAmount = isLayby ? Math.min(Number(amount), remaining) : remaining;
@@ -5329,6 +5333,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     if (!Number.isInteger(amountCents) || amountCents <= 0) {
       setZellerError(`Invalid amount ($${fmt(remaining)}). Nothing to charge.`);
       setZellerPending(false);
+      terminalInFlight.current = false;
       return;
     }
     try {
@@ -5347,6 +5352,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         return;
       }
 
+      sentToTerminal = true;
       const result = await executeZellerTransaction(terminal, {
         amount: amountCents,
         isRefund,
@@ -5355,12 +5361,13 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       });
       if (result instanceof Error) {
         const t = (result as any).type ?? result.message;
-        if (!/cancel|declin/i.test(String(t))) reportTerminalFailure();
+        if (!/cancel|declin/i.test(String(t))) { setTerminalOutcomeUnknown(true); reportTerminalFailure(); }
         setZellerError(`${isRefund ? 'Refund' : 'Payment'} ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
       }
       const approved = getApprovedZellerPurchase(result);
       if (!approved) {
+        if (!/declin|fail|cancel/i.test(String(result.status))) { setTerminalOutcomeUnknown(true); reportTerminalFailure(); }
         const detail = result.responseText || result.status || 'Transaction declined';
         setZellerError(`${isRefund ? 'Refund' : 'Payment'} declined: ${detail} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
@@ -5379,9 +5386,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         `zeller:${txId}`,
       );
     } catch (e: any) {
+      if (sentToTerminal) setTerminalOutcomeUnknown(true);
       reportTerminalFailure();
       setZellerError(`Terminal error: ${e?.type ?? e?.message ?? 'Unknown error'}`);
     } finally {
+      terminalInFlight.current = false;
       setZellerPending(false);
     }
   }
@@ -5433,6 +5442,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
           ))}
         </div>}
 
+        {terminalOutcomeUnknown && <p role='alert' style={{ color: 'var(--sv-red)', fontSize: '.85rem' }}>Terminal outcome unconfirmed. Check terminal history before proceeding. If approved, use manual entry to record the existing transaction; do not issue another payment or refund.</p>}
         {/* Zeller Terminal payment UI */}
         {!isZeroTotal && isZellerActive ? (
           <div style={{ marginBottom: '.75rem' }}>
@@ -5448,7 +5458,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
             )}
             <button
               onClick={handleZellerTransaction}
-              disabled={zellerPending || remaining <= 0}
+              disabled={zellerPending || terminalOutcomeUnknown || capturedPaymentIds.current.size > 0 || remaining <= 0}
               style={{ width: '100%', padding: '.85rem', background: zellerPending ? 'var(--sv-etch)' : 'var(--sv-action)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: '1.1rem', cursor: zellerPending ? 'default' : 'pointer', marginBottom: '.4rem' }}
             >
               {zellerPending ? '⏳ Waiting for terminal…' : `💳 ${isRefund ? 'Refund' : 'Pay'} $${fmt(isLayby ? Math.max(0, Math.min(Number(amount) || 0, remaining)) : remaining)} via Terminal`}

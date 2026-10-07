@@ -4,9 +4,6 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function POST(request: Request) {
-  const session = await getImsSession(['marketoir_session', 'pos_session']);
-  if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-
   const body = await request.json().catch(() => null) as {
     message?: string;
     name?: string;
@@ -15,6 +12,9 @@ export async function POST(request: Request) {
     pathname?: string;
     operation?: string;
   } | null;
+  const isPosOperation = ['pos_login_cache_write', 'pos_terminal_refund', 'pos_terminal_purchase'].includes(body?.operation ?? '');
+  const session = await getImsSession(isPosOperation ? ['pos_session', 'marketoir_session'] : ['marketoir_session', 'pos_session']);
+  if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
   if (!body?.message?.trim()) {
     return NextResponse.json({ error: 'message is required.' }, { status: 400 });
   }

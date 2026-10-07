@@ -19,6 +19,11 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const refundProbe = process.argv.includes('--refund');
+    if (refundProbe) await context.route(/\/api\/pos\/laybys(?:\?.*)?$/, async route => {
+      if (route.request().method() !== 'GET') { await route.abort(); return; }
+      await route.fulfill({ json: { laybys: [{ id: 10, customer_name: 'Refund UI check', total: 129.95, paid_total: 26, fee_percent: 0, retained_fee: 0, layby_state: 'active', accounting_status: 'posted' }] } });
+    });
     const page = await context.newPage();
     await context.route(/\/api\/(xero|pos\/xero|pos\/eod)/, async route => {
       if (route.request().method() !== 'GET') await route.abort(); else await route.continue();
@@ -46,6 +51,19 @@ async function main() {
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Layby screen must not overflow on mobile');
     await page.screenshot({ path: 'tmp/laybys-mobile.png', fullPage: true });
+    if (refundProbe) {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.getByRole('button', { name: 'Cancel layby', exact: true }).click();
+      await page.getByRole('button', { name: 'Refund and cancel', exact: true }).click();
+      await page.getByRole('heading', { name: /Refund/ }).waitFor();
+      await page.getByRole('button', { name: 'Cash', exact: true }).click();
+      await page.screenshot({ path: 'tmp/layby-refund-desktop.png', fullPage: true });
+      await page.setViewportSize({ width: 390, height: 844 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Refund screen must not overflow on mobile');
+      await page.screenshot({ path: 'tmp/layby-refund-mobile.png', fullPage: true });
+      console.log('PASS: populated cancellation opens the shared cash/card refund dialog on desktop/mobile; no refund issued or recorded.');
+      return;
+    }
     await page.setViewportSize({ width: 1440, height: 1000 });
     const branchSettings = page.waitForResponse(response => response.url().includes('/api/pos/settings/location?location_id=') && response.request().method() === 'GET');
     await page.goto('http://localhost:3012/ims#settings-pos');

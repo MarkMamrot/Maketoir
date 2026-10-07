@@ -53,6 +53,8 @@ Use Layby mode for a new layby and **More > Laybys** for its later payments, col
 11. To cancel before collection, select **Cancel layby**, check the retained fee, enter a reason for any override and choose **Refund and cancel**. Select Cash, a configured integrated Card method, or another supported manual tender and refund exactly the amount due. Complete cash/manual refunds separately before recording them. An integrated card refund must be approved on the terminal. If nothing is refundable, confirm cancellation directly.
 12. If a save fails, use **Retry saved deposit** or **Retry saved action** in Laybys. These reuse the recorded request without another payment. A request tied to a register session that has since closed needs staff reconciliation rather than a new charge.
 
+If the terminal outcome is unconfirmed, check terminal history before proceeding. An approved refund can be recorded using manual entry without issuing it again. Do not restart the refund merely because the browser lost the terminal response.
+
 ## Accounting and older laybys
 
 Each deposit, instalment and refund contributes to its own payment day's takings and register session. Partial deposits are a liability, not merchandise revenue. GST is recognised on final payment, even when collection is later. Merchandise revenue is recognised on collection, without charging GST twice. Retained cancellation fees are revenue with GST extracted from the fee.
