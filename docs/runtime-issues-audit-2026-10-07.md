@@ -47,6 +47,14 @@ The inventory/stock-adjustment mapping issue 1294, rejected inventory-account bi
 - Replay protection remains in place. No payment was reposted, reversed, deleted, amended or unlinked, and no existing accounting-action record was cleared. Existing successful foreign-payment actions must be reconciled explicitly; changing the request rate is not permission to replay them.
 - Correction is local and undeployed. The incorrectly posted payment requires bookkeeper-approved Xero correction plus coordinated Solvantis posting-link reconciliation, not an automatic second payment. The paid-bill reauthorisation issue 1712 is separate and was not changed by this FX fix.
 
+#### User-authorised retry reset after Xero deletion
+
+The user subsequently confirmed deleting both Xero payments for PO-907413 and requested that the existing Solvantis payments become postable again. Live Xero GETs independently verified both linked PaymentIDs as DELETED on the correct bill. The bill was AUTHORISED in USD with 6,086 due and zero paid.
+
+Reset only local payments 2 and 3 and their po-payment:2804:2 / po-payment:2804:3 accounting actions in one cross-schema transaction under resolved Monsterthreads tenant context. Local intent remains post_to_xero, posting status is pending, and old payment IDs/errors/posting timestamps are cleared. Accounting actions are pending with corrected FX request fingerprints and cleared old Xero IDs/completion timestamps; attempt counts are preserved. Original USD amounts, AUD equivalents, dates, rates and payment methods are unchanged.
+
+Two skipped/DELETED sync-history entries preserve the old provider IDs, old/new request fingerprints and explicit user-authorised reset reason. Independent readback confirmed both local rows and actions are pending and both audit entries exist. No new payment was posted, no bill was amended, and no provider financial write was performed. Repost manually only after the FX fix is deployed; older request payloads do not match the prepared fingerprints. Expected recorded AUD amounts remain 4,295.06 and 4,206.30.
+
 - **Prepared**: changed and tested locally; deployment and live acceptance remain required.
 - **Code covered**: the current implementation addresses the recorded cause; affected business data has not necessarily been reconciled.
 - **Verified cause resolved**: a read-only current-schema check disproves the exact recorded missing-object or query failure.
