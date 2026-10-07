@@ -32,6 +32,7 @@ import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { recordExpectedXeroDocument } from '@/lib/xero/reconciliation/expectedSnapshots';
 import fs from 'fs';
 import path from 'path';
+import { planLaybyJournal, splitLaybyEod } from '@/lib/pos/laybyAccounting';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ interface AccountMapping {
   petty_cash_expense?: string; // POS petty cash purchases paid from the till
   gift_card_liability?: string; // Outstanding gift card balances (liability)
   store_credit_liability?: string; // Outstanding store credit balances (liability)
+  layby_liability?: string;
   supplier_credit_note?: string; // Non-stock supplier credit lines (rebates/overcharges)
 }
 
@@ -2729,6 +2731,83 @@ export async function syncMonthlyCOGSJournal(
  * Reference: EOD-L{locationId}-{YYYYMMDD}-{Method}
  * This is the trigger that replaces the old manual daily-sales sync.
  */
+export async function syncLaybyAccounting(businessId: string, locationId: number, sessionId: number | null, date: string) {
+  const policy = await getXeroDocumentPolicy(businessId);
+  if (!policy.posBatchSyncEnabled) return;
+  const events = await imsQuery<any>(
+    `SELECT event.* FROM pos_layby_events event
+      WHERE event.business_id = ? AND event.location_id = ? AND event.xero_status IN ('pending','error','posting')
+        AND (event.register_session_id = ? OR (? IS NULL AND DATE(event.created_at) = ?)
+          OR EXISTS (SELECT 1 FROM pos_eod_reconciliations recon
+                      WHERE recon.register_session_id = event.register_session_id AND recon.counted_amount IS NOT NULL))
+      ORDER BY event.sale_id, event.id`,
+    [businessId, locationId, sessionId, sessionId, date],
+  );
+  if (!events.length) return;
+  const accounts = await getAccountMappings(businessId);
+  const revenue = await getPosRevenueAccountCode(businessId, locationId);
+  const clearing = await getPosClearingMappings(businessId, locationId);
+  const tracking = getTrackingForLocation(await getTrackingMappings(businessId), locationId);
+  if (!accounts.layby_liability || !revenue || !policy.posBatchPaymentSyncEnabled) {
+    throw new Error('Layby accounting requires the Layby Deposits liability, branch revenue, clearing accounts and POS clearing payments enabled.');
+  }
+  for (const event of events) {
+    if (event.kind === 'receipt' && !clearing[String(event.payment_method).trim().toLowerCase()]?.xeroAccountCode) {
+      throw new Error('Map every layby payment method to its branch Xero clearing account before posting.');
+    }
+    const earlier = await imsQuery<any>("SELECT id FROM pos_layby_events WHERE business_id = ? AND sale_id = ? AND id < ? AND xero_status NOT IN ('posted','legacy') LIMIT 1", [businessId, event.sale_id, event.id]);
+    if (earlier.length) throw new Error('Post the earlier layby register session before its later accounting events.');
+    const claim = await imsExecute(
+      `UPDATE pos_layby_events SET xero_status = 'posting', xero_claimed_at = NOW(), xero_error = NULL
+        WHERE id = ? AND business_id = ?
+          AND (xero_status IN ('pending','error') OR (xero_status = 'posting' AND xero_claimed_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)))`,
+      [event.id, businessId],
+    );
+    if (!(claim as any).affectedRows) throw new Error('A layby accounting event is already being posted. Retry once it finishes.');
+    try {
+      let xeroId: string | null = null;
+      const reference = `Layby #${event.sale_id} event ${event.id}`;
+      const narration = `${reference} ${event.kind}`;
+      const idempotencyKey = crypto.createHash('sha256').update(`${businessId}|layby|${event.id}`).digest('hex');
+      const eventDate = event.created_at instanceof Date
+        ? event.created_at.toLocaleDateString('en-CA', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' })
+        : String(event.created_at).slice(0, 10);
+      if (event.xero_status === 'error' || event.xero_status === 'posting') {
+        const field = event.kind === 'receipt' ? 'Reference' : 'Narration';
+        const endpoint = event.kind === 'receipt' ? 'BankTransactions' : 'ManualJournals';
+        const expected = event.kind === 'receipt' ? reference : narration;
+        const response = await xeroApiFetch(businessId, `/${endpoint}?where=${encodeURIComponent(`${field}=="${expected}"`)}`);
+        const existing = response?.[endpoint]?.find((document: any) => document[field] === expected);
+        if (existing?.Status === 'VOIDED' || existing?.Status === 'DELETED') throw new Error('The original layby accounting document was removed in Xero. Ask the bookkeeper to reconcile it before retrying.');
+        xeroId = existing?.BankTransactionID ?? existing?.ManualJournalID ?? null;
+      }
+      if (!xeroId && event.kind === 'receipt') {
+        const accountCode = clearing[String(event.payment_method).trim().toLowerCase()].xeroAccountCode;
+        const response = await xeroApiFetch(businessId, '/BankTransactions', { method: 'POST', idempotencyKey, body: { BankTransactions: [{
+          Type: Number(event.amount) > 0 ? 'RECEIVE' : 'SPEND', Contact: { Name: 'POS Layby Deposits' },
+          BankAccount: { Code: accountCode }, Date: eventDate, Reference: reference, Status: 'AUTHORISED', LineAmountTypes: 'NoTax',
+          LineItems: [{ Description: reference, Quantity: 1, UnitAmount: Math.abs(Number(event.amount)), AccountCode: accounts.layby_liability, TaxType: 'NONE', Tracking: tracking }],
+        }] } });
+        xeroId = response?.BankTransactions?.[0]?.BankTransactionID ?? null;
+      } else if (!xeroId && event.kind !== 'cancellation') {
+        const lines = planLaybyJournal(event.kind, Number(event.amount));
+        const response = await xeroApiFetch(businessId, '/ManualJournals', { method: 'POST', idempotencyKey, body: { ManualJournals: [{
+          Date: eventDate, Status: 'POSTED', Narration: narration, LineAmountTypes: 'Inclusive', ShowOnCashBasisReports: true,
+          JournalLines: lines.map(line => ({ Description: reference, AccountCode: line.role === 'liability' ? accounts.layby_liability : revenue, LineAmount: line.amount, TaxType: line.taxType, Tracking: tracking })),
+        }] } });
+        xeroId = response?.ManualJournals?.[0]?.ManualJournalID ?? null;
+      }
+      if (event.kind !== 'cancellation' && !xeroId) throw new Error('Xero did not return a document ID for the layby event.');
+      await imsExecute("UPDATE pos_layby_events SET xero_status = 'posted', xero_id = ?, xero_error = NULL WHERE id = ? AND business_id = ?", [xeroId, event.id, businessId]);
+      if (xeroId) await logSync(businessId, 'layby_accounting', event.sale_id, xeroId, 'success', `${reference} ${event.kind}`, event.kind === 'receipt' ? 'AUTHORISED' : 'POSTED');
+    } catch (error) {
+      await imsExecute("UPDATE pos_layby_events SET xero_status = 'error', xero_error = ? WHERE id = ? AND business_id = ?", ['Layby accounting failed; retry from End of Day.', event.id, businessId]);
+      await reportRuntimeIssue({ businessId, source: 'xero_layby', operation: event.kind, title: 'Layby Xero accounting failed', error, reference: { type: 'pos_sale', id: event.sale_id }, context: { eventId: event.id, locationId } });
+      throw error;
+    }
+  }
+}
+
 export async function syncEodEntry(
   businessId: string,
   entry: {
@@ -2868,19 +2947,22 @@ async function postPosEodFee(input: {
       ? `SELECT COALESCE(SUM(p.amount), 0) AS gross_amount, COUNT(*) AS payment_count
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
-          WHERE s.location_id = ? AND s.register_session_id = ?
-            AND s.status IN ('completed','layby_complete') AND p.amount > 0
+           LEFT JOIN pos_layby_events event ON event.payment_id = p.id
+          WHERE s.location_id = ? AND ((s.register_session_id = ? AND s.status IN ('completed','layby_complete')
+              AND NOT EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = s.id)) OR event.register_session_id = ?)
+            AND p.amount > 0
             AND LOWER(TRIM(p.payment_method)) = ?`
       : `SELECT COALESCE(SUM(p.amount), 0) AS gross_amount, COUNT(*) AS payment_count
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
-          WHERE s.location_id = ? AND DATE(s.completed_at) = ?
-            AND (? IS NULL OR s.register_id = ?)
-            AND s.status IN ('completed','layby_complete') AND p.amount > 0
+           LEFT JOIN pos_layby_events event ON event.payment_id = p.id
+          WHERE s.location_id = ? AND ((DATE(s.completed_at) = ? AND (? IS NULL OR s.register_id = ?)
+              AND s.status IN ('completed','layby_complete') AND NOT EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = s.id))
+              OR (DATE(event.created_at) = ? AND (? IS NULL OR event.register_id = ?))) AND p.amount > 0
             AND LOWER(TRIM(p.payment_method)) = ?`,
     input.sessionId
-      ? [input.locationId, input.sessionId, normalizedMethod]
-      : [input.locationId, input.date, input.registerId, input.registerId, normalizedMethod],
+      ? [input.locationId, input.sessionId, input.sessionId, normalizedMethod]
+      : [input.locationId, input.date, input.registerId, input.registerId, input.date, input.registerId, input.registerId, normalizedMethod],
   );
   const grossAmount = roundCurrency(Number(totals[0]?.gross_amount ?? 0));
   const paymentCount = Number(totals[0]?.payment_count ?? 0);
@@ -2957,7 +3039,7 @@ async function postPosEodFee(input: {
       title: 'POS EOD card fee posting failed',
       error,
       context: { locationId: input.locationId, reconciliationId: input.reconciliationId, paymentMethod: input.method },
-      sourceReference: String(input.reconciliationId),
+      reference: { type: 'pos_eod', id: input.reconciliationId },
     });
     throw error;
   }
@@ -3187,6 +3269,26 @@ export async function triggerEodXeroSync(
   const accounts = await getAccountMappings(businessId);
   const tracking = getTrackingForLocation(await getTrackingMappings(businessId), locationId);
 
+  const laybySessionId = rows.find(row => row.register_session_id != null)?.register_session_id ?? null;
+  const legacyLaybys = await imsQuery<any>(`SELECT sale.id FROM pos_sales sale
+    WHERE sale.business_id = ? AND sale.location_id = ? AND sale.sale_type = 'layby' AND sale.status = 'layby_active'
+      AND NOT EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = sale.id)
+      AND ${laybySessionId != null ? 'sale.register_session_id = ?' : 'DATE(sale.created_at) = ?'} LIMIT 1`, [businessId, locationId, laybySessionId ?? date]);
+  if (legacyLaybys.length) throw new Error('Reserve existing laybys before posting their EOD deposits; reconcile any previously posted sales accounting first.');
+  const laybyTotals = await imsQuery<{ payment_method: string; total: string }>(
+    `SELECT payment_method, SUM(amount) AS total FROM pos_layby_events
+      WHERE business_id = ? AND location_id = ? AND kind = 'receipt'
+        AND ${laybySessionId != null ? 'register_session_id = ?' : 'DATE(created_at) = ?'}
+      GROUP BY payment_method`,
+    [businessId, locationId, laybySessionId ?? date],
+  );
+  const laybyByMethod = new Map(laybyTotals.map(row => [row.payment_method.trim().toLowerCase(), Number(row.total)]));
+  const savedCountMethods = new Set(rows.filter(row => row.counted_amount != null).map(row => row.payment_method.trim().toLowerCase()));
+  if (laybyTotals.some(row => !savedCountMethods.has(row.payment_method.trim().toLowerCase()))) {
+    throw new Error('Count every layby payment method before posting End of Day.');
+  }
+  await syncLaybyAccounting(businessId, locationId, laybySessionId, date);
+
   if (!revenueAccountCode) {
     const detail = `Missing POS revenue account mapping for ${locationName}`;
     for (const row of rows) {
@@ -3234,6 +3336,8 @@ export async function triggerEodXeroSync(
     const isCash = /^cash$/i.test(row.payment_method.trim());
     const openFloat = isCash ? (row.opening_float ?? 0) : 0;
     let salesAmount = row.counted_amount - openFloat;
+    const laybyAmount = laybyByMethod.get(row.payment_method.trim().toLowerCase()) ?? 0;
+    salesAmount = splitLaybyEod(salesAmount, laybyAmount).revenue;
     let cashPlan: CashEodPlan | null = null;
     const clearingMapping = clearingMappings[row.payment_method.trim().toLowerCase()];
     const clearingAccountCode = clearingMapping?.xeroAccountCode ?? '';
@@ -3250,8 +3354,8 @@ export async function triggerEodXeroSync(
     if (paymentSyncEnabled && isCash && row.id != null && !cashPlan && !row.xero_invoice_id) {
       const expectedAmount = Number(row.expected_amount ?? 0);
       const tillVariance = calculateCashPosition({
-        expectedAmount,
-        countedAmount: row.counted_amount,
+        expectedAmount: expectedAmount - laybyAmount,
+        countedAmount: row.counted_amount - laybyAmount,
         openingFloat: openFloat,
       }).tillVariance;
       if (tillVariance !== 0 && !accounts.cash_over_short) {
@@ -3269,8 +3373,8 @@ export async function triggerEodXeroSync(
       cashPlan = await getOrCreateCashEodPlan({
         businessId,
         reconciliationId: row.id,
-        expectedAmount,
-        countedAmount: row.counted_amount,
+        expectedAmount: expectedAmount - laybyAmount,
+        countedAmount: row.counted_amount - laybyAmount,
         openingFloat: openFloat,
         cashRounding: netCashRounding,
         pettyCashAmount,
@@ -3281,6 +3385,10 @@ export async function triggerEodXeroSync(
     }
     if (cashPlan) salesAmount = Number(cashPlan.sales_amount);
     if (salesAmount <= 0) {
+      if (laybyAmount !== 0) {
+        if (clearingMapping?.deductFeeEnabled) await postPosEodFee({ businessId, reconciliationId: Number(row.id), locationId, date, locationName, registerId, sessionId: row.register_session_id ?? null, method: row.payment_method, mapping: clearingMapping });
+        results.push({ method: row.payment_method, status: 'not_required' });
+      }
       if (cashPlan
         && Math.abs(salesAmount) < 0.005
         && Number(cashPlan.till_variance) === 0

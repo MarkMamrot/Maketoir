@@ -444,6 +444,7 @@ describe('PosSalesRepo loyalty earning', () => {
       cumulativeReturnedCents: 4500,
     }));
     expect(mockReversePosReturn.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
+    expect(saleConnection.execute.mock.calls[0][0]).toContain("sale_type = 'layby' AND status = 'layby_complete'");
     expect(saleConnection.execute.mock.calls[4][0]).toContain('return_of_sale_item_id');
   });
 

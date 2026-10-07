@@ -44,6 +44,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 });
     }
 
+    const transaction = await PosSalesRepo.get(id);
+    if (transaction?.sale.sale_type === 'layby') return NextResponse.json({ error: 'Use Laybys for uncollected goods or a linked return after collection.' }, { status: 409 });
     // Deleting a completed transaction (void + stock reversal) is manager-PIN
     // gated and only allowed while its register session is still the open one.
     if (status === 'voided') {

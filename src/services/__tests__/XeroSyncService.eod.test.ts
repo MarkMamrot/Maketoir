@@ -17,7 +17,7 @@ vi.mock('@/services/XeroService', () => ({
 }));
 vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: mockGetPolicy }));
 
-import { triggerEodXeroSync } from '../XeroSyncService';
+import { syncLaybyAccounting, triggerEodXeroSync } from '../XeroSyncService';
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 const NEWTOWN_REVENUE_MAPPING = [{ role_key: 'pos_sales_revenue:4', xero_account_code: '201' }];
@@ -34,6 +34,7 @@ describe('triggerEodXeroSync clearing payments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockImsExecute.mockResolvedValue({ affectedRows: 1 });
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([]);
@@ -459,5 +460,85 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/BankTransactions']);
     expect(mockXeroApiFetch.mock.calls[0][2].idempotencyKey).toBe('variance-key');
     expect(results).toEqual([expect.objectContaining({ status: 'paid', xeroId: 'invoice-cash' })]);
+  });
+});
+
+describe('layby liability and lifecycle accounting', () => {
+  const receipt = { id: 1, sale_id: 10, kind: 'receipt', amount: '26.00', payment_method: 'Card', created_at: '2026-10-07 13:40:00' };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockImsExecute.mockResolvedValue({ affectedRows: 1 });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) return [{ payment_method: 'Card', xero_account_code: '091' }];
+      if (sql.includes('role_key = ?')) return NEWTOWN_REVENUE_MAPPING;
+      if (sql.includes('xero_account_mappings')) return [{ role_key: 'layby_liability', xero_account_code: '257' }];
+      return [];
+    });
+    mockImsQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT event.*')) return [receipt];
+      if (sql.includes("kind = 'receipt'")) return [{ payment_method: 'Card', total: '26.00' }];
+      return [];
+    });
+    mockXeroApiFetch.mockResolvedValue({ BankTransactions: [{ BankTransactionID: 'layby-receipt' }], ManualJournals: [{ ManualJournalID: 'layby-journal' }], Invoices: [{ InvoiceID: 'ordinary-sale', InvoiceNumber: 'INV-1' }], Payments: [{ PaymentID: 'ordinary-payment' }] });
+  });
+  it('posts a deposit-only day to liability, without a sales invoice', async () => {
+    await triggerEodXeroSync('biz-1', 4, '2026-10-07', [{ payment_method: 'Card', counted_amount: 26, opening_float: 0, register_session_id: 3 }], 'Newtown', 2, persistence());
+    expect(mockXeroApiFetch).toHaveBeenCalledOnce();
+    expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/BankTransactions');
+    expect(mockXeroApiFetch.mock.calls[0][2].body.BankTransactions[0]).toMatchObject({ Type: 'RECEIVE', BankAccount: { Code: '091' }, LineItems: [{ UnitAmount: 26, AccountCode: '257', TaxType: 'NONE' }] });
+  });
+  it('excludes the deposit from the ordinary mixed-takings invoice', async () => {
+    await triggerEodXeroSync('biz-1', 4, '2026-10-07', [{ payment_method: 'Card', counted_amount: 76, opening_float: 0, register_session_id: 3 }], 'Newtown', 2, persistence());
+    const invoice = mockXeroApiFetch.mock.calls.find(call => call[1] === '/Invoices');
+    expect(invoice?.[2].body.Invoices[0].LineItems[0]).toMatchObject({ UnitAmount: 50, AccountCode: '201' });
+  });
+  it('excludes a cash deposit from both the persisted sales plan and variance', async () => {
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) return [{ payment_method: 'Cash', xero_account_code: '090' }];
+      if (sql.includes('role_key = ?')) return NEWTOWN_REVENUE_MAPPING;
+      if (sql.includes('xero_account_mappings')) return [{ role_key: 'layby_liability', xero_account_code: '257' }];
+      return [];
+    });
+    mockImsQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT event.*')) return [{ ...receipt, payment_method: 'Cash' }];
+      if (sql.includes("kind = 'receipt'")) return [{ payment_method: 'Cash', total: '26.00' }];
+      return [];
+    });
+    await triggerEodXeroSync('biz-1', 4, '2026-10-07', [{ id: 100, payment_method: 'Cash', expected_amount: 26, counted_amount: 226, opening_float: 200, register_session_id: 3 }], 'Newtown', 2, persistence());
+    const plan = mockExecute.mock.calls.find(call => call[0].includes('INSERT INTO xero_pos_cash_eod_actions'));
+    expect(plan?.[1].slice(2, 9)).toEqual([0, 200, 200, 0, 0, 0, 0]);
+    expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/BankTransactions']);
+  });
+  it('posts GST on final payment and exclusive revenue on collection in event order', async () => {
+    mockImsQuery.mockImplementation(async (sql: string) => sql.includes('SELECT event.*') ? [
+      { ...receipt, amount: '103.95' },
+      { ...receipt, id: 2, kind: 'gst', amount: '129.95' },
+      { ...receipt, id: 3, kind: 'collection', amount: '118.14' },
+    ] : []);
+    await syncLaybyAccounting('biz-1', 4, 3, '2026-10-07');
+    expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/BankTransactions', '/ManualJournals', '/ManualJournals']);
+    expect(mockXeroApiFetch.mock.calls[1][2].body.ManualJournals[0].JournalLines).toEqual([
+      expect.objectContaining({ AccountCode: '257', LineAmount: 129.95, TaxType: 'NONE' }),
+      expect.objectContaining({ AccountCode: '257', LineAmount: -129.95, TaxType: 'OUTPUT' }),
+    ]);
+    expect(mockXeroApiFetch.mock.calls[2][2].body.ManualJournals[0].JournalLines[1]).toMatchObject({ AccountCode: '201', LineAmount: -118.14, TaxType: 'NONE' });
+  });
+  it('posts a cancellation refund as a liability spend and a retained fee as taxable revenue', async () => {
+    mockImsQuery.mockImplementation(async (sql: string) => sql.includes('SELECT event.*') ? [{ ...receipt, amount: '-13.01' }, { ...receipt, id: 2, kind: 'cancellation_fee', amount: '12.99' }] : []);
+    await syncLaybyAccounting('biz-1', 4, 3, '2026-10-07');
+    expect(mockXeroApiFetch.mock.calls[0][2].body.BankTransactions[0]).toMatchObject({ Type: 'SPEND', LineItems: [{ UnitAmount: 13.01, AccountCode: '257', TaxType: 'NONE' }] });
+    expect(mockXeroApiFetch.mock.calls[1][2].body.ManualJournals[0].JournalLines[1]).toMatchObject({ AccountCode: '201', LineAmount: -12.99, TaxType: 'OUTPUT' });
+  });
+  it('fails closed when the liability mapping is missing', async () => {
+    mockQuery.mockResolvedValue([]);
+    await expect(syncLaybyAccounting('biz-1', 4, 3, '2026-10-07')).rejects.toThrow('Layby Deposits');
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+  });
+  it('does not repost an event held by another worker', async () => {
+    mockImsExecute.mockResolvedValue({ affectedRows: 0 });
+    await expect(syncLaybyAccounting('biz-1', 4, 3, '2026-10-07')).rejects.toThrow('already being posted');
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
   });
 });

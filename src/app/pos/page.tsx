@@ -13,6 +13,7 @@ import { SolvantisMark } from '@/components/SolvantisMark';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { resolveEodOpeningFloat } from '@/lib/pos/eodOpeningFloat';
 import { PosStoreDaybook } from './components/daybook/PosStoreDaybook';
+import { LaybyWorkspace } from './components/LaybyWorkspace';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   mergeProductsDelta,
@@ -331,7 +332,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
   // On mount: probe auth/me — if admin is logged in, skip the PIN form entirely.
   useEffect(() => {
-    fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}&business_id=${encodeURIComponent(deviceConfig.business_id)}`)
+    fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}&register_id=${deviceConfig.register_id}&business_id=${encodeURIComponent(deviceConfig.business_id)}`)
       .then(r => r.json())
       .then(async d => {
         if (d?.session) {
@@ -433,7 +434,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
       });
       const data = await res.json();
       if (!res.ok || !data.success) { setError(data.error ?? 'Login failed.'); return; }
-      const meRes  = await fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}`);
+      const meRes  = await fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}&register_id=${deviceConfig.register_id}&business_id=${encodeURIComponent(deviceConfig.business_id)}`);
       const meData = await meRes.json();
       if (!meData.session) { setError('Could not create POS session.'); return; }
       await finishLogin({
@@ -549,11 +550,12 @@ interface PosLocationSettings {
   bgPosition:         'center' | 'bottom';
   bgScale:            'fit' | 'original';
   allowIncomingTransferSales: boolean;
+  laybyCancellationFeePercent: number;
   defaultProductView: string | null;
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit', allowIncomingTransferSales: true, defaultProductView: null,
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit', allowIncomingTransferSales: true, laybyCancellationFeePercent: 0, defaultProductView: null,
 };
 
 const POS_AVATAR_FILES = [
@@ -988,7 +990,7 @@ function PosSettingsModal({
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale, allowIncomingTransferSales, defaultProductView };
+    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale, allowIncomingTransferSales, laybyCancellationFeePercent: initialSettings.laybyCancellationFeePercent, defaultProductView };
   }
 
   function previewTheme(overrides: Partial<PosLocationSettings> = {}) {
@@ -1479,7 +1481,7 @@ function PettyCashModal({ registerSessionId, onSaved, onCancel }: {
 
 // ─── Main POS Layout ──────────────────────────────────────────────────────────
 
-type MainScreen = 'pos' | 'daybook' | 'eod' | 'reports' | 'parked' | 'receive-transfers' | 'branch-transfer';
+type MainScreen = 'pos' | 'daybook' | 'eod' | 'reports' | 'parked' | 'laybys' | 'receive-transfers' | 'branch-transfer';
 type SaleProductGuide = { id: number; product_name: string; category: string | null; shelf_location: string | null; box_location: string | null; guidance: string | null };
 
 function MainPos({
@@ -1526,6 +1528,8 @@ function MainPos({
   const [notesOpen, setNotesOpen] = useState(false);
   const [saleNotes, setSaleNotes] = useState('');
   const [isLayby, setIsLayby] = useState(false);
+  const [collectLayby, setCollectLayby] = useState(true);
+  const openingPaymentRef = useRef(false);
   // Gift card / store credit
   type PosCustomerResult = { id: number; name: string; email: string | null; phone: string | null; store_credit: number; is_active: boolean };
   const [linkedContact, setLinkedContact] = useState<PosCustomerResult | null>(null);
@@ -2171,6 +2175,26 @@ function MainPos({
     setScreen('pos');
   }
 
+  async function openPaymentWindow() {
+    if (openingPaymentRef.current || !cart.length || (mustOpenRegister && !trainingMode)) return;
+    if (isLayby && localStorage.getItem(`pos_layby_opening:${loadDeviceConfig()?.business_id}:${session.location_id}:${session.register_id}`)) {
+      setScreen('laybys');
+      return;
+    }
+    openingPaymentRef.current = true;
+    setSaleSubmitError(null);
+    try {
+      if (isLayby) {
+        if (!navigator.onLine || !linkedContact) throw new Error('Laybys require an internet connection and a linked customer.');
+        const response = await fetch('/api/pos/laybys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'preflight', customer_id: linkedContact.id, items: cart }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Layby stock could not be checked.');
+      }
+      setShowPayment(true);
+    } catch (failure) { setSaleSubmitError(failure instanceof Error ? failure.message : 'Could not check the layby.'); }
+    finally { openingPaymentRef.current = false; }
+  }
+
   async function completeSale(payments: PaymentEntry[], changeDue = 0, cashRounding = 0, saleLocalId?: string) {
     // The ref blocks overlapping UI handlers. Terminal sales also pass a stable
     // transaction-derived local_id so later retries are covered by DB uniqueness.
@@ -2214,11 +2238,13 @@ function MainPos({
         is_training:   trainingMode,
         local_id:       localId,
         register_id:    session.register_id ?? null,
+        ...(isLayby ? { register_session_id: regSession?.id } : {}),
         location_id:    session.location_id,
         cashier_id:     session.pos_user_id,
         sale_type:      isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
         return_of_sale_id: linkedReturnSaleId,
         status:         isLayby ? 'layby_active' : 'completed',
+        collect_layby:  collectLayby,
         customer_id:    linkedContact?.id ?? null,
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
@@ -2277,8 +2303,10 @@ function MainPos({
       }
 
       let serverId: number | null = null;
+      let laybyCollected = false;
       try {
         if (navigator.onLine) {
+          if (isLayby) localStorage.setItem(`pos_layby_opening:${loadDeviceConfig()?.business_id}:${session.location_id}:${session.register_id}`, JSON.stringify(payload));
           const res = await fetch('/api/pos/sales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2287,6 +2315,8 @@ function MainPos({
           const data = await res.json();
           if (res.ok) {
             serverId = trainingMode ? data.training_id : data.id;
+            laybyCollected = data.layby_collected === true;
+            if (isLayby) localStorage.removeItem(`pos_layby_opening:${loadDeviceConfig()?.business_id}:${session.location_id}:${session.register_id}`);
             if (Array.isArray(data.stockWarnings) && data.stockWarnings.length > 0) {
               const incomingWarnings = data.stockWarnings.filter((warning: { reason?: unknown }) => warning.reason === 'incoming_transfer_stock');
               const displayedWarnings = incomingWarnings.length > 0 ? incomingWarnings : data.stockWarnings;
@@ -2359,7 +2389,7 @@ function MainPos({
         location_name: session.location_name,
         cashier_name:  session.full_name,
         sale_type:     isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
-        status:        isLayby ? 'layby_active' : 'completed',
+        status:        isLayby ? (laybyCollected ? 'layby_complete' : 'layby_active') : 'completed',
         items:         cart,
         payments,
         subtotal, discount_total: db_discount_total, tax_total, total,
@@ -2406,6 +2436,14 @@ function MainPos({
     setScanFocusTick(t => t + 1);
   }} />;
   if (screen === 'reports') return <ReportsScreen session={session} regSession={regSession} products={products} onStartReturn={startLinkedReturn} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
+  if (screen === 'laybys') return <><LaybyWorkspace session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} onReceipt={onReceipt}
+    renderPayment={options => <PaymentModal total={options.total} methods={paymentMethods.filter(method => !/gift|store credit|issue|no charge/i.test(method))}
+      isLayby={options.isLayby} onComplete={payments => options.onComplete(payments)} onCancel={options.onCancel}
+      extraContent={options.extraContent} submitError={options.error} zellerEnabled={zellerTerminalEnabled} cardTerminalMethods={(() => { try { return JSON.parse(activeRegister?.card_terminal_methods || '[]'); } catch { return []; } })()} />} />
+    <UnifiedHelpDrawer open={helpOpen} onOpenChange={setHelpOpen} audience='pos' product='pos' currentContext='laybys'
+      chatEndpoint='/api/pos/assistant/chat' escalationEndpoint='/api/pos/assistant/escalate' supportEndpoint='/api/pos/support-tickets'
+      xeroAccountingEnabled={xeroAccountingEnabled} assistantDisabled={!isOnline || offlineMode} assistantDisabledLabel='Assistant needs an internet connection' />
+  </>;
   if (screen === 'parked') return (
     <ParkedScreen
       sales={parkedSales}
@@ -2629,6 +2667,8 @@ function MainPos({
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
                       {syncing ? 'Syncing…' : syncMsg ?? 'Sync'}
                     </button>
+                    <button onClick={() => { setScreen('laybys'); setMoreMenuOpen(false); }} disabled={trainingMode}
+                      style={btnStyle({ color: mText, background: 'none', opacity: trainingMode ? .45 : 1 })}>Laybys</button>
                     {/* Layby toggle */}
                     <button onClick={() => { if (!trainingMode) setIsLayby(v => !v); setMoreMenuOpen(false); }} disabled={trainingMode}
                       title={trainingMode ? 'Laybys are unavailable in Training Mode' : undefined}
@@ -2770,7 +2810,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={posSettings.defaultProductView ?? defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={setInStockOnly} productViewMode={productViewMode} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={posSettings.defaultProductView ?? defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={setInStockOnly} productViewMode={productViewMode} onChargeEnter={() => { if (!showPayment) void openPaymentWindow(); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -3005,13 +3045,14 @@ function MainPos({
                 <button onClick={() => setGcIssueOpen(true)} disabled={trainingMode} style={{ ...smallBtn, padding: '.55rem .75rem', fontSize: '.85rem', background: 'transparent', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', opacity: trainingMode ? .45 : 1 }} title={trainingMode ? 'Gift cards are unavailable in Training Mode' : 'Sell a gift card'}>🎁 Gift Card</button>
               </div>
               <button
-                onClick={() => { if (!mustOpenRegister || trainingMode) setShowPayment(true); }}
+                onClick={() => void openPaymentWindow()}
                 disabled={!cart.length || (mustOpenRegister && !trainingMode)}
                 style={{ width: '100%', padding: '1rem .5rem', background: cart.length && (!mustOpenRegister || trainingMode) ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && (!mustOpenRegister || trainingMode) ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && (!mustOpenRegister || trainingMode) ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && (!mustOpenRegister || trainingMode) ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
                 <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : totals.total < 0 ? 'Refund' : 'Charge'}</span>
                 <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>{totals.total < 0 ? '−' : ''}${fmt(Math.abs(totals.total))}</span>
               </button>
+              {saleSubmitError && !showPayment && <p role='alert' style={{ color: 'var(--sv-red)', margin: '8px 0 0', fontSize: 14 }}>{saleSubmitError}</p>}
             </div>
           </div>
         </div>
@@ -3028,7 +3069,7 @@ function MainPos({
       {showPayment && (
         <PaymentModal
           total={totals.total}
-          methods={[
+          methods={(isLayby ? paymentMethods.filter(method => !/gift|store credit|issue|no charge/i.test(method)) : [
             ...paymentMethods,
             ...(!trainingMode ? ['Gift Card'] : []),
             ...(!trainingMode && linkedContact && linkedContact.store_credit > 0 ? ['Store Credit'] : []),
@@ -3036,7 +3077,7 @@ function MainPos({
               'Gift Card (Issue)',
               ...(linkedContact ? ['Store Credit (Issue)'] : []),
             ] : []),
-          ]}
+          ])}
           isLayby={trainingMode ? false : isLayby}
           onComplete={completeSale}
           onCancel={() => setShowPayment(false)}
@@ -3044,6 +3085,7 @@ function MainPos({
           cardTerminalMethods={(() => { try { return JSON.parse(activeRegister?.card_terminal_methods || '[]'); } catch { return []; } })()}
           linkedContact={linkedContact}
           submitError={saleSubmitError}
+          extraContent={isLayby ? <label style={{ display: 'block', marginBottom: 12 }}><input type='checkbox' checked={collectLayby} onChange={event => setCollectLayby(event.target.checked)} /> Collect when fully paid</label> : undefined}
         />
       )}
 
@@ -5084,7 +5126,7 @@ function SellGiftCardModal({ onAdd, onCancel }: {
   );
 }
 
-function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods, linkedContact, submitError }: {
+function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods, linkedContact, submitError, extraContent }: {
   total:              number;
   methods:            string[];
   isLayby:            boolean;
@@ -5094,10 +5136,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   cardTerminalMethods?: string[];
   linkedContact?:     { id: number; name: string; phone: string | null; store_credit: number } | null;
   submitError?:       string | null;
+  extraContent?:      React.ReactNode;
 }) {
   const terminal = Zeller.useTerminal();
   const [zellerPending, setZellerPending] = useState(false);
   const [zellerError,   setZellerError]   = useState<string | null>(null);
+  const capturedPaymentIds = useRef(new Set<string>());
   const [manualOverride, setManualOverride] = useState(false);
   const isRefund  = total < 0;
   const absTotal  = Math.abs(total);
@@ -5312,6 +5356,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       }
       const txId = approved.transactionUuid;
       const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: amountCents / 100, reference: txId };
+      capturedPaymentIds.current.add(newPayment.localId);
       const newPayments = [...payments, newPayment];
       setPayments(newPayments);
       setAmount('');
@@ -5332,6 +5377,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const isZellerActive = zellerEnabled && !manualOverride && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase());
 
   function removePayment(localId: string) {
+    if (capturedPaymentIds.current.has(localId)) return;
     setPayments(prev => prev.filter(p => p.localId !== localId));
   }
 
@@ -5341,7 +5387,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.5rem', width: 420, maxWidth: '95vw', maxHeight: '95dvh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}>
         <h2 style={{ margin: '0 0 1rem', color: 'var(--sv-text-strong)', fontSize: '1.3rem' }}>
           {isLayby ? 'Layby Deposit' : isRefund ? 'Refund' : 'Payment'}
           <span style={{ float: 'right', color: isRefund ? 'var(--sv-red)' : 'var(--sv-action)' }}>{isRefund ? '−' : ''}${fmt(absTotal)}</span>
@@ -5494,13 +5540,14 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
                 <span style={{ color: 'var(--sv-text-main)' }}>{p.method} {p.reference && <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({p.reference})</span>}</span>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span style={{ color: isRefund ? 'var(--sv-red)' : 'var(--sv-action)', fontWeight: 600 }}>{isRefund ? '−' : ''}${fmt(p.amount)}</span>
-                  <button onClick={() => removePayment(p.localId)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer' }}>×</button>
+                  <button disabled={capturedPaymentIds.current.has(p.localId)} aria-label={`Remove ${p.method} payment`} onClick={() => removePayment(p.localId)} style={{ background: 'transparent', border: 'none', color: 'var(--sv-red)', cursor: 'pointer', opacity: capturedPaymentIds.current.has(p.localId) ? .35 : 1 }}>×</button>
                 </div>
               </div>
             ))}
           </div>
         )}
 
+        {extraContent}
         {/* Summary */}
         <div style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '.75rem', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.25rem' }}>
@@ -5526,7 +5573,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         </div>
 
         <div style={{ display: 'flex', gap: '.75rem' }}>
-          <button onClick={onCancel} style={{ ...smallBtn, flex: 1 }}>Cancel</button>
+          <button disabled={zellerPending || capturedPaymentIds.current.size > 0} onClick={onCancel} style={{ ...smallBtn, flex: 1, opacity: zellerPending || capturedPaymentIds.current.size > 0 ? .4 : 1 }}>Cancel</button>
           <button
             onClick={() => isZeroTotal ? completeZeroTotal() : onComplete(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
             disabled={!canComplete || zellerPending}
@@ -5796,6 +5843,11 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
                   </div>
                 </>
               )}
+              {sale.sale_type === 'layby' && sale.status === 'voided' && <>
+                <div style={{ fontWeight: 700, marginTop: 8 }}>Layby cancelled</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Refund issued</span><span>${fmt(-sale.payments.filter(payment => payment.amount < 0).reduce((sum, payment) => sum + payment.amount, 0))}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Retained cancellation fee</span><span>${fmt(sale.payments.reduce((sum, payment) => sum + payment.amount, 0))}</span></div>
+              </>}
               {changeDue > 0.004 && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', marginTop: '.25rem', paddingTop: '.25rem' }}>
@@ -7332,7 +7384,7 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
                   <span style={{ fontSize: '.9rem', color: 'var(--sv-text-main)', flexShrink: 0 }}>{t.sale.customer_name ?? '—'} <span style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>({t.items.length} item{t.items.length !== 1 ? 's' : ''})</span></span>
                   {/* Payment method pills — inline, no expand needed */}
                   <span style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                    {t.payments.map((p: any) => (
+                    {(t.dailyPayments ?? t.payments).map((p: any) => (
                       <span key={p.id} style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 99, padding: '1px 8px', fontSize: '.75rem', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
                         {p.payment_method} <strong style={{ color: 'var(--sv-text-main)' }}>${fmt(p.amount)}</strong>
                       </span>
@@ -7348,7 +7400,7 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
                   )}
                   {/* Edit payment split button */}
                   <button
-                    disabled={t.sale.status === 'layby_active'}
+                    disabled={t.sale.sale_type === 'layby'}
                     onClick={e => {
                       e.stopPropagation();
                       setEditPaymentsSale({ saleId: t.sale.id, saleRef: t.sale.id ? `#${t.sale.id}` : '—', payments: t.payments, total: t.sale.total });
@@ -7361,14 +7413,14 @@ function ReportsScreen({ session, regSession, products, onStartReturn, onBack }:
                     title="Reprint receipt"
                     style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
                   >🖨 Print</button>
-                  {t.sale.sale_type === 'sale' && t.sale.status === 'completed' && (
+                  {((t.sale.sale_type === 'sale' && t.sale.status === 'completed') || t.sale.status === 'layby_complete') && (
                     <button
                       onClick={e => { e.stopPropagation(); void onStartReturn(Number(t.sale.id)).catch(error => window.alert(error.message || 'Return could not be started.')); }}
                       title="Return items from this sale"
                       style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', flexShrink: 0 }}
                     >↩ Return</button>
                   )}
-                  {t.sale.status !== 'layby_active' && regSession && typeof regSession === 'object' && t.sale.register_session_id === regSession.id && (
+                  {t.sale.sale_type !== 'layby' && regSession && typeof regSession === 'object' && t.sale.register_session_id === regSession.id && (
                     <>
                       <button
                         onClick={e => { e.stopPropagation(); setPinAction({ type: 'edit', t }); }}
@@ -8552,7 +8604,7 @@ export default function PosPage() {
       setDeviceConfig(cfg);
       // Check if still logged in — pass location_id so admin sessions can auto-create a POS session
       requestProductCachePersistence();
-      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}&business_id=${encodeURIComponent(cfg.business_id)}`).then(r => r.json()).then(async d => {
+      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}&register_id=${cfg.register_id}&business_id=${encodeURIComponent(cfg.business_id)}`).then(r => r.json()).then(async d => {
         if (d.session) {
           const sess: PosSession = {
             ...d.session,

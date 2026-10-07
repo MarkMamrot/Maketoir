@@ -13,6 +13,7 @@ import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export async function POST(req: Request) {
   // Accept either marketoir_session (admin) or pos_session (POS staff).
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
 
     const rows = await PosEodRepo.get(locationId, date, registerId ?? null);
 
-    const results = await triggerEodXeroSync(
+    const results = await runImsForBusiness(businessId, () => triggerEodXeroSync(
       businessId,
       locationId,
       date,
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
         setXeroPaymentError: PosEodRepo.setXeroPaymentError.bind(PosEodRepo),
       },
       registerName,
-    );
+    ));
 
     return NextResponse.json({ success: true, results });
   } catch (err: any) {

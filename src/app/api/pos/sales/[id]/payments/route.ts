@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { PosSalesRepo } from '@/lib/db/PosRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { LaybyValidationError } from '@/lib/pos/laybyPayments';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -25,6 +26,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('POS payment add error:', err);
+    if (err instanceof LaybyValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }
 }
@@ -51,6 +53,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('POS payment split update error:', err);
+    if (err instanceof LaybyValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }
 }

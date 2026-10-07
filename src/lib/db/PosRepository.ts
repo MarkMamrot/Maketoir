@@ -12,6 +12,8 @@ import { calculateEarnedPoints, calculatePosEligibleSpend, calculatePosReturnEli
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { collectLaybyInTransaction, initializeLayby } from '@/lib/pos/laybyRepository';
+import { laybyCents, LaybyValidationError } from '@/lib/pos/laybyPayments';
 import { planPosStockChange } from '@/lib/ims/posStockFloor';
 import { completeProductBuildInTransaction, ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { isBuildFromSaleEnabled, planBuildFromSaleShortfalls } from '@/lib/ims/builds/buildFromSalePolicy';
@@ -116,7 +118,7 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
   return plan;
 }
 
-async function applyCompletedPosSaleStock(
+export async function applyCompletedPosSaleStock(
   connection: any,
   data: any,
   saleId: number,
@@ -322,6 +324,7 @@ export interface PosSaleRow {
   return_of_sale_id: number | null;
   created_at:        string;
   completed_at:      string | null;
+  daily_revenue?:    number;
 }
 
 export interface PosSaleItemRow {
@@ -441,7 +444,7 @@ function parsePayment(row: any): PosPaymentRow {
 
 export const PosSalesRepo = {
   async get(id: number): Promise<{ sale: PosSaleRow; items: PosSaleItemRow[]; payments: PosPaymentRow[] } | null> {
-    const sales = await imsQuery<any>('SELECT * FROM pos_sales WHERE id = ? LIMIT 1', [id]);
+    const sales = await imsQuery<any>('SELECT sale.*, layby.state AS layby_state, layby.retained_fee FROM pos_sales sale LEFT JOIN pos_laybys layby ON layby.sale_id = sale.id WHERE sale.id = ? LIMIT 1', [id]);
     if (!sales[0]) return null;
     const sale = parseSale(sales[0]);
     const items = (await imsQuery<any>(
@@ -521,6 +524,7 @@ export const PosSalesRepo = {
     parked_label?:     string | null;
     return_of_sale_id?: number | null;
     allow_incoming_transfer_sales?: boolean;
+    collect_layby?: boolean;
     build_consent?: {
       operation_key: string;
       builds: Array<{ output_variant_id: string; quantity: number; recipe_revision: number }>;
@@ -566,7 +570,7 @@ export const PosSalesRepo = {
 
       const now = localNow();
       const completedAt = ['completed', 'layby_complete', 'voided'].includes(data.status) ? now : null;
-      const costingState = (data.status === 'completed' || data.status === 'layby_complete')
+      const costingState = (data.status === 'completed' || data.status === 'layby_complete' || data.sale_type === 'layby')
         ? await lockInventoryCostState(conn, data.business_id)
         : null;
       let linkedReturnAllocation: { originalEligibleCents: number; cumulativeReturnedCents: number } | null = null;
@@ -577,7 +581,8 @@ export const PosSalesRepo = {
         const [originalSales] = await conn.execute<any[]>(
           `SELECT id, customer_id, discount_total, total
              FROM pos_sales
-            WHERE id = ? AND business_id = ? AND sale_type = 'sale' AND status = 'completed'
+            WHERE id = ? AND business_id = ?
+              AND ((sale_type = 'sale' AND status = 'completed') OR (sale_type = 'layby' AND status = 'layby_complete'))
             LIMIT 1
             FOR UPDATE`,
           [originalSaleId, data.business_id],
@@ -722,6 +727,21 @@ export const PosSalesRepo = {
            VALUES (?, ?, ?, ?)`,
           [saleId, pmt.payment_method, pmt.amount, pmt.reference ?? null],
         );
+      }
+
+      if (data.sale_type === 'layby' && data.status === 'layby_active') {
+        if (!data.register_id || !data.register_session_id) throw new Error('Open the register before saving a layby.');
+        const [laybyPayments]: any = await conn.execute('SELECT * FROM pos_payments WHERE sale_id = ? ORDER BY id', [saleId]);
+        await initializeLayby(conn, { ...data, id: saleId }, data.items, laybyPayments, {
+          businessId: data.business_id, locationId: data.location_id, registerId: data.register_id,
+          registerSessionId: data.register_session_id, cashierId: data.cashier_id,
+        }, now);
+        if (data.collect_layby !== false && data.payments.reduce((sum, payment) => sum + laybyCents(payment.amount), 0) === laybyCents(data.total)) {
+          atomicStockWarnings = await collectLaybyInTransaction(conn, { ...data, id: saleId }, data.items, {
+            businessId: data.business_id, locationId: data.location_id, registerId: data.register_id,
+            registerSessionId: data.register_session_id, cashierId: data.cashier_id,
+          }, `open:${saleId}:collect`, now, applyCompletedPosSaleStock) as PosStockWarning[];
+        }
       }
 
       if (linkedReturnAllocation && data.return_of_sale_id != null) {
@@ -890,7 +910,7 @@ export const PosSalesRepo = {
         atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, costingState!);
       }
 
-      if (atomicStockWarnings === null && costingState?.method === 'fifo') {
+      if (atomicStockWarnings === null && costingState?.method === 'fifo' && ['completed', 'layby_complete'].includes(data.status)) {
         atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, costingState);
       }
 
@@ -963,6 +983,8 @@ export const PosSalesRepo = {
   },
 
   async updateStatus(id: number, status: PosSaleRow['status'], extra?: { parked_label?: string }): Promise<void> {
+    const sales = await imsQuery<any>('SELECT sale_type FROM pos_sales WHERE id = ? LIMIT 1', [id]);
+    if (sales[0]?.sale_type === 'layby') throw new LaybyValidationError('Use the Laybys workflow to collect or cancel a layby.');
     const completedAt = ['completed', 'layby_complete', 'voided'].includes(status)
       ? localNow()
       : null;
@@ -980,6 +1002,8 @@ export const PosSalesRepo = {
   },
 
   async addPaymentToSale(saleId: number, payment: { payment_method: string; amount: number; reference?: string | null }): Promise<void> {
+    const sales = await imsQuery<any>('SELECT sale_type FROM pos_sales WHERE id = ? LIMIT 1', [saleId]);
+    if (sales[0]?.sale_type === 'layby') throw new LaybyValidationError('Use Laybys to record instalments and refunds.');
     await imsExecute(
       'INSERT INTO pos_payments (sale_id, payment_method, amount, reference) VALUES (?, ?, ?, ?)',
       [saleId, payment.payment_method, payment.amount, payment.reference ?? null],
@@ -991,8 +1015,9 @@ export const PosSalesRepo = {
     payments: { payment_method: string; amount: number }[],
   ): Promise<void> {
     // Server-side guard: new amounts must sum to the original sale total (within 1 cent)
-    const saleRows = await imsQuery<any>('SELECT total FROM pos_sales WHERE id = ? LIMIT 1', [saleId]);
+    const saleRows = await imsQuery<any>('SELECT total, sale_type FROM pos_sales WHERE id = ? LIMIT 1', [saleId]);
     if (!saleRows[0]) throw new Error('Sale not found.');
+    if (saleRows[0].sale_type === 'layby') throw new LaybyValidationError('Layby payment history cannot be replaced.');
     const originalTotal = toNum(saleRows[0].total);
     const newTotal = payments.reduce((s, p) => s + p.amount, 0);
     if (Math.abs(newTotal - originalTotal) > 0.01) {
@@ -1036,6 +1061,7 @@ export const PosSalesRepo = {
     if (!existing) throw new Error('Sale not found.');
     const { sale, items } = existing;
 
+    if (sale.sale_type === 'layby') throw new LaybyValidationError('Cancel an uncollected layby in Laybys; use a linked return for collected goods.');
     // Nothing was ever deducted for sales that never completed.
     if (!['completed', 'layby_complete'].includes(sale.status)) {
       await this.updateStatus(id, 'voided');
@@ -1550,15 +1576,27 @@ export const PosEodRepo = {
            WHERE s.location_id = ? AND s.register_id = ?
              AND DATE(CASE WHEN s.sale_type = 'layby' THEN s.created_at ELSE s.completed_at END) = ?
              AND s.status IN ('completed','layby_active','layby_complete')
-           GROUP BY p.payment_method`
+             AND NOT EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = s.id)
+           GROUP BY p.payment_method
+           UNION ALL
+           SELECT e.payment_method COLLATE utf8mb4_unicode_ci AS payment_method, COALESCE(SUM(e.amount), 0) AS total
+             FROM pos_layby_events e
+            WHERE e.location_id = ? AND e.register_id = ? AND DATE(e.created_at) = ? AND e.kind = 'receipt'
+            GROUP BY e.payment_method`
           : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
            WHERE s.location_id = ?
              AND DATE(CASE WHEN s.sale_type = 'layby' THEN s.created_at ELSE s.completed_at END) = ?
              AND s.status IN ('completed','layby_active','layby_complete')
-           GROUP BY p.payment_method`,
-        registerId != null ? [locationId, registerId, date] : [locationId, date],
+             AND NOT EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = s.id)
+           GROUP BY p.payment_method
+           UNION ALL
+           SELECT e.payment_method COLLATE utf8mb4_unicode_ci AS payment_method, COALESCE(SUM(e.amount), 0) AS total
+             FROM pos_layby_events e
+            WHERE e.location_id = ? AND DATE(e.created_at) = ? AND e.kind = 'receipt'
+            GROUP BY e.payment_method`,
+        registerId != null ? [locationId, registerId, date, locationId, registerId, date] : [locationId, date, locationId, date],
       ),
       imsQuery<{ total: string }>(
         registerId != null
@@ -1571,7 +1609,7 @@ export const PosEodRepo = {
     ]);
     const result: Record<string, number> = {};
     for (const row of rows) {
-      result[row.payment_method] = toNum(row.total);
+      result[row.payment_method] = Math.round(((result[row.payment_method] ?? 0) + toNum(row.total)) * 100) / 100;
     }
     const pettyCash = toNum(pettyCashRows[0]?.total);
     if (pettyCash !== 0) {
@@ -1661,9 +1699,15 @@ export const PosEodRepo = {
          FROM pos_payments p
          JOIN pos_sales s ON s.id = p.sale_id
         WHERE s.status IN ('completed','layby_active','layby_complete')
+          AND NOT EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = s.id)
           AND ${clause}
-        GROUP BY p.payment_method`,
-        params,
+        GROUP BY p.payment_method
+        UNION ALL
+        SELECT e.payment_method COLLATE utf8mb4_unicode_ci AS payment_method, COALESCE(SUM(e.amount), 0) AS total
+          FROM pos_layby_events e
+         WHERE e.kind = 'receipt' AND e.register_session_id = ?
+         GROUP BY e.payment_method`,
+        [...params, registerSessionId],
       ),
       imsQuery<{ total: string }>(
         `SELECT COALESCE(SUM(amount), 0) AS total
@@ -1673,7 +1717,7 @@ export const PosEodRepo = {
       ),
     ]);
     const result: Record<string, number> = {};
-    for (const row of rows) result[row.payment_method] = toNum(row.total);
+    for (const row of rows) result[row.payment_method] = Math.round(((result[row.payment_method] ?? 0) + toNum(row.total)) * 100) / 100;
     const pettyCash = toNum(pettyCashRows[0]?.total);
     if (pettyCash !== 0) {
       const cashKey = Object.keys(result).find(key => key.trim().toLowerCase() === 'cash') ?? 'Cash';
@@ -2051,14 +2095,20 @@ export const PosReportsRepo = {
     sale: PosSaleRow;
     items: PosSaleItemRow[];
     payments: PosPaymentRow[];
+    dailyPayments?: PosPaymentRow[];
   }[]> {
     const sales = await imsQuery<any>(
-      `SELECT s.*
+        `SELECT s.*, CASE WHEN s.sale_type = 'layby' AND EXISTS (SELECT 1 FROM pos_laybys layby WHERE layby.sale_id = s.id)
+          THEN COALESCE((SELECT SUM(CASE WHEN event.kind = 'collection' THEN event.amount + s.tax_total ELSE event.amount END)
+                 FROM pos_layby_events event WHERE event.sale_id = s.id AND DATE(event.created_at) = ? AND event.kind IN ('collection','cancellation_fee')), 0)
+          WHEN s.status = 'layby_active' THEN 0 ELSE s.total END AS daily_revenue
        FROM pos_sales s
-       WHERE s.location_id = ? AND DATE(s.created_at) = ?
-         AND s.status IN ('completed','layby_active','layby_complete')
+       WHERE s.location_id = ? AND (
+         (DATE(CASE WHEN s.sale_type = 'layby' AND s.status = 'layby_complete' THEN s.completed_at ELSE s.created_at END) = ?
+          AND s.status IN ('completed','layby_active','layby_complete'))
+         OR EXISTS (SELECT 1 FROM pos_layby_events event WHERE event.sale_id = s.id AND DATE(event.created_at) = ?))
        ORDER BY s.created_at`,
-      [locationId, date],
+      [date, locationId, date, date],
     );
     if (!sales.length) return [];
 
@@ -2071,14 +2121,20 @@ export const PosReportsRepo = {
     )).map(parseItem);
 
     const allPayments = (await imsQuery<any>(
-      `SELECT * FROM pos_payments WHERE sale_id IN (${placeholders}) ORDER BY created_at`,
-      ids,
+      `SELECT payment.*, CASE
+                WHEN event.id IS NOT NULL THEN DATE(event.created_at) = ?
+                ELSE DATE(sale.created_at) = ? END AS in_trading_day
+         FROM pos_payments payment JOIN pos_sales sale ON sale.id = payment.sale_id
+         LEFT JOIN pos_layby_events event ON event.payment_id = payment.id
+        WHERE payment.sale_id IN (${placeholders}) ORDER BY payment.created_at`,
+      [date, date, ...ids],
     )).map(parsePayment);
 
     return sales.map((s: any) => ({
       sale:     parseSale(s),
       items:    allItems.filter((i) => i.sale_id === s.id),
       payments: allPayments.filter((p) => p.sale_id === s.id),
+      dailyPayments: allPayments.filter((payment: any) => payment.sale_id === s.id && Number(payment.in_trading_day) === 1),
     }));
   },
 

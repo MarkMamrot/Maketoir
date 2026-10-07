@@ -1,5 +1,5 @@
 ---
-{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","ims-inventory-costing","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds"],"contexts":["dashboard","locations","location-daybooks","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities and inventory costing, and manage each location's POS registers.","lastReviewed":"2026-09-14","owner":"setup","quickSections":["Main operations","At a glance"]}
+{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","ims-inventory-costing","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds","pos-laybys"],"contexts":["dashboard","locations","location-daybooks","pos-sales","settings-pos"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers","settings-pos":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities and inventory costing, manage POS registers and configure branch layby cancellation fees.","lastReviewed":"2026-10-07","owner":"setup","quickSections":["Main operations","At a glance"]}
 ---
 # Business Operations and POS Settings
 
@@ -14,6 +14,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 - Review the business-wide inventory costing method and use the controlled switch workflow when accounting policy changes.
 - Add, rename, activate, or set the default float for POS registers without changing location details.
 - Set the business-wide POS product-view fallback used by locations without their own override.
+- Configure each branch's layby cancellation percentage under **Settings > Point of Sale > Orders**; the default is 0%.
 
 ## At a glance
 
@@ -90,6 +91,10 @@ Shopify and the Solvantis Online Store are independent switches:
 Disabling a channel hides its integration workspace and stops new connection or synchronization activity. Existing credentials, historical orders, and source information are retained so the channel can be restored later. Historical native orders can still be corrected or refunded after the native storefront is disabled.
 
 ## Manage POS registers
+
+### Branch layby cancellation fees
+
+Under **Settings > Point of Sale > Orders**, choose the branch in **Layby cancellation fee**, enter a percentage from 0 to 100 and save. The fee is a percentage of the tax-inclusive merchandise total, capped at payments received. New laybys snapshot the branch rate, so changing it does not rewrite terms on existing laybys. Staff may override a cancellation fee at POS with a reason when it differs from the agreed amount. Use **POS > More > Laybys** for instalments, collection, cancellation and refund records.
 
 1. Open **Settings > Point of Sale**.
 2. Expand **Registers**.

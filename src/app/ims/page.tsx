@@ -13,6 +13,7 @@ import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { EarlyPaymentDiscountSettingsSection } from './views/settings/EarlyPaymentDiscountSettingsSection';
 import { InventoryCostingSettings } from './views/settings/InventoryCostingSettings';
+import { LaybyFeeSettings } from './views/settings/LaybyFeeSettings';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
@@ -20796,6 +20797,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'freight', label: 'Freight / Shipping', help: 'Expense account for supplier freight when PO Freight Treatment is set to Expense. Not used when freight is capitalised into stock.', example: 'Supplier charges $25 freight on a PO and freight treatment is Expense: that $25 posts here.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', help: 'Expense account used for stocktake write-offs and surpluses.', example: 'Write off 3 units costing $12 each during a stocktake: the $36 variance posts here.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'gift_card_liability', label: 'Gift Card Liability', help: 'Liability account for unused gift card balances until they are redeemed.', example: 'Sell a $100 gift card: Gift Card Liability increases by $100 until the customer spends it.', filter: (a: any) => a.class === 'LIABILITY' },
+    { key: 'layby_liability', label: 'Layby Deposits', help: 'Customer layby payments held until collection. GST is recognised on final payment.', example: 'A $26 deposit increases the layby liability, not sales revenue.', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'store_credit_liability', label: 'Store Credit Liability', help: 'Liability account for customer store credit that has been issued but not used yet.', example: 'Issue $60 store credit on a return: Store Credit Liability increases by $60 until the customer redeems it.', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes (Non-stock lines)', help: 'Used only for supplier credit note lines that do not return stock, such as freight refunds, rebates, pricing corrections, and overcharges. Choose a Xero Direct Costs or Expense account such as Purchases or a dedicated Supplier Credits - Non-stock account. Returned-stock lines post to Inventory Asset instead.', example: 'A supplier refunds $55 including $5 GST for freight, with no goods returned: the credit reduces the mapped expense by $50 and GST by $5, reduces Accounts Payable by $55, and does not change stock.', filter: (a: any) => a.class === 'EXPENSE' },
   ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
@@ -28716,6 +28718,7 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
                     {defaultFloat > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Current: ${defaultFloat.toFixed(2)}</span>}
                   </div>
                 </div>
+                <LaybyFeeSettings locations={pickLocations} />
               </div>
             )}
           </div>

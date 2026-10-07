@@ -10,7 +10,7 @@ Use Reports to review one trading date for the active POS location and open the 
 - Select a date and review revenue, transaction count, and payment totals.
 - Compare the selected day with the 30-day revenue chart.
 - Expand a transaction to inspect items, payments, and order notes.
-- Review active layby deposits and balances owing. Their actual deposits contribute to payment-method totals, not completed merchandise revenue.
+- Review active layby deposits and balances owing. Each day's actual instalments and cancellation refunds contribute to payment-method totals, not the entire payment history. Merchandise revenue appears on collection; retained cancellation fees appear on the cancellation day.
 - Reprint a receipt or start a linked return.
 - Reallocate a fixed sale total between payment methods.
 - Use a manager PIN for current-register transaction edits or deletion.
@@ -61,7 +61,7 @@ Assistant live checks read shared server records. Parked carts and offline queue
 | Transaction edit/delete is missing | The sale is outside the current open register session | Do not bypass the boundary; review it through the appropriate back-office workflow |
 | Payment split cannot save | Lines do not equal the fixed transaction total | Correct methods and amounts until the remaining difference is zero |
 | Edit payment split is disabled for an active layby | The full merchandise total is not the amount paid | Check the deposit and balance owing; do not allocate the unpaid balance as a payment |
-| Active layby has no Transaction or Delete action | Completed-sale correction controls do not handle layby deposits or cancellation refunds | Follow the store's approved layby correction process |
+| Layby has no Transaction or Delete action | Layby payment and reservation history cannot be replaced by completed-sale corrections | Use **More > Laybys** for payments, collection and cancellation; use a linked return after collection |
 | Receipt has unexpected location details | The device or receipt settings are assigned differently | Confirm the active location and ask an authorised user to review receipt settings |
 
 ## Worked examples

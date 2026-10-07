@@ -2545,6 +2545,58 @@ CREATE TABLE IF NOT EXISTS pos_payments (
   INDEX idx_pp_method (payment_method, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS pos_laybys (
+  sale_id INT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  location_id INT NOT NULL,
+  state ENUM('active','paid','collected','cancelled') NOT NULL DEFAULT 'active',
+  paid_total DECIMAL(12,2) NOT NULL DEFAULT 0,
+  fee_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+  gst_recognized DECIMAL(12,2) NOT NULL DEFAULT 0,
+  retained_fee DECIMAL(12,2) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  collected_at DATETIME NULL,
+  cancelled_at DATETIME NULL,
+  INDEX idx_layby_location (business_id, location_id, state)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pos_layby_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  sale_id INT NOT NULL,
+  operation_key VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  kind ENUM('receipt','gst','collection','cancellation_fee','gst_reversal','cancellation') NOT NULL,
+  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  payment_id INT NULL,
+  payment_method VARCHAR(100) NULL,
+  location_id INT NOT NULL,
+  register_id INT NULL,
+  register_session_id INT NULL,
+  cashier_id INT NULL,
+  reason VARCHAR(1000) NULL,
+  created_at DATETIME NOT NULL,
+  xero_status ENUM('pending','posting','posted','error','legacy') NOT NULL DEFAULT 'pending',
+  xero_id VARCHAR(100) NULL,
+  xero_error VARCHAR(1000) NULL,
+  xero_claimed_at DATETIME NULL,
+  UNIQUE KEY uq_layby_operation (business_id, operation_key),
+  UNIQUE KEY uq_layby_payment (payment_id),
+  INDEX idx_layby_events_sale (business_id, sale_id, id),
+  INDEX idx_layby_events_session (business_id, register_session_id, kind),
+  INDEX idx_layby_events_accounting (business_id, xero_status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pos_layby_reservations (
+  sale_id INT NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  variant_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  location_id INT NOT NULL,
+  quantity DECIMAL(12,4) NOT NULL,
+  released_at DATETIME NULL,
+  PRIMARY KEY (sale_id, variant_id),
+  INDEX idx_layby_reserved_stock (business_id, variant_id, location_id, released_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── POS EOD Reconciliations ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_eod_reconciliations (
   id                INT AUTO_INCREMENT PRIMARY KEY,

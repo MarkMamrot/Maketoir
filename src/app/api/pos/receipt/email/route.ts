@@ -84,6 +84,13 @@ export async function POST(req: Request) {
       <td style="padding:3px 0;font-size:13px;text-align:right;color:#555;">$${fmt(p.amount ?? 0)}</td>
     </tr>
   `).join('');
+    const paidTotal = (sale.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount), 0);
+    const laybyRows = sale.sale_type !== 'layby' ? '' : sale.status === 'voided'
+     ? `<tr><td colspan="2" style="padding-top:8px;font-weight:700;">Layby cancelled</td></tr>
+       <tr><td>Refund issued</td><td style="text-align:right;">$${fmt(-(sale.payments ?? []).filter((payment: any) => Number(payment.amount) < 0).reduce((sum: number, payment: any) => sum + Number(payment.amount), 0))}</td></tr>
+       <tr><td>Retained cancellation fee</td><td style="text-align:right;">$${fmt(paidTotal)}</td></tr>`
+     : `<tr><td>Layby payments received</td><td style="text-align:right;">$${fmt(paidTotal)}</td></tr>
+       <tr><td>Balance owing</td><td style="text-align:right;">$${fmt(Math.max(0, Number(sale.total) - paidTotal))}</td></tr>`;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -140,6 +147,7 @@ export async function POST(req: Request) {
         <tr><td style="padding:0 28px 16px;border-top:1px dashed #d1d5db;">
           <table cellpadding="0" cellspacing="0" width="100%" style="margin-top:12px;">
             ${paymentRows}
+            ${laybyRows}
             ${changeDue > 0.004 ? `
             <tr>
               <td style="padding:3px 0;font-size:13px;color:#555;border-top:1px dashed #d1d5db;">Tendered</td>

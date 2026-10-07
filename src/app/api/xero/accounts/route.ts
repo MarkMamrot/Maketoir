@@ -66,6 +66,7 @@ export async function POST(req: Request) {
     'cash_over_short',
     'petty_cash_expense',
     'gift_card_liability',
+    'layby_liability',
     'store_credit_liability',
     'supplier_credit_note',
   ];
@@ -92,6 +93,9 @@ export async function POST(req: Request) {
     }
     if (roleKey === 'petty_cash_expense' && account.Class !== 'EXPENSE') {
       return NextResponse.json({ error: 'Petty Cash Expense must use an active Xero expense account.' }, { status: 400 });
+    }
+    if (roleKey === 'layby_liability' && account.Class !== 'LIABILITY') {
+      return NextResponse.json({ error: 'Layby Deposits must use an active Xero liability account.' }, { status: 400 });
     }
     if (posRevenueMatch && account.Class !== 'REVENUE') {
       return NextResponse.json({ error: 'POS location revenue must use an active Xero revenue account.' }, { status: 400 });

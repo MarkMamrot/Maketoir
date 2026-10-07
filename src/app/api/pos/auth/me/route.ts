@@ -8,6 +8,7 @@ export async function GET(req: Request) {
   try {
   const { searchParams } = new URL(req.url);
   const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
+  const registerId = parseInt(searchParams.get('register_id') ?? '0', 10);
   const deviceBusinessId = searchParams.get('business_id') ?? '';
   const adminSession = getAdminSession();
   const posSession = getPosSession();
@@ -31,6 +32,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ session: null, device_mismatch: true });
     }
 
+    const registers = registerId ? await imsQuery<{ id: number; name: string }>(
+      'SELECT id, name FROM pos_registers WHERE id = ? AND location_id = ? AND is_active = 1 LIMIT 1', [registerId, locationId],
+    ) : [];
+    if (registerId && !registers.length) return NextResponse.json({ session: null, device_mismatch: true });
     const sessionData = {
       pos_user_id:   0,
       username:      adminSession.email ?? 'admin',
@@ -38,6 +43,8 @@ export async function GET(req: Request) {
       tier:          adminSession.tier  ?? 'SuperAdmin',
       location_id:   locationId,
       location_name: rows[0].name,
+      register_id:   registers[0]?.id ?? null,
+      register_name: registers[0]?.name ?? null,
       businessId:    adminSession.businessId,
     };
 

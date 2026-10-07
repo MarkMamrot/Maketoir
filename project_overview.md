@@ -52,7 +52,7 @@ Production requires `SALES_ASSISTANT_HMAC_SECRET` (at least 32 characters), `GEM
 ### 🔲 In Progress / Next
 - [ ] **Cin7 product_type sync** — map `cin7Product.Type` → `product_type` in IMS cache (see project_memory.md TODO)
 - [ ] **Xero Phase 2** — sync product sales, customer invoices (not just EOD summaries)
-- [ ] **POS layby payments** — accept partial payments on laybys
+- [ ] **POS layby workflow deployment** — implemented locally: stock reservations, instalments, collection, branch cancellation fees/refunds and dedicated liability/GST accounting. Schema applied to registered tenants; code awaits deployment and live acceptance.
 - [ ] **Staff performance reporting** — sales by cashier in IMS POS Sales view
 - [ ] **Customer accounts** — attach customer to sale, view purchase history
 - [ ] **Marketing dashboard** — Google Ads / Meta Ads spend vs revenue visualisation

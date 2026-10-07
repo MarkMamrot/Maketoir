@@ -39,6 +39,7 @@ export interface PosLocationSettings {
   bgPosition:         'center' | 'bottom';
   bgScale:            'fit' | 'original';
   allowIncomingTransferSales: boolean;
+  laybyCancellationFeePercent: number;
   defaultProductView: string | null;
 }
 
@@ -58,6 +59,7 @@ const DEFAULTS: PosLocationSettings = {
   bgPosition: 'center',
   bgScale: 'fit',
   allowIncomingTransferSales: true,
+  laybyCancellationFeePercent: 0,
   defaultProductView: null,
 };
 
@@ -154,8 +156,17 @@ export async function PUT(req: Request) {
     bgPosition:         body.bgPosition === 'bottom' ? 'bottom' : 'center',
     bgScale:            body.bgScale === 'original' ? 'original' : 'fit',
     allowIncomingTransferSales: body.allowIncomingTransferSales !== false,
+    laybyCancellationFeePercent: Number(body.laybyCancellationFeePercent ?? 0),
     defaultProductView: defaultProductViewSetting(body.defaultProductView),
   };
+  if (body.laybyCancellationFeePercent == null) {
+    const previous = await imsQuery<{ value: string }>('SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1', [businessId, posLocationSettingsKey(locationId)]);
+    try { settings.laybyCancellationFeePercent = Number(JSON.parse(previous[0]?.value ?? '{}').laybyCancellationFeePercent ?? 0); } catch {}
+  }
+
+  if (!Number.isFinite(settings.laybyCancellationFeePercent) || settings.laybyCancellationFeePercent < 0 || settings.laybyCancellationFeePercent > 100) {
+    return NextResponse.json({ error: 'Layby cancellation fee must be between 0% and 100%.' }, { status: 400 });
+  }
 
   await imsExecute(
     `INSERT INTO ims_settings (business_id, \`key\`, value, updated_at)

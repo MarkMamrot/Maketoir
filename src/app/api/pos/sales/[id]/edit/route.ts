@@ -34,6 +34,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     const existing = await PosSalesRepo.get(id);
     if (!existing) return NextResponse.json({ error: 'Sale not found.' }, { status: 404 });
+    if (existing.sale.sale_type === 'layby') return NextResponse.json({ error: 'Layby history cannot be edited; use Laybys or a linked return.' }, { status: 409 });
 
     if (!['completed', 'layby_complete'].includes(existing.sale.status)) {
       return NextResponse.json({ error: 'Only completed transactions can be edited.' }, { status: 400 });

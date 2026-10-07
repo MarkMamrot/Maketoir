@@ -8,7 +8,7 @@ Use End of Day to compare physical takings with recorded sales, close the regist
 ## Main operations
 
 - Count every payment method for the open register session.
-- Include actual opening layby deposits in payment-method takings. The unpaid balance is not money received.
+- Include actual layby deposits and instalments, less recorded cancellation refunds, in their own register session's payment-method takings. The unpaid balance is not money received.
 - Separate the cash opening float from cash sales.
 - Review and confirm any till variance before saving.
 - Close the register even when a separate Xero action needs repair.
@@ -63,6 +63,10 @@ The Assistant's register-status check uses the open session assigned to the veri
 ## What Xero receives
 
 POS sales are not posted one by one at checkout. For each counted payment method, the configured EOD process can create one Authorised sales invoice using the mapped location revenue account. If clearing payments are enabled, it then applies the invoice payment to that method's mapped clearing account.
+
+Layby cash flows are excluded from those sales invoices. Their receipts and refunds post to the mapped **Layby Deposits** liability and branch clearing accounts. Final payment recognises GST; collection releases the GST-exclusive liability to branch revenue. A fully paid cancellation reverses its final-payment GST before any retained taxable fee is posted. Deposit-only and refund-only days still have layby accounting to post.
+
+Layby posting needs a liability mapping, branch revenue and every payment method's clearing account, with POS clearing payments enabled. Missing mappings block posting rather than treating deposits as sales. Finish earlier layby EOD accounting before later events. Retry reuses event references and reconciles an existing Xero document after an uncertain response. It does not change historical sales invoices automatically.
 
 The invoice is tax-inclusive, so Xero extracts GST from the total instead of adding GST. Cash rounding, till variance, and petty cash are handled separately using their configured mappings.
 

@@ -70,6 +70,8 @@ const KLAVIYO_TABLES = [
   'ims_klaviyo_outbox',
 ];
 
+const LAYBY_TABLES = ['pos_laybys', 'pos_layby_events', 'pos_layby_reservations'];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
@@ -119,7 +121,15 @@ const conn = await mysql.createConnection({
   connectTimeout: 20000,
 });
 
+const LAYBY_TABLE_DDLS = LAYBY_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
+
 const TABLE_DDLS = [
+  ...LAYBY_TABLE_DDLS,
   ...DAYBOOK_TABLE_DDLS,
   ...INVENTORY_COSTING_TABLE_DDLS,
   ...SALES_CHANNEL_TABLE_DDLS,
@@ -1916,6 +1926,15 @@ async function migrateSchema(schema, businessId) {
        ENUM('not_checked','domain_accepts_mail','domain_no_mail','provider_valid','provider_invalid','provider_unknown')
        NOT NULL DEFAULT 'not_checked'`,
     );
+  }
+  if (!requestedTable || requestedTable === 'pos_layby_reservations') {
+    const [identityColumns] = await conn.query(
+      "SELECT COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'pos_layby_reservations' AND COLUMN_NAME = 'variant_id'",
+      [schema],
+    );
+    if (identityColumns[0]?.COLLATION_NAME !== 'utf8mb4_bin') {
+      await conn.query(`ALTER TABLE \`${schema}\`.pos_layby_reservations MODIFY variant_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL`);
+    }
   }
   if (requestedTable) {
     const requestedColumns = COLUMNS.filter(([table]) => table === requestedTable);

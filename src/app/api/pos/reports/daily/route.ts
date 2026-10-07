@@ -24,11 +24,12 @@ export async function GET(req: Request) {
   const transactions = await PosReportsRepo.dailyTransactions(locationId, date);
 
   // Summarise
-  const totalRevenue = transactions.reduce((s, t) => s + (t.sale.status === 'layby_active' ? 0 : t.sale.total), 0);
+  const totalRevenue = transactions.reduce((sum, transaction) => sum + Number(transaction.sale.daily_revenue
+    ?? (transaction.sale.status === 'layby_active' || transaction.sale.status === 'voided' ? 0 : transaction.sale.total)), 0);
   const totalCount   = transactions.length;
   const byMethod: Record<string, number> = {};
   for (const t of transactions) {
-    for (const p of t.payments) {
+    for (const p of t.dailyPayments ?? t.payments) {
       byMethod[p.payment_method] = (byMethod[p.payment_method] ?? 0) + p.amount;
     }
   }

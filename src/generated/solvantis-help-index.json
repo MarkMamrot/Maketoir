@@ -1541,7 +1541,7 @@
         {
           "id": "ims-xero-reconciliation:5",
           "heading": "Step-by-step",
-          "content": "### Configure a posting path\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.\n5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.\n6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.\n7. Save the mappings and run a normal source workflow.\n8. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\nOnline Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.\n\n### Recover a failed accounting action\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.\n\n### Decide what to repeat\n\n| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.",
+          "content": "### Configure a posting path\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.\n5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.\n6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment or layby receipt posting succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.\n7. Save the mappings and run a normal source workflow.\n8. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\nOnline Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.\n\nFor POS laybys, map **Layby Deposits** to a liability account, each branch's revenue to an income account, and every cash/card method to that branch's clearing account. POS clearing payments must be enabled. Deposits and refunds post to liability rather than ordinary sales invoices. Final payment recognises GST; collection recognises GST-exclusive merchandise revenue. Cancellation reverses final-payment GST when necessary and posts any retained fee as taxable revenue. These events use POS End of Day and its retry, including deposit-only days. Missing mappings block posting, and earlier layby accounting must finish before later events. Historical deposit sales invoices need explicit bookkeeper reconciliation rather than an automatic rewrite.\n\n### Recover a failed accounting action\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.\n\n### Decide what to repeat\n\n| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.",
           "presentation": "detail"
         },
         {
@@ -3164,23 +3164,26 @@
         "ims-online-shop",
         "pos-register-device-login",
         "pos-store-daybook",
-        "ims-product-builds"
+        "ims-product-builds",
+        "pos-laybys"
       ],
       "contexts": [
         "dashboard",
         "locations",
         "location-daybooks",
-        "pos-sales"
+        "pos-sales",
+        "settings-pos"
       ],
       "contextSections": {
         "dashboard": "Step-by-step",
         "locations": "Manage POS registers",
         "location-daybooks": "Configure Business Operations",
-        "pos-sales": "Manage POS registers"
+        "pos-sales": "Manage POS registers",
+        "settings-pos": "Manage POS registers"
       },
       "order": 90,
-      "summary": "Complete onboarding, choose operational capabilities and inventory costing, and manage each location's POS registers.",
-      "lastReviewed": "2026-09-14",
+      "summary": "Complete onboarding, choose operational capabilities and inventory costing, manage POS registers and configure branch layby cancellation fees.",
+      "lastReviewed": "2026-10-07",
       "owner": "setup",
       "quickSections": [
         "Main operations",
@@ -3197,7 +3200,7 @@
         {
           "id": "ims-business-operations-pos-settings:2",
           "heading": "Main operations",
-          "content": "- Complete business setup in the recommended dependency order.\n- Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.\n- Enable Shopify, the native Solvantis Online Store, both channels, or neither channel.\n- Set the tax rates and document labels Solvantis uses for sales and purchases.\n- Review the business-wide inventory costing method and use the controlled switch workflow when accounting policy changes.\n- Add, rename, activate, or set the default float for POS registers without changing location details.\n- Set the business-wide POS product-view fallback used by locations without their own override.",
+          "content": "- Complete business setup in the recommended dependency order.\n- Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.\n- Enable Shopify, the native Solvantis Online Store, both channels, or neither channel.\n- Set the tax rates and document labels Solvantis uses for sales and purchases.\n- Review the business-wide inventory costing method and use the controlled switch workflow when accounting policy changes.\n- Add, rename, activate, or set the default float for POS registers without changing location details.\n- Set the business-wide POS product-view fallback used by locations without their own override.\n- Configure each branch's layby cancellation percentage under **Settings > Point of Sale > Orders**; the default is 0%.",
           "presentation": "quick"
         },
         {
@@ -3227,7 +3230,7 @@
         {
           "id": "ims-business-operations-pos-settings:7",
           "heading": "Manage POS registers",
-          "content": "1. Open **Settings > Point of Sale**.\n2. Expand **Registers**.\n3. Find the location in the read-only location table and select **Manage registers**.\n4. Add a register with a name and default float, or rename, change the float, deactivate, or reactivate an existing register.\n5. Configure any payment terminal separately under **Card Terminals**.\n\nLocation names, codes, addresses, and operational flags cannot be edited from this section. Use **Locations** for those changes.\n\n> **Important:** Deactivating a register prevents it from being selected for future POS device setup. It does not remove historical sales or register sessions.",
+          "content": "### Branch layby cancellation fees\n\nUnder **Settings > Point of Sale > Orders**, choose the branch in **Layby cancellation fee**, enter a percentage from 0 to 100 and save. The fee is a percentage of the tax-inclusive merchandise total, capped at payments received. New laybys snapshot the branch rate, so changing it does not rewrite terms on existing laybys. Staff may override a cancellation fee at POS with a reason when it differs from the agreed amount. Use **POS > More > Laybys** for instalments, collection, cancellation and refund records.\n\n1. Open **Settings > Point of Sale**.\n2. Expand **Registers**.\n3. Find the location in the read-only location table and select **Manage registers**.\n4. Add a register with a name and default float, or rename, change the float, deactivate, or reactivate an existing register.\n5. Configure any payment terminal separately under **Card Terminals**.\n\nLocation names, codes, addresses, and operational flags cannot be edited from this section. Use **Locations** for those changes.\n\n> **Important:** Deactivating a register prevents it from being selected for future POS device setup. It does not remove historical sales or register sessions.",
           "presentation": "detail"
         },
         {
@@ -3761,7 +3764,7 @@
         {
           "id": "pos-end-of-day-xero:2",
           "heading": "Main operations",
-          "content": "- Count every payment method for the open register session.\n- Include actual opening layby deposits in payment-method takings. The unpaid balance is not money received.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action.\n- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.",
+          "content": "- Count every payment method for the open register session.\n- Include actual layby deposits and instalments, less recorded cancellation refunds, in their own register session's payment-method takings. The unpaid balance is not money received.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action.\n- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.",
           "presentation": "quick"
         },
         {
@@ -3791,7 +3794,7 @@
         {
           "id": "pos-end-of-day-xero:7",
           "heading": "What Xero receives",
-          "content": "POS sales are not posted one by one at checkout. For each counted payment method, the configured EOD process can create one Authorised sales invoice using the mapped location revenue account. If clearing payments are enabled, it then applies the invoice payment to that method's mapped clearing account.\n\nThe invoice is tax-inclusive, so Xero extracts GST from the total instead of adding GST. Cash rounding, till variance, and petty cash are handled separately using their configured mappings.\n\n| Xero result | Register result | Next action |\n|---|---|---|\n| Invoice and payment complete | Closed | No action |\n| Invoice complete, payment failed | Closed | Repair the clearing mapping or connection, then retry |\n| Posting blocked by a missing mapping | Closed | Ask an Admin to complete the mapping, then retry |\n| POS batch posting disabled or invoice-only | Closed | Follow the business's accounting policy; do not recreate sales |\n\n> **Important:** Register closure and Xero posting are separate outcomes. A Xero failure does not reopen the register, and retrying should continue the unfinished accounting work rather than create another day of sales.",
+          "content": "POS sales are not posted one by one at checkout. For each counted payment method, the configured EOD process can create one Authorised sales invoice using the mapped location revenue account. If clearing payments are enabled, it then applies the invoice payment to that method's mapped clearing account.\n\nLayby cash flows are excluded from those sales invoices. Their receipts and refunds post to the mapped **Layby Deposits** liability and branch clearing accounts. Final payment recognises GST; collection releases the GST-exclusive liability to branch revenue. A fully paid cancellation reverses its final-payment GST before any retained taxable fee is posted. Deposit-only and refund-only days still have layby accounting to post.\n\nLayby posting needs a liability mapping, branch revenue and every payment method's clearing account, with POS clearing payments enabled. Missing mappings block posting rather than treating deposits as sales. Finish earlier layby EOD accounting before later events. Retry reuses event references and reconciles an existing Xero document after an uncertain response. It does not change historical sales invoices automatically.\n\nThe invoice is tax-inclusive, so Xero extracts GST from the total instead of adding GST. Cash rounding, till variance, and petty cash are handled separately using their configured mappings.\n\n| Xero result | Register result | Next action |\n|---|---|---|\n| Invoice and payment complete | Closed | No action |\n| Invoice complete, payment failed | Closed | Repair the clearing mapping or connection, then retry |\n| Posting blocked by a missing mapping | Closed | Ask an Admin to complete the mapping, then retry |\n| POS batch posting disabled or invoice-only | Closed | Follow the business's accounting policy; do not recreate sales |\n\n> **Important:** Register closure and Xero posting are separate outcomes. A Xero failure does not reopen the register, and retrying should continue the unfinished accounting work rather than create another day of sales.",
           "presentation": "detail"
         },
         {
@@ -3899,7 +3902,7 @@
         "ims"
       ],
       "capability": "pos",
-      "screen": "POS > More > Layby",
+      "screen": "POS > More > Laybys",
       "product": "pos",
       "format": "task",
       "parentId": "pos-workspaces",
@@ -3910,13 +3913,15 @@
         "pos-end-of-day-xero"
       ],
       "contexts": [
-        "pos-layby"
+        "pos-layby",
+        "laybys"
       ],
       "contextSections": {
-        "pos-layby": "Main operations"
+        "pos-layby": "Main operations",
+        "laybys": "Main operations"
       },
       "order": 22,
-      "summary": "Save a new layby with its actual partial deposit, check the unpaid balance, and review deposit takings. Later instalment collection against an existing layby is not available in POS.",
+      "summary": "Reserve goods with an actual deposit, accept later instalments, collect fully paid goods, or cancel with a recorded refund and branch cancellation fee.",
       "lastReviewed": "2026-10-07",
       "owner": "retail",
       "quickSections": [
@@ -3928,43 +3933,49 @@
         {
           "id": "pos-laybys:1",
           "heading": "Laybys at POS",
-          "content": "Use Layby mode to record a new layby and the deposit actually received. Merchandise remains unfulfilled and the unpaid balance stays owing.",
+          "content": "Use Layby mode for a new layby and **More > Laybys** for its later payments, collection or cancellation. Deposits reserve goods at the current branch without removing stock on hand.",
           "presentation": "detail"
         },
         {
           "id": "pos-laybys:2",
           "heading": "Main operations",
-          "content": "- Mark the current positive cart as a layby.\n- Review the tax-inclusive layby total.\n- Add only the deposit actually received; do not enter the unpaid balance as another payment.\n- Save the transaction with active layby status.\n- Review the deposit and balance owing on the receipt and in Reports.\n- Include the deposit in the opening day's payment-method takings and End of Day expected amounts, not completed merchandise revenue.\n- Recognise that later instalment collection is not available in the current POS workflow.",
+          "content": "- Link an active customer and mark a positive merchandise cart as a layby.\n- Save only money actually received, never the unpaid balance.\n- Use **More > Laybys** to find the original customer or layby reference and add instalments.\n- Final payment defaults to collection; clear **Collect when fully paid** to keep goods reserved for later collection.\n- Use **Collect** only when the balance is fully paid.\n- Cancel uncollected goods with the exact refund due and release their reservation.\n- Set the branch cancellation percentage in **IMS > Settings > Point of Sale > Orders**. New laybys retain the rate agreed when opened; the default is 0%.\n- Retry a saved deposit or action after a lost response without charging or refunding again.",
           "presentation": "quick"
         },
         {
           "id": "pos-laybys:3",
           "heading": "At a glance",
-          "content": "| Current behavior | Available? |\n|---|---|\n| Mark a cart as Layby | Yes |\n| Save after payment lines cover the full displayed amount | Yes |\n| Save with a positive deposit and an unpaid remaining balance | Yes |\n| Collect later partial instalments against the layby in POS | No |\n| Apply a loyalty reward | No |\n| Use Layby in Training Mode | No |",
+          "content": "| Current behavior | Available? |\n|---|---|\n| Save a positive partial deposit | Yes; cash/card only, online with an open register |\n| Reserve stock | At opening; stock on hand changes only on collection |\n| Later partial instalments | Yes; on the original layby at its branch |\n| Fully paid, collect later | Yes; reservation remains in place |\n| Cancellation fee | Branch percentage of the tax-inclusive merchandise total, capped at payments received |\n| Staff fee override | Allowed with a reason when it differs from the agreed fee |\n| Loyalty | No reward redemption on layby carts; eligible earning occurs once on collection |\n| Training Mode | Laybys are unavailable |",
           "presentation": "quick"
         },
         {
           "id": "pos-laybys:4",
           "heading": "Before you begin",
-          "content": "- [ ] Confirm the register is open and POS is online.\n- [ ] Confirm the cart contains ordinary positive-quantity merchandise.\n- [ ] Explain the store's layby terms to the customer.\n- [ ] Confirm the deposit amount and the store's approved process for later payments and collection.\n\n> **Important:** Record only money actually received. Saving a deposit does not provide a POS action for later instalments or collection. Follow the store's approved process for those steps; never create a second sale or a fictitious payment to cover the remaining balance.",
+          "content": "- [ ] Confirm the register is open and POS is online.\n- [ ] Link an active customer and confirm positive merchandise quantities with sufficient available branch stock.\n- [ ] Explain the store's layby terms to the customer.\n- [ ] Confirm the deposit and branch cancellation terms.\n\n> **Important:** Card refunds must be completed on the terminal through the store's approved refund process before recording the negative payment in POS. Recording a refund does not issue an integrated terminal refund. Never charge or refund again merely because a save response was lost.",
           "presentation": "detail"
         },
         {
           "id": "pos-laybys:5",
           "heading": "Step-by-step",
-          "content": "1. Build and check the cart.\n2. Open **More** and choose **Layby: Off** so it changes to **Layby: ON**.\n3. Confirm the main checkout button now says **Layby**.\n4. Choose the Layby button to open **Layby Deposit**.\n5. Enter the deposit amount. For manual payment, charge the terminal separately and add only the approved amount. For integrated Card payment, enter the deposit amount before choosing **Pay via Terminal**.\n6. Choose **Save Layby**.\n7. Keep the receipt and transaction reference, checking **Layby deposit paid** and **Balance owing**.\n8. After a successful save, the cart clears and returns to ordinary sale mode. Check Reports for the active layby and its deposit.\n9. If saving fails, keep the payment window open and retry saving the recorded deposit. Do not charge the customer again.",
+          "content": "1. Build and check the cart, link the customer and confirm the branch terms.\n2. Open **More** and choose **Layby: Off** so it changes to **Layby: ON**.\n3. Confirm the main checkout button now says **Layby**.\n4. Choose the Layby button to open **Layby Deposit**.\n5. Enter the deposit amount. For manual payment, charge the terminal separately and add only the approved amount. For integrated Card payment, enter the deposit amount before choosing **Pay via Terminal**.\n6. Choose **Save Layby**.\n7. Keep the receipt and reference, checking the amount paid and balance owing. Printed and emailed receipts show the payment balance; cancelled receipts show the refund and retained fee. A fully paid opening layby is collected by default unless the collection checkbox was cleared.\n8. After a successful save, the cart clears and returns to ordinary sale mode. Check Reports for the active layby and its deposit.\n9. For later instalments, open **More > Laybys**, find the original reference and select **Add payment**. Record the actual instalment only.\n10. For final payment, leave collection selected if goods are being handed over. Otherwise clear it, then use **Collect** when the customer returns.\n11. To cancel before collection, select **Cancel layby**, check the retained fee, enter a reason for any override and record exactly the refund due. If nothing is refundable, confirm cancellation directly.\n12. If a save fails, use **Retry saved deposit** or **Retry saved action** in Laybys. These reuse the recorded request without another payment. A request tied to a register session that has since closed needs staff reconciliation rather than a new charge.",
           "presentation": "detail"
         },
         {
           "id": "pos-laybys:6",
-          "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Layby is unavailable | Training Mode is active | Leave Training Mode before handling a live layby |\n| **Save Layby** is disabled | No positive deposit has been added, or payments exceed the total | Add only the actual positive deposit and check the remaining balance |\n| A loyalty reward cannot be selected | Rewards are unavailable on layby carts | Remove the reward and follow the business's layby policy |\n| Staff need to take a later instalment | The current POS workflow has no instalment collection action | Stop and follow the business's approved manual process; do not enter a second sale as the same layby |\n| Deposit is missing from completed merchandise revenue | The layby remains active | Check the Card or Cash takings and the active transaction; a deposit is not a completed merchandise sale |\n| Save fails after the terminal approves payment | The layby save could not be confirmed | Retry saving the same recorded deposit without charging again |",
+          "heading": "Accounting and older laybys",
+          "content": "Each deposit, instalment and refund contributes to its own payment day's takings and register session. Partial deposits are a liability, not merchandise revenue. GST is recognised on final payment, even when collection is later. Merchandise revenue is recognised on collection, without charging GST twice. Retained cancellation fees are revenue with GST extracted from the fee.\n\nWhen Xero posting is enabled, an Admin must map **Layby Deposits** to a liability account, branch revenue to an income account, and each payment method to its branch clearing account, with clearing payments enabled. Accounting events post through End of Day and its retry. Laybys shows Pending, Posted or Posting failed separately from payment and collection status.\n\nOlder active laybys show **Reservation required**. Use **Reserve** before accepting an instalment. If the original deposit already has a Xero sales posting, stop for bookkeeper reconciliation; the reservation action does not silently reverse historical accounting. Collected goods use a normal linked return, not layby cancellation. Layby payment history cannot be replaced by generic payment-split or transaction edits.",
           "presentation": "detail"
         },
         {
           "id": "pos-laybys:7",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Layby is unavailable | Training Mode is active | Leave Training Mode before handling a live layby |\n| **Save Layby** is disabled | No positive deposit has been added, or payments exceed the total | Add only the actual positive deposit and check the remaining balance |\n| A loyalty reward cannot be selected | Rewards are unavailable on layby carts | Remove the reward and follow the business's layby policy |\n| Staff need to take a later instalment | The customer has returned to pay | Use **More > Laybys > Add payment** on the original reference |\n| Deposit is missing from completed merchandise revenue | The layby remains active | Check the Card or Cash takings and the active transaction; a deposit is not a completed merchandise sale |\n| Save fails after the terminal approves payment | The save could not be confirmed | Retry the saved request without charging again |\n| Collection fails | The balance is unpaid or reserved branch stock is inconsistent | Settle the balance or resolve the stock discrepancy; do not force a generic status change |\n| Accounting remains pending | End of Day or an earlier register posting is incomplete | Complete counts, check mappings and retry the original EOD |",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-laybys:8",
           "heading": "Worked examples",
-          "content": "### Save a real partial deposit\n\nA customer pays $26 Card against a $129.95 item. Staff add one $26 payment and save the layby with $103.95 owing. Reports and End of Day include $26 in Card takings. The $129.95 item is not counted as completed merchandise revenue and stock is not removed by saving the deposit.\n\n### Later instalments require the approved alternative\n\nThe customer returns to pay another $30. POS has no payment action against the existing layby. Staff retain the original reference and use the store's approved process rather than entering a second merchandise sale.",
+          "content": "### Save a real partial deposit\n\nA customer pays $26 Card against a $129.95 item. Staff add one $26 payment and save the layby with $103.95 owing. Reports and End of Day include $26 in Card takings. The $129.95 item is not counted as completed merchandise revenue and stock is not removed by saving the deposit.\n\n### Instalments, final GST and collection\n\nAfter the $26 deposit, the customer pays $30 on another visit, leaving $73.95 owing. That day's Card takings include only $30. The final $73.95 settles the balance and recognises $11.81 GST. If collection is deferred, stock remains reserved and merchandise revenue remains unrecognised. Collection later recognises $118.14 GST-exclusive revenue and removes the reserved item from stock on hand without another payment.\n\n### Cancellation fee and refund\n\nA $129.95 layby has $26 paid and an agreed 10% cancellation fee. The rounded fee is $13.00 and the refund is $13.00. A staff override to $5 needs a reason and makes the refund $21. If only $5 had been paid, the default fee would be capped at $5, leaving no refund. With the default 0% branch rate, all payments are refunded.",
           "presentation": "detail"
         }
       ]
@@ -4326,7 +4337,7 @@
         {
           "id": "pos-reports-transactions:2",
           "heading": "Main operations",
-          "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Review active layby deposits and balances owing. Their actual deposits contribute to payment-method totals, not completed merchandise revenue.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion.\n- Ask the Assistant for up to 20 recent completed transactions from the verified register over the last 1 to 30 days.",
+          "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Review active layby deposits and balances owing. Each day's actual instalments and cancellation refunds contribute to payment-method totals, not the entire payment history. Merchandise revenue appears on collection; retained cancellation fees appear on the cancellation day.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion.\n- Ask the Assistant for up to 20 recent completed transactions from the verified register over the last 1 to 30 days.",
           "presentation": "quick"
         },
         {
@@ -4350,7 +4361,7 @@
         {
           "id": "pos-reports-transactions:6",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| No transactions appear | The wrong date or location is selected, or the sale is still queued | Check the header and date; reconnect and sync queued sales |\n| Return is not shown | The record is not an eligible completed sale | Confirm status and use the owning correction workflow |\n| Transaction edit/delete is missing | The sale is outside the current open register session | Do not bypass the boundary; review it through the appropriate back-office workflow |\n| Payment split cannot save | Lines do not equal the fixed transaction total | Correct methods and amounts until the remaining difference is zero |\n| Edit payment split is disabled for an active layby | The full merchandise total is not the amount paid | Check the deposit and balance owing; do not allocate the unpaid balance as a payment |\n| Active layby has no Transaction or Delete action | Completed-sale correction controls do not handle layby deposits or cancellation refunds | Follow the store's approved layby correction process |\n| Receipt has unexpected location details | The device or receipt settings are assigned differently | Confirm the active location and ask an authorised user to review receipt settings |",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| No transactions appear | The wrong date or location is selected, or the sale is still queued | Check the header and date; reconnect and sync queued sales |\n| Return is not shown | The record is not an eligible completed sale | Confirm status and use the owning correction workflow |\n| Transaction edit/delete is missing | The sale is outside the current open register session | Do not bypass the boundary; review it through the appropriate back-office workflow |\n| Payment split cannot save | Lines do not equal the fixed transaction total | Correct methods and amounts until the remaining difference is zero |\n| Edit payment split is disabled for an active layby | The full merchandise total is not the amount paid | Check the deposit and balance owing; do not allocate the unpaid balance as a payment |\n| Layby has no Transaction or Delete action | Layby payment and reservation history cannot be replaced by completed-sale corrections | Use **More > Laybys** for payments, collection and cancellation; use a linked return after collection |\n| Receipt has unexpected location details | The device or receipt settings are assigned differently | Confirm the active location and ask an authorised user to review receipt settings |",
           "presentation": "detail"
         },
         {

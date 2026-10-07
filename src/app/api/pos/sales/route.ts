@@ -15,7 +15,7 @@ import { ProductBuildConflictError } from '@/lib/ims/builds/buildService';
 import { ProductBuildValidationError } from '@/lib/ims/builds/domain';
 import { FifoCostingConflict } from '@/lib/ims/costing/fifoCostingService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { canSaveLaybyDeposit } from '@/lib/pos/laybyPayments';
+import { canSaveLaybyDeposit, LaybyValidationError } from '@/lib/pos/laybyPayments';
 
 const SLOW_POS_SALE_MS = 10_000;
 
@@ -181,7 +181,7 @@ export async function POST(req: Request) {
       if (existing) {
         const creditNoteId = await ensurePosReturnCreditNote(body, existing.id, businessId, locationId, session.username ?? session.full_name);
         const loyalty = await LoyaltyRepository.getMutationByIdempotencyKey(businessId, `pos:sale:${existing.id}:earn`);
-        return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, loyalty, duplicate: true });
+        return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, loyalty, duplicate: true, layby_collected: existing.sale_type === 'layby' && existing.status === 'layby_complete' });
       }
     }
 
@@ -193,6 +193,13 @@ export async function POST(req: Request) {
     if (registerSessionId == null && registerId) {
       const openSession = await PosRegisterSessionRepo.getCurrent(Number(registerId)).catch(() => null);
       registerSessionId = openSession?.id ?? null;
+    }
+    if (body.sale_type === 'layby') {
+      const open = registerId ? await PosRegisterSessionRepo.getCurrent(Number(registerId)) : null;
+      if (body.status !== 'layby_active' || !body.customer_id || Number(registerId) !== Number(session.register_id)
+        || locationId !== Number(session.location_id) || !open || open.location_id !== locationId || open.id !== registerSessionId) {
+        return NextResponse.json({ error: 'Link a customer and open the assigned branch register before saving a layby.' }, { status: 409 });
+      }
     }
 
     const locationSettings = await imsQuery<{ value: string }>(
@@ -209,6 +216,7 @@ export async function POST(req: Request) {
       cashier_id:        (body.cashier_id || session.pos_user_id) || null,
       cashier_name:      session.full_name || session.username || null,
       sale_type:         body.sale_type   ?? 'sale',
+      collect_layby:     body.collect_layby !== false,
       status:            body.status      ?? 'completed',
       customer_id:       body.customer_id ?? null,
       customer_name:     body.customer_name  ?? null,
@@ -260,10 +268,13 @@ export async function POST(req: Request) {
     const creditNoteId = await ensurePosReturnCreditNote(body, saleId, businessId, locationId, session.username ?? session.full_name);
 
     // EVENT-DRIVEN CACHE UPDATE: update sales velocity and stock for the variants sold
-    if (body.status === 'completed' && body.items?.length > 0) {
+    if ((body.status === 'completed' || body.sale_type === 'layby') && body.items?.length > 0) {
       const vids = body.items.map((i: any) => i.variant_id).filter(Boolean);
       if (vids.length > 0) {
-        refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale:', err));
+        refreshVariantCache(vids).catch(async error => {
+          console.error('Failed inline cache refresh for POS sale:', error);
+          await reportRuntimeIssue({ businessId, source: 'pos_sale', operation: 'refresh_stock_cache', title: 'POS stock cache refresh failed', error, reference: { type: 'pos_sale', id: saleId } });
+        });
       }
     }
 
@@ -306,6 +317,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       id: saleId,
+      layby_collected: body.sale_type === 'layby' && (await PosSalesRepo.get(saleId))?.sale.status === 'layby_complete',
       credit_note_id: creditNoteId,
       loyalty,
       loyalty_points: loyaltyPoints,
@@ -315,7 +327,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('POS sale create error:', err);
-    const status = err instanceof LoyaltyReturnBlockedError ? err.status
+    const status = err instanceof LaybyValidationError ? err.status : err instanceof LoyaltyReturnBlockedError ? err.status
       : err instanceof LoyaltyValidationError || err instanceof ProductBuildValidationError ? 400
         : err instanceof ProductBuildConflictError || err instanceof FifoCostingConflict ? 409 : 500;
     const safeError = status >= 500

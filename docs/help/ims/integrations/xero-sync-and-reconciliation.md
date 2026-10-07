@@ -54,11 +54,13 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.
 4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.
 5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.
-6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.
+6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment or layby receipt posting succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.
 7. Save the mappings and run a normal source workflow.
 8. Open **Sync History** and confirm the resulting status before enabling broader automation.
 
 Online Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.
+
+For POS laybys, map **Layby Deposits** to a liability account, each branch's revenue to an income account, and every cash/card method to that branch's clearing account. POS clearing payments must be enabled. Deposits and refunds post to liability rather than ordinary sales invoices. Final payment recognises GST; collection recognises GST-exclusive merchandise revenue. Cancellation reverses final-payment GST when necessary and posts any retained fee as taxable revenue. These events use POS End of Day and its retry, including deposit-only days. Missing mappings block posting, and earlier layby accounting must finish before later events. Historical deposit sales invoices need explicit bookkeeper reconciliation rather than an automatic rewrite.
 
 ### Recover a failed accounting action
 

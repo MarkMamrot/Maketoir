@@ -6,6 +6,7 @@ import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { triggerEodXeroSync } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -145,19 +146,17 @@ export async function POST(req: Request) {
     // businessId comes from the admin session if present, otherwise from ims_locations.business_id.
     const hasCount = entries.some((e: any) => e.counted_amount != null);
     if (hasCount) {
-      const adminRaw2    = cookies().get('marketoir_session')?.value;
-      const adminBizId   = adminRaw2 ? (() => { try { return JSON.parse(adminRaw2)?.businessId ?? null; } catch { return null; } })() : null;
-      let eodBusinessId: string | null = adminBizId;
+      let eodBusinessId: string | null = session.businessId ?? null;
       imsQuery<{ name: string; business_id: string | null }>(
         'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1',
         [resolvedLocationId],
       )
         .then(locs => {
           const locationName = locs[0]?.name ?? `Location ${resolvedLocationId}`;
-          const bizId = adminBizId ?? locs[0]?.business_id ?? null;
+          const bizId = session.businessId ?? locs[0]?.business_id ?? null;
           if (!bizId) return; // Xero not configured for this location
           eodBusinessId = bizId;
-          return PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
+          return runImsForBusiness(bizId, () => PosEodRepo.get(resolvedLocationId, resolvedDate, register_id).then(rows =>
             triggerEodXeroSync(
               bizId,
               resolvedLocationId,
@@ -171,7 +170,7 @@ export async function POST(req: Request) {
                 setXeroPaymentError: PosEodRepo.setXeroPaymentError.bind(PosEodRepo),
               },
             )
-          );
+          ));
         })
         .catch(async e => {
           console.error('EOD Xero auto-sync failed:', e.message);

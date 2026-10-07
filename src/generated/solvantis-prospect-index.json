@@ -403,7 +403,7 @@
     {
       "id": "public-capability:ims-business-operations-pos-settings",
       "title": "Business Operations and POS Settings",
-      "summary": "Complete onboarding, choose operational capabilities and inventory costing, and manage each location's POS registers.",
+      "summary": "Complete onboarding, choose operational capabilities and inventory costing, manage POS registers and configure branch layby cancellation fees.",
       "capabilities": [
         "ims",
         "navigation"
@@ -498,7 +498,7 @@
     {
       "id": "public-capability:pos-laybys",
       "title": "Laybys at POS",
-      "summary": "Save a new layby with its actual partial deposit, check the unpaid balance, and review deposit takings. Later instalment collection against an existing layby is not available in POS.",
+      "summary": "Reserve goods with an actual deposit, accept later instalments, collect fully paid goods, or cancel with a recorded refund and branch cancellation fee.",
       "capabilities": [
         "pos"
       ],
