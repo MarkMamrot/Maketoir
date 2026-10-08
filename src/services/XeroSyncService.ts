@@ -1166,9 +1166,10 @@ async function syncOrderPayment(input: {
     await logSync(input.businessId, `${input.orderType}_payment`, input.orderId, null, 'error', 'Payment exchange rate must be a positive finite AUD amount per unit of payment currency.');
     return null;
   }
+  const isAccountId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.xeroAccountCode);
   const payment = {
     Invoice: { InvoiceID: input.xeroInvoiceId },
-    Account: { Code: input.xeroAccountCode },
+    Account: isAccountId ? { AccountID: input.xeroAccountCode } : { Code: input.xeroAccountCode },
     Amount: amount,
     Date: input.paymentDate,
     CurrencyRate: 1 / exchangeRate,
@@ -1221,7 +1222,8 @@ async function syncOrderPayment(input: {
       if (organisationResponse?.Organisations?.[0]?.BaseCurrency !== 'AUD') {
         throw new Error('Foreign-currency payment posting requires an AUD-base Xero organisation.');
       }
-      const account = accountResponse?.Accounts?.find((candidate: any) => String(candidate.Code) === input.xeroAccountCode);
+      const account = accountResponse?.Accounts?.find((candidate: any) =>
+        isAccountId ? candidate.AccountID === input.xeroAccountCode : String(candidate.Code) === input.xeroAccountCode);
       if (account?.CurrencyCode !== 'AUD') {
         throw new Error('Foreign-currency payment posting requires a mapped AUD Xero payment account.');
       }

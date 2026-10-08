@@ -20099,6 +20099,7 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
   const [methods, setMethods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
+  const [mappingError, setMappingError] = useState('');
 
   const bankAccounts = accounts.filter(a => a.type === 'BANK');
 
@@ -20114,16 +20115,27 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
 
   const handleMapAccount = async (methodId: number, accountCode: string) => {
     setSaving(methodId);
+    setMappingError('');
     try {
-      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: methodId, xero_account_code: accountCode }) });
+      const response = await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: methodId, xero_account_code: accountCode }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setMappingError(result.error || 'The payment mapping could not be saved.');
+        return;
+      }
       setMethods(prev => prev.map(m => m.id === methodId ? { ...m, xero_account_code: accountCode } : m));
-    } catch {}
-    setSaving(null);
+    } catch (error) {
+      setMappingError('The payment mapping could not be saved. Check your connection and try again.');
+      await fetch('/api/runtime-issues/client', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'PaymentMappingSaveError', message: error instanceof Error ? error.message : 'Payment mapping save failed', pathname: window.location.pathname }) }).catch(() => {});
+    } finally {
+      setSaving(null);
+    }
   };
 
   return (
     <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{label}</h3>
+      {mappingError && <p role="alert" style={{ color: '#f87171', fontSize: 13 }}>{mappingError}</p>}
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
         Map each payment method to a Xero bank account. Xero payment sync must also be enabled above. Methods with no mapping are saved locally only.
       </p>
@@ -20153,7 +20165,7 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
                     >
                       <option value="">— not mapped (local only) —</option>
                       {bankAccounts.map(a => (
-                        <option key={a.accountId} value={a.code}>{a.name} ({a.code})</option>
+                        <option key={a.accountId} value={a.code || a.accountId}>{a.code ? `${a.name} (${a.code})` : a.name}</option>
                       ))}
                     </select>
                   )}

@@ -55,6 +55,11 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.
 2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.
 3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.
+
+Bank accounts do not need a Chart of Accounts code to receive order payments. Select the account by name; accounts without a code are linked using their Xero account identity. A mapping is retained on screen only after the save succeeds. If saving fails, review the visible error and retry rather than assuming the selection was saved.
+
+Changing a payment method's account mapping does not change the payment method already recorded on an existing payment. Check both the saved method and its account before posting. Previously posted payments need verified provider reversal and coordinated local retry reconciliation before their destination can be changed.
+
 4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.
 5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.
 6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment or layby receipt posting succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.

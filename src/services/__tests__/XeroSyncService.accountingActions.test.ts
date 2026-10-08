@@ -65,6 +65,19 @@ describe('Xero payment and receipt-journal actions', () => {
     expect(payment.Amount / payment.CurrencyRate).toBeCloseTo(4200, 2);
   });
 
+  it('posts to a code-less AUD bank by AccountID and validates its currency', async () => {
+    const accountId = 'f9b899b5-919c-442d-be2e-3a6de42d29fc';
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ Invoices: [{ Type: 'ACCPAY', Status: 'AUTHORISED', CurrencyCode: 'USD', AmountDue: 3000 }] })
+      .mockResolvedValueOnce({ Organisations: [{ BaseCurrency: 'AUD' }] })
+      .mockResolvedValueOnce({ Accounts: [{ AccountID: accountId, CurrencyCode: 'AUD' }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'wise-payment' }] });
+
+    await expect(syncPOPayment('biz-1', 'bill-1', 42, 9, 3000, '2026-09-11', 'USD', accountId, 1.4021)).resolves.toBe('wise-payment');
+
+    expect(mocks.xeroFetch.mock.calls.find(call => call[1] === '/Payments')![2].body.Payments[0].Account).toEqual({ AccountID: accountId });
+  });
+
   it('uses the saved rate for foreign-currency SO payments too', async () => {
     mocks.xeroFetch
       .mockResolvedValueOnce({ Invoices: [{ Type: 'ACCREC', Status: 'AUTHORISED', CurrencyCode: 'USD', AmountDue: 100 }] })
