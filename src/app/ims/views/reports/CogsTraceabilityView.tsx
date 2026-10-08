@@ -6,6 +6,7 @@ import { fields, metrics, type Basis, type Field, type Filter, type ReportRow } 
 import type { Allocation } from '@/lib/ims/cogsTraceability/projection';
 import type { buildReport } from '@/lib/ims/cogsTraceability/service';
 import { ReportScrollTable } from './ReportScrollTable';
+import { CogsPostingLedger } from './CogsPostingLedger';
 import { SBDatePicker, type SBDateRange } from './reportFilterHelpers';
 
 type Report = Omit<Awaited<ReturnType<typeof buildReport>>, 'exportRows'>;
@@ -36,7 +37,7 @@ function cogsValue(row: Pick<ReportRow, 'cogs' | 'knownCogs' | 'costedRecords'>)
 }
 
 export function CogsTraceabilityView({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<'detail' | 'summary' | 'reconciliation'>('summary');
+  const [tab, setTab] = useState<'detail' | 'summary' | 'reconciliation' | 'postings'>('summary');
   const [basis, setBasis] = useState<Basis>('movement');
   const [range, setRange] = useState<SBDateRange>({ kind: 'window', window: 30, label: '30 Days' });
   const [filters, setFilters] = useState<Filter[]>([]);
@@ -60,6 +61,7 @@ export function CogsTraceabilityView({ onBack }: { onBack: () => void }) {
   const reportPending = loading || loadedQuery !== queryString;
 
   useEffect(() => {
+    if (tab === 'postings') return;
     const abort = new AbortController();
     setLoading(true);
     setError('');
@@ -70,7 +72,7 @@ export function CogsTraceabilityView({ onBack }: { onBack: () => void }) {
       .catch(loadError => { if (!abort.signal.aborted) setError(loadError instanceof Error ? loadError.message : 'Report could not be loaded.'); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [queryString, revision]);
+  }, [queryString, revision, tab]);
 
   const exportCsv = async () => {
     setExporting(true);
@@ -102,14 +104,15 @@ export function CogsTraceabilityView({ onBack }: { onBack: () => void }) {
     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
       <button title="Back to reports" onClick={onBack} style={{ ...control, color: 'var(--sv-text-dim)', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}><ArrowLeft size={13} />Reports</button>
       <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', flex: '1 1 240px' }}>Sales &amp; COGS Traceability</h1>
-      <div style={{ display: 'flex', gap: 8 }}><button title="Refresh report" aria-label="Refresh report" style={iconButton} disabled={reportPending && !error} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} /></button><button title="Export all matching rows and fields as CSV" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} disabled={exporting || reportPending || !data} onClick={() => void exportCsv()}><Download size={14} />{exporting ? 'Exporting...' : 'Export CSV'}</button></div>
+      <div style={{ display: 'flex', gap: 8 }}><button title="Refresh report" aria-label="Refresh report" style={iconButton} disabled={tab !== 'postings' && reportPending && !error} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} /></button>{tab !== 'postings' && <button title="Export all matching rows and fields as CSV" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} disabled={exporting || reportPending || !data} onClick={() => void exportCsv()}><Download size={14} />{exporting ? 'Exporting...' : 'Export CSV'}</button>}</div>
     </div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 0', borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)' }}>
-      <div role="group" aria-label="Report date basis" style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>{(['movement', 'sale'] as const).map(option => <button key={option} aria-pressed={basis === option} onClick={() => { setBasis(option); setSort(option === 'movement' ? 'movementDate' : 'saleDate'); setPage(1); }} style={{ ...control, background: basis === option ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: basis === option ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer' }}>{option === 'movement' ? 'Stock movement date' : 'Invoice / sale date'}</button>)}</div>
+      {tab !== 'postings' && <div role="group" aria-label="Report date basis" style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>{(['movement', 'sale'] as const).map(option => <button key={option} aria-pressed={basis === option} onClick={() => { setBasis(option); setSort(option === 'movement' ? 'movementDate' : 'saleDate'); setPage(1); }} style={{ ...control, background: basis === option ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: basis === option ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer' }}>{option === 'movement' ? 'Stock movement date' : 'Invoice / sale date'}</button>)}</div>}
       <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>AUD, excluding GST</span>
       <div data-testid="cogs-date-filter" style={{ marginLeft: 'auto', flexShrink: 0 }}><SBDatePicker value={range} onChange={value => { setRange(value); setPage(1); }} /></div>
     </div>
-    <div role="tablist" aria-label="Sales and COGS views" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '12px 0' }}>{(['detail', 'summary', 'reconciliation'] as const).map(option => <button key={option} role="tab" aria-selected={tab === option} onClick={() => { setTab(option); setPage(1); }} style={{ ...control, borderColor: tab === option ? 'var(--sv-action)' : 'var(--sv-etch)', background: tab === option ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-0))' : 'var(--sv-bg-0)', color: tab === option ? 'var(--sv-action)' : 'var(--sv-text-dim)', fontWeight: 600, cursor: 'pointer' }}>{option[0].toUpperCase() + option.slice(1)}</button>)}</div>
+    <div role="tablist" aria-label="Sales and COGS views" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '12px 0' }}>{(['detail', 'summary', 'reconciliation', 'postings'] as const).map(option => <button key={option} role="tab" aria-selected={tab === option} onClick={() => { setTab(option); setPage(1); }} style={{ ...control, borderColor: tab === option ? 'var(--sv-action)' : 'var(--sv-etch)', background: tab === option ? 'color-mix(in srgb, var(--sv-action) 8%, var(--sv-bg-0))' : 'var(--sv-bg-0)', color: tab === option ? 'var(--sv-action)' : 'var(--sv-text-dim)', fontWeight: 600, cursor: 'pointer' }}>{option === 'postings' ? 'Xero Postings' : option[0].toUpperCase() + option.slice(1)}</button>)}</div>
+    {tab === 'postings' ? <CogsPostingLedger key={range.kind === 'range' ? `${range.from}:${range.to}` : String(range.window)} range={range} revision={revision} /> : <>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12, alignItems: 'center' }}>
       {tab === 'summary' && <><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Group by</span>{groups.map((group, index) => <div key={index} style={{ display: 'flex', gap: 4 }}><select aria-label={`Grouping ${index + 1}`} style={control} value={group} onChange={event => { const next = groups.slice(); next[index] = event.target.value as Field; setGroups([...new Set(next)]); setPage(1); }}>{groupFields.map(field => <option key={field} value={field}>{fields[field]}</option>)}</select>{groups.length > 1 && <button title="Remove grouping" aria-label="Remove grouping" style={iconButton} onClick={() => { setGroups(groups.filter((_, groupIndex) => groupIndex !== index)); setPage(1); }}><X size={14} /></button>}</div>)}<button title="Add grouping" aria-label="Add grouping" disabled={groups.length >= 4} style={iconButton} onClick={() => { setGroups([...groups, groupFields.find(field => !groups.includes(field))!]); setPage(1); }}><Plus size={15} /></button></>}
       <button title="Add field filter" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }} disabled={filters.length >= filterFields.length} onClick={() => { setFilters([...filters, { field: filterFields.find(field => !filters.some(filter => filter.field === field)) ?? 'channel', operator: 'contains', value: '' }]); setPage(1); }}><Plus size={14} />Filter</button>
@@ -132,6 +135,7 @@ export function CogsTraceabilityView({ onBack }: { onBack: () => void }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', padding: '12px 0' }}><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{data.total.toLocaleString()} {tab === 'summary' ? 'groups' : 'records'}; page {page} of {Math.max(1, Math.ceil(data.total / 50))}</span><div style={{ display: 'flex', gap: 4 }}><button aria-label="Previous page" title="Previous page" style={iconButton} disabled={page === 1} onClick={() => setPage(value => value - 1)}><ChevronLeft size={16} /></button><button aria-label="Next page" title="Next page" style={iconButton} disabled={page * 50 >= data.total} onClick={() => setPage(value => value + 1)}><ChevronRight size={16} /></button></div></div>
       </>}
       <details style={{ marginTop: 16, padding: '12px 0', borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><summary style={{ cursor: 'pointer', fontWeight: 700 }}>Data availability</summary><dl style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, 1fr) minmax(0, 4fr)', gap: '8px 16px', marginTop: 12 }}>{Object.entries(data.availability).map(([field, description]) => <React.Fragment key={field}><dt>{field}</dt><dd style={{ margin: 0 }}>{description}</dd></React.Fragment>)}</dl></details>
+    </>}
     </>}
     {selected && <div role="dialog" aria-modal="true" aria-label="Transaction evidence" style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,.35)', display: 'flex', justifyContent: 'flex-end' }} onClick={event => { if (event.target === event.currentTarget) setSelected(null); }}><section style={{ background: 'var(--sv-bg-1)', width: 620, maxWidth: '100vw', height: '100%', overflowY: 'auto', padding: 20 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><h2 style={{ fontSize: 18 }}>Transaction evidence</h2><button title="Close evidence" aria-label="Close evidence" autoFocus style={iconButton} onClick={() => setSelected(null)}><X size={16} /></button></div>{selected.sourceHref && <a href={selected.sourceHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-action)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>Source document <ExternalLink size={14} /></a>}<dl style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: '9px 16px', fontSize: 12 }}>{Object.entries(fields).map(([field, label]) => <React.Fragment key={field}><dt style={{ color: 'var(--sv-text-dim)' }}>{label}</dt><dd style={{ margin: 0, overflowWrap: 'anywhere' }}>{display(field as Field, selected[field as Field])}</dd></React.Fragment>)}</dl><h3 style={{ fontSize: 15 }}>FIFO allocations</h3>{selectedAllocations.length ? selectedAllocations.map((allocation: Allocation) => <div key={allocation.id} style={{ padding: '10px 0', borderTop: '1px solid var(--sv-etch)', fontSize: 12 }}><strong>Layer {allocation.layerId} {allocation.poRef ?? ''}</strong><div>Movement {allocation.movementId}; {allocation.type}; quantity {allocation.qty}; unit cost AUD {allocation.unitCost.toFixed(6)}; allocated value AUD {allocation.value.toFixed(6)}</div><div>Layer date {allocation.receiptDate}; source {allocation.sourceType}; parent layer {allocation.parentLayerId ?? 'none'}</div></div>) : <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No FIFO allocations recorded for these stock movements.</p>}</section></div>}
   </div>;

@@ -132,7 +132,36 @@ try {
   await page.getByRole('heading', { name: 'Movement-period reconciliation' }).waitFor();
   const exportResponse = await page.request.get(`${baseUrl}/api/ims/reports/cogs-traceability/export?window=30`);
   if (!exportResponse.ok() || !(await exportResponse.text()).includes('Evidence Status')) throw new Error('CSV export did not return the full report fields.');
+  const postingsResponse = await page.request.get(`${baseUrl}/api/ims/reports/cogs-traceability/postings?window=30&pageSize=10&databaseId=ignored`);
+  const postings = await postingsResponse.json();
+  if (!postingsResponse.ok() || !postings.success) throw new Error(`Posting ledger failed (${postingsResponse.status()}): ${postings.error || 'unknown error'}`);
+  if (!postingsResponse.headers()['cache-control']?.includes('no-store')) throw new Error('Posting ledger is not private/no-store.');
+  for (const period of postings.rows) {
+    const recordedPosted = period.runs.filter(run => run.status === 'success' && run.xeroStatus === 'POSTED' && run.xeroId).reduce((sum, run) => sum + run.amount, 0);
+    if (Math.abs(recordedPosted - period.postedTotal) > .005 || Math.abs(period.calculation.totalCOGS - period.postedTotal - period.variance) > .005) throw new Error('Posting reconciliation totals disagree with run evidence.');
+    for (const run of period.runs) {
+      if (run.href !== (run.xeroId ? `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${encodeURIComponent(run.xeroId)}` : null)) throw new Error('Unexpected journal deep link.');
+    }
+  }
+  await page.getByRole('tab', { name: 'Xero Postings', exact: true }).click();
+  await page.getByRole('heading', { name: 'COGS journals and period reconciliations' }).waitFor();
+  await page.getByRole('note').filter({ hasText: 'not a live verification' }).waitFor();
+  if (await page.getByRole('button', { name: 'Filter', exact: true }).count() || await page.getByRole('group', { name: 'Report date basis' }).count() || await page.getByRole('button', { name: 'Export CSV', exact: true }).count()) throw new Error('Sales controls still appear in the posting ledger.');
+  if (postings.rows.length) {
+    await page.getByRole('button', { name: /^Inspect accounting period / }).first().click();
+    await page.getByRole('region', { name: 'COGS journal runs, arrow-key scrolling' }).waitFor();
+    for (const link of await page.getByRole('link', { name: 'View journal', exact: true }).all()) {
+      if (await link.getAttribute('target') !== '_blank' || !((await link.getAttribute('rel')) || '').includes('noopener')) throw new Error('Journal link does not open safely.');
+    }
+  } else {
+    await page.getByTestId('cogs-postings-empty').waitFor();
+    console.log('Sandbox has no matching posting history; populated ledger scrolling and live Xero links cannot be exercised without real journals.');
+  }
+  await page.screenshot({ path: 'test-results/cogs-traceability/postings-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
+  if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('Mobile posting ledger overflows outside its table.');
+  await page.screenshot({ path: 'test-results/cogs-traceability/postings-mobile.png' });
+  console.log(JSON.stringify({ postingPeriods: postings.total, postingHistoryConfigured: postings.tableAvailable, liveProviderVerification: false }));
   await page.getByRole('tab', { name: 'Detail', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent === 'Detail');
   await page.locator('.cogs-traceability-table-scroll').waitFor();

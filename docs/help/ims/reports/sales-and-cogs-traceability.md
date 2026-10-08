@@ -7,12 +7,15 @@
 
 Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by Sales Channel, then use **Detail** to inspect individual sales and stock events. **Reconciliation** compares recorded stock costs with the accounting COGS period.
 
+Use **Xero Postings** to review recorded COGS journal runs, reconcile each accounting period and open its journals in Xero. This tab is read-only.
+
 - Choose the date preset or custom range at the right, and select the date basis.
 - Filter by Sales Channel, Warehouse Location, Product/SKU, Brand, Customer Name, Order Ref or Sales Order Status. An empty filter does not narrow the results.
 - In Summary, group by channel, channel instance, location, brand, SKU, customer or receipt layer, using up to four levels.
 - Review captured COGS even when another record has missing costs. **Partial** means the displayed amount is the known subtotal, not complete COGS.
 - Use the column chooser in Detail to reveal additional requested fields.
 - Inspect transaction evidence for source references and recorded FIFO allocations.
+- In Xero Postings, inspect a period to see original and adjustment journals, recorded statuses, cost checks and **View journal** links.
 - Export CSV after checking the filters. CSV includes every matching record or group and all report fields, not only the current page or visible columns.
 
 ## At a glance
@@ -78,6 +81,22 @@ Reconciliation shows the **full unfiltered movement period** used by accounting 
 
 This report does not post accounting entries or change inventory.
 
+### Review Xero journal postings
+
+1. Select **Xero Postings** and choose the date range.
+2. Review the accounting periods overlapping that range. Each row reconciles its complete stock-movement period, including dates outside a partial selection. Sales filters and Invoice / sale date do not apply here.
+3. Compare **Current eligible COGS** with **Recorded posted**. The difference is current eligible COGS minus the signed total of successful original and adjustment journals whose last recorded Xero state is POSTED and whose journal reference is available.
+4. Review **Recorded drafts** separately. Draft, voided, deleted and uncertain runs are not counted as posted. A draft with a zero net amount can still require review.
+5. Inspect the period to review each run's journal date, run delta, run status, recorded Xero state, target amount, recorded cost checks and creation time. A run delta is the amount associated with the attempt, not proof that a journal was created or posted. A failed or pending run may not have a journal reference.
+6. Use **View journal** to confirm the actual journal and its current status in Xero. The link opens in a new tab and requires access to the correct Xero organisation.
+7. Check current missing and unexplained-zero costs and excluded movements. The location/accounting-channel breakdown is recalculated from current evidence; it is not a historical snapshot of the posted journal's allocation.
+
+**Recorded Xero states are not live-verified.** Refresh reloads Solvantis records and recalculates COGS; it does not fetch current journal states from Xero. A numerical match means only that current eligible costs match the recorded posted total. It does not prove that costs are complete, that journals remain posted in Xero, or that the general ledger balance reconciles. Missing costs and uncertain runs are flagged even when amounts match.
+
+The date range is an accounting-period overlap filter, not a journal-date or run-created-date filter. All recorded runs belonging to each matching period are included. Periods with no recorded run are not listed; an empty list does not certify that COGS has been posted. If different posting schedules overlap, review the periods separately rather than adding their current COGS totals together.
+
+Investigate a difference before deciding on an accounting adjustment. This screen does not retry, create, post or void journals, change automation or fix cost evidence. Historical failed attempts remain visible even when a later run reconciles. Sales CSV export is available in the sales views, not Xero Postings.
+
 ## Data availability
 
 All requested columns are available for inspection and export; everyday filters are limited to the seven business dimensions listed above. **Not recorded** means there is no verified value to display. Live invoice dates, sales-rep assignments, dispatch dates and confirmed delivery dates are not inferred. POS cashier is separate from sales rep; POS references are not individual accounting invoices. Shipment date identifies the recorded stock fulfilment timestamp, not a delivery confirmation. Brand is current catalogue metadata.
@@ -98,9 +117,15 @@ Legacy duplicate POS SKU lines can be combined into one document/SKU record. Amb
 | Refund reduces sales but not COGS | Credit did not restock inventory | Confirm the credit's restock choice |
 | Layer totals differ slightly from movement cost | Captured composite cost and allocation precision differ | Review the rounding difference |
 | Accounting differs from filtered report | Different scope, eligible movement types or exclusions | Compare the full-period figure and exception counts |
+| Recorded posted is lower than current COGS | Draft/voided journals, changed cost evidence, uncertain runs or a genuine difference | Inspect the period, then confirm each linked journal in Xero before taking action |
+| No posting runs are listed | No recorded accounting period overlaps the range, or posting history is not configured | Widen the range and check the business's COGS posting setup; do not assume there is nothing to post |
 | The date range is too large | More than 50,000 source records or too many allocations match | Run narrower periods; no figures are silently truncated |
 
 ## Worked examples
+
+### Original and adjustment journal reconciliation
+
+An original posted journal has $1,000 of COGS and a later posted adjustment has -$100. Recorded posted is $900. If current eligible COGS is $950, the difference is $50. A separate $50 draft is displayed in Recorded drafts but does not reduce that difference. Confirm the journals' current states in Xero and review cost checks before deciding what to do.
 
 ### Discounted sale
 

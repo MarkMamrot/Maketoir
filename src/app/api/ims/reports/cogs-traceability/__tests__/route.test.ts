@@ -8,8 +8,10 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.scope }))
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mocks.zone }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.issue }));
 vi.mock('@/lib/ims/cogsTraceability/service', () => ({ buildReport: mocks.report, reportColumns: (request: { columns: string[] }) => request.columns }));
+vi.mock('@/lib/ims/cogsTraceability/postings', () => ({ loadPostingReconciliations: mocks.report }));
 import { GET } from '../route';
 import { GET as exportReport } from '../export/route';
+import { GET as postingLedger } from '../postings/route';
 
 describe('traceability HTTP contracts', () => {
   beforeEach(() => {
@@ -20,7 +22,7 @@ describe('traceability HTTP contracts', () => {
     mocks.issue.mockResolvedValue(1);
     mocks.report.mockResolvedValue({ success: true, rows: [], total: 0, exportRows: [] });
   });
-  it.each([GET, exportReport])('requires authentication before any data read', async handler => {
+  it.each([GET, exportReport, postingLedger])('requires authentication before any data read', async handler => {
     mocks.session.mockResolvedValue(null);
     expect((await handler(new Request('http://localhost/api/report'))).status).toBe(401);
     expect(mocks.report).not.toHaveBeenCalled();
@@ -39,12 +41,19 @@ describe('traceability HTTP contracts', () => {
     expect(mocks.report).not.toHaveBeenCalled();
     expect(mocks.issue).not.toHaveBeenCalled();
   });
-  it.each([GET, exportReport])('records operational errors without exposing database details', async handler => {
+  it.each([GET, exportReport, postingLedger])('records operational errors without exposing database details', async handler => {
     mocks.report.mockRejectedValue(new Error('private database detail'));
     const response = await handler(new Request('http://localhost/api/report'));
     expect(response.status).toBe(500);
     expect(mocks.issue).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'tenant-1', source: 'ims_cogs_traceability' }));
     expect(JSON.stringify(await response.json())).not.toContain('private database');
+  });
+  it('runs posting reads in the authenticated tenant, ignoring a supplied database ID', async () => {
+    const response = await postingLedger(new Request('http://localhost/api/report?databaseId=other-tenant&from=2026-09-01&to=2026-10-07'));
+    expect(response.status).toBe(200);
+    expect(mocks.scope).toHaveBeenCalledWith('tenant-1', expect.any(Function));
+    expect(mocks.report).toHaveBeenCalledWith('tenant-1', expect.objectContaining({ from: '2026-09-01', toExclusive: '2026-10-08' }));
+    expect(response.headers.get('cache-control')).toContain('no-store');
   });
   it('exports all filtered rows rather than just the selected page and escapes formulas', async () => {
     const first = Object.assign(emptyRow('1'), { orderRef: '=unsafe', netSales: 10 });
