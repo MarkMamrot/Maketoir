@@ -150,6 +150,10 @@ export async function POST(req: Request) {
 
   const inputCode = rawCode?.trim() ?? null;
 
+  if (channelInstanceId && inputCode && inputCode.length < 8) {
+    return NextResponse.json({ error: 'Shopify gift card codes must contain at least 8 characters.' }, { status: 400 });
+  }
+
   if (inputCode) {
     const dup = channelInstanceId
       ? await imsQuery('SELECT id FROM gift_cards WHERE channel_instance_id = ? AND code = ? LIMIT 1', [channelInstanceId, inputCode])

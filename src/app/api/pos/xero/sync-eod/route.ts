@@ -14,18 +14,22 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getAdminSession } from '@/lib/sessionUtils';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 
 export async function POST(req: Request) {
   // Accept either marketoir_session (admin) or pos_session (POS staff).
   // businessId is taken from the admin session or looked up from ims_locations.
-  const adminRaw = cookies().get('marketoir_session')?.value;
-  const adminSession = adminRaw ? (() => { try { return JSON.parse(adminRaw); } catch { return null; } })() : null;
+  const adminSession = getAdminSession();
   const posRaw = cookies().get('pos_session')?.value;
   const posSession = posRaw ? (() => { try { return JSON.parse(posRaw); } catch { return null; } })() : null;
   if (!adminSession && !posSession) {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   }
   const boundSession = await getImsSession(['marketoir_session', 'pos_session']);
+  if (!boundSession) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const syncDenied = await getXeroSyncAccessDenied(boundSession);
+  if (syncDenied) return syncDenied;
 
   const { locationId, date, registerId } = await req.json();
   if (!locationId || !date) {
@@ -36,9 +40,10 @@ export async function POST(req: Request) {
 
   try {
     const locs = await imsQuery<{ name: string; business_id: string | null }>(
-      'SELECT name, business_id FROM ims_locations WHERE id = ? LIMIT 1',
-      [locationId],
+      'SELECT name, business_id FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1',
+      [locationId, boundSession.businessId],
     );
+    if (!locs[0]) return NextResponse.json({ error: 'Location not found.' }, { status: 404 });
     const locationName = locs[0]?.name ?? `Location ${locationId}`;
     const businessId = adminSession?.businessId ?? locs[0]?.business_id ?? null;
     derivedBusinessId = businessId;

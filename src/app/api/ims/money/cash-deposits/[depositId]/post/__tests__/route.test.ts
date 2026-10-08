@@ -6,15 +6,18 @@ const {
   mockReportRuntimeIssue,
   mockAssertXeroWorkflowEnabled,
   mockQuery,
+  mockSyncAccess,
 } = vi.hoisted(() => ({
   mockRequireAdminTier: vi.fn(),
   mockExecuteCashDeposit: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
   mockAssertXeroWorkflowEnabled: vi.fn(),
   mockQuery: vi.fn(),
+  mockSyncAccess: vi.fn(),
 }));
 
-vi.mock('@/lib/sessionUtils', () => ({ requireAdminTier: mockRequireAdminTier }));
+vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: mockRequireAdminTier }));
+vi.mock('@/lib/xero/advisorSyncAccess', () => ({ getXeroSyncAccessDenied: mockSyncAccess }));
 vi.mock('@/lib/ims/cashDepositExecutor', () => ({ executeCashDeposit: mockExecuteCashDeposit }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
@@ -35,10 +38,11 @@ describe('POST /api/ims/money/cash-deposits/[depositId]/post', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequireAdminTier.mockReturnValue({
-      user: { businessId: 'biz-1', userId: 4, name: 'Admin' },
+      user: { businessId: 'biz-1', userId: 4, name: 'Admin', tier: 'Admin' },
       response: null,
     });
     mockAssertXeroWorkflowEnabled.mockResolvedValue(undefined);
+    mockSyncAccess.mockResolvedValue(null);
     mockQuery.mockResolvedValue([{ accounting_method: 'solvantis' }]);
     mockExecuteCashDeposit.mockResolvedValue({ status: 'posted', completedActionIds: [1] });
   });
@@ -49,6 +53,20 @@ describe('POST /api/ims/money/cash-deposits/[depositId]/post', () => {
     expect(response.status).toBe(200);
     expect(mockAssertXeroWorkflowEnabled).toHaveBeenCalledWith('biz-1', 'posCashBankingEnabled');
     expect(mockExecuteCashDeposit).toHaveBeenCalledWith('biz-1', 7, { userId: 4, name: 'Admin' });
+  });
+
+  it('allows enabled Advisors to post an existing confirmed deposit', async () => {
+    mockRequireAdminTier.mockReturnValue({ user: { businessId: 'biz-1', userId: 9, name: 'Advisor', tier: 'Advisor' } });
+    expect((await POST(request(), context)).status).toBe(200);
+    expect(mockExecuteCashDeposit).toHaveBeenCalledWith('biz-1', 7, { userId: 9, name: 'Advisor' });
+  });
+
+  it('blocks disabled Advisors before loading or posting a deposit', async () => {
+    mockRequireAdminTier.mockReturnValue({ user: { businessId: 'biz-1', userId: 9, name: 'Advisor', tier: 'Advisor' } });
+    mockSyncAccess.mockResolvedValue(new Response(null, { status: 403 }));
+    expect((await POST(request(), context)).status).toBe(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockExecuteCashDeposit).not.toHaveBeenCalled();
   });
 
   it('returns 423 without claiming the deposit or reporting an issue when cash banking is disabled', async () => {

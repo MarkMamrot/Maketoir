@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero"],"contextSections":{"xero":"Step-by-step","settings-xero":"Main operations"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-08","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero"],"contextSections":{"xero":"Step-by-step","settings-xero":"Advisor access"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-08","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Xero Sync and Reconciliation
 
@@ -16,7 +16,17 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - Review and post balanced Shopify payout plans when enabled.
 - Retry only the accounting action that remains unfinished.
 - PO bill approval checks the live Xero status first. Already authorised or paid bills retain their status; syncing does not reopen a paid bill.
-- Administrators can grant Advisor accounts read-only access to **Shopify Payouts** from **Settings > Xero > Advisor Access**. Advisors can review payout status and details but cannot replan, repair, or post payouts.
+- Administrators can separately grant Advisor mapping access, read-only payout access, and permission to trigger Xero syncs from **Settings > Xero > Advisor Access**.
+
+## Advisor access
+
+**Allow Advisors to trigger Xero syncs** is off by default and can only be changed by an administrator. When enabled, Advisors can post or retry existing documents and payments, completed online-sales days, POS End of Day accounting, stocktake journals, COGS journals, existing payout plans, and confirmed cash deposits. Existing posting rules, completed-period checks, mapping requirements, and duplicate-posting protections still apply.
+
+Sync access does not permit editing sales or inventory, completing operational records, issuing refunds, voiding documents, dismissing queued work, changing sync policies, renaming invoices, overriding valuation checks, or planning and repairing payouts. Account mapping access remains a separate permission.
+
+Advisor online-sales sync uses the orders already saved in Solvantis and does not run a Shopify order import. Ask an authorised operator to refresh Shopify orders before syncing when the saved orders may be incomplete.
+
+With sync access disabled, Advisors cannot trigger these posting or retry actions. Read-only payout access alone does not permit posting payouts.
 
 ## At a glance
 
@@ -51,7 +61,7 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 
 ### Configure a posting path
 
-**Settings > Xero** contains advisor access controls and quick links. Select **Open Accounts & Tracking** to change account mappings in the Xero integration workspace. Mapping access and read-only Shopify payout access are separate advisor permissions.
+**Settings > Xero** contains advisor access controls and quick links. Select **Open Accounts & Tracking** to change account mappings in the Xero integration workspace. Mapping access, read-only Shopify payout access, and permission to trigger Xero syncs are separate advisor permissions.
 
 1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.
 2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.

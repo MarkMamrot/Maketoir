@@ -52,6 +52,7 @@ describe('/api/ims/settings loyalty settings', () => {
     const body = await response.json();
 
     expect(body.success).toBe(true);
+    expect(body.data.advisor_xero_sync_enabled).toBe('false');
     expect(body.data).toMatchObject({
       business_requires_pos: 'yes',
       loyalty_enabled: '0',
@@ -72,6 +73,18 @@ describe('/api/ims/settings loyalty settings', () => {
       shopifyEnabled: false,
       nativeShopEnabled: false,
     });
+  });
+
+  it.each(['Advisor', 'StandardUser'])('prevents %s from granting Advisor sync access', async tier => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier });
+    expect((await PUT(putRequest({ advisor_xero_sync_enabled: 'true' }))).status).toBe(403);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('allows an administrator to enable Advisor sync access', async () => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier: 'Admin' });
+    expect((await PUT(putRequest({ advisor_xero_sync_enabled: 'true' }))).status).toBe(200);
+    expect(mockImsExecute).toHaveBeenCalledWith(expect.any(String), ['business-1', 'advisor_xero_sync_enabled', 'true']);
   });
 
   it('reports existing POS location evidence separately from editable settings', async () => {

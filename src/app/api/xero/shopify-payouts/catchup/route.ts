@@ -18,6 +18,9 @@ function dateMinForDays(days: number): string {
 export async function POST(req: NextRequest) {
   const auth = requireAdminSession();
   if (auth.response) return auth.response;
+  if (auth.user.tier === 'Advisor') {
+    return NextResponse.json({ error: 'Advisors cannot import or plan new Shopify payouts.' }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const businessId = String(body.databaseId ?? auth.user!.businessId);

@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import { executeCashDeposit } from '@/lib/ims/cashDepositExecutor';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { requireAdminTier } from '@/lib/sessionUtils';
+import { requireAdminSession } from '@/lib/sessionUtils';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { query } from '@/services/MySQLService';
 
 export async function POST(_request: Request, { params }: { params: { depositId: string } }) {
-  const auth = requireAdminTier();
+  const auth = requireAdminSession();
   if (auth.response) return auth.response;
+  if (!['Admin', 'SuperAdmin', 'Advisor'].includes(auth.user.tier)) {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
+  }
+  const syncDenied = await getXeroSyncAccessDenied(auth.user);
+  if (syncDenied) return syncDenied;
   const depositId = Number(params.depositId);
   if (!Number.isInteger(depositId) || depositId <= 0) {
     return NextResponse.json({ error: 'Invalid deposit ID' }, { status: 400 });

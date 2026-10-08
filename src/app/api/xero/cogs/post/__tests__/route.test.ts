@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone, mockAssertXeroPostingEnabled } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone, mockAssertXeroPostingEnabled, mockSyncAccess } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
   mockAssertXeroPostingEnabled: vi.fn(),
+  mockSyncAccess: vi.fn(),
 }));
+vi.mock('@/lib/xero/advisorSyncAccess', () => ({ getXeroSyncAccessDenied: mockSyncAccess }));
 
 vi.mock('@/lib/sessionUtils', () => ({
   requireAdminSession: mockRequireAdminSession,
@@ -44,6 +46,7 @@ describe('POST /api/xero/cogs/post', () => {
     mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
     mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
     mockAssertXeroPostingEnabled.mockResolvedValue(undefined);
+    mockSyncAccess.mockResolvedValue(null);
   });
 
   it('posts only a completed calendar period', async () => {
@@ -74,6 +77,25 @@ describe('POST /api/xero/cogs/post', () => {
     mockPostCogsPeriod.mockResolvedValueOnce({ outcome: 'blocked', reason: 'uncosted_movements' });
     const response = await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }));
     expect(response.status).toBe(422);
+  });
+
+  it('blocks disabled Advisors before calculating or posting', async () => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor' } });
+    mockSyncAccess.mockResolvedValue(new Response(null, { status: 403 }));
+    expect((await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }))).status).toBe(403);
+    expect(mockPostCogsPeriod).not.toHaveBeenCalled();
+  });
+
+  it('allows enabled Advisors to post a completed period', async () => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor' } });
+    expect((await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }))).status).toBe(200);
+    expect(mockPostCogsPeriod).toHaveBeenCalledOnce();
+  });
+
+  it('keeps valuation overrides blocked for enabled Advisors', async () => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor' } });
+    expect((await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly', overrideReason: 'Override' }))).status).toBe(403);
+    expect(mockPostCogsPeriod).not.toHaveBeenCalled();
   });
 
   it('returns 202 for an ambiguous Xero outcome', async () => {

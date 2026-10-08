@@ -4,6 +4,7 @@ import { syncStocktakeJournal } from '@/services/XeroSyncService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -21,6 +22,8 @@ export async function POST(req: Request) {
 
     const denied = assertBusinessAccess(user, databaseId);
     if (denied) return denied;
+    const syncDenied = await getXeroSyncAccessDenied(user);
+    if (syncDenied) return syncDenied;
 
     await assertXeroWorkflowEnabled(databaseId, 'stocktakeJournalEnabled');
     const result = await runImsForBusiness(

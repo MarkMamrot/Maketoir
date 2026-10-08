@@ -5,6 +5,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 import { triggerPOXeroSync, triggerSOXeroSync, triggerCNXeroSync, triggerSupplierCNXeroSync, triggerPOPaymentXeroSync, triggerSOPaymentXeroSync } from '@/lib/ims/xeroHooks';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
@@ -56,9 +57,8 @@ function nextSuggestedSuffix(attemptedSuffix: string | null): string {
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  if (session.tier === 'Advisor') {
-    return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
-  }
+  const syncDenied = await getXeroSyncAccessDenied(session);
+  if (syncDenied) return syncDenied;
   const businessId: string = session.businessId;
 
   try {
@@ -70,6 +70,9 @@ export async function POST(req: Request) {
       invoiceNumberSuffix?: string;
     };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
+    if (session.tier === 'Advisor' && invoiceNumberSuffix !== undefined) {
+      return NextResponse.json({ error: 'Advisors cannot change invoice numbers.' }, { status: 403 });
+    }
 
     if (type === 'po') {
       // Determine current PO status so we know which sync to run

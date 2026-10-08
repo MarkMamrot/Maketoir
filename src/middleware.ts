@@ -122,7 +122,11 @@ export async function middleware(req: NextRequest) {
 
   if (!WRITE_METHODS.has(req.method)) return NextResponse.next();
 
-  if (session.tier === 'Advisor' && (
+  const advisorSyncRoute = req.method === 'POST' && (
+    req.nextUrl.pathname === '/api/ims/xero/push'
+    || /^\/api\/ims\/money\/cash-deposits\/\d+\/post$/.test(req.nextUrl.pathname)
+  );
+  if (session.tier === 'Advisor' && !advisorSyncRoute && (
     req.nextUrl.pathname.startsWith('/api/ims/') ||
     req.nextUrl.pathname.startsWith('/api/inventory/')
   )) {

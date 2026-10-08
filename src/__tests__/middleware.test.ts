@@ -81,6 +81,22 @@ describe('wholesale staff preview middleware', () => {
   });
 });
 
+describe('Advisor Xero retry middleware exception', () => {
+  beforeEach(() => {
+    verifySession.mockResolvedValue({ businessId: 'tenant-1', tier: 'Advisor' });
+  });
+  it('delegates only the exact POST retry route to its business permission guard', async () => {
+    expect((await middleware(request('POST', false, '/api/ims/xero/push'))).status).toBe(200);
+  });
+  it.each([
+    ['PUT', '/api/ims/xero/push'], ['POST', '/api/ims/xero/void'],
+    ['POST', '/api/ims/xero/dismiss'], ['PUT', '/api/ims/settings'],
+    ['POST', '/api/ims/shopify/import-orders'], ['POST', '/api/ims/purchase-orders'],
+  ])('keeps %s %s read-only', async (method, pathname) => {
+    expect((await middleware(request(method, false, pathname))).status).toBe(403);
+  });
+});
+
 describe('online shop custom-domain middleware', () => {
   beforeEach(() => {
     vi.stubEnv('APP_URL', 'https://solvantis.com.au');

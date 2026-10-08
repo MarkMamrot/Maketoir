@@ -462,6 +462,11 @@ type ImsCapabilities = {
 
 const IMS_SETTINGS_UPDATED_EVENT = 'solvantis:ims-settings-updated';
 
+function useAdvisorXeroSyncAccess(isAdvisor: boolean) {
+  const { settings } = useImsSettings();
+  return !isAdvisor || ['true', '1'].includes(String(settings.advisor_xero_sync_enabled ?? '').toLowerCase());
+}
+
 function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const settingsRef = useRef<Record<string, string>>({});
@@ -12254,6 +12259,7 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+  const canSyncXero = useAdvisorXeroSyncAccess(isAdvisor);
   const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const cnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
@@ -12604,7 +12610,10 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
   const getCnActionOptions = (cn: any) => {
     const actions = [{ value: 'view', label: 'View' }];
-    if (isAdvisor) return actions;
+    if (isAdvisor) {
+      if (canSyncXero && xeroAccountingEnabled && cn.status === 'complete' && ['queued', 'error'].includes(cn.xero_sync_status)) actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
+      return actions;
+    }
     if (cn.status === 'draft') actions.push(
       { value: 'edit', label: 'Edit' },
       { value: 'awaiting', label: 'Mark Awaiting Product' },
@@ -13097,7 +13106,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     <strong style={{ color: 'var(--sv-text-main)' }}>Xero:</strong>
                     <span style={{ color: '#fbbf24', fontWeight: 700 }}>{xeroStatus === 'queued' ? 'Queued for retry' : 'Sync failed'}</span>
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>Last: {xeroAt}</span>}
-                    {!isAdvisor && (
+                    {canSyncXero && (
                       <button type="button" onClick={() => retryCnXeroSync(viewModal.cn.id)} disabled={retryingCnXero} style={{ ...btnStyle('mint', 'xs'), opacity: retryingCnXero ? .7 : 1 }}>
                         {retryingCnXero ? 'Retrying…' : 'Retry Xero Sync'}
                       </button>
@@ -13147,6 +13156,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
 // ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
 function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+  const canSyncXero = useAdvisorXeroSyncAccess(isAdvisor);
   const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const scnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
@@ -13475,7 +13485,10 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   });
   const getScnActionOptions = (scn: any) => {
     const actions = [{ value: 'view', label: 'View' }];
-    if (isAdvisor) return actions;
+    if (isAdvisor) {
+      if (canSyncXero && xeroAccountingEnabled && scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
+      return actions;
+    }
     if (scn.status === 'draft') actions.push(
       { value: 'edit', label: 'Edit' },
       { value: 'complete', label: 'Complete' },
@@ -17101,6 +17114,7 @@ function CashBankingView() {
   const [data, setData] = useState<any>(null);
   const [deposits, setDeposits] = useState<any[]>([]);
   const [canPost, setCanPost] = useState(false);
+  const [readOnly, setReadOnly] = useState(true);
   const [bankAccounts, setBankAccounts] = useState<Array<{ accountId: string; code: string; name: string }>>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [counts, setCounts] = useState<Record<string, string>>({});
@@ -17121,7 +17135,7 @@ function CashBankingView() {
       if (result.success) setLocations(result.data ?? []);
     }).catch(() => {});
     fetch('/api/ims/money/cash-deposits').then(response => response.json()).then(result => {
-      if (result.success) { setDeposits(result.deposits ?? []); setCanPost(Boolean(result.canPost)); setBankAccounts(result.bankAccounts ?? []); }
+      if (result.success) { setDeposits(result.deposits ?? []); setCanPost(Boolean(result.canPost)); setReadOnly(Boolean(result.readOnly)); setBankAccounts(result.bankAccounts ?? []); }
     }).catch(() => {});
   }, []);
 
@@ -17297,7 +17311,7 @@ function CashBankingView() {
             {deepLink ? (
               <a href={deepLink} target="_blank" rel="noopener noreferrer" title="Open bank transfer in Xero" style={{ color: 'var(--sv-action)', textDecoration: 'none', fontSize: 11, fontWeight: 700, border: '1px solid var(--sv-action)', borderRadius: 5, padding: '4px 7px', lineHeight: 1.2 }}>Xero</a>
             ) : null}
-            {canPost && deposit.confirmation_status === 'planned' && deposit.status === 'draft' && <button onClick={() => openConfirmation(deposit)} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Enter lodgement</button>}
+            {canPost && !readOnly && deposit.confirmation_status === 'planned' && deposit.status === 'draft' && <button onClick={() => openConfirmation(deposit)} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Enter lodgement</button>}
             {canPost && deposit.accounting_method !== 'recorded_externally' && deposit.confirmation_status === 'confirmed' && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Post confirmed variances and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Post to Xero' : 'Retry'}</button>}
           </div>
         );
@@ -19432,6 +19446,8 @@ function XeroView({
   onOpenPosSale?: (id: number) => void;
   onOpenPosSalesDay?: (date: string) => void;
 }) {
+  const advisorSyncAllowed = useAdvisorXeroSyncAccess(isAdvisor);
+  const [advisorActivity, setAdvisorActivity] = useState<'history' | 'cogs' | 'payouts' | 'mapping'>('history');
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [destination, setDestination] = useState<XeroDestination>(isAdvisor ? 'setup-ledger' : 'overview');
@@ -19487,6 +19503,26 @@ function XeroView({
   });
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
+
+  if (isAdvisor && advisorSyncAllowed) {
+    return (
+      <div>
+        <h1 style={{ margin: '0 0 24px', fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Integration</h1>
+        {!status?.connected ? <p>Xero is not connected. Ask an administrator to connect Xero.</p> : <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+            <button style={tabBtnStyle(advisorActivity === 'history')} onClick={() => setAdvisorActivity('history')}>Sync History</button>
+            <button style={tabBtnStyle(advisorActivity === 'cogs')} onClick={() => setAdvisorActivity('cogs')}>COGS Reconciliation</button>
+            <button style={tabBtnStyle(advisorActivity === 'payouts')} onClick={() => setAdvisorActivity('payouts')}>Shopify Payouts</button>
+            {advisorMappingEnabled && <button style={tabBtnStyle(advisorActivity === 'mapping')} onClick={() => setAdvisorActivity('mapping')}>Accounts &amp; Tracking</button>}
+          </div>
+          {advisorActivity === 'history' && <XeroSyncTab getBusinessId={getBusinessId} isAdvisor onOpenPurchaseOrder={onOpenPurchaseOrder} onOpenSalesOrder={onOpenSalesOrder} onOpenCreditNote={onOpenCreditNote} onOpenPosSale={onOpenPosSale} onOpenPosSalesDay={onOpenPosSalesDay} />}
+          {advisorActivity === 'cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} isAdvisor />}
+          {advisorActivity === 'payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} readOnly allowPosting />}
+          {advisorActivity === 'mapping' && advisorMappingEnabled && <XeroMappingTab getBusinessId={getBusinessId} />}
+        </>}
+      </div>
+    );
+  }
 
   // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
   // only when an administrator has granted access in Xero → Overview.
@@ -21433,7 +21469,7 @@ function XeroStateBadge({ state }: { state: string | null }) {
   return <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(156,163,175,.15)', color: '#9ca3af' }}>{state}</span>;
 }
 
-function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId: () => string; readOnly?: boolean }) {
+function ShopifyPayoutsTab({ getBusinessId, readOnly = false, allowPosting = false }: { getBusinessId: () => string; readOnly?: boolean; allowPosting?: boolean }) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
@@ -21652,7 +21688,7 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
                           {!readOnly && entry.payout_id && payoutStatus === 'blocked' && (
                             <button title="Validate linked completed-day invoices against current Shopify orders, repair safely understated invoices, then rebuild the payout plan. This does not post the payout." onClick={() => processShopifyPayout(entry.payout_id!, entry.channel_instance_id!, 'repair', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}><Wrench size={13} />{retrying[retryKey] ? '…' : 'Validate & Repair'}</button>
                           )}
-                          {!readOnly && entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
+                          {(!readOnly || allowPosting) && entry.payout_id && ['planned', 'partial'].includes(payoutStatus) && (
                             <button title={payoutStatus === 'partial' ? 'Retry only unfinished payout actions. Completed Xero actions are not repeated.' : 'Preflight every planned invoice and credit note, then post the payout actions to Xero after confirmation.'} onClick={() => processShopifyPayout(entry.payout_id!, entry.channel_instance_id!, 'execute', retryKey, entry.amount)} disabled={retrying[retryKey]} style={{ background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 6, cursor: 'pointer', padding: '5px 14px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}>{retrying[retryKey] ? '…' : payoutStatus === 'partial' ? '↻ Retry' : 'Post Payout'}</button>
                           )}
                         </div>
@@ -21678,7 +21714,7 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false }: { getBusinessId:
   );
 }
 
-function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string }) {
+function CogsReconciliationTab({ getBusinessId, isAdvisor = false }: { getBusinessId: () => string; isAdvisor?: boolean }) {
   const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
   const [savedCogsFrequency, setSavedCogsFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('monthly');
   const [cogsFilters, setCogsFilters] = useState<{
@@ -21763,6 +21799,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
     try {
       let overrideReason: string | undefined;
       if (cogsReport?.reconciliation?.blocked) {
+        if (isAdvisor) throw new Error('An administrator must resolve valuation issues before posting this period.');
         const reason = window.prompt('This period contains missing/zero-cost movements. Enter an override reason to post the understated amount, or Cancel to fix costs first.');
         if (!reason?.trim()) {
           setCogsActionBusy(null);
@@ -21900,6 +21937,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
 
 function XeroSyncTab({
   getBusinessId,
+  isAdvisor = false,
   onOpenPurchaseOrder,
   onOpenSalesOrder,
   onOpenCreditNote,
@@ -21907,6 +21945,7 @@ function XeroSyncTab({
   onOpenPosSalesDay,
 }: {
   getBusinessId: () => string;
+  isAdvisor?: boolean;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
   onOpenCreditNote?: (id: number) => void;
@@ -22102,9 +22141,9 @@ function XeroSyncTab({
                         <button onClick={() => retry(item.type, item.id, key)} disabled={retrying[key]} style={{ background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 10px', fontSize: 12, color: '#fbbf24' }}>
                           {retrying[key] ? 'Pushing…' : 'Push Now'}
                         </button>
-                        <button onClick={() => dismiss(item.type, item.id, item.reference, key)} disabled={retrying[key]} title="Remove from queue without syncing" style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 5, cursor: 'pointer', padding: '3px 8px', fontSize: 12, color: '#f87171' }}>
+                        {!isAdvisor && <button onClick={() => dismiss(item.type, item.id, item.reference, key)} disabled={retrying[key]} title="Remove from queue without syncing" style={{ background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 5, cursor: 'pointer', padding: '3px 8px', fontSize: 12, color: '#f87171' }}>
                           ✕
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>
@@ -27872,6 +27911,8 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
   const [taxSaved, setTaxSaved] = useState(false);
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
   const [xeroAdvisorPayoutsEnabled, setXeroAdvisorPayoutsEnabled] = useState(false);
+  const [xeroAdvisorSyncEnabled, setXeroAdvisorSyncEnabled] = useState(false);
+  const [xeroAdvisorSyncError, setXeroAdvisorSyncError] = useState('');
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
     setTaxDraft({
@@ -27925,6 +27966,8 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
     setXeroAdvisorEnabled(parsed === 'true' || parsed === '1');
     const payouts = String(settings['advisor_xero_payouts_enabled'] ?? '').toLowerCase();
     setXeroAdvisorPayoutsEnabled(payouts === 'true' || payouts === '1');
+    const syncAccess = String(settings['advisor_xero_sync_enabled'] ?? '').toLowerCase();
+    setXeroAdvisorSyncEnabled(syncAccess === 'true' || syncAccess === '1');
   }, [settings]);
   const saveXeroAdvisorAccess = async (enabled: boolean) => {
     setXeroAdvisorSaving(true);
@@ -27940,6 +27983,18 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
     setXeroAdvisorPayoutsEnabled(enabled);
     try {
       await saveSettings({ advisor_xero_payouts_enabled: enabled ? 'true' : 'false' });
+    } finally {
+      setXeroAdvisorSaving(false);
+    }
+  };
+  const saveXeroAdvisorSyncAccess = async (enabled: boolean) => {
+    setXeroAdvisorSaving(true);
+    setXeroAdvisorSyncError('');
+    try {
+      await saveSettings({ advisor_xero_sync_enabled: enabled ? 'true' : 'false' });
+      setXeroAdvisorSyncEnabled(enabled);
+    } catch (error) {
+      setXeroAdvisorSyncError(error instanceof Error ? error.message : 'Advisor sync access could not be saved.');
     } finally {
       setXeroAdvisorSaving(false);
     }
@@ -28242,7 +28297,7 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
               <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
                 Advisor Access
-                <HintBadge text="These controls grant separate read-only access to Xero mapping and Shopify payout review screens." />
+                <HintBadge text="Advisor mapping, payout review, and Xero sync permissions are granted separately." />
               </h3>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
@@ -28273,6 +28328,11 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
                     : 'Disabled - Advisors cannot access Shopify payouts'}
                 </span>
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+                <input type="checkbox" checked={xeroAdvisorSyncEnabled} disabled={xeroAdvisorSaving} onChange={event => void saveXeroAdvisorSyncAccess(event.target.checked)} style={{ width: 16, height: 16, cursor: 'inherit' }} />
+                <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>Allow Advisors to trigger Xero syncs</span>
+              </label>
+              {xeroAdvisorSyncError && <p role="alert" style={{ fontSize: 12, color: '#ef4444', marginBottom: 0 }}>{xeroAdvisorSyncError}</p>}
             </div>
 
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>

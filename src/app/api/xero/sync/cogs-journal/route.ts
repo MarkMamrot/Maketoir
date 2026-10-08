@@ -11,6 +11,7 @@ import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { getLastCompletedCogsPeriod, getMonthlyCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { postCogsPeriod } from '@/services/XeroCogsService';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -19,6 +20,11 @@ export async function POST(req: Request) {
   const { databaseId, month, overrideReason } = await req.json();
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
+  const syncDenied = await getXeroSyncAccessDenied(user);
+  if (syncDenied) return syncDenied;
+  if (user.tier === 'Advisor' && overrideReason !== undefined) {
+    return NextResponse.json({ error: 'Advisors cannot override valuation checks.' }, { status: 403 });
+  }
 
   if (!month || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return NextResponse.json({ error: 'month is required (format: YYYY-MM).' }, { status: 400 });

@@ -35,6 +35,7 @@ import {
   validateBuildFromSaleSetting,
 } from '@/lib/ims/builds/buildFromSalePolicy';
 import { INVENTORY_COST_METHOD_SETTING_KEY } from '@/lib/ims/costing/inventoryCostSwitch';
+import { ADVISOR_XERO_SYNC_SETTING } from '@/lib/xero/advisorSyncAccess';
 
 const DEPRECATED_SHOPIFY_SETTING_KEYS = new Set([
   'shopify_order_sync_enabled',
@@ -87,6 +88,7 @@ export async function GET() {
     settings.business_requires_pos ??= 'yes';
     settings[BUILDS_ENABLED_SETTING_KEY] ??= DEFAULT_BUILDS_ENABLED_SETTING;
     settings[BUILD_FROM_SALE_SETTING_KEY] ??= DEFAULT_BUILD_FROM_SALE_SETTING;
+    settings[ADVISOR_XERO_SYNC_SETTING] ??= 'false';
     applyProductSettingDefaults(settings);
     applyTaxSettingDefaults(settings);
     applyWholesalePortalSettingDefaults(settings);
@@ -131,6 +133,15 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : onlineChannels ? {} : body);
+
+    if (pairs[ADVISOR_XERO_SYNC_SETTING] !== undefined) {
+      if (!['Admin', 'SuperAdmin'].includes(session.tier)) {
+        return NextResponse.json({ error: 'Only administrators can change Advisor Xero sync access.' }, { status: 403 });
+      }
+      if (!['true', 'false'].includes(String(pairs[ADVISOR_XERO_SYNC_SETTING]))) {
+        return NextResponse.json({ error: 'Advisor Xero sync access must be true or false.' }, { status: 400 });
+      }
+    }
 
     if (Object.keys(pairs).some(key => DEPRECATED_SHOPIFY_SETTING_KEYS.has(key))) {
       return NextResponse.json({

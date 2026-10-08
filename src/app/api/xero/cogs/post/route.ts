@@ -5,6 +5,7 @@ import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { assertXeroPostingEnabled, isXeroPostingDisabledError } from '@/lib/xero/postingPolicy';
 import { postCogsPeriod } from '@/services/XeroCogsService';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 
 const FREQUENCIES = new Set<CogsFrequency>(['daily', 'weekly', 'monthly', 'quarterly']);
 
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
 
     const denied = assertBusinessAccess(user, databaseId);
     if (denied) return denied;
+    const syncDenied = await getXeroSyncAccessDenied(user);
+    if (syncDenied) return syncDenied;
+    if (user.tier === 'Advisor' && body.overrideReason !== undefined) {
+      return NextResponse.json({ error: 'Advisors cannot override valuation checks.' }, { status: 403 });
+    }
     await assertXeroPostingEnabled(databaseId);
     if (!FREQUENCIES.has(frequency)) {
       return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });

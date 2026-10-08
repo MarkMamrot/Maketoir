@@ -10,6 +10,7 @@ const {
   mockExecute,
   mockSyncOnlineDailySalesDay,
   mockAssertXeroWorkflowEnabled,
+  mockSettingQuery,
 } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockExecute: vi.fn(),
   mockSyncOnlineDailySalesDay: vi.fn(),
   mockAssertXeroWorkflowEnabled: vi.fn(),
+  mockSettingQuery: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -26,6 +28,7 @@ vi.mock('@/lib/sessionUtils', () => ({
   assertBusinessAccess: mockAssertBusinessAccess,
 }));
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockSettingQuery }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/shopifyPayoutActionPlanner', () => ({ planShopifyPayoutActions: mockPlan }));
 vi.mock('@/lib/ims/shopifyPayoutActionExecutor', () => ({ executeShopifyPayoutActions: mockExecute }));
@@ -65,6 +68,7 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
       xeroId: 'invoice-1', totalSales: 337.04, totalTax: 30.64, giftCardAmount: 0, orderCount: 5,
     });
     mockAssertXeroWorkflowEnabled.mockResolvedValue(undefined);
+    mockSettingQuery.mockResolvedValue([]);
   });
 
   it('returns payout preview, actions, and canonical transactions', async () => {
@@ -122,7 +126,22 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     const response = await POST(request('POST', { action: 'execute' }), context);
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ error: expect.stringContaining('review') });
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('disabled') });
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('allows enabled Advisors to execute existing payout actions', async () => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor' }, response: null });
+    mockSettingQuery.mockResolvedValue([{ value: 'true' }]);
+    expect((await POST(request('POST', { action: 'execute' }), context)).status).toBe(200);
+    expect(mockExecute).toHaveBeenCalledWith('biz-1', channelInstanceId, 'pay-1');
+  });
+
+  it.each(['plan', 'repair'])('keeps %s blocked for enabled Advisors', async action => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor' }, response: null });
+    mockSettingQuery.mockResolvedValue([{ value: 'true' }]);
+    expect((await POST(request('POST', { action }), context)).status).toBe(403);
+    expect(mockPlan).not.toHaveBeenCalled();
     expect(mockExecute).not.toHaveBeenCalled();
   });
 

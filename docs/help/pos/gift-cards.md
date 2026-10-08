@@ -43,6 +43,7 @@ Balance History timestamps reflect the business timezone, regardless of the time
 1. Choose **Gift Card** beside **Clear Cart**.
 2. Enter the amount to load.
 3. Enter the card code when using a prepared physical card, or leave it blank for POS to generate a code.
+	When issuing through a Shopify store, a supplied code must contain at least eight characters. Shorter codes are rejected without creating a card.
 4. Choose **Add to Cart**.
 5. Check the gift-card line and complete payment for the sale.
 6. Give the customer the receipt and card code according to store procedure.

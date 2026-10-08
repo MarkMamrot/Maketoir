@@ -35,6 +35,7 @@ const {
 vi.mock('@/lib/auth/imsSession', () => ({
   getImsSession: mockGetImsSession,
 }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: (_businessId: string, callback: () => unknown) => callback() }));
 
 vi.mock('@/lib/ims/xeroHooks', () => ({
   triggerPOXeroSync: mockTriggerPOXeroSync,
@@ -133,6 +134,20 @@ describe('POST /api/ims/xero/push', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true, skipped: true, reason: 'already_synced' });
     expect(mockTriggerCNXeroSync).not.toHaveBeenCalled();
+  });
+
+  it('allows an enabled Advisor to sync existing records', async () => {
+    mockGetImsSession.mockResolvedValueOnce({ businessId: 'biz-1', tier: 'Advisor' });
+    mockImsQuery.mockResolvedValueOnce([{ value: 'true' }])
+      .mockResolvedValueOnce([{ xero_sync_status: 'synced', xero_credit_note_id: 'xero-cn-1' }]);
+    expect((await POST(makeRequest({ type: 'cn', id: 12 }))).status).toBe(200);
+  });
+
+  it('does not let enabled Advisors alter invoice numbers', async () => {
+    mockGetImsSession.mockResolvedValueOnce({ businessId: 'biz-1', tier: 'Advisor' });
+    mockImsQuery.mockResolvedValueOnce([{ value: 'true' }]);
+    expect((await POST(makeRequest({ type: 'po', id: 12, invoiceNumberSuffix: '-R' }))).status).toBe(403);
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
   it('triggers CN sync when lock acquired and note is not already synced', async () => {

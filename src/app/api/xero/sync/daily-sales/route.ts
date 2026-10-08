@@ -10,6 +10,7 @@ import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
   const channelInstanceId = String(rawChannelInstanceId ?? '').trim();
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
+  const syncDenied = await getXeroSyncAccessDenied(user);
+  if (syncDenied) return syncDenied;
 
   if (!date || !channel) {
     return NextResponse.json({ error: 'date and channel are required.' }, { status: 400 });
@@ -34,6 +37,7 @@ export async function POST(req: Request) {
 
   try {
     let preflightImport: { attempted: boolean; success: boolean; imported?: number; confirmedDrafts?: number; error?: string } = { attempted: false, success: false };
+    if (user.tier !== 'Advisor') {
     preflightImport = { attempted: true, success: false };
     try {
       const fwHost = req.headers.get('x-forwarded-host');
@@ -55,6 +59,7 @@ export async function POST(req: Request) {
       };
     } catch (e: any) {
       preflightImport = { attempted: true, success: false, error: String(e?.message ?? e) };
+    }
     }
 
     if (preflightImport.attempted && !preflightImport.success) {

@@ -7,6 +7,7 @@ import { assertBusinessAccess, requireAdminSession } from '@/lib/sessionUtils';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { query } from '@/services/MySQLService';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 
 function authenticate(req: NextRequest) {
   const auth = requireAdminSession();
@@ -58,11 +59,15 @@ export async function GET(req: NextRequest, { params }: { params: { payoutId: st
 export async function POST(req: NextRequest, { params }: { params: { payoutId: string } }) {
   const auth = authenticate(req);
   if (auth.response) return auth.response;
-  if (auth.user?.tier === 'Advisor') {
-    return NextResponse.json({ error: 'Advisor accounts can review Shopify payouts but cannot change or post them.' }, { status: 403 });
-  }
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? 'plan');
+  if (auth.user?.tier === 'Advisor') {
+    const syncDenied = await getXeroSyncAccessDenied(auth.user);
+    if (syncDenied) return syncDenied;
+    if (action !== 'execute') {
+      return NextResponse.json({ error: 'Advisors can post existing payout actions but cannot plan or repair payouts.' }, { status: 403 });
+    }
+  }
   const channelInstanceId = String(body.channelInstanceId ?? req.nextUrl.searchParams.get('channelInstanceId') ?? '').trim();
   if (!channelInstanceId) return NextResponse.json({ error: 'channelInstanceId is required' }, { status: 400 });
 

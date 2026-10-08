@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildCashDepositEligibility, CashEodPlanState, CashEodSource } from '@/lib/ims/cashDepositEligibility';
-import { requirePosManagerTier } from '@/lib/sessionUtils';
+import { getAdminSession, requirePosManagerTier } from '@/lib/sessionUtils';
+import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getPool, query } from '@/services/MySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
@@ -59,8 +60,10 @@ async function loadSources(businessId: string, locationId: number, dates: string
 }
 
 export async function GET() {
-  const auth = requirePosManagerTier();
+  const advisor = getAdminSession();
+  const auth = advisor?.tier === 'Advisor' ? { user: advisor, response: undefined } : requirePosManagerTier();
   if (auth.response) return auth.response;
+  const advisorCanPost = auth.user.tier === 'Advisor' && !(await getXeroSyncAccessDenied(auth.user));
   const deposits = await query<any>(
     `SELECT d.id, d.ims_location_id, d.lodgement_date, d.bank_reference, d.source_account_name,
             d.destination_account_id, d.destination_account_name, d.expected_total, d.counted_total, d.variance_total,
@@ -83,7 +86,7 @@ export async function GET() {
       .map((account: any) => ({ accountId: String(account.AccountID), code: String(account.Code), name: String(account.Name ?? '') }))
       .sort((a: any, b: any) => a.name.localeCompare(b.name));
   } catch {}
-  return NextResponse.json({ success: true, canPost: ['Admin', 'SuperAdmin'].includes(auth.user.tier), deposits, bankAccounts });
+  return NextResponse.json({ success: true, readOnly: auth.user.tier === 'Advisor', canPost: ['Admin', 'SuperAdmin'].includes(auth.user.tier) || advisorCanPost, deposits, bankAccounts });
 }
 
 export async function POST(request: Request) {
