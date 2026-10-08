@@ -44,16 +44,48 @@ function setupBaseMocks() {
   mockGetXeroDocumentPolicy.mockResolvedValue(DEFAULT_XERO_DOCUMENT_POLICY);
 }
 
-it('preserves four-decimal unit precision when approving a bill', async () => {
-  mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: 'AUTHORISED' }] });
+describe('bill approval status guards', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupBaseMocks();
+    mockQuery.mockResolvedValue([]);
+  });
 
-  await approveBill('biz-1', 'bill-4', 4860);
+  it.each(['DRAFT', 'SUBMITTED'])('preserves four-decimal unit precision when approving a %s bill', async status => {
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: status }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: 'AUTHORISED' }] });
 
-  expect(mockXeroApiFetch).toHaveBeenCalledWith(
-    'biz-1',
-    '/Invoices/bill-4?unitdp=4',
-    expect.objectContaining({ method: 'POST' }),
-  );
+    await expect(approveBill('biz-1', 'bill-4', 4860)).resolves.toBe(true);
+
+    expect(mockXeroApiFetch).toHaveBeenCalledWith(
+      'biz-1',
+      '/Invoices/bill-4?unitdp=4',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it.each(['AUTHORISED', 'PAID'])('does not send another approval for a %s bill', async status => {
+    mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: status }] });
+    await expect(approveBill('biz-1', 'bill-4', 4860)).resolves.toBe(true);
+    expect(mockXeroApiFetch).toHaveBeenCalledExactlyOnceWith('biz-1', '/Invoices/bill-4', { method: 'GET' });
+  });
+
+  it.each(['VOIDED', 'DELETED', undefined])('does not approve a bill with status %s', async status => {
+    mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: status }] });
+    await expect(approveBill('biz-1', 'bill-4', 4860)).resolves.toBe(false);
+    expect(mockXeroApiFetch).toHaveBeenCalledExactlyOnceWith('biz-1', '/Invoices/bill-4', { method: 'GET' });
+  });
+
+  it('skips the paid-bill update and subsequent approval without a Xero write', async () => {
+    const po = { id: 4886, po_number: 'PO-2026-0050', supplier_id: 1, location_id: 1, order_date: '2026-08-26', items: [] };
+    mockXeroApiFetch.mockResolvedValue({ Invoices: [{ InvoiceID: 'bill-4', Status: 'PAID', AmountPaid: 1059.86 }] });
+    await expect(updateXeroDraftBill('biz-1', po, 'bill-4')).resolves.toBe(false);
+    await expect(approveBill('biz-1', 'bill-4', po.id)).resolves.toBe(true);
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(2);
+    expect(mockXeroApiFetch.mock.calls.every(call => call[2].method === 'GET')).toBe(true);
+    expect(mockExecute.mock.calls.some(call => call[0].includes('INSERT INTO xero_sync_log') && call[1].includes('error'))).toBe(false);
+  });
 });
 
 describe('credit-note edit helpers', () => {

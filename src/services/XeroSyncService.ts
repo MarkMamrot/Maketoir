@@ -1083,6 +1083,17 @@ export async function deleteXeroCreditNoteAllocation(
  */
 export async function approveBill(businessId: string, xeroInvoiceId: string, poId: number): Promise<boolean> {
   try {
+    const current = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, { method: 'GET' });
+    const currentInvoice = current?.Invoices?.[0];
+    const currentStatus = currentInvoice?.Status;
+    if (currentStatus === 'AUTHORISED' || currentStatus === 'PAID') {
+      await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'skipped', `Bill is already ${currentStatus}; approval not required`, currentStatus);
+      return true;
+    }
+    if (currentStatus !== 'DRAFT' && currentStatus !== 'SUBMITTED') {
+      await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'skipped', `Bill is ${currentStatus ?? 'unknown'}, cannot approve`, currentStatus);
+      return false;
+    }
     const result = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}?unitdp=4`, {
       method: 'POST',
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },

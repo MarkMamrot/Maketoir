@@ -15,6 +15,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - **Approved zero cost** counts FIFO movements whose source layer has an explicit no-charge reason. They are valid $0 COGS; unexplained zero costs still block posting.
 - Review and post balanced Shopify payout plans when enabled.
 - Retry only the accounting action that remains unfinished.
+- PO bill approval checks the live Xero status first. Already authorised or paid bills retain their status; syncing does not reopen a paid bill.
 - Administrators can grant Advisor accounts read-only access to **Shopify Payouts** from **Settings > Xero > Advisor Access**. Advisors can review payout status and details but cannot replan, repair, or post payouts.
 
 ## At a glance
@@ -75,6 +76,8 @@ Check the resulting foreign amount and AUD bank amount against the actual paymen
 For POS laybys, map **Layby Deposits** to a liability account, each branch's revenue to an income account, and every cash/card method to that branch's clearing account. POS clearing payments must be enabled. Deposits and refunds post to liability rather than ordinary sales invoices. Final payment recognises GST; collection recognises GST-exclusive merchandise revenue. Cancellation reverses final-payment GST when necessary and posts any retained fee as taxable revenue. These events use POS End of Day and its retry, including deposit-only days. Missing mappings block posting, and earlier layby accounting must finish before later events. Historical deposit sales invoices need explicit bookkeeper reconciliation rather than an automatic rewrite.
 
 ### Recover a failed accounting action
+
+PO sync may approve a Draft or Submitted Xero bill when the configured document rules require approval. An already Authorised or Paid bill does not receive another approval request. Voided, deleted or unverified bill states block approval. This status check does not reverse settlements or create local payments to mirror Xero.
 
 1. Confirm the IMS source is complete and note its reference.
 2. Open **Xero > Sync History** and find that reference.
