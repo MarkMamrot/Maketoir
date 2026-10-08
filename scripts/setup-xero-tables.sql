@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS xero_cogs_journal_runs (
   status                      VARCHAR(20)  NOT NULL DEFAULT 'pending',
   xero_id                     VARCHAR(100) DEFAULT NULL,
   xero_state                  VARCHAR(20)  DEFAULT NULL,
+  breakdown_json              JSON         DEFAULT NULL COMMENT 'Immutable location-channel deltas sent in this run',
   error_detail                TEXT         DEFAULT NULL,
   override_reason             TEXT         DEFAULT NULL,
   created_at                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

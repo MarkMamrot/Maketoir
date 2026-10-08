@@ -58,6 +58,13 @@ try {
   const table = page.locator('.cogs-traceability-table-scroll');
   await table.waitFor({ timeout: 60000 });
   if (await page.getByRole('alert').filter({ hasText: /\S/ }).count()) throw new Error('Report displays an operational error.');
+  const initialHeadings = await page.locator('.cogs-traceability-table-scroll__header th').evaluateAll(cells => cells.slice(0, 7).map(cell => cell.textContent.trim().toUpperCase()));
+  if (!initialHeadings.includes('COGS (AUD)') || !initialHeadings.includes('NET SALES (AUD EX GST)') || !initialHeadings.includes('GP (AUD)')) throw new Error('Core accounting fields are not in the initial Detail columns.');
+  const detailRows = table.locator('tbody tr');
+  if (await detailRows.count() > 1) {
+    const backgrounds = await detailRows.evaluateAll(rows => rows.slice(0, 2).map(row => getComputedStyle(row).backgroundColor));
+    if (backgrounds[0] === backgrounds[1]) throw new Error('Detail table is not zebra-striped.');
+  }
   const firstCell = table.locator('tbody tr:first-child td:first-child');
   const movingCell = table.locator('tbody tr:first-child td:nth-child(3)');
   const initialFrozenX = (await firstCell.boundingBox()).x;
@@ -113,19 +120,23 @@ try {
   await table.waitFor();
   await page.getByLabel('Grouping 1', { exact: true }).selectOption('channel');
   await table.waitFor();
-  await page.getByRole('button', { name: 'Filter', exact: true }).click();
-  const filterChoices = await page.getByLabel('Filter field 1', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value));
-  if (filterChoices.length !== 7 || filterChoices.includes('tax') || filterChoices.includes('invoiceStatus')) throw new Error('Filter choices are still excessive.');
-  const filterInput = page.getByLabel('Filter value 1', { exact: true });
+  for (const label of ['Order ref filter', 'Product or SKU filter', 'Sales channel filter', 'Location filter']) {
+    if (await page.getByLabel(label, { exact: true }).count() !== 1) throw new Error(`Standard report filter is missing: ${label}`);
+  }
+  const filterInput = page.getByLabel('Order ref filter', { exact: true });
   await filterInput.fill('POS');
   await filterInput.press('Home');
   await filterInput.press('ArrowRight');
   if (await filterInput.evaluate(element => element.selectionStart) !== 1) throw new Error('Filter input lost native arrow-key editing.');
-  await page.getByRole('button', { name: 'Remove filter', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
   await table.waitFor();
   if (report.summary.cogs == null && report.summary.costedRecords > 0) {
     const capturedTotal = await page.getByTestId('cogs-total-cogs').innerText();
     if (!capturedTotal.includes('Partial') || capturedTotal.includes('Not recorded')) throw new Error('Known captured COGS is still suppressed.');
+  }
+  if (report.summary.netSales == null && report.summary.knownNetSales !== 0) {
+    const knownSales = await page.getByTestId('cogs-total-netSales').innerText();
+    if (!knownSales.includes('Partial') || knownSales.includes('Not recorded')) throw new Error('Known Net Sales is still suppressed by incomplete rows.');
   }
   await page.screenshot({ path: 'test-results/cogs-traceability/summary.png' });
   await page.getByRole('tab', { name: 'Reconciliation', exact: true }).click();
@@ -137,6 +148,7 @@ try {
   if (!postingsResponse.ok() || !postings.success) throw new Error(`Posting ledger failed (${postingsResponse.status()}): ${postings.error || 'unknown error'}`);
   if (!postingsResponse.headers()['cache-control']?.includes('no-store')) throw new Error('Posting ledger is not private/no-store.');
   for (const period of postings.rows) {
+    if (period.calculation.breakdown.some(bucket => typeof bucket.locationName !== 'string' || !bucket.locationName.trim())) throw new Error('Posting breakdown is missing location names.');
     const recordedPosted = period.runs.filter(run => run.status === 'success' && run.xeroStatus === 'POSTED' && run.xeroId).reduce((sum, run) => sum + run.amount, 0);
     if (Math.abs(recordedPosted - period.postedTotal) > .005 || Math.abs(period.calculation.totalCOGS - period.postedTotal - period.variance) > .005) throw new Error('Posting reconciliation totals disagree with run evidence.');
     for (const run of period.runs) {
@@ -145,11 +157,15 @@ try {
   }
   await page.getByRole('tab', { name: 'Xero Postings', exact: true }).click();
   await page.getByRole('heading', { name: 'COGS journals and period reconciliations' }).waitFor();
-  await page.getByRole('note').filter({ hasText: 'not a live verification' }).waitFor();
-  if (await page.getByRole('button', { name: 'Filter', exact: true }).count() || await page.getByRole('group', { name: 'Report date basis' }).count() || await page.getByRole('button', { name: 'Export CSV', exact: true }).count()) throw new Error('Sales controls still appear in the posting ledger.');
+  await page.getByRole('note').filter({ hasText: 'checked directly with Xero' }).waitFor();
+  if (await page.getByLabel('Order ref filter', { exact: true }).count() || await page.getByRole('group', { name: 'Report date basis' }).count() || await page.getByRole('button', { name: 'Export CSV', exact: true }).count()) throw new Error('Sales controls still appear in the posting ledger.');
   if (postings.rows.length) {
     await page.getByRole('button', { name: /^Inspect accounting period / }).first().click();
     await page.getByRole('region', { name: 'COGS journal runs, arrow-key scrolling' }).waitFor();
+    const evidence = page.getByRole('region', { name: 'Accounting period evidence' });
+    for (const bucket of postings.rows[0].calculation.breakdown) {
+      if (!(await evidence.innerText()).includes(`${bucket.locationName} / ${bucket.channel}`)) throw new Error('Posting evidence still displays numbered location labels instead of resolved names.');
+    }
     for (const link of await page.getByRole('link', { name: 'View journal', exact: true }).all()) {
       if (await link.getAttribute('target') !== '_blank' || !((await link.getAttribute('rel')) || '').includes('noopener')) throw new Error('Journal link does not open safely.');
     }

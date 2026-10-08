@@ -198,6 +198,15 @@ async function main() {
     }
   }
 
+  const [cogsBreakdownColumns] = await conn.query(
+    `SELECT 1 FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_cogs_journal_runs'
+        AND COLUMN_NAME = 'breakdown_json' LIMIT 1`,
+  );
+  if (cogsBreakdownColumns.length === 0) {
+    await conn.query("ALTER TABLE xero_cogs_journal_runs ADD COLUMN breakdown_json JSON NULL COMMENT 'Immutable location-channel deltas sent in this run' AFTER xero_state");
+  }
+
   const reconciliationSettingColumns = [
     ['recipients_json', 'JSON NULL AFTER enabled'],
     ['digest_frequency', "VARCHAR(10) NOT NULL DEFAULT 'off' COMMENT 'off | daily | weekly' AFTER recipients_json"],

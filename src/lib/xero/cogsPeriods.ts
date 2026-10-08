@@ -16,6 +16,26 @@ export interface CogsJournalLine {
   LineAmount: number;
 }
 
+export interface CogsJournalBucket {
+  locationId: number | null;
+  locationName: string;
+  channel: string;
+  amount: number;
+}
+
+export function cogsChannelLabel(channel: string): string {
+  if (channel === 'pos') return 'POS';
+  if (channel === 'online') return 'Shopify / Online';
+  if (channel === 'wholesale') return 'B2B';
+  if (channel === 'returns') return 'Returns';
+  if (channel === 'legacy') return 'Prior unsplit COGS';
+  return channel || 'Unclassified';
+}
+
+export function buildCogsBucketDescription(bucket: CogsJournalBucket, prefix = 'COGS'): string {
+  return `${prefix} - ${bucket.locationName} - ${cogsChannelLabel(bucket.channel)}`;
+}
+
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
 function parseDate(value: string): Date {

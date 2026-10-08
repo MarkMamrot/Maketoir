@@ -19,7 +19,7 @@
 import { getValidAccessToken, xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
-import { buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
+import { buildCogsBucketDescription, buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
 import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
 import crypto from 'crypto';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -2683,8 +2683,8 @@ export async function syncCogsJournal(input: {
   label: string;
   journalDate: string;
   amount: number;
+  buckets: Array<{ locationId: number | null; locationName: string; channel: string; amount: number }>;
   runKind?: 'original' | 'adjustment';
-  locationId?: number;
 }): Promise<{ journalId: string; xeroState: string }> {
   const accounts = await getAccountMappings(input.businessId);
   const trackingMappings = await getTrackingMappings(input.businessId);
@@ -2696,19 +2696,25 @@ export async function syncCogsJournal(input: {
 
   const runLabel = input.runKind === 'adjustment' ? 'COGS adjustment' : 'COGS';
   const description = `${runLabel} - ${input.label}`;
-  const tracking = getTrackingForLocation(trackingMappings, input.locationId ?? null);
-  const journalLines = buildCogsJournalLines({
-    amount: input.amount,
-    cogsAccountCode: accounts.cogs,
-    inventoryAccountCode: accounts.inventory_asset,
-    description,
-  }).map(line => ({ ...line, Tracking: tracking }));
+  const journalLines = input.buckets.flatMap(bucket => {
+    const bucketDescription = buildCogsBucketDescription(bucket, runLabel);
+    const tracking = getTrackingForLocation(trackingMappings, bucket.locationId, bucket.channel);
+    return buildCogsJournalLines({
+      amount: bucket.amount,
+      cogsAccountCode: accounts.cogs,
+      inventoryAccountCode: accounts.inventory_asset,
+      description: bucketDescription,
+    }).map(line => ({ ...line, Tracking: tracking }));
+  });
 
   if (journalLines.length === 0) throw new Error('Cannot post a zero-value COGS journal');
+  const journalTotal = roundCurrency(input.buckets.reduce((sum, bucket) => sum + bucket.amount, 0));
+  if (journalTotal !== roundCurrency(input.amount)) throw new Error('COGS journal buckets do not reconcile to the requested amount');
 
   const journal = {
-    Narration: `${description}${input.locationId ? ` (Location ${input.locationId})` : ''}`,
+    Narration: description,
     Date: input.journalDate,
+    Status: 'POSTED',
     JournalLines: journalLines,
   };
 

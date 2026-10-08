@@ -48,6 +48,12 @@ describe('traceability evidence and service', () => {
     expect(result.summary).toMatchObject({ qty: 20, netSales: 180, cogs: 100, gp: 80 });
     expect(mocks.accounting).toHaveBeenCalledWith({ businessId: 'tenant-1', startDate: '2026-10-01', endDateExclusive: '2026-10-08' });
   });
+  it('keeps null movement dates after dated rows even when sorting descending', async () => {
+    lines.push({ ...line, documentId: 3, lineId: 30, orderRef: 'FREIGHT', variantId: null, stockItem: false });
+    const result = await buildReport('tenant-1', parseRequest(new URLSearchParams('from=2026-10-01&to=2026-10-07&pageSize=3&sort=movementDate&direction=desc')));
+    expect(result.rows.slice(0, 2).every(row => row.movementDate != null)).toBe(true);
+    expect(result.rows[2]).toMatchObject({ orderRef: 'FREIGHT', movementDate: null });
+  });
   it('applies summary metric filters to groups and preserves underlying quality counts', async () => {
     movements[1] = { ...movements[1], unitCost: null };
     const result = await buildReport('tenant-1', parseRequest(new URLSearchParams({ from: '2026-10-01', to: '2026-10-07', groups: 'channel', filters: JSON.stringify([{ field: 'netSales', operator: 'gte', value: '100' }]) })));

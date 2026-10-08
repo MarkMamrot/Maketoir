@@ -29,6 +29,15 @@ describe('COGS traceability financial evidence', () => {
     expect(summarise(rows)).toMatchObject({ cogs: null, gp: null, knownCogs: 50, missingCosts: 1 });
     expect(groupRows(rows, ['channel'])[0]).toMatchObject({ cogs: null, gp: null, knownCogs: 50, costedRecords: 1, missingCosts: 1 });
   });
+  it('retains known sales and covered GP without presenting them as complete totals', () => {
+    const rows: ReportRow[] = [
+      Object.assign(emptyRow('1'), { sales: 110, discount: 10, netSales: 100, cogs: 60, gp: 40 }),
+      Object.assign(emptyRow('2'), { sales: null, discount: null, netSales: null, cogs: 20, gp: null }),
+    ];
+    expect(summarise(rows)).toMatchObject({ sales: null, netSales: null, gp: null, knownSales: 110,
+      knownDiscount: 10, knownNetSales: 100, knownGp: 40, missingRevenue: 1 });
+    expect(groupRows(rows, ['channel'])[0]).toMatchObject({ netSales: null, knownNetSales: 100, gp: null, knownGp: 40 });
+  });
   it('supports typed filters and guards spreadsheet formulas', () => {
     const row = Object.assign(emptyRow('1'), { channel: 'Shopify', cogs: 42 });
     expect(matches(row, [{ field: 'channel', operator: 'contains', value: 'shop' }, { field: 'cogs', operator: 'gte', value: '40' }])).toBe(true);

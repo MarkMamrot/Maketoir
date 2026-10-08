@@ -52,7 +52,7 @@ describe('traceability HTTP contracts', () => {
     const response = await postingLedger(new Request('http://localhost/api/report?databaseId=other-tenant&from=2026-09-01&to=2026-10-07'));
     expect(response.status).toBe(200);
     expect(mocks.scope).toHaveBeenCalledWith('tenant-1', expect.any(Function));
-    expect(mocks.report).toHaveBeenCalledWith('tenant-1', expect.objectContaining({ from: '2026-09-01', toExclusive: '2026-10-08' }));
+    expect(mocks.report).toHaveBeenCalledWith('tenant-1', expect.objectContaining({ from: '2026-09-01', toExclusive: '2026-10-08' }), { verifyXero: true });
     expect(response.headers.get('cache-control')).toContain('no-store');
   });
   it('exports all filtered rows rather than just the selected page and escapes formulas', async () => {

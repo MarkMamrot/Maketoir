@@ -44,7 +44,7 @@ export function ReportScrollTable({
         position: sticky; left: ${left}px; z-index: 4; background: var(--sv-bg-2); ${divider}
       }
       .${bodyClassName} td:nth-child(${index + 1}) {
-        position: sticky; left: ${left}px; z-index: 1; background: var(--sv-bg-1); ${divider}
+        position: sticky; left: ${left}px; z-index: 1; background: inherit; ${divider}
       }
     `;
   }).join('\n');

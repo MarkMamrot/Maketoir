@@ -7,12 +7,13 @@
 
 Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by Sales Channel, then use **Detail** to inspect individual sales and stock events. **Reconciliation** compares recorded stock costs with the accounting COGS period.
 
-Use **Xero Postings** to review recorded COGS journal runs, reconcile each accounting period and open its journals in Xero. This tab is read-only.
+Use **Xero Postings** to review COGS journal runs, reconcile each accounting period, verify displayed journal statuses with Xero and open the actual journals. Opening the tab is read-only; scheduled or authorised posting workflows create journals separately.
 
 - Choose the date preset or custom range at the right, and select the date basis.
-- Filter by Sales Channel, Warehouse Location, Product/SKU, Brand, Customer Name, Order Ref or Sales Order Status. An empty filter does not narrow the results.
+- Use the labelled Order ref, Product / SKU, Channel and Location controls. Brand, Customer Name and Sales Order Status are under **More filters**. Empty controls do not narrow the results; **Clear filters** resets them.
 - In Summary, group by channel, channel instance, location, brand, SKU, customer or receipt layer, using up to four levels.
 - Review captured COGS even when another record has missing costs. **Partial** means the displayed amount is the known subtotal, not complete COGS.
+- Review partial Sales, Net Sales and covered GP without mistaking them for complete totals. Unavailable rows remain visible as exceptions rather than blanking every known amount in their group.
 - Use the column chooser in Detail to reveal additional requested fields.
 - Inspect transaction evidence for source references and recorded FIFO allocations.
 - In Xero Postings, inspect a period to see original and adjustment journals, recorded statuses, cost checks and **View journal** links.
@@ -79,23 +80,39 @@ Grouping or filtering by FIFO receipt layer attributes revenue by recorded quant
 
 Reconciliation shows the **full unfiltered movement period** used by accounting alongside the selected report movement figure. It separately identifies historical exclusions, orphaned movements, non-stock costs, missing/unexplained zero costs, corrections outside accounting movement types, stock events outside the selected sale period and allocation rounding differences. Report filters do not change the displayed full accounting-period total.
 
-This report does not post accounting entries or change inventory.
+Opening or refreshing this report does not post accounting entries or change inventory.
 
 ### Review Xero journal postings
 
 1. Select **Xero Postings** and choose the date range.
 2. Review the accounting periods overlapping that range. Each row reconciles its complete stock-movement period, including dates outside a partial selection. Sales filters and Invoice / sale date do not apply here.
-3. Compare **Current eligible COGS** with **Recorded posted**. The difference is current eligible COGS minus the signed total of successful original and adjustment journals whose last recorded Xero state is POSTED and whose journal reference is available.
+3. Compare **Current eligible COGS** with the Xero posted total. Displayed journals with references are checked directly with Xero when the tab loads. If that check is unavailable, the total is clearly labelled as recorded and unverified.
 4. Review **Recorded drafts** separately. Draft, voided, deleted and uncertain runs are not counted as posted. A draft with a zero net amount can still require review.
-5. Inspect the period to review each run's journal date, run delta, run status, recorded Xero state, target amount, recorded cost checks and creation time. A run delta is the amount associated with the attempt, not proof that a journal was created or posted. A failed or pending run may not have a journal reference.
+5. Inspect the period to review each run's journal date, run delta, current or recorded Xero state, target amount, recorded cost checks, creation time and saved journal line-item snapshot. A run delta is the amount associated with the attempt, not proof that a journal was created or posted. A failed or pending run may not have a journal reference.
 6. Use **View journal** to confirm the actual journal and its current status in Xero. The link opens in a new tab and requires access to the correct Xero organisation.
-7. Check current missing and unexplained-zero costs and excluded movements. The location/accounting-channel breakdown is recalculated from current evidence; it is not a historical snapshot of the posted journal's allocation.
+7. Check current missing and unexplained-zero costs and excluded movements. **Journal line-item snapshot** is the immutable location-channel delta saved for that run. The separate current location/accounting-channel breakdown is recalculated from current evidence. Legacy runs created before snapshots show that no line-item snapshot was captured rather than inventing one.
 
-**Recorded Xero states are not live-verified.** Refresh reloads Solvantis records and recalculates COGS; it does not fetch current journal states from Xero. A numerical match means only that current eligible costs match the recorded posted total. It does not prove that costs are complete, that journals remain posted in Xero, or that the general ledger balance reconciles. Missing costs and uncertain runs are flagged even when amounts match.
+The tab attempts a live Xero status check for every displayed run with a journal reference. A provider or connection failure leaves the recorded state visible but labels it unverified. A numerical match does not prove that costs are complete or that the wider general ledger reconciles. Missing costs and uncertain runs remain flagged even when amounts match.
 
 The date range is an accounting-period overlap filter, not a journal-date or run-created-date filter. All recorded runs belonging to each matching period are included. Periods with no recorded run are not listed; an empty list does not certify that COGS has been posted. If different posting schedules overlap, review the periods separately rather than adding their current COGS totals together.
 
 Investigate a difference before deciding on an accounting adjustment. This screen does not retry, create, post or void journals, change automation or fix cost evidence. Historical failed attempts remain visible even when a later run reconciles. Sales CSV export is available in the sales views, not Xero Postings.
+
+### What triggers COGS journals?
+
+Automatic COGS sync is scheduled daily at approximately **03:17 AEST / 04:17 AEDT**. This daily check does not mean a journal is created every day: the business's selected frequency is daily, weekly, monthly or quarterly, and only completed business-local periods are eligible. For example, a monthly September period first becomes eligible after September closes.
+
+The schedule must be enabled, have a first reliable COGS date, have no unresolved schedule hold, and the business's automation must not be paused. Automatic sync is disabled by default; the default frequency is monthly. The daily check can catch up to eight due periods, but a missing/unexplained-zero cost block, failed request or uncertain posting result puts the schedule on hold and stops it progressing.
+
+Enabling or changing a schedule starts it with the current period, which must close before it is eligible. It does not automatically backfill previously completed periods. An authorised user can separately request an eligible completed period through the Xero COGS posting workflow; normal cost checks and duplicate-run protection still apply.
+
+Sales completion and opening or refreshing this report do **not** trigger COGS journals. A completed eligible period with no change to its verified posted total does not create another journal. Existing drafts are not treated as posted and stop duplicate automatic creation until reviewed.
+
+Future COGS journals are requested from Xero as **POSTED** manual journals. Each location-accounting-channel amount creates a balanced pair: debit COGS and credit Inventory Asset for positive COGS, reversed for a negative adjustment. Examples include **Warehouse - Shopify / Online**, **Warehouse - B2B**, **Newtown - POS** and **QVB - POS**. Available Xero tracking mappings are applied to each pair. Returns remain a separate accounting channel.
+
+Each run saves the exact line-item deltas used. Later adjustments compare current location-channel totals with prior saved posted buckets and send only each bucket's change. An older posted journal without a saved split remains **Prior unsplit journals** in the first split adjustment; Solvantis does not invent a historical branch allocation or rewrite the old journal.
+
+One row in Xero Postings represents one accounting period, not necessarily one journal. Expand it to see all recorded original and adjustment attempts. Periods without a recorded attempt are absent, and the current **Cost checks blocked** label does not by itself prove that automatic scheduling is held: check the saved schedule state before concluding why later periods are missing.
 
 ## Data availability
 

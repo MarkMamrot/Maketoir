@@ -12,6 +12,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 - Review Sync History for pending, successful, blocked, partial, or dismissed work.
 - Ask Assistant for a bounded local summary of queued documents and categorized recent failures.
 - Use COGS Reconciliation to investigate cost posting coverage.
+- Future COGS manual journals are requested as Posted and separate each location-accounting-channel amount into balanced COGS and Inventory Asset lines. Inspect the saved line-item snapshot and live Xero status under **Reports > Sales & COGS Traceability > Xero Postings**.
 - **Approved zero cost** counts FIFO movements whose source layer has an explicit no-charge reason. They are valid $0 COGS; unexplained zero costs still block posting.
 - Review and post balanced Shopify payout plans when enabled.
 - Retry only the accounting action that remains unfinished.
@@ -108,6 +109,8 @@ PO sync may approve a Draft or Submitted Xero bill when the configured document 
 | Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |
 
 > **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.
+
+COGS journals use the configured COGS and Inventory Asset accounts. Each positive location-channel bucket debits COGS and credits Inventory Asset; negative adjustment buckets reverse those signs. Location and channel tracking mappings are applied where configured. Later runs post only the saved bucket differences, while legacy journals without a line-item snapshot remain explicitly unsplit rather than being assigned to a branch retrospectively.
 
 ## Troubleshooting
 

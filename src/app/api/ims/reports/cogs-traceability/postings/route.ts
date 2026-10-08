@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   try {
     const timeZone = await getBusinessTimeZone(businessId);
     const parameters = parseRequest(new URL(request.url).searchParams, new Date().toLocaleDateString('sv-SE', { timeZone }));
-    const body = await runImsForBusiness(businessId, () => loadPostingReconciliations(businessId, parameters));
+    const body = await runImsForBusiness(businessId, () => loadPostingReconciliations(businessId, parameters, { verifyXero: true }));
     return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     if (error instanceof ReportValidationError) return NextResponse.json({ success: false, error: error.message }, { status: 400 });

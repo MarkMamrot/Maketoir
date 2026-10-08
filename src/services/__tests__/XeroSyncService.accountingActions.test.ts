@@ -15,7 +15,7 @@ vi.mock('@/lib/xero/accountingActionRepository', () => ({
   failXeroAccountingAction: mocks.fail,
 }));
 
-import { calculatePOStockReceiptValueAud, syncPOPayment, syncPOReceivedJournal, syncSOPayment } from '../XeroSyncService';
+import { calculatePOStockReceiptValueAud, syncCogsJournal, syncPOPayment, syncPOReceivedJournal, syncSOPayment } from '../XeroSyncService';
 
 describe('Xero payment and receipt-journal actions', () => {
   beforeEach(() => {
@@ -153,6 +153,44 @@ describe('Xero payment and receipt-journal actions', () => {
     expect(mocks.claim).toHaveBeenCalledWith(expect.objectContaining({
       operationKey: 'po-received-journal:42:bill-1', actionType: 'po_received_journal',
     }));
+  });
+
+  it('posts separate balanced location-channel COGS pairs as an actual Xero journal', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([
+        { role_key: 'cogs', xero_account_code: '500' },
+        { role_key: 'inventory_asset', xero_account_code: '630' },
+      ]);
+      return Promise.resolve([]);
+    });
+    mocks.xeroFetch.mockResolvedValueOnce({ ManualJournals: [{ ManualJournalID: 'cogs-journal-1', Status: 'POSTED' }] });
+
+    await expect(syncCogsJournal({ businessId: 'biz-1', label: 'September 2026', journalDate: '2026-09-30', amount: 100,
+      buckets: [
+        { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
+        { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
+      ],
+    })).resolves.toEqual({ journalId: 'cogs-journal-1', xeroState: 'POSTED' });
+
+    const journal = mocks.xeroFetch.mock.calls[0][2].body.ManualJournals[0];
+    expect(journal).toMatchObject({ Narration: 'COGS - September 2026', Date: '2026-09-30', Status: 'POSTED' });
+    expect(journal.JournalLines).toEqual([
+      expect.objectContaining({ AccountCode: '500', Description: 'COGS - Warehouse - Shopify / Online', LineAmount: 60, TaxType: 'NONE' }),
+      expect.objectContaining({ AccountCode: '630', Description: 'COGS - Warehouse - Shopify / Online', LineAmount: -60, TaxType: 'NONE' }),
+      expect.objectContaining({ AccountCode: '500', Description: 'COGS - Newtown - POS', LineAmount: 40, TaxType: 'NONE' }),
+      expect.objectContaining({ AccountCode: '630', Description: 'COGS - Newtown - POS', LineAmount: -40, TaxType: 'NONE' }),
+    ]);
+    expect(journal.JournalLines.reduce((sum: number, line: { LineAmount: number }) => sum + line.LineAmount, 0)).toBe(0);
+  });
+
+  it('refuses a bucket payload that does not reconcile to the requested journal amount', async () => {
+    mocks.query.mockImplementation((sql: string) => sql.includes('xero_account_mappings') ? Promise.resolve([
+      { role_key: 'cogs', xero_account_code: '500' }, { role_key: 'inventory_asset', xero_account_code: '630' },
+    ]) : Promise.resolve([]));
+    await expect(syncCogsJournal({ businessId: 'biz-1', label: 'September 2026', journalDate: '2026-09-30', amount: 100,
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 99 }],
+    })).rejects.toThrow('do not reconcile');
+    expect(mocks.xeroFetch).not.toHaveBeenCalled();
   });
 
   it('limits a mixed prepaid PO journal to discounted stock value and capitalised freight in AUD', () => {

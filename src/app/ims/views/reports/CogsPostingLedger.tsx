@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, Eye, X } from 'lucide-react';
 import type { loadPostingReconciliations } from '@/lib/ims/cogsTraceability/postings';
+import { cogsChannelLabel } from '@/lib/xero/cogsPeriods';
 import { ReportScrollTable } from './ReportScrollTable';
 import type { SBDateRange } from './reportFilterHelpers';
 
@@ -15,7 +16,7 @@ const numberCell: React.CSSProperties = { ...cell, textAlign: 'right', whiteSpac
 const button: React.CSSProperties = { border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', width: 34, height: 34, padding: 0, display: 'inline-grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0 };
 const header: React.CSSProperties = { ...cell, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0, textAlign: 'left', height: 52 };
 const periodWidths = [240, 160, 165, 145, 150, 260, 54];
-const runWidths = [100, 130, 140, 155, 130, 155, 170, 150, 180, 140];
+const runWidths = [100, 130, 140, 155, 130, 155, 170, 310, 150, 180, 140];
 
 export function CogsPostingLedger({ range, revision }: { range: SBDateRange; revision: number }) {
   const [page, setPage] = useState(1);
@@ -52,12 +53,12 @@ export function CogsPostingLedger({ range, revision }: { range: SBDateRange; rev
           <p role="note" style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '8px 0 16px' }}>{data.statusEvidence}</p>
           {data.rows.length === 0 ? <div role="status" data-testid="cogs-postings-empty" style={{ padding: '24px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>{data.tableAvailable ? 'No recorded COGS journal runs overlap this date range.' : 'COGS posting history has not been configured.'}</div> : <>
             <ReportScrollTable ariaLabel="COGS posting periods, arrow-key scrolling" bodyClassName="cogs-posting-periods-scroll" tableWidth={periodWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{periodWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[periodWidths[0]]} headerRows={<tr>{['Accounting period', 'Current eligible COGS', 'Recorded posted', 'Recorded drafts', 'Difference', 'Reconciliation', ''].map((label, index) => <th key={index} style={{ ...header, textAlign: index > 0 && index < 5 ? 'right' : 'left' }}>{label}</th>)}</tr>}>
-              <tbody>{data.rows.map(period => <tr key={`${period.from}:${period.toExclusive}`}>
+              <tbody>{data.rows.map((period, index) => <tr key={`${period.from}:${period.toExclusive}`} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
                 <td style={cell}>{periodLabel(period.from, period.toExclusive)}</td>
                 <td style={numberCell}>{money(period.calculation.totalCOGS)}{period.calculation.blocked && <div style={{ fontSize: 11, color: '#991b1b' }}>Incomplete costs</div>}</td>
-                <td style={numberCell}>{money(period.postedTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.postedCount} journals</div></td>
+                <td style={numberCell}>{money(period.livePostedTotal ?? period.postedTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.liveVerificationComplete ? 'Verified with Xero now' : 'Recorded; live check unavailable'}</div></td>
                 <td style={numberCell}>{money(period.draftTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.draftCount} journals</div></td>
-                <td style={numberCell}>{money(period.variance)}</td>
+                <td style={numberCell}>{money(period.liveVariance ?? period.variance)}</td>
                 <td style={cell}>{period.state}{period.failedCount > 0 && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.failedCount} failed attempts in history</div>}</td>
                 <td style={cell}><button style={button} title="Inspect journals and reconciliation" aria-label={`Inspect accounting period ${period.from}`} aria-pressed={selected?.from === period.from && selected?.toExclusive === period.toExclusive} onClick={() => setSelected(period)}><Eye size={15} /></button></td>
               </tr>)}</tbody>
@@ -70,9 +71,9 @@ export function CogsPostingLedger({ range, revision }: { range: SBDateRange; rev
           {selected && <section aria-label="Accounting period evidence" style={{ borderTop: '1px solid var(--sv-etch)', padding: '16px 0', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><h3 style={{ margin: 0, fontSize: 15, color: 'var(--sv-text-strong)' }}>{periodLabel(selected.from, selected.toExclusive)}</h3><button style={button} title="Close period evidence" aria-label="Close period evidence" onClick={() => setSelected(null)}><X size={15} /></button></div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Difference = current eligible COGS minus recorded posted journals, including signed original and adjustment amounts. This is not an instruction to post an adjustment.</p>
-            <ReportScrollTable ariaLabel="COGS journal runs, arrow-key scrolling" bodyClassName="cogs-posting-runs-scroll" tableWidth={runWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{runWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[runWidths[0]]} headerRows={<tr>{['Run', 'Journal date', 'Kind / schedule', 'Run delta (AUD)', 'Run status', 'Recorded Xero state', 'Target at run (AUD)', 'Cost checks at run', 'Run created', 'Xero journal'].map((label, index) => <th key={index} style={header}>{label}</th>)}</tr>}>
-              <tbody>{selected.runs.map(run => <tr key={run.id}>
-                <td style={cell}>{run.id}</td><td style={cell}>{run.journalDate}</td><td style={cell}>{run.kind}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{run.frequency}</div></td><td style={numberCell}>{money(run.amount)}</td><td style={cell}>{run.status}</td><td style={cell}>{run.xeroStatus ?? 'Not recorded'}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Record updated {run.updatedAt}</div></td><td style={numberCell}>{money(run.target)}</td><td style={cell}>{run.missingCosts} missing<br />{run.zeroCosts} unexplained zero</td><td style={cell}>{run.recordedAt}</td><td style={cell}>{run.href ? <a href={run.href} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--sv-action)' }}>View journal <ExternalLink size={13} /></a> : 'No journal ID'}</td>
+            <ReportScrollTable ariaLabel="COGS journal runs, arrow-key scrolling" bodyClassName="cogs-posting-runs-scroll" tableWidth={runWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{runWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[runWidths[0]]} headerRows={<tr>{['Run', 'Journal date', 'Kind / schedule', 'Run delta (AUD)', 'Run status', 'Recorded Xero state', 'Target at run (AUD)', 'Journal line-item snapshot', 'Cost checks at run', 'Run created', 'Xero journal'].map((label, index) => <th key={index} style={header}>{label}</th>)}</tr>}>
+              <tbody>{selected.runs.map((run, index) => <tr key={run.id} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
+                <td style={cell}>{run.id}</td><td style={cell}>{run.journalDate}</td><td style={cell}>{run.kind}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{run.frequency}</div></td><td style={numberCell}>{money(run.amount)}</td><td style={cell}>{run.status}</td><td style={cell}>{run.liveVerification === 'verified' ? run.liveXeroStatus ?? 'Status absent' : run.xeroStatus ?? 'Not recorded'}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{run.liveVerification === 'verified' ? 'Verified with Xero now' : run.liveVerification === 'unavailable' ? `Live check unavailable; recorded ${run.xeroStatus ?? 'unknown'}` : `Recorded ${run.updatedAt}`}</div></td><td style={numberCell}>{money(run.target)}</td><td style={cell}>{run.buckets?.length ? run.buckets.map(bucket => <div key={`${bucket.locationId}:${bucket.channel}`}>{bucket.locationName} - {cogsChannelLabel(bucket.channel)}: {money(bucket.amount)}</div>) : <span style={{ color: 'var(--sv-text-dim)' }}>Not captured for this legacy run</span>}</td><td style={cell}>{run.missingCosts} missing<br />{run.zeroCosts} unexplained zero</td><td style={cell}>{run.recordedAt}</td><td style={cell}>{run.href ? <a href={run.href} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--sv-action)' }}>View journal <ExternalLink size={13} /></a> : 'No journal ID'}</td>
               </tr>)}</tbody>
             </ReportScrollTable>
             <h4 style={{ fontSize: 13, margin: '20px 0 8px', color: 'var(--sv-text-strong)' }}>Current movement evidence</h4>
@@ -82,7 +83,7 @@ export function CogsPostingLedger({ range, revision }: { range: SBDateRange; rev
             <h4 style={{ fontSize: 13, margin: '20px 0 8px', color: 'var(--sv-text-strong)' }}>Current eligible COGS by location / accounting channel</h4>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Recalculated from current movement evidence, not an as-posted journal allocation.</p>
             <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(100px, 1fr)', gap: '8px 16px', maxWidth: 700, fontSize: 12 }}>
-              {selected.calculation.breakdown.map(bucket => <React.Fragment key={`${bucket.locationId}:${bucket.channel}`}><dt>Location {bucket.locationId || 'not recorded'} / {bucket.channel} ({bucket.movementCount.toLocaleString()} movements)</dt><dd style={{ margin: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{money(bucket.totalCOGS)}</dd></React.Fragment>)}
+              {selected.calculation.breakdown.map(bucket => <React.Fragment key={`${bucket.locationId}:${bucket.channel}`}><dt>{bucket.locationName} / {bucket.channel} ({bucket.movementCount.toLocaleString()} movements)</dt><dd style={{ margin: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{money(bucket.totalCOGS)}</dd></React.Fragment>)}
             </dl>
           </section>}
         </>}

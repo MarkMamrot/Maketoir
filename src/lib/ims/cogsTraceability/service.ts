@@ -30,8 +30,9 @@ export async function buildReport(businessId: string, request: ReportRequest) {
   result.sort((left, right) => {
     const first = left[request.sort];
     const second = right[request.sort];
-    const comparison = first == null ? second == null ? 0 : 1 : second == null ? -1
-      : typeof first === 'number' && typeof second === 'number' ? first - second : String(first).localeCompare(String(second));
+    if (first == null || first === '') return second == null || second === '' ? left.id.localeCompare(right.id) : 1;
+    if (second == null || second === '') return -1;
+    const comparison = typeof first === 'number' && typeof second === 'number' ? first - second : String(first).localeCompare(String(second));
     return (request.direction === 'asc' ? comparison : -comparison) || left.id.localeCompare(right.id);
   });
   const pageRows = result.slice((request.page - 1) * request.pageSize, request.page * request.pageSize);

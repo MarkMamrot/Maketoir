@@ -16,6 +16,7 @@ export const metrics: Field[] = ['qty', 'sales', 'discount', 'netSales', 'cogs',
 export type ReportRow = Record<Field, string | number | null> & {
   id: string; sourceHref: string | null;
   costedRecords?: number; missingCosts?: number; missingRevenue?: number;
+  knownSales?: number; knownDiscount?: number; knownNetSales?: number; knownGp?: number; coveredGpRecords?: number;
 };
 export type Basis = 'movement' | 'sale';
 export type Filter = { field: Field; operator: 'contains' | 'equals' | 'gte' | 'lte' | 'missing'; value: string };
@@ -71,6 +72,7 @@ export function summarise(rows: ReportRow[]) {
   const netSales = complete('netSales') ? sum('netSales') : null;
   const cogs = complete('cogs') ? sum('cogs') : null;
   const gp = netSales == null || cogs == null ? null : netSales - cogs;
+  const known = (field: 'sales' | 'discount' | 'netSales' | 'gp') => rows.reduce((total, row) => total + (numberOrNull(row[field]) ?? 0), 0);
   return {
     rows: rows.length, qty: sum('qty'), sales: complete('sales') ? sum('sales') : null,
     discount: complete('discount') ? sum('discount') : null, netSales, cogs, gp,
@@ -79,6 +81,7 @@ export function summarise(rows: ReportRow[]) {
     documentNetSales: new Set(rows.map(row => row.currency)).size <= 1 && complete('documentNetSales') ? sum('documentNetSales') : null,
     documentTax: new Set(rows.map(row => row.currency)).size <= 1 && complete('documentTax') ? sum('documentTax') : null,
     knownCogs: rows.reduce((total, row) => total + (numberOrNull(row.cogs) ?? numberOrNull(row.knownCogs) ?? 0), 0),
+    knownSales: known('sales'), knownDiscount: known('discount'), knownNetSales: known('netSales'), knownGp: known('gp'),
     costedRecords: rows.filter(row => row.cogs != null || (row.knownCogs != null && (row.costedRecords ?? 1) > 0)).length,
     missingCosts: rows.filter(row => row.cogs == null).length,
     missingRevenue: rows.filter(row => row.netSales == null).length,
