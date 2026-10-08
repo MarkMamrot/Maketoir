@@ -11,6 +11,7 @@ export interface PostingRun {
   id: number; from: string; toExclusive: string; journalDate: string; frequency: string; kind: string;
   target: number; amount: number; status: string; xeroId: string | null; xeroStatus: string | null;
   recordedAt: string; updatedAt: string; missingCosts: number; zeroCosts: number;
+  errorDetail: string | null; overrideReason: string | null;
   buckets: CogsJournalBucket[] | null;
   liveXeroStatus?: string | null; liveVerification?: 'verified' | 'unavailable' | 'not_applicable';
 }
@@ -49,6 +50,7 @@ export async function loadPostingReconciliations(businessId: string, request: Re
       DATE_FORMAT(period_start, '%Y-%m-%d') AS \`from\`, DATE_FORMAT(period_end, '%Y-%m-%d') AS toExclusive,
       DATE_FORMAT(journal_date, '%Y-%m-%d') AS journalDate, frequency, run_kind AS kind,
       target_amount AS target, posted_delta AS amount, status, xero_id AS xeroId, xero_state AS xeroStatus,
+      error_detail AS errorDetail, override_reason AS overrideReason,
       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS recordedAt,
       DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt,
       missing_cost_movement_count AS missingCosts, zero_cost_movement_count AS zeroCosts, ${breakdownExpression} AS breakdownJson

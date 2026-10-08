@@ -59,6 +59,7 @@ import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { ReportScrollTable } from './views/reports/ReportScrollTable';
+import { CogsPostingLedger } from './views/reports/CogsPostingLedger';
 import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
 import { StockAvailabilityManagementView } from './views/reports/StockAvailabilityManagementView';
@@ -21715,6 +21716,28 @@ function ShopifyPayoutsTab({ getBusinessId, readOnly = false, allowPosting = fal
 }
 
 function CogsReconciliationTab({ getBusinessId, isAdvisor = false }: { getBusinessId: () => string; isAdvisor?: boolean }) {
+  const [range, setRange] = useState<SBDateRange>({ kind: 'window', window: 365, label: '12 Months' });
+  const [revision, setRevision] = useState(0);
+  return (
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingBottom: 12, borderBottom: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+        <div style={{ flex: '1 1 320px' }}>
+          <h1 style={{ margin: 0, fontSize: 20, color: 'var(--sv-text-strong)' }}>COGS posting activity</h1>
+          <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Review each completed accounting period, inspect Xero journal status, retry confirmed failures, and post changed-period adjustments.</p>
+        </div>
+        <button title="Refresh COGS posting activity" aria-label="Refresh COGS posting activity" onClick={() => setRevision(value => value + 1)} style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', width: 34, height: 34, padding: 0, display: 'inline-grid', placeItems: 'center', cursor: 'pointer' }}><RefreshCw size={15} /></button>
+        <SBDatePicker value={range} onChange={setRange} />
+      </div>
+      <CogsPostingLedger
+        range={range}
+        revision={revision}
+        actions={{ databaseId: getBusinessId(), isAdvisor, onChanged: () => setRevision(value => value + 1) }}
+      />
+    </div>
+  );
+}
+
+function LegacyCogsReconciliationTab({ getBusinessId, isAdvisor = false }: { getBusinessId: () => string; isAdvisor?: boolean }) {
   const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
   const [savedCogsFrequency, setSavedCogsFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('monthly');
   const [cogsFilters, setCogsFilters] = useState<{

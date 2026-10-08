@@ -12,7 +12,7 @@ vi.mock('@/services/MySQLService', () => ({ execute: mockExecute, query: mockQue
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn().mockResolvedValue([{ id: 1, name: 'Warehouse' }, { id: 2, name: 'Newtown' }]) }));
 vi.mock('@/services/XeroSyncService', () => ({ syncCogsJournal: mockSync }));
 
-import { postCogsPeriod } from '../XeroCogsService';
+import { postCogsPeriod, retryCogsRun } from '../XeroCogsService';
 
 const period = {
   frequency: 'monthly' as const,
@@ -122,5 +122,69 @@ describe('postCogsPeriod', () => {
     const result = await postCogsPeriod({ businessId: 'biz-1', period });
     expect(result).toMatchObject({ outcome: 'unknown', runId: 41 });
     expect(mockExecute.mock.calls[1][1][0]).toBe('unknown');
+  });
+
+  it('keeps generic fetch failures unknown so the run cannot expose a retry action', async () => {
+    mockSync.mockRejectedValueOnce(new TypeError('fetch failed'));
+    const result = await postCogsPeriod({ businessId: 'biz-1', period });
+    expect(result).toMatchObject({ outcome: 'unknown', runId: 41 });
+    expect(mockExecute.mock.calls[1][1][0]).toBe('unknown');
+  });
+});
+
+describe('retryCogsRun', () => {
+  const failedRun = {
+    id: 41,
+    period_start: period.startDate,
+    period_end: period.endDateExclusive,
+    journal_date: period.journalDate,
+    frequency: period.frequency,
+    run_kind: 'original',
+    target_amount: 100,
+    posted_delta: 100,
+    status: 'failed',
+    xero_id: null,
+    xero_state: null,
+    breakdown_json: JSON.stringify([
+      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
+      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
+    ]),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockQuery.mockResolvedValue([failedRun]);
+    mockCalculate.mockResolvedValue(calculation);
+    mockSync.mockResolvedValue({ journalId: 'xero-retry-1', xeroState: 'POSTED' });
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+  });
+
+  it('retries an unchanged deterministic failure with its saved run identity and buckets', async () => {
+    const result = await retryCogsRun({ businessId: 'biz-1', runId: 41 });
+    expect(result).toEqual({ outcome: 'posted', runId: 41, xeroId: 'xero-retry-1', xeroState: 'POSTED' });
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('WHERE id = ? AND business_id = ?'), [41, 'biz-1']);
+    expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', runId: 41, amount: 100,
+      buckets: [
+        { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
+        { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
+      ],
+    }));
+  });
+
+  it('does not replay a failed payload after current COGS changes', async () => {
+    mockCalculate.mockResolvedValueOnce({ ...calculation, totalCOGS: 125 });
+    const result = await retryCogsRun({ businessId: 'biz-1', runId: 41 });
+    expect(result).toMatchObject({ outcome: 'changed', previousTarget: 100, currentTarget: 125 });
+    expect(mockSync).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('refuses unknown and successful runs', async () => {
+    mockQuery.mockResolvedValueOnce([{ ...failedRun, status: 'unknown' }]);
+    expect(await retryCogsRun({ businessId: 'biz-1', runId: 41 })).toMatchObject({ outcome: 'ineligible' });
+    mockQuery.mockResolvedValueOnce([{ ...failedRun, status: 'success', xero_id: 'xero-1', xero_state: 'POSTED' }]);
+    expect(await retryCogsRun({ businessId: 'biz-1', runId: 41 })).toMatchObject({ outcome: 'ineligible' });
+    expect(mockSync).not.toHaveBeenCalled();
   });
 });

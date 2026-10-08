@@ -2680,6 +2680,7 @@ export async function syncStoreCreditRedemptionReclass(input: {
 
 export async function syncCogsJournal(input: {
   businessId: string;
+  runId?: number;
   label: string;
   journalDate: string;
   amount: number;
@@ -2717,20 +2718,45 @@ export async function syncCogsJournal(input: {
     Status: 'POSTED',
     JournalLines: journalLines,
   };
+  const body = { ManualJournals: [journal] };
+  const sourceId = input.runId ?? `${input.journalDate}:${input.label}:${input.amount}`;
+  const operationKey = `cogs-journal:${sourceId}`;
+  const requestFingerprint = crypto.createHash('sha256')
+    .update(JSON.stringify({ operationKey, body }))
+    .digest('hex');
+  const claim = await claimXeroAccountingAction({
+    businessId: input.businessId,
+    operationKey,
+    actionType: 'cogs_journal',
+    sourceType: 'cogs_journal_run',
+    sourceId,
+    requestFingerprint,
+  });
+  if (!claim.claimed) {
+    if (claim.action.status === 'succeeded' && claim.action.xeroId) {
+      return { journalId: claim.action.xeroId, xeroState: 'POSTED' };
+    }
+    throw new Error(`COGS journal action is ${claim.action.status} and cannot be posted.`);
+  }
 
   try {
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${input.businessId}|${operationKey}|${requestFingerprint}`)
+      .digest('hex');
     const result = await xeroApiFetch(input.businessId, '/ManualJournals', {
       method: 'POST',
-      body: { ManualJournals: [journal] },
+      idempotencyKey,
+      body,
     });
     const posted = result.ManualJournals?.[0];
     const journalId = posted?.ManualJournalID;
     if (!journalId) throw new Error('Xero did not return a ManualJournalID');
     const xeroState = posted?.Status ?? 'POSTED';
+    await completeXeroAccountingAction(claim.action.id, journalId);
     await logSync(
       input.businessId,
       'cogs_journal',
-      null,
+      input.runId ?? null,
       journalId,
       'success',
       `${description}: $${Math.abs(input.amount).toFixed(2)}`,
@@ -2738,7 +2764,9 @@ export async function syncCogsJournal(input: {
     );
     return { journalId, xeroState };
   } catch (err: any) {
-    await logSync(input.businessId, 'cogs_journal', null, null, 'error', `${description}: ${err.message}`);
+    const actionStatus = isAmbiguousXeroWriteError(err) ? 'unknown' : 'failed';
+    await failXeroAccountingAction(claim.action.id, actionStatus, err?.message ?? String(err));
+    await logSync(input.businessId, 'cogs_journal', input.runId ?? null, null, 'error', `${description}: ${err.message}`);
     throw err;
   }
 }

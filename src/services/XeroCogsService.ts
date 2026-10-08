@@ -17,6 +17,21 @@ interface ExistingRunRow {
   xero_state: string | null;
 }
 
+interface RetryRunRow {
+  id: number;
+  period_start: string | Date;
+  period_end: string | Date;
+  journal_date: string | Date;
+  frequency: CogsPeriod['frequency'];
+  run_kind: 'original' | 'adjustment';
+  target_amount: number | string;
+  posted_delta: number | string;
+  status: string;
+  xero_id: string | null;
+  xero_state: string | null;
+  breakdown_json: string | CogsJournalBucket[] | null;
+}
+
 interface PostedBucketRow { posted_delta: number | string; breakdown_json: string | CogsJournalBucket[] | null }
 
 function parseBuckets(value: PostedBucketRow['breakdown_json']): CogsJournalBucket[] {
@@ -70,6 +85,12 @@ export type CogsPostResult =
   | { outcome: 'already_claimed'; runId: number; status: string; xeroId: string | null; postedDelta: number; calculation: CogsCalculation }
   | { outcome: 'failed' | 'unknown'; runId: number; error: string; calculation: CogsCalculation };
 
+export type CogsRetryResult =
+  | { outcome: 'posted'; runId: number; xeroId: string; xeroState: string }
+  | { outcome: 'changed'; runId: number; previousTarget: number; currentTarget: number; period: CogsPeriod }
+  | { outcome: 'ineligible'; runId: number; reason: string }
+  | { outcome: 'failed' | 'unknown'; runId: number; error: string };
+
 function errorDetails(error: unknown): { code?: string; errno?: number; name?: string; message: string } {
   if (error instanceof Error) {
     const extended = error as Error & { code?: string; errno?: number };
@@ -89,8 +110,82 @@ function isDuplicateEntry(error: unknown): boolean {
 
 function isAmbiguousXeroError(error: unknown): boolean {
   const details = errorDetails(error);
-  return ['ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'UND_ERR_CONNECT_TIMEOUT'].includes(details.code ?? '')
-    || details.name === 'AbortError';
+  return error instanceof TypeError
+    || ['ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(details.code ?? '')
+    || details.name === 'AbortError'
+    || /failed \(5\d\d\)|fetch failed|network|socket/i.test(details.message);
+}
+
+function dateString(value: string | Date): string {
+  return (value instanceof Date ? value.toISOString() : String(value)).slice(0, 10);
+}
+
+export async function retryCogsRun(input: { businessId: string; runId: number }): Promise<CogsRetryResult> {
+  const rows = await query<RetryRunRow>(
+    `SELECT id, period_start, period_end, journal_date, frequency, run_kind,
+            target_amount, posted_delta, status, xero_id, xero_state, breakdown_json
+       FROM xero_cogs_journal_runs
+      WHERE id = ? AND business_id = ?
+      LIMIT 1`,
+    [input.runId, input.businessId],
+  );
+  const run = rows[0];
+  if (!run) return { outcome: 'ineligible', runId: input.runId, reason: 'COGS run was not found.' };
+  if (run.status !== 'failed' || run.xero_id || run.xero_state) {
+    return { outcome: 'ineligible', runId: run.id, reason: 'Only a confirmed failed run without a Xero journal can be retried.' };
+  }
+  const buckets = parseBuckets(run.breakdown_json);
+  if (!buckets.length) {
+    return { outcome: 'ineligible', runId: run.id, reason: 'This run has no saved journal line snapshot and cannot be retried safely.' };
+  }
+
+  const periodStart = dateString(run.period_start);
+  const periodEnd = dateString(run.period_end);
+  const journalDate = dateString(run.journal_date);
+  const period: CogsPeriod = {
+    frequency: run.frequency,
+    startDate: periodStart,
+    endDateExclusive: periodEnd,
+    journalDate,
+    key: `${run.frequency}:${periodStart}:${periodEnd}`,
+    label: `${periodStart} to ${journalDate}`,
+  };
+  const calculation = await calculateCogsForPeriod({
+    businessId: input.businessId,
+    startDate: period.startDate,
+    endDateExclusive: period.endDateExclusive,
+  });
+  const previousTarget = roundCurrency(Number(run.target_amount));
+  if (calculation.totalCOGS !== previousTarget) {
+    return { outcome: 'changed', runId: run.id, previousTarget, currentTarget: calculation.totalCOGS, period };
+  }
+
+  try {
+    const posted = await syncCogsJournal({
+      businessId: input.businessId,
+      runId: run.id,
+      label: period.label,
+      journalDate: period.journalDate,
+      amount: roundCurrency(Number(run.posted_delta)),
+      buckets,
+      runKind: run.run_kind,
+    });
+    await execute(
+      `UPDATE xero_cogs_journal_runs
+          SET status = 'success', xero_id = ?, xero_state = ?, error_detail = NULL
+        WHERE id = ? AND business_id = ? AND status = 'failed'`,
+      [posted.journalId, posted.xeroState, run.id, input.businessId],
+    );
+    return { outcome: 'posted', runId: run.id, xeroId: posted.journalId, xeroState: posted.xeroState };
+  } catch (error: unknown) {
+    const outcome = isAmbiguousXeroError(error) ? 'unknown' : 'failed';
+    const message = errorDetails(error).message || 'Xero COGS journal retry failed';
+    await execute(
+      `UPDATE xero_cogs_journal_runs SET status = ?, error_detail = ? WHERE id = ? AND business_id = ?`,
+      [outcome, message, run.id, input.businessId],
+    );
+    return { outcome, runId: run.id, error: message };
+  }
 }
 
 export async function postCogsPeriod(input: {
@@ -190,6 +285,7 @@ export async function postCogsPeriod(input: {
   try {
     const posted = await syncCogsJournal({
       businessId: input.businessId,
+      runId,
       label: input.period.label,
       journalDate: input.period.journalDate,
       amount: postedDelta,

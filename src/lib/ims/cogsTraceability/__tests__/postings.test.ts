@@ -11,6 +11,7 @@ import { parseRequest } from '../request';
 const run: PostingRun = { id: 1, from: '2026-09-01', toExclusive: '2026-10-01', journalDate: '2026-09-30',
   frequency: 'monthly', kind: 'original', target: 100, amount: 100, status: 'success', xeroId: 'journal-1',
   xeroStatus: 'POSTED', recordedAt: '2026-10-02 04:00:00', updatedAt: '2026-10-02 04:00:00', missingCosts: 0, zeroCosts: 0,
+  errorDetail: null, overrideReason: null,
   buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }] };
 
 describe('COGS posting reconciliation', () => {

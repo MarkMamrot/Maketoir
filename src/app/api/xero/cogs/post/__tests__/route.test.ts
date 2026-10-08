@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone, mockAssertXeroPostingEnabled, mockSyncAccess } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone, mockAssertXeroPostingEnabled, mockSyncAccess, mockQuery } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
@@ -8,6 +8,7 @@ const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, m
   mockGetBusinessTimeZone: vi.fn(),
   mockAssertXeroPostingEnabled: vi.fn(),
   mockSyncAccess: vi.fn(),
+  mockQuery: vi.fn(),
 }));
 vi.mock('@/lib/xero/advisorSyncAccess', () => ({ getXeroSyncAccessDenied: mockSyncAccess }));
 
@@ -18,6 +19,7 @@ vi.mock('@/lib/sessionUtils', () => ({
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
+vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 vi.mock('@/lib/ims/businessOperations', () => ({
   assertXeroAccountingEnabled: vi.fn().mockResolvedValue(undefined),
   isXeroAccountingDisabledError: vi.fn().mockReturnValue(false),
@@ -47,6 +49,7 @@ describe('POST /api/xero/cogs/post', () => {
     mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
     mockAssertXeroPostingEnabled.mockResolvedValue(undefined);
     mockSyncAccess.mockResolvedValue(null);
+    mockQuery.mockResolvedValue([{ reliable_from: '2020-01-01' }]);
   });
 
   it('posts only a completed calendar period', async () => {
@@ -77,6 +80,27 @@ describe('POST /api/xero/cogs/post', () => {
     mockPostCogsPeriod.mockResolvedValueOnce({ outcome: 'blocked', reason: 'uncosted_movements' });
     const response = await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }));
     expect(response.status).toBe(422);
+  });
+
+  it('posts an explicitly selected completed historical period', async () => {
+    const response = await POST(makeRequest({
+      databaseId: 'biz-1',
+      frequency: 'monthly',
+      startDate: '2026-08-01',
+      endDateExclusive: '2026-09-01',
+    }));
+    expect(response.status).toBe(200);
+    expect(mockPostCogsPeriod).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      period: expect.objectContaining({ startDate: '2026-08-01', endDateExclusive: '2026-09-01', journalDate: '2026-08-31' }),
+    }));
+  });
+
+  it('rejects misaligned, incomplete, and pre-reliable historical periods', async () => {
+    expect((await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly', startDate: '2026-08-01', endDateExclusive: '2026-08-15' }))).status).toBe(400);
+    expect((await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly', startDate: '2026-10-01', endDateExclusive: '2026-11-01' }))).status).toBe(400);
+    mockQuery.mockResolvedValueOnce([{ reliable_from: '2026-09-01' }]);
+    expect((await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly', startDate: '2026-08-01', endDateExclusive: '2026-09-01' }))).status).toBe(400);
   });
 
   it('blocks disabled Advisors before calculating or posting', async () => {

@@ -96,7 +96,7 @@ The tab attempts a live Xero status check for every displayed run with a journal
 
 The date range is an accounting-period overlap filter, not a journal-date or run-created-date filter. All recorded runs belonging to each matching period are included. Periods with no recorded run are not listed; an empty list does not certify that COGS has been posted. If different posting schedules overlap, review the periods separately rather than adding their current COGS totals together.
 
-Investigate a difference before deciding on an accounting adjustment. This screen does not retry, create, post or void journals, change automation or fix cost evidence. Historical failed attempts remain visible even when a later run reconciles. Sales CSV export is available in the sales views, not Xero Postings.
+Investigate a difference before deciding on an accounting adjustment. This report does not retry, create, post or void journals, change automation or fix cost evidence. Historical failed attempts remain visible even when a later run reconciles. Use **Xero > Activity > COGS** for authorised retry and changed-period adjustment actions after reviewing this evidence. Sales CSV export is available in the sales views, not Xero Postings.
 
 ### What triggers COGS journals?
 
