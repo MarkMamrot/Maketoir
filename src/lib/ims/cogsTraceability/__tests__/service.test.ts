@@ -61,6 +61,13 @@ describe('traceability evidence and service', () => {
     expect(result.summary.documentNetSales).toBeNull();
     expect(result.rows[0].currency).toBe('Mixed (AUD totals)');
   });
+  it('preserves captured partial-fulfilment costs in sale-date groups and CSV rows', async () => {
+    movements[0] = { ...movements[0], qtyChange: -3 };
+    const result = await buildReport('tenant-1', parseRequest(new URLSearchParams('from=2026-10-01&to=2026-10-07&basis=sale&groups=channel')));
+    expect(result.summary).toMatchObject({ cogs: null, knownCogs: 65, costedRecords: 2, missingCosts: 1, gp: null });
+    expect(result.rows[0]).toMatchObject({ cogs: null, knownCogs: 65, costedRecords: 2, gp: null });
+    expect(result.exportRows[0].knownCogs).toBe(65);
+  });
   it('rejects excessive source ranges instead of truncating output', async () => {
     mocks.ims.mockResolvedValue(Array.from({ length: 50001 }, () => line));
     await expect(loadEvidence('tenant-1', parseRequest(new URLSearchParams()))).rejects.toThrow('no figures have been truncated');

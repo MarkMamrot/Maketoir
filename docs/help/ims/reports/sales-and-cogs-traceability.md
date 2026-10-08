@@ -1,5 +1,5 @@
 ---
-{"id":"ims-cogs-traceability","title":"Sales and COGS Traceability","audiences":["ims"],"capability":"navigation","screen":"Reports > Sales & COGS Traceability","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-cogs-traceability"],"contextSections":{"report-cogs-traceability":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing","ims-bookkeeper-audit"],"order":62,"summary":"Trace sales, returns and captured COGS by channel, product and stock location, inspect FIFO receipt evidence, and reconcile accounting-period differences.","lastReviewed":"2026-10-07","owner":"reporting","quickSections":["Main operations","At a glance","Before you begin"]}
+{"id":"ims-cogs-traceability","title":"Sales and COGS Traceability","audiences":["ims"],"capability":"navigation","screen":"Reports > Sales & COGS Traceability","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-cogs-traceability"],"contextSections":{"report-cogs-traceability":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing","ims-bookkeeper-audit"],"order":62,"summary":"Trace sales, returns and captured COGS by channel, product and stock location, inspect FIFO receipt evidence, and reconcile accounting-period differences.","lastReviewed":"2026-10-08","owner":"reporting","quickSections":["Main operations","At a glance","Before you begin"]}
 ---
 # Sales and COGS Traceability
 
@@ -7,10 +7,10 @@
 
 Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by Sales Channel, then use **Detail** to inspect individual sales and stock events. **Reconciliation** compares recorded stock costs with the accounting COGS period.
 
-- Choose the shared date preset or custom range and the date basis.
-- Add filters for the required channel, customer, product, brand, location, reference, status, date or financial amount.
-- In Summary, choose up to four grouping fields. Numeric filters apply to grouped totals in Summary and individual records in Detail.
-- Group values have separate columns from summed financial figures, including when grouping by an exact monetary amount.
+- Choose the date preset or custom range at the right, and select the date basis.
+- Filter by Sales Channel, Warehouse Location, Product/SKU, Brand, Customer Name, Order Ref or Sales Order Status. An empty filter does not narrow the results.
+- In Summary, group by channel, channel instance, location, brand, SKU, customer or receipt layer, using up to four levels.
+- Review captured COGS even when another record has missing costs. **Partial** means the displayed amount is the known subtotal, not complete COGS.
 - Use the column chooser in Detail to reveal additional requested fields.
 - Inspect transaction evidence for source references and recorded FIFO allocations.
 - Export CSV after checking the filters. CSV includes every matching record or group and all report fields, not only the current page or visible columns.
@@ -24,6 +24,7 @@ Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by 
 | Discount | Sales less Net Sales; signed consistently with returns |
 | Net Sales | Selling value after discounts, excluding GST |
 | COGS | Tax-exclusive AUD cost captured on matched stock movements |
+| Captured COGS / Partial | Known captured costs only when other costs or fulfilments are incomplete; never an estimate for missing records |
 | GP | Net Sales minus COGS; unavailable when either figure is incomplete |
 | GP % | Total GP divided by total Net Sales; blank when Net Sales is zero |
 | Tax/GST | GST shown separately from Net Sales |
@@ -32,6 +33,8 @@ Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by 
 | Invoice Status | Last verified accounting invoice status when available; not payment or sync status |
 
 All primary financial totals are AUD. Original document-currency Net Sales and GST are separate columns. Foreign sales use the recorded exchange rate, never today's rate. Original-currency totals are unavailable when a group mixes currencies.
+
+Missing costs do not hide the costs that are known. The screen shows the captured subtotal marked **Partial**; CSV keeps **COGS (AUD)** for complete costs and **Captured COGS (AUD)** for the known amount. GP and GP% remain unavailable when the full cost or revenue is incomplete. If no costs are known, the screen shows **Not recorded**, not an assumed zero.
 
 ## Before you begin
 
@@ -57,7 +60,7 @@ All primary financial totals are AUD. Original document-currency Net Sales and G
 
 **Stock movement date** is the default. Each stock event shows its recorded COGS and the attributable portion of the source line's revenue. Partial shipments therefore divide revenue across their fulfilled quantities; this is attributed fulfilment revenue, not necessarily invoiced revenue in that period. Completed non-stock and no-restock credit events appear as financial-only records without a stock COGS change.
 
-**Invoice / sale date** uses the recorded invoice date for imported history and completion/order date for live sales where invoice date is not recorded. It shows the source line's revenue and matched costs across stock dates. An incompletely fulfilled line has incomplete COGS rather than an assumed cost for outstanding units. Credit reversals appear on their recorded reversal date.
+**Invoice / sale date** uses the recorded invoice date for imported history and completion/order date for live sales where invoice date is not recorded. It shows the source line's revenue and matched costs across stock dates. An incompletely fulfilled line retains the captured cost of completed stock events as a partial subtotal, without assuming a cost for outstanding units. Credit reversals appear on their recorded reversal date.
 
 ### Trace the recorded cost
 
@@ -77,7 +80,7 @@ This report does not post accounting entries or change inventory.
 
 ## Data availability
 
-All requested columns are available for inspection and filtering, but **Not recorded** means there is no verified value to display. Live invoice dates, sales-rep assignments, dispatch dates and confirmed delivery dates are not inferred. POS cashier is separate from sales rep; POS references are not individual accounting invoices. Shipment date identifies the recorded stock fulfilment timestamp, not a delivery confirmation. Brand is current catalogue metadata.
+All requested columns are available for inspection and export; everyday filters are limited to the seven business dimensions listed above. **Not recorded** means there is no verified value to display. Live invoice dates, sales-rep assignments, dispatch dates and confirmed delivery dates are not inferred. POS cashier is separate from sales rep; POS references are not individual accounting invoices. Shipment date identifies the recorded stock fulfilment timestamp, not a delivery confirmation. Brand is current catalogue metadata.
 
 Imported history lacks captured tax, currency and cost evidence needed for verified financial margin. It remains visible in Invoice / sale date results with its recorded quantity and invoice date, but incomplete financial figures.
 
@@ -90,6 +93,7 @@ Legacy duplicate POS SKU lines can be combined into one document/SKU record. Amb
 | Symptom | Explanation | Action |
 |---|---|---|
 | GP or COGS is Not recorded | Missing cost, incomplete fulfilment or missing financial/FX evidence | Inspect the source and evidence status |
+| COGS shows Partial | Other contributing records lack complete captured costs | Use Detail to inspect those records; do not treat the subtotal as full COGS |
 | Stock-date and sale-date totals differ | Shipments and sales happened in different periods | Compare both dates and Reconciliation |
 | Refund reduces sales but not COGS | Credit did not restock inventory | Confirm the credit's restock choice |
 | Layer totals differ slightly from movement cost | Captured composite cost and allocation precision differ | Review the rounding difference |
@@ -104,7 +108,7 @@ A tax-inclusive $110 sale receives an $11 discount. Sales excluding GST are $100
 
 ### Partial fulfilment across months
 
-An order for ten units has $900 net merchandise value. Three units ship in September and seven in October. Stock-movement results attribute $270 to September and $630 to October, together with each shipment's captured costs. Sale-date results show $900 on the source sale date, with incomplete COGS until all ten units have matched cost evidence.
+An order for ten units has $900 net merchandise value. Three units ship in September and seven in October. Stock-movement results attribute $270 to September and $630 to October, together with each shipment's captured costs. Sale-date results show $900 on the source sale date. If the first three units have captured costs of $150, the report shows $150 **Partial** until all ten units have matched cost evidence; it does not hide that $150 or invent the remaining cost.
 
 ### Refund without restocking
 

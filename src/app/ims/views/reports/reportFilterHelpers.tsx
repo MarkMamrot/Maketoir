@@ -374,11 +374,12 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
   const dropdownAlign = (() => {
     if (typeof window === 'undefined' || !ref.current) return { right: 0 };
     const rect = ref.current.getBoundingClientRect();
-    const width = tab === 'presets' ? 430 : 248;
-    const nearRight = window.innerWidth - rect.right < width;
-    const nearLeft = rect.left < width;
-    if (nearLeft && !nearRight) return { left: 0 };
-    return { right: 0 };
+    const content = ref.current.closest('main')?.getBoundingClientRect();
+    const leftEdge = Math.max(12, content?.left ?? 12);
+    const rightEdge = Math.min(window.innerWidth - 12, content?.right ?? window.innerWidth - 12);
+    const width = Math.min(tab === 'presets' ? 430 : 248, rightEdge - leftEdge);
+    const left = Math.max(leftEdge, Math.min(rect.right - width, rightEdge - width));
+    return { width, left: left - rect.left };
   })();
 
   return (

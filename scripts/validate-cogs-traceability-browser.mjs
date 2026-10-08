@@ -38,10 +38,22 @@ try {
       if (first == null ? second != null : second == null || Math.abs(first - second) > .000001) throw new Error(`Detail/grouped ${field} totals differ.`);
     }
   }
-  const saleResponse = await page.request.get(`${baseUrl}/api/ims/reports/cogs-traceability?window=30&basis=sale`);
-  if (!saleResponse.ok() || !(await saleResponse.json()).success) throw new Error('Invoice/sale-date query failed.');
+  const saleResponse = await page.request.get(`${baseUrl}/api/ims/reports/cogs-traceability?window=30&basis=sale&pageSize=200`);
+  const saleReport = await saleResponse.json();
+  if (!saleResponse.ok() || !saleReport.success) throw new Error('Invoice/sale-date query failed.');
+  console.log(JSON.stringify({ saleRecords: saleReport.total, saleIncompleteCosts: saleReport.summary.missingCosts,
+    saleCostedRecords: saleReport.summary.costedRecords, saleHasCapturedCosts: saleReport.summary.knownCogs !== 0,
+    saleIncompleteSample: saleReport.rows.filter(row => row.cogs == null).map(row => ({ source: row.source, evidence: row.quality })).slice(0, 5) }));
   await page.goto(`${baseUrl}/ims#report-cogs-traceability`);
   await page.getByRole('heading', { name: 'Sales & COGS Traceability', exact: true }).waitFor();
+  const dateFilter = page.getByTestId('cogs-date-filter');
+  const dateBounds = await dateFilter.boundingBox();
+  if (dateBounds.x + dateBounds.width < 1200) throw new Error('Desktop date filter is not right-aligned.');
+  await dateFilter.getByRole('button', { name: '30 Days', exact: true }).click();
+  const dateDropdown = page.getByRole('button', { name: 'Presets', exact: true }).locator('..').locator('..');
+  const dropdownBounds = await dateDropdown.boundingBox();
+  if (!dropdownBounds || dropdownBounds.x < 0 || dropdownBounds.x + dropdownBounds.width > 1440) throw new Error('Desktop date dropdown is clipped.');
+  await dateFilter.getByRole('button', { name: '30 Days', exact: true }).click();
   await page.getByRole('tab', { name: 'Detail', exact: true }).click();
   const table = page.locator('.cogs-traceability-table-scroll');
   await table.waitFor({ timeout: 60000 });
@@ -95,12 +107,15 @@ try {
   await page.screenshot({ path: 'test-results/cogs-traceability/desktop.png' });
   await page.getByRole('tab', { name: 'Summary', exact: true }).click();
   await page.locator('.cogs-traceability-table-scroll').waitFor();
-  await page.getByLabel('Grouping 1', { exact: true }).selectOption('cogs');
-  await page.getByRole('button', { name: /COGS.*\(Group\)/ }).waitFor();
+  if (await page.getByLabel('Grouping 1', { exact: true }).locator('option').count() !== 7) throw new Error('Grouping choices are not limited to practical dimensions.');
+  await page.getByLabel('Grouping 1', { exact: true }).selectOption('warehouse');
+  await page.getByRole('button', { name: 'Warehouse Location', exact: true }).waitFor();
   await table.waitFor();
   await page.getByLabel('Grouping 1', { exact: true }).selectOption('channel');
   await table.waitFor();
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  const filterChoices = await page.getByLabel('Filter field 1', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value));
+  if (filterChoices.length !== 7 || filterChoices.includes('tax') || filterChoices.includes('invoiceStatus')) throw new Error('Filter choices are still excessive.');
   const filterInput = page.getByLabel('Filter value 1', { exact: true });
   await filterInput.fill('POS');
   await filterInput.press('Home');
@@ -108,6 +123,11 @@ try {
   if (await filterInput.evaluate(element => element.selectionStart) !== 1) throw new Error('Filter input lost native arrow-key editing.');
   await page.getByRole('button', { name: 'Remove filter', exact: true }).click();
   await table.waitFor();
+  if (report.summary.cogs == null && report.summary.costedRecords > 0) {
+    const capturedTotal = await page.getByTestId('cogs-total-cogs').innerText();
+    if (!capturedTotal.includes('Partial') || capturedTotal.includes('Not recorded')) throw new Error('Known captured COGS is still suppressed.');
+  }
+  await page.screenshot({ path: 'test-results/cogs-traceability/summary.png' });
   await page.getByRole('tab', { name: 'Reconciliation', exact: true }).click();
   await page.getByRole('heading', { name: 'Movement-period reconciliation' }).waitFor();
   const exportResponse = await page.request.get(`${baseUrl}/api/ims/reports/cogs-traceability/export?window=30`);
@@ -123,6 +143,11 @@ try {
   const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   if (!pageFits) throw new Error('Mobile layout overflows outside the table scroll region.');
   await page.screenshot({ path: 'test-results/cogs-traceability/mobile.png' });
+  await dateFilter.getByRole('button', { name: '30 Days', exact: true }).click();
+  const mobileDropdownBounds = await dateDropdown.boundingBox();
+  if (!mobileDropdownBounds || mobileDropdownBounds.x < 0 || mobileDropdownBounds.x + mobileDropdownBounds.width > 390) throw new Error('Mobile date dropdown is clipped.');
+  await page.screenshot({ path: 'test-results/cogs-traceability/mobile-date.png' });
+  await dateFilter.getByRole('button', { name: '30 Days', exact: true }).click();
   if (await page.getByRole('tab', { name: 'Detail', exact: true }).getAttribute('aria-selected') !== 'true') throw new Error('Mobile report did not retain the selected Detail tab.');
   console.log('Authenticated report, both date bases, grouped totals, filters, evidence, CSV, desktop/mobile layout and four-arrow scrolling passed. No stock or accounting writes were requested.');
 } finally {

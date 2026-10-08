@@ -27,7 +27,9 @@ describe('traceability projections', () => {
   it('attributes partial shipments without repeating revenue', () => {
     const rows = report([line], [{ ...movement, qtyChange: -3 }, { ...movement, id: 101, qtyChange: -7 }]);
     expect(summarise(rows)).toMatchObject({ qty: 10, netSales: 90, cogs: 50 });
-    expect(report([line], [{ ...movement, qtyChange: -3 }], 'sale')[0]).toMatchObject({ netSales: 90, cogs: null, gp: null });
+    const partial = report([line], [{ ...movement, qtyChange: -3 }], 'sale');
+    expect(partial[0]).toMatchObject({ netSales: 90, cogs: null, knownCogs: 15, gp: null });
+    expect(summarise(partial)).toMatchObject({ cogs: null, knownCogs: 15, costedRecords: 1, missingCosts: 1, gp: null });
   });
   it('does not create sale revenue for unmatched movements or unknown costs', () => {
     expect(report([], [movement])[0]).toMatchObject({ cogs: 50, netSales: null, gp: null });
@@ -98,5 +100,14 @@ describe('traceability projections', () => {
     const rows = report([{ ...line, source: 'credit' }], [{ ...movement, referenceType: 'credit_note', type: 'cn_returned', qtyChange: 10 }]);
     const allocations = [{ id: 1, movementId: 100, layerId: 1, parentLayerId: null, sourceType: 'po_receipt', poRef: 'PO1', receiptDate: '2026-09-01', qty: 10, unitCost: 5, value: 50, type: 'restore' }];
     expect(allocateRows(rows, allocations)[0]).toMatchObject({ qty: -10, netSales: -90, cogs: -50, gp: -40 });
+  });
+  it('keeps partial captured costs unattributed rather than losing them during batch grouping', () => {
+    const rows = report([line], [{ ...movement, qtyChange: -3 }, { ...movement, id: 101, qtyChange: -7, unitCost: null }], 'sale');
+    const allocations = [
+      { id: 1, movementId: 100, layerId: 1, parentLayerId: null, sourceType: 'po_receipt', poRef: 'PO1', receiptDate: '2026-09-01', qty: 3, unitCost: 5, value: 15, type: 'consume' },
+      { id: 2, movementId: 101, layerId: 2, parentLayerId: null, sourceType: 'po_receipt', poRef: 'PO2', receiptDate: '2026-09-01', qty: 7, unitCost: 5, value: 35, type: 'consume' },
+    ];
+    expect(allocateRows(rows, allocations)[0]).toMatchObject({ batch: null, knownCogs: 15, cogs: null });
+    expect(summarise(allocateRows(rows, allocations)).knownCogs).toBe(15);
   });
 });

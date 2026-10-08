@@ -7,13 +7,16 @@ export const fields = {
   currency: 'Currency', orderStatus: 'Sales Order Status', invoiceStatus: 'Invoice Status', creditRef: 'Return/Credit Note Reference',
   costMethod: 'Cost Method', movementId: 'Movement ID', source: 'Source', quality: 'Evidence Status',
   qty: 'Qty Sold', sales: 'Sales (AUD ex GST)', discount: 'Discount (AUD ex GST)', netSales: 'Net Sales (AUD ex GST)',
-  cogs: 'COGS (AUD)', gp: 'GP (AUD)', gpPercent: 'GP %', tax: 'Tax/GST (AUD)',
+  cogs: 'COGS (AUD)', knownCogs: 'Captured COGS (AUD)', gp: 'GP (AUD)', gpPercent: 'GP %', tax: 'Tax/GST (AUD)',
   documentNetSales: 'Net Sales (document currency)', documentTax: 'GST (document currency)',
 } as const;
 
 export type Field = keyof typeof fields;
-export const metrics: Field[] = ['qty', 'sales', 'discount', 'netSales', 'cogs', 'gp', 'gpPercent', 'tax', 'documentNetSales', 'documentTax'];
-export type ReportRow = Record<Field, string | number | null> & { id: string; sourceHref: string | null };
+export const metrics: Field[] = ['qty', 'sales', 'discount', 'netSales', 'cogs', 'knownCogs', 'gp', 'gpPercent', 'tax', 'documentNetSales', 'documentTax'];
+export type ReportRow = Record<Field, string | number | null> & {
+  id: string; sourceHref: string | null;
+  costedRecords?: number; missingCosts?: number; missingRevenue?: number;
+};
 export type Basis = 'movement' | 'sale';
 export type Filter = { field: Field; operator: 'contains' | 'equals' | 'gte' | 'lte' | 'missing'; value: string };
 
@@ -38,7 +41,7 @@ export function financials(input: {
   const tax = convert(input.tax);
   const discount = sales == null || netSales == null ? null : sales - netSales;
   const gp = netSales == null || input.cogs == null ? null : netSales - input.cogs;
-  return { sales, netSales, tax, discount, cogs: input.cogs, gp, gpPercent: gp == null || netSales === 0 || netSales == null ? null : gp / netSales * 100 };
+  return { sales, netSales, tax, discount, cogs: input.cogs, knownCogs: input.cogs, gp, gpPercent: gp == null || netSales === 0 || netSales == null ? null : gp / netSales * 100 };
 }
 
 export function emptyRow(id: string): ReportRow {
@@ -75,7 +78,9 @@ export function summarise(rows: ReportRow[]) {
     tax: complete('tax') ? sum('tax') : null,
     documentNetSales: new Set(rows.map(row => row.currency)).size <= 1 && complete('documentNetSales') ? sum('documentNetSales') : null,
     documentTax: new Set(rows.map(row => row.currency)).size <= 1 && complete('documentTax') ? sum('documentTax') : null,
-    knownCogs: sum('cogs'), missingCosts: rows.filter(row => row.cogs == null).length,
+    knownCogs: rows.reduce((total, row) => total + (numberOrNull(row.cogs) ?? numberOrNull(row.knownCogs) ?? 0), 0),
+    costedRecords: rows.filter(row => row.cogs != null || (row.knownCogs != null && (row.costedRecords ?? 1) > 0)).length,
+    missingCosts: rows.filter(row => row.cogs == null).length,
     missingRevenue: rows.filter(row => row.netSales == null).length,
   };
 }

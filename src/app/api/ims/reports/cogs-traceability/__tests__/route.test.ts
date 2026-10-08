@@ -65,4 +65,12 @@ describe('traceability HTTP contracts', () => {
     expect(body).toContain('"COGS (AUD) (Group)","COGS (AUD)"');
     expect(body).toContain('"50","100","180","80"');
   });
+  it('exports captured partial costs separately without inventing full COGS or GP', async () => {
+    const partial = Object.assign(emptyRow('1'), { cogs: null, knownCogs: 15, gp: null });
+    mocks.report.mockResolvedValue({ exportRows: [partial] });
+    const response = await exportReport(new Request('http://localhost/api/report?from=2026-10-01&to=2026-10-07&columns=cogs,knownCogs,gp'));
+    const body = await response.text();
+    expect(body).toContain('"COGS (AUD)","Captured COGS (AUD)","GP (AUD)"');
+    expect(body).toContain('"","15",""');
+  });
 });

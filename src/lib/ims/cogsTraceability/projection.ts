@@ -138,6 +138,11 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
           && (line.source !== 'credit' ? completeQuantity : Math.abs(eventQuantity - line.qty) < .0001)
           ? eventMovements.reduce((sum, movement) => sum + (cost(movement) ?? 0), 0) : null;
         applyMoney(row, reversal ? -1 : 1, line.source === 'credit' ? eventCost : realisedCogs);
+        if (row.cogs == null) {
+          const costed = eventMovements.filter(movement => cost(movement) != null);
+          row.knownCogs = costed.length ? costed.reduce((sum, movement) => sum + (cost(movement) ?? 0), 0) : null;
+          row.costedRecords = costed.length ? 1 : 0;
+        }
         row.saleDate = eventDate;
         row.movementId = eventMovements.map(movement => movement.id).join(', ') || null;
         row.costMethod = [...new Set(eventMovements.map(movement => movement.costMethod))].join(', ') || null;
@@ -191,7 +196,7 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
       costMethod: movement.costMethod, currency: 'AUD', channel: movement.referenceType === 'pos_sale' ? 'POS' : 'Unresolved',
       quality: 'Unmatched stock movement: financial attribution unavailable' }));
   }
-  return rows;
+  return rows.map(row => ({ ...row, knownCogs: row.cogs ?? row.knownCogs }));
 }
 
 export function allocateRows(rows: ReportRow[], allocations: Allocation[]): ReportRow[] {
@@ -208,7 +213,7 @@ export function allocateRows(rows: ReportRow[], allocations: Allocation[]): Repo
     const quantity = members.reduce((sum, member) => sum + direction(member) * Math.abs(member.qty), 0);
     const value = members.reduce((sum, member) => sum + direction(member) * Math.abs(member.value), 0);
     if (!members.length) return [{ ...row, batch: null }];
-    if (quantity === 0 || row.qty == null || Math.abs(quantity - Number(row.qty)) > .0001 || (value === 0 && row.cogs !== 0 && row.cogs != null)) {
+    if (row.cogs == null || quantity === 0 || row.qty == null || Math.abs(quantity - Number(row.qty)) > .0001 || (value === 0 && row.cogs !== 0)) {
       return [{ ...row, batch: null, quality: `${row.quality}; incomplete FIFO allocation coverage` }];
     }
     return members.map(member => {
@@ -218,6 +223,7 @@ export function allocateRows(rows: ReportRow[], allocations: Allocation[]): Repo
         allocated[field] = row[field] == null ? null : Number(row[field]) * fraction;
       }
       allocated.cogs = row.cogs == null ? null : value === 0 ? 0 : Number(row.cogs) * direction(member) * Math.abs(member.value) / value;
+      allocated.knownCogs = allocated.cogs;
       allocated.gp = allocated.netSales == null || allocated.cogs == null ? null : Number(allocated.netSales) - allocated.cogs;
       allocated.gpPercent = allocated.gp == null || allocated.netSales == null || allocated.netSales === 0 ? null : allocated.gp / Number(allocated.netSales) * 100;
       allocated.quality = `${row.quality}; revenue by allocated quantity; cost by recorded layer value reconciled to movement cost`;

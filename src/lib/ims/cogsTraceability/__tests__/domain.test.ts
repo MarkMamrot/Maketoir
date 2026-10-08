@@ -27,6 +27,7 @@ describe('COGS traceability financial evidence', () => {
     expect(groupRows(rows, ['channel'])[0].gpPercent).toBeCloseTo(14);
     rows[1].cogs = null;
     expect(summarise(rows)).toMatchObject({ cogs: null, gp: null, knownCogs: 50, missingCosts: 1 });
+    expect(groupRows(rows, ['channel'])[0]).toMatchObject({ cogs: null, gp: null, knownCogs: 50, costedRecords: 1, missingCosts: 1 });
   });
   it('supports typed filters and guards spreadsheet formulas', () => {
     const row = Object.assign(emptyRow('1'), { channel: 'Shopify', cogs: 42 });
