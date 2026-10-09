@@ -24,6 +24,7 @@ vi.mock('@/lib/db/PosRepository', () => ({
   PosReportsRepo: { dailyTransactions: mocks.dailyTransactions, graphData: mocks.graphData },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportIssue }));
+vi.mock('@/lib/ims/bookkeeperAudit/cogsPostingAdapter', () => ({ loadCogsPostingAuditFindings: vi.fn().mockResolvedValue([]) }));
 vi.mock('next/headers', () => ({
   cookies: () => ({
     get: () => ({ value: JSON.stringify({ businessId: 'business-1', location_id: 1 }) }),
