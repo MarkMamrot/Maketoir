@@ -5,6 +5,7 @@ import { CogsFrequency, getCogsPeriodStartingAt, getLastCompletedCogsPeriod } fr
 import { execute, query } from '@/services/MySQLService';
 import { postCogsPeriod, type CogsPostResult } from '@/services/XeroCogsService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { createNotification } from '@/lib/ims/createNotification';
 
 export const runtime = 'nodejs';
 
@@ -43,7 +44,6 @@ export async function POST(req: Request) {
         JOIN businesses b ON BINARY b.business_id = BINARY s.business_id
         WHERE s.enabled = 1
           AND s.reliable_from IS NOT NULL
-          AND s.held_reason IS NULL
           AND b.deleted_at IS NULL
           AND COALESCE(b.automation_paused, 0) = 0`,
       [],
@@ -98,7 +98,10 @@ export async function POST(req: Request) {
             const runId = 'runId' in result ? result.runId : null;
             await execute(
               `UPDATE xero_cogs_settings
-                  SET held_reason = ?, held_period_start = ?, held_run_id = ?, held_at = NOW()
+                  SET held_reason = COALESCE(held_reason, ?),
+                      held_period_start = COALESCE(held_period_start, ?),
+                      held_run_id = COALESCE(held_run_id, ?),
+                      held_at = COALESCE(held_at, NOW())
                 WHERE business_id = ?`,
               [reason, period.startDate, runId, setting.business_id],
             );
@@ -121,7 +124,26 @@ export async function POST(req: Request) {
               },
               reference: { type: 'cogs_period', id: period.key },
             });
-            break;
+            try {
+              await createNotification(
+                setting.business_id,
+                'xero_cogs',
+                'COGS period requires accounting review',
+                `${period.label} was not posted to Xero. Later completed periods will continue; review and repair this period from Xero > Activity > COGS.`,
+                { periodStart: period.startDate, periodEndExclusive: period.endDateExclusive, reason, runId },
+                reason === 'blocked' ? 'warning' : 'error',
+              );
+            } catch (notificationError: unknown) {
+              await reportRuntimeIssue({
+                businessId: setting.business_id,
+                source: 'xero',
+                operation: 'cogs_notification_persist',
+                title: 'COGS accounting notification could not be saved',
+                error: notificationError,
+                context: { periodStart: period.startDate, periodEndExclusive: period.endDateExclusive, reason, runId },
+                reference: { type: 'cogs_period', id: period.key },
+              });
+            }
           }
 
           cursor = period.endDateExclusive;

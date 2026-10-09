@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockQuery, mockExecute, mockRunImsForBusiness, mockPostCogsPeriod, mockGetBusinessTimeZone, mockReportRuntimeIssue } = vi.hoisted(() => ({
+const { mockQuery, mockExecute, mockRunImsForBusiness, mockPostCogsPeriod, mockGetBusinessTimeZone, mockReportRuntimeIssue, mockCreateNotification } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockExecute: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
+  mockCreateNotification: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: mockExecute }));
@@ -14,6 +15,7 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBu
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
+vi.mock('@/lib/ims/createNotification', () => ({ createNotification: mockCreateNotification }));
 
 import { POST } from '../route';
 
@@ -33,6 +35,7 @@ describe('POST /api/xero/cogs/cron', () => {
     mockPostCogsPeriod.mockResolvedValue({ outcome: 'posted' });
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockReportRuntimeIssue.mockResolvedValue(1);
+    mockCreateNotification.mockResolvedValue(undefined);
   });
 
   it('rejects requests without the shared cron secret', async () => {
@@ -86,7 +89,7 @@ describe('POST /api/xero/cogs/cron', () => {
     expect(starts[1]).toBe(mockPostCogsPeriod.mock.calls[0][0].period.endDateExclusive);
   });
 
-  it('holds and reports a blocked period instead of advancing the cursor', async () => {
+  it('reports a blocked period, notifies the tenant, and continues with later periods', async () => {
     mockQuery.mockResolvedValueOnce([
       { business_id: 'biz-1', frequency: 'monthly', reliable_from: '2020-01-01', next_period_start: '2026-07-01' },
     ]);
@@ -103,9 +106,16 @@ describe('POST /api/xero/cogs/cron', () => {
 
     const response = await POST(cronRequest('test-secret'));
     expect(response.status).toBe(200);
-    expect(mockExecute).toHaveBeenCalledOnce();
+    expect(mockPostCogsPeriod.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockPostCogsPeriod.mock.calls[1][0].period.startDate).toBe('2026-08-01');
     expect(mockExecute.mock.calls[0][0]).toContain('held_reason');
     expect(mockExecute.mock.calls[0][1]).toEqual(['blocked', '2026-07-01', null, 'biz-1']);
+    expect(mockExecute.mock.calls.some(call => call[0].includes('next_period_start') && call[1][0] === '2026-08-01')).toBe(true);
+    expect(mockCreateNotification).toHaveBeenCalledWith(
+      'biz-1', 'xero_cogs', 'COGS period requires accounting review',
+      expect.stringContaining('Later completed periods will continue'),
+      expect.objectContaining({ periodStart: '2026-07-01', reason: 'blocked' }), 'warning',
+    );
     expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1',
       operation: 'cogs_cron_period_held',
@@ -114,12 +124,12 @@ describe('POST /api/xero/cogs/cron', () => {
     }));
   });
 
-  it('does not select schedules that are already held', async () => {
+  it('continues selecting schedules that have an unresolved earlier period', async () => {
     mockQuery.mockResolvedValueOnce([]);
 
     await POST(cronRequest('test-secret'));
 
-    expect(mockQuery.mock.calls[0][0]).toContain('s.held_reason IS NULL');
+    expect(mockQuery.mock.calls[0][0]).not.toContain('s.held_reason IS NULL');
     expect(mockPostCogsPeriod).not.toHaveBeenCalled();
   });
 });

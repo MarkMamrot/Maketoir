@@ -2681,12 +2681,34 @@ export async function syncStoreCreditRedemptionReclass(input: {
 export async function syncCogsJournal(input: {
   businessId: string;
   runId?: number;
+  existingJournalId?: string;
   label: string;
   journalDate: string;
   amount: number;
   buckets: Array<{ locationId: number | null; locationName: string; channel: string; amount: number }>;
   runKind?: 'original' | 'adjustment';
 }): Promise<{ journalId: string; xeroState: string }> {
+  if (input.existingJournalId) {
+    const [journalResponse, organisationResponse] = await Promise.all([
+      xeroApiFetch(input.businessId, `/ManualJournals/${encodeURIComponent(input.existingJournalId)}`, { method: 'GET' }),
+      xeroApiFetch(input.businessId, '/Organisation', { method: 'GET' }),
+    ]);
+    const existingJournal = journalResponse?.ManualJournals?.[0];
+    const organisation = organisationResponse?.Organisations?.[0];
+    if (!existingJournal) throw new Error('The linked Xero COGS journal was not found.');
+    if (!organisation) throw new Error('The Xero organisation lock dates could not be verified.');
+    const existingStatus = String(existingJournal.Status ?? '').toUpperCase();
+    if (!['DRAFT', 'POSTED'].includes(existingStatus)) {
+      throw new Error(`The linked Xero COGS journal is ${existingStatus || 'in an unknown state'} and cannot be updated.`);
+    }
+    const journalDate = xeroDate(existingJournal.DateString ?? existingJournal.Date) ?? input.journalDate;
+    const lockDates = [xeroDate(organisation.PeriodLockDate), xeroDate(organisation.EndOfYearLockDate)]
+      .filter((value): value is string => Boolean(value));
+    const effectiveLockDate = lockDates.sort().at(-1) ?? null;
+    if (effectiveLockDate && journalDate <= effectiveLockDate) {
+      throw new Error(`This COGS period is locked in Xero through ${effectiveLockDate}.`);
+    }
+  }
   const accounts = await getAccountMappings(input.businessId);
   const trackingMappings = await getTrackingMappings(input.businessId);
 
@@ -2713,6 +2735,7 @@ export async function syncCogsJournal(input: {
   if (journalTotal !== roundCurrency(input.amount)) throw new Error('COGS journal buckets do not reconcile to the requested amount');
 
   const journal = {
+    ...(input.existingJournalId ? { ManualJournalID: input.existingJournalId } : {}),
     Narration: description,
     Date: input.journalDate,
     Status: 'POSTED',
@@ -2720,10 +2743,12 @@ export async function syncCogsJournal(input: {
   };
   const body = { ManualJournals: [journal] };
   const sourceId = input.runId ?? `${input.journalDate}:${input.label}:${input.amount}`;
-  const operationKey = `cogs-journal:${sourceId}`;
   const requestFingerprint = crypto.createHash('sha256')
-    .update(JSON.stringify({ operationKey, body }))
+    .update(JSON.stringify({ existingJournalId: input.existingJournalId ?? null, body }))
     .digest('hex');
+  const operationKey = input.existingJournalId
+    ? `cogs-journal-update:${sourceId}:${requestFingerprint}`
+    : `cogs-journal:${sourceId}`;
   const claim = await claimXeroAccountingAction({
     businessId: input.businessId,
     operationKey,
@@ -2743,13 +2768,16 @@ export async function syncCogsJournal(input: {
     const idempotencyKey = crypto.createHash('sha256')
       .update(`${input.businessId}|${operationKey}|${requestFingerprint}`)
       .digest('hex');
-    const result = await xeroApiFetch(input.businessId, '/ManualJournals', {
+    const endpoint = input.existingJournalId
+      ? `/ManualJournals/${encodeURIComponent(input.existingJournalId)}`
+      : '/ManualJournals';
+    const result = await xeroApiFetch(input.businessId, endpoint, {
       method: 'POST',
       idempotencyKey,
       body,
     });
     const posted = result.ManualJournals?.[0];
-    const journalId = posted?.ManualJournalID;
+    const journalId = posted?.ManualJournalID ?? input.existingJournalId;
     if (!journalId) throw new Error('Xero did not return a ManualJournalID');
     const xeroState = posted?.Status ?? 'POSTED';
     await completeXeroAccountingAction(claim.action.id, journalId);

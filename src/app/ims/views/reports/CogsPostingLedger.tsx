@@ -42,7 +42,6 @@ export function CogsPostingLedger({
   const pending = loading || loadedQuery !== query;
   const canPostPeriod = (period: Period) => period.draftCount === 0
     && period.uncertainCount === 0
-    && !period.blockedByPriorHold
     && !period.runs.some(run => run.status === 'failed' && run.target === period.calculation.totalCOGS)
     && (period.postedCount === 0 || period.liveVerificationComplete)
     && (period.liveVariance ?? period.variance) !== 0;
@@ -101,6 +100,28 @@ export function CogsPostingLedger({
     } finally { setActionBusy(''); }
   };
 
+  const repostRun = async (runId: number) => {
+    if (!actions || !confirm('Replace this unlocked Xero journal with the current COGS lines and submit it as posted?')) return;
+    setActionBusy(`repost:${runId}`);
+    setActionMessage(null);
+    try {
+      const response = await fetch(`/api/xero/cogs/runs/${runId}/repost`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ databaseId: actions.databaseId }),
+      });
+      const body = await response.json();
+      if (!response.ok && response.status !== 202) throw new Error(body.error || body.reason || 'COGS journal update failed.');
+      setActionMessage({ ok: body.outcome === 'posted', text: body.outcome === 'posted'
+        ? 'The existing Xero journal was updated and posted successfully.'
+        : 'Xero did not confirm the update. Verify the journal before taking another action.' });
+      actions.onChanged();
+    } catch (repostError) {
+      setActionMessage({ ok: false, text: repostError instanceof Error ? repostError.message : 'COGS journal update failed.' });
+    } finally { setActionBusy(''); }
+  };
+
+  const selectedRepostRun = selected?.runs.find(run => run.xeroId && run.status !== 'unknown'
+    && ['DRAFT', 'POSTED'].includes(String(run.liveVerification === 'verified' ? run.liveXeroStatus : run.xeroStatus).toUpperCase()));
+
   useEffect(() => {
     const abort = new AbortController();
     setLoading(true);
@@ -125,7 +146,7 @@ export function CogsPostingLedger({
           {data.rows.length === 0 ? <div role="status" data-testid="cogs-postings-empty" style={{ padding: '24px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>{data.tableAvailable ? 'No configured completed COGS periods overlap this date range.' : 'COGS posting history has not been configured.'}</div> : <>
             <ReportScrollTable ariaLabel="COGS posting periods, arrow-key scrolling" bodyClassName="cogs-posting-periods-scroll" tableWidth={periodWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{periodWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[periodWidths[0]]} headerRows={<tr>{['Accounting period', 'Current eligible COGS', 'Recorded posted', 'Recorded drafts', 'Difference', 'Reconciliation', ''].map((label, index) => <th key={index} style={{ ...header, textAlign: index > 0 && index < 5 ? 'right' : 'left' }}>{label}</th>)}</tr>}>
               <tbody>{data.rows.map((period, index) => <tr key={`${period.from}:${period.toExclusive}`} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
-                <td style={cell}>{periodLabel(period.from, period.toExclusive)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'capitalize' }}>{period.frequency}</div>{period.scheduleHold && <div style={{ marginTop: 4, fontSize: 11, color: '#991b1b' }}>Schedule held: {period.scheduleHold.reason}</div>}</td>
+                <td style={cell}>{periodLabel(period.from, period.toExclusive)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'capitalize' }}>{period.frequency}</div>{period.scheduleHold && <div style={{ marginTop: 4, fontSize: 11, color: '#991b1b' }}>Unresolved posting: {period.scheduleHold.reason}</div>}{period.runs.find(run => run.href) && <a href={period.runs.find(run => run.href)!.href!} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 11, color: 'var(--sv-action)' }}>Open Xero journal <ExternalLink size={12} /></a>}</td>
                 <td style={numberCell}>{money(period.calculation.totalCOGS)}{period.calculation.blocked && <div style={{ fontSize: 11, color: '#991b1b' }}>Incomplete costs</div>}</td>
                 <td style={numberCell}>{money(period.livePostedTotal ?? period.postedTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.liveVerificationComplete ? 'Verified with Xero now' : 'Recorded; live check unavailable'}</div></td>
                 <td style={numberCell}>{money(period.draftTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.draftCount} journals</div></td>
@@ -140,7 +161,7 @@ export function CogsPostingLedger({
             </div>
           </>}
           {selected && <section aria-label="Accounting period evidence" style={{ borderTop: '1px solid var(--sv-etch)', padding: '16px 0', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><h3 style={{ margin: 0, fontSize: 15, color: 'var(--sv-text-strong)' }}>{periodLabel(selected.from, selected.toExclusive)}</h3><button style={button} title="Close period evidence" aria-label="Close period evidence" onClick={() => setSelected(null)}><X size={15} /></button></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><h3 style={{ margin: 0, fontSize: 15, color: 'var(--sv-text-strong)' }}>{periodLabel(selected.from, selected.toExclusive)}</h3><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions && selectedRepostRun && <button disabled={Boolean(actionBusy)} onClick={() => void repostRun(selectedRepostRun.id)} style={{ border: '1px solid var(--sv-action)', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '7px 10px', fontSize: 12, cursor: actionBusy ? 'not-allowed' : 'pointer' }}>{actionBusy === `repost:${selectedRepostRun.id}` ? 'Updating...' : 'Update & post journal'}</button>}<button style={button} title="Close period evidence" aria-label="Close period evidence" onClick={() => setSelected(null)}><X size={15} /></button></div></div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Difference = current eligible COGS minus recorded posted journals, including signed original and adjustment amounts. This is not an instruction to post an adjustment.</p>
             <ReportScrollTable ariaLabel="COGS journal runs, arrow-key scrolling" bodyClassName="cogs-posting-runs-scroll" tableWidth={runWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{runWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[runWidths[0]]} headerRows={<tr>{['Run', 'Journal date', 'Kind / schedule', 'Run delta (AUD)', 'Run status', 'Recorded Xero state', 'Target at run (AUD)', 'Journal line-item snapshot', 'Cost checks at run', 'Run created', 'Xero journal'].map((label, index) => <th key={index} style={header}>{label}</th>)}</tr>}>
               <tbody>{selected.runs.map((run, index) => <tr key={run.id} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>

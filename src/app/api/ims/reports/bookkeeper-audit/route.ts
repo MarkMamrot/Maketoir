@@ -9,6 +9,7 @@ import { listAcceptedAuditReviews } from '@/lib/ims/bookkeeperAudit/repository';
 import { loadXeroAuditFindings } from '@/lib/ims/bookkeeperAudit/xeroAdapter';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { buildAuditCheckList, type AuditCoverage } from '@/lib/ims/bookkeeperAudit/checks';
+import { loadCogsPostingAuditFindings } from '@/lib/ims/bookkeeperAudit/cogsPostingAdapter';
 
 export async function GET(request: Request) {
   const session = await getImsSession();
@@ -25,10 +26,11 @@ export async function GET(request: Request) {
     const timeZone = await getBusinessTimeZone(businessId);
     const asOfDate = new Date().toLocaleDateString('sv-SE', { timeZone });
     const cogsPeriod = previousCalendarMonth(asOfDate);
-    const [findings, reviews, cogsResult, xeroResult] = await Promise.all([
+    const [findings, reviews, cogsResult, cogsPostingResult, xeroResult] = await Promise.all([
       loadOperationalAuditFindings(businessId, asOfDate),
       listAcceptedAuditReviews(businessId),
       loadCogsAuditFindings(businessId, cogsPeriod).then(value => ({ status: 'fulfilled' as const, value })).catch(error => ({ status: 'rejected' as const, error })),
+      loadCogsPostingAuditFindings(businessId, asOfDate).then(value => ({ status: 'fulfilled' as const, value })).catch(error => ({ status: 'rejected' as const, error })),
       loadXeroAuditFindings(businessId, imsDbName).then(value => ({ status: 'fulfilled' as const, value })).catch(error => ({ status: 'rejected' as const, error })),
     ]);
     if (cogsResult.status === 'rejected') {
@@ -36,6 +38,12 @@ export async function GET(request: Request) {
         businessId, source: 'ims_bookkeeper_audit', operation: 'load_cogs_findings',
         title: 'Bookkeeper Audit COGS checks could not be loaded', error: cogsResult.error,
         context: cogsPeriod,
+      }).catch(() => {});
+    }
+    if (cogsPostingResult.status === 'rejected') {
+      await reportRuntimeIssue({
+        businessId, source: 'ims_bookkeeper_audit', operation: 'load_cogs_posting_findings',
+        title: 'Bookkeeper Audit COGS posting checks could not be loaded', error: cogsPostingResult.error,
       }).catch(() => {});
     }
     if (xeroResult.status === 'rejected') {
@@ -49,12 +57,13 @@ export async function GET(request: Request) {
     const reviewed = applyAuditReviews([
       ...findings,
       ...(cogsResult.status === 'fulfilled' ? cogsResult.value : []),
+      ...(cogsPostingResult.status === 'fulfilled' ? cogsPostingResult.value : []),
       ...xeroFindings,
     ].sort(compareAuditFindingsNewestFirst), [...reviews, ...xeroReviews]);
     const items = requestedStatus === 'all' ? reviewed : reviewed.filter(item => item.reviewStatus === requestedStatus);
     const coverage: AuditCoverage = {
       operational: 'checked',
-      cogs: cogsResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
+      cogs: cogsResult.status === 'fulfilled' && cogsPostingResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
       xero: xeroResult.status === 'fulfilled' ? 'checked' : 'unable_to_check',
       monthEndInventory: 'not_yet_checked',
     };

@@ -148,7 +148,7 @@ export async function loadPostingReconciliations(businessId: string, request: Re
       blockedByPriorHold: Boolean(heldPeriodStart && heldPeriodStart < from),
       liveVerificationComplete, state: options.verifyXero && verifiable.some(run => run.liveVerification === 'unavailable') ? 'Live Xero verification unavailable'
         : totals.uncertainCount ? 'Status uncertain' : calculation.blocked ? 'Cost checks blocked'
-          : members.length === 0 && heldPeriodStart && heldPeriodStart < from ? 'Not posted - earlier period held'
+          : members.length === 0 && heldPeriodStart && heldPeriodStart < from ? 'Not posted - earlier period unresolved'
             : members.length === 0 ? 'Not posted'
           : liveVerificationComplete && verifiedMembers.some(run => run.liveXeroStatus === 'DRAFT') ? 'Draft journals awaiting posting'
             : (liveVariance ?? variance) !== 0 ? 'Difference to review' : liveVerificationComplete ? 'Matches Xero posted total' : 'Matches recorded posted total',

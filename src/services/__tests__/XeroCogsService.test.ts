@@ -12,7 +12,7 @@ vi.mock('@/services/MySQLService', () => ({ execute: mockExecute, query: mockQue
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn().mockResolvedValue([{ id: 1, name: 'Warehouse' }, { id: 2, name: 'Newtown' }]) }));
 vi.mock('@/services/XeroSyncService', () => ({ syncCogsJournal: mockSync }));
 
-import { postCogsPeriod, retryCogsRun } from '../XeroCogsService';
+import { postCogsPeriod, repostCogsRun, retryCogsRun } from '../XeroCogsService';
 
 const period = {
   frequency: 'monthly' as const,
@@ -185,6 +185,37 @@ describe('retryCogsRun', () => {
     expect(await retryCogsRun({ businessId: 'biz-1', runId: 41 })).toMatchObject({ outcome: 'ineligible' });
     mockQuery.mockResolvedValueOnce([{ ...failedRun, status: 'success', xero_id: 'xero-1', xero_state: 'POSTED' }]);
     expect(await retryCogsRun({ businessId: 'biz-1', runId: 41 })).toMatchObject({ outcome: 'ineligible' });
+    expect(mockSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('repostCogsRun', () => {
+  const linkedRun = {
+    id: 42, period_start: period.startDate, period_end: period.endDateExclusive, journal_date: period.journalDate,
+    frequency: period.frequency, run_kind: 'original', target_amount: 90, posted_delta: 90,
+    status: 'success', xero_id: 'draft-1', xero_state: 'DRAFT', breakdown_json: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockQuery.mockResolvedValueOnce([linkedRun]).mockResolvedValueOnce([{ posted_total: 0, successful_runs: 0 }]).mockResolvedValueOnce([]);
+    mockCalculate.mockResolvedValue(calculation);
+    mockSync.mockResolvedValue({ journalId: 'draft-1', xeroState: 'POSTED' });
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+  });
+
+  it('recalculates and updates the same linked journal before clearing the period marker', async () => {
+    const result = await repostCogsRun({ businessId: 'biz-1', runId: 42 });
+    expect(result).toMatchObject({ outcome: 'posted', runId: 42, xeroId: 'draft-1', postedDelta: 100 });
+    expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({ existingJournalId: 'draft-1', amount: 100 }));
+    expect(mockExecute.mock.calls[0][0]).toContain("status = 'success'");
+    expect(mockExecute.mock.calls[1][0]).toContain('held_reason = NULL');
+    expect(mockExecute.mock.calls[1][1]).toEqual(['biz-1', period.startDate]);
+  });
+
+  it('refuses a run without a linked Xero journal', async () => {
+    mockQuery.mockReset().mockResolvedValueOnce([{ ...linkedRun, xero_id: null }]);
+    expect(await repostCogsRun({ businessId: 'biz-1', runId: 42 })).toMatchObject({ outcome: 'ineligible' });
     expect(mockSync).not.toHaveBeenCalled();
   });
 });

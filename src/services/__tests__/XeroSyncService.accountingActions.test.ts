@@ -193,6 +193,49 @@ describe('Xero payment and receipt-journal actions', () => {
     expect(mocks.xeroFetch).not.toHaveBeenCalled();
   });
 
+  it('updates the same unlocked COGS journal and submits it as posted', async () => {
+    mocks.query.mockImplementation((sql: string) => sql.includes('xero_account_mappings') ? Promise.resolve([
+      { role_key: 'cogs', xero_account_code: '500' }, { role_key: 'inventory_asset', xero_account_code: '630' },
+    ]) : Promise.resolve([]));
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ ManualJournals: [{ ManualJournalID: 'draft-1', Status: 'DRAFT', DateString: '2026-07-31' }] })
+      .mockResolvedValueOnce({ Organisations: [{ PeriodLockDate: '2026-06-30', EndOfYearLockDate: '2025-06-30' }] })
+      .mockResolvedValueOnce({ ManualJournals: [{ ManualJournalID: 'draft-1', Status: 'POSTED' }] });
+
+    await expect(syncCogsJournal({ businessId: 'biz-1', runId: 42, existingJournalId: 'draft-1', label: 'July 2026',
+      journalDate: '2026-07-31', amount: 100,
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }],
+    })).resolves.toEqual({ journalId: 'draft-1', xeroState: 'POSTED' });
+
+    expect(mocks.xeroFetch.mock.calls[2][1]).toBe('/ManualJournals/draft-1');
+    expect(mocks.xeroFetch.mock.calls[2][2].body.ManualJournals[0]).toMatchObject({ ManualJournalID: 'draft-1', Status: 'POSTED' });
+    expect(mocks.claim).toHaveBeenCalledWith(expect.objectContaining({ operationKey: expect.stringMatching(/^cogs-journal-update:42:/) }));
+  });
+
+  it('refuses to update a COGS journal in a locked Xero period', async () => {
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ ManualJournals: [{ ManualJournalID: 'draft-1', Status: 'DRAFT', DateString: '2026-07-31' }] })
+      .mockResolvedValueOnce({ Organisations: [{ PeriodLockDate: '2026-07-31' }] });
+
+    await expect(syncCogsJournal({ businessId: 'biz-1', runId: 42, existingJournalId: 'draft-1', label: 'July 2026',
+      journalDate: '2026-07-31', amount: 100,
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }],
+    })).rejects.toThrow('locked in Xero');
+    expect(mocks.claim).not.toHaveBeenCalled();
+  });
+
+  it('refuses to update a voided COGS journal', async () => {
+    mocks.xeroFetch
+      .mockResolvedValueOnce({ ManualJournals: [{ ManualJournalID: 'voided-1', Status: 'VOIDED', DateString: '2026-07-31' }] })
+      .mockResolvedValueOnce({ Organisations: [{}] });
+
+    await expect(syncCogsJournal({ businessId: 'biz-1', runId: 42, existingJournalId: 'voided-1', label: 'July 2026',
+      journalDate: '2026-07-31', amount: 100,
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }],
+    })).rejects.toThrow('VOIDED');
+    expect(mocks.claim).not.toHaveBeenCalled();
+  });
+
   it('limits a mixed prepaid PO journal to discounted stock value and capitalised freight in AUD', () => {
     expect(calculatePOStockReceiptValueAud({
       id: 42,

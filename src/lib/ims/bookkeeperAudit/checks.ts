@@ -11,6 +11,7 @@ export const AUDIT_CHECK_CATALOG = [
   { id: 'stocktakes', area: 'operational', name: 'Stocktakes', description: 'Finds stocktakes still in progress more than two days after creation.' },
   { id: 'negative_stock', area: 'operational', name: 'Negative Stock', description: 'Finds active inventory-tracked products with stock on hand below zero at a location.' },
   { id: 'sales_cogs', area: 'cogs', name: 'Sales COGS', description: 'Finds missing, zero, or negative movement cost on inventory sales in the previous completed month.' },
+  { id: 'cogs_postings', area: 'cogs', name: 'COGS Postings', description: 'Finds completed accounting periods that remain missing, failed, uncertain, draft, or different from eligible COGS.' },
   { id: 'xero_documents', area: 'xero', name: 'Xero Documents', description: 'Checks linked documents for identity, type, totals, currency, contact, lifecycle, payments, credits, and balances.' },
   { id: 'xero_mappings', area: 'xero', name: 'Xero Mappings', description: 'Finds missing or stale ledger and tracking mappings.' },
   { id: 'month_end_inventory', area: 'monthEndInventory', name: 'Month-end Inventory', description: 'Compares the prior month-end inventory valuation with the Xero Inventory Asset balance.' },

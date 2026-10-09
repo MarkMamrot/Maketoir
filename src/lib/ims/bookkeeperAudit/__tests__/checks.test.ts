@@ -12,6 +12,7 @@ describe('Bookkeeper Audit check catalog', () => {
       'stocktakes',
       'negative_stock',
       'sales_cogs',
+      'cogs_postings',
       'xero_documents',
       'xero_mappings',
       'month_end_inventory',

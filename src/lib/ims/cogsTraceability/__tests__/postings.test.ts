@@ -88,8 +88,8 @@ describe('COGS posting reconciliation', () => {
     }]) : Promise.resolve([{ ...run, from: '2026-07-01', toExclusive: '2026-08-01', journalDate: '2026-07-31' }]));
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams('from=2026-07-01&to=2026-10-09')));
     expect(result.rows.map(period => period.from)).toEqual(['2026-09-01', '2026-08-01', '2026-07-01']);
-    expect(result.rows[0]).toMatchObject({ state: 'Not posted - earlier period held', blockedByPriorHold: true, runs: [] });
-    expect(result.rows[1]).toMatchObject({ state: 'Not posted - earlier period held', blockedByPriorHold: true, runs: [] });
+    expect(result.rows[0]).toMatchObject({ state: 'Not posted - earlier period unresolved', blockedByPriorHold: true, runs: [] });
+    expect(result.rows[1]).toMatchObject({ state: 'Not posted - earlier period unresolved', blockedByPriorHold: true, runs: [] });
     expect(result.rows[2]).toMatchObject({ scheduleHold: { reason: 'failed', runId: 1 } });
   });
   it('does not disguise an operational failure as an empty ledger', async () => {

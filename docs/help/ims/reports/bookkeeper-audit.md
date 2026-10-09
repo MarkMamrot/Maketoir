@@ -16,7 +16,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 - Use **Accept exception** only when the current evidence is legitimate and record why.
 - Check the coverage notice before treating an empty queue as a completed audit.
 
-> **Important:** The audit includes existing Xero reconciliation findings and sales COGS exceptions for the previous completed calendar month. Prior month-end inventory comparison is not yet checked here. An empty queue does not confirm that the Solvantis inventory valuation agrees with Xero's Inventory Asset account.
+> **Important:** The audit includes existing Xero reconciliation findings, sales COGS exceptions for the previous completed calendar month, and unresolved COGS posting periods from the last 12 months. Prior month-end inventory comparison is not yet checked here. An empty queue does not confirm that the Solvantis inventory valuation agrees with Xero's Inventory Asset account.
 
 **Checks incomplete** means at least one listed check did not run successfully or is not available yet. It does not mean that every record has a problem. Open **Checks** to distinguish **Completed**, **Could not complete**, and **Not available yet** checks. A completed check with no matching problems produces no Open findings.
 
@@ -25,6 +25,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 | Finding | When it appears | Normal next step |
 |---|---|---|
 | Missing, zero, or negative COGS | An inventory-tracked product sold in the previous completed month has incomplete or invalid movement cost | Use the named product and SKU to review its receipt or opening cost source |
+| COGS period not fully posted | A completed period is missing, failed, uncertain, Draft, or differs from current eligible COGS | Open Xero COGS activity, review the period, then post or update the linked unlocked journal |
 | Xero reconciliation difference | The existing Xero reconciliation process finds a document, amount, state, contact, currency, payment, or mapping difference | Compare Solvantis and Xero, then correct the source of truth and recheck |
 | Negative stock | An active inventory-tracked product has a stock position below zero, including a fractional quantity | Review movements and correct through receiving, transfer, stocktake, or the source transaction. If the product should not track inventory, disable **Tracks inventory** and refresh the audit |
 | Overdue Purchase Order | Its expected date has passed, or it is more than 30 days from order date without one | Receive, resolve, or update the order |

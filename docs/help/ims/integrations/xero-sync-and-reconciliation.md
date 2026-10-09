@@ -116,14 +116,15 @@ COGS journals use the configured COGS and Inventory Asset accounts. Each positiv
 
 Open **Xero > Activity > COGS** to review completed accounting periods from the last 12 months by default. Change the date range when older evidence is required. Each period compares current eligible COGS with recorded journals and, when available, verifies linked journal status directly with Xero.
 
-Completed configured periods remain visible even when no journal run was created. If an earlier period placed the schedule on hold, later periods are labelled as blocked by that hold and cannot be posted until the earlier period is resolved.
+Completed configured periods remain visible even when no journal run was created. An unresolved period does not stop later completed periods from posting. Solvantis keeps the earlier month visible in Accounting Audit and creates an IMS notification so it is not silently skipped.
 
 1. Inspect the period status, current eligible COGS, posted total, draft total and difference.
 2. Open the period to review every original or adjustment run, including its signed amount, saved location-channel lines, cost checks, safe failure detail and Xero journal link.
 3. For a confirmed failed run with no Xero journal, correct the named mapping or connection problem and press **Retry failed posting**. Solvantis retries only when the current period total still matches the failed run.
 4. If costs changed after the failed attempt, review the revised period and use **Post COGS** or **Post adjustment**. Solvantis creates a new run for the current difference instead of replaying or rewriting the old attempt.
-5. If the outcome is unknown, do not retry it. The screen keeps uncertain work out of posted totals and blocks another posting until the Xero outcome can be verified.
-6. Confirm the resulting journal status and amount in Xero.
+5. For a linked Draft or Posted journal in an unlocked Xero period, open the period and choose **Update & post journal**. Solvantis recalculates the period, replaces that same journal's lines and submits it as Posted. Xero lock dates are checked before any update.
+6. If the outcome is unknown, do not retry it. The screen keeps uncertain work out of posted totals until the Xero outcome can be verified.
+7. Confirm the resulting journal status and amount in Xero.
 
 Administrators and Advisors with **Allow Advisors to trigger Xero syncs** can retry confirmed failures and post offered differences. Only an administrator can enter a required reason to post when missing or unexplained zero costs block the period. Draft, pending, successful, uncertain and live-unverified runs are not offered as ordinary retries.
 

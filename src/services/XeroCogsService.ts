@@ -91,6 +91,11 @@ export type CogsRetryResult =
   | { outcome: 'ineligible'; runId: number; reason: string }
   | { outcome: 'failed' | 'unknown'; runId: number; error: string };
 
+export type CogsRepostResult =
+  | { outcome: 'posted'; runId: number; xeroId: string; xeroState: string; postedDelta: number; calculation: CogsCalculation }
+  | { outcome: 'ineligible'; runId: number; reason: string }
+  | { outcome: 'failed' | 'unknown'; runId: number; error: string };
+
 function errorDetails(error: unknown): { code?: string; errno?: number; name?: string; message: string } {
   if (error instanceof Error) {
     const extended = error as Error & { code?: string; errno?: number };
@@ -316,5 +321,92 @@ export async function postCogsPeriod(input: {
       [outcome, message, runId, input.businessId],
     );
     return { outcome, runId, error: message, calculation };
+  }
+}
+
+export async function repostCogsRun(input: { businessId: string; runId: number }): Promise<CogsRepostResult> {
+  const rows = await query<RetryRunRow>(
+    `SELECT id, period_start, period_end, journal_date, frequency, run_kind,
+            target_amount, posted_delta, status, xero_id, xero_state, breakdown_json
+       FROM xero_cogs_journal_runs
+      WHERE id = ? AND business_id = ?
+      LIMIT 1`,
+    [input.runId, input.businessId],
+  );
+  const run = rows[0];
+  if (!run?.xero_id) return { outcome: 'ineligible', runId: input.runId, reason: 'This run has no linked Xero journal to update.' };
+
+  const periodStart = dateString(run.period_start);
+  const periodEnd = dateString(run.period_end);
+  const journalDate = dateString(run.journal_date);
+  const calculation = await calculateCogsForPeriod({ businessId: input.businessId, startDate: periodStart, endDateExclusive: periodEnd });
+  if (calculation.blocked) {
+    return { outcome: 'ineligible', runId: run.id, reason: 'Resolve missing or unexplained zero costs before updating this journal.' };
+  }
+
+  const postedTotals = await query<PostedTotalRow>(
+    `SELECT COALESCE(SUM(posted_delta), 0) AS posted_total, COUNT(*) AS successful_runs
+       FROM xero_cogs_journal_runs
+      WHERE business_id = ? AND period_start = ? AND period_end = ? AND id <> ?
+        AND status = 'success' AND xero_state = 'POSTED' AND xero_id IS NOT NULL`,
+    [input.businessId, periodStart, periodEnd, run.id],
+  );
+  const postedDelta = roundCurrency(calculation.totalCOGS - Number(postedTotals[0]?.posted_total ?? 0));
+  if (postedDelta === 0) return { outcome: 'ineligible', runId: run.id, reason: 'No COGS amount remains for this journal.' };
+
+  const locationIds = [...new Set(calculation.breakdown.map(bucket => bucket.locationId).filter(id => id > 0))];
+  const locations = locationIds.length ? await imsQuery<{ id: number; name: string }>(
+    `SELECT id, name FROM ims_locations WHERE id IN (${locationIds.map(() => '?').join(',')})`, locationIds,
+  ) : [];
+  const locationNames = new Map(locations.map(location => [Number(location.id), location.name]));
+  const postedRows = await query<PostedBucketRow>(
+    `SELECT posted_delta, breakdown_json FROM xero_cogs_journal_runs
+      WHERE business_id = ? AND period_start = ? AND period_end = ? AND id <> ?
+        AND status = 'success' AND xero_state = 'POSTED' AND xero_id IS NOT NULL
+      ORDER BY id`,
+    [input.businessId, periodStart, periodEnd, run.id],
+  );
+  const buckets = calculateCogsBucketDeltas(currentBuckets(calculation, locationNames), postedRows);
+  try {
+    const posted = await syncCogsJournal({
+      businessId: input.businessId,
+      runId: run.id,
+      existingJournalId: run.xero_id,
+      label: `${periodStart} to ${journalDate}`,
+      journalDate,
+      amount: postedDelta,
+      buckets,
+      runKind: run.run_kind,
+    });
+    await execute(
+      `UPDATE xero_cogs_journal_runs
+          SET target_amount = ?, posted_delta = ?, included_movement_count = ?,
+              missing_cost_movement_count = ?, zero_cost_movement_count = ?,
+              excluded_movement_count = ?, orphaned_movement_count = ?,
+              breakdown_json = ?, status = 'success', xero_state = ?, error_detail = NULL
+        WHERE id = ? AND business_id = ?`,
+      [calculation.totalCOGS, postedDelta, calculation.includedMovementCount,
+        calculation.missingCostMovementCount, calculation.zeroCostMovementCount,
+        calculation.excludedHistoricalMovementCount, calculation.orphanedMovementCount,
+        JSON.stringify(buckets), posted.xeroState, run.id, input.businessId],
+    );
+    if (posted.xeroState !== 'POSTED') {
+      return { outcome: 'failed', runId: run.id, error: `Xero kept the journal in ${posted.xeroState || 'an unknown state'} instead of posting it.` };
+    }
+    await execute(
+      `UPDATE xero_cogs_settings
+          SET held_reason = NULL, held_period_start = NULL, held_run_id = NULL, held_at = NULL
+        WHERE business_id = ? AND held_period_start = ?`,
+      [input.businessId, periodStart],
+    );
+    return { outcome: 'posted', runId: run.id, xeroId: posted.journalId, xeroState: posted.xeroState, postedDelta, calculation };
+  } catch (error: unknown) {
+    const outcome = isAmbiguousXeroError(error) ? 'unknown' : 'failed';
+    const message = errorDetails(error).message || 'Xero COGS journal update failed';
+    await execute(
+      `UPDATE xero_cogs_journal_runs SET status = ?, error_detail = ? WHERE id = ? AND business_id = ?`,
+      [outcome, message, run.id, input.businessId],
+    );
+    return { outcome, runId: run.id, error: message };
   }
 }

@@ -70,7 +70,7 @@ Paste a JPG, PNG, or WebP screenshot directly into the message box before sendin
 
 Team Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.
 
-Notifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.
+Notifications show a plain-language title and action summary. Open one to see labelled product, order, location, quantity, or accounting-period facts. An unresolved COGS posting notification directs staff to **Xero > Activity > COGS**; later periods can continue while the named month remains open for review. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.
 
 > **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.
 
