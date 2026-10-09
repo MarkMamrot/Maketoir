@@ -1,6 +1,6 @@
 export const LIVE_CONFIRMATION = 'MONSTERTHREADS_LIVE_E2E';
 
-export type LiveE2EAction = 'preflight' | 'fifo-reconcile-negative' | 'fifo-activate' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'p3-compensate' | 'p4' | 'p4-compensate' | 'p5' | 'p5-compensate' | 'p6' | 'p6-compensate' | 'p7' | 'p7-compensate' | 'p8' | 'p8-compensate' | 'p9' | 'p9-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
+export type LiveE2EAction = 'preflight' | 'fifo-reconcile-negative' | 'fifo-activate' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'p3-compensate' | 'p4' | 'p4-compensate' | 'p5' | 'p5-compensate' | 'p6' | 'p6-compensate' | 'p7' | 'p7-compensate' | 'p8' | 'p8-compensate' | 'p9' | 'p9-compensate' | 'allocation' | 'allocation-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
 
 export type LiveE2EConfig = {
   action: LiveE2EAction;
@@ -21,7 +21,7 @@ export type LiveE2EConfig = {
   maxDocumentTotal: number;
 };
 
-const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'fifo-reconcile-negative', 'fifo-activate', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'p3-compensate', 'p4', 'p4-compensate', 'p5', 'p5-compensate', 'p6', 'p6-compensate', 'p7', 'p7-compensate', 'p8', 'p8-compensate', 'p9', 'p9-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
+const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'fifo-reconcile-negative', 'fifo-activate', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'p3-compensate', 'p4', 'p4-compensate', 'p5', 'p5-compensate', 'p6', 'p6-compensate', 'p7', 'p7-compensate', 'p8', 'p8-compensate', 'p9', 'p9-compensate', 'allocation', 'allocation-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key]?.trim();
@@ -95,6 +95,35 @@ export function assertPreflightIdentity(
 }
 
 const SECRET_KEY = /password|secret|token|cookie|authorization|pin/i;
+
+export function assertLiveAllocationOrders(
+  config: LiveE2EConfig,
+  recorded: { purchaseOrderIds: readonly number[]; salesOrderIds: readonly number[] },
+  open: { purchaseOrders: readonly Record<string, unknown>[]; salesOrders: readonly Record<string, unknown>[] },
+): void {
+  for (const group of [
+    { ids: recorded.purchaseOrderIds, orders: open.purchaseOrders, sales: false },
+    { ids: recorded.salesOrderIds, orders: open.salesOrders, sales: true },
+  ]) {
+    if (group.ids.length > 2 || new Set(group.ids).size !== group.ids.length
+      || group.ids.some(id => !Number.isInteger(id) || id <= 0)) {
+      throw new Error('Live E2E blocked: invalid allocation campaign document IDs.');
+    }
+    for (const order of group.orders) {
+      if (!group.ids.includes(Number(order.id))
+        || Number(order.location_id) !== config.fixtureLocationId
+        || !String(order.notes ?? '').startsWith(`LIVE E2E ${config.runId} ALLOCATION `)
+        || !['draft', 'confirmed'].includes(String(order.status))
+        || String(order.tax_treatment) !== 'no_tax'
+        || !Number.isFinite(Number(order.total_amount))
+        || Number(order.total_amount) <= 0 || Number(order.total_amount) > config.maxDocumentTotal
+        || (group.sales ? Number(order.customer_id) !== config.fixtureCustomerId || Number(order.qty_fulfilled) !== 0
+          : Number(order.supplier_id) !== config.fixtureSupplierId || Number(order.qty_received) !== 0)) {
+        throw new Error('Live E2E blocked: allocation campaign contains unexpected open work.');
+      }
+    }
+  }
+}
 
 export function assertLiveShopifyOwnership(
   config: Pick<LiveE2EConfig, 'expectedBusinessId' | 'expectedShopifyShop'>,

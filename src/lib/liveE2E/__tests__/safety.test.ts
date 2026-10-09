@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertLiveShopifyOwnership, assertPreflightIdentity, LIVE_CONFIRMATION, loadLiveE2EConfig, redactLiveE2EValue } from '../safety';
+import { assertLiveAllocationOrders, assertLiveShopifyOwnership, assertPreflightIdentity, LIVE_CONFIRMATION, loadLiveE2EConfig, redactLiveE2EValue } from '../safety';
 
 const validEnv: NodeJS.ProcessEnv = {
   LIVE_E2E_CONFIRM: LIVE_CONFIRMATION,
@@ -23,6 +23,19 @@ const validEnv: NodeJS.ProcessEnv = {
 };
 
 describe('live E2E safety contract', () => {
+  it('permits only recorded, unreceived and unshipped allocation campaign orders', () => {
+    const config = loadLiveE2EConfig(validEnv);
+    const order = { id: 41, status: 'confirmed', location_id: 91, customer_id: 93, notes: `LIVE E2E ${config.runId} ALLOCATION SO1`, tax_treatment: 'no_tax', total_amount: 1, qty_fulfilled: 0, qty_received: 0 };
+    const recorded = { purchaseOrderIds: [51], salesOrderIds: [41] };
+    expect(() => assertLiveAllocationOrders(config, recorded, { purchaseOrders: [], salesOrders: [order] })).not.toThrow();
+    expect(() => assertLiveAllocationOrders(config, recorded, { purchaseOrders: [{ ...order, id: 51, supplier_id: 92 }], salesOrders: [order] })).not.toThrow();
+    for (const change of [{ id: 42 }, { location_id: 90 }, { customer_id: 94 }, { notes: 'other run' }, { qty_fulfilled: 1 }, { total_amount: 2 }, { tax_treatment: 'ex_tax' }]) {
+      expect(() => assertLiveAllocationOrders(config, recorded, { purchaseOrders: [], salesOrders: [{ ...order, ...change }] })).toThrow('unexpected open work');
+    }
+    expect(() => assertLiveAllocationOrders(config, recorded, { purchaseOrders: [{ ...order, id: 51, qty_received: 1 }], salesOrders: [] })).toThrow('unexpected open work');
+    expect(() => assertLiveAllocationOrders(config, { ...recorded, salesOrderIds: [41, 41] }, { purchaseOrders: [], salesOrders: [] })).toThrow('document IDs');
+  });
+
   it('blocks unless the exact live confirmation is present', () => {
     expect(() => loadLiveE2EConfig({ ...validEnv, LIVE_E2E_CONFIRM: 'yes' })).toThrow('LIVE_E2E_CONFIRM');
   });
@@ -49,6 +62,8 @@ describe('live E2E safety contract', () => {
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p9-compensate' }).action).toBe('p9-compensate');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p1' }).action).toBe('p1');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p1-compensate' }).action).toBe('p1-compensate');
+    expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'allocation' }).action).toBe('allocation');
+    expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'allocation-compensate' }).action).toBe('allocation-compensate');
     expect(() => loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'run-everything' })).toThrow('unsupported action');
   });
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import mysql from 'mysql2/promise';
 
 import { appendLiveRunEvent } from '../../../src/lib/liveE2E/manifest';
-import { assertLiveShopifyOwnership, type LiveE2EConfig } from '../../../src/lib/liveE2E/safety';
+import { assertLiveAllocationOrders, assertLiveShopifyOwnership, type LiveE2EConfig } from '../../../src/lib/liveE2E/safety';
 import { verifyLiveFifoIntegrity } from './fifo-database';
 import { createManifest, readManifest } from './manifest-store';
 
@@ -151,7 +151,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const checkpointedP8SourceSoId = Number((existingEvents.findLast(event => event.state === 'p8_created')?.details as any)?.sourceSoId);
     const checkpointedP8ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p8_created')?.details as any)?.replacementSoId);
     const [openPurchaseOrders] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT po.id, po.status, po.location_id, item.qty_received, po.notes
+      `SELECT po.id, po.status, po.location_id, po.supplier_id, po.total_amount, po.tax_treatment, item.qty_received, po.notes
          FROM ${schema}.ims_purchase_order_items item
          JOIN ${schema}.ims_purchase_orders po ON po.id = item.po_id
         WHERE po.business_id = ? AND item.variant_id = ?
@@ -159,7 +159,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       [config.expectedBusinessId, config.fixtureVariantId],
     );
     const [openSalesOrders] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT so.id, so.status, so.customer_id, so.location_id, so.notes, item.qty_ordered, item.qty_fulfilled
+      `SELECT so.id, so.status, so.customer_id, so.location_id, so.total_amount, so.tax_treatment, so.notes, item.qty_ordered, item.qty_fulfilled
          FROM ${schema}.ims_sales_order_items item
          JOIN ${schema}.ims_sales_orders so ON so.id = item.so_id
         WHERE so.business_id = ? AND item.variant_id = ?
@@ -334,7 +334,19 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const allowP7PreflightCarry = config.action === 'p7' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP8PreflightCarry = config.action === 'p8' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
-    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && !allowP8PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP3NoStockCompensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series && !resumableP8Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
+    let resumableAllocation = false;
+    const allocationCheckpoint = existingEvents.findLast(event => event.state === 'allocation_created')?.details as { purchaseOrderIds?: unknown; salesOrderIds?: unknown } | undefined;
+    if (['allocation', 'allocation-compensate'].includes(config.action) && allocationCheckpoint) {
+      if (!Array.isArray(allocationCheckpoint.purchaseOrderIds) || !Array.isArray(allocationCheckpoint.salesOrderIds)) {
+        throw new Error('Live E2E blocked: allocation campaign document checkpoint is missing.');
+      }
+      assertLiveAllocationOrders(config, {
+        purchaseOrderIds: allocationCheckpoint.purchaseOrderIds,
+        salesOrderIds: allocationCheckpoint.salesOrderIds,
+      }, { purchaseOrders: openPurchaseOrders, salesOrders: openSalesOrders });
+      resumableAllocation = true;
+    }
+    if (!resumableAllocation && !allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && !allowP8PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP3NoStockCompensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series && !resumableP8Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
     }
 
@@ -396,6 +408,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p8-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p9' ? ['preflight_passed', 'p9_created']
         : config.action === 'p9-compensate' ? ['acknowledged', 'compensation_retry_authorized']
+        : config.action === 'allocation' ? ['preflight_passed', 'allocation_created', 'awaiting_operator', 'blocked']
+        : config.action === 'allocation-compensate' ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
         throw new Error(`Live E2E blocked: action ${config.action} requires manifest state ${allowedStates.join(' or ') || 'unsupported'}, found ${currentState ?? 'missing'}.`);
@@ -418,6 +432,43 @@ export async function releaseDatabasePreflightLock(): Promise<void> {
   if (!connection) return;
   if (lockName) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
   await connection.end().catch(() => {});
+}
+
+export async function loadAllocationFixtureSnapshot(config: LiveE2EConfig) {
+  const connection = await mysql.createConnection({
+    host: envRequired('MYSQL_HOST'), port: Number(process.env.MYSQL_PORT ?? 3306),
+    database: envRequired('MYSQL_DATABASE'), user: envRequired('MYSQL_USER'),
+    password: envRequired('MYSQL_PASSWORD'), connectTimeout: 20000, dateStrings: true,
+  });
+  try {
+    await connection.query('START TRANSACTION READ ONLY');
+    const schema = connection.escapeId(config.expectedImsSchema);
+    const [[stock]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT qty_on_hand, qty_incoming, qty_committed FROM ${schema}.ims_stock
+        WHERE business_id = ? AND variant_id = ? AND location_id = ?`,
+      [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
+    );
+    const [allocations] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, so_id, so_item_id, po_id, po_item_id, qty_allocated, qty_received_assigned,
+              qty_fulfilled, promised_date, promise_status, state, revision
+         FROM ${schema}.ims_stock_allocations
+        WHERE business_id = ? AND variant_id = ? AND location_id = ? ORDER BY id`,
+      [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
+    );
+    const [movements] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT id, movement_type, qty_change, unit_cost, cost_method_snapshot, cost_epoch_id
+         FROM ${schema}.ims_stock_movements
+        WHERE business_id = ? AND variant_id = ? AND location_id = ? ORDER BY id`,
+      [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
+    );
+    return {
+      stock: { qtyOnHand: Number(stock?.qty_on_hand ?? 0), qtyIncoming: Number(stock?.qty_incoming ?? 0), qtyCommitted: Number(stock?.qty_committed ?? 0) },
+      allocations, movements,
+    };
+  } finally {
+    await connection.rollback().catch(() => {});
+    await connection.end();
+  }
 }
 
 export async function loadCampaignInventoryBaseline(config: LiveE2EConfig) {

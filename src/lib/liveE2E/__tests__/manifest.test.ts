@@ -3,6 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { appendLiveRunEvent, assertRunMayStart } from '../manifest';
 
 describe('live E2E manifest', () => {
+  it('checkpoints allocation artifacts and requires acknowledgement before cleanup', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', {});
+    events = appendLiveRunEvent(events, 'allocation_created', { purchaseOrderIds: [41], salesOrderIds: [] });
+    events = appendLiveRunEvent(events, 'allocation_created', { purchaseOrderIds: [41, 42], salesOrderIds: [51] });
+    expect(() => appendLiveRunEvent(events, 'clean', {})).toThrow('invalid manifest transition');
+    events = appendLiveRunEvent(events, 'awaiting_operator', {});
+    expect(() => appendLiveRunEvent(events, 'compensating', {})).toThrow('invalid manifest transition');
+    events = appendLiveRunEvent(events, 'acknowledged', {});
+    events = appendLiveRunEvent(events, 'compensating', {});
+    events = appendLiveRunEvent(events, 'clean', {});
+    expect(events.at(-1)?.state).toBe('clean');
+  });
+
   it('closes a read-only campaign baseline without authorizing stock mutation', () => {
     let events = appendLiveRunEvent([], 'initialized', {});
     events = appendLiveRunEvent(events, 'preflight_passed', {});
