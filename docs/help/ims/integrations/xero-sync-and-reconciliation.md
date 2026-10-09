@@ -116,6 +116,8 @@ COGS journals use the configured COGS and Inventory Asset accounts. Each positiv
 
 Open **Xero > Activity > COGS** to review completed accounting periods from the last 12 months by default. Change the date range when older evidence is required. Each period compares current eligible COGS with recorded journals and, when available, verifies linked journal status directly with Xero.
 
+Completed configured periods remain visible even when no journal run was created. If an earlier period placed the schedule on hold, later periods are labelled as blocked by that hold and cannot be posted until the earlier period is resolved.
+
 1. Inspect the period status, current eligible COGS, posted total, draft total and difference.
 2. Open the period to review every original or adjustment run, including its signed amount, saved location-channel lines, cost checks, safe failure detail and Xero journal link.
 3. For a confirmed failed run with no Xero journal, correct the named mapping or connection problem and press **Retry failed posting**. Solvantis retries only when the current period total still matches the failed run.

@@ -3,7 +3,7 @@ import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
 import { calculateCogsForPeriod } from '@/lib/xero/cogsCalculator';
-import { roundCurrency } from '@/lib/xero/cogsPeriods';
+import { getCogsPeriodStartingAt, getLastCompletedCogsPeriod, roundCurrency, type CogsFrequency } from '@/lib/xero/cogsPeriods';
 import type { CogsJournalBucket } from '@/lib/xero/cogsPeriods';
 import { ReportValidationError, type ReportRequest } from './request';
 
@@ -14,6 +14,20 @@ export interface PostingRun {
   errorDetail: string | null; overrideReason: string | null;
   buckets: CogsJournalBucket[] | null;
   liveXeroStatus?: string | null; liveVerification?: 'verified' | 'unavailable' | 'not_applicable';
+}
+
+interface CogsPostingSetting {
+  frequency: CogsFrequency;
+  timezone: string;
+  reliable_from: string | Date | null;
+  held_reason: string | null;
+  held_period_start: string | Date | null;
+  held_run_id: number | string | null;
+}
+
+function dateString(value: string | Date | null): string | null {
+  if (!value) return null;
+  return (value instanceof Date ? value.toISOString() : String(value)).slice(0, 10);
 }
 
 function postingBuckets(value: unknown): CogsJournalBucket[] | null {
@@ -77,12 +91,38 @@ export async function loadPostingReconciliations(businessId: string, request: Re
     bucket.push(run);
     periods.set(key, bucket);
   }
+  const settingRows = await query<CogsPostingSetting>(
+    `SELECT frequency, timezone, reliable_from, held_reason, held_period_start, held_run_id
+       FROM xero_cogs_settings
+      WHERE business_id = ?
+      LIMIT 1`,
+    [businessId],
+  ).catch(() => [] as CogsPostingSetting[]);
+  const setting = settingRows[0];
+  const reliableFrom = dateString(setting?.reliable_from ?? null);
+  if (setting && reliableFrom) {
+    const lastCompleted = getLastCompletedCogsPeriod(setting.frequency, new Date(), setting.timezone || 'Australia/Sydney');
+    let cursor = reliableFrom;
+    for (let count = 0; count < 5000; count += 1) {
+      const period = getCogsPeriodStartingAt(setting.frequency, cursor);
+      if (period.endDateExclusive > lastCompleted.endDateExclusive) break;
+      if (period.startDate < request.toExclusive && period.endDateExclusive > request.from) {
+        const key = `${period.startDate}:${period.endDateExclusive}`;
+        if (!periods.has(key)) periods.set(key, []);
+      }
+      cursor = period.endDateExclusive;
+    }
+  }
   const pageSize = Math.min(request.pageSize, 20);
-  const selected = Array.from(periods.values()).slice((request.page - 1) * pageSize, request.page * pageSize);
+  const selected = Array.from(periods.entries())
+    .sort(([left], [right]) => right.localeCompare(left))
+    .slice((request.page - 1) * pageSize, request.page * pageSize);
   const rows = [];
-  for (const members of selected) {
-    const first = members[0];
-    const calculation = await calculateCogsForPeriod({ businessId, startDate: first.from, endDateExclusive: first.toExclusive });
+  const heldPeriodStart = dateString(setting?.held_period_start ?? null);
+  for (const [key, members] of selected) {
+    const [from, toExclusive] = key.split(':');
+    const frequency = (members[0]?.frequency ?? setting?.frequency ?? 'monthly') as CogsFrequency;
+    const calculation = await calculateCogsForPeriod({ businessId, startDate: from, endDateExclusive: toExclusive });
     const verifiedMembers = [];
     for (const run of members) {
       if (!options.verifyXero || !run.xeroId) {
@@ -103,9 +143,13 @@ export async function loadPostingReconciliations(businessId: string, request: Re
       .reduce((sum, run) => sum + run.amount, 0)) : null;
     const variance = roundCurrency(calculation.totalCOGS - totals.postedTotal);
     const liveVariance = livePostedTotal == null ? null : roundCurrency(calculation.totalCOGS - livePostedTotal);
-    rows.push({ from: first.from, toExclusive: first.toExclusive, calculation, ...totals, variance, livePostedTotal, liveVariance,
+    rows.push({ from, toExclusive, frequency, calculation, ...totals, variance, livePostedTotal, liveVariance,
+      scheduleHold: heldPeriodStart === from ? { reason: setting?.held_reason ?? 'held', runId: setting?.held_run_id == null ? null : Number(setting.held_run_id) } : null,
+      blockedByPriorHold: Boolean(heldPeriodStart && heldPeriodStart < from),
       liveVerificationComplete, state: options.verifyXero && verifiable.some(run => run.liveVerification === 'unavailable') ? 'Live Xero verification unavailable'
         : totals.uncertainCount ? 'Status uncertain' : calculation.blocked ? 'Cost checks blocked'
+          : members.length === 0 && heldPeriodStart && heldPeriodStart < from ? 'Not posted - earlier period held'
+            : members.length === 0 ? 'Not posted'
           : liveVerificationComplete && verifiedMembers.some(run => run.liveXeroStatus === 'DRAFT') ? 'Draft journals awaiting posting'
             : (liveVariance ?? variance) !== 0 ? 'Difference to review' : liveVerificationComplete ? 'Matches Xero posted total' : 'Matches recorded posted total',
       runs: verifiedMembers.map(run => ({ ...run, href: journalHref(run.xeroId) })),
@@ -122,7 +166,7 @@ export async function loadPostingReconciliations(businessId: string, request: Re
     })),
   } }));
   return { success: true as const, tableAvailable, from: request.from, to: request.to, page: request.page, pageSize, total: periods.size, rows: namedRows,
-    scope: 'Accounting periods overlapping the selected date range. Each reconciliation uses its complete stock-movement period, without sales filters.',
+    scope: 'Configured completed accounting periods overlapping the selected date range, including periods with no posting run. Each reconciliation uses its complete stock-movement period, without sales filters.',
     statusEvidence: options.verifyXero
       ? 'Displayed journal statuses are checked directly with Xero when this tab loads. If that check is unavailable, the screen labels the fallback recorded status as unverified. Draft, voided, deleted and uncertain runs are not counted as verified posted.'
       : 'Last Xero status recorded by Solvantis; live verification was not requested. Draft, voided, deleted and uncertain runs are not counted as posted.',

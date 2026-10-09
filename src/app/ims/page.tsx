@@ -23520,6 +23520,19 @@ export default function ImsPage() {
     setViewSafe('dashboard');
   }, [hasRestoredInitialHash, pageCapabilities.nativeShopEnabled, pageCapabilities.shopifyEnabled, settingsLoaded, setViewSafe, view]);
 
+  // Stable component identities: inline wrappers would remount (and reset filters) on every page re-render.
+  const StablePosPriceChangesView = useMemo(
+    () => function PosPriceChangesViewWrapper(props: { onBack: () => void }) { return <PosPriceChangesViewComponent {...props} btnStyle={btnStyle} />; },
+    [],
+  );
+  const xeroAccountingEnabled = pageCapabilities.xeroAccountingEnabled;
+  const StablePosRegistersReportView = useMemo(
+    () => function PosRegistersReportViewWrapper(props: { onBack: () => void }) {
+      return <PosRegistersReportViewComponent {...props} xeroAccountingEnabled={xeroAccountingEnabled} XeroStatusBadge={XeroStatusBadge} />;
+    },
+    [xeroAccountingEnabled],
+  );
+
   useEffect(() => {
     if (!hasRestoredInitialHash || !settingsLoaded || buildsEnabled || view !== 'builds') return;
     window.history.replaceState(window.history.state, '', '#products');
@@ -23977,8 +23990,8 @@ export default function ImsPage() {
               SalesSearchView={SalesSearchView}
               InventoryValuationView={InventoryValuationView}
               ProductMarginView={ProductMarginView}
-              PosPriceChangesView={(props: { onBack: () => void }) => <PosPriceChangesViewComponent {...props} btnStyle={btnStyle} />}
-              PosRegistersReportView={(props: { onBack: () => void }) => <PosRegistersReportViewComponent {...props} xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled} XeroStatusBadge={XeroStatusBadge} />}
+              PosPriceChangesView={StablePosPriceChangesView}
+              PosRegistersReportView={StablePosRegistersReportView}
               CashBankingReportView={CashBankingReportView}
               StockAvailabilityManagementView={StockAvailabilityManagementView}
               BookkeeperAuditView={BookkeeperAuditView}

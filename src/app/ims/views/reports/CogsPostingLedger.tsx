@@ -42,6 +42,7 @@ export function CogsPostingLedger({
   const pending = loading || loadedQuery !== query;
   const canPostPeriod = (period: Period) => period.draftCount === 0
     && period.uncertainCount === 0
+    && !period.blockedByPriorHold
     && !period.runs.some(run => run.status === 'failed' && run.target === period.calculation.totalCOGS)
     && (period.postedCount === 0 || period.liveVerificationComplete)
     && (period.liveVariance ?? period.variance) !== 0;
@@ -121,10 +122,10 @@ export function CogsPostingLedger({
         : data && <>
           <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '8px 0' }}>{data.scope}</p>
           <p role="note" style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: '8px 0 16px' }}>{data.statusEvidence}</p>
-          {data.rows.length === 0 ? <div role="status" data-testid="cogs-postings-empty" style={{ padding: '24px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>{data.tableAvailable ? 'No recorded COGS journal runs overlap this date range.' : 'COGS posting history has not been configured.'}</div> : <>
+          {data.rows.length === 0 ? <div role="status" data-testid="cogs-postings-empty" style={{ padding: '24px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>{data.tableAvailable ? 'No configured completed COGS periods overlap this date range.' : 'COGS posting history has not been configured.'}</div> : <>
             <ReportScrollTable ariaLabel="COGS posting periods, arrow-key scrolling" bodyClassName="cogs-posting-periods-scroll" tableWidth={periodWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{periodWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[periodWidths[0]]} headerRows={<tr>{['Accounting period', 'Current eligible COGS', 'Recorded posted', 'Recorded drafts', 'Difference', 'Reconciliation', ''].map((label, index) => <th key={index} style={{ ...header, textAlign: index > 0 && index < 5 ? 'right' : 'left' }}>{label}</th>)}</tr>}>
               <tbody>{data.rows.map((period, index) => <tr key={`${period.from}:${period.toExclusive}`} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
-                <td style={cell}>{periodLabel(period.from, period.toExclusive)}</td>
+                <td style={cell}>{periodLabel(period.from, period.toExclusive)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'capitalize' }}>{period.frequency}</div>{period.scheduleHold && <div style={{ marginTop: 4, fontSize: 11, color: '#991b1b' }}>Schedule held: {period.scheduleHold.reason}</div>}</td>
                 <td style={numberCell}>{money(period.calculation.totalCOGS)}{period.calculation.blocked && <div style={{ fontSize: 11, color: '#991b1b' }}>Incomplete costs</div>}</td>
                 <td style={numberCell}>{money(period.livePostedTotal ?? period.postedTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.liveVerificationComplete ? 'Verified with Xero now' : 'Recorded; live check unavailable'}</div></td>
                 <td style={numberCell}>{money(period.draftTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.draftCount} journals</div></td>

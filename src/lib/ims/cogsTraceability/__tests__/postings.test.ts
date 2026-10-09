@@ -69,16 +69,28 @@ describe('COGS posting reconciliation', () => {
     mocks.query.mockRejectedValue({ code: 'ER_NO_SUCH_TABLE' });
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams()));
     expect(result).toMatchObject({ tableAvailable: false, total: 0, rows: [] });
-    expect(mocks.query).toHaveBeenCalledTimes(1);
+    expect(mocks.query).toHaveBeenCalledTimes(2);
     expect(mocks.calculate).not.toHaveBeenCalled();
   });
   it('reads legacy posting history before the snapshot migration without attempting schema writes', async () => {
     mocks.query.mockRejectedValueOnce({ code: 'ER_BAD_FIELD_ERROR' }).mockResolvedValueOnce([run]);
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams()));
     expect(result.rows[0].runs[0].buckets).toBeNull();
-    expect(mocks.query).toHaveBeenCalledTimes(2);
+    expect(mocks.query).toHaveBeenCalledTimes(3);
     expect(mocks.query.mock.calls[1][0]).toContain('NULL AS breakdownJson');
     expect(mocks.query.mock.calls.every(call => String(call[0]).startsWith('SELECT'))).toBe(true);
+  });
+
+  it('shows completed configured periods with no runs and identifies an earlier schedule hold', async () => {
+    mocks.query.mockImplementation((sql: string) => sql.includes('FROM xero_cogs_settings') ? Promise.resolve([{
+      frequency: 'monthly', timezone: 'Australia/Sydney', reliable_from: '2026-07-01',
+      held_reason: 'failed', held_period_start: '2026-07-01', held_run_id: 1,
+    }]) : Promise.resolve([{ ...run, from: '2026-07-01', toExclusive: '2026-08-01', journalDate: '2026-07-31' }]));
+    const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams('from=2026-07-01&to=2026-10-09')));
+    expect(result.rows.map(period => period.from)).toEqual(['2026-09-01', '2026-08-01', '2026-07-01']);
+    expect(result.rows[0]).toMatchObject({ state: 'Not posted - earlier period held', blockedByPriorHold: true, runs: [] });
+    expect(result.rows[1]).toMatchObject({ state: 'Not posted - earlier period held', blockedByPriorHold: true, runs: [] });
+    expect(result.rows[2]).toMatchObject({ scheduleHold: { reason: 'failed', runId: 1 } });
   });
   it('does not disguise an operational failure as an empty ledger', async () => {
     mocks.query.mockRejectedValue({ code: 'ECONNREFUSED' });
