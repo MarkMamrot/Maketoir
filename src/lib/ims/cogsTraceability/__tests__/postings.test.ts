@@ -104,7 +104,7 @@ describe('COGS posting reconciliation', () => {
   it('prioritises incomplete costs and uncertain posting evidence over a numerical match', async () => {
     mocks.calculate.mockResolvedValue({ totalCOGS: 100, blocked: true, breakdown: [] });
     const request = parseRequest(new URLSearchParams());
-    expect((await loadPostingReconciliations('tenant-1', request)).rows[0].state).toBe('Cost checks blocked');
+    expect((await loadPostingReconciliations('tenant-1', request)).rows[0].state).toBe('Posting blocked by incomplete costs');
     mocks.query.mockResolvedValue([run, { ...run, id: 2, status: 'unknown' }]);
     expect((await loadPostingReconciliations('tenant-1', request)).rows[0].state).toBe('Status uncertain');
   });
