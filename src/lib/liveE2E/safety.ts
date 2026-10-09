@@ -1,6 +1,6 @@
 export const LIVE_CONFIRMATION = 'MONSTERTHREADS_LIVE_E2E';
 
-export type LiveE2EAction = 'preflight' | 'fifo-reconcile-negative' | 'fifo-activate' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'p3-compensate' | 'p4' | 'p4-compensate' | 'p5' | 'p5-compensate' | 'p6' | 'p6-compensate' | 'p7' | 'p7-compensate' | 'p8' | 'p8-compensate' | 'p9' | 'p9-compensate' | 'allocation' | 'allocation-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
+export type LiveE2EAction = 'preflight' | 'fifo-reconcile-negative' | 'fifo-activate' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'p3-compensate' | 'p4' | 'p4-compensate' | 'p5' | 'p5-compensate' | 'p6' | 'p6-compensate' | 'p7' | 'p7-compensate' | 'p8' | 'p8-compensate' | 'p9' | 'p9-compensate' | 'allocation' | 'allocation-compensate' | 'allocation-received' | 'allocation-received-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
 
 export type LiveE2EConfig = {
   action: LiveE2EAction;
@@ -21,7 +21,7 @@ export type LiveE2EConfig = {
   maxDocumentTotal: number;
 };
 
-const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'fifo-reconcile-negative', 'fifo-activate', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'p3-compensate', 'p4', 'p4-compensate', 'p5', 'p5-compensate', 'p6', 'p6-compensate', 'p7', 'p7-compensate', 'p8', 'p8-compensate', 'p9', 'p9-compensate', 'allocation', 'allocation-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
+const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'fifo-reconcile-negative', 'fifo-activate', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'p3-compensate', 'p4', 'p4-compensate', 'p5', 'p5-compensate', 'p6', 'p6-compensate', 'p7', 'p7-compensate', 'p8', 'p8-compensate', 'p9', 'p9-compensate', 'allocation', 'allocation-compensate', 'allocation-received', 'allocation-received-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key]?.trim();
@@ -98,9 +98,15 @@ const SECRET_KEY = /password|secret|token|cookie|authorization|pin/i;
 
 export function assertLiveAllocationOrders(
   config: LiveE2EConfig,
-  recorded: { purchaseOrderIds: readonly number[]; salesOrderIds: readonly number[] },
+  recorded: { purchaseOrderIds: readonly number[]; salesOrderIds: readonly number[]; receivedPurchaseOrderIds?: readonly number[] },
   open: { purchaseOrders: readonly Record<string, unknown>[]; salesOrders: readonly Record<string, unknown>[] },
 ): void {
+  const receivedAction = ['allocation-received', 'allocation-received-compensate'].includes(config.action);
+  const receivedIds = recorded.receivedPurchaseOrderIds ?? [];
+  if (receivedIds.length > 1 || receivedIds.some(id => !Number.isInteger(id) || !recorded.purchaseOrderIds.includes(id))
+    || (receivedIds.length > 0 && !receivedAction)) {
+    throw new Error('Live E2E blocked: invalid recorded allocation receipt ownership.');
+  }
   for (const group of [
     { ids: recorded.purchaseOrderIds, orders: open.purchaseOrders, sales: false },
     { ids: recorded.salesOrderIds, orders: open.salesOrders, sales: true },
@@ -110,15 +116,22 @@ export function assertLiveAllocationOrders(
       throw new Error('Live E2E blocked: invalid allocation campaign document IDs.');
     }
     for (const order of group.orders) {
+      const ownedReceipt = !group.sales && receivedAction && receivedIds.includes(Number(order.id));
+      const validReceipt = ownedReceipt && String(order.status) === 'complete'
+        && String(order.variant_id) === config.fixtureVariantId
+        && Number(order.qty_ordered) === 2 && Number(order.qty_received) === 2;
+      const cancelledReceipt = ownedReceipt && config.action === 'allocation-received-compensate'
+        && String(order.status) === 'cancelled' && Number(order.qty_received) === 0;
       if (!group.ids.includes(Number(order.id))
         || Number(order.location_id) !== config.fixtureLocationId
+        || (order.variant_id != null && String(order.variant_id) !== config.fixtureVariantId)
         || !String(order.notes ?? '').startsWith(`LIVE E2E ${config.runId} ALLOCATION `)
-        || !['draft', 'confirmed'].includes(String(order.status))
+        || (!['draft', 'confirmed'].includes(String(order.status)) && !validReceipt && !cancelledReceipt)
         || String(order.tax_treatment) !== 'no_tax'
         || !Number.isFinite(Number(order.total_amount))
         || Number(order.total_amount) <= 0 || Number(order.total_amount) > config.maxDocumentTotal
         || (group.sales ? Number(order.customer_id) !== config.fixtureCustomerId || Number(order.qty_fulfilled) !== 0
-          : Number(order.supplier_id) !== config.fixtureSupplierId || Number(order.qty_received) !== 0)) {
+          : Number(order.supplier_id) !== config.fixtureSupplierId || (Number(order.qty_received) !== 0 && !validReceipt))) {
         throw new Error('Live E2E blocked: allocation campaign contains unexpected open work.');
       }
     }

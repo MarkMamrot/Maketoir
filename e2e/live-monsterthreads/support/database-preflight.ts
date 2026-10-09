@@ -335,15 +335,39 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const allowP8PreflightCarry = config.action === 'p8' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     let resumableAllocation = false;
-    const allocationCheckpoint = existingEvents.findLast(event => event.state === 'allocation_created')?.details as { purchaseOrderIds?: unknown; salesOrderIds?: unknown } | undefined;
-    if (['allocation', 'allocation-compensate'].includes(config.action) && allocationCheckpoint) {
+    const allocationCheckpoint = existingEvents.findLast(event => event.state === 'allocation_created')?.details as { purchaseOrderIds?: unknown; salesOrderIds?: unknown; receivedPurchaseOrderIds?: unknown } | undefined;
+    if (['allocation', 'allocation-compensate', 'allocation-received', 'allocation-received-compensate'].includes(config.action) && allocationCheckpoint) {
       if (!Array.isArray(allocationCheckpoint.purchaseOrderIds) || !Array.isArray(allocationCheckpoint.salesOrderIds)) {
         throw new Error('Live E2E blocked: allocation campaign document checkpoint is missing.');
       }
-      assertLiveAllocationOrders(config, {
+      if (allocationCheckpoint.receivedPurchaseOrderIds != null && !Array.isArray(allocationCheckpoint.receivedPurchaseOrderIds)) {
+        throw new Error('Live E2E blocked: allocation receipt checkpoint is invalid.');
+      }
+      const recorded = {
         purchaseOrderIds: allocationCheckpoint.purchaseOrderIds,
         salesOrderIds: allocationCheckpoint.salesOrderIds,
-      }, { purchaseOrders: openPurchaseOrders, salesOrders: openSalesOrders });
+        receivedPurchaseOrderIds: allocationCheckpoint.receivedPurchaseOrderIds ?? [],
+      };
+      assertLiveAllocationOrders(config, recorded, { purchaseOrders: openPurchaseOrders, salesOrders: openSalesOrders });
+      if (['allocation-received', 'allocation-received-compensate'].includes(config.action) && recorded.purchaseOrderIds.length > 0) {
+        const placeholders = recorded.purchaseOrderIds.map(() => '?').join(',');
+        const [recordedPurchaseOrders] = await connection.query<mysql.RowDataPacket[]>(
+          `SELECT po.id, po.status, po.location_id, po.supplier_id, po.total_amount, po.tax_treatment,
+                  item.variant_id, item.qty_ordered, item.qty_received, po.notes
+             FROM ${schema}.ims_purchase_order_items item
+             JOIN ${schema}.ims_purchase_orders po ON po.id = item.po_id
+            WHERE po.business_id = ? AND po.id IN (${placeholders})`,
+          [config.expectedBusinessId, ...recorded.purchaseOrderIds],
+        );
+        if (recordedPurchaseOrders.length !== recorded.purchaseOrderIds.length
+          || new Set(recordedPurchaseOrders.map(order => Number(order.id))).size !== recorded.purchaseOrderIds.length) {
+          throw new Error('Live E2E blocked: recorded allocation purchase order is missing.');
+        }
+        assertLiveAllocationOrders(config, recorded, {
+          purchaseOrders: recordedPurchaseOrders.filter(order => order.status !== 'cancelled' || recorded.receivedPurchaseOrderIds.includes(Number(order.id))),
+          salesOrders: openSalesOrders,
+        });
+      }
       resumableAllocation = true;
     }
     if (!resumableAllocation && !allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && !allowP8PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP3NoStockCompensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series && !resumableP8Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
@@ -408,8 +432,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p8-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p9' ? ['preflight_passed', 'p9_created']
         : config.action === 'p9-compensate' ? ['acknowledged', 'compensation_retry_authorized']
-        : config.action === 'allocation' ? ['preflight_passed', 'allocation_created', 'awaiting_operator', 'blocked']
-        : config.action === 'allocation-compensate' ? ['acknowledged', 'compensation_retry_authorized']
+        : ['allocation', 'allocation-received'].includes(config.action) ? ['preflight_passed', 'allocation_created', 'awaiting_operator', 'blocked']
+        : ['allocation-compensate', 'allocation-received-compensate'].includes(config.action) ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
         throw new Error(`Live E2E blocked: action ${config.action} requires manifest state ${allowedStates.join(' or ') || 'unsupported'}, found ${currentState ?? 'missing'}.`);

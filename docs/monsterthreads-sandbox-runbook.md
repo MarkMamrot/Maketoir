@@ -210,3 +210,64 @@ Playwright login traces and videos are disabled to avoid persisting credentials 
 Automation pause blocks schedulers, not all manual integrations or webhooks. Every external mutation still requires exact development/test identity checks, fixture scoping, the existing low-value cap, and the applicable operator gate. POS campaign fixtures must use a separately guarded sandbox register/location; do not weaken the ordinary isolated IMS fixture rules.
 
 If a costing-switch preview and integrity audit disagree, stop dependent mutation and record both results. Do not mark an audit finding repaired by modifying costing-state rows or bypassing the audit. Resolve the contract through a separately approved code fix and regression test.
+
+### Incoming allocation stages
+
+The allocation harness accepts only recorded campaign-owned documents: at most two POs and two SOs, with the isolated fixture, No Tax, the existing document cap, and no receipt or shipment. Its cleanup action must not be reused for received or fulfilled work.
+
+Use a fresh run ID, the actual costing method, and authenticated preflight before choosing one setup stage. Quote Playwright tags in PowerShell.
+
+```powershell
+$env:LIVE_E2E_ACTION = 'allocation'
+npx playwright test --project=live-monsterthreads --grep '@allocation-create'
+npx playwright test --project=live-monsterthreads --grep '@allocation-exercise'
+```
+
+For the separate two-SO concurrency and batch case, use another freshly preflighted run and the `@allocation-multi-create` and `@allocation-multi-exercise` stages instead. Never run both setup stages in one manifest or use an unfiltered allocation tag to execute all stages.
+
+Create & Confirm is a two-request PO flow. Record the creation ID immediately, then wait for confirmation before navigating away. If setup is interrupted, inspect actual state before using the narrowly guarded confirmation recovery stage; do not repeat creation. The read-only verification recovery stage requires the exact released single-SO lifecycle history. Inspection may also authorize supported cleanup of a failed case, but does not mark the case passed.
+
+After evaluating artifacts, use the existing acknowledgement gate, set `LIVE_E2E_ACTION=allocation-compensate`, and run only `@allocation-compensate`. Cancellation restores stock counters but retains cancelled documents and released allocation history. Independently check Xero deletion by original external ID from the tenant-scoped sync audit: cancellation clears local links, and invoice-number searches do not reliably return deleted Drafts.
+
+### Received allocation stages
+
+Received protection uses a separate gate rather than weakening incoming-only cleanup. Start from a fresh authenticated preflight, then use `LIVE_E2E_ACTION=allocation` and `@allocation-multi-create` to create two unsourced SOs and two confirmed POs. Set `LIVE_E2E_ACTION=allocation-received` before running only `@allocation-received-exercise`.
+
+This stage records one exact two-unit PO receipt before applying it. It protects that supply for the newer SO, receives through the UI, checks physical readiness and rejection of another SO's shipment even with negative-stock override, checks received shrink/reassignment rejection, and releases protection back to ordinary priority. A completed receipt must match its recorded PO, fixture variant/location/supplier, two-unit quantity, No Tax and document cap.
+
+After artifact assessment and acknowledgement, set `LIVE_E2E_ACTION=allocation-received-compensate` and run only `@allocation-received-compensate`. Cleanup cancels exact unshipped SOs, undoes the recorded mistaken receipt, cancels the remaining unreceived PO and verifies stock baseline. It captures external IDs before cancellation and reads back all four original Xero documents as DELETED or VOIDED. Never use either allocation cleanup stage to reverse a shipped SO or an unrecorded receipt; reconcile actual state first if a check fails.
+
+### Draft SO movement stages
+
+Use a separate fresh preflight, `LIVE_E2E_ACTION=allocation`, and only `@allocation-move-create` followed by `@allocation-move-exercise`. The two drafts start below the cap so their consolidated target remains within it. The case checks UI partial movement into a compatible draft, exact replay, changed payload/stale revision/excess quantity rejection, and full consolidation with the close-source acknowledgement.
+
+The SO row action value is `move_items`, whereas the PO action uses `move-items`; browser tests select the visible Move items label. Draft SOs cannot be cancelled directly. For this recorded movement scenario only, cleanup retains the labelled target through supported confirmation then cancellation, waits for asynchronous Xero Draft creation, verifies its value and tax, and independently verifies its deletion. The empty consolidated source is already cancelled. Do not delete retained campaign documents as a shortcut.
+
+### Verified allocation coverage, 2026-10-09
+
+- `campaign-20261009-allocation-average-001`: UI allocate, reassign, exact promise-date revision and release; authenticated API resize up/down, exact replay, changed-payload rejection, stale revision rejection and over-demand rejection. Incoming protection never became physical stock and did not change committed demand or stock-movement cost history.
+- `campaign-20261009-allocation-multi-average-001`: two competing SO requests for one PO produced exactly one success and one 409. Shared-supply resize overflow was rejected. Batch replay added nothing; a changed batch was rejected; an invalid second entry rolled back the valid first entry and the whole batch.
+- All seven low-value Xero Draft bills/invoices had the expected totals and zero tax, and were independently confirmed DELETED after supported cancellation. Both runs restored the fixture to 0 on hand, 0 incoming and 0 committed, with no active allocations or new store credit. The sandbox-scoped integrity audit was balanced with no findings.
+- The single-SO run retained two harness failures and resumed exact recorded artifacts: premature navigation interrupted PO confirmation, then a mistaken stock-availability response shape interrupted only final read-only checks. Neither failure required a product fix or repeated document creation. The two-SO run passed uninterrupted through setup, exercise and cleanup.
+- The serial regression gate passed 3,685 tests with five skipped; the known unrelated `foresight:connections` Help-context mapping test remained the only failure.
+
+The first two results cover unreceived incoming supply only. Subsequent received-protection and draft-movement results are recorded below. Builds/POS, Shopify transactions, broader variant/location cases and costing transitions remain pending. Average Cost remained active and automation remained paused for these cases; final FIFO restoration has not yet been performed. Historical cost repair remains a separate approval.
+
+### Additional verified coverage, 2026-10-09
+
+- `campaign-20261009-allocation-received-average-001`: two units received through the UI at the captured per-unit cost. Only the newer protected SO became ready; the older SO's shipment was hard-blocked with PROTECTED_STOCK_CONFLICT even when negative-stock override was requested. Shrinking below received quantity and reassigning received protection were rejected without mutation. Release restored the older SO's ordinary priority without changing physical stock or cost history.
+- The exact receipt was undone after cancelling unshipped demand; fixture counters returned to 0/0/0 with no active allocations or new store credit. All four original external documents were independently verified DELETED or VOIDED during cleanup. The post-undo scoped audit was balanced with no findings.
+- `campaign-20261009-so-move-average-001`: UI partial movement preserved quantity and value, exact replay added nothing, and changed-payload/stale/excess requests were rejected. Full consolidation required source-closure acknowledgement, cancelled the empty source and left all four units on the target within the document cap. Stock counters, allocation history and movement-cost history were unchanged.
+- The movement run retained an initial harness selector failure before any transfer and an expected lifecycle rejection during cleanup: direct draft cancellation is unsupported. The corrected supported cleanup retained both labelled SOs as cancelled, independently verified the temporary Xero Draft was DELETED, and restored 0/0/0 without shipment or store credit.
+- The serial regression gate passed 3,686 tests with five skipped; the known unrelated foresight:connections Help-context mapping test remained the only failure. No product fix or historical cost repair was applied in these slices.
+
+Received protection and draft SO movement are now covered under Average Cost. Confirmed-order protected transfer results follow below. Builds/POS, Shopify transactions, broader variants/locations and costing transitions remain outstanding. These runs do not represent final FIFO restoration or completion of the comprehensive campaign.
+
+### Confirmed protected SO movement, 2026-10-10
+
+- `campaign-20261010-protected-move-average-001`: UI partial transfer split two protected incoming units into one unit on each confirmed SO. Exact replay added nothing. Acknowledged consolidation moved the remaining protection to the target, cancelled the empty source and preserved four committed units, four incoming units and zero physical units. Stock-movement costs were unchanged.
+- Independent Xero readback verified the original source invoice was deleted/voided and the target invoice matched the consolidated capped value with zero tax. The harness needed read-only recovery because cancellation correctly cleared the local source invoice link; no transfer was repeated.
+- Supported cleanup first released exact recorded unreceived protections, then cancelled the unshipped target and unreceived POs. Fixture counters returned to 0/0/0 with no active allocations or new credit. All four original external documents were independently confirmed DELETED.
+- Date-filter issue observed and not fixed: at an Australian/UTC day boundary, newly created drafts dated 10 October were absent from the default 90 Days SO list while UTC was still 9 October. They appeared with the explicit Last 30 days range. The retained initial setup failure was resumed using recorded documents, without duplicate creation. The harness now uses an explicit current-day range for these SO interactions. Product remediation requires separate approval.
+
+Protected incoming confirmed-order movement is covered under Average Cost. This does not cover transfers of received protection, a different tenant/variant/location, builds/POS, Shopify transactions or costing transitions. Final FIFO restoration remains pending.

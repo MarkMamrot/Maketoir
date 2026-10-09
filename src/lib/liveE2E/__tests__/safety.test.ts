@@ -40,6 +40,22 @@ describe('live E2E safety contract', () => {
     expect(() => loadLiveE2EConfig({ ...validEnv, LIVE_E2E_CONFIRM: 'yes' })).toThrow('LIVE_E2E_CONFIRM');
   });
 
+  it('permits only a separately recorded exact two-unit receipt under received-allocation actions', () => {
+    const config = loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'allocation-received' });
+    const recorded = { purchaseOrderIds: [51], salesOrderIds: [41, 42], receivedPurchaseOrderIds: [51] };
+    const order = { id: 51, status: 'complete', location_id: 91, supplier_id: 92, variant_id: 'variant-1', notes: `LIVE E2E ${config.runId} ALLOCATION PO1`, tax_treatment: 'no_tax', total_amount: 1, qty_ordered: 2, qty_received: 2 };
+    const open = { purchaseOrders: [order], salesOrders: [] };
+    expect(() => assertLiveAllocationOrders(config, recorded, open)).not.toThrow();
+    for (const change of [{ qty_received: 1 }, { qty_received: 3 }, { qty_ordered: 3 }, { variant_id: 'other' }, { supplier_id: 94 }, { status: 'partially_received' }, { notes: 'other run' }]) {
+      expect(() => assertLiveAllocationOrders(config, recorded, { ...open, purchaseOrders: [{ ...order, ...change }] })).toThrow('unexpected open work');
+    }
+    expect(() => assertLiveAllocationOrders(config, { ...recorded, receivedPurchaseOrderIds: [] }, open)).toThrow('unexpected open work');
+    expect(() => assertLiveAllocationOrders(config, { ...recorded, receivedPurchaseOrderIds: [52] }, open)).toThrow('receipt ownership');
+    expect(() => assertLiveAllocationOrders({ ...config, action: 'allocation' }, recorded, open)).toThrow('receipt ownership');
+    expect(() => assertLiveAllocationOrders({ ...config, action: 'allocation-received-compensate' }, recorded, { ...open, purchaseOrders: [{ ...order, status: 'cancelled', qty_received: 0 }] })).not.toThrow();
+    expect(() => assertLiveAllocationOrders({ ...config, action: 'allocation-received-compensate' }, recorded, { ...open, purchaseOrders: [{ ...order, status: 'cancelled', qty_received: 0, variant_id: 'other' }] })).toThrow('unexpected open work');
+  });
+
   it('blocks CI and non-local browser targets', () => {
     expect(() => loadLiveE2EConfig({ ...validEnv, CI: 'true' })).toThrow('CI execution is forbidden');
     expect(() => loadLiveE2EConfig({ ...validEnv, LIVE_E2E_BASE_URL: 'https://solvantis.com.au' })).toThrow('local application server');
