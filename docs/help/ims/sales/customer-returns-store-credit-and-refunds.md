@@ -1,5 +1,5 @@
 ---
-{"id":"ims-customer-returns-refunds","title":"Customer Returns, Store Credit, and Refunds","audiences":["ims"],"capability":"orders","screen":"Sales > Customer Credit Notes","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-online-shop"],"contexts":["credit-notes"],"contextSections":{"credit-notes":"Step-by-step"},"order":33,"summary":"Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.","lastReviewed":"2026-09-15","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-customer-returns-refunds","title":"Customer Returns, Store Credit, and Refunds","audiences":["ims"],"capability":"orders","screen":"Sales > Customer Credit Notes","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-sales-orders-fulfilment","ims-online-shop"],"contexts":["credit-notes"],"contextSections":{"credit-notes":"Main operations"},"order":33,"summary":"Record customer returns once, review captured return costs, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.","lastReviewed":"2026-10-09","owner":"sales","quickSections":["Main operations","At a glance","Return costing"]}
 ---
 # Customer Returns, Store Credit, and Refunds
 
@@ -13,6 +13,7 @@ Use the credit note linked to the original sale to keep returned goods and custo
 - Review Amazon refund drafts and choose whether physically received goods should return to stock.
 - Mark goods as awaiting product when value should not be completed yet.
 - Reverse a mistaken completed manual credit note through its offered action.
+- Review the captured cost when restocking a return linked to a fulfilled Sales Order.
 
 The credit-note viewer separates the credit summary, credited products and totals, accounting, Xero status, and activity with labelled dividers. Cost and COGS detail remains collapsed until needed.
 
@@ -78,6 +79,12 @@ The credit-note viewer separates the credit summary, credited products and total
 5. Complete the reviewed draft. Completion records the return and adds only selected goods to stock; it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.
 
 > **Important:** Amazon's seller settlement total can include fees and fee reversals. Solvantis uses the customer-facing refunded amount from the return report for the draft, not the seller's net transaction total.
+
+## Return costing
+
+Under Average Cost, a restocked credit-note line linked to its original Sales Order line records that line's captured fulfilment cost for cost-of-goods-sold reporting. When a line was shipped in several parts, its captured cost is the quantity-weighted cost of those shipments. Changing the product's current cost does not replace the captured cost on the completed return.
+
+The return's stock cost is separate from its customer credit or refund value. If the original fulfilment cost is missing or invalid, accounting still requires review; completion does not invent a replacement cost. A credit-only line with **Restock** cleared does not create a stock return.
 
 ## Troubleshooting
 

@@ -31,6 +31,7 @@ function connectionFor(options: {
   returnedQty?: number;
   posReturn?: boolean;
   restockLinkedReturn?: boolean;
+  sourceUnitCost?: number | null;
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -78,12 +79,12 @@ function connectionFor(options: {
       }] : []];
     }
     if (normalized.includes('from ims_sales_order_items soi')) {
-      return [[{ qty_fulfilled: options.fulfilledQty ?? 2 }]];
+      return [[{ qty_fulfilled: options.fulfilledQty ?? 2, unit_cost: options.sourceUnitCost === undefined ? 10 : options.sourceUnitCost }]];
     }
     if (normalized.includes('select so_type from ims_sales_orders')) {
       return [[{ so_type: 'wholesale' }]];
     }
-    if (normalized.includes('from ims_product_variants pv')) return [[{ is_stock_item: 1 }]];
+    if (normalized.includes('from ims_product_variants pv')) return [[{ is_stock_item: 1, avg_cost: 99 }]];
     if (normalized.includes('select qty_on_hand from ims_stock')) return [[{ qty_on_hand: 7 }]];
     if (normalized.includes('insert into ims_stock_movements')) return [{ affectedRows: 1, insertId: 501 }];
     return [{ affectedRows: 1 }];
@@ -196,6 +197,67 @@ describe('ImsCNRepo.complete', () => {
       returnDate: '2026-09-10',
     });
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('captures the fulfilled sales-order cost on an Average Cost linked return', async () => {
+    const connection = connectionFor({ sourceSoItemId: 21, restockLinkedReturn: true, sourceUnitCost: 4.25 });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id'),
+      ['biz-1', 'v-1', 4, 'wholesale', 12, 31, 2, 7, 4.25, 'average_cost', null],
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('soi.id = ? AND soi.so_id = ? AND so.business_id = ? AND soi.variant_id = ?'),
+      [21, 9, 'biz-1', 'v-1'],
+    );
+    expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { sourceUnitCost: 0, expectedCost: 0 },
+    { sourceUnitCost: null, expectedCost: null },
+    { sourceUnitCost: -1, expectedCost: null },
+    { sourceUnitCost: Number.NaN, expectedCost: null },
+    { sourceUnitCost: Number.POSITIVE_INFINITY, expectedCost: null },
+  ])('preserves zero or unknown source cost without a catalogue fallback: $sourceUnitCost', async ({ sourceUnitCost, expectedCost }) => {
+    const connection = connectionFor({ sourceSoItemId: 21, restockLinkedReturn: true, sourceUnitCost });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id'),
+      ['biz-1', 'v-1', 4, 'wholesale', 12, 31, 2, 7, expectedCost, 'average_cost', null],
+    );
+  });
+
+  it('records the current Average Cost epoch without changing the captured source cost', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: 8, revision: 3 });
+    const connection = connectionFor({ sourceSoItemId: 21, restockLinkedReturn: true, sourceUnitCost: 6.75 });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id'),
+      ['biz-1', 'v-1', 4, 'wholesale', 12, 31, 2, 7, 6.75, 'average_cost', 8],
+    );
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_sales_order_items'),
+      expect.anything(),
+    );
+  });
+
+  it('does not write a return movement for a credit-only line', async () => {
+    const connection = connectionFor({ sourceSoItemId: 21 });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_stock_movements'),
+      expect.anything(),
+    );
   });
 
   it('restores linked sales-order return layers while completing the credit note', async () => {

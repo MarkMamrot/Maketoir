@@ -8,7 +8,7 @@ The user waived the restore-point prerequisite for this sandbox only and delegat
 
 ## F004: Average Cost linked return does not capture a movement cost
 
-Severity: High for accounting reconciliation. Confirmed product defect; no fix or historical repair applied.
+Severity: High for accounting reconciliation. Prospective linked-SO fix implemented with user approval on 2026-10-09; historical records remain unchanged.
 
 Reproduction under Average Cost:
 
@@ -26,7 +26,19 @@ Expected: linked returns record an authoritative captured return cost under both
 
 Evidence: run campaign-20261007-p3-average-ready-003 and supply run campaign-20261007-p1-average-stock-002. Both manifests report stock/open-work cleanup only. Their clean states must not be interpreted as successful COGS reconciliation. The earlier zero-stock override return also has an uncaptured Average Cost return movement.
 
-Recommended next approval: a focused Average Cost return-cost fix with regression coverage, followed by a separate proposal for the exact campaign-owned missing-cost history. Do not silently repair unrelated records or proceed as though the full accounting gate passed.
+Fix: Average Cost restocked lines linked to a source Sales Order now capture the fulfilled line's quantity-weighted unit cost. Lookup is constrained by business, order, source line and variant inside the existing completion transaction. Completed shipment history, catalogue Average Cost, credit settlement, idempotency and FIFO restoration are unchanged. Missing/invalid source costs remain unknown; zero is preserved rather than replaced with a positive catalogue estimate. Unlinked and POS return-cost behavior is outside this specific linked-SO fix.
+
+Verification on 2026-10-09: the new regression failed before the fix and passed afterwards. Thirty focused completion/reversal/COGS tests passed. Full serial suite: 3,683 passed, five skipped, one pre-existing foresight:connections Help mapping failure. Production build completed, regenerating contextual Help, Assistant and the corresponding public summary. Modified source/test diagnostics and git diff --check passed. No new live sale/return was created to retest the prospective fix in this session; verification is transaction-mocked regression plus production compilation, not a new browser campaign pass.
+
+### Separate historical-correction proposal (not applied)
+
+- Scope only the completed return owned by campaign-20261007-p3-average-ready-003. Re-resolve the exact movement from its manifest credit-note ID, credit-note source line and linked SO before approval; do not use a same-SKU bulk update.
+- Recheck paused-sandbox identity, original source shipment quantity/cost, unchanged captured SO cost, completed return provenance, current NULL movement cost and absence of prior correction. The previously verified source cost is AUD 1.00 for one returned unit.
+- If those checks still agree, propose the existing audited COGS cost-repair workflow for that one movement: NULL to AUD 1.00, with a provenance-based reason and the expected prior value. Do not change quantity, store credit, catalogue cost, FIFO history or posted journals.
+- Recalculate the affected period after correction; the known sale/return pair should net to zero COGS. Unrelated missing/zero costs can still block period posting. Reconcile any existing Xero journal separately rather than automatically posting or rewriting it.
+- Do not assign AUD 1.00 to the earlier harness override return. Its shipment captured zero, so a positive cost is not established by source evidence. That case requires its own reviewed decision; setting its return to zero would not establish complete positive-cost accounting.
+
+Applying either historical correction requires separate approval. This proposal has not written to any database or external accounting document.
 
 ## F001: Average Cost transition state disagrees with FIFO integrity audit
 

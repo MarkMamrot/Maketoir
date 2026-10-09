@@ -1212,15 +1212,16 @@
         "credit-notes"
       ],
       "contextSections": {
-        "credit-notes": "Step-by-step"
+        "credit-notes": "Main operations"
       },
       "order": 33,
-      "summary": "Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.",
-      "lastReviewed": "2026-09-15",
+      "summary": "Record customer returns once, review captured return costs, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.",
+      "lastReviewed": "2026-10-09",
       "owner": "sales",
       "quickSections": [
         "Main operations",
-        "At a glance"
+        "At a glance",
+        "Return costing"
       ],
       "filename": "docs/help/ims/sales/customer-returns-store-credit-and-refunds.md"
     },
@@ -10775,7 +10776,7 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "Use the credit note linked to the original sale to keep returned goods and customer value together without counting either twice.",
       "sectionId": "ims-customer-returns-refunds:1"
     },
@@ -10794,8 +10795,8 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
-      "content": "- Create a manual IMS credit note for an in-person or account return handled in IMS.\n- Review POS-created return records without entering the stock return again.\n- Refund a native online order to its original mix of store credit and card payment.\n- Review Amazon refund drafts and choose whether physically received goods should return to stock.\n- Mark goods as awaiting product when value should not be completed yet.\n- Reverse a mistaken completed manual credit note through its offered action.\n\nThe credit-note viewer separates the credit summary, credited products and totals, accounting, Xero status, and activity with labelled dividers. Cost and COGS detail remains collapsed until needed.",
+      "lastReviewed": "2026-10-09",
+      "content": "- Create a manual IMS credit note for an in-person or account return handled in IMS.\n- Review POS-created return records without entering the stock return again.\n- Refund a native online order to its original mix of store credit and card payment.\n- Review Amazon refund drafts and choose whether physically received goods should return to stock.\n- Mark goods as awaiting product when value should not be completed yet.\n- Reverse a mistaken completed manual credit note through its offered action.\n- Review the captured cost when restocking a return linked to a fulfilled Sales Order.\n\nThe credit-note viewer separates the credit summary, credited products and totals, accounting, Xero status, and activity with labelled dividers. Cost and COGS detail remains collapsed until needed.",
       "sectionId": "ims-customer-returns-refunds:2"
     },
     {
@@ -10813,7 +10814,7 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "| Return source | Where staff start | Linked credit note | What adds stock back once | How customer value is returned | What must not be repeated |\n|---|---|---|---|---|---|\n| Manual IMS return | Sales Order **Return / Credit**, or **Customer Credit Notes** | A Manual Draft credit note | Completing the credit note, for lines with **Restock** selected | Completed manual notes issue customer store credit | Do not also make a positive stock adjustment or edit the customer's balance |\n| POS return or exchange | The original sale in POS | POS creates and completes an internal credit note | The linked credit note for returned lines | The register's selected store-credit or refund outcome | Do not restock the POS sale and the credit note separately |\n| Native online return | The native Sales Order **Return / Credit** action | A linked credit note with **Original payment refund** | The linked credit note after payment settlement succeeds | Original store credit is restored first; any remainder goes back through Stripe | Do not issue a separate manual store credit, card refund, or stock adjustment |\n| Shopify return | Shopify's refund workflow | An externally settled Shopify credit note appears in IMS | The imported credit note when Shopify marks the line for restock | Shopify returns the customer value | Do not refund or restock the same line again in IMS |\n| Amazon seller-fulfilled return | **Integrations > Sales Channels > Sync returns**, then **Customer Credit Notes** | One unambiguous RMA and released refund create an Amazon Draft | Completing the reviewed draft, only for lines where staff select **Restock** | Amazon has already handled the customer refund | Do not issue store credit, send another refund, or select Restock without receiving sellable goods |",
       "sectionId": "ims-customer-returns-refunds:3"
     },
@@ -10832,7 +10833,7 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "- [ ] Find the original sale or Sales Order and confirm how much was fulfilled and not already returned.\n- [ ] Confirm the customer, return location, products, quantities, prices, and tax treatment.\n- [ ] Select **Restock** only for goods that are physically returned and sellable.\n- [ ] For goods not yet received, keep the note Draft or mark it **Awaiting Product**.\n- [ ] For a native refund, confirm the original payment connection is available before completion.\n- [ ] For an Amazon return, confirm the exact seller account, physical receipt, and provider settlement separately.\n\n> **Warning:** Complete one linked credit note for the return. Do not also adjust stock, add store credit manually, or send another payment refund for the same goods.",
       "sectionId": "ims-customer-returns-refunds:4"
     },
@@ -10851,7 +10852,7 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "### Complete a manual IMS return\n\n1. Open the original Sales Order and choose **Return / Credit**, or open **Sales > Customer Credit Notes** and select **New Credit Note**.\n2. Confirm the customer, original order reference, location, returned items, quantities, and values.\n3. Leave **Restock** selected only for sellable goods physically received. Clear it for damaged goods or a value-only credit.\n4. Create the Draft. If goods are still coming back, choose **Mark Awaiting Product** and complete it after arrival.\n5. Choose **Complete** when all details are correct. The credit note adds selected goods back once and issues the customer store credit.\n\n### Review a POS return\n\n1. Start the return from the original sale in POS and complete the register prompts.\n2. In IMS, open **Customer Credit Notes**, change **Record Type** to **POS Returns / Exchanges**, and find the POS-linked note.\n3. Review its items, settlement, and original sale reference. The returned lines have already been handled by this credit note.\n4. Do not create a second credit note or stock adjustment.\n\n### Refund a native mixed payment\n\n1. Open the native online Sales Order and choose **Return / Credit**.\n2. Review the returned lines and keep **Original payment refund** as the settlement.\n3. Complete the credit note. Solvantis first sends any card portion back through Stripe.\n4. After that succeeds, the same completion restores the original store-credit portion, applies the selected restock lines, and completes the note.\n5. Review the completed note before communicating the final breakdown to the customer.\n\n### Recover from a failed native refund\n\n1. Read the displayed refund error and check the original payment connection or payment status.\n2. Leave the same linked credit note in place. A failed payment refund does not complete its stock return or restore customer value.\n3. Fix the payment issue, then retry completion on that same note.\n4. Confirm the note is Complete before making any separate correction.\n\n### Review an Amazon refund draft\n\n1. In **Integrations > Sales Channels**, find the exact Amazon seller account and choose **Sync returns**. A return report may remain pending until a later synchronization.\n2. Open **Sales > Customer Credit Notes**, filter **Source** to **Amazon**, and open the Draft linked to the Amazon refund.\n3. Compare the order, RMA, quantities, and refunded total with Seller Central. Solvantis creates a draft only when one unmatched RMA and one released refund match the order.\n4. Leave **Restock** cleared for goods not received, damaged, or unsellable. Select it only for mapped sellable goods physically received at the shown location.\n5. Complete the reviewed draft. Completion records the return and adds only selected goods to stock; it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.\n\n> **Important:** Amazon's seller settlement total can include fees and fee reversals. Solvantis uses the customer-facing refunded amount from the return report for the draft, not the seller's net transaction total.",
       "sectionId": "ims-customer-returns-refunds:5"
     },
@@ -10870,7 +10871,7 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "1. Open the original Sales Order and choose **Return / Credit**, or open **Sales > Customer Credit Notes** and select **New Credit Note**.\n2. Confirm the customer, original order reference, location, returned items, quantities, and values.\n3. Leave **Restock** selected only for sellable goods physically received. Clear it for damaged goods or a value-only credit.\n4. Create the Draft. If goods are still coming back, choose **Mark Awaiting Product** and complete it after arrival.\n5. Choose **Complete** when all details are correct. The credit note adds selected goods back once and issues the customer store credit.",
       "sectionId": "ims-customer-returns-refunds:5"
     },
@@ -10889,7 +10890,7 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "1. Start the return from the original sale in POS and complete the register prompts.\n2. In IMS, open **Customer Credit Notes**, change **Record Type** to **POS Returns / Exchanges**, and find the POS-linked note.\n3. Review its items, settlement, and original sale reference. The returned lines have already been handled by this credit note.\n4. Do not create a second credit note or stock adjustment.",
       "sectionId": "ims-customer-returns-refunds:5"
     },
@@ -10908,7 +10909,7 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "1. Open the native online Sales Order and choose **Return / Credit**.\n2. Review the returned lines and keep **Original payment refund** as the settlement.\n3. Complete the credit note. Solvantis first sends any card portion back through Stripe.\n4. After that succeeds, the same completion restores the original store-credit portion, applies the selected restock lines, and completes the note.\n5. Review the completed note before communicating the final breakdown to the customer.",
       "sectionId": "ims-customer-returns-refunds:5"
     },
@@ -10927,7 +10928,7 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "1. Read the displayed refund error and check the original payment connection or payment status.\n2. Leave the same linked credit note in place. A failed payment refund does not complete its stock return or restore customer value.\n3. Fix the payment issue, then retry completion on that same note.\n4. Confirm the note is Complete before making any separate correction.",
       "sectionId": "ims-customer-returns-refunds:5"
     },
@@ -10946,12 +10947,31 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "1. In **Integrations > Sales Channels**, find the exact Amazon seller account and choose **Sync returns**. A return report may remain pending until a later synchronization.\n2. Open **Sales > Customer Credit Notes**, filter **Source** to **Amazon**, and open the Draft linked to the Amazon refund.\n3. Compare the order, RMA, quantities, and refunded total with Seller Central. Solvantis creates a draft only when one unmatched RMA and one released refund match the order.\n4. Leave **Restock** cleared for goods not received, damaged, or unsellable. Select it only for mapped sellable goods physically received at the shown location.\n5. Complete the reviewed draft. Completion records the return and adds only selected goods to stock; it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.\n\n> **Important:** Amazon's seller settlement total can include fees and fee reversals. Solvantis uses the customer-facing refunded amount from the return report for the draft, not the seller's net transaction total.",
       "sectionId": "ims-customer-returns-refunds:5"
     },
     {
       "id": "ims-customer-returns-refunds:6",
+      "documentId": "ims-customer-returns-refunds",
+      "title": "Customer Returns, Store Credit, and Refunds",
+      "heading": "Return costing",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Sales > Customer Credit Notes",
+      "topicId": "ims-customer-returns-refunds",
+      "contexts": [
+        "credit-notes"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-09",
+      "content": "Under Average Cost, a restocked credit-note line linked to its original Sales Order line records that line's captured fulfilment cost for cost-of-goods-sold reporting. When a line was shipped in several parts, its captured cost is the quantity-weighted cost of those shipments. Changing the product's current cost does not replace the captured cost on the completed return.\n\nThe return's stock cost is separate from its customer credit or refund value. If the original fulfilment cost is missing or invalid, accounting still requires review; completion does not invent a replacement cost. A credit-only line with **Restock** cleared does not create a stock return.",
+      "sectionId": "ims-customer-returns-refunds:6"
+    },
+    {
+      "id": "ims-customer-returns-refunds:7",
       "documentId": "ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
       "heading": "Troubleshooting",
@@ -10965,12 +10985,12 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Complete is unavailable | The note is cancelled, already complete, or read-only | Review status and available actions |\n| Return quantity is rejected | It exceeds the fulfilled quantity still available to return | Check earlier linked returns and reduce the quantity |\n| Stock did not return | **Restock** was cleared, the item was not linked to a stock variant, or completion failed | Review the line and note status before correcting anything |\n| Native refund failed | Stripe could not verify or settle the original card payment | Fix the shown issue and retry the same credit note |\n| Amazon shows a refund but stock did not return | A financial refund does not confirm physical receipt | Check the Amazon return and receive the goods through the appropriate IMS return workflow only when they are physically received |\n| No Amazon Draft was created | The report is still pending, the order was not imported through that seller account, or multiple unmatched RMAs/refunds made the match ambiguous | Run Sync returns later, confirm the exact seller account, and compare the order's return and refund records |\n| Xero failed after a manual return completed | The operational return succeeded but accounting did not | Retry the note's Xero action; do not repeat the return |",
-      "sectionId": "ims-customer-returns-refunds:6"
+      "sectionId": "ims-customer-returns-refunds:7"
     },
     {
-      "id": "ims-customer-returns-refunds:7",
+      "id": "ims-customer-returns-refunds:8",
       "documentId": "ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
       "heading": "Worked examples",
@@ -10984,12 +11004,12 @@
         "credit-notes"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "### Manual IMS return for store credit\n\nThe customer returns 2 tops at $55 each, $110 including GST. Both are sellable, so **Restock** stays selected. Completing the Manual credit note adds 2 tops to that location and increases the customer's store credit by $110. No separate stock or customer-balance entry is needed.\n\n### POS exchange\n\nA customer returns 2 keyrings at $13.95 each and buys two planters totalling $30.90. POS records the exchange and creates a linked credit note for the 2 returned keyrings. That note adds the keyrings back; the new planter lines reduce stock through the POS sale. Do not add the keyrings again in IMS.\n\n### Native mixed-payment refund\n\nA $120 native order was paid with $35 store credit and $85 by card. A $70 return restores $35 to store credit first and refunds the remaining $35 through Stripe. If the credit note has one sellable returned unit selected for restock, that unit returns only after the payment refund succeeds.\n\n### Failed native refund\n\nA $48 card refund fails because the original payment cannot be verified. The linked credit note remains unfinished, stock is not added back, and no customer value is restored. After the payment issue is fixed, retry the same note; do not create another $48 refund.",
-      "sectionId": "ims-customer-returns-refunds:7"
+      "sectionId": "ims-customer-returns-refunds:8"
     },
     {
-      "id": "ims-customer-returns-refunds:7.1",
+      "id": "ims-customer-returns-refunds:8.1",
       "documentId": "ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
       "heading": "Worked examples > Manual IMS return for store credit",
@@ -11003,12 +11023,12 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "The customer returns 2 tops at $55 each, $110 including GST. Both are sellable, so **Restock** stays selected. Completing the Manual credit note adds 2 tops to that location and increases the customer's store credit by $110. No separate stock or customer-balance entry is needed.",
-      "sectionId": "ims-customer-returns-refunds:7"
+      "sectionId": "ims-customer-returns-refunds:8"
     },
     {
-      "id": "ims-customer-returns-refunds:7.2",
+      "id": "ims-customer-returns-refunds:8.2",
       "documentId": "ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
       "heading": "Worked examples > POS exchange",
@@ -11022,12 +11042,12 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "A customer returns 2 keyrings at $13.95 each and buys two planters totalling $30.90. POS records the exchange and creates a linked credit note for the 2 returned keyrings. That note adds the keyrings back; the new planter lines reduce stock through the POS sale. Do not add the keyrings again in IMS.",
-      "sectionId": "ims-customer-returns-refunds:7"
+      "sectionId": "ims-customer-returns-refunds:8"
     },
     {
-      "id": "ims-customer-returns-refunds:7.3",
+      "id": "ims-customer-returns-refunds:8.3",
       "documentId": "ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
       "heading": "Worked examples > Native mixed-payment refund",
@@ -11041,12 +11061,12 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "A $120 native order was paid with $35 store credit and $85 by card. A $70 return restores $35 to store credit first and refunds the remaining $35 through Stripe. If the credit note has one sellable returned unit selected for restock, that unit returns only after the payment refund succeeds.",
-      "sectionId": "ims-customer-returns-refunds:7"
+      "sectionId": "ims-customer-returns-refunds:8"
     },
     {
-      "id": "ims-customer-returns-refunds:7.4",
+      "id": "ims-customer-returns-refunds:8.4",
       "documentId": "ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
       "heading": "Worked examples > Failed native refund",
@@ -11060,9 +11080,9 @@
         "credit-notes"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-15",
+      "lastReviewed": "2026-10-09",
       "content": "A $48 card refund fails because the original payment cannot be verified. The linked credit note remains unfinished, stock is not added back, and no customer value is restored. After the payment issue is fixed, retry the same note; do not create another $48 refund.",
-      "sectionId": "ims-customer-returns-refunds:7"
+      "sectionId": "ims-customer-returns-refunds:8"
     },
     {
       "id": "ims-sales-orders-fulfilment:1",

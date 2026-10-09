@@ -359,7 +359,7 @@
     {
       "id": "public-capability:ims-customer-returns-refunds",
       "title": "Customer Returns, Store Credit, and Refunds",
-      "summary": "Record customer returns once, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.",
+      "summary": "Record customer returns once, review captured return costs, restore sellable stock correctly, and return value through store credit, the original native payment, or the source channel.",
       "capabilities": [
         "ims",
         "orders"

@@ -5926,6 +5926,7 @@ async function restockCreditNoteItemsTx(
   costing: {
     costingState: InventoryCostState;
     source: ImsCN['source'];
+    salesOrderId?: number | null;
     posSaleId?: number | null;
     returnDate: string | Date;
   },
@@ -5944,6 +5945,21 @@ async function restockCreditNoteItemsTx(
       [item.variant_id],
     );
     if (Number(variant?.is_stock_item ?? 1) === 0) continue;
+    let returnUnitCost: number | null = null;
+    if (costing.costingState.method === 'average_cost' && item.source_so_item_id != null && costing.salesOrderId) {
+      const [[sourceItem]] = await conn.execute<any[]>(
+        `SELECT soi.unit_cost
+           FROM ims_sales_order_items soi
+           JOIN ims_sales_orders so ON so.id = soi.so_id
+          WHERE soi.id = ? AND soi.so_id = ? AND so.business_id = ? AND soi.variant_id = ?
+          FOR UPDATE`,
+        [item.source_so_item_id, costing.salesOrderId, businessId, item.variant_id],
+      );
+      if (sourceItem?.unit_cost != null) {
+        const capturedCost = Number(sourceItem.unit_cost);
+        if (Number.isFinite(capturedCost) && capturedCost >= 0) returnUnitCost = capturedCost;
+      }
+    }
     await conn.execute(
       `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)`,
       [businessId, item.variant_id, locationId],
@@ -5960,9 +5976,9 @@ async function restockCreditNoteItemsTx(
     const [movementResult] = await conn.execute<any>(
       `INSERT INTO ims_stock_movements
          (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,source_line_id,
-          qty_change,qty_after_soh,cost_method_snapshot,cost_epoch_id)
-       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?,?,?,?)`,
-      [businessId, item.variant_id, locationId, channel, cnId, item.id, qty, s?.qty_on_hand ?? 0,
+         qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
+       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?,?,?,?,?)`,
+      [businessId, item.variant_id, locationId, channel, cnId, item.id, qty, s?.qty_on_hand ?? 0, returnUnitCost,
         costing.costingState.method, costing.costingState.epochId],
     );
     if (costing.costingState.method === 'fifo') {
@@ -6299,6 +6315,7 @@ export const ImsCNRepo = {
       await restockCreditNoteItemsTx(conn, businessId, cn.id, cn.location_id, items, channel, {
         costingState,
         source: cn.source,
+        salesOrderId: cn.so_id,
         posSaleId: cn.pos_sale_id,
         returnDate: cn.cn_date,
       });
