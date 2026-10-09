@@ -92,6 +92,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_supplier_credit_note_items',
   'ims_supplier_credit_note_files',
   'ims_stock_movements',
+  'ims_cogs_cost_repairs',
   'ims_stocktakes',
   'ims_stocktake_items',
   'ims_branch_transfers',

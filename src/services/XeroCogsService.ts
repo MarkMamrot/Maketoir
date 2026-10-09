@@ -121,6 +121,10 @@ function isAmbiguousXeroError(error: unknown): boolean {
     || /failed \(5\d\d\)|fetch failed|network|socket/i.test(details.message);
 }
 
+function isConfirmedMissingXeroJournal(error: unknown): boolean {
+  return /failed \(404\)|linked Xero COGS journal was not found/i.test(errorDetails(error).message);
+}
+
 function dateString(value: string | Date): string {
   return (value instanceof Date ? value.toISOString() : String(value)).slice(0, 10);
 }
@@ -368,27 +372,30 @@ export async function repostCogsRun(input: { businessId: string; runId: number }
   );
   const buckets = calculateCogsBucketDeltas(currentBuckets(calculation, locationNames), postedRows);
   try {
-    const posted = await syncCogsJournal({
-      businessId: input.businessId,
-      runId: run.id,
-      existingJournalId: run.xero_id,
-      label: `${periodStart} to ${journalDate}`,
-      journalDate,
-      amount: postedDelta,
-      buckets,
-      runKind: run.run_kind,
-    });
+    const journalInput = { businessId: input.businessId, runId: run.id, label: `${periodStart} to ${journalDate}`,
+      journalDate, amount: postedDelta, buckets, runKind: run.run_kind };
+    let replacedMissingId: string | null = null;
+    let posted;
+    try {
+      posted = await syncCogsJournal({ ...journalInput, existingJournalId: run.xero_id });
+    } catch (error: unknown) {
+      if (!isConfirmedMissingXeroJournal(error)) throw error;
+      replacedMissingId = run.xero_id;
+      posted = await syncCogsJournal({ ...journalInput, replacementForJournalId: run.xero_id });
+    }
     await execute(
       `UPDATE xero_cogs_journal_runs
           SET target_amount = ?, posted_delta = ?, included_movement_count = ?,
               missing_cost_movement_count = ?, zero_cost_movement_count = ?,
               excluded_movement_count = ?, orphaned_movement_count = ?,
-              breakdown_json = ?, status = 'success', xero_state = ?, error_detail = NULL
+              breakdown_json = ?, status = 'success', xero_id = ?, xero_state = ?, error_detail = ?
         WHERE id = ? AND business_id = ?`,
       [calculation.totalCOGS, postedDelta, calculation.includedMovementCount,
         calculation.missingCostMovementCount, calculation.zeroCostMovementCount,
         calculation.excludedHistoricalMovementCount, calculation.orphanedMovementCount,
-        JSON.stringify(buckets), posted.xeroState, run.id, input.businessId],
+        JSON.stringify(buckets), posted.journalId, posted.xeroState,
+        replacedMissingId ? `Replacement for Xero journal ${replacedMissingId}, which Xero confirmed was missing.` : null,
+        run.id, input.businessId],
     );
     if (posted.xeroState !== 'POSTED') {
       return { outcome: 'failed', runId: run.id, error: `Xero kept the journal in ${posted.xeroState || 'an unknown state'} instead of posting it.` };

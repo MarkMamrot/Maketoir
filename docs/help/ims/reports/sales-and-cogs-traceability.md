@@ -94,7 +94,7 @@ Opening or refreshing this report does not post accounting entries or change inv
 
 The tab attempts a live Xero status check for every displayed run with a journal reference. A provider or connection failure leaves the recorded state visible but labels it unverified. A numerical match does not prove that costs are complete or that the wider general ledger reconciles. Missing costs and uncertain runs remain flagged even when amounts match.
 
-The date range is an accounting-period overlap filter, not a journal-date or run-created-date filter. All recorded runs belonging to each matching period are included. Periods with no recorded run are not listed; an empty list does not certify that COGS has been posted. If different posting schedules overlap, review the periods separately rather than adding their current COGS totals together.
+The date range is an accounting-period overlap filter, not a journal-date or run-created-date filter. All recorded runs belonging to each matching period are included. Configured completed periods remain listed even when no posting run exists; that absence is shown as evidence rather than hidden. If different posting schedules overlap, review the periods separately rather than adding their current COGS totals together.
 
 Investigate a difference before deciding on an accounting adjustment. This report does not retry, create, post or void journals, change automation or fix cost evidence. Historical failed attempts remain visible even when a later run reconciles. Use **Xero > Activity > COGS** for authorised retry and changed-period adjustment actions after reviewing this evidence. Sales CSV export is available in the sales views, not Xero Postings.
 
@@ -102,7 +102,7 @@ Investigate a difference before deciding on an accounting adjustment. This repor
 
 Automatic COGS sync is scheduled daily at approximately **03:17 AEST / 04:17 AEDT**. This daily check does not mean a journal is created every day: the business's selected frequency is daily, weekly, monthly or quarterly, and only completed business-local periods are eligible. For example, a monthly September period first becomes eligible after September closes.
 
-The schedule must be enabled, have a first reliable COGS date, have no unresolved schedule hold, and the business's automation must not be paused. Automatic sync is disabled by default; the default frequency is monthly. The daily check can catch up to eight due periods, but a missing/unexplained-zero cost block, failed request or uncertain posting result puts the schedule on hold and stops it progressing.
+The schedule must be enabled, have a first reliable COGS date, and the business's automation must not be paused. Automatic sync is disabled by default; the default frequency is monthly. The daily check can catch up to eight due periods. A missing or unexplained zero cost, failed request, or uncertain posting remains recorded against that period, creates an Accounting Audit finding and notification, and does not prevent independent later completed periods from being attempted.
 
 Enabling or changing a schedule starts it with the current period, which must close before it is eligible. It does not automatically backfill previously completed periods. An authorised user can separately request an eligible completed period through the Xero COGS posting workflow; normal cost checks and duplicate-run protection still apply.
 
@@ -112,7 +112,7 @@ Future COGS journals are requested from Xero as **POSTED** manual journals. Each
 
 Each run saves the exact line-item deltas used. Later adjustments compare current location-channel totals with prior saved posted buckets and send only each bucket's change. An older posted journal without a saved split remains **Prior unsplit journals** in the first split adjustment; Solvantis does not invent a historical branch allocation or rewrite the old journal.
 
-One row in Xero Postings represents one accounting period, not necessarily one journal. Expand it to see all recorded original and adjustment attempts. Periods without a recorded attempt are absent, and the current **Cost checks blocked** label does not by itself prove that automatic scheduling is held: check the saved schedule state before concluding why later periods are missing.
+One row in Xero Postings represents one accounting period, not necessarily one journal. Expand it to see all recorded original and adjustment attempts. A configured completed period without an attempt remains visible as **Not posted**. Incomplete movement costs show the exact missing and unexplained-zero counts; review them in **Xero > Activity > COGS** rather than inferring the state from a zero journal total.
 
 ## Data availability
 

@@ -2682,6 +2682,7 @@ export async function syncCogsJournal(input: {
   businessId: string;
   runId?: number;
   existingJournalId?: string;
+  replacementForJournalId?: string;
   label: string;
   journalDate: string;
   amount: number;
@@ -2744,11 +2745,13 @@ export async function syncCogsJournal(input: {
   const body = { ManualJournals: [journal] };
   const sourceId = input.runId ?? `${input.journalDate}:${input.label}:${input.amount}`;
   const requestFingerprint = crypto.createHash('sha256')
-    .update(JSON.stringify({ existingJournalId: input.existingJournalId ?? null, body }))
+    .update(JSON.stringify({ existingJournalId: input.existingJournalId ?? null, replacementForJournalId: input.replacementForJournalId ?? null, body }))
     .digest('hex');
   const operationKey = input.existingJournalId
     ? `cogs-journal-update:${sourceId}:${requestFingerprint}`
-    : `cogs-journal:${sourceId}`;
+    : input.replacementForJournalId
+      ? `cogs-journal-replacement:${sourceId}:${input.replacementForJournalId}:${requestFingerprint}`
+      : `cogs-journal:${sourceId}`;
   const claim = await claimXeroAccountingAction({
     businessId: input.businessId,
     operationKey,

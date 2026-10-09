@@ -213,6 +213,22 @@ describe('repostCogsRun', () => {
     expect(mockExecute.mock.calls[1][1]).toEqual(['biz-1', period.startDate]);
   });
 
+  it('creates an idempotent replacement when Xero confirms the linked journal is missing', async () => {
+    mockSync.mockRejectedValueOnce(new Error('Xero request failed (404)'))
+      .mockResolvedValueOnce({ journalId: 'replacement-1', xeroState: 'POSTED' });
+    const result = await repostCogsRun({ businessId: 'biz-1', runId: 42 });
+    expect(result).toMatchObject({ outcome: 'posted', xeroId: 'replacement-1' });
+    expect(mockSync).toHaveBeenNthCalledWith(2, expect.objectContaining({ replacementForJournalId: 'draft-1' }));
+    expect(mockExecute.mock.calls[0][1]).toContain('replacement-1');
+    expect(mockExecute.mock.calls[0][1]).toContain('Replacement for Xero journal draft-1, which Xero confirmed was missing.');
+  });
+
+  it('does not replace a journal when live Xero verification is unavailable', async () => {
+    mockSync.mockRejectedValueOnce(new Error('Xero request failed (503)'));
+    expect(await repostCogsRun({ businessId: 'biz-1', runId: 42 })).toMatchObject({ outcome: 'unknown' });
+    expect(mockSync).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses a run without a linked Xero journal', async () => {
     mockQuery.mockReset().mockResolvedValueOnce([{ ...linkedRun, xero_id: null }]);
     expect(await repostCogsRun({ businessId: 'biz-1', runId: 42 })).toMatchObject({ outcome: 'ineligible' });

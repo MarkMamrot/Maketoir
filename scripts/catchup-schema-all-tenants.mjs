@@ -71,6 +71,7 @@ const KLAVIYO_TABLES = [
 ];
 
 const LAYBY_TABLES = ['pos_laybys', 'pos_layby_events', 'pos_layby_reservations'];
+const COGS_REPAIR_TABLES = ['ims_cogs_cost_repairs'];
 
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
@@ -127,9 +128,16 @@ const LAYBY_TABLE_DDLS = LAYBY_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const COGS_REPAIR_TABLE_DDLS = COGS_REPAIR_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const TABLE_DDLS = [
   ...LAYBY_TABLE_DDLS,
+  ...COGS_REPAIR_TABLE_DDLS,
   ...DAYBOOK_TABLE_DDLS,
   ...INVENTORY_COSTING_TABLE_DDLS,
   ...SALES_CHANNEL_TABLE_DDLS,

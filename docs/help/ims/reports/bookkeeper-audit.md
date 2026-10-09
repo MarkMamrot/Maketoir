@@ -25,7 +25,7 @@ Bookkeeper Audit brings recurring operational and accounting exceptions into one
 | Finding | When it appears | Normal next step |
 |---|---|---|
 | Missing, zero, or negative COGS | An inventory-tracked product sold in the previous completed month has incomplete or invalid movement cost | Use the named product and SKU to review its receipt or opening cost source |
-| COGS period not fully posted | A completed period is missing, failed, uncertain, Draft, or differs from current eligible COGS | Open Xero COGS activity, review the period, then post or update the linked unlocked journal |
+| COGS period not fully posted | A completed period is missing, failed, uncertain, Draft, or differs from current eligible COGS | Open Xero COGS activity, fix unknown movement costs, then post, replace, or update the journal offered for that period |
 | Xero reconciliation difference | The existing Xero reconciliation process finds a document, amount, state, contact, currency, payment, or mapping difference | Compare Solvantis and Xero, then correct the source of truth and recheck |
 | Negative stock | An active inventory-tracked product has a stock position below zero, including a fractional quantity | Review movements and correct through receiving, transfer, stocktake, or the source transaction. If the product should not track inventory, disable **Tracks inventory** and refresh the audit |
 | Overdue Purchase Order | Its expected date has passed, or it is more than 30 days from order date without one | Receive, resolve, or update the order |
@@ -62,6 +62,8 @@ For Xero findings, **Date** is the source document date rather than the date the
 For a lifecycle-state finding, expand **Why these states are incompatible**. It shows the current Solvantis source state, the current Xero state, the Xero states expected for that workflow, and why the current combination does not agree.
 
 Sales COGS checks use the previous completed calendar month. Each finding names the affected product and SKU. Open an exact POS transaction to review Revenue excluding tax, COGS, Gross Margin, and the line-level captured movement cost. A zero shown there means the sale did not capture positive COGS, even when the product has a current catalogue cost. The checks exclude historical imports, products that do not track inventory, orphaned movements, and controlled zero-cost FIFO movements with a recorded reason.
+
+For an unresolved posting period, open **Xero > Activity > COGS**. Use **Fix Unknown COGS** to review and repair eligible missing or unexplained zero movement costs, then use **Post COGS**. Current catalogue, average and converted foreign costs are suggestions only; record the historical evidence reviewed. **Post Known COGS** deliberately leaves unknown costs unresolved and should be used only when the known subtotal must be posted with a recorded accounting reason.
 
 ### Read an assumed due date
 

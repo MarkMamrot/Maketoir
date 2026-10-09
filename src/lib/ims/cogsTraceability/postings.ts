@@ -13,7 +13,7 @@ export interface PostingRun {
   recordedAt: string; updatedAt: string; missingCosts: number; zeroCosts: number;
   errorDetail: string | null; overrideReason: string | null;
   buckets: CogsJournalBucket[] | null;
-  liveXeroStatus?: string | null; liveVerification?: 'verified' | 'unavailable' | 'not_applicable';
+  liveXeroStatus?: string | null; liveVerification?: 'verified' | 'not_found' | 'unavailable' | 'not_applicable';
 }
 
 interface CogsPostingSetting {
@@ -132,8 +132,10 @@ export async function loadPostingReconciliations(businessId: string, request: Re
       try {
         const response = await xeroApiFetch(businessId, `/ManualJournals/${encodeURIComponent(run.xeroId)}`, { method: 'GET' });
         verifiedMembers.push({ ...run, liveXeroStatus: response.ManualJournals?.[0]?.Status ?? null, liveVerification: 'verified' as const });
-      } catch {
-        verifiedMembers.push({ ...run, liveXeroStatus: null, liveVerification: 'unavailable' as const });
+      } catch (error: unknown) {
+        const notFound = /failed \(404\)/i.test(error instanceof Error ? error.message : String(error));
+        verifiedMembers.push({ ...run, liveXeroStatus: notFound ? 'NOT_FOUND' : null,
+          liveVerification: notFound ? 'not_found' as const : 'unavailable' as const });
       }
     }
     const totals = summarisePostingRuns(verifiedMembers);
@@ -146,7 +148,8 @@ export async function loadPostingReconciliations(businessId: string, request: Re
     rows.push({ from, toExclusive, frequency, calculation, ...totals, variance, livePostedTotal, liveVariance,
       scheduleHold: heldPeriodStart === from ? { reason: setting?.held_reason ?? 'held', runId: setting?.held_run_id == null ? null : Number(setting.held_run_id) } : null,
       blockedByPriorHold: Boolean(heldPeriodStart && heldPeriodStart < from),
-      liveVerificationComplete, state: options.verifyXero && verifiable.some(run => run.liveVerification === 'unavailable') ? 'Live Xero verification unavailable'
+      liveVerificationComplete, state: verifiedMembers.some(run => run.liveVerification === 'not_found') ? 'Linked Xero journal not found'
+        : options.verifyXero && verifiable.some(run => run.liveVerification === 'unavailable') ? 'Live Xero verification unavailable'
         : totals.uncertainCount ? 'Status uncertain' : calculation.blocked ? 'Posting blocked by incomplete costs'
           : members.length === 0 && heldPeriodStart && heldPeriodStart < from ? 'Not posted - earlier period unresolved'
             : members.length === 0 ? 'Not posted'

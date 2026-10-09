@@ -55,6 +55,12 @@ describe('COGS posting reconciliation', () => {
     expect(result.rows[0]).toMatchObject({ liveVerificationComplete: false, livePostedTotal: null, state: 'Live Xero verification unavailable' });
     expect(result.rows[0].runs[0]).toMatchObject({ liveVerification: 'unavailable', liveXeroStatus: null });
   });
+  it('reports when Xero confirms that the linked journal does not exist', async () => {
+    mocks.xeroFetch.mockRejectedValue(new Error('Xero API GET /ManualJournals/journal-1 failed (404): not found'));
+    const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams()), { verifyXero: true });
+    expect(result.rows[0]).toMatchObject({ liveVerificationComplete: false, livePostedTotal: null, state: 'Linked Xero journal not found' });
+    expect(result.rows[0].runs[0]).toMatchObject({ liveVerification: 'not_found', liveXeroStatus: 'NOT_FOUND' });
+  });
   it('keeps all runs for a period together across pagination', async () => {
     mocks.query.mockResolvedValue([{ ...run, id: 2, kind: 'adjustment', amount: 20 }, run,
       { ...run, id: 3, from: '2026-08-01', toExclusive: '2026-09-01' }]);

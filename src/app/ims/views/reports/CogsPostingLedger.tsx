@@ -6,6 +6,7 @@ import type { loadPostingReconciliations } from '@/lib/ims/cogsTraceability/post
 import { cogsChannelLabel } from '@/lib/xero/cogsPeriods';
 import { ReportScrollTable } from './ReportScrollTable';
 import type { SBDateRange } from './reportFilterHelpers';
+import { CogsCostRepairPanel } from './CogsCostRepairPanel';
 
 type Ledger = Awaited<ReturnType<typeof loadPostingReconciliations>>;
 type Period = Ledger['rows'][number];
@@ -35,6 +36,7 @@ export function CogsPostingLedger({
   const [selected, setSelected] = useState<Period | null>(null);
   const [actionBusy, setActionBusy] = useState('');
   const [actionMessage, setActionMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [repairPeriod, setRepairPeriod] = useState<Period | null>(null);
   const params = new URLSearchParams({ page: String(page), pageSize: '10' });
   if (range.kind === 'range') { params.set('from', range.from); params.set('to', range.to); }
   else params.set('window', String(range.window));
@@ -42,7 +44,6 @@ export function CogsPostingLedger({
   const pending = loading || loadedQuery !== query;
   const canPostPeriod = (period: Period) => period.draftCount === 0
     && period.uncertainCount === 0
-    && !period.runs.some(run => run.status === 'failed' && run.target === period.calculation.totalCOGS)
     && (period.postedCount === 0 || period.liveVerificationComplete)
     && (period.liveVariance ?? period.variance) !== 0;
 
@@ -69,10 +70,11 @@ export function CogsPostingLedger({
     } finally { setActionBusy(''); }
   };
 
-  const postDifference = async (period: Period) => {
+  const postDifference = async (period: Period, postKnownOnly = false) => {
     if (!actions) return;
     let overrideReason: string | undefined;
     if (period.calculation.blocked) {
+      if (!postKnownOnly) { setActionMessage({ ok: false, text: 'Fix the unknown movement costs before posting the complete period COGS.' }); return; }
       if (actions.isAdvisor) { setActionMessage({ ok: false, text: 'An administrator must resolve or override the valuation checks.' }); return; }
       const reason = prompt(`This period has ${period.calculation.missingCostMovementCount} movements with missing cost and ${period.calculation.zeroCostMovementCount} with unexplained zero cost. Posting now may understate COGS and Inventory. Enter the accounting reason for posting only the known amount, or Cancel to fix the costs first.`);
       if (!reason?.trim()) return;
@@ -100,8 +102,11 @@ export function CogsPostingLedger({
     } finally { setActionBusy(''); }
   };
 
-  const repostRun = async (runId: number) => {
-    if (!actions || !confirm('Replace this unlocked Xero journal with the current COGS lines and submit it as posted?')) return;
+  const repostRun = async (runId: number, journalMissing = false) => {
+    const message = journalMissing
+      ? 'Xero confirmed the linked journal is missing. Create and post a replacement using the current recalculated COGS lines?'
+      : 'Replace this unlocked Xero journal with the current COGS lines and submit it as posted?';
+    if (!actions || !confirm(message)) return;
     setActionBusy(`repost:${runId}`);
     setActionMessage(null);
     try {
@@ -121,6 +126,7 @@ export function CogsPostingLedger({
 
   const selectedRepostRun = selected?.runs.find(run => run.xeroId && run.status !== 'unknown'
     && ['DRAFT', 'POSTED'].includes(String(run.liveVerification === 'verified' ? run.liveXeroStatus : run.xeroStatus).toUpperCase()));
+  const selectedJournalMissing = selectedRepostRun?.liveVerification === 'not_found';
 
   const copyJournalId = async (xeroId: string) => {
     await navigator.clipboard.writeText(xeroId);
@@ -153,10 +159,13 @@ export function CogsPostingLedger({
               <tbody>{data.rows.map((period, index) => <tr key={`${period.from}:${period.toExclusive}`} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
                 <td style={cell}>{periodLabel(period.from, period.toExclusive)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)', textTransform: 'capitalize' }}>{period.frequency}</div>{period.scheduleHold && <div style={{ marginTop: 4, fontSize: 11, color: '#991b1b' }}>Unresolved posting: {period.scheduleHold.reason}</div>}{period.runs.find(run => run.href) && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}><a href={period.runs.find(run => run.href)!.href!} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--sv-action)' }}>Open Xero <ExternalLink size={12} /></a><button onClick={() => void copyJournalId(period.runs.find(run => run.xeroId)!.xeroId!)} title="Copy Xero journal ID" aria-label="Copy Xero journal ID" style={{ ...button, width: 26, height: 26 }}><Copy size={12} /></button><span style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>Copy ID to locate the journal</span></div>}</td>
                 <td style={numberCell}>{money(period.calculation.totalCOGS)}{period.calculation.blocked && <div style={{ fontSize: 11, color: '#991b1b', whiteSpace: 'normal' }}>{period.calculation.missingCostMovementCount} missing-cost and {period.calculation.zeroCostMovementCount} unexplained zero-cost movements</div>}</td>
-                <td style={numberCell}>{money(period.livePostedTotal ?? period.postedTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'normal' }}>{period.liveVerificationComplete ? 'Verified with Xero now' : period.postedCount > 0 ? 'Recorded posted total; Xero check unavailable' : 'No posted journal recorded'}</div></td>
+                <td style={numberCell}>{money(period.livePostedTotal ?? period.postedTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'normal' }}>{period.runs.some(run => run.liveVerification === 'not_found') ? 'Xero confirmed the linked journal is absent' : period.liveVerificationComplete ? 'Verified with Xero now' : period.postedCount > 0 ? 'Recorded posted total; Xero check unavailable' : 'No posted journal recorded'}</div></td>
                 <td style={numberCell}>{money(period.draftTotal)}<div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.draftCount} journals</div></td>
                 <td style={numberCell}>{money(period.liveVariance ?? period.variance)}</td>
-                <td style={cell}>{period.calculation.blocked ? 'Posting blocked by incomplete costs' : period.state}{period.calculation.blocked && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--sv-text-dim)' }}>Fix the movement costs first. An administrator can exceptionally post only the known amount with a recorded reason.</div>}{period.failedCount > 0 && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.failedCount} failed attempts in history</div>}{actions && canPostPeriod(period) && <button disabled={Boolean(actionBusy)} onClick={() => void postDifference(period)} style={{ marginTop: 7, border: '1px solid var(--sv-action)', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '5px 8px', fontSize: 11, cursor: actionBusy ? 'not-allowed' : 'pointer' }}>{actionBusy === `post:${period.from}:${period.toExclusive}` ? 'Posting...' : period.calculation.blocked ? 'Post known COGS anyway' : period.postedCount > 0 ? 'Post adjustment' : 'Post COGS'}</button>}</td>
+                <td style={cell}>{period.calculation.blocked ? 'Posting blocked by incomplete costs' : period.state}{period.calculation.blocked && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--sv-text-dim)' }}>Fix the movement costs first. An administrator can exceptionally post only the known amount with a recorded reason.</div>}{period.failedCount > 0 && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{period.failedCount} failed attempts in history</div>}{actions && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  <button disabled={Boolean(actionBusy) || period.calculation.blocked || !canPostPeriod(period)} onClick={() => void postDifference(period)} title={period.calculation.blocked ? 'Resolve unknown COGS movement costs first' : !canPostPeriod(period) ? 'No postable COGS difference is currently available' : 'Post the complete recalculated period COGS'} style={{ border: '1px solid var(--sv-action)', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '6px 8px', fontSize: 11, cursor: actionBusy || period.calculation.blocked || !canPostPeriod(period) ? 'not-allowed' : 'pointer', opacity: period.calculation.blocked || !canPostPeriod(period) ? 0.55 : 1 }}>{actionBusy === `post:${period.from}:${period.toExclusive}` ? 'Posting...' : 'Post COGS'}</button>
+                  {period.calculation.blocked && <><button disabled={Boolean(actionBusy) || actions.isAdvisor} onClick={() => setRepairPeriod(period)} style={{ border: '1px solid var(--sv-action)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-action)', padding: '6px 8px', fontSize: 11, cursor: actionBusy || actions.isAdvisor ? 'not-allowed' : 'pointer' }}>Fix Unknown COGS</button><button disabled={Boolean(actionBusy) || actions.isAdvisor || !canPostPeriod(period)} onClick={() => void postDifference(period, true)} title="Exceptionally post only movements whose COGS cost is known" style={{ border: '1px solid #b45309', borderRadius: 6, background: '#fff7ed', color: '#9a3412', padding: '6px 8px', fontSize: 11, cursor: actionBusy || actions.isAdvisor || !canPostPeriod(period) ? 'not-allowed' : 'pointer', opacity: !canPostPeriod(period) ? 0.55 : 1 }}>Post Known COGS</button></>}
+                </div>}</td>
                 <td style={cell}><button style={button} title="Inspect journals and reconciliation" aria-label={`Inspect accounting period ${period.from}`} aria-pressed={selected?.from === period.from && selected?.toExclusive === period.toExclusive} onClick={() => setSelected(period)}><Eye size={15} /></button></td>
               </tr>)}</tbody>
             </ReportScrollTable>
@@ -166,7 +175,7 @@ export function CogsPostingLedger({
             </div>
           </>}
           {selected && <section aria-label="Accounting period evidence" style={{ borderTop: '1px solid var(--sv-etch)', padding: '16px 0', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><h3 style={{ margin: 0, fontSize: 15, color: 'var(--sv-text-strong)' }}>{periodLabel(selected.from, selected.toExclusive)}</h3><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions && selectedRepostRun && <button disabled={Boolean(actionBusy)} onClick={() => void repostRun(selectedRepostRun.id)} style={{ border: '1px solid var(--sv-action)', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '7px 10px', fontSize: 12, cursor: actionBusy ? 'not-allowed' : 'pointer' }}>{actionBusy === `repost:${selectedRepostRun.id}` ? 'Updating...' : 'Update & post journal'}</button>}<button style={button} title="Close period evidence" aria-label="Close period evidence" onClick={() => setSelected(null)}><X size={15} /></button></div></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><h3 style={{ margin: 0, fontSize: 15, color: 'var(--sv-text-strong)' }}>{periodLabel(selected.from, selected.toExclusive)}</h3><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions && selectedRepostRun && <button disabled={Boolean(actionBusy)} onClick={() => void repostRun(selectedRepostRun.id, selectedJournalMissing)} style={{ border: '1px solid var(--sv-action)', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '7px 10px', fontSize: 12, cursor: actionBusy ? 'not-allowed' : 'pointer' }}>{actionBusy === `repost:${selectedRepostRun.id}` ? 'Updating...' : selectedJournalMissing ? 'Create replacement & post' : 'Update & post journal'}</button>}<button style={button} title="Close period evidence" aria-label="Close period evidence" onClick={() => setSelected(null)}><X size={15} /></button></div></div>
             <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Difference = current eligible COGS minus recorded posted journals, including signed original and adjustment amounts. This is not an instruction to post an adjustment.</p>
             <ReportScrollTable ariaLabel="COGS journal runs, arrow-key scrolling" bodyClassName="cogs-posting-runs-scroll" tableWidth={runWidths.reduce((sum, width) => sum + width, 0)} renderColGroup={() => <colgroup>{runWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>} borderRadius={6} frozenColumnWidths={[runWidths[0]]} headerRows={<tr>{['Run', 'Journal date', 'Kind / schedule', 'Run delta (AUD)', 'Run status', 'Recorded Xero state', 'Target at run (AUD)', 'Journal line-item snapshot', 'Cost checks at run', 'Run created', 'Xero journal'].map((label, index) => <th key={index} style={header}>{label}</th>)}</tr>}>
               <tbody>{selected.runs.map((run, index) => <tr key={run.id} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
@@ -184,5 +193,6 @@ export function CogsPostingLedger({
             </dl>
           </section>}
         </>}
+    {repairPeriod && <CogsCostRepairPanel from={repairPeriod.from} toExclusive={repairPeriod.toExclusive} onClose={() => setRepairPeriod(null)} onSaved={message => { setRepairPeriod(null); setActionMessage({ ok: true, text: message }); actions?.onChanged(); }} />}
   </section>;
 }

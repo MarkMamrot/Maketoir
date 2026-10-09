@@ -2032,6 +2032,23 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
   INDEX idx_sm_source_line (business_id, reference_type, reference_id, source_line_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ims_cogs_cost_repairs (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  movement_id           INT NOT NULL,
+  old_unit_cost         DECIMAL(12,4) NULL,
+  new_unit_cost         DECIMAL(12,4) NOT NULL,
+  cost_source           VARCHAR(32) NOT NULL,
+  source_detail         JSON NULL,
+  reason                VARCHAR(500) NOT NULL,
+  fifo_warning_accepted TINYINT(1) NOT NULL DEFAULT 0,
+  actor_id              BIGINT NULL,
+  actor_name            VARCHAR(255) NULL,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_cogs_repair_movement (business_id, movement_id, created_at),
+  INDEX idx_cogs_repair_created (business_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Stocktakes ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_stocktakes (
   id             INT AUTO_INCREMENT PRIMARY KEY,
