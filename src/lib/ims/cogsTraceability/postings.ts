@@ -41,16 +41,19 @@ function postingBuckets(value: unknown): CogsJournalBucket[] | null {
 }
 
 export function summarisePostingRuns(runs: PostingRun[]) {
-  const posted = runs.filter(run => run.status === 'success' && run.xeroStatus === 'POSTED' && run.xeroId);
-  const drafts = runs.filter(run => run.status === 'success' && run.xeroStatus === 'DRAFT' && run.xeroId);
+  const effectiveXeroStatus = (run: PostingRun) => run.liveVerification === 'verified'
+    ? run.liveXeroStatus
+    : run.liveVerification === 'not_found' ? 'NOT_FOUND' : run.xeroStatus;
+  const posted = runs.filter(run => run.status === 'success' && effectiveXeroStatus(run) === 'POSTED' && run.xeroId);
+  const drafts = runs.filter(run => run.status === 'success' && effectiveXeroStatus(run) === 'DRAFT' && run.xeroId);
   const uncertain = runs.filter(run => ['pending', 'unknown'].includes(run.status)
-    || run.status === 'success' && (!run.xeroId || !['POSTED', 'DRAFT', 'VOIDED', 'DELETED'].includes(run.xeroStatus ?? '')));
+    || run.status === 'success' && (!run.xeroId || !['POSTED', 'DRAFT', 'VOIDED', 'DELETED', 'NOT_FOUND'].includes(effectiveXeroStatus(run) ?? '')));
   return {
     postedTotal: roundCurrency(posted.reduce((sum, run) => sum + run.amount, 0)),
     draftTotal: roundCurrency(drafts.reduce((sum, run) => sum + run.amount, 0)),
     postedCount: posted.length, draftCount: drafts.length, uncertainCount: uncertain.length,
     failedCount: runs.filter(run => run.status === 'failed').length,
-    voidedCount: runs.filter(run => ['VOIDED', 'DELETED'].includes(run.xeroStatus ?? '')).length,
+    voidedCount: runs.filter(run => ['VOIDED', 'DELETED', 'NOT_FOUND'].includes(effectiveXeroStatus(run) ?? '')).length,
   };
 }
 

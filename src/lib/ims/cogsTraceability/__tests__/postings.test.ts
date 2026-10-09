@@ -49,6 +49,12 @@ describe('COGS posting reconciliation', () => {
     expect(result.rows[0]).toMatchObject({ liveVerificationComplete: true, livePostedTotal: 100, liveVariance: 20 });
     expect(result.rows[0].runs[0]).toMatchObject({ liveXeroStatus: 'POSTED', liveVerification: 'verified' });
   });
+  it('does not let a stale recorded Draft block a journal Xero verifies as Posted', async () => {
+    mocks.query.mockResolvedValue([{ ...run, xeroStatus: 'DRAFT' }]);
+    const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams()), { verifyXero: true });
+    expect(result.rows[0]).toMatchObject({ postedCount: 1, postedTotal: 100, draftCount: 0, draftTotal: 0,
+      liveVerificationComplete: true, livePostedTotal: 100 });
+  });
   it('does not disguise an unavailable live Xero check as verified evidence', async () => {
     mocks.xeroFetch.mockRejectedValue(new Error('Xero unavailable'));
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams()), { verifyXero: true });

@@ -87,7 +87,7 @@ Opening or refreshing this report does not post accounting entries or change inv
 1. Select **Xero Postings** and choose the date range.
 2. Review the accounting periods overlapping that range. Each row reconciles its complete stock-movement period, including dates outside a partial selection. Sales filters and Invoice / sale date do not apply here.
 3. Compare **Current eligible COGS** with the Xero posted total. Displayed journals with references are checked directly with Xero when the tab loads. If that check is unavailable, the total is clearly labelled as recorded and unverified.
-4. Review **Recorded drafts** separately. Draft, voided, deleted and uncertain runs are not counted as posted. A draft with a zero net amount can still require review.
+4. Read **Status** for any live Draft, voided, deleted or uncertain run. COGS journals are normally requested as Posted, so exceptional Drafts appear as a status rather than a separate amount column and are not counted as posted.
 5. Inspect the period to review each run's journal date, run delta, current or recorded Xero state, target amount, recorded cost checks, creation time and saved journal line-item snapshot. A run delta is the amount associated with the attempt, not proof that a journal was created or posted. A failed or pending run may not have a journal reference.
 6. Use **View journal** to confirm the actual journal and its current status in Xero. The link opens in a new tab and requires access to the correct Xero organisation.
 7. Check current missing and unexplained-zero costs and excluded movements. **Journal line-item snapshot** is the immutable location-channel delta saved for that run. The separate current location/accounting-channel breakdown is recalculated from current evidence. Legacy runs created before snapshots show that no line-item snapshot was captured rather than inventing one.
@@ -142,7 +142,7 @@ Legacy duplicate POS SKU lines can be combined into one document/SKU record. Amb
 
 ### Original and adjustment journal reconciliation
 
-An original posted journal has $1,000 of COGS and a later posted adjustment has -$100. Recorded posted is $900. If current eligible COGS is $950, the difference is $50. A separate $50 draft is displayed in Recorded drafts but does not reduce that difference. Confirm the journals' current states in Xero and review cost checks before deciding what to do.
+An original posted journal has $1,000 of COGS and a later posted adjustment has -$100. Posted in Xero is $900. If calculated COGS is $950, the difference is $50. An exceptional $50 Draft is identified in Status but does not reduce that difference. Confirm the journals' current states in Xero and review cost checks before deciding what to do.
 
 ### Discounted sale
 
