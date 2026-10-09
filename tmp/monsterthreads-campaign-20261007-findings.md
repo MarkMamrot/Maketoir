@@ -8,7 +8,7 @@ The user waived the restore-point prerequisite for this sandbox only and delegat
 
 ## F004: Average Cost linked return does not capture a movement cost
 
-Severity: High for accounting reconciliation. Prospective linked-SO fix implemented with user approval on 2026-10-09; historical records remain unchanged.
+Severity: High for accounting reconciliation. Prospective linked-SO fix implemented and live-verified with user approval on 2026-10-09; historical records remain unchanged.
 
 Reproduction under Average Cost:
 
@@ -28,7 +28,17 @@ Evidence: run campaign-20261007-p3-average-ready-003 and supply run campaign-202
 
 Fix: Average Cost restocked lines linked to a source Sales Order now capture the fulfilled line's quantity-weighted unit cost. Lookup is constrained by business, order, source line and variant inside the existing completion transaction. Completed shipment history, catalogue Average Cost, credit settlement, idempotency and FIFO restoration are unchanged. Missing/invalid source costs remain unknown; zero is preserved rather than replaced with a positive catalogue estimate. Unlinked and POS return-cost behavior is outside this specific linked-SO fix.
 
-Verification on 2026-10-09: the new regression failed before the fix and passed afterwards. Thirty focused completion/reversal/COGS tests passed. Full serial suite: 3,683 passed, five skipped, one pre-existing foresight:connections Help mapping failure. Production build completed, regenerating contextual Help, Assistant and the corresponding public summary. Modified source/test diagnostics and git diff --check passed. No new live sale/return was created to retest the prospective fix in this session; verification is transaction-mocked regression plus production compilation, not a new browser campaign pass.
+Verification on 2026-10-09: the new regression failed before the fix and passed afterwards. Thirty focused completion/reversal/COGS tests passed. Full serial suite: 3,683 passed, five skipped, one pre-existing foresight:connections Help mapping failure. Production build completed, regenerating contextual Help, Assistant and the corresponding public summary. Modified source/test diagnostics and git diff --check passed. The subsequent live retest below verified the prospective fix against real persisted sandbox transactions.
+
+### Live regression and cleanup (2026-10-09)
+
+- Port 3012 verified as the development server. Fresh guarded preflights verified tenant, paused-sandbox state, Average Cost and expected Xero/Shopify test identities before mutations.
+- Supply run campaign-20261009-p1-return-retest-001 received one unit at AUD 1.00, No Tax; actual Xero bill totals and persisted stock passed.
+- SO run campaign-20261009-p3-return-retest-001 confirmed two units at AUD 0.50 each, explicitly acknowledged one unsourced unit, shipped the available unit without negative stock and held the remaining unit on a child. Xero invoice readback was Authorised AUD 0.50 with zero tax.
+- Exact child cancellation and source-item-linked restocking return CN-00025 completed. Independent guarded read-only queries verified shipment -1 at unit cost AUD 1.00 and return +1 at unit cost AUD 1.00, both Average Cost epoch 3. This known pair nets to zero COGS; it does not establish that the whole accounting period is unblocked.
+- Return ledger contains exactly one AUD 0.50 issue. Replaying the same completion operation key succeeded and left ledger, stock and movement snapshots unchanged.
+- Supported supply receipt undo passed and Xero bill voiding was confirmed. Both new runs ended stock-clean, with fixture On Hand, Incoming and Committed restored to zero and open fixture PO/SO work closed. Final scoped costing audit: balanced, findings empty.
+- Retained customer store credit increased by this return's AUD 0.50 to AUD 3.40. This is expected linked-return settlement, not a cash refund or full financial rollback. No balance edits, old-cost repairs or COGS journal posting were performed. Existing historical correction proposal remains unapplied.
 
 ### Separate historical-correction proposal (not applied)
 
