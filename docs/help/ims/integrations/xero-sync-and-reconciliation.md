@@ -130,7 +130,7 @@ Administrators and Advisors with **Allow Advisors to trigger Xero syncs** can re
 
 **Posting blocked by incomplete costs** means the displayed eligible COGS is only the known subtotal: one or more included stock movements has no cost or an unexplained zero cost. Normal **Post COGS** is withheld because posting that subtotal may understate both COGS and Inventory. **Post known COGS anyway** is an exceptional administrator action that records the reason; it does not invent or repair the missing costs.
 
-**No posted journal recorded** means Solvantis has not recorded a Posted journal for the period; a Draft may still appear separately. **Xero check unavailable** means the live provider request failed, not that the recorded amount is verified as zero. The Xero link may also fail during a Xero outage; copy the displayed journal ID for later lookup and do not create a duplicate journal.
+**No posted journal recorded** means Solvantis has not recorded a Posted journal for the period; a Draft may still appear separately. **Xero check unavailable** means the live provider request failed, not that the recorded amount is verified as zero. Solvantis opens Xero's main entry point because Xero's legacy direct Manual Journal link is unavailable; copy the displayed journal ID to locate the journal and do not create a duplicate.
 
 > **Warning:** Retrying COGS accounting does not repeat a sale, return, fulfilment or stock movement. Do not repeat an inventory operation to repair a journal failure.
 

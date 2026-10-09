@@ -25,9 +25,9 @@ describe('COGS posting reconciliation', () => {
     expect(summarisePostingRuns([{ ...run, xeroStatus: null }, { ...run, xeroId: null }, { ...run, status: 'unknown' }]))
       .toMatchObject({ postedTotal: 0, uncertainCount: 3 });
   });
-  it('builds only fixed-host, encoded Xero journal links', () => {
+  it('uses the stable Xero entry point instead of the unavailable legacy journal route', () => {
     expect(journalHref(null)).toBeNull();
-    expect(journalHref('id&unsafe=1')).toBe('https://go.xero.com/ManualJournals/View.aspx?manualJournalID=id%26unsafe%3D1');
+    expect(journalHref('id&unsafe=1')).toBe('https://go.xero.com/');
   });
   it('uses tenant-filtered SELECTs and the entire accounting period rather than the selected partial range', async () => {
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams('from=2026-09-15&to=2026-10-07')));
@@ -35,7 +35,7 @@ describe('COGS posting reconciliation', () => {
     expect(mocks.query.mock.calls[0][0]).toMatch(/^SELECT/);
     expect(mocks.calculate).toHaveBeenCalledWith({ businessId: 'tenant-1', startDate: '2026-09-01', endDateExclusive: '2026-10-01' });
     expect(result.rows[0]).toMatchObject({ postedTotal: 100, variance: 20, state: 'Difference to review' });
-    expect(result.rows[0].runs[0].href).toContain('manualJournalID=journal-1');
+    expect(result.rows[0].runs[0].href).toBe('https://go.xero.com/');
   });
   it('returns the immutable line-item snapshot stored with the actual run', async () => {
     mocks.query.mockResolvedValue([{ ...run, breakdownJson: JSON.stringify(run.buckets), buckets: undefined }]);

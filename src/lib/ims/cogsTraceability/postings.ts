@@ -55,7 +55,7 @@ export function summarisePostingRuns(runs: PostingRun[]) {
 }
 
 export function journalHref(xeroId: string | null): string | null {
-  return xeroId ? `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${encodeURIComponent(xeroId)}` : null;
+  return xeroId ? 'https://go.xero.com/' : null;
 }
 
 export async function loadPostingReconciliations(businessId: string, request: ReportRequest, options: { verifyXero?: boolean } = {}) {
