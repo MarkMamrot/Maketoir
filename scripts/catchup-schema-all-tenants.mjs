@@ -1917,6 +1917,39 @@ async function repairPurchaseOrderOwnership(schema, businessId) {
   console.log(`  ${schema}.ims_purchase_order_items: repaired ${lineResult.affectedRows} business owners; verified`);
 }
 
+async function repairStockMovementOwnership(schema) {
+  const [backfill] = await conn.query(
+    `UPDATE \`${schema}\`.ims_stock_movements movement
+       JOIN \`${schema}\`.ims_product_variants variant
+         ON BINARY variant.variant_id = BINARY movement.variant_id
+        AND variant.business_id IS NOT NULL AND variant.business_id <> ''
+        SET movement.business_id = variant.business_id
+      WHERE movement.business_id IS NULL OR movement.business_id = ''`,
+  );
+  await conn.query(`DROP TRIGGER IF EXISTS \`${schema}\`.\`trg_ims_stock_movement_bizid\``);
+  await conn.query(
+    `CREATE TRIGGER \`${schema}\`.\`trg_ims_stock_movement_bizid\`
+       BEFORE INSERT ON \`${schema}\`.\`ims_stock_movements\` FOR EACH ROW
+       BEGIN
+         IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+           SET NEW.business_id = COALESCE((SELECT v.business_id FROM \`${schema}\`.ims_product_variants v
+             WHERE BINARY v.variant_id = BINARY NEW.variant_id AND v.business_id <> '' LIMIT 1), '');
+         END IF;
+         IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+           SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ims_stock_movements business_id is required';
+         END IF;
+       END`,
+  );
+  const [[verification]] = await conn.query(
+    `SELECT COUNT(*) AS unresolved
+       FROM \`${schema}\`.ims_stock_movements
+      WHERE business_id IS NULL OR business_id = ''`,
+  );
+  const unresolved = Number(verification.unresolved);
+  const suffix = unresolved > 0 ? `; ${unresolved} unresolved legacy rows retained` : '; verified';
+  console.log(`  ${schema}.ims_stock_movements: backfilled ${backfill.affectedRows} business owners${suffix}`);
+}
+
 async function migrateSchema(schema, businessId) {
   const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
   for (const ddl of tableDdls) {
@@ -1996,6 +2029,7 @@ async function migrateSchema(schema, businessId) {
     if (requestedTable === 'ims_credit_notes') await migrateExactShopifyRefundIdentity(schema);
     if (requestedTable === 'gift_cards') await migrateExactShopifyGiftCardOwnership(schema);
     if (requestedTable === 'ims_purchase_order_items') await repairPurchaseOrderOwnership(schema, businessId);
+    if (requestedTable === 'ims_stock_movements') await repairStockMovementOwnership(schema);
     console.log(`  ${schema}.${requestedTable}: ${added} columns and ${indexesAdded} indexes added`);
     return;
   }
@@ -2072,6 +2106,7 @@ async function migrateSchema(schema, businessId) {
   }
 
   await repairPurchaseOrderOwnership(schema, businessId);
+  await repairStockMovementOwnership(schema);
 
   try {
     await conn.query(

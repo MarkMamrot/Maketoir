@@ -121,6 +121,16 @@ async function installBusinessIdTriggers(conn: mysql.Connection): Promise<void> 
   const triggers = [
     { name: 'trg_ims_stock_bizid',       table: 'ims_stock',       body: derive('variant_id') },
     { name: 'trg_ims_sales_cache_bizid', table: 'ims_sales_cache', body: derive('variant_id') },
+    { name: 'trg_ims_stock_movement_bizid', table: 'ims_stock_movements', body:
+      `BEGIN
+         IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+           SET NEW.business_id = COALESCE((SELECT v.business_id FROM ims_product_variants v
+             WHERE BINARY v.variant_id = BINARY NEW.variant_id AND v.business_id <> '' LIMIT 1), '');
+         END IF;
+         IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+           SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ims_stock_movements business_id is required';
+         END IF;
+       END` },
   ];
   for (const t of triggers) {
     await conn.query(`DROP TRIGGER IF EXISTS \`${t.name}\``);

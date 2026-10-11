@@ -111,13 +111,23 @@ async function installBusinessIdTriggers(connection) {
     ` JOIN ims_products p ON p.product_id = v.product_id` +
     ` WHERE v.variant_id = NEW.${column} LIMIT 1), ''), NEW.business_id)`;
   for (const trigger of [
-    { name: 'trg_ims_stock_bizid', table: 'ims_stock', column: 'variant_id' },
-    { name: 'trg_ims_sales_cache_bizid', table: 'ims_sales_cache', column: 'variant_id' },
+    { name: 'trg_ims_stock_bizid', table: 'ims_stock', body: derive('variant_id') },
+    { name: 'trg_ims_sales_cache_bizid', table: 'ims_sales_cache', body: derive('variant_id') },
+    { name: 'trg_ims_stock_movement_bizid', table: 'ims_stock_movements', body:
+      `BEGIN
+         IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+           SET NEW.business_id = COALESCE((SELECT v.business_id FROM ims_product_variants v
+             WHERE BINARY v.variant_id = BINARY NEW.variant_id AND v.business_id <> '' LIMIT 1), '');
+         END IF;
+         IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+           SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ims_stock_movements business_id is required';
+         END IF;
+       END` },
   ]) {
     await connection.query(`DROP TRIGGER IF EXISTS ${quoteIdentifier(trigger.name)}`);
     await connection.query(
       `CREATE TRIGGER ${quoteIdentifier(trigger.name)} BEFORE INSERT ON ${quoteIdentifier(trigger.table)} ` +
-      `FOR EACH ROW ${derive(trigger.column)}`,
+      `FOR EACH ROW ${trigger.body}`,
     );
   }
 }

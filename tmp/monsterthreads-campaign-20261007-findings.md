@@ -1,5 +1,37 @@
 # Monsterthreads inventory campaign: findings and coverage
 
+## Closing checkpoint: 2026-10-11
+
+The bounded campaign below is complete and restored; the dated findings that follow are historical checkpoints, not the current sandbox state. This is broad scenario coverage, not proof of every possible combination or whole-period accounting reconciliation.
+
+| Surface | Executed coverage |
+| --- | --- |
+| Average Cost | PO receipt/undo; ready, incoming and unsourced SO paths; partial shipment/held child; incoming allocation resize/release/reassign, priority/concurrency and received protection; draft and protected SO moves; standalone IMS builds; POS cash sale/linked return; real POS sale-triggered build consent cancellation and acceptance |
+| FIFO | PO receipt/undo, two-session partial receiving, positive amendments/replay, differing source costs and multiple variants; unsourced SO; allocation/received protection and SO moves; manual and IMS sale-assisted builds; POS cash sale/return, actual UI build sale/return, service-worker offline sale/reconnect and training guard; stocktake/reversal |
+| Integration/location/UI | Actual Xero bill/invoice/credit readbacks; unpaid and paid Shopify development-order import, fulfilment, refund/replay; Warehouse Branch partial receipt and return round trip; desktop/mobile build and transfer containment, horizontal scrolling and all four table arrow keys; non-stock expense PO with approved temporary mapping restored |
+| Method transitions | Both prospective directions, exact replay, changed payload/stale revision rejection, preserved quantity and historical cost fingerprints; final FIFO restoration |
+
+Final independent MySQL/manifest audit: 80 run directories (attempts, not 80 successful scenarios), 27 tracked variants, all tracked locations On Hand/Incoming/Committed zero, no positive remaining fixture FIFO layers, no open labelled campaign PO/SO, TEST register closed, automation paused. FIFO epoch 11/revision 10; scoped integrity counts all zero. Full saved accounting policy restored, supplier-credit action none, POS batch sync disabled. Location build policy restored in the passing UI case. Temporary non-stock mapping had already been independently removed. Labelled immutable documents, return settlement and history remain; this is not a financial rollback.
+
+Four retained non-clean records are historical attempts: two read-only initial preflights, an earlier timed-out costing transition, and an initial PO gate failure. Later fresh runs cover those paths; do not change those original records into passes. No active campaign fixture work remains.
+
+### Approved prospective repairs and fresh verification
+
+- Average Cost linked SO return cost; switched-Average FIFO audit contract; FIFO-to-Average transition performance; build dialog containment.
+- FIFO multi-receipt undo provenance; PO same-key amendment replay ordering; incoming-only reduction exclusion from receipt reversal cutoff.
+- Shopify refund exact source SO line and actual inserted credit-note line provenance, preserving sole stock ownership.
+- Transfer-detail-only named dialog and contained mobile line-table scrolling, verified in the actual authenticated view.
+- Average Cost POS linked return cost: original completed sale/item links and complete, unambiguous original outbound movement costs are now required. Genuine zero is retained; missing, invalid or ambiguous costs stay unknown, without catalogue fallback. Positive/zero regressions failed before repair; 28 focused tests passed afterward. Fresh ordinary return campaign-20261011-pos-average-return-002 passed; fresh actual UI build campaign-20261011-pos-build-ui-average-001 passed consent cancel/accept, sale/return/replay, supplier cleanup and real AUD 1 zero-tax Xero bill/credit.
+
+Latest full suite: 3,708 passed, five skipped, one known unrelated foresight:connections Help context failure. Production-preview build passed and canonical Help/Assistant indexes regenerated. Preview http://localhost:3014; no commit or deployment.
+
+### Residual risks and coverage limits
+
+- Original Average Cost SO return missing costs and POS return movement 22355 remain unchanged. The latter was independently read as NULL after final restoration. Whole-period COGS remains unproven; historical repair requires separate approval.
+- Earlier Shopify paid run -004 retains its zero-valued PAID Xero credit. Fresh -005 passed the correct persisted-refund lifecycle; no historical accounting artifact was rewritten.
+- Different-cost multi-variant receipts, transfer lifecycle and non-stock expense flow were directly exercised under FIFO only. Transfer creation/receiving used authenticated APIs; actual UI verification covered history and ergonomics. IMS sale-assisted Build & Confirm was directly exercised under FIFO; Average standalone IMS and actual POS UI builds are separate coverage.
+- Arbitrary supplier backorder combinations, mixed stock/non-stock documents, all tender/payment permutations and every cross-method return epoch are not exhaustively covered. They are not claimed as passes. Initial intermittent login and development-mode gate observations remain unproven product defects.
+
 Date: 2026-10-07. Phase: Average Cost PO/SO receipt, unsourced confirmation, partial shipment, held backorder, rejection and compensation.
 
 Campaign orders, stock movements, Xero test documents and customer credit notes have been created. Executed fixture stock and open work have been compensated through supported workflows; immutable history remains. Two linked returns issued AUD 1.00 total in store credit. The sandbox remains automation-paused and on Average Cost, revision 3. No costing switch or historical repair has been performed.

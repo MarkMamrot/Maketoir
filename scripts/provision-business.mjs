@@ -61,11 +61,21 @@ const derive = (col) =>
   ` JOIN ims_products p ON p.product_id = v.product_id` +
   ` WHERE v.variant_id = NEW.${col} LIMIT 1), ''), NEW.business_id)`;
 for (const t of [
-  { name: 'trg_ims_stock_bizid', table: 'ims_stock', col: 'variant_id' },
-  { name: 'trg_ims_sales_cache_bizid', table: 'ims_sales_cache', col: 'variant_id' },
+  { name: 'trg_ims_stock_bizid', table: 'ims_stock', body: derive('variant_id') },
+  { name: 'trg_ims_sales_cache_bizid', table: 'ims_sales_cache', body: derive('variant_id') },
+  { name: 'trg_ims_stock_movement_bizid', table: 'ims_stock_movements', body:
+    `BEGIN
+       IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+         SET NEW.business_id = COALESCE((SELECT v.business_id FROM ims_product_variants v
+           WHERE BINARY v.variant_id = BINARY NEW.variant_id AND v.business_id <> '' LIMIT 1), '');
+       END IF;
+       IF NEW.business_id IS NULL OR NEW.business_id = '' THEN
+         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ims_stock_movements business_id is required';
+       END IF;
+     END` },
 ]) {
   await conn.query(`DROP TRIGGER IF EXISTS \`${t.name}\``);
-  await conn.query(`CREATE TRIGGER \`${t.name}\` BEFORE INSERT ON \`${t.table}\` FOR EACH ROW ${derive(t.col)}`);
+  await conn.query(`CREATE TRIGGER \`${t.name}\` BEFORE INSERT ON \`${t.table}\` FOR EACH ROW ${t.body}`);
 }
 console.log('✔ business_id triggers installed');
 await conn.end();

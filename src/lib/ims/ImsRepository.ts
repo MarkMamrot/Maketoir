@@ -2599,9 +2599,9 @@ export const ImsPORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
-            [item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
+               (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?)`,
+            [po.business_id, item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
           );
         }
       }
