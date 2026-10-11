@@ -47,6 +47,9 @@ export async function updateShopifyOrder(input: {
   let items: Array<Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>> | undefined;
   let unmappedTrackedLines = [] as ReturnType<typeof unmappedTrackedShopifyOrderLines>;
   if (canReplaceLines) {
+    const activeLines = input.order.line_items.filter((line: any) =>
+      amount(line.current_quantity ?? line.quantity) > 0,
+    );
     const mappings = await imsQuery<{ external_variant_id: string; variant_id: string }>(
       `SELECT external_variant_id, variant_id FROM ims_sales_channel_product_mappings
         WHERE business_id = ? AND channel_instance_id = ?
@@ -55,18 +58,18 @@ export async function updateShopifyOrder(input: {
     );
     const variantByExternalId = new Map(mappings.map(row => [String(row.external_variant_id), String(row.variant_id)]));
     unmappedTrackedLines = unmappedTrackedShopifyOrderLines(
-      input.order.line_items,
+      activeLines,
       new Set(variantByExternalId.keys()),
     );
-    const hasUnmappedLine = input.order.line_items.some((line: any) =>
+    const hasUnmappedLine = activeLines.some((line: any) =>
       !variantByExternalId.has(String(line.variant_id ?? '')),
     );
     const fallbackVariantId = hasUnmappedLine ? await getOrCreateOnlineFallbackVariantId(input.businessId) : null;
-    items = input.order.line_items.map((line: any) => {
+    items = activeLines.map((line: any) => {
       const externalItemId = text(line.id);
       const variantId = variantByExternalId.get(String(line.variant_id ?? '')) ?? fallbackVariantId;
       if (!variantId) throw new Error(`Shopify order ${externalOrderId} has no fallback variant.`);
-      const quantity = Math.max(0, amount(line.quantity));
+      const quantity = Math.max(0, amount(line.current_quantity ?? line.quantity));
       const unitPrice = amount(line.price);
       return {
         shopify_line_item_id: externalItemId,

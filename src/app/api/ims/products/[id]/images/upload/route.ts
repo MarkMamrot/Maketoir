@@ -3,6 +3,8 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB (videos can be large)
@@ -25,9 +27,10 @@ function getImagesDir(businessId: string): string {
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
+    return await runImsForBusiness(session.businessId, async () => {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ success: false, error: 'No file provided.' }, { status: 400 });
@@ -59,11 +62,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
     // URL points to the serve route
-    const url = `/api/ims/products/${params.id}/images/${imageId}/file`;
+    const url = `/api/ims/products/${params.id}/images/${imageId}/file?businessId=${encodeURIComponent(session.businessId)}`;
     await ImsImagesRepo.updateUrl(imageId, url);
 
     return NextResponse.json({ success: true, id: imageId, url });
+    });
   } catch (e: any) {
+    await reportRuntimeIssue({ businessId: session.businessId, source: 'product-images', operation: 'upload_file', title: 'Product image upload failed', error: e, reference: { type: 'product', id: params.id } });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireAdminSession } from '@/lib/sessionUtils';
 import { createSupportTicket, getSupportTicket } from '@/lib/supportTickets';
-import { sendNewSupportTicketAlert } from '@/lib/supportTicketAlerts';
+import { sendNewSupportTicketAlert, sendSupportTicketStaffEmail } from '@/lib/supportTicketAlerts';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { readSupportTicketSubmission, SupportTicketValidationError } from '@/lib/supportTicketImages';
 
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   try {
     const ticket = await getSupportTicket(id);
     if (ticket) {
+      await sendSupportTicketStaffEmail(ticket, 'created');
       await sendNewSupportTicketAlert({
         id: ticket.id,
         businessName: ticket.business_name,

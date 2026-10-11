@@ -6,9 +6,13 @@ const mocks = vi.hoisted(() => ({
   updateUrl: vi.fn(),
   mkdirSync: vi.fn(),
   writeFileSync: vi.fn(),
+  run: vi.fn(),
+  report: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getImsSession }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.run }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsImagesRepo: { add: mocks.add, updateUrl: mocks.updateUrl },
 }));
@@ -32,6 +36,7 @@ describe('POST /api/ims/products/[id]/images/upload', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getImsSession.mockResolvedValue({ businessId: 'biz-1' });
+    mocks.run.mockImplementation((_businessId, callback) => callback());
     mocks.add.mockResolvedValue(17);
     mocks.updateUrl.mockResolvedValue(undefined);
   });
@@ -44,10 +49,11 @@ describe('POST /api/ims/products/[id]/images/upload', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.run).toHaveBeenCalledWith('biz-1', expect.any(Function));
     expect(await response.json()).toMatchObject({
       success: true,
       id: 17,
-      url: '/api/ims/products/product-1/images/17/file',
+      url: '/api/ims/products/product-1/images/17/file?businessId=biz-1',
     });
     expect(mocks.writeFileSync).toHaveBeenCalledWith(
       expect.stringMatching(/biz-1[\\/]product-images[\\/]product-1-\d+\.jpg$/),
@@ -57,6 +63,6 @@ describe('POST /api/ims/products/[id]/images/upload', () => {
       driveFileId: expect.stringMatching(/^product-1-\d+\.jpg$/),
       isPrimary: true,
     }));
-    expect(mocks.updateUrl).toHaveBeenCalledWith(17, '/api/ims/products/product-1/images/17/file');
+    expect(mocks.updateUrl).toHaveBeenCalledWith(17, '/api/ims/products/product-1/images/17/file?businessId=biz-1');
   });
 });

@@ -44,7 +44,8 @@
     ".next-dev-3002/types/**/*.ts",
     ".next-dev-3004/types/**/*.ts",
     ".next-dev-3012/types/**/*.ts",
-    ".next-campaign-preview/types/**/*.ts"
+    ".next-campaign-preview/types/**/*.ts",
+    ".next-support-3027/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -71,6 +71,23 @@ describe('updateShopifyOrder', () => {
     expect(mocks.recompute).not.toHaveBeenCalled();
   });
 
+  it('removes Shopify-edited lines and uses the remaining current quantity', async () => {
+    mocks.query.mockResolvedValueOnce([{ id: 44, status: 'confirmed' }])
+      .mockResolvedValueOnce([{ external_variant_id: '8001', variant_id: 'variant-1' }]);
+    await updateShopifyOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      order: { ...payload, line_items: [
+        { id: 9000, variant_id: 9999, quantity: 1, current_quantity: 0, price: '15.00' },
+        { ...payload.line_items[0], quantity: 3, current_quantity: 1 },
+      ] },
+    });
+    expect(mocks.update).toHaveBeenCalledWith(44, {}, [expect.objectContaining({
+      external_order_item_id: '9001', qty_ordered: 1, line_total: 10,
+    })]);
+    expect(mocks.fallback).not.toHaveBeenCalled();
+    expect(mocks.reportIssue).not.toHaveBeenCalled();
+  });
+
   it('reports a tracked catalogue line when an editable update uses the fallback', async () => {
     mocks.query.mockResolvedValueOnce([{ id: 44, status: 'confirmed' }]).mockResolvedValueOnce([]);
     mocks.fallback.mockResolvedValue('fallback-1');

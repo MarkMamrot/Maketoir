@@ -2,6 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { getImsSession } from '@/lib/auth/imsSession';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const MIME_MAP: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg',
@@ -19,9 +22,14 @@ export async function GET(
   { params }: { params: { id: string; imageId: string } },
 ) {
   const imageId = Number(params.imageId);
-  if (isNaN(imageId)) return new Response('Invalid imageId', { status: 400 });
+  if (!Number.isSafeInteger(imageId) || imageId <= 0) return new Response('Invalid imageId', { status: 400 });
+  const session = await getImsSession(['marketoir_session', 'pos_session']);
+  const tenantBusinessId = session?.businessId || new URL(req.url).searchParams.get('businessId');
+  if (!tenantBusinessId) return new Response('Not found', { status: 404 });
+  try {
+    return await runImsForBusiness(tenantBusinessId, async () => {
 
-  const record = await ImsImagesRepo.get(imageId).catch(() => null);
+  const record = await ImsImagesRepo.get(imageId);
   if (!record || record.source !== 'volume' || !record.drive_file_id) {
     return new Response('Not found', { status: 404 });
   }
@@ -31,9 +39,10 @@ export async function GET(
   const productRows = await imsQuery<{ business_id: string }>(
     'SELECT business_id FROM ims_products WHERE product_id = ? LIMIT 1',
     [params.id],
-  ).catch(() => []);
+  );
   const businessId = productRows[0]?.business_id ?? '';
-  if (!businessId) return new Response('Not found', { status: 404 });
+  if (!businessId || businessId !== tenantBusinessId) return new Response('Not found', { status: 404 });
+  if (path.basename(record.drive_file_id) !== record.drive_file_id) return new Response('Not found', { status: 404 });
 
   const filePath = path.join(
     process.env.UPLOAD_BASE_PATH ?? './uploads',
@@ -41,7 +50,10 @@ export async function GET(
     'product-images',
     record.drive_file_id,
   );
-  if (!fs.existsSync(filePath)) return new Response('File not found on disk', { status: 404 });
+  if (!fs.existsSync(filePath)) {
+    await reportRuntimeIssue({ businessId, source: 'product-images', operation: 'missing_file', title: 'Stored product image file is missing', reference: { type: 'product', id: params.id }, context: { imageId } });
+    return new Response('File not found on disk', { status: 404 });
+  }
 
   const ext = record.drive_file_id.split('.').pop()?.toLowerCase() ?? 'jpg';
   const buffer = fs.readFileSync(filePath);
@@ -62,7 +74,7 @@ export async function GET(
             'Content-Length': String(chunk.length),
             'Content-Range': `bytes ${start}-${start + chunk.length - 1}/${buffer.length}`,
             'Accept-Ranges': 'bytes',
-            'Cache-Control': 'public, max-age=86400',
+            'Cache-Control': session ? 'private, max-age=86400' : 'public, max-age=86400',
           },
         });
       }
@@ -74,7 +86,12 @@ export async function GET(
       'Content-Type': contentType,
       'Content-Length': String(buffer.length),
       'Accept-Ranges': contentType.startsWith('video/') ? 'bytes' : 'none',
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': session ? 'private, max-age=86400' : 'public, max-age=86400',
     },
   });
+    });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: tenantBusinessId, source: 'product-images', operation: 'serve_file', title: 'Product image could not be served', error, reference: { type: 'product', id: params.id } });
+    return new Response('Image could not be loaded', { status: 500 });
+  }
 }

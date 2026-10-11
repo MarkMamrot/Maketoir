@@ -54,6 +54,8 @@ Select **Display Fields** above the Sales Orders list to choose its visible colu
 
 For Shopify orders, Solvantis copies the shipping address supplied on the order into the Sales Order delivery fields when the order is created, paid, updated or imported. Shopify pickup or other orders without a shipping address may correctly leave those fields blank.
 
+When Shopify sends an edited order update while the Solvantis order is Draft or Confirmed, Solvantis uses the current Shopify quantities and removes lines that no longer have any quantity. Removed items are not kept alongside replacement items. Once fulfilment has begun, channel updates do not replace the order lines or rewrite recorded stock movements. Review the remaining quantities before packing or dispatching.
+
 ## Step-by-step
 
 1. Open **Sales > Sales Orders** and select **New Sales Order**.

@@ -8,6 +8,21 @@ import { UnifiedHelpDrawer } from '../UnifiedHelpDrawer';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('UnifiedHelpDrawer layered topics', () => {
+  it('requires and submits the POS staff reply email', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<UnifiedHelpDrawer open onOpenChange={vi.fn()} audience="pos" product="pos" chatEndpoint="/assistant" escalationEndpoint="/escalate" supportEndpoint="/api/pos/support-tickets" showFloatingTrigger={false} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Contact Support' }));
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Issue' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Details' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit ticket' }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('email address');
+    fireEvent.change(screen.getByLabelText('Your email'), { target: { value: 'staff@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit ticket' }));
+    await waitFor(() => expect(screen.getByText('Ticket submitted')).toBeTruthy());
+    expect((fetchMock.mock.calls[0][1].body as FormData).get('replyEmail')).toBe('staff@example.com');
+  });
   it('submits pasted and selected images and allows removal', async () => {
     URL.createObjectURL = vi.fn(() => 'blob:preview');
     URL.revokeObjectURL = vi.fn();

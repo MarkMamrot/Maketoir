@@ -4,6 +4,7 @@ import { requireSuperAdminTier } from '@/lib/sessionUtils';
 import { getSupportTicket, isSupportTicketStatus, updateSupportTicket } from '@/lib/supportTickets';
 import { listSupportImages } from '@/lib/supportTicketImages';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { sendSupportTicketStaffEmail } from '@/lib/supportTicketAlerts';
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const auth = requireSuperAdminTier();
@@ -49,5 +50,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     assignedTo,
     resolutionNotes: body.resolutionNotes ?? null,
   });
+  if ((body.status === 'resolved' || body.status === 'closed') && existing.status !== 'resolved' && existing.status !== 'closed') {
+    await sendSupportTicketStaffEmail({ ...existing, resolution_notes: body.resolutionNotes ?? null }, 'resolved');
+  }
   return NextResponse.json({ success: true });
 }

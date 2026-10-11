@@ -4,6 +4,11 @@ import { readSupportTicketSubmission, supportImagePath, validateSupportImage } f
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
 describe('support ticket images', () => {
+  it('normalizes reply email and rejects invalid addresses', async () => {
+    const request = (replyEmail: string) => new Request('http://localhost', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subject: 'Issue', description: 'Details', replyEmail }) });
+    expect((await readSupportTicketSubmission(request(' staff@example.com '))).replyEmail).toBe('staff@example.com');
+    await expect(readSupportTicketSubmission(request('not-an-email'))).rejects.toThrow('valid email');
+  });
   it('validates content rather than trusting MIME type', () => {
     expect(validateSupportImage({ size: png.length, type: 'image/png' }, png).extension).toBe('.png');
     expect(() => validateSupportImage({ size: png.length, type: 'image/jpeg' }, png)).toThrow('Only JPEG');

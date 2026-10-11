@@ -42,7 +42,7 @@ export async function readSupportTicketSubmission(request: Request) {
   let files: File[] = [];
   if (request.headers.get('content-type')?.includes('multipart/form-data')) {
     const form = await request.formData();
-    body = Object.fromEntries(['subject', 'description', 'screenContext'].map(key => [key, form.get(key)]));
+    body = Object.fromEntries(['subject', 'description', 'screenContext', 'replyEmail'].map(key => [key, form.get(key)]));
     const entries = form.getAll('images');
     if (entries.length > SUPPORT_IMAGE_LIMIT || entries.some(entry => typeof entry === 'string')) {
       throw new SupportTicketValidationError('Attach up to five images.');
@@ -57,6 +57,10 @@ export async function readSupportTicketSubmission(request: Request) {
   if (body.subject.length > 255 || body.description.length > 10_000) {
     throw new SupportTicketValidationError('Subject or description is too long.');
   }
+  const replyEmail = typeof body.replyEmail === 'string' ? body.replyEmail.trim() : '';
+  if (replyEmail && (replyEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyEmail))) {
+    throw new SupportTicketValidationError('Enter a valid email address for support replies.');
+  }
   const images = [];
   for (const file of files) {
     if (file.size > SUPPORT_IMAGE_MAX_BYTES) throw new SupportTicketValidationError('Each image must be at most 5 MB.');
@@ -65,6 +69,7 @@ export async function readSupportTicketSubmission(request: Request) {
     images.push({ bytes, extension: detected.extension });
   }
   return {
+    replyEmail,
     subject: body.subject.trim(), description: body.description.trim(),
     screenContext: typeof body.screenContext === 'string' ? body.screenContext.trim().slice(0, 255) || null : null,
     images,

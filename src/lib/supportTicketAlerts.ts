@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 
 import { getSupportTicketNotificationEmail } from '@/lib/supportTickets';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, character => ({
@@ -17,6 +18,39 @@ interface NewTicketAlertInput {
   submittedByEmail: string | null;
   subject: string;
   description: string;
+}
+
+export async function sendSupportTicketStaffEmail(ticket: {
+  id: number;
+  business_id: string | null;
+  submitted_by_email: string | null;
+  subject: string;
+  resolution_notes?: string | null;
+}, event: 'created' | 'resolved'): Promise<void> {
+  const recipient = ticket.submitted_by_email?.trim();
+  if (!recipient) return;
+  try {
+    if (!process.env.RESEND_API_KEY) throw new Error('Support email delivery is not configured.');
+    const heading = event === 'created' ? 'Support ticket received' : 'Support ticket resolved';
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
+      to: [recipient],
+      subject: `${heading} #${ticket.id}: ${ticket.subject}`,
+      html: `<h1>${heading}</h1><p>Ticket #${ticket.id}: ${escapeHtml(ticket.subject)}</p><p>${event === 'created' ? 'Your support request has been received.' : 'Your support request has been resolved.'}</p>${event === 'resolved' && ticket.resolution_notes ? `<p style="white-space:pre-wrap;">${escapeHtml(ticket.resolution_notes)}</p>` : ''}`,
+    }, { idempotencyKey: `support-ticket-staff-${event}-${ticket.id}` });
+    if (error) throw new Error(error.message);
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId: ticket.business_id,
+      source: 'support-tickets',
+      operation: `send_staff_${event}_email`,
+      severity: 'warning',
+      title: 'Support ticket staff email failed to send',
+      error,
+      reference: { type: 'support_ticket', id: ticket.id },
+    });
+  }
 }
 
 /** Best-effort notification only — never throws; callers should not fail ticket creation on email errors. */

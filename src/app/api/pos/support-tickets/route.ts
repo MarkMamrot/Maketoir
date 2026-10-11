@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getPosSession } from '@/lib/sessionUtils';
 import { createSupportTicket, getSupportTicket } from '@/lib/supportTickets';
-import { sendNewSupportTicketAlert } from '@/lib/supportTicketAlerts';
+import { sendNewSupportTicketAlert, sendSupportTicketStaffEmail } from '@/lib/supportTicketAlerts';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { readSupportTicketSubmission, SupportTicketValidationError } from '@/lib/supportTicketImages';
 
@@ -20,13 +20,14 @@ export async function POST(request: Request) {
     }
     throw error;
   }
+  if (!body.replyEmail) return NextResponse.json({ error: 'Your email address is required for support replies.' }, { status: 400 });
 
   let id: number;
   try { id = await createSupportTicket({
     businessId: session.businessId,
     submittedByUserId: session.pos_user_id,
     submittedByName: session.full_name ?? null,
-    submittedByEmail: null,
+    submittedByEmail: body.replyEmail,
     sourceApp: 'pos',
     screenContext: body.screenContext,
     subject: body.subject,
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
   try {
     const ticket = await getSupportTicket(id);
     if (ticket) {
+      await sendSupportTicketStaffEmail(ticket, 'created');
       await sendNewSupportTicketAlert({
         id: ticket.id,
         businessName: ticket.business_name,

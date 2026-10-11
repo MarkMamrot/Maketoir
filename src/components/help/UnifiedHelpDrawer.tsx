@@ -302,6 +302,8 @@ export function UnifiedHelpDrawer({
 
 function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; screenContext: string | null }) {
   const [subject, setSubject] = useState('');
+  const [replyEmail, setReplyEmail] = useState('');
+  const needsReplyEmail = endpoint === '/api/pos/support-tickets';
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -328,12 +330,17 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
       setError('Please enter a subject and description.');
       return;
     }
+    if (needsReplyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyEmail.trim())) {
+      setError('Enter your email address for support replies.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const form = new FormData();
       form.set('subject', subject.trim());
       form.set('description', description.trim());
+      if (needsReplyEmail) form.set('replyEmail', replyEmail.trim());
       if (screenContext) form.set('screenContext', screenContext);
       for (const image of images) form.append('images', image);
       const response = await fetch(endpoint, {
@@ -377,6 +384,10 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
         Subject
         <input value={subject} disabled={submitting} onChange={event => setSubject(event.target.value)} maxLength={255} placeholder="Brief summary of the issue" style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13 }} />
       </label>
+      {needsReplyEmail && <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
+        Your email
+        <input type="email" autoComplete="email" required value={replyEmail} disabled={submitting} onChange={event => setReplyEmail(event.target.value)} maxLength={254} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch,#cbd5e1)', fontSize: 13 }} />
+      </label>}
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600 }}>
         Description
         <textarea value={description} disabled={submitting} maxLength={10_000} onChange={event => setDescription(event.target.value)} onPaste={event => {
