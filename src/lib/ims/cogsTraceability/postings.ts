@@ -57,8 +57,10 @@ export function summarisePostingRuns(runs: PostingRun[]) {
   };
 }
 
-export function journalHref(xeroId: string | null): string | null {
-  return xeroId ? 'https://go.xero.com/' : null;
+export function journalHref(xeroId: string | null, xeroStatus?: string | null): string | null {
+  return xeroId && !['DELETED', 'VOIDED', 'NOT_FOUND'].includes(String(xeroStatus ?? '').toUpperCase())
+    ? 'https://go.xero.com/'
+    : null;
 }
 
 export async function loadPostingReconciliations(businessId: string, request: ReportRequest, options: { verifyXero?: boolean } = {}) {
@@ -158,7 +160,8 @@ export async function loadPostingReconciliations(businessId: string, request: Re
             : members.length === 0 ? 'Not posted'
           : liveVerificationComplete && verifiedMembers.some(run => run.liveXeroStatus === 'DRAFT') ? 'Draft journals awaiting posting'
             : (liveVariance ?? variance) !== 0 ? 'Difference to review' : liveVerificationComplete ? 'Matches Xero posted total' : 'Matches recorded posted total',
-      runs: verifiedMembers.map(run => ({ ...run, href: journalHref(run.xeroId) })),
+      runs: verifiedMembers.map(run => ({ ...run, href: journalHref(run.xeroId,
+        run.liveVerification === 'verified' ? run.liveXeroStatus : run.liveVerification === 'not_found' ? 'NOT_FOUND' : run.xeroStatus) })),
     });
   }
   const locationIds = [...new Set(rows.flatMap(row => row.calculation.breakdown.map(bucket => bucket.locationId)))].filter(id => id > 0);

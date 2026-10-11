@@ -28,6 +28,9 @@ describe('COGS posting reconciliation', () => {
   it('uses the stable Xero entry point instead of the unavailable legacy journal route', () => {
     expect(journalHref(null)).toBeNull();
     expect(journalHref('id&unsafe=1')).toBe('https://go.xero.com/');
+    expect(journalHref('journal-id', 'VOIDED')).toBeNull();
+    expect(journalHref('journal-id', 'DELETED')).toBeNull();
+    expect(journalHref('journal-id', 'NOT_FOUND')).toBeNull();
   });
   it('uses tenant-filtered SELECTs and the entire accounting period rather than the selected partial range', async () => {
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams('from=2026-09-15&to=2026-10-07')));
