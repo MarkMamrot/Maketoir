@@ -2286,9 +2286,9 @@ export const ImsPORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'po_approved','purchase_order',?,?,?,?)`,
-            [item.variant_id, po.location_id, id, item.qty_ordered, s?.qty_on_hand ?? 0, item.unit_cost]
+               (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+             VALUES (?,?,?,'po_approved','purchase_order',?,?,?,?)`,
+            [po.business_id, item.variant_id, po.location_id, id, item.qty_ordered, s?.qty_on_hand ?? 0, item.unit_cost]
           );
         }
       }
@@ -2308,9 +2308,9 @@ export const ImsPORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
-            [item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
+               (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?)`,
+            [po.business_id, item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
           );
         }
       }
@@ -3603,9 +3603,9 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'so_confirmed',?,'sales_order',?,?,?)`,
-            [item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, item.qty_ordered, s?.qty_on_hand ?? 0]
+               (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,?,'so_confirmed',?,'sales_order',?,?,?)`,
+            [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, item.qty_ordered, s?.qty_on_hand ?? 0]
           );
         }
       }
@@ -3625,9 +3625,9 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'so_unconfirmed',?,'sales_order',?,?,?)`,
-            [item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -Number(item.qty_ordered), s?.qty_on_hand ?? 0]
+               (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
+             VALUES (?,?,?,'so_unconfirmed',?,'sales_order',?,?,?)`,
+            [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -Number(item.qty_ordered), s?.qty_on_hand ?? 0]
           );
         }
       }
@@ -3682,9 +3682,9 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,'so_fulfilled',?,'sales_order',?,?,?,?)`,
-            [item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -qty, new_soh, avg_cost]
+               (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+             VALUES (?,?,?,'so_fulfilled',?,'sales_order',?,?,?,?)`,
+            [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -qty, new_soh, avg_cost]
           );
         }
         await conn.execute(
@@ -4470,11 +4470,10 @@ export const ImsStocktakeRepo = {
           variances++;
           await conn.execute(
             `INSERT INTO ims_stock_movements
-               (variant_id, location_id, movement_type, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
-             VALUES (?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?)`,
-            [item.variant_id, full.location_id, id, counted - expected, counted, avgCostAtTime]
+               (business_id, variant_id, location_id, movement_type, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
+             VALUES (?, ?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?)`,
+            [businessId, item.variant_id, full.location_id, id, counted - expected, counted, avgCostAtTime]
           );
-          await conn.execute(`UPDATE ims_stock_movements SET business_id = ? WHERE id = LAST_INSERT_ID()`, [businessId]);
         }
       }
       await conn.execute(
