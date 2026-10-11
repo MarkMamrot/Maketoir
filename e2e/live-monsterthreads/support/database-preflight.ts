@@ -413,8 +413,13 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     } else {
       const allowedStates = config.action === 'fifo-reconcile-negative' ? ['preflight_passed', 'blocked']
         : config.action === 'fifo-activate' ? ['preflight_passed', 'blocked']
+        : config.action === 'cost-switch' ? ['preflight_passed', 'costing_switched', 'blocked']
         : config.action === 'p1' ? ['preflight_passed', 'p1_created']
-        : config.action === 'p1-repair' ? ['awaiting_operator']
+        : config.action === 'build' && (existingEvents.at(-1)?.details as any)?.scenario === 'POS FIFO'
+          && Number((existingEvents.at(-1)?.details as any)?.saleId) > 0
+          && (existingEvents.at(-1)?.details as any)?.returnId === null ? ['blocked']
+        : ['p1-repair', 'build'].includes(config.action) ? ['awaiting_operator']
+        : config.action === 'build-verify' ? ['clean', 'verification_authorized']
         : config.action === 'p1-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p2' ? ['preflight_passed', 'p2_created', 'awaiting_operator']
         : config.action === 'p2-compensate' ? ['acknowledged', 'compensation_retry_authorized']
@@ -480,7 +485,7 @@ export async function loadAllocationFixtureSnapshot(config: LiveE2EConfig) {
       [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
     );
     const [movements] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT id, movement_type, qty_change, unit_cost, cost_method_snapshot, cost_epoch_id
+      `SELECT id, movement_type, reference_type, reference_id, qty_change, unit_cost, cost_method_snapshot, cost_epoch_id
          FROM ${schema}.ims_stock_movements
         WHERE business_id = ? AND variant_id = ? AND location_id = ? ORDER BY id`,
       [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],

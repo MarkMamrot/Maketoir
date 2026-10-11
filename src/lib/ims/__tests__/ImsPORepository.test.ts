@@ -351,11 +351,13 @@ describe('ImsPORepo.update', () => {
     );
   });
 
-  it('rejects a stale edit before changing lines, stock, or amendment history', async () => {
+  it('rejects a fresh stale edit and rolls back its amendment operation before changing lines or stock', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) {
         return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', updated_at: new Date('2026-08-11T10:00:00.000Z') }]];
       }
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 70 }];
       return [{ affectedRows: 1 }];
     });
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
@@ -366,12 +368,14 @@ describe('ImsPORepo.update', () => {
     })).rejects.toThrow('This order changed after you opened it');
 
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
-    expect(execute.mock.calls.some(([sql]) => String(sql).includes('ims_order_amendment_operations'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_purchase_order_items'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_order_amendment_operations'))).toBe(false);
     expect(connection.rollback).toHaveBeenCalledOnce();
     expect(connection.commit).not.toHaveBeenCalled();
   });
 
-  it('replays a completed amendment operation without applying changes twice', async () => {
+  it('replays a completed amendment before stale revision, line, or stock checks', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) {
         return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', updated_at: new Date('2026-08-11T10:00:00.000Z') }]];
@@ -389,17 +393,20 @@ describe('ImsPORepo.update', () => {
 
     await ImsPORepo.update(42, {}, [{
       id: 10, variant_id: 'v-1', qty_ordered: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 15, notes: null,
-    }], undefined, { operationKey: 'amend-1', requestHash: 'a'.repeat(64) });
+    }], undefined, {
+      operationKey: 'amend-1', requestHash: 'a'.repeat(64), expectedUpdatedAt: '2026-08-11T09:00:00.000Z',
+    });
 
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_purchase_order_items'))).toBe(false);
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
-  it('rejects an amendment operation key reused with different changes', async () => {
+  it('rejects an amendment key reused with different changes even with a stale revision', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) {
-        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1' }]];
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', updated_at: new Date('2026-08-11T10:00:00.000Z') }]];
       }
       if (sql.includes('FROM ims_purchase_order_items')) {
         return [[{ id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 0 }]];
@@ -414,7 +421,9 @@ describe('ImsPORepo.update', () => {
 
     await expect(ImsPORepo.update(42, {}, [{
       id: 10, variant_id: 'v-1', qty_ordered: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 15, notes: null,
-    }], undefined, { operationKey: 'amend-1', requestHash: 'b'.repeat(64) }))
+    }], undefined, {
+      operationKey: 'amend-1', requestHash: 'b'.repeat(64), expectedUpdatedAt: '2026-08-11T09:00:00.000Z',
+    }))
       .rejects.toThrow('already used with different changes');
 
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
@@ -556,7 +565,7 @@ describe('ImsPORepo.undoReceipt', () => {
     expect(connection.rollback).toHaveBeenCalledOnce();
   });
 
-  it('reverses exact stock and valuation in the same tenant transaction', async () => {
+  it.each([0, 8])('reverses receipts across an incoming reduction while excluding prior reversals at cost %s', async (receiptCost) => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_purchase_orders')) {
         return [[{
@@ -574,7 +583,22 @@ describe('ImsPORepo.undoReceipt', () => {
       }
       if (sql.includes('SELECT location_id, qty_on_hand')) return [[{ location_id: 4, qty_on_hand: 5 }, { location_id: 6, qty_on_hand: 5 }]];
       if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 9 }]];
-      if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 5, receipt_unit_cost: 8 }]];
+      if (sql.includes('SUM(qty_change) AS receipt_qty')) {
+        const history = [
+          { id: 1, kind: 'po_received', quantity: 7, cost: 4 },
+          { id: 2, kind: 'po_unapproved', quantity: -7, cost: 0 },
+          { id: 3, kind: 'po_received', quantity: 3, cost: receiptCost },
+          { id: 4, kind: 'po_unapproved', quantity: -1, cost: null },
+          { id: 5, kind: 'po_received', quantity: 2, cost: receiptCost },
+        ];
+        const cutoff = Math.max(0, ...history.filter(movement => movement.kind === 'po_unapproved'
+          && (!sql.includes('reversal.unit_cost IS NOT NULL') || movement.cost !== null)
+          && (!sql.includes('reversal.qty_change < 0') || movement.quantity < 0)).map(movement => movement.id));
+        const receipts = history.filter(movement => movement.kind === 'po_received' && movement.id > cutoff);
+        const quantity = receipts.reduce((total, movement) => total + movement.quantity, 0);
+        const value = receipts.reduce((total, movement) => total + movement.quantity * Number(movement.cost), 0);
+        return [[{ receipt_qty: quantity, receipt_unit_cost: value / quantity }]];
+      }
       if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 0 }]];
       return [{ affectedRows: 1 }];
     });
@@ -589,7 +613,7 @@ describe('ImsPORepo.undoReceipt', () => {
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("'po_unapproved','purchase_order'"),
-      ['biz-1', 'v-1', 4, 42, -5, 0, 8, 'average_cost', null, 'PO receipt undone'],
+      ['biz-1', 'v-1', 4, 42, -5, 0, receiptCost, 'average_cost', null, 'PO receipt undone'],
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('SET status = ?'),
@@ -713,7 +737,7 @@ describe('ImsPORepo.undoReceipt', () => {
       if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 8 }]];
       if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 5, receipt_unit_cost: 8 }]];
       if (sql.includes('FROM ims_fifo_cost_layers layer')) {
-        return [[{ id: 70, source_movement_id: 71, original_quantity: 5, remaining_quantity: 5, allocation_count: 0, child_count: 0 }]];
+        return [[{ id: 70, source_movement_id: 71, original_quantity: 5, remaining_quantity: 5, unit_cost: 8, allocation_count: 0, child_count: 0 }]];
       }
       if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 0 }]];
       if (sql.includes('INSERT INTO ims_stock_movements')) return [{ insertId: 72 }];
@@ -739,4 +763,58 @@ describe('ImsPORepo.undoReceipt', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
   });
+  it.each(['valid', 'missing provenance', 'dependent consumption', 'gateway failure'])(
+    'handles two FIFO receipt movements atomically: %s', async scenario => {
+      mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+      mockReverseFifoStockMovementLayers.mockReset();
+      mockReverseFifoStockMovementLayers.mockResolvedValue({ allocatedValue: 0, unitCost: 0, allocationCount: 1 });
+      if (scenario === 'gateway failure') {
+        mockReverseFifoStockMovementLayers.mockResolvedValueOnce({ allocatedValue: 16, unitCost: 8, allocationCount: 1 })
+          .mockRejectedValueOnce(new Error('Second receipt provenance changed'));
+      }
+      let movementId = 90;
+      const execute = vi.fn(async (sql: string) => {
+        if (sql.includes('SELECT * FROM ims_purchase_orders')) return [[{ id: 42, status: 'complete', business_id: 'biz-1', location_id: 4, is_historical: 0, updated_at: new Date(revision) }]];
+        if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+        if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 80 }];
+        if (sql.includes('payment_count')) return [[{ payment_count: 0, supplier_credit_count: 0, shortfall_count: 0, backorder_count: 0, reserved_credit_count: 0 }]];
+        if (sql.includes('FROM ims_purchase_order_items')) return [[{ id: 11, po_id: 42, variant_id: 'v-1', qty_ordered: 5, qty_received: 5 }]];
+        if (sql.includes('SELECT location_id, qty_on_hand')) return [[{ location_id: 4, qty_on_hand: 5, qty_committed: 0 }]];
+        if (sql.includes('FROM ims_product_variants') && sql.includes('FOR UPDATE')) return [[{ avg_cost: 9.2 }]];
+        if (sql.includes('SUM(qty_change) AS receipt_qty')) return [[{ receipt_qty: 5, receipt_unit_cost: 9.2 }]];
+        if (sql.includes('FROM ims_fifo_cost_layers layer')) return [[
+          { id: 70, source_movement_id: 71, original_quantity: 2, remaining_quantity: 2, unit_cost: 8, allocation_count: 0, child_count: 0 },
+          { id: 72, source_movement_id: scenario === 'missing provenance' ? null : 73, original_quantity: 3,
+            remaining_quantity: scenario === 'dependent consumption' ? 2 : 3, unit_cost: 10,
+            allocation_count: scenario === 'dependent consumption' ? 1 : 0, child_count: 0 },
+        ]];
+        if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 0 }]];
+        if (sql.includes('INSERT INTO ims_stock_movements')) return [{ insertId: ++movementId }];
+        return [{ affectedRows: 1 }];
+      });
+      const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+      mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+      if (scenario === 'valid') {
+        await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
+        expect(execute).toHaveBeenCalledWith(expect.stringContaining("'po_unapproved','purchase_order'"),
+          ['biz-1', 'v-1', 4, 42, -2, 3, 8, 'fifo', 6, 'PO receipt undone']);
+        expect(execute).toHaveBeenCalledWith(expect.stringContaining("'po_unapproved','purchase_order'"),
+          ['biz-1', 'v-1', 4, 42, -3, 0, 10, 'fifo', 6, 'PO receipt undone']);
+        expect(mockReverseFifoStockMovementLayers).toHaveBeenNthCalledWith(1, connection,
+          { businessId: 'biz-1', state: { method: 'fifo', epochId: 6, revision: 2 }, originalMovementId: 71, reversalMovementId: 91, expectedQuantity: 2 });
+        expect(mockReverseFifoStockMovementLayers).toHaveBeenNthCalledWith(2, connection,
+          { businessId: 'biz-1', state: { method: 'fifo', epochId: 6, revision: 2 }, originalMovementId: 73, reversalMovementId: 92, expectedQuantity: 3 });
+        expect(connection.commit).toHaveBeenCalledOnce();
+      } else {
+        await expect(ImsPORepo.undoReceipt(42, 'biz-1', revision, context)).rejects.toThrow();
+        expect(connection.rollback).toHaveBeenCalledOnce();
+        expect(connection.commit).not.toHaveBeenCalled();
+        if (scenario !== 'gateway failure') {
+          expect(execute.mock.calls.some(([sql]) => sql.startsWith('UPDATE ims_stock'))).toBe(false);
+          expect(mockReverseFifoStockMovementLayers).not.toHaveBeenCalled();
+        }
+      }
+      expect(connection.release).toHaveBeenCalledOnce();
+    },
+  );
 });

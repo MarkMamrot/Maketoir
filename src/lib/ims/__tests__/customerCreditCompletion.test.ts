@@ -22,7 +22,7 @@ vi.mock('../costing/fifoCostingService', () => ({
   FifoCostingConflict: class FifoCostingConflict extends Error { code = 'FIFO_COSTING_CONFLICT'; status = 409; },
 }));
 
-import { ImsCNRepo } from '../ImsRepository';
+import { ImsCNRepo, ImsSORepo } from '../ImsRepository';
 
 function connectionFor(options: {
   operationState?: 'processing' | 'complete';
@@ -280,5 +280,102 @@ describe('ImsCNRepo.complete', () => {
       returnDate: '2026-09-10',
     });
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ImsSORepo.processShopifyRefund provenance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLockInventoryCostState.mockResolvedValue({ method: 'fifo', epochId: 6, revision: 2 });
+    mockCreateFifoSalesOrderReturnLayers.mockResolvedValue({ allocatedValue: 10, unitCost: 10, layerCount: 1 });
+  });
+
+  function refundConnection(options: { pendingReturn?: boolean; duplicate?: boolean; mapped?: boolean } = {}) {
+    const connection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+      execute: vi.fn(async (sql: string) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (normalized.includes('from ims_sales_orders where id')) return [[{
+          id: 9, location_id: 4, so_type: 'online', so_number: 'SHP-9', customer_id: null,
+          sales_channel: 'shopify', channel_instance_id: 'shop-1',
+        }]];
+        if (normalized.includes('from ims_sales_order_items soi')) return [options.mapped === false ? [] : [{ id: 21, variant_id: 'v-1', sku: 'SKU-1', unit_cost: 10 }]];
+        if (normalized.includes("status = 'awaiting_product'")) return [options.pendingReturn ? [{ id: 12, location_id: 4 }] : []];
+        if (normalized.includes('from ims_credit_notes') && normalized.includes('for update')) return [options.duplicate ? [{ id: 12 }] : []];
+        if (normalized.includes('select max(')) return [[{ m: 11 }]];
+        if (normalized.startsWith('insert ignore into ims_credit_notes')) return [{ insertId: 12, affectedRows: 1 }];
+        if (normalized.startsWith('insert into ims_credit_note_items')) return [{ insertId: 31, affectedRows: 1 }];
+        if (normalized.includes('from ims_product_variants pv')) return [[{ is_stock_item: 1 }]];
+        if (normalized.includes('select qty_on_hand from ims_stock')) return [[{ qty_on_hand: 1 }]];
+        if (normalized.startsWith('insert into ims_stock_movements')) return [{ insertId: 501, affectedRows: 1 }];
+        return [{ affectedRows: 1 }];
+      }),
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+    return connection;
+  }
+
+  const refund = {
+    soId: 9, channelInstanceId: 'shop-1', shopifyRefundId: '7001', amount: 5, taxAmount: 0,
+    restockLines: [{ externalOrderItemId: '8001', shopifyVariantId: '9001', quantity: 1, restock: true, unitPrice: 5 }],
+  };
+
+  it.each([false, true])('restores exact source costs with persisted item IDs (pending return: %s)', async pendingReturn => {
+    const connection = refundConnection({ pendingReturn });
+    const result = await ImsSORepo.processShopifyRefund('biz-1', { ...refund, ...(pendingReturn ? { shopifyReturnId: '6001' } : {}) });
+
+    expect(result).toEqual({ processed: true, restocked: 1, creditNoteId: 12 });
+    expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining(pendingReturn ? "settlement_method = 'external'" : "'external')"), expect.anything());
+    expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining('source_so_item_id)'), expect.anything());
+    const inserted = connection.execute.mock.calls.find(([sql]) => sql.includes('INSERT INTO ims_credit_note_items'));
+    expect((inserted as unknown as [string, unknown[]])[1]).toEqual([12, 'v-1', 'SKU-1', null, 1, 5, 1, 0, 5, 21]);
+    expect(mockCreateFifoSalesOrderReturnLayers).toHaveBeenCalledWith(connection, {
+      businessId: 'biz-1', state: { method: 'fifo', epochId: 6, revision: 2 }, sourceSalesOrderItemId: 21,
+      creditNoteId: 12, creditNoteItemId: 31, returnMovementId: 501, variantId: 'v-1', locationId: 4, quantity: 1,
+      returnDate: expect.any(pendingReturn ? Date : String),
+    });
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.release).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back credit and stock when source-allocation restoration fails', async () => {
+    const connection = refundConnection();
+    mockCreateFifoSalesOrderReturnLayers.mockRejectedValueOnce(new Error('Original allocation missing'));
+    await expect(ImsSORepo.processShopifyRefund('biz-1', refund)).rejects.toThrow('Original allocation missing');
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.release).toHaveBeenCalledOnce();
+  });
+
+  it('rejects unmapped restock lines before credit or stock writes', async () => {
+    const connection = refundConnection({ mapped: false });
+    await expect(ImsSORepo.processShopifyRefund('biz-1', refund)).rejects.toThrow('not mapped to this sales order');
+    expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO ims_stock_movements'), expect.anything());
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('does not restock a duplicate refund', async () => {
+    const connection = refundConnection({ duplicate: true });
+    expect(await ImsSORepo.processShopifyRefund('biz-1', refund)).toEqual({ processed: false, restocked: 0, creditNoteId: 12 });
+    expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('keeps no-restock refunds value-only', async () => {
+    const connection = refundConnection();
+    expect(await ImsSORepo.processShopifyRefund('biz-1', { ...refund, restockLines: [{ ...refund.restockLines[0], restock: false }] }))
+      .toEqual({ processed: true, restocked: 0, creditNoteId: 12 });
+    expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO ims_stock_movements'), expect.anything());
+  });
+
+  it('uses captured SO-line cost under Average Cost', async () => {
+    mockLockInventoryCostState.mockResolvedValue({ method: 'average_cost', epochId: 8, revision: 3 });
+    const connection = refundConnection();
+    await ImsSORepo.processShopifyRefund('biz-1', refund);
+    expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO ims_stock_movements'),
+      ['biz-1', 'v-1', 4, 'online', 12, 31, 1, 1, 10, 'average_cost', 8]);
+    expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
   });
 });

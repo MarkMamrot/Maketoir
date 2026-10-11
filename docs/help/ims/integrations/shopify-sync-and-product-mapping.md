@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-10-06","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify","shopify-refund"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Step-by-step","shopify-refund":"Shopify refunds and return costs"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-10-11","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Shopify Sync and Product Mapping
 
@@ -53,6 +53,14 @@ Failed Shopify quantity updates remain queued and are retried by the next schedu
 Shopify fulfilment webhooks remain the primary source for customer-order completion. Each night, Solvantis also reviews Shopify orders updated during the previous 36 hours. When Shopify reports an order fully fulfilled but the matching Solvantis Sales Order is still Confirmed or In Progress, Solvantis applies the same stock-safe fulfilment workflow used by the webhook. The overlapping window covers delayed nightly runs, and completed orders are not fulfilled twice. Whenever this fallback repairs an order, Solvantis records an operational warning for administrators because the usual webhook pathway did not bring the order up to date. Partial Shopify fulfilments are not inferred by this nightly check.
 
 An administrator can run the same check immediately for one storefront. Open **Integrations > Sales Channels**, configure the Shopify store, open **Orders**, and find **Fulfilment reconciliation**. Enter a whole-number lookback period from 1 to 168 hours, then choose **Check last [number] hours**. Review the scanned, fully fulfilled, repaired, already current, missing locally, and needs review counts. A repair changes stock and allocations through the normal fulfilment workflow, so confirm that the selected storefront and its online-orders location are correct before running it. Missing local orders and unsupported Sales Order statuses are reported but are not created or forced through fulfilment.
+
+## Shopify refunds and return costs
+
+Initiate Shopify refunds in Shopify Admin. Solvantis records the refund as an externally settled customer credit note; it does not issue IMS store credit. Returnable lines restore stock, while **no restock** lines record value only.
+
+Returned stock stays linked to the original fulfilled sales-order line. Under FIFO, its cost comes from the original stock allocations, not today's product cost. Under Average Cost, the return uses the original line's captured cost. Missing or inconsistent source history blocks the stock return rather than inventing a cost.
+
+If Shopify has already refunded the customer but Solvantis could not complete the return, correct the reported linkage or source-history issue and retry processing that existing refund. Do not issue another Shopify refund or manually add the same returned stock. Reprocessing a completed refund does not create another credit note or restock it again.
 
 ## Step-by-step
 

@@ -76,6 +76,8 @@ This distinction matters when investigating margin. A jacket sold last month kee
 
 ## Choose or change the costing method
 
+Switching from FIFO to Average Cost derives each variant's shared cost from the remaining FIFO quantities and values across locations. The switch applies as one operation; it does not partially change the active method or rewrite historical movement costs. A variant with no remaining stock receives a zero current average cost.
+
 1. Open **Settings > General > Inventory Costing** as an Administrator.
 2. Review the current method, on-hand quantity, opening value, warnings, and blockers.
 3. Resolve negative stock or missing positive costs before enabling FIFO. Resolve any stock-to-layer mismatch before leaving FIFO.

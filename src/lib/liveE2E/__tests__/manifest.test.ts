@@ -3,6 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { appendLiveRunEvent, assertRunMayStart } from '../manifest';
 
 describe('live E2E manifest', () => {
+  it('records prospective costing switch epochs and preserves post-commit verification recovery', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', {});
+    events = appendLiveRunEvent(events, 'costing_switched', { epochId: 4, targetMethod: 'fifo' });
+    events = appendLiveRunEvent(events, 'blocked', { phase: 'verification' });
+    events = appendLiveRunEvent(events, 'costing_switched', { epochId: 4, verificationResumed: true });
+    expect(appendLiveRunEvent(events, 'clean', {}).at(-1)?.state).toBe('clean');
+  });
+
   it('checkpoints allocation artifacts and requires acknowledgement before cleanup', () => {
     let events = appendLiveRunEvent([], 'initialized', {});
     events = appendLiveRunEvent(events, 'preflight_passed', {});

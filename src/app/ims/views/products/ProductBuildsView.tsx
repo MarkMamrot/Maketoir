@@ -45,8 +45,8 @@ const dateTime = (value: string) => value ? new Date(value).toLocaleString('en-A
 
 function Dialog({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'grid', placeItems: 'center', padding: 16 }} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div role="dialog" aria-modal="true" aria-label={title} style={{ width: wide ? 'min(1040px, 96vw)' : 'min(620px, 96vw)', maxHeight: '92vh', overflowY: 'auto', ...panel, boxShadow: '0 24px 64px rgba(15,23,42,.28)' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}><strong style={{ color: 'var(--sv-text-strong)', fontSize: 15 }}>{title}</strong><button type="button" onClick={onClose} title="Close" style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 4 }}><X size={18} /></button></div>
+    <div role="dialog" aria-modal="true" aria-label={title} style={{ width: '100%', maxWidth: wide ? 1040 : 620, minWidth: 0, boxSizing: 'border-box', maxHeight: '92vh', overflowY: 'auto', ...panel, boxShadow: '0 24px 64px rgba(15,23,42,.28)' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 8, padding: '14px 18px', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}><strong style={{ color: 'var(--sv-text-strong)', fontSize: 15, minWidth: 0, overflowWrap: 'anywhere' }}>{title}</strong><button type="button" onClick={onClose} title="Close" style={{ marginLeft: 'auto', flexShrink: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 4 }}><X size={18} /></button></div>
       <div style={{ padding: 18 }}>{children}</div>
     </div>
   </div>;

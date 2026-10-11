@@ -176,14 +176,16 @@ export async function POST(req: Request) {
     }
 
     // Idempotency: if local_id already exists, return the existing sale id
-    if (body.local_id) {
+    const respondWithExistingSale = async () => {
+      if (!body.local_id) return null;
       const existing = await PosSalesRepo.findByLocalId(body.local_id, businessId);
-      if (existing) {
-        const creditNoteId = await ensurePosReturnCreditNote(body, existing.id, businessId, locationId, session.username ?? session.full_name);
-        const loyalty = await LoyaltyRepository.getMutationByIdempotencyKey(businessId, `pos:sale:${existing.id}:earn`);
-        return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, loyalty, duplicate: true, layby_collected: existing.sale_type === 'layby' && existing.status === 'layby_complete' });
-      }
-    }
+      if (!existing) return null;
+      const creditNoteId = await ensurePosReturnCreditNote(body, existing.id, businessId, locationId, session.username ?? session.full_name);
+      const loyalty = await LoyaltyRepository.getMutationByIdempotencyKey(businessId, `pos:sale:${existing.id}:earn`);
+      return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, loyalty, duplicate: true, layby_collected: existing.sale_type === 'layby' && existing.status === 'layby_complete' });
+    };
+    const existingResponse = await respondWithExistingSale();
+    if (existingResponse) return existingResponse;
 
     // Resolve which register SESSION this sale belongs to, so end-of-day
     // reconciliation sums by session (handles shifts that cross midnight or a
@@ -207,7 +209,9 @@ export async function POST(req: Request) {
       [businessId, posLocationSettingsKey(locationId)],
     );
     const saleStartedAt = Date.now();
-    const { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption } = await PosSalesRepo.complete({
+    let completed!: Awaited<ReturnType<typeof PosSalesRepo.complete>>;
+    for (let attempt = 1; ; attempt++) try {
+      completed = await PosSalesRepo.complete({
       business_id:       businessId,
       local_id:          body.local_id ?? null,
       register_id:       registerId,
@@ -233,9 +237,32 @@ export async function POST(req: Request) {
       return_of_sale_id: body.return_of_sale_id ?? null,
       allow_incoming_transfer_sales: allowsIncomingTransferSales(locationSettings[0]?.value),
       build_consent: body.build_consent ?? null,
-      items:             (body.items ?? []).map((item: any) => ({ ...item, is_gift_card: Boolean(item.is_gift_card) })),
+      items:             (body.items ?? []).map((item: any) => ({
+        ...item,
+        is_gift_card: Boolean(item.is_gift_card),
+        discount_type: item.discount_type ?? 'none',
+        discount_value: Number(item.discount_value ?? 0),
+        discount_amount: Number(item.discount_amount ?? 0),
+      })),
       payments:          body.payments ?? [],
-    });
+      });
+      break;
+    } catch (err: any) {
+      // Concurrent sales can deadlock on costing/stock locks; MySQL rolls the whole
+      // sale transaction back, so a short retry is safe.
+      if (err?.code === 'ER_LOCK_DEADLOCK' && attempt < 3) {
+        console.warn('[pos-sale] deadlock, retrying', JSON.stringify({ businessId, attempt }));
+        await new Promise(resolve => setTimeout(resolve, 50 * attempt + Math.floor(Math.random() * 50)));
+        continue;
+      }
+      // A concurrent retry of the same offline sale won the unique local_id race.
+      if (err?.code === 'ER_DUP_ENTRY' && String(err?.sqlMessage ?? '').includes('local_id')) {
+        const duplicateResponse = await respondWithExistingSale();
+        if (duplicateResponse) return duplicateResponse;
+      }
+      throw err;
+    }
+    const { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption } = completed;
     const saleDurationMs = Date.now() - saleStartedAt;
     console.info('[pos-sale] complete', JSON.stringify({
       deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,

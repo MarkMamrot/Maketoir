@@ -74,12 +74,15 @@ describe('live E2E safety contract', () => {
   it('allows only explicit scenario stages', () => {
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'fifo-reconcile-negative' }).action).toBe('fifo-reconcile-negative');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'fifo-activate' }).action).toBe('fifo-activate');
+    expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'cost-switch' }).action).toBe('cost-switch');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p9' }).action).toBe('p9');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p9-compensate' }).action).toBe('p9-compensate');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p1' }).action).toBe('p1');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'p1-compensate' }).action).toBe('p1-compensate');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'allocation' }).action).toBe('allocation');
     expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'allocation-compensate' }).action).toBe('allocation-compensate');
+    expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'build' }).action).toBe('build');
+    expect(loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'build-verify' }).action).toBe('build-verify');
     expect(() => loadLiveE2EConfig({ ...validEnv, LIVE_E2E_ACTION: 'run-everything' })).toThrow('unsupported action');
   });
 

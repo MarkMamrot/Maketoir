@@ -1,5 +1,5 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work","ims-xero-reconciliation"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-10-08","owner":"inventory","quickSections":["Main operations","Purchase order status flow"]}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work","ims-xero-reconciliation"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","Purchase order status flow"]}
 ---
 # Purchase Orders
 
@@ -45,6 +45,8 @@ Advisor access is read-only, so an Advisor cannot create or edit a purchase orde
 4. Check order and expected dates, supplier invoice details, early-payment discount, freight, currency, exchange rate, landed costs and notes.
 5. Check the supplier's tax treatment.
 6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.
+
+If an edit saved but its response was interrupted, retrying that same save does not apply its quantity changes again. A different edit based on an older order version still requires you to refresh and review the latest values before saving.
 
 Each line shows **Stock** or **Non-stock expense** from the product's **Tracks inventory** setting. Stock lines become incoming when confirmed and affect stock value when received. Non-stock expense lines remain part of the PO and supplier bill, but confirmation and receipt do not change incoming stock, on-hand quantity, allocations, Average Cost, stock movements, or FIFO layers.
 
@@ -129,6 +131,8 @@ Choose the action that matches what happened:
 | Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |
 
 A replacement is a new Draft. It does not undo the original receipt or change the original accounting record.
+
+Reducing an unreceived balance does not erase earlier receipts or prevent **Undo Receipt** by itself. Solvantis checks the recorded physical receipts and their costs separately from incoming-quantity changes; the usual stock, dependency, and accounting safeguards still apply.
 
 **Undo Receipt** is available for In Progress and Complete POs when the exact received stock and valuation can be reversed and no dependent payment, supplier credit, shortfall resolution, child workflow, or unsafe Xero state blocks it. The receiving location must still have enough uncommitted stock to remove every received unit. If stock has been sold, transferred, adjusted, or committed to a sales order or transfer, Solvantis blocks the undo and explains the quantity that is unavailable. Release any commitments first, or use **Supplier Return / Credit** when goods genuinely arrived and are being returned. For an In Progress PO, Undo Receipt clears all received quantities, restores them to incoming, and returns the PO to Confirmed without changing its linked Xero bill. For a Complete PO, it cancels the PO and attempts to void the linked Xero bill.
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-po-receiving-resolution","title":"Receiving and Resolving Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"task","parentId":"ims-purchase-orders","contexts":["purchase-order-receive","purchase-order-resolve","supplier-backorders"],"contextSections":{"purchase-order-receive":"Step-by-step","purchase-order-resolve":"Resolve a short delivery","supplier-backorders":"Resolve a short delivery"},"relatedTopics":["ims-purchase-orders","ims-supplier-work","ims-supplier-returns-credit-notes","ims-inventory-costing"],"order":12,"summary":"Receive stock and non-stock PO lines once, then resolve any outstanding supplier quantity.","lastReviewed":"2026-09-11","owner":"inventory","quickSections":["Main operations","At a glance"]}
+{"id":"ims-po-receiving-resolution","title":"Receiving and Resolving Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"task","parentId":"ims-purchase-orders","contexts":["purchase-order-receive","purchase-order-resolve","supplier-backorders","purchase-order-undo-receipt"],"contextSections":{"purchase-order-receive":"Step-by-step","purchase-order-resolve":"Resolve a short delivery","supplier-backorders":"Resolve a short delivery","purchase-order-undo-receipt":"Undo mistaken receipts"},"relatedTopics":["ims-purchase-orders","ims-supplier-work","ims-supplier-returns-credit-notes","ims-inventory-costing"],"order":12,"summary":"Receive stock and non-stock PO lines once, then resolve any outstanding supplier quantity.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Receiving and Resolving Purchase Orders
 
@@ -51,6 +51,12 @@ Supplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax
 7. To finish with a shortfall during receipt, choose the completion option that creates a backorder only after reviewing the confirmation.
 8. Enter the supplier invoice number before marking the PO Complete.
 9. Reopen the PO and confirm received, outstanding, stock and Xero status separately.
+
+## Undo mistaken receipts
+
+Use **Undo Receipt** only when the recorded delivery never physically happened. It removes all quantities recorded as received on that PO, including receipts entered through several Continue Receiving sessions.
+
+With FIFO, each receipt is reversed at its own captured cost. All original receipt stock must remain untouched in the current costing period, with enough uncommitted stock at the receiving location. Missing receipt history, consumption, transfers, or incompatible accounting activity can block the correction. Use **Supplier Return / Credit** for goods genuinely received and later returned; do not undo a real delivery to resolve an accounting warning.
 
 ## Resolve a short delivery
 

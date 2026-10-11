@@ -13,6 +13,7 @@ import {
 export const INVENTORY_COST_METHOD_SETTING_KEY = 'inventory_cost_method';
 export const FIFO_COSTING_ACTIVATION_READY = true;
 const FIFO_OPENING_LAYER_BATCH_SIZE = 500;
+const AVERAGE_COST_UPDATE_BATCH_SIZE = 500;
 
 type StockSnapshot = {
   variantId: string;
@@ -292,10 +293,26 @@ export async function switchInventoryCostMethod(input: SwitchInventoryCostMethod
         total.value += layer.value;
         variantTotals.set(row.variantId, total);
       }
-      for (const [variantId, total] of variantTotals) {
-        const averageCost = total.quantity > INVENTORY_QUANTITY_TOLERANCE ? total.value / total.quantity : 0;
-        await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [averageCost, variantId]);
-        await conn.execute(`UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`, [averageCost, variantId]);
+      const averageCosts = Array.from(variantTotals, ([variantId, total]) => ({
+        variantId, averageCost: total.quantity > INVENTORY_QUANTITY_TOLERANCE ? total.value / total.quantity : 0,
+      }));
+      for (let offset = 0; offset < averageCosts.length; offset += AVERAGE_COST_UPDATE_BATCH_SIZE) {
+        const batch = averageCosts.slice(offset, offset + AVERAGE_COST_UPDATE_BATCH_SIZE);
+        const cases = batch.map(() => 'WHEN ? THEN ?').join(' ');
+        const placeholders = batch.map(() => '?').join(', ');
+        const values = [
+          ...batch.flatMap(row => [row.variantId, row.averageCost]),
+          input.businessId,
+          ...batch.map(row => row.variantId),
+        ];
+        await conn.execute(
+          `UPDATE ims_product_variants SET avg_cost = CASE variant_id ${cases} ELSE avg_cost END
+            WHERE business_id = ? AND variant_id IN (${placeholders})`, values,
+        );
+        await conn.execute(
+          `UPDATE ims_stock SET avg_cost = CASE variant_id ${cases} ELSE avg_cost END
+            WHERE business_id = ? AND variant_id IN (${placeholders})`, values,
+        );
       }
     }
 

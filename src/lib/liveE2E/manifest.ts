@@ -6,6 +6,7 @@ export type LiveRunState =
   | 'campaign_baseline_recorded'
   | 'fifo_negative_stock_reconciled'
   | 'fifo_activated'
+  | 'costing_switched'
   | 'p1_created'
   | 'p2_created'
   | 'p3_created'
@@ -33,10 +34,11 @@ export type LiveRunEvent = {
 
 const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   initialized: new Set(['preflight_passed', 'blocked']),
-  preflight_passed: new Set(['campaign_baseline_recorded', 'fifo_negative_stock_reconciled', 'fifo_activated', 'p1_created', 'p2_created', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created', 'allocation_created', 'blocked']),
+  preflight_passed: new Set(['campaign_baseline_recorded', 'fifo_negative_stock_reconciled', 'fifo_activated', 'costing_switched', 'p1_created', 'p2_created', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created', 'allocation_created', 'blocked']),
   campaign_baseline_recorded: new Set(['clean', 'blocked']),
   fifo_negative_stock_reconciled: new Set(['clean', 'blocked']),
   fifo_activated: new Set(['clean', 'blocked']),
+  costing_switched: new Set(['costing_switched', 'clean', 'blocked']),
   p1_created: new Set(['p1_created', 'awaiting_operator', 'blocked']),
   p2_created: new Set(['p2_created', 'awaiting_operator', 'blocked']),
   p3_created: new Set(['p3_created', 'awaiting_operator', 'blocked']),
@@ -53,7 +55,7 @@ const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   compensating: new Set(['clean', 'blocked']),
   verification_authorized: new Set(['verification_authorized', 'clean', 'blocked']),
   clean: new Set(),
-  blocked: new Set(['fifo_negative_stock_reconciled', 'fifo_activated', 'compensation_retry_authorized', 'verification_authorized', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created', 'allocation_created']),
+  blocked: new Set(['fifo_negative_stock_reconciled', 'fifo_activated', 'costing_switched', 'compensation_retry_authorized', 'verification_authorized', 'p3_created', 'p4_created', 'p5_created', 'p6_created', 'p7_created', 'p8_created', 'p9_created', 'allocation_created']),
 };
 
 export function appendLiveRunEvent(

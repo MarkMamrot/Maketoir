@@ -1246,7 +1246,8 @@ async function reversePurchaseOrderReceiptTx(
     grouped.set(item.variant_id, (grouped.get(item.variant_id) ?? 0) + Math.max(0, Number(item.qty_received ?? 0)));
   }
 
-  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number; fifoSourceMovementId: number | null }> = [];
+  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number;
+    fifoSources: Array<{ movementId: number; quantity: number; unitCost: number }> }> = [];
   for (const [variantId, receivedQty] of grouped) {
     if (receivedQty <= 0) continue;
     const [stockRows] = await conn.execute<any[]>(
@@ -1291,6 +1292,7 @@ async function reversePurchaseOrderReceiptTx(
              WHERE (reversal.business_id = ? OR reversal.business_id = '') AND reversal.reference_type = 'purchase_order'
                AND reversal.reference_id = ? AND reversal.movement_type = 'po_unapproved'
                AND reversal.variant_id = ? AND reversal.location_id = ?
+              AND reversal.qty_change < 0 AND reversal.unit_cost IS NOT NULL
           ), 0) AND qty_change > 0`,
       [po.business_id, po.id, variantId, po.location_id, po.business_id, po.id, variantId, po.location_id],
     );
@@ -1301,10 +1303,10 @@ async function reversePurchaseOrderReceiptTx(
       }]);
     }
     const receiptUnitCost = Number(receiptRow?.receipt_unit_cost ?? 0);
-    let fifoSourceMovementId: number | null = null;
+    const fifoSources: Array<{ movementId: number; quantity: number; unitCost: number }> = [];
     if (options.costingState?.method === 'fifo') {
       const [fifoRows] = await conn.execute<any[]>(
-        `SELECT layer.id, layer.source_movement_id, layer.original_quantity, layer.remaining_quantity,
+        `SELECT layer.id, layer.source_movement_id, layer.original_quantity, layer.remaining_quantity, layer.unit_cost,
                 (SELECT COUNT(*) FROM ims_fifo_cost_allocations allocation
                   WHERE allocation.business_id = layer.business_id AND allocation.layer_id = layer.id) AS allocation_count,
                 (SELECT COUNT(*) FROM ims_fifo_cost_layers child
@@ -1336,20 +1338,32 @@ async function reversePurchaseOrderReceiptTx(
           message: `Cannot reverse PO receipt: ${receivedQty - remainingQty} units from variant ${variantId}'s FIFO receipt layers have been consumed or transferred. Reverse the dependent stock activity or use Supplier Return / Credit instead.`,
         }]);
       }
-      const sourceMovementIds = [...new Set(fifoRows.map((row: any) => Number(row.source_movement_id)).filter(Number.isInteger))];
-      if (sourceMovementIds.length !== 1) {
-        throw new OrderCorrectionConflict([{
-          code: 'fifo_layer_missing',
-          message: `Cannot reverse PO receipt: FIFO source layers for variant ${variantId} do not identify one receipt movement. Reconcile the receipt history before retrying.`,
-        }]);
+      const sources = new Map<number, { quantity: number; value: number }>();
+      for (const row of fifoRows) {
+        const movementId = Number(row.source_movement_id);
+        const quantity = Number(row.original_quantity);
+        const unitCost = Number(row.unit_cost);
+        if (!Number.isSafeInteger(movementId) || movementId <= 0 || !Number.isFinite(quantity) || quantity <= 0
+          || row.unit_cost == null || !Number.isFinite(unitCost) || unitCost < 0) {
+          throw new OrderCorrectionConflict([{
+            code: 'fifo_layer_missing',
+            message: `Cannot reverse PO receipt: FIFO source layers for variant ${variantId} have incomplete receipt provenance. Reconcile the receipt history before retrying.`,
+          }]);
+        }
+        const source = sources.get(movementId) ?? { quantity: 0, value: 0 };
+        source.quantity += quantity;
+        source.value += quantity * unitCost;
+        sources.set(movementId, source);
       }
-      fifoSourceMovementId = sourceMovementIds[0];
+      for (const [movementId, source] of sources) {
+        fifoSources.push({ movementId, quantity: source.quantity, unitCost: source.value / source.quantity });
+      }
     }
     plans.push({
       variantId,
       receivedQty,
       receiptUnitCost,
-      fifoSourceMovementId,
+      fifoSources,
       newAvg: computeAverageCostAfterReversal({
         currentQtyOnHand: totalOrgQty,
         currentAvgCost: Number(variantRow?.avg_cost ?? 0),
@@ -1373,20 +1387,26 @@ async function reversePurchaseOrderReceiptTx(
       `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
       [plan.variantId, po.location_id],
     );
-    const [movementResult] = await conn.execute<any>(
-      `INSERT INTO ims_stock_movements
-         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id,notes)
-       VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?,?,?)`,
-      [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, options.costingState?.method ?? 'average_cost', options.costingState?.epochId ?? null, 'PO receipt undone'],
-    );
-    if (options.costingState?.method === 'fifo' && plan.fifoSourceMovementId) {
-      await reverseFifoStockMovementLayers(conn, {
-        businessId: po.business_id,
-        state: options.costingState,
-        originalMovementId: plan.fifoSourceMovementId,
-        reversalMovementId: Number(movementResult.insertId),
-        expectedQuantity: plan.receivedQty,
-      });
+    const sources = options.costingState?.method === 'fifo' ? plan.fifoSources
+      : [{ movementId: null, quantity: plan.receivedQty, unitCost: plan.receiptUnitCost }];
+    let quantityAfter = Number(stockRow?.qty_on_hand ?? 0) + plan.receivedQty;
+    for (const source of sources) {
+      quantityAfter -= source.quantity;
+      const [movementResult] = await conn.execute<any>(
+        `INSERT INTO ims_stock_movements
+           (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id,notes)
+         VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?,?,?)`,
+        [po.business_id, plan.variantId, po.location_id, po.id, -source.quantity, quantityAfter, source.unitCost, options.costingState?.method ?? 'average_cost', options.costingState?.epochId ?? null, 'PO receipt undone'],
+      );
+      if (options.costingState?.method === 'fifo' && source.movementId != null) {
+        await reverseFifoStockMovementLayers(conn, {
+          businessId: po.business_id,
+          state: options.costingState,
+          originalMovementId: source.movementId,
+          reversalMovementId: Number(movementResult.insertId),
+          expectedQuantity: source.quantity,
+        });
+      }
     }
   }
   await conn.execute(`UPDATE ims_purchase_order_items SET qty_received = 0 WHERE po_id = ?`, [po.id]);
@@ -1742,6 +1762,14 @@ export const ImsPORepo = {
         `SELECT status, location_id, business_id, po_number, expected_date, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
       );
       if (!currentPo) throw new Error('Purchase order not found');
+      const amendment = await beginOrderAmendment(conn, amendmentContext, {
+        businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
+        orderStatus: String(currentPo.status), beforeHeader: currentPo,
+      });
+      if (amendment.replayed) {
+        await conn.commit();
+        return;
+      }
       assertExpectedOrderRevision(currentPo.updated_at, amendmentContext?.expectedUpdatedAt);
 
       let existingItems: any[] = [];
@@ -1782,14 +1810,6 @@ export const ImsPORepo = {
           businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
           operation: locationChanged ? 'changing the location or lines on' : 'changing the lines on',
         });
-      }
-      const amendment = await beginOrderAmendment(conn, amendmentContext, {
-        businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
-        orderStatus: String(currentPo.status), beforeHeader: currentPo,
-      });
-      if (amendment.replayed) {
-        await conn.commit();
-        return;
       }
       const amendmentLines: Array<{ sourceLineId: number | null; resultLineId: number | null; movedFloor: number; beforeLine: unknown; afterLine: unknown }> = [];
 
@@ -3786,21 +3806,23 @@ export const ImsSORepo = {
       const cnItems: {
         variant_id: string | null; code: string | null; name: string | null;
         qty: number; unit_price: number; tax_rate: number; restock: number;
+        source_so_item_id: number | null;
       }[] = [];
       for (const line of opts.restockLines ?? []) {
         const qty = Number(line.quantity);
         if (!(qty > 0)) continue;
         let variantId: string | null = null;
+        let sourceSoItemId: number | null = null;
         let sku: string | null = line.sku ?? null;
         if (channelInstanceId && line.externalOrderItemId) {
           const [[item]] = await conn.execute<any[]>(
-            `SELECT soi.variant_id, pv.sku
+            `SELECT soi.id, soi.variant_id, pv.sku
                FROM ims_sales_order_items soi
                LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
               WHERE soi.business_id = ? AND soi.so_id = ? AND soi.external_order_item_id = ? LIMIT 1`,
             [businessId, so.id, String(line.externalOrderItemId)],
           );
-          if (item) { variantId = item.variant_id; sku = sku ?? item.sku; }
+          if (item) { variantId = item.variant_id; sourceSoItemId = Number(item.id); sku = sku ?? item.sku; }
         } else if (line.shopifyVariantId) {
           const [[v]] = await conn.execute<any[]>(
             `SELECT v.variant_id, v.sku FROM ims_product_variants v
@@ -3818,6 +3840,7 @@ export const ImsSORepo = {
         const taxRate = lineBase > 0 ? Number(line.taxAmount ?? 0) / lineBase : 0;
         cnItems.push({
           variant_id: variantId,
+          source_so_item_id: sourceSoItemId,
           code: sku,
           name: line.name ?? null,
           qty,
@@ -3840,6 +3863,7 @@ export const ImsSORepo = {
         const taxRate = subtotal > 0 ? tax / subtotal : 0;
         cnItems.push({
           variant_id: null,
+          source_so_item_id: null,
           code: null,
           name: `Shopify refund ${opts.shopifyRefundId}`,
           qty: 1,
@@ -3876,24 +3900,25 @@ export const ImsSORepo = {
             `UPDATE ims_credit_notes
                 SET channel_instance_id = ?, external_refund_id = ?, shopify_refund_id = ?,
                     subtotal = ?, tax_amount = ?, total_amount = ?,
-                    tax_treatment = 'ex_tax', status = 'complete', completed_at = NOW()
+                    tax_treatment = 'ex_tax', settlement_method = 'external', status = 'complete', completed_at = NOW()
               WHERE id = ?`,
             [channelInstanceId, String(opts.shopifyRefundId), String(opts.shopifyRefundId),
               subtotal, tax, total, existingCn.id],
           );
           // Delete old items and re-insert from actual refund data.
           await conn.execute(`DELETE FROM ims_credit_note_items WHERE cn_id = ?`, [existingCn.id]);
+          const existingItems: ImsCNItem[] = [];
           for (const it of cnItems) {
             const lt = Math.round(it.qty * it.unit_price * 100) / 100;
-            await conn.execute(
-              `INSERT INTO ims_credit_note_items (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total) VALUES (?,?,?,?,?,?,'custom',?,?,?)`,
-              [existingCn.id, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock, it.tax_rate, lt],
+            const [insertedItem] = await conn.execute<any>(
+              `INSERT INTO ims_credit_note_items (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total,source_so_item_id) VALUES (?,?,?,?,?,?,'custom',?,?,?,?)`,
+              [existingCn.id, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock, it.tax_rate, lt, it.source_so_item_id],
             );
+            existingItems.push({ ...it, id: Number(insertedItem.insertId), cn_id: existingCn.id, price_basis: 'custom', line_total: lt });
           }
-          const existingItems: ImsCNItem[] = cnItems.map(it => ({ ...it, id: 0, cn_id: existingCn.id, price_basis: 'custom' as const, line_total: Math.round(it.qty * it.unit_price * 100) / 100 }));
           const channel = so.so_type === 'online' ? 'online' : 'wholesale';
           await restockCreditNoteItemsTx(conn, businessId, existingCn.id, so.location_id, existingItems, channel, {
-            costingState, source: 'shopify', returnDate: new Date(),
+            costingState, source: 'shopify', salesOrderId: so.id, returnDate: new Date(),
           });
           const restocked = existingItems.reduce((s, it) => s + (Number(it.restock) ? Number(it.qty) : 0), 0);
           await conn.execute(
@@ -3929,8 +3954,8 @@ export const ImsSORepo = {
            (business_id, cn_number, customer_id, so_id, original_so_number, location_id,
             status, source, shopify_refund_id, channel_instance_id, external_refund_id,
             cn_date, completed_at, reference,
-            tax_treatment, subtotal, tax_amount, total_amount, notes)
-         VALUES (?,?,?,?,?,?, 'complete','shopify',?,?,?, ?, NOW(), ?, 'ex_tax', ?, ?, ?, ?)`,
+            tax_treatment, subtotal, tax_amount, total_amount, notes, settlement_method)
+          VALUES (?,?,?,?,?,?, 'complete','shopify',?,?,?, ?, NOW(), ?, 'ex_tax', ?, ?, ?, ?, 'external')`,
         [businessId, cnNumber, so.customer_id ?? null, so.id, so.so_number ?? null, so.location_id,
          String(opts.shopifyRefundId), channelInstanceId, String(opts.shopifyRefundId), cnDate,
          `Shopify refund ${opts.shopifyRefundId}`, subtotal, tax, total,
@@ -3950,19 +3975,19 @@ export const ImsSORepo = {
       const cnItemRows: ImsCNItem[] = [];
       for (const it of cnItems) {
         const lineTotal = Math.round(it.qty * it.unit_price * 100) / 100;
-        await conn.execute(
+        const [insertedItem] = await conn.execute<any>(
           `INSERT INTO ims_credit_note_items
-             (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
-           VALUES (?,?,?,?,?,?, 'custom', ?,?,?)`,
-          [cnId, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock, it.tax_rate, lineTotal],
+             (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total,source_so_item_id)
+           VALUES (?,?,?,?,?,?, 'custom', ?,?,?,?)`,
+          [cnId, it.variant_id, it.code, it.name, it.qty, it.unit_price, it.restock, it.tax_rate, lineTotal, it.source_so_item_id],
         );
-        cnItemRows.push({ ...it, id: 0, cn_id: cnId, price_basis: 'custom', line_total: lineTotal } as ImsCNItem);
+        cnItemRows.push({ ...it, id: Number(insertedItem.insertId), cn_id: cnId, price_basis: 'custom', line_total: lineTotal } as ImsCNItem);
       }
 
       // Restock the returnable lines.
       const channel = so.so_type === 'online' ? 'online' : 'wholesale';
       await restockCreditNoteItemsTx(conn, businessId, cnId, so.location_id, cnItemRows, channel, {
-        costingState, source: 'shopify', returnDate: cnDate,
+        costingState, source: 'shopify', salesOrderId: so.id, returnDate: cnDate,
       });
       const restocked = cnItemRows.reduce((s, it) => s + (Number(it.restock) ? Number(it.qty) : 0), 0);
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-builds","title":"Product Builds","audiences":["ims"],"capability":"inventory","screen":"Products > Builds","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["builds","products","stock","sales-orders","pos"],"contextSections":{"builds":"Step-by-step","products":"Step-by-step","stock":"Step-by-step","sales-orders":"Step-by-step","pos":"Step-by-step"},"relatedTopics":["ims-product-setup-variants","ims-stocktakes-adjustments","ims-business-operations-pos-settings","ims-inventory-costing"],"order":17,"summary":"Create versioned recipes, build finished stock from available components, handle order shortfalls, and reverse completed builds safely.","lastReviewed":"2026-09-10","owner":"inventory","quickSections":["Main operations","At a glance"]}
+{"id":"ims-product-builds","title":"Product Builds","audiences":["ims"],"capability":"inventory","screen":"Products > Builds","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["builds","products","stock","sales-orders","pos"],"contextSections":{"builds":"Step-by-step","products":"Step-by-step","stock":"Step-by-step","sales-orders":"Step-by-step","pos":"Step-by-step"},"relatedTopics":["ims-product-setup-variants","ims-stocktakes-adjustments","ims-business-operations-pos-settings","ims-inventory-costing"],"order":17,"summary":"Create versioned recipes, build finished stock from available components, handle order shortfalls, and reverse completed builds safely.","lastReviewed":"2026-10-10","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Product Builds
 
@@ -59,6 +59,8 @@ Each save creates a new revision. Completed builds keep the exact recipe, quanti
 4. Review the combined component table: On Hand, Committed, Available, Required, After, cost, and value.
 5. Check each resulting output unit cost, then select **Confirm atomic build**.
 6. Open the build detail to review captured components, costs, operator, source, and reversal history.
+
+Build forms and details fit within the screen on mobile devices. Scroll within the dialog to review longer details; long titles wrap while the Close control remains available.
 
 Shared component demand is combined before confirmation. A variant cannot be both an output and a component in the same batch.
 
