@@ -743,7 +743,7 @@
       ],
       "order": 20,
       "summary": "Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.",
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
@@ -853,7 +853,7 @@
       ],
       "order": 17,
       "summary": "Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
@@ -7506,7 +7506,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "Solvantis supports Average Cost and first in, first out (FIFO) inventory costing. One method applies to the whole business at a time. Current valuation follows that method, while completed movements keep their recorded costs for historical margin and cost of goods sold (COGS).",
       "sectionId": "ims-inventory-costing:1"
     },
@@ -7528,7 +7528,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.\n\nAverage Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.\n\n| To answer... | Use |\n|---|---|\n| Which method is active? | **Settings > General > Inventory Costing** |\n| What is the current stock value at a location? | **Products > Stock Levels** |\n| What cost was attached to an earlier receipt, sale or return? | **Stock History** |\n| How does current catalogue selling price compare with cost? | **Reports > Product Margin** |\n| What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |\n| Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |",
       "sectionId": "ims-inventory-costing:2"
     },
@@ -7550,8 +7550,8 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
-      "content": "| Term | Meaning |\n|---|---|\n| Average Cost | One current blended tax-exclusive AUD cost for a variant across the business |\n| FIFO | Location-specific receipt layers consumed oldest first |\n| FIFO layer | A dated quantity at its recorded tax-exclusive AUD unit cost |\n| Approved zero cost | Stock received at no cost with an immutable workflow reason recorded on its FIFO layer |\n| Stock value | Average Cost value or the value of remaining FIFO layers, according to the active method |\n| Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |\n| Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |\n\nUnder Average Cost, locations share the variant's current unit cost. Under FIFO, layers belong to a location because stock received and consumed there has its own sequence.",
+      "lastReviewed": "2026-10-11",
+      "content": "| Term | Meaning |\n|---|---|\n| Average Cost | One current blended tax-exclusive AUD cost for a variant across the business |\n| FIFO | Location-specific receipt layers consumed oldest first |\n| FIFO layer | A dated quantity at its recorded tax-exclusive AUD unit cost |\n| Approved zero cost | Stock received at no cost with an immutable workflow reason recorded on its FIFO layer |\n| Stock value | Average Cost value or the value of remaining FIFO layers, according to the active method |\n| Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |\n| Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |\n\nUnder Average Cost, locations share the variant's current unit cost. Stock Levels, dashboard stock value and operational cost lookups all use that single variant cost rather than maintaining separate location costs. Under FIFO, layers belong to a location because stock received and consumed there has its own sequence.",
       "sectionId": "ims-inventory-costing:3"
     },
     {
@@ -7572,7 +7572,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "Retail and POS selling prices are tax-inclusive. For example, a $110 selling price contains $10 GST.\n\nSupplier costs used for inventory value are tax-exclusive. If a GST-registered Australian supplier quotes $55 including 10% GST, the inventory cost before other adjustments is $50 and the GST is $5. If the supplier form is set to **Tax exclusive**, entering $50 produces a $55 total. If it is set to **Tax inclusive**, entering $55 still leaves $50 as the cost basis.\n\nFor a foreign-currency order, the cost is converted to AUD using the recorded exchange rate. Line discounts and configured freight or landed-cost allocation can also change the final received cost.\n\n> **Important:** Check the supplier's tax treatment and currency before receiving. Correcting a draft is simpler than explaining an incorrect average cost after stock has moved.",
       "sectionId": "ims-inventory-costing:4"
     },
@@ -7594,7 +7594,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "### Average Cost\n\nFor positive existing and received quantities:\n\n`new average cost = (existing quantity × existing average cost + received quantity × received unit cost) ÷ total quantity`\n\n| Stage | Quantity | Unit cost | Value |\n|---|---:|---:|---:|\n| Existing stock | 10 | $20.00 | $200.00 |\n| New receipt | 5 | $26.00 | $130.00 |\n| Combined | 15 | $22.00 average | $330.00 |\n\nIf there is no positive stock before the receipt, the final tax-exclusive AUD receipt cost becomes the new average cost.\n\n### FIFO\n\nEach receipt creates a layer at the receiving location using its final tax-exclusive AUD cost. A sale, fulfilment, supplier return, build, or negative adjustment consumes the oldest available layer first. Transfers preserve cost from the source location when creating layers at the destination.\n\nFIFO does not accept unexplained zero-cost stock. A genuine no-charge supplier receipt, zero-cost build output, stocktake gain, return, or transfer records a controlled reason on the layer. COGS Reconciliation shows these as **Approved zero cost**; they remain postable at $0, while missing or unexplained zero costs continue to block posting.\n\nFor example, 10 units received at $20 followed by 5 at $26 are worth $330. Selling 12 consumes all 10 units from the $20 layer and 2 units from the $26 layer, so attached COGS is $252 and 3 units worth $78 remain.",
       "sectionId": "ims-inventory-costing:5"
     },
@@ -7616,7 +7616,7 @@
         "stock-value"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "For positive existing and received quantities:\n\n`new average cost = (existing quantity × existing average cost + received quantity × received unit cost) ÷ total quantity`\n\n| Stage | Quantity | Unit cost | Value |\n|---|---:|---:|---:|\n| Existing stock | 10 | $20.00 | $200.00 |\n| New receipt | 5 | $26.00 | $130.00 |\n| Combined | 15 | $22.00 average | $330.00 |\n\nIf there is no positive stock before the receipt, the final tax-exclusive AUD receipt cost becomes the new average cost.",
       "sectionId": "ims-inventory-costing:5"
     },
@@ -7638,7 +7638,7 @@
         "stock-value"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "Each receipt creates a layer at the receiving location using its final tax-exclusive AUD cost. A sale, fulfilment, supplier return, build, or negative adjustment consumes the oldest available layer first. Transfers preserve cost from the source location when creating layers at the destination.\n\nFIFO does not accept unexplained zero-cost stock. A genuine no-charge supplier receipt, zero-cost build output, stocktake gain, return, or transfer records a controlled reason on the layer. COGS Reconciliation shows these as **Approved zero cost**; they remain postable at $0, while missing or unexplained zero costs continue to block posting.\n\nFor example, 10 units received at $20 followed by 5 at $26 are worth $330. Selling 12 consumes all 10 units from the $20 layer and 2 units from the $26 layer, so attached COGS is $252 and 3 units worth $78 remain.",
       "sectionId": "ims-inventory-costing:5"
     },
@@ -7660,7 +7660,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "A new receipt changes current valuation under Average Cost or adds a new layer under FIFO. It does not rewrite the cost saved on earlier completed movements.\n\nThis distinction matters when investigating margin. A jacket sold last month keeps its captured cost even if a later delivery changes the cost of remaining stock.",
       "sectionId": "ims-inventory-costing:6"
     },
@@ -7682,7 +7682,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "Switching from FIFO to Average Cost derives each variant's shared cost from the remaining FIFO quantities and values across locations. The switch applies as one operation; it does not partially change the active method or rewrite historical movement costs. A variant with no remaining stock receives a zero current average cost.\n\n1. Open **Settings > General > Inventory Costing** as an Administrator.\n2. Review the current method, on-hand quantity, opening value, warnings, and blockers.\n3. Resolve negative stock or missing positive costs before enabling FIFO. Resolve any stock-to-layer mismatch before leaving FIFO.\n4. Enter the business reason for the change.\n5. Type the displayed method name exactly and select **Switch to FIFO** or **Switch to Average Cost**.\n6. Reopen Inventory Valuation and review the current value.\n\nThe change is prospective. Switching to FIFO creates opening layers for positive stock at its current Average Cost. Switching to Average Cost calculates each variant's new average from its remaining FIFO layers. Historical movements, completed-document costs, and posted Xero journals are preserved.\n\n> **Warning:** Do not switch methods to repair a quantity or source-document error. Correct the source workflow first. The reviewed switch is an accounting policy change and its reason is retained.",
       "sectionId": "ims-inventory-costing:7"
     },
@@ -7704,7 +7704,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "| Symptom | Check | Action |\n|---|---|---|\n| Current cost changed after a receipt | The receipt updated Average Cost or added a FIFO layer | Check tax, currency, discount, freight and landed costs on the receipt |\n| Two stores show the same Average Cost | This is expected under Average Cost | Compare each store's quantity and value separately |\n| A past sale differs from today's stock cost | The sale kept its completion-time cost | Use Stock History for the movement and Inventory Valuation for current value |\n| The method switch is blocked | Negative stock, missing costs, or FIFO layers do not reconcile | Correct the named rows through their operational workflows, then review again |\n| FIFO valuation looks wrong | A quantity, receipt layer, or later movement may need investigation | Compare Inventory Valuation, Stock Levels, Stock History, and source documents |",
       "sectionId": "ims-inventory-costing:8"
     },
@@ -7726,7 +7726,7 @@
         "stock-value"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "### GST-inclusive supplier invoice\n\nA local supplier invoice shows 8 mugs at $22 each including GST. The tax-exclusive unit cost is `$22 ÷ 1.1 = $20`. Inventory value added before freight is `8 × $20 = $160`; the $16 GST is not part of stock value.\n\n### Value by location\n\nUnder Average Cost, the same scarf variant has a shared cost of $18. Brisbane holds 12, so its stock value is $216. Sydney holds 5, so its value is $90. Under FIFO, each location's value instead comes from the layers remaining there.",
       "sectionId": "ims-inventory-costing:9"
     },
@@ -7748,7 +7748,7 @@
         "stock-value"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "A local supplier invoice shows 8 mugs at $22 each including GST. The tax-exclusive unit cost is `$22 ÷ 1.1 = $20`. Inventory value added before freight is `8 × $20 = $160`; the $16 GST is not part of stock value.",
       "sectionId": "ims-inventory-costing:9"
     },
@@ -7770,7 +7770,7 @@
         "stock-value"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "content": "Under Average Cost, the same scarf variant has a shared cost of $18. Brisbane holds 12, so its stock value is $216. Sydney holds 5, so its value is $90. Under FIFO, each location's value instead comes from the layers remaining there.",
       "sectionId": "ims-inventory-costing:9"
     },
@@ -8394,7 +8394,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "Use Stock Levels to explain a quantity before changing it, then use the operational workflow that matches what physically happened.",
       "sectionId": "ims-stock-levels-adjustments:1"
     },
@@ -8413,7 +8413,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "- Search by SKU, product, variant, barcode or location.\n- Filter by brand, supplier or **Low stock only**.\n- Compare on hand, available, incoming and committed quantities.\n- Review the displayed cost and stock value without changing them.\n- Correct a physical count through Stocktakes, not through the read-only Stock Levels table.",
       "sectionId": "ims-stock-levels-adjustments:2"
     },
@@ -8432,8 +8432,8 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "| Column | Plain meaning | Example |\n|---|---|---:|\n| On Hand | Units currently recorded at the location | 12 |\n| Committed | Units promised to customer demand | 5 |\n| Available | On Hand minus Committed | 7 |\n| Incoming | Units expected from confirmed purchasing | 8 |\n| Min Qty | The low-stock comparison point | 4 |\n| Reorder Qty | The saved replenishment quantity | 10 |\n| Avg Cost | Current shared tax-exclusive cost per unit; retained as a reference while FIFO is active | $18.00 |\n| Stock Value | Current value under the active inventory costing method | $216.00 |\n\n> **Important:** Incoming stock is not on hand. Committed stock is still physically present but already promised. Do not add incoming to on hand or subtract committed with a manual count correction.",
+      "lastReviewed": "2026-10-11",
+      "content": "| Column | Plain meaning | Example |\n|---|---|---:|\n| On Hand | Units currently recorded at the location | 12 |\n| Committed | Units promised to customer demand | 5 |\n| Available | On Hand minus Committed | 7 |\n| Incoming | Units expected from confirmed purchasing | 8 |\n| Min Qty | The low-stock comparison point | 4 |\n| Reorder Qty | The saved replenishment quantity | 10 |\n| Avg Cost | Current shared tax-exclusive cost per unit; retained as a reference while FIFO is active | $18.00 |\n| Stock Value | Current value under the active inventory costing method | $216.00 |\n\n> **Important:** Incoming stock is not on hand. Committed stock is still physically present but already promised. Do not add incoming to on hand or subtract committed with a manual count correction.\n\nAverage Cost is one current value for the variant across the business. Each location combines that shared unit cost with its own on-hand quantity; locations do not maintain separate Average Costs.",
       "sectionId": "ims-stock-levels-adjustments:3"
     },
     {
@@ -8451,7 +8451,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "- [ ] Select or identify the correct location.\n- [ ] Search the exact variant, not only the product name.\n- [ ] Check for open POs, customer orders, transfers and returns.\n- [ ] Count the physical units if you suspect an on-hand error.\n- [ ] Use an account permitted to complete the required stock workflow.\n\nStock Levels is a read-only investigation view. The quantity changes when staff receive a PO, fulfil a sale, send or receive a transfer, complete a return, or complete a stocktake.\n\nProducts with **Tracks Inventory** off are not governed by on-hand, available, committed, incoming, minimum or reorder quantities. Sales of those products do not create stock movements. Turn tracking on only when the item should participate in these physical-stock workflows.",
       "sectionId": "ims-stock-levels-adjustments:4"
     },
@@ -8470,7 +8470,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "1. Open **Products > Stock Levels**.\n2. Search the SKU or product and find the row for the correct location.\n3. Compare **On Hand**, **Committed**, **Available** and **Incoming**.\n4. If committed is unexpected, inspect the related Sales Orders or Stock Allocation work.\n5. If incoming is unexpected, inspect confirmed or partially received Purchase Orders.\n6. If on hand differs from the shelf count, check for an unfinished receipt, transfer, sale or return.\n7. When no missing transaction explains the difference, create a Stocktake for the location and affected products.\n8. Enter the physical count, review the variance, then use **Complete & Apply Count** when authorised.\n9. Return to Stock Levels and confirm the new on-hand quantity.",
       "sectionId": "ims-stock-levels-adjustments:5"
     },
@@ -8489,7 +8489,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "| What happened | Correct workflow | Why |\n|---|---|---|\n| Supplier delivery arrived | Receive the Purchase Order | Adds stock and keeps supplier cost with the receipt |\n| Stock moved between stores | Branch Transfer | Records source and destination separately |\n| Customer returned an item | Customer return or credit note | Keeps customer value and stock together |\n| Goods went back to a supplier | Supplier Return / Credit | Reduces stock only for lines marked Return stock |\n| Shelf count differs with no missing transaction | Stocktake | Records counted quantity and exact variance |\n| A stocktake itself was completed by mistake | Revert Mistaken Stocktake, when offered | Applies a compensating correction while preserving later movements |",
       "sectionId": "ims-stock-levels-adjustments:6"
     },
@@ -8508,7 +8508,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "| Measure | Quantity | Calculation |\n|---|---:|---|\n| System on hand when applied | 14 | Existing record |\n| Physical count | 11 | Staff count |\n| Applied adjustment | -3 | `11 - 14` |\n| Applied unit cost | $20.00 | Tax-exclusive movement cost |\n| Value of reduction | $60.00 | `3 × $20` |",
       "sectionId": "ims-stock-levels-adjustments:7"
     },
@@ -8527,7 +8527,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Available is lower than on hand | Units are committed | Check customer orders and allocation before changing stock |\n| Incoming remains after a delivery | The PO may not have been received or fully resolved | Open the PO and check received and outstanding quantities |\n| Low stock includes a zero minimum | Zero means flag the item when it is out of stock | Review the row rather than assuming the filter is wrong |\n| A completed count is still wrong | A movement may have occurred after counting, or the wrong location was counted | Review Stock History and the stocktake's applied adjustment |\n| Two locations show the same Average Cost | Average Cost is shared for the variant, even when FIFO valuation uses location layers | Compare location quantities and Inventory Valuation values separately |",
       "sectionId": "ims-stock-levels-adjustments:8"
     },
@@ -8546,7 +8546,7 @@
         "stock"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "### Explain available stock\n\nMelbourne has 12 travel mugs on hand, 5 committed to customer orders and 8 incoming. Available is `12 - 5 = 7`. The 8 incoming units do not become available on hand until they are received.\n\n### Correct a shelf count\n\nStock Levels shows 14 candles, but staff count 11 and find no missing sale, receipt, transfer or return. They create a focused Stocktake, enter 11 and complete it. The applied adjustment is -3. If the captured cost is $20 per unit, stock value falls by $60 before any separate accounting posting.",
       "sectionId": "ims-stock-levels-adjustments:9"
     },
@@ -8565,7 +8565,7 @@
         "stock"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "Melbourne has 12 travel mugs on hand, 5 committed to customer orders and 8 incoming. Available is `12 - 5 = 7`. The 8 incoming units do not become available on hand until they are received.",
       "sectionId": "ims-stock-levels-adjustments:9"
     },
@@ -8584,7 +8584,7 @@
         "stock"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "Stock Levels shows 14 candles, but staff count 11 and find no missing sale, receipt, transfer or return. They create a focused Stocktake, enter 11 and complete it. The applied adjustment is -3. If the captured cost is $20 per unit, stock value falls by $60 before any separate accounting posting.",
       "sectionId": "ims-stock-levels-adjustments:9"
     },

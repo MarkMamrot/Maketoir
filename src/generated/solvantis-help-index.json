@@ -1711,7 +1711,7 @@
       ],
       "order": 20,
       "summary": "Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.",
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-10-11",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
@@ -1735,7 +1735,7 @@
         {
           "id": "ims-inventory-costing:3",
           "heading": "Cost terms in plain language",
-          "content": "| Term | Meaning |\n|---|---|\n| Average Cost | One current blended tax-exclusive AUD cost for a variant across the business |\n| FIFO | Location-specific receipt layers consumed oldest first |\n| FIFO layer | A dated quantity at its recorded tax-exclusive AUD unit cost |\n| Approved zero cost | Stock received at no cost with an immutable workflow reason recorded on its FIFO layer |\n| Stock value | Average Cost value or the value of remaining FIFO layers, according to the active method |\n| Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |\n| Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |\n\nUnder Average Cost, locations share the variant's current unit cost. Under FIFO, layers belong to a location because stock received and consumed there has its own sequence.",
+          "content": "| Term | Meaning |\n|---|---|\n| Average Cost | One current blended tax-exclusive AUD cost for a variant across the business |\n| FIFO | Location-specific receipt layers consumed oldest first |\n| FIFO layer | A dated quantity at its recorded tax-exclusive AUD unit cost |\n| Approved zero cost | Stock received at no cost with an immutable workflow reason recorded on its FIFO layer |\n| Stock value | Average Cost value or the value of remaining FIFO layers, according to the active method |\n| Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |\n| Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |\n\nUnder Average Cost, locations share the variant's current unit cost. Stock Levels, dashboard stock value and operational cost lookups all use that single variant cost rather than maintaining separate location costs. Under FIFO, layers belong to a location because stock received and consumed there has its own sequence.",
           "presentation": "quick"
         },
         {
@@ -1995,7 +1995,7 @@
       ],
       "order": 17,
       "summary": "Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
@@ -2018,7 +2018,7 @@
         {
           "id": "ims-stock-levels-adjustments:3",
           "heading": "At a glance",
-          "content": "| Column | Plain meaning | Example |\n|---|---|---:|\n| On Hand | Units currently recorded at the location | 12 |\n| Committed | Units promised to customer demand | 5 |\n| Available | On Hand minus Committed | 7 |\n| Incoming | Units expected from confirmed purchasing | 8 |\n| Min Qty | The low-stock comparison point | 4 |\n| Reorder Qty | The saved replenishment quantity | 10 |\n| Avg Cost | Current shared tax-exclusive cost per unit; retained as a reference while FIFO is active | $18.00 |\n| Stock Value | Current value under the active inventory costing method | $216.00 |\n\n> **Important:** Incoming stock is not on hand. Committed stock is still physically present but already promised. Do not add incoming to on hand or subtract committed with a manual count correction.",
+          "content": "| Column | Plain meaning | Example |\n|---|---|---:|\n| On Hand | Units currently recorded at the location | 12 |\n| Committed | Units promised to customer demand | 5 |\n| Available | On Hand minus Committed | 7 |\n| Incoming | Units expected from confirmed purchasing | 8 |\n| Min Qty | The low-stock comparison point | 4 |\n| Reorder Qty | The saved replenishment quantity | 10 |\n| Avg Cost | Current shared tax-exclusive cost per unit; retained as a reference while FIFO is active | $18.00 |\n| Stock Value | Current value under the active inventory costing method | $216.00 |\n\n> **Important:** Incoming stock is not on hand. Committed stock is still physically present but already promised. Do not add incoming to on hand or subtract committed with a manual count correction.\n\nAverage Cost is one current value for the variant across the business. Each location combines that shared unit cost with its own on-hand quantity; locations do not maintain separate Average Costs.",
           "presentation": "quick"
         },
         {

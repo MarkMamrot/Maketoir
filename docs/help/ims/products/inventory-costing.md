@@ -1,5 +1,5 @@
 ---
-{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Settings > General > Inventory Costing","product":"ims","format":"reference","parentId":"ims-products","contexts":["settings-general","inventory-costing","average-cost","stock-value"],"contextSections":{"settings-general":"Choose or change the costing method"},"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.","lastReviewed":"2026-09-14","owner":"inventory","quickSections":["Main operations","Cost terms in plain language","Tax and currency"]}
+{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Settings > General > Inventory Costing","product":"ims","format":"reference","parentId":"ims-products","contexts":["settings-general","inventory-costing","average-cost","stock-value"],"contextSections":{"settings-general":"Choose or change the costing method"},"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","Cost terms in plain language","Tax and currency"]}
 ---
 # Inventory Costing and Stock Value
 
@@ -32,7 +32,7 @@ Average Cost (weighted average cost, or WAC) and FIFO determine stock valuation.
 | Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |
 | Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |
 
-Under Average Cost, locations share the variant's current unit cost. Under FIFO, layers belong to a location because stock received and consumed there has its own sequence.
+Under Average Cost, locations share the variant's current unit cost. Stock Levels, dashboard stock value and operational cost lookups all use that single variant cost rather than maintaining separate location costs. Under FIFO, layers belong to a location because stock received and consumed there has its own sequence.
 
 ## Tax and currency
 

@@ -581,7 +581,7 @@ describe('POST /api/ims/receive/batch', () => {
         line_total: 110,
       }],
       stockByVariant: new Map<string, Row>([
-        ['v-3|4', { variant_id: 'v-3', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 10, avg_cost: 0 }],
+        ['v-3|4', { variant_id: 'v-3', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 10 }],
       ]),
       landedRows: [],
       paymentAgg: { tot_foreign: 0, tot_local: 0 },

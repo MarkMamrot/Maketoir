@@ -1,5 +1,5 @@
 ---
-{"id":"ims-stock-levels-adjustments","title":"Stock Levels and Adjustments","audiences":["ims"],"capability":"inventory","screen":"Products > Stock Levels","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["stock"],"contextSections":{"stock":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-inventory-costing","ims-po-receiving-resolution"],"order":17,"summary":"Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.","lastReviewed":"2026-08-31","owner":"inventory","quickSections":["Main operations","At a glance"]}
+{"id":"ims-stock-levels-adjustments","title":"Stock Levels and Adjustments","audiences":["ims"],"capability":"inventory","screen":"Products > Stock Levels","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["stock"],"contextSections":{"stock":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-inventory-costing","ims-po-receiving-resolution"],"order":17,"summary":"Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Stock Levels and Adjustments
 
@@ -27,6 +27,8 @@ Use Stock Levels to explain a quantity before changing it, then use the operatio
 | Stock Value | Current value under the active inventory costing method | $216.00 |
 
 > **Important:** Incoming stock is not on hand. Committed stock is still physically present but already promised. Do not add incoming to on hand or subtract committed with a manual count correction.
+
+Average Cost is one current value for the variant across the business. Each location combines that shared unit cost with its own on-hand quantity; locations do not maintain separate Average Costs.
 
 ## Before you begin
 

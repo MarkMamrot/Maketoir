@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const sourceExtensions = /\.(?:ts|tsx|js|mjs|cjs)$/;
@@ -14,8 +15,22 @@ function sourceFiles(directory: string): string[] {
   });
 }
 
-function sqlTemplates(source: string): string[] {
-  return Array.from(source.matchAll(/`([\s\S]*?)`/g), match => match[1]);
+function sqlStrings(source: string): string[] {
+  const sourceFile = ts.createSourceFile('source.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const strings: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      strings.push(node.text);
+      return;
+    }
+    if (ts.isTemplateExpression(node)) {
+      strings.push(node.getText(sourceFile).slice(1, -1));
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return strings.filter(value => /\b(?:SELECT|UPDATE|INSERT|FROM|JOIN)\b/i.test(value));
 }
 
 describe('stock Average Cost ownership contract', () => {
@@ -28,7 +43,12 @@ describe('stock Average Cost ownership contract', () => {
       const relativePath = path.relative(process.cwd(), filePath);
       const source = fs.readFileSync(filePath, 'utf8');
 
-      for (const sql of sqlTemplates(source)) {
+      if (/\bims_stock\.avg_cost\b/i.test(source)) {
+        violations.push(`${relativePath}: names ims_stock.avg_cost`);
+      }
+      if (!/\bims_stock\b/i.test(source)) continue;
+
+      for (const sql of sqlStrings(source)) {
         const stockAliases = Array.from(
           sql.matchAll(/(?:FROM|JOIN)\s+(?:\$\{[^}]+\}\.)?ims_stock\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/gi),
           match => match[1],
@@ -42,9 +62,6 @@ describe('stock Average Cost ownership contract', () => {
           }
         }
 
-        if (/\bims_stock\.avg_cost\b/i.test(sql)) {
-          violations.push(`${relativePath}: reads ims_stock.avg_cost`);
-        }
         if (/UPDATE\s+(?:\$\{[^}]+\}\.)?ims_stock(?:\s+[a-zA-Z_][a-zA-Z0-9_]*)?\s+SET[\s\S]*?\bavg_cost\b/i.test(sql)) {
           violations.push(`${relativePath}: writes ims_stock.avg_cost`);
         }
@@ -54,6 +71,7 @@ describe('stock Average Cost ownership contract', () => {
         if (/SELECT\s+\*\s+FROM\s+(?:\$\{[^}]+\}\.)?ims_stock\b/i.test(sql)) {
           violations.push(`${relativePath}: selects every ims_stock column`);
         }
+
       }
     }
 

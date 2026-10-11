@@ -1043,7 +1043,7 @@ CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
 -- qty_on_hand   = physical stock at location
 -- qty_incoming  = on approved POs (not yet received)
 -- qty_committed = on confirmed SOs (not yet fulfilled)
--- avg_cost      = weighted average cost per unit
+-- avg_cost      = deprecated compatibility column; current Average Cost belongs to the variant
 CREATE TABLE IF NOT EXISTS ims_stock (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',

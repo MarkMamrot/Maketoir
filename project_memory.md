@@ -4,6 +4,13 @@
 - Sixty-three stock variants remain without Average Cost because they have neither positive active purchase evidence nor positive Cost AUD; 60 have stock rows containing 15 positive units in total. No movement cost, FIFO layer, costing method or Xero record was changed.
 - A broader read-only check found 5,007 pre-existing `ims_stock.avg_cost` mirror mismatches on variants that already had Average Cost. They were outside this missing-cost backfill and were not changed; investigate separately before any bulk mirror repair.
 
+## 2026-10-11 - Variant-owned Average Cost runtime migration
+
+- All maintained runtime, script and E2E Average Cost reads and writes now use `ims_product_variants.avg_cost`; location stock rows contribute quantities only. This includes stock lists and valuation, PO receipts and reversals, builds, stocktakes, branch transfers, costing-method transitions, imports, Cin7 sync, assistant lookups, audit detectors and repair/proposal scripts.
+- `ims_stock.avg_cost` remains as a deprecated compatibility column in the baseline schema but is no longer a maintained application authority. The Monsterthreads backfill now updates variants only. Drop the physical column later through the multi-tenant catch-up migration after deployment verifies that no external consumer depends on it.
+- Added a source contract that parses TypeScript/JavaScript string literals and rejects explicit or aliased stock Average Cost access, writes/inserts of the stock cost column, and wildcard `ims_stock` projections across `src`, `scripts` and `e2e`.
+- Validation: the ownership contract and focused costing/receipt suites passed; production build passed. Full Vitest completed with 3,751 passing and one unrelated existing Help context failure for `foresight:connections` (`exact: false`).
+
 ## 2026-10-03 - Klaviyo administrator controls and guarded rollout
 
 - Setup > Connections now has Admin-only Klaviyo customer and commerce sync controls: one master switch, profile sync, and separate POS, Solvantis Online Shop, wholesale/IMS, and Shopify source switches. Shopify requires explicit acknowledgement that the same events are not already sent directly to Klaviyo.

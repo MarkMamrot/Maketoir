@@ -29,7 +29,9 @@ export async function getProducts(
   if (src === 'solvantis') {
     const products = await imsQuery<ImsProduct>('SELECT * FROM ims_products WHERE is_active = 1 ORDER BY name');
     const variants = await imsQuery<ImsVariant>('SELECT * FROM ims_product_variants WHERE is_active = 1');
-    const stocks   = await imsQuery<ImsStock>('SELECT * FROM ims_stock');
+    const stocks = await imsQuery<ImsStock>(
+      'SELECT id, business_id, variant_id, location_id, qty_on_hand, qty_incoming, qty_committed, min_qty, reorder_qty, zone, bin, updated_at FROM ims_stock',
+    );
 
     const productMap = new Map(products.map(p => [p.product_id, p]));
     // Sum stock across all locations per variant
