@@ -4519,7 +4519,7 @@
       },
       "order": 20,
       "summary": "Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "owner": "retail",
       "quickSections": [
         "Main operations",
@@ -4554,7 +4554,7 @@
         {
           "id": "pos-returns-exchanges-customer-credit:5",
           "heading": "Step-by-step",
-          "content": "1. Open **Reports**, choose the date, and find the original completed sale.\n2. Select **Return**. POS loads the original eligible lines into a linked return cart.\n3. Set each returned line to the physical quantity received. POS prevents returning more than the remaining eligible quantity.\n4. For an exchange, complete the linked return first, then start a separate sale for the replacement merchandise.\n5. Link the customer before choosing **Store Credit (Issue)**.\n6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.\n7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required.\n\nFor a configured, paired Zeller card method, **Refund via Terminal** requests a card-present refund and records the approved terminal reference. The customer presents their card and the merchant's refund policy applies. Cash and other manual tenders record money returned separately. **Use manual entry instead** does not issue a terminal refund. Uncollected laybys use **More > Laybys > Cancel layby > Refund and cancel** instead of a merchandise return; cancellation releases reserved stock without restocking it.",
+          "content": "1. Open **Reports**, choose the date, and find the original completed sale.\n2. Select **Return**. POS loads the original eligible lines into a linked return cart.\n3. Set each returned line to the physical quantity received. POS prevents returning more than the remaining eligible quantity.\n4. For an exchange, complete the linked return first, then start a separate sale for the replacement merchandise.\n5. Link the customer before choosing **Store Credit (Issue)**.\n6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.\n7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required.\n\nUnder Average Cost, a linked returned variant uses its original sale's captured stock cost when the complete source history establishes one cost, including a genuine zero cost. It does not substitute today's catalogue cost. Missing or ambiguous original costs remain unknown for accounting review. FIFO linked returns restore the original allocation costs.\n\nFor a configured, paired Zeller card method, **Refund via Terminal** requests a card-present refund and records the approved terminal reference. The customer presents their card and the merchant's refund policy applies. Cash and other manual tenders record money returned separately. **Use manual entry instead** does not issue a terminal refund. Uncollected laybys use **More > Laybys > Cancel layby > Refund and cancel** instead of a merchandise return; cancellation releases reserved stock without restocking it.",
           "presentation": "detail"
         },
         {

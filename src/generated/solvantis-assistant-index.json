@@ -1907,7 +1907,7 @@
       },
       "order": 20,
       "summary": "Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "owner": "retail",
       "quickSections": [
         "Main operations",
@@ -15114,7 +15114,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "Use a linked return from POS Reports so the original quantities, refund value, stock movement, and customer credit record stay connected.",
       "sectionId": "pos-returns-exchanges-customer-credit:1"
     },
@@ -15134,7 +15134,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "- Find the completed original sale in **Reports**.\n- Start **Return** and choose only the eligible quantity being returned.\n- Add replacement goods to make an exchange when appropriate.\n- Refund to cash or card, issue a gift card, or issue store credit to a linked customer.\n- Let the completed linked customer credit note add returned stock back once.",
       "sectionId": "pos-returns-exchanges-customer-credit:2"
     },
@@ -15154,7 +15154,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "| Customer outcome | What POS records | Customer required? | Store-credit balance changes? |\n|---|---|---|---|\n| Cash or card refund | Negative payment plus a completed linked credit note | No | No |\n| Gift Card (Issue) | A new or supplied gift-card code plus a completed linked credit note | No | No |\n| Store Credit (Issue) | A completed linked credit note settled to store credit | Yes | Yes, credit is added once |\n| Exchange | A linked return followed by a separate sale for the replacement goods | Depends on the return settlement | Only when Store Credit (Issue) is selected |",
       "sectionId": "pos-returns-exchanges-customer-credit:3"
     },
@@ -15174,7 +15174,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "- [ ] Use the original completed sale, not a new unlinked negative cart.\n- [ ] Confirm how many units remain eligible to return.\n- [ ] Inspect the physical goods and follow the retailer's return policy.\n- [ ] Confirm the customer wants a refund, gift card, store credit, or exchange.\n- [ ] Connect to the internet; linked returns cannot complete offline.\n\n> **Important:** Every completed POS return creates and completes a linked customer credit note. That linked credit note adds returned stock back once. Do not also create a manual stock adjustment or a second credit note for the same goods.",
       "sectionId": "pos-returns-exchanges-customer-credit:4"
     },
@@ -15194,8 +15194,8 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
-      "content": "1. Open **Reports**, choose the date, and find the original completed sale.\n2. Select **Return**. POS loads the original eligible lines into a linked return cart.\n3. Set each returned line to the physical quantity received. POS prevents returning more than the remaining eligible quantity.\n4. For an exchange, complete the linked return first, then start a separate sale for the replacement merchandise.\n5. Link the customer before choosing **Store Credit (Issue)**.\n6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.\n7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required.\n\nFor a configured, paired Zeller card method, **Refund via Terminal** requests a card-present refund and records the approved terminal reference. The customer presents their card and the merchant's refund policy applies. Cash and other manual tenders record money returned separately. **Use manual entry instead** does not issue a terminal refund. Uncollected laybys use **More > Laybys > Cancel layby > Refund and cancel** instead of a merchandise return; cancellation releases reserved stock without restocking it.",
+      "lastReviewed": "2026-10-11",
+      "content": "1. Open **Reports**, choose the date, and find the original completed sale.\n2. Select **Return**. POS loads the original eligible lines into a linked return cart.\n3. Set each returned line to the physical quantity received. POS prevents returning more than the remaining eligible quantity.\n4. For an exchange, complete the linked return first, then start a separate sale for the replacement merchandise.\n5. Link the customer before choosing **Store Credit (Issue)**.\n6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.\n7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required.\n\nUnder Average Cost, a linked returned variant uses its original sale's captured stock cost when the complete source history establishes one cost, including a genuine zero cost. It does not substitute today's catalogue cost. Missing or ambiguous original costs remain unknown for accounting review. FIFO linked returns restore the original allocation costs.\n\nFor a configured, paired Zeller card method, **Refund via Terminal** requests a card-present refund and records the approved terminal reference. The customer presents their card and the merchant's refund policy applies. Cash and other manual tenders record money returned separately. **Use manual entry instead** does not issue a terminal refund. Uncollected laybys use **More > Laybys > Cancel layby > Refund and cancel** instead of a merchandise return; cancellation releases reserved stock without restocking it.",
       "sectionId": "pos-returns-exchanges-customer-credit:5"
     },
     {
@@ -15214,7 +15214,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "| Choose | Use when | Important distinction |\n|---|---|---|\n| Cash or Card | Money is being returned through that tender | This does not create customer store credit |\n| Gift Card (Issue) | The customer receives transferable value represented by a code | Gift-card value is redeemed by code, not by linking a customer account |\n| Store Credit (Issue) | The named customer receives account-bound credit | A customer must be linked; the credit note updates that customer's balance |\n| Exchange | Returned goods are processed first and replacement goods are sold separately | Compare the return value with the new sale so the customer understands the net difference |\n\nGift cards and store credit are not interchangeable. A gift card is code-based value. Store credit belongs to a linked customer and should only be issued through the completed credit-note flow.\n\nWhen Shopify gift cards are connected, a supplied code may already represent a card created in Shopify. If Shopify reports that the code already exists, Solvantis links it only when there is one enabled, unused Shopify card with matching ending characters, currency and value. An ambiguous or value-mismatched card remains unlinked and is sent for operational review.",
       "sectionId": "pos-returns-exchanges-customer-credit:6"
     },
@@ -15234,7 +15234,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Return says internet is required | POS cannot validate and complete the linked return offline | Reconnect and restart from the original sale |\n| No items are available to return | Every original unit has already been returned | Review prior returns; do not create another return |\n| Store Credit (Issue) is unavailable | No customer is linked | Search for and link the correct customer before payment |\n| The refund amount is unexpected | The original sale included discounts or prior returns | Review the loaded linked lines and remaining eligible quantities |\n| Stock appears to have increased twice | A manual correction may duplicate the linked credit note | Stop and review the POS return and its linked credit note before changing stock |",
       "sectionId": "pos-returns-exchanges-customer-credit:7"
     },
@@ -15254,7 +15254,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "### Return one discounted shirt to store credit\n\nThe original sale contains two shirts, and the returned shirt's share of the paid total is $54.00 including GST. Staff start **Return** from that sale, leave one shirt at quantity `-1`, link Priya's customer account, and choose **Store Credit (Issue)** for $54.00. POS completes the return, the linked credit note adds one shirt back to stock, and Priya receives $54.00 store credit once.\n\n### Exchange for a higher-priced item\n\nA customer returns a $70.00 item and chooses a $95.00 replacement. Staff complete the linked $70.00 return using the agreed settlement, then ring up the replacement as a separate $95.00 sale. The two receipts show a net $25.00 difference without mixing the stock movements.",
       "sectionId": "pos-returns-exchanges-customer-credit:8"
     },
@@ -15274,7 +15274,7 @@
         "pos-return"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "The original sale contains two shirts, and the returned shirt's share of the paid total is $54.00 including GST. Staff start **Return** from that sale, leave one shirt at quantity `-1`, link Priya's customer account, and choose **Store Credit (Issue)** for $54.00. POS completes the return, the linked credit note adds one shirt back to stock, and Priya receives $54.00 store credit once.",
       "sectionId": "pos-returns-exchanges-customer-credit:8"
     },
@@ -15294,7 +15294,7 @@
         "pos-return"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "A customer returns a $70.00 item and chooses a $95.00 replacement. Staff complete the linked $70.00 return using the agreed settlement, then ring up the replacement as a separate $95.00 sale. The two receipts show a net $25.00 difference without mixing the stock movements.",
       "sectionId": "pos-returns-exchanges-customer-credit:8"
     },
@@ -15314,7 +15314,7 @@
         "pos-return"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-11",
       "content": "See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Xero** for how return payments affect the counted day.",
       "sectionId": "pos-returns-exchanges-customer-credit:9"
     },

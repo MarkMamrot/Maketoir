@@ -1,5 +1,5 @@
 ---
-{"id":"pos-returns-exchanges-customer-credit","title":"Returns, Exchanges, and Customer Credit","audiences":["pos","ims"],"capability":"pos","screen":"POS Reports > Return","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-reports-transactions","pos-selling-payments-manager-approval","pos-gift-cards","pos-store-credit","pos-end-of-day-xero","ims-customer-orders"],"contexts":["pos-return"],"contextSections":{"pos-return":"Step-by-step"},"order":20,"summary":"Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-returns-exchanges-customer-credit","title":"Returns, Exchanges, and Customer Credit","audiences":["pos","ims"],"capability":"pos","screen":"POS Reports > Return","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-reports-transactions","pos-selling-payments-manager-approval","pos-gift-cards","pos-store-credit","pos-end-of-day-xero","ims-customer-orders"],"contexts":["pos-return"],"contextSections":{"pos-return":"Step-by-step"},"order":20,"summary":"Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.","lastReviewed":"2026-10-11","owner":"retail","quickSections":["Main operations","At a glance"]}
 ---
 # Returns, Exchanges, and Customer Credit
 
@@ -41,6 +41,8 @@ Use a linked return from POS Reports so the original quantities, refund value, s
 5. Link the customer before choosing **Store Credit (Issue)**.
 6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.
 7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required.
+
+Under Average Cost, a linked returned variant uses its original sale's captured stock cost when the complete source history establishes one cost, including a genuine zero cost. It does not substitute today's catalogue cost. Missing or ambiguous original costs remain unknown for accounting review. FIFO linked returns restore the original allocation costs.
 
 For a configured, paired Zeller card method, **Refund via Terminal** requests a card-present refund and records the approved terminal reference. The customer presents their card and the merchant's refund policy applies. Cash and other manual tenders record money returned separately. **Use manual entry instead** does not issue a terminal refund. Uncollected laybys use **More > Laybys > Cancel layby > Refund and cancel** instead of a merchandise return; cancellation releases reserved stock without restocking it.
 
