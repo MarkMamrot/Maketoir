@@ -45,8 +45,7 @@ export async function GET(request: Request) {
            OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id))
          LEFT JOIN ims_sales_orders so ON ((sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
            OR (cn.so_id IS NOT NULL AND so.id = cn.so_id))
-        WHERE (BINARY sm.business_id = BINARY ? OR sm.business_id IS NULL OR sm.business_id = '')
-          AND sm.created_at >= ? AND sm.created_at < ?
+        WHERE BINARY sm.business_id = BINARY ? AND sm.created_at >= ? AND sm.created_at < ?
           AND sm.movement_type IN ('pos_sale','so_fulfilled','cn_returned','cn_return_reversed')
           AND (sm.unit_cost IS NULL OR sm.unit_cost <= 0)
           AND ((sm.movement_type = 'pos_sale' AND ps.id IS NOT NULL AND COALESCE(ps.is_historical, 0) = 0)
@@ -120,8 +119,7 @@ export async function POST(request: Request) {
            OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id))
          LEFT JOIN ims_sales_orders so ON ((sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
            OR (cn.so_id IS NOT NULL AND so.id = cn.so_id))
-        WHERE (BINARY sm.business_id = BINARY ? OR sm.business_id IS NULL OR sm.business_id = '')
-          AND sm.id IN (${placeholders})
+        WHERE BINARY sm.business_id = BINARY ? AND sm.id IN (${placeholders})
           AND sm.movement_type IN ('pos_sale','so_fulfilled','cn_returned','cn_return_reversed')
           AND (sm.unit_cost IS NULL OR sm.unit_cost <= 0)
           AND ((sm.movement_type = 'pos_sale' AND ps.id IS NOT NULL AND COALESCE(ps.is_historical, 0) = 0)
@@ -163,10 +161,8 @@ export async function POST(request: Request) {
           row.cost_method_snapshot === 'fifo' ? 1 : 0, session.userId ?? null, session.name ?? session.email ?? null],
       );
       await connection.execute(
-        `UPDATE ims_stock_movements
-            SET business_id = ?, unit_cost = ?
-          WHERE id = ? AND (BINARY business_id = BINARY ? OR business_id IS NULL OR business_id = '')`,
-        [businessId, repair.newUnitCost, repair.movementId, businessId],
+        'UPDATE ims_stock_movements SET unit_cost = ? WHERE BINARY business_id = BINARY ? AND id = ?',
+        [repair.newUnitCost, businessId, repair.movementId],
       );
     }
     await connection.commit();

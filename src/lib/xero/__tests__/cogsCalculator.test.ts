@@ -83,10 +83,10 @@ describe('calculateCogsForPeriod', () => {
   expect(mockImsQuery.mock.calls[0][0]).toBe("SHOW COLUMNS FROM ims_products LIKE 'is_stock_item'");
   const [sql, params] = mockImsQuery.mock.calls[1];
   expect(sql).toContain(stockItemSql);
-    expect(sql).not.toContain('sm.business_id = ?');
+    expect(sql).toContain('BINARY sm.business_id = BINARY ?');
     expect(sql).not.toContain('ps.business_id = sm.business_id');
     expect(sql).not.toContain('so.business_id = sm.business_id');
-    expect(params).toEqual(['2026-07-01', '2026-08-01']);
+    expect(params).toEqual(['biz-1', '2026-07-01', '2026-08-01']);
   });
 
   it('includes customer return and reversal movements in period COGS classification', async () => {

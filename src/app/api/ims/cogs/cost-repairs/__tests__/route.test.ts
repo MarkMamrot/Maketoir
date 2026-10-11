@@ -49,10 +49,10 @@ describe('POST /api/ims/cogs/cost-repairs', () => {
     const response = await POST(request([repair]));
     expect(response.status).toBe(200);
     expect(connection.beginTransaction).toHaveBeenCalledOnce();
-    expect(connection.execute.mock.calls[0][0]).toContain("OR sm.business_id = ''");
+    expect(connection.execute.mock.calls[0][0]).toContain('BINARY sm.business_id = BINARY ?');
     expect(connection.execute.mock.calls[1][0]).toContain('INSERT INTO ims_cogs_cost_repairs');
-    expect(connection.execute.mock.calls[2][0]).toContain('SET business_id = ?, unit_cost = ?');
-    expect(connection.execute.mock.calls[2][1]).toEqual(['biz-1', 12.5, 17, 'biz-1']);
+    expect(connection.execute.mock.calls[2][0]).toContain('SET unit_cost = ?');
+    expect(connection.execute.mock.calls[2][1]).toEqual([12.5, 'biz-1', 17]);
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(await response.json()).toMatchObject({ success: true, repaired: 1 });
   });
