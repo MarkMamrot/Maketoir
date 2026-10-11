@@ -640,7 +640,7 @@ test('@pos-build-sale atomically builds and sells one output with original-cost 
   const buildSurface = process.env.LIVE_E2E_POS_BUILD_SURFACE ?? 'api';
   expect(['api', 'ui']).toContain(buildSurface);
   expect(config.action).toBe('build');
-  expect(config.expectedCostingMethod).toBe('fifo');
+  expect(['fifo', 'average_cost']).toContain(config.expectedCostingMethod);
   const events = await readManifest(config.runId);
   expect(events.at(-1)?.state).toBe('awaiting_operator');
   const source = events.at(-1)!.details as any;
@@ -817,7 +817,7 @@ test('@pos-build-sale atomically builds and sells one output with original-cost 
     const consumed = built.movements.filter(row => row.reference_type === 'pos_sale' && Number(row.reference_id) === saleId);
     expect(consumed).toHaveLength(1);
     expect(Number(consumed[0].unit_cost)).toBe(1);
-    expect(consumed[0].cost_method_snapshot).toBe('fifo');
+    expect(consumed[0].cost_method_snapshot).toBe(config.expectedCostingMethod);
     expect(Number((await command('/api/pos/sales', sale)).id)).toBe(saleId);
     expect(await outputSnapshot()).toEqual(built);
     const returned = { ...sale, local_id: returnLocalId, build_consent: undefined, notes: returnLocalId, sale_type: 'return', return_of_sale_id: saleId,
@@ -866,6 +866,7 @@ test('@pos-build-sale atomically builds and sells one output with original-cost 
     await appendManifestState(config.runId, 'compensating', { cleanup: 'Output supplier return complete; register closed; recipe disabled' });
     await appendManifestState(config.runId, 'clean', { ...source, scenario: 'POS sale build', outputProductId, outputVariantId, saleId, returnId,
       supplierCreditNoteId, xeroCreditId, registerId, sessionId, buildSurface, posBuildPassed: true,
+      costingMethod: config.expectedCostingMethod,
       uiConsentPassed: buildSurface === 'ui', originalCostReturnPassed: true, replayPassed: true });
   } catch (error) {
     await appendManifestState(config.runId, 'blocked', { ...source, scenario: 'POS sale build', outputProductId, outputVariantId, registerId, sessionId,

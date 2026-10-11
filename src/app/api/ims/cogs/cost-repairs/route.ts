@@ -36,16 +36,17 @@ export async function GET(request: Request) {
               sm.movement_type, sm.reference_type, sm.reference_id, sm.qty_change, sm.unit_cost,
               sm.cost_method_snapshot, sm.created_at, v.cost_aud, v.avg_cost, v.cost_foreign
          FROM ims_stock_movements sm
-         JOIN ims_product_variants v ON BINARY v.variant_id = BINARY sm.variant_id AND BINARY v.business_id = BINARY sm.business_id
-         JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND BINARY p.business_id = BINARY sm.business_id AND p.is_stock_item = 1
-         LEFT JOIN ims_locations l ON l.id = sm.location_id AND BINARY l.business_id = BINARY sm.business_id
+         JOIN ims_product_variants v ON BINARY v.variant_id = BINARY sm.variant_id
+         JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND p.is_stock_item = 1
+         LEFT JOIN ims_locations l ON l.id = sm.location_id
          LEFT JOIN ims_credit_notes cn ON sm.movement_type IN ('cn_returned','cn_return_reversed') AND sm.reference_type = 'credit_note'
-           AND cn.id = sm.reference_id AND BINARY cn.business_id = BINARY sm.business_id
+           AND cn.id = sm.reference_id
          LEFT JOIN pos_sales ps ON ((sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale' AND ps.id = sm.reference_id)
-           OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id)) AND BINARY ps.business_id = BINARY sm.business_id
+           OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id))
          LEFT JOIN ims_sales_orders so ON ((sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
-           OR (cn.so_id IS NOT NULL AND so.id = cn.so_id)) AND BINARY so.business_id = BINARY sm.business_id
-        WHERE BINARY sm.business_id = BINARY ? AND sm.created_at >= ? AND sm.created_at < ?
+           OR (cn.so_id IS NOT NULL AND so.id = cn.so_id))
+        WHERE (BINARY sm.business_id = BINARY ? OR sm.business_id IS NULL OR sm.business_id = '')
+          AND sm.created_at >= ? AND sm.created_at < ?
           AND sm.movement_type IN ('pos_sale','so_fulfilled','cn_returned','cn_return_reversed')
           AND (sm.unit_cost IS NULL OR sm.unit_cost <= 0)
           AND ((sm.movement_type = 'pos_sale' AND ps.id IS NOT NULL AND COALESCE(ps.is_historical, 0) = 0)
@@ -111,15 +112,16 @@ export async function POST(request: Request) {
     const [rows] = await connection.execute(
       `SELECT sm.id, sm.unit_cost, sm.cost_method_snapshot, sm.created_at
          FROM ims_stock_movements sm
-         JOIN ims_product_variants v ON BINARY v.variant_id = BINARY sm.variant_id AND BINARY v.business_id = BINARY sm.business_id
-         JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND BINARY p.business_id = BINARY sm.business_id AND p.is_stock_item = 1
+         JOIN ims_product_variants v ON BINARY v.variant_id = BINARY sm.variant_id
+         JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND p.is_stock_item = 1
          LEFT JOIN ims_credit_notes cn ON sm.movement_type IN ('cn_returned','cn_return_reversed') AND sm.reference_type = 'credit_note'
-           AND cn.id = sm.reference_id AND BINARY cn.business_id = BINARY sm.business_id
+           AND cn.id = sm.reference_id
          LEFT JOIN pos_sales ps ON ((sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale' AND ps.id = sm.reference_id)
-           OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id)) AND BINARY ps.business_id = BINARY sm.business_id
+           OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id))
          LEFT JOIN ims_sales_orders so ON ((sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
-           OR (cn.so_id IS NOT NULL AND so.id = cn.so_id)) AND BINARY so.business_id = BINARY sm.business_id
-        WHERE BINARY sm.business_id = BINARY ? AND sm.id IN (${placeholders})
+           OR (cn.so_id IS NOT NULL AND so.id = cn.so_id))
+        WHERE (BINARY sm.business_id = BINARY ? OR sm.business_id IS NULL OR sm.business_id = '')
+          AND sm.id IN (${placeholders})
           AND sm.movement_type IN ('pos_sale','so_fulfilled','cn_returned','cn_return_reversed')
           AND (sm.unit_cost IS NULL OR sm.unit_cost <= 0)
           AND ((sm.movement_type = 'pos_sale' AND ps.id IS NOT NULL AND COALESCE(ps.is_historical, 0) = 0)
@@ -161,8 +163,10 @@ export async function POST(request: Request) {
           row.cost_method_snapshot === 'fifo' ? 1 : 0, session.userId ?? null, session.name ?? session.email ?? null],
       );
       await connection.execute(
-        'UPDATE ims_stock_movements SET unit_cost = ? WHERE BINARY business_id = BINARY ? AND id = ?',
-        [repair.newUnitCost, businessId, repair.movementId],
+        `UPDATE ims_stock_movements
+            SET business_id = ?, unit_cost = ?
+          WHERE id = ? AND (BINARY business_id = BINARY ? OR business_id IS NULL OR business_id = '')`,
+        [businessId, repair.newUnitCost, repair.movementId, businessId],
       );
     }
     await connection.commit();

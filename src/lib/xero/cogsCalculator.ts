@@ -240,23 +240,15 @@ export async function calculateCogsForPeriod(input: {
              ON sm.movement_type IN ('cn_returned', 'cn_return_reversed')
             AND sm.reference_type = 'credit_note'
             AND cn.id = sm.reference_id
-            AND BINARY cn.business_id = BINARY sm.business_id
            LEFT JOIN pos_sales ps
-             ON ((sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale' AND ps.id = sm.reference_id)
-              OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id))
-            AND BINARY ps.business_id = BINARY sm.business_id
+             ON (sm.movement_type = 'pos_sale' AND sm.reference_type = 'pos_sale' AND ps.id = sm.reference_id)
+             OR (cn.source = 'pos' AND ps.id = cn.pos_sale_id)
            LEFT JOIN ims_sales_orders so
-             ON ((sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
-              OR (cn.so_id IS NOT NULL AND so.id = cn.so_id))
-            AND BINARY so.business_id = BINARY sm.business_id
-           LEFT JOIN ims_product_variants pv
-             ON BINARY pv.variant_id = BINARY sm.variant_id
-            AND BINARY pv.business_id = BINARY sm.business_id
-           LEFT JOIN ims_products p
-             ON BINARY p.product_id = BINARY pv.product_id
-            AND BINARY p.business_id = BINARY sm.business_id
-          WHERE BINARY sm.business_id = BINARY ?
-            AND sm.movement_type IN ('pos_sale', 'so_fulfilled', 'cn_returned', 'cn_return_reversed')
+             ON (sm.movement_type = 'so_fulfilled' AND sm.reference_type = 'sales_order' AND so.id = sm.reference_id)
+             OR (cn.so_id IS NOT NULL AND so.id = cn.so_id)
+           LEFT JOIN ims_product_variants pv ON pv.variant_id = sm.variant_id
+           LEFT JOIN ims_products p ON p.product_id = pv.product_id
+          WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled', 'cn_returned', 'cn_return_reversed')
             AND sm.created_at >= ?
             AND sm.created_at < ?
        ) classified
@@ -264,7 +256,7 @@ export async function calculateCogsForPeriod(input: {
                classified.source_status, classified.cost_status
       ORDER BY classified.location_id, classified.channel,
                classified.source_status, classified.cost_status`,
-    [input.businessId, input.startDate, input.endDateExclusive],
+    [input.startDate, input.endDateExclusive],
   );
 
   return summariseCogsRows(rows, input.startDate, input.endDateExclusive);
