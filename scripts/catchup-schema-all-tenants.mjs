@@ -1270,6 +1270,11 @@ const TABLE_DDLS = [
 
 const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
 const requestedRepair = process.argv.find(argument => argument.startsWith('--repair='))?.slice('--repair='.length);
+const auditLegacyStockAvgCost = process.argv.includes('--audit-legacy-stock-avg-cost');
+const dropLegacyStockAvgCost = process.argv.includes('--drop-legacy-stock-avg-cost');
+if (auditLegacyStockAvgCost && dropLegacyStockAvgCost) {
+  throw new Error('Choose either --audit-legacy-stock-avg-cost or --drop-legacy-stock-avg-cost, not both.');
+}
 const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA-Z0-9_]+)`?/)?.[1] ?? '';
 
 // Column definitions: [table, column, definition]
@@ -2596,6 +2601,60 @@ async function verifyWholesaleSavedListsSchema(schema) {
   console.log(`  verified ${schema} wholesale locations, saved lists, favourites, and team audit schema`);
 }
 
+async function transitionLegacyStockAvgCost(schema, apply) {
+  const [columnRows] = await conn.query(
+    `SELECT TABLE_NAME, COLUMN_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND (TABLE_NAME = 'ims_product_variants' AND COLUMN_NAME = 'avg_cost'
+          OR TABLE_NAME = 'ims_stock' AND COLUMN_NAME = 'avg_cost')`,
+    [schema],
+  );
+  const columns = new Set(columnRows.map(row => `${row.TABLE_NAME}.${row.COLUMN_NAME}`));
+  if (!columns.has('ims_product_variants.avg_cost')) {
+    throw new Error(`${schema}.ims_product_variants.avg_cost must exist before removing the legacy stock column`);
+  }
+  if (!columns.has(`ims_stock.${'avg_cost'}`)) {
+    console.log(`  ${schema}: legacy stock Average Cost already absent`);
+    return;
+  }
+
+  const dependencyQueries = [
+    [`SELECT CONCAT('VIEW ', TABLE_NAME) AS object_name, VIEW_DEFINITION AS definition
+        FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ?`, schema],
+    [`SELECT CONCAT('TRIGGER ', TRIGGER_NAME) AS object_name, ACTION_STATEMENT AS definition
+        FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = ?`, schema],
+    [`SELECT CONCAT(ROUTINE_TYPE, ' ', ROUTINE_NAME) AS object_name, ROUTINE_DEFINITION AS definition
+        FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = ?`, schema],
+    [`SELECT CONCAT('EVENT ', EVENT_NAME) AS object_name, EVENT_DEFINITION AS definition
+        FROM information_schema.EVENTS WHERE EVENT_SCHEMA = ?`, schema],
+  ];
+  const dependencies = [];
+  for (const [sql, parameter] of dependencyQueries) {
+    const [rows] = await conn.query(sql, [parameter]);
+    dependencies.push(...rows.filter(row => {
+      const definition = String(row.definition ?? '');
+      return /\bims_stock\b/i.test(definition) && /\bavg_cost\b/i.test(definition);
+    }).map(row => row.object_name));
+  }
+  if (dependencies.length) {
+    throw new Error(`${schema}: legacy stock Average Cost is referenced by database objects: ${dependencies.join(', ')}`);
+  }
+
+  if (!apply) {
+    console.log(`  ${schema}: legacy stock Average Cost ready to drop (no database-object dependencies)`);
+    return;
+  }
+  await conn.query(`ALTER TABLE \`${schema}\`.ims_stock DROP COLUMN avg_cost`);
+  const [remainingRows] = await conn.query(
+    `SELECT 1 FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_stock' AND COLUMN_NAME = 'avg_cost'`,
+    [schema],
+  );
+  if (remainingRows.length) throw new Error(`${schema}: legacy stock Average Cost still exists after DROP COLUMN`);
+  console.log(`  ${schema}: legacy stock Average Cost dropped and verified`);
+}
+
 try {
   const schemas = new Set();
   const businessIdsBySchema = new Map();
@@ -2618,6 +2677,10 @@ try {
   const selectedSchemas = requestedSchema ? [requestedSchema] : [...schemas];
   console.log(`Schemas: ${selectedSchemas.join(', ')}`);
   for (const schema of selectedSchemas) {
+    if (auditLegacyStockAvgCost || dropLegacyStockAvgCost) {
+      await transitionLegacyStockAvgCost(schema, dropLegacyStockAvgCost);
+      continue;
+    }
     if (requestedRepair === 'loyalty-collations') {
       await repairLoyaltyCollations(schema);
       continue;

@@ -4,11 +4,24 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const sourceExtensions = /\.(?:ts|tsx|js|mjs|cjs)$/;
+const ignoredDirectories = new Set([
+  '.git',
+  'build',
+  'coverage',
+  'customers',
+  'dist',
+  'generated',
+  'images',
+  'node_modules',
+  'public',
+  'test-results',
+  'tmp',
+]);
 
 function sourceFiles(directory: string): string[] {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    if (entry.name === 'generated' || entry.name === 'node_modules') return [];
+    if (ignoredDirectories.has(entry.name) || entry.name.startsWith('.next')) return [];
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) return sourceFiles(fullPath);
     return sourceExtensions.test(entry.name) ? [fullPath] : [];
@@ -35,10 +48,9 @@ function sqlStrings(source: string): string[] {
 
 describe('stock Average Cost ownership contract', () => {
   it('keeps current Average Cost reads and writes on product variants', () => {
-    const roots = ['src', 'scripts', 'e2e'].map(root => path.join(process.cwd(), root));
     const violations: string[] = [];
 
-    for (const filePath of roots.flatMap(sourceFiles)) {
+    for (const filePath of sourceFiles(process.cwd())) {
       if (filePath === __filename) continue;
       const relativePath = path.relative(process.cwd(), filePath);
       const source = fs.readFileSync(filePath, 'utf8');
@@ -76,5 +88,15 @@ describe('stock Average Cost ownership contract', () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it('defines Average Cost only on product variants in the canonical schema', () => {
+    const schema = fs.readFileSync(path.join(process.cwd(), 'scripts', 'ims-schema.sql'), 'utf8');
+    const stockTable = schema.match(/CREATE TABLE IF NOT EXISTS ims_stock \([\s\S]*?\n\) ENGINE=/)?.[0];
+    const variantTable = schema.match(/CREATE TABLE IF NOT EXISTS ims_product_variants \([\s\S]*?\n\) ENGINE=/)?.[0];
+
+    expect(stockTable).toBeDefined();
+    expect(stockTable).not.toMatch(/\bavg_cost\b/i);
+    expect(variantTable).toMatch(/\bavg_cost\b/i);
   });
 });

@@ -152,7 +152,10 @@ try {
     const recordedPosted = period.runs.filter(run => run.status === 'success' && run.xeroStatus === 'POSTED' && run.xeroId).reduce((sum, run) => sum + run.amount, 0);
     if (Math.abs(recordedPosted - period.postedTotal) > .005 || Math.abs(period.calculation.totalCOGS - period.postedTotal - period.variance) > .005) throw new Error('Posting reconciliation totals disagree with run evidence.');
     for (const run of period.runs) {
-      if (run.href !== (run.xeroId ? `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${encodeURIComponent(run.xeroId)}` : null)) throw new Error('Unexpected journal deep link.');
+      const expectedHref = run.xeroId && postings.xeroShortCode
+        ? `https://go.xero.com/app/${encodeURIComponent(postings.xeroShortCode)}/journals/view/${encodeURIComponent(run.xeroId)}`
+        : null;
+      if (run.href !== expectedHref) throw new Error('Unexpected journal deep link.');
     }
   }
   await page.getByRole('tab', { name: 'Xero Postings', exact: true }).click();

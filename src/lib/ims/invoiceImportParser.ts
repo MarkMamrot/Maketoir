@@ -121,6 +121,8 @@ export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | unde
         product_name: line?.product_name ?? '',
         qty,
         unit_price: derived.unitCost,
+        printed_unit_price: line?.unit_price == null ? null : rawUnitPrice,
+        comparison_tax_rate: line?.tax_rate == null ? null : Number(line.tax_rate),
         rrp: line?.rrp == null ? null : Number(line.rrp),
         discount_amount: derived.discountAmount,
         discount_pct: derived.discountPct,

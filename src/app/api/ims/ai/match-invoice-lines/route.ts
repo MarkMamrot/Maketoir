@@ -6,7 +6,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { createInvoiceVariantMatcher, selectInvoiceMatchCandidates, validateInvoiceAiMatches, type InvoiceMatchVariant } from '@/lib/ims/invoiceProductMatching';
+import { assessInvoiceMatchEvidence, createInvoiceVariantMatcher, selectInvoiceMatchCandidates, validateInvoiceAiMatches, type InvoiceMatchVariant } from '@/lib/ims/invoiceProductMatching';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -23,10 +23,12 @@ export async function POST(req: Request) {
 
   let invoice_lines: any[];
   let supplier_id: number;
+  let costContext: { currency: string | null; taxTreatment: string | null } = { currency: null, taxTreatment: null };
   try {
     const body = await req.json();
     invoice_lines = body.invoice_lines;
     supplier_id   = Number(body.supplier_id);
+    costContext = { currency: typeof body.currency === 'string' && /^[A-Z]{3}$/.test(body.currency) ? body.currency : null, taxTreatment: ['inc_tax', 'ex_tax', 'no_tax'].includes(body.tax_treatment) ? body.tax_treatment : null };
     if (!Array.isArray(invoice_lines) || !Number.isSafeInteger(supplier_id) || supplier_id <= 0) {
       return NextResponse.json({ error: 'invoice_lines array and supplier_id are required.' }, { status: 400 });
     }
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
       product_code: typeof line?.product_code === 'string' ? line.product_code.slice(0, 255) : null,
       barcode: typeof line?.barcode === 'string' ? line.barcode.slice(0, 255) : null,
       product_name: typeof line?.product_name === 'string' ? line.product_name.slice(0, 1000) : null,
+      ...Object.fromEntries(['unit_price', 'qty', 'line_total', 'discount_pct', 'discount_amount', 'tax_rate'].map(field => [field, line?.[field] != null && Number.isFinite(Number(line[field])) ? Number(line[field]) : null])),
     }));
     if (invoice_lines.some(line => !Number.isSafeInteger(line.index) || line.index < 0) || new Set(invoice_lines.map(line => line.index)).size !== invoice_lines.length) {
       return NextResponse.json({ error: 'Invoice row indexes must be unique non-negative integers.' }, { status: 400 });
@@ -71,7 +74,7 @@ export async function POST(req: Request) {
     if (match && match.confidence !== 'fuzzy_name') {
       matches.push({ invoice_index: line.index, variant_id: match.variant_id, confidence: 'high', match_confidence: match.confidence, reason: match.method, variant: match });
     } else {
-      pending.push({ ...line, candidates: selectInvoiceMatchCandidates(line, supplierVariants) });
+      pending.push({ ...line, candidates: selectInvoiceMatchCandidates(line, supplierVariants, 20, costContext) });
     }
   }
   if (!pending.length) return NextResponse.json({ success: true, matches });
@@ -103,7 +106,8 @@ Return a JSON array with exactly one entry for every supplied original index:
 [{"invoice_index":0,"variant_id":"candidate-id-or-null","confidence":"high|medium|low|null","reason":"brief reason"}]
 Never use a candidate from another row. Match size, colour, style and identifiers, not just the product family.
 Exact SKU or barcode supports high confidence. A uniquely convincing description plus variant supports medium. Ambiguous, conflicting or weak evidence must use low or null with variant_id null. Never guess to fill missing rows.
-${JSON.stringify(matchable.map(line => ({ index: line.index, product_code: line.product_code, barcode: line.barcode, product_name: line.product_name, candidates: line.candidates.map((variant: InvoiceMatchVariant) => ({ variant_id: variant.variant_id, sku: variant.sku, barcode: variant.barcode, name: variant.product_name, variant: variant.variant_label })) })))}`;
+Cost evidence compares stored Cost (never Average Cost) with both undiscounted and discounted tax-exclusive invoice unit costs in the same currency. Either cost within 5% supports identity evidence but cannot prove a match or override conflicting codes. Not comparable means do not use price evidence.
+${JSON.stringify(matchable.map(line => ({ index: line.index, product_code: line.product_code, barcode: line.barcode, product_name: line.product_name, candidates: line.candidates.map((variant: InvoiceMatchVariant) => ({ variant_id: variant.variant_id, sku: variant.sku, barcode: variant.barcode, name: variant.product_name, variant: variant.variant_label, cost_evidence: assessInvoiceMatchEvidence({ confidence: 'ai_match', supplierExact: false, variant, line, ...costContext }) })) })))}`;
       const result = await ai.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],

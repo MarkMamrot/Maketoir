@@ -14,6 +14,9 @@ import {
 } from '@/lib/xero/cogsPeriods';
 import { execute, query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { xeroApiFetch } from '@/services/XeroService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { journalHref } from '@/lib/ims/cogsTraceability/postings';
 
 const FREQUENCIES = new Set<CogsFrequency>(['daily', 'weekly', 'monthly', 'quarterly']);
 const CHANNELS = new Set(['pos', 'online', 'wholesale']);
@@ -255,6 +258,18 @@ export async function GET(req: Request) {
     );
 
     const lastPosted = recentRuns.find((run) => run.status === 'success') ?? null;
+    let xeroShortCode: string | null = null;
+    if (lastPosted?.xero_id) {
+      try {
+        const organisationResponse = await xeroApiFetch(databaseId, '/Organisation', { method: 'GET' });
+        const shortCode = organisationResponse?.Organisations?.[0]?.ShortCode;
+        if (typeof shortCode === 'string' && /^![A-Za-z0-9_-]+$/.test(shortCode)) xeroShortCode = shortCode;
+      } catch (error: unknown) {
+        await reportRuntimeIssue({ businessId: databaseId, source: 'xero_cogs_report', operation: 'load_xero_organisation_shortcode',
+          severity: 'warning', title: 'COGS reconciliation journal link could not be resolved', error,
+          reference: { type: 'xero_cogs_journal_run', id: lastPosted.id } });
+      }
+    }
 
     const reliableFrom = dateString(saved?.reliable_from ?? null);
     const reliableCoverageWarning = Boolean(reliableFrom && period.startDate < reliableFrom);
@@ -333,6 +348,7 @@ export async function GET(req: Request) {
         status: lastPosted.status,
         xeroId: lastPosted.xero_id,
         xeroState: lastPosted.xero_state,
+        href: journalHref(lastPosted.xero_id, lastPosted.xero_state, xeroShortCode),
         syncedAt: toIso(lastPosted.created_at),
       } : null,
       runs: recentRuns.map((run) => ({

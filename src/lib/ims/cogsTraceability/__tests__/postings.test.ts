@@ -4,6 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.query }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.imsQuery }));
 vi.mock('@/services/XeroService', () => ({ xeroApiFetch: mocks.xeroFetch }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/xero/cogsCalculator', () => ({ calculateCogsForPeriod: mocks.calculate }));
 import { journalHref, loadPostingReconciliations, summarisePostingRuns, type PostingRun } from '../postings';
 import { parseRequest } from '../request';
@@ -15,7 +16,7 @@ const run: PostingRun = { id: 1, from: '2026-09-01', toExclusive: '2026-10-01', 
   buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }] };
 
 describe('COGS posting reconciliation', () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.query.mockResolvedValue([run]); mocks.imsQuery.mockResolvedValue([]); mocks.calculate.mockResolvedValue({ totalCOGS: 120, blocked: false, breakdown: [] }); mocks.xeroFetch.mockResolvedValue({ ManualJournals: [{ Status: 'POSTED' }] }); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.query.mockResolvedValue([run]); mocks.imsQuery.mockResolvedValue([]); mocks.calculate.mockResolvedValue({ totalCOGS: 120, blocked: false, breakdown: [] }); mocks.xeroFetch.mockImplementation((_businessId: string, endpoint: string) => Promise.resolve(endpoint === '/Organisation' ? { Organisations: [{ ShortCode: '!wbVHv' }] } : { ManualJournals: [{ Status: 'POSTED' }] })); });
   it('sums signed original and adjustment journals, excluding drafts and voids', () => {
     expect(summarisePostingRuns([run, { ...run, id: 2, kind: 'adjustment', amount: -20 },
       { ...run, id: 3, amount: 40, xeroStatus: 'DRAFT' }, { ...run, id: 4, xeroStatus: 'VOIDED' }]))
@@ -25,12 +26,13 @@ describe('COGS posting reconciliation', () => {
     expect(summarisePostingRuns([{ ...run, xeroStatus: null }, { ...run, xeroId: null }, { ...run, status: 'unknown' }]))
       .toMatchObject({ postedTotal: 0, uncertainCount: 3 });
   });
-  it('uses the stable Xero entry point instead of the unavailable legacy journal route', () => {
+  it('uses the current organisation-specific Xero journal route', () => {
     expect(journalHref(null)).toBeNull();
-    expect(journalHref('id&unsafe=1')).toBe('https://go.xero.com/');
-    expect(journalHref('journal-id', 'VOIDED')).toBeNull();
-    expect(journalHref('journal-id', 'DELETED')).toBeNull();
-    expect(journalHref('journal-id', 'NOT_FOUND')).toBeNull();
+    expect(journalHref('id&unsafe=1', 'POSTED', '!wbVHv')).toBe('https://go.xero.com/app/!wbVHv/journals/view/id%26unsafe%3D1');
+    expect(journalHref('journal-id', 'POSTED', null)).toBeNull();
+    expect(journalHref('journal-id', 'VOIDED', '!wbVHv')).toBeNull();
+    expect(journalHref('journal-id', 'DELETED', '!wbVHv')).toBeNull();
+    expect(journalHref('journal-id', 'NOT_FOUND', '!wbVHv')).toBeNull();
   });
   it('uses tenant-filtered SELECTs and the entire accounting period rather than the selected partial range', async () => {
     const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams('from=2026-09-15&to=2026-10-07')));
@@ -38,7 +40,7 @@ describe('COGS posting reconciliation', () => {
     expect(mocks.query.mock.calls[0][0]).toMatch(/^SELECT/);
     expect(mocks.calculate).toHaveBeenCalledWith({ businessId: 'tenant-1', startDate: '2026-09-01', endDateExclusive: '2026-10-01' });
     expect(result.rows[0]).toMatchObject({ postedTotal: 100, variance: 20, state: 'Difference to review' });
-    expect(result.rows[0].runs[0].href).toBe('https://go.xero.com/');
+    expect(result.rows[0].runs[0].href).toBe('https://go.xero.com/app/!wbVHv/journals/view/journal-1');
   });
   it('returns the immutable line-item snapshot stored with the actual run', async () => {
     mocks.query.mockResolvedValue([{ ...run, breakdownJson: JSON.stringify(run.buckets), buckets: undefined }]);

@@ -1043,7 +1043,6 @@ CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
 -- qty_on_hand   = physical stock at location
 -- qty_incoming  = on approved POs (not yet received)
 -- qty_committed = on confirmed SOs (not yet fulfilled)
--- avg_cost      = deprecated compatibility column; current Average Cost belongs to the variant
 CREATE TABLE IF NOT EXISTS ims_stock (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
@@ -1054,7 +1053,6 @@ CREATE TABLE IF NOT EXISTS ims_stock (
   qty_committed DECIMAL(12,4) NOT NULL DEFAULT 0,
   min_qty       DECIMAL(12,4) NOT NULL DEFAULT 0,
   reorder_qty   DECIMAL(12,4) NOT NULL DEFAULT 0,
-  avg_cost      DECIMAL(12,4),
   zone          VARCHAR(50) NULL,
   bin           VARCHAR(50) NULL,
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

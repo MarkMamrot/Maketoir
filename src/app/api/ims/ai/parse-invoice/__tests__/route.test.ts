@@ -54,4 +54,22 @@ describe('invoice parsing product lookup', () => {
     expect(body.po_comparison[0]).toMatchObject({ invoice_line: null, requires_review: true });
     expect(body.po_comparison.filter((row: any) => row.not_in_po)).toHaveLength(2);
   });
+  it('requires supplier review even for exact codes and retains unknown cost context', async () => {
+    const body = await (await POST(request(1))).json();
+    expect(body.supplier_exact).toBe(true);
+    expect(body.cost_currency_known).toBe(false);
+    expect(body.po_comparison[0]).toMatchObject({ requires_review: true, review_reason: expect.stringContaining('Supplier') });
+  });
+  it('retains printed and discounted costs and allows an exact supplier/code match', async () => {
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...invoice, currency: 'AUD', line_items: [{ ...invoice.line_items[0], unit_price: 20, line_total: 10 }] }) });
+    mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_contacts')) return [{ id: 9, name: 'Supplier' }];
+      if (sql.includes('FROM ims_product_variants')) return [{ ...variants[0], supplier_contact_id: 9, cost_aud: 20 }];
+      if (sql.includes('FROM ims_purchase_order_items')) return [{ id: 1, variant_id: 'variant-0', qty_ordered: 1, unit_cost: 20 }];
+      return [];
+    });
+    const body = await (await POST(request(1))).json();
+    expect(body.line_results[0].invoice_line).toMatchObject({ printed_unit_price: 20, line_total: 10 });
+    expect(body.po_comparison[0].requires_review).toBe(false);
+  });
 });

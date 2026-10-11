@@ -6,11 +6,11 @@ describe('COGS posting audit adapter', () => {
     const findings = buildCogsPostingAuditFindings({ rows: [{
       from: '2026-07-01', toExclusive: '2026-08-01', state: 'Draft journals awaiting posting',
       variance: 125, liveVariance: null, draftCount: 1, uncertainCount: 0, failedCount: 1,
-      calculation: { blocked: false }, runs: [{ id: 2, href: 'https://go.xero.com/' }],
+      calculation: { blocked: false }, runs: [{ id: 2, href: 'https://go.xero.com/app/!wbVHv/journals/view/journal-2' }],
     }] } as never);
     expect(findings[0]).toMatchObject({
       checkId: 'cogs_postings', severity: 'error', variance: 125, valueAtRisk: 125,
-      sourceHref: '#xero/activity/cogs', xeroHref: 'https://go.xero.com/',
+      sourceHref: '#xero/activity/cogs', xeroHref: 'https://go.xero.com/app/!wbVHv/journals/view/journal-2',
     });
   });
 

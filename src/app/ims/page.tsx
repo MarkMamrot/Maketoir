@@ -18,7 +18,7 @@ import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeL
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
-import { collectInvoiceImportLines, invoiceMatchNeedsReview } from '@/lib/ims/invoiceProductMatching';
+import { assessInvoiceMatchEvidence, collectInvoiceImportLines, invoiceMatchNeedsReview } from '@/lib/ims/invoiceProductMatching';
 import { optionCombinations } from '@/lib/ims/bulkProductEditor';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { getCountryOptions } from '@/lib/ims/countryOptions';
@@ -8819,9 +8819,12 @@ function SalesOrderUploadModal({ onClose, onImport, customers, variants, pending
 type InvoiceParseResult = {
   invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null; discount_total?: number | null; freight_total?: number | null };
   matched_supplier: { id: number; name: string } | null;
+  supplier_exact?: boolean;
+  cost_currency_known?: boolean;
+  cost_tax_known?: boolean;
   line_results: Array<{
-    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_amount?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
-    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
+    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; printed_unit_price?: number | null; comparison_tax_rate?: number | null; rrp?: number | null; discount_amount?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
+    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; cost_foreign?: string | null; supplier_contact_id?: number | null; confidence: string; method: string } | null;
   }>;
   po_comparison: Array<{
     po_line: { id: number; variant_id: string; qty_ordered: number; qty_received: number; unit_cost: number; sku: string; product_name: string; variant_label?: string } | null;
@@ -8859,6 +8862,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   const [createProductError, setCreateProductError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
+  React.useEffect(() => { setReviewedInvoiceLines(new Set()); }, [supplierId, currency, taxTreatment]);
 
   // Auto-process a file passed in from outside (e.g. the banner picker)
   React.useEffect(() => {
@@ -8891,6 +8895,18 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     return lr.match?.variant_id ?? null;
   }
 
+  function matchEvidence(lr: InvoiceParseResult['line_results'][0]) {
+    return assessInvoiceMatchEvidence({
+      confidence: lr.match?.confidence,
+      supplierExact: result?.supplier_exact === true && Number(supplierId) === result.matched_supplier?.id,
+      supplierId: supplierId || null,
+      variant: lr.match,
+      line: { ...lr.invoice_line, unit_price: lr.invoice_line.printed_unit_price ?? null, tax_rate: lr.invoice_line.comparison_tax_rate ?? null },
+      currency: result?.cost_currency_known ? currency : null,
+      taxTreatment: result?.cost_tax_known ? taxTreatment : null,
+    });
+  }
+
   function confidenceSt(c: string): React.CSSProperties {
     if (c === 'exact_sku' || c === 'exact_barcode') return { color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 };
     if (c === 'fuzzy_name' || c === 'normalized_sku' || c === 'manual') return { color: '#f59e0b', fontSize: 11, fontWeight: 600 };
@@ -8904,7 +8920,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
   function handleImport() {
     if (!result || !onImport) return;
-    if (result.line_results.some((lr, i) => !skipped.has(i) && (!getVid(i, lr) || (!(i in overrides) && invoiceMatchNeedsReview(lr.match?.confidence) && !reviewedInvoiceLines.has(i))))) return;
+    if (result.line_results.some((lr, i) => !skipped.has(i) && (!getVid(i, lr) || (!(i in overrides) && matchEvidence(lr).requiresReview && !reviewedInvoiceLines.has(i))))) return;
     const line_items = collectInvoiceImportLines(result.line_results, skipped,
       (lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate ?? 0.1), line_total: lr.invoice_line.line_total ?? null, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; });
     onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, freight_total: result.invoice.freight_total ?? null, line_items });
@@ -8983,7 +8999,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     try {
       // Only send lines that aren't already exactly matched
       const linesToSend = result.line_results
-        .map((lr, i) => ({ ...lr.invoice_line, index: i }))
+        .map((lr, i) => ({ ...lr.invoice_line, unit_price: lr.invoice_line.printed_unit_price ?? null, tax_rate: lr.invoice_line.comparison_tax_rate ?? null, index: i }))
         .filter((_, i) => {
           if (skipped.has(i) || i in overrides) return false;
           const conf = result.line_results[i].match?.confidence;
@@ -8992,7 +9008,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       const res = await fetch('/api/ims/ai/match-invoice-lines', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoice_lines: linesToSend, supplier_id: supplierId }),
+        body: JSON.stringify({ invoice_lines: linesToSend, supplier_id: supplierId, currency: result.cost_currency_known ? currency : null, tax_treatment: result.cost_tax_known ? taxTreatment : null }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) { setAiMatchError(json.error ?? 'AI matching failed'); return; }
@@ -9019,6 +9035,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
               product_name:  imsV?.product_name  ?? null,
               variant_label: imsV?.variant_label ?? null,
               cost_aud:      imsV?.cost_aud      ?? null,
+              cost_foreign:  imsV?.cost_foreign ?? null,
+              supplier_contact_id: imsV?.supplier_contact_id ?? null,
               confidence:    aiM.match_confidence ?? (aiM.confidence === 'high' ? 'ai_high' : 'ai_match'),
               method:        'AI second pass',
             },
@@ -9127,7 +9145,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
   // ── Pathway 1: line-item review ──
   const importableCount = result.line_results.filter((lr, i) => !skipped.has(i) && getVid(i, lr) !== null).length;
-  const reviewRequiredCount = result.line_results.filter((lr, i) => !skipped.has(i) && (!(i in overrides) && invoiceMatchNeedsReview(lr.match?.confidence) && !reviewedInvoiceLines.has(i) || !getVid(i, lr))).length;
+  const reviewRequiredCount = result.line_results.filter((lr, i) => !skipped.has(i) && (!(i in overrides) && matchEvidence(lr).requiresReview && !reviewedInvoiceLines.has(i) || !getVid(i, lr))).length;
   const exactN = result.line_results.filter(lr => lr.match?.confidence === 'exact_sku' || lr.match?.confidence === 'exact_barcode').length;
   const fuzzyN = result.line_results.filter(lr => lr.match?.confidence === 'fuzzy_name').length;
   const aiN    = result.line_results.filter(lr => lr.match?.confidence === 'ai_high' || lr.match?.confidence === 'ai_match').length;
@@ -9202,11 +9220,12 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
               const effectiveVid = getVid(i, lr);
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
+              const evidence = matchEvidence(lr);
               const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'normalized_sku' ? '~ SKU format' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
               const imsV = effectiveVid ? availableVariants.find((v: any) => v.variant_id === effectiveVid) : null;
               const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
-                <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, background: !isSkipped && !hasOverride && invoiceMatchNeedsReview(conf) && !reviewedInvoiceLines.has(i) ? 'rgba(245,158,11,.06)' : undefined, borderBottom: '1px solid var(--sv-border)' }}>
+                <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, background: !isSkipped && !hasOverride && evidence.requiresReview && !reviewedInvoiceLines.has(i) ? 'rgba(245,158,11,.06)' : undefined, borderBottom: '1px solid var(--sv-border)' }}>
                   <td style={{ ...tdSt, width: 28 }}>
                     <input type="checkbox" checked={!isSkipped} title="Include this line" onChange={e => setSkipped(p => { const n = new Set(p); e.target.checked ? n.delete(i) : n.add(i); return n; })} />
                   </td>
@@ -9225,9 +9244,14 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
                   </td>
                   <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
                     <span style={confidenceSt(conf)}>{confLabel}</span>
-                    {!isSkipped && effectiveVid && !hasOverride && invoiceMatchNeedsReview(conf) && <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f59e0b', marginTop: 4 }}>
+                    {!isSkipped && effectiveVid && !hasOverride && evidence.requiresReview && <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f59e0b', marginTop: 4 }}>
                       <input type="checkbox" checked={reviewedInvoiceLines.has(i)} onChange={event => setReviewedInvoiceLines(current => { const next = new Set(current); event.target.checked ? next.add(i) : next.delete(i); return next; })} /> Reviewed
                     </label>}
+                    {!hasOverride && lr.match && <div style={{ whiteSpace: 'normal', minWidth: 170, maxWidth: 260, fontSize: 11, marginTop: 5, color: 'var(--sv-text-muted)' }}>
+                      {evidence.reasons.map(reason => <div key={reason}>{reason}</div>)}
+                      <div>{evidence.costStatus === 'not_comparable' ? 'Cost not comparable' : evidence.costStatus === 'supports_match' ? 'Cost supports match (within 5%)' : 'Cost differs (over 5%)'}</div>
+                      {evidence.costStatus !== 'not_comparable' && <div>Stored Cost {fmt$(evidence.storedCost)}; invoice before discount {fmt$(evidence.undiscountedCost)}, after discount {fmt$(evidence.discountedCost)} (tax exclusive)</div>}
+                    </div>}
                     {conf !== 'none' && conf !== 'manual' && conf !== 'skipped' && !hasOverride && (
                       <button onClick={() => setOverrides(p => ({ ...p, [i]: lr.match?.variant_id ?? '' }))} title="Override" style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>✎</button>
                     )}
@@ -21452,7 +21476,7 @@ type CogsReportData = {
   filteredTotals: { totalCOGS: number; movementCount: number; quantity: number };
   locations: Array<{ id: number; name: string }>;
   channels: string[];
-  lastPost: null | { id: number; runKind: 'original' | 'adjustment'; postedDelta: number; targetAmount: number; status: string; xeroId: string | null; xeroState: string | null; syncedAt: string | null };
+  lastPost: null | { id: number; runKind: 'original' | 'adjustment'; postedDelta: number; targetAmount: number; status: string; xeroId: string | null; xeroState: string | null; href: string | null; syncedAt: string | null };
   runs: Array<{ id: number; startDate: string | null; endDateExclusive: string | null; journalDate: string | null; frequency: string; runKind: string; targetAmount: number; postedDelta: number; status: string; xeroId: string | null; xeroState: string | null; errorDetail: string | null; overrideReason: string | null; createdAt: string | null }>;
 };
 
@@ -21944,7 +21968,7 @@ function LegacyCogsReconciliationTab({ getBusinessId, isAdvisor = false }: { get
                 <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Posted Total</div><div style={{ fontSize: 13, color: 'var(--sv-text-strong)', fontWeight: 600 }}>{fmtMoney(cogsReport.reconciliation.postedTotal)}</div></div>
                 <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Variance</div><div style={{ fontSize: 13, color: cogsReport.reconciliation.variance === 0 ? '#34d399' : '#fbbf24', fontWeight: 700 }}>{fmtMoney(cogsReport.reconciliation.variance)}</div></div>
                 <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>State</div><div style={{ fontSize: 13, color: cogsReport.reconciliation.state === 'current' ? '#34d399' : cogsReport.reconciliation.state === 'blocked' ? '#f87171' : '#fbbf24', fontWeight: 700, textTransform: 'capitalize' }}>{cogsReport.reconciliation.state.replace('_', ' ')}</div></div>
-                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div><div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}</div>{cogsReport.lastPost?.xeroId && (<a href={`https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${cogsReport.lastPost.xeroId}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>Open in Xero</a>)}</div>
+                <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 10, background: 'var(--sv-bg-1)' }}><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Last Post</div><div style={{ fontSize: 13, color: 'var(--sv-text-main)', fontWeight: 600 }}>{cogsReport.lastPost ? fmtDate(cogsReport.lastPost.syncedAt || '') : 'No successful post'}</div>{cogsReport.lastPost?.href && (<a href={cogsReport.lastPost.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>View journal</a>)}</div>
               </div>
               {cogsReport.coverage.warning && (<div style={{ padding: '8px 10px', border: '1px solid rgba(251,191,36,.35)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: '#fbbf24', fontSize: 12 }}>{cogsReport.coverage.warningText}</div>)}
               {!cogsReport.reconciliation.stateMatchesFilter && (<div style={{ padding: '8px 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>The selected reconciliation state filter does not match this period.</div>)}

@@ -5,7 +5,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { normalizeParsedInvoice } from '@/lib/ims/invoiceImportParser';
-import { createInvoiceVariantMatcher, invoiceMatchNeedsReview, type InvoiceMatchVariant } from '@/lib/ims/invoiceProductMatching';
+import { assessInvoiceMatchEvidence, createInvoiceVariantMatcher, type InvoiceMatchVariant } from '@/lib/ims/invoiceProductMatching';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -237,6 +237,7 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
 
   const variants = await imsQuery<InvoiceMatchVariant>(
             `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
+              p.supplier_contact_id,
               p.name AS product_name, p.brand AS product_brand,
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
        FROM ims_product_variants v
@@ -246,6 +247,11 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       [biz],
     );
   const matchVariant = createInvoiceVariantMatcher(variants);
+  const supplierExact = !!matchedSupplier && typeof parsedInvoice.supplier_name === 'string'
+    && parsedInvoice.supplier_name.trim().toLowerCase() === matchedSupplier.name.trim().toLowerCase()
+    && suppliers.filter(supplier => supplier.name.trim().toLowerCase() === matchedSupplier!.name.trim().toLowerCase()).length === 1;
+  const costCurrencyKnown = typeof parsedInvoice.currency === 'string' && /^[A-Z]{3}$/.test(parsedInvoice.currency.trim().toUpperCase());
+  const costTaxKnown = ['inc_tax', 'ex_tax', 'no_tax'].includes(parsedInvoice.prices_include_tax);
 
   // Match each invoice line to IMS variant
   const lineResults = normalizedInvoice.line_items.map((line: any) => ({
@@ -256,6 +262,13 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
     },
     match: matchVariant(line),
   }));
+  const lineEvidence = (lineResult: typeof lineResults[number]) => assessInvoiceMatchEvidence({
+    confidence: lineResult.match?.confidence, supplierExact, supplierId: matchedSupplier?.id,
+    variant: lineResult.match,
+    line: { ...lineResult.invoice_line, unit_price: lineResult.invoice_line.printed_unit_price, tax_rate: lineResult.invoice_line.comparison_tax_rate },
+    currency: costCurrencyKnown ? normalizedInvoice.currency : null,
+    taxTreatment: costTaxKnown ? normalizedInvoice.prices_include_tax : null,
+  });
 
   // Pathway 2: compare against existing PO items
   let poComparison: any[] | null = null;
@@ -289,8 +302,8 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
           variant_label: poLine.variant_label,
         },
         invoice_line: invLine,
-        requires_review: !!lineRes && (invoiceMatchNeedsReview(lineRes.match?.confidence) || matchingLines.length > 1),
-        review_reason: matchingLines.length > 1 ? 'Multiple invoice rows match this PO variant. Review their combined quantity in Receive.' : null,
+        requires_review: !!lineRes && (lineEvidence(lineRes).requiresReview || matchingLines.length > 1),
+        review_reason: matchingLines.length > 1 ? 'Multiple invoice rows match this PO variant. Review their combined quantity in Receive.' : lineRes ? lineEvidence(lineRes).reasons.join(' ') : null,
         qty_diff:   invLine ? Number(invLine.qty)        - Number(poLine.qty_ordered) : null,
         price_diff: invLine ? Number(invLine.unit_price) - Number(poLine.unit_cost)   : null,
         not_in_po: false,
@@ -322,6 +335,9 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       freight_total:      normalizedInvoice.freight_total      ?? null,
     },
     matched_supplier: matchedSupplier,
+    supplier_exact: supplierExact,
+    cost_currency_known: costCurrencyKnown,
+    cost_tax_known: costTaxKnown,
     line_results:     lineResults,
     po_comparison:    poComparison,
   });

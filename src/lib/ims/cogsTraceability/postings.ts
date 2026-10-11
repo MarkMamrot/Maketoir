@@ -2,6 +2,7 @@ import 'server-only';
 import { query } from '@/services/MySQLService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { calculateCogsForPeriod } from '@/lib/xero/cogsCalculator';
 import { getCogsPeriodStartingAt, getLastCompletedCogsPeriod, roundCurrency, type CogsFrequency } from '@/lib/xero/cogsPeriods';
 import type { CogsJournalBucket } from '@/lib/xero/cogsPeriods';
@@ -57,10 +58,10 @@ export function summarisePostingRuns(runs: PostingRun[]) {
   };
 }
 
-export function journalHref(xeroId: string | null, xeroStatus?: string | null): string | null {
-  return xeroId && !['DELETED', 'VOIDED', 'NOT_FOUND'].includes(String(xeroStatus ?? '').toUpperCase())
-    ? 'https://go.xero.com/'
-    : null;
+export function journalHref(xeroId: string | null, xeroStatus?: string | null, xeroShortCode?: string | null): string | null {
+  if (!xeroId || !xeroShortCode || !/^![A-Za-z0-9_-]+$/.test(xeroShortCode)
+    || ['DELETED', 'VOIDED', 'NOT_FOUND'].includes(String(xeroStatus ?? '').toUpperCase())) return null;
+  return `https://go.xero.com/app/${encodeURIComponent(xeroShortCode)}/journals/view/${encodeURIComponent(xeroId)}`;
 }
 
 export async function loadPostingReconciliations(businessId: string, request: ReportRequest, options: { verifyXero?: boolean } = {}) {
@@ -89,6 +90,24 @@ export async function loadPostingReconciliations(businessId: string, request: Re
   if (raw.length > 50000) throw new ReportValidationError('More than 50,000 posting runs match. Narrow the date range; no runs have been truncated.');
   const runs = raw.map(row => ({ ...row, id: Number(row.id), target: Number(row.target), amount: Number(row.amount),
     missingCosts: Number(row.missingCosts), zeroCosts: Number(row.zeroCosts), buckets: postingBuckets(row.breakdownJson) } as PostingRun));
+  let xeroShortCode: string | null = null;
+  if (runs.some(run => run.xeroId)) {
+    try {
+      const organisationResponse = await xeroApiFetch(businessId, '/Organisation', { method: 'GET' });
+      const shortCode = organisationResponse?.Organisations?.[0]?.ShortCode;
+      if (typeof shortCode === 'string' && /^![A-Za-z0-9_-]+$/.test(shortCode)) xeroShortCode = shortCode;
+    } catch (error: unknown) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'cogs_traceability',
+        operation: 'load_xero_organisation_shortcode',
+        severity: 'warning',
+        title: 'COGS journal deep links could not be resolved',
+        error,
+        context: { linkedJournalCount: runs.filter(run => run.xeroId).length },
+      });
+    }
+  }
   const periods = new Map<string, PostingRun[]>();
   for (const run of runs) {
     const key = `${run.from}:${run.toExclusive}`;
@@ -161,7 +180,8 @@ export async function loadPostingReconciliations(businessId: string, request: Re
           : liveVerificationComplete && verifiedMembers.some(run => run.liveXeroStatus === 'DRAFT') ? 'Draft journals awaiting posting'
             : (liveVariance ?? variance) !== 0 ? 'Difference to review' : liveVerificationComplete ? 'Matches Xero posted total' : 'Matches recorded posted total',
       runs: verifiedMembers.map(run => ({ ...run, href: journalHref(run.xeroId,
-        run.liveVerification === 'verified' ? run.liveXeroStatus : run.liveVerification === 'not_found' ? 'NOT_FOUND' : run.xeroStatus) })),
+        run.liveVerification === 'verified' ? run.liveXeroStatus : run.liveVerification === 'not_found' ? 'NOT_FOUND' : run.xeroStatus,
+        xeroShortCode) })),
     });
   }
   const locationIds = [...new Set(rows.flatMap(row => row.calculation.breakdown.map(bucket => bucket.locationId)))].filter(id => id > 0);
@@ -174,7 +194,7 @@ export async function loadPostingReconciliations(businessId: string, request: Re
       locationName: locationNames.get(bucket.locationId) || (bucket.locationId > 0 ? `Location name unavailable (ID ${bucket.locationId})` : 'Location not recorded'),
     })),
   } }));
-  return { success: true as const, tableAvailable, from: request.from, to: request.to, page: request.page, pageSize, total: periods.size, rows: namedRows,
+  return { success: true as const, tableAvailable, xeroShortCode, from: request.from, to: request.to, page: request.page, pageSize, total: periods.size, rows: namedRows,
     scope: 'Configured completed accounting periods overlapping the selected date range, including periods with no posting run. Each reconciliation uses its complete stock-movement period, without sales filters.',
     statusEvidence: options.verifyXero
       ? 'Displayed journal statuses are checked directly with Xero when this tab loads. If that check is unavailable, the screen labels the fallback recorded status as unverified. Draft, voided, deleted and uncertain runs are not counted as verified posted.'

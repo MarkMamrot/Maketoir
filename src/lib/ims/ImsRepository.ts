@@ -164,9 +164,10 @@ export interface ImsStock {
   id: number; variant_id: string; location_id: number;
   qty_on_hand: number; qty_incoming: number; qty_committed: number;
   available?: number; // computed: qty_on_hand - qty_committed
-  min_qty: number; reorder_qty: number; avg_cost?: number; updated_at?: string;
+  min_qty: number; reorder_qty: number; updated_at?: string;
   zone?: string | null; bin?: string | null;
   // joined
+  avg_cost?: number; // ims_product_variants.avg_cost
   sku?: string; product_name?: string; variant_label?: string; location_name?: string;
 }
 

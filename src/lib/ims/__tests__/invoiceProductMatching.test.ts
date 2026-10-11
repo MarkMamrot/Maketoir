@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectInvoiceImportLines, createInvoiceVariantMatcher, invoiceMatchNeedsReview, selectInvoiceMatchCandidates, validateInvoiceAiMatches } from '../invoiceProductMatching';
+import { assessInvoiceMatchEvidence, collectInvoiceImportLines, createInvoiceVariantMatcher, invoiceMatchNeedsReview, selectInvoiceMatchCandidates, validateInvoiceAiMatches } from '../invoiceProductMatching';
 
 const variants = [
   { variant_id: 'first', sku: 'FC-AJ02', barcode: '00123', product_name: 'Fox shirt', variant_label: 'Small' },
@@ -7,6 +7,36 @@ const variants = [
 ];
 
 describe('invoice product matching', () => {
+  const evidenceInput = { confidence: 'exact_sku', supplierExact: true, supplierId: 5, variant: { variant_id: 'first', supplier_contact_id: 5, cost_aud: 10 }, line: { unit_price: 11, qty: 2, line_total: 17.6, tax_rate: 0.1 }, currency: 'AUD', taxTreatment: 'inc_tax' };
+  it('supports either undiscounted or discounted cost after extracting GST', () => {
+    expect(assessInvoiceMatchEvidence(evidenceInput)).toMatchObject({ costStatus: 'supports_match', requiresReview: false, undiscountedCost: 10, discountedCost: 8 });
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, variant: { ...evidenceInput.variant, cost_aud: 8 } })).toMatchObject({ costStatus: 'supports_match', requiresReview: false });
+  });
+  it('does not let similar costs remove supplier or code review flags', () => {
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, supplierExact: false }).requiresReview).toBe(true);
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, supplierId: 6 }).requiresReview).toBe(true);
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, confidence: 'fuzzy_name' }).requiresReview).toBe(true);
+  });
+  it('flags costs beyond 5% and includes the threshold', () => {
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, taxTreatment: 'ex_tax', line: { unit_price: 10.5, qty: 1, line_total: 10.5 } }).costStatus).toBe('supports_match');
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, taxTreatment: 'ex_tax', line: { unit_price: 10.51, qty: 1, line_total: 10.51 } })).toMatchObject({ costStatus: 'differs', requiresReview: true });
+  });
+  it('does not compare unknown tax, currency, or missing costs', () => {
+    for (const changes of [{ currency: '' }, { taxTreatment: null }, { currency: 'USD' }, { line: { unit_price: 11, qty: 1 } }]) {
+      expect(assessInvoiceMatchEvidence({ ...evidenceInput, ...changes }).costStatus).toBe('not_comparable');
+    }
+  });
+  it('uses same-currency foreign Cost without converting AUD', () => {
+    expect(assessInvoiceMatchEvidence({ ...evidenceInput, currency: 'USD', taxTreatment: 'no_tax', variant: { ...evidenceInput.variant, cost_foreign: '{"USD":11}' } }).costStatus).toBe('supports_match');
+  });
+  it('uses costs to support identity candidates but never creates price-only candidates', () => {
+    const candidates = [
+      { variant_id: 'a', product_name: 'Fox shirt', cost_aud: 30 },
+      { variant_id: 'b', product_name: 'Fox shirt', cost_aud: 10 },
+      { variant_id: 'c', product_name: 'Unrelated mug', cost_aud: 10 },
+    ];
+    expect(selectInvoiceMatchCandidates({ product_name: 'Fox shirt', unit_price: 10, qty: 1, line_total: 10 }, candidates, 20, { currency: 'AUD', taxTreatment: 'ex_tax' }).map(candidate => candidate.variant_id)).toEqual(['b', 'a']);
+  });
   it('finds exact identifiers regardless of catalogue ordering and length', () => {
     const catalogue = Array.from({ length: 2500 }, (_, index) => ({ variant_id: `other-${index}`, sku: `OTHER-${index}` }));
     expect(createInvoiceVariantMatcher([...catalogue, ...variants])({ product_code: ' fc-aj02 ' })).toMatchObject({ variant_id: 'first', confidence: 'exact_sku' });
