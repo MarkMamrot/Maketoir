@@ -23,6 +23,230 @@ function purchaseOrderId(events: Awaited<ReturnType<typeof readManifest>>): numb
   throw new Error('Live E2E blocked: manifest does not contain the P1 purchase order ID.');
 }
 
+test('@branch-ui-audit verifies completed transfer history and real table scrolling on desktop and mobile', async ({ page }) => {
+  test.setTimeout(120_000);
+  const config = loadLiveE2EConfig();
+  expect(config.action).toBe('build-verify');
+  const completed = (await readManifest(config.runId)).at(-1)!;
+  expect(completed.state).toBe('clean');
+  const source = completed.details as any;
+  expect(source.roundTripPassed).toBe(true);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await loginToIms(page, config);
+  const detailResponse = await page.request.get(`/api/ims/branch-transfers/${source.transferIds[0]}`);
+  expect(detailResponse.ok()).toBe(true);
+  const transfer = (await detailResponse.json()).data;
+  expect(transfer.status).toBe('received');
+  await page.getByTestId('ims-nav-__locations').click();
+  await page.getByTestId('ims-nav-branch-transfers').click();
+  const region = page.getByRole('region', { name: 'Branch transfers table. Use arrow keys to scroll.' });
+  await expect(region).toBeVisible();
+  const geometry = () => region.evaluate(element => {
+    const header = element.previousElementSibling as HTMLElement;
+    const row = element.querySelector('tbody tr');
+    let owner = element.parentElement;
+    while (owner && !(owner.scrollHeight > owner.clientHeight && /auto|scroll/.test(getComputedStyle(owner).overflowY))) owner = owner.parentElement;
+    const scroller = owner ?? document.scrollingElement!;
+    return { left: element.scrollLeft, headerLeft: header.scrollLeft, width: element.clientWidth, scrollWidth: element.scrollWidth,
+      frozen: Array.from(row?.querySelectorAll('td') ?? []).slice(0, 2).map(cell => cell.getBoundingClientRect().x),
+      moving: row?.querySelectorAll('td')[2]?.getBoundingClientRect().x ?? 0,
+      top: scroller.scrollTop, maxTop: scroller.scrollHeight - scroller.clientHeight, headerY: header.getBoundingClientRect().y };
+  });
+  await region.focus();
+  const initial = await geometry();
+  expect(initial.scrollWidth).toBeGreaterThan(initial.width);
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => (await geometry()).left).toBeGreaterThan(initial.left);
+  const right = await geometry();
+  expect(right.headerLeft).toBe(right.left);
+  expect(right.frozen.map((value, index) => Math.abs(value - initial.frozen[index])).every(delta => delta < 2)).toBe(true);
+  expect(right.moving).toBeLessThan(initial.moving);
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => (await geometry()).left).toBe(initial.left);
+  expect(initial.maxTop).toBeGreaterThan(0);
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async () => (await geometry()).top).toBeGreaterThan(initial.top);
+  const down = await geometry();
+  expect(down.left).toBe(initial.left);
+  expect(down.headerY).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async () => (await geometry()).top).toBe(initial.top);
+  const search = page.getByPlaceholder('Search transfer #, location…');
+  await search.fill(transfer.transfer_number);
+  await expect(region.getByText(transfer.transfer_number, { exact: true })).toBeVisible();
+  const beforeInput = await geometry();
+  await search.press('ArrowRight');
+  expect((await geometry()).left).toBe(beforeInput.left);
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await expect(region.getByText(transfer.transfer_number, { exact: true })).toBeVisible();
+    await region.getByText(transfer.transfer_number, { exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: `Transfer ${transfer.transfer_number}` });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('Warehouse Branch', { exact: false }).first()).toBeVisible();
+    await expect(dialog.getByText(config.fixtureSku, { exact: false }).first()).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
+    await test.info().attach(`completed-transfer-${viewport.width}`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    const lineRegion = dialog.getByRole('region', { name: 'Transfer line items' });
+    const tableBounds = await lineRegion.boundingBox();
+    expect(tableBounds!.x + tableBounds!.width).toBeLessThanOrEqual(viewport.width + 1);
+    if (viewport.width < 620) {
+      expect(await lineRegion.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+      await lineRegion.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+      const valueBounds = await lineRegion.locator('tfoot td').last().boundingBox();
+      expect(valueBounds!.x + valueBounds!.width).toBeLessThanOrEqual(viewport.width + 1);
+      await test.info().attach('completed-transfer-mobile-scrolled', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+  }
+  expect((await readManifest(config.runId)).at(-1)).toEqual(completed);
+});
+
+test('@po-distinct-costs preserves two receipt costs and independent variants through reverse-order undo', async ({ page }) => {
+  test.setTimeout(300_000);
+  const config = loadLiveE2EConfig();
+  expect(config.action).toBe('p1');
+  expect(config.expectedCostingMethod).toBe('fifo');
+  expect((await readManifest(config.runId)).at(-1)?.state).toBe('preflight_passed');
+  await loginToIms(page, config);
+  const connection = await mysql.createConnection({ host: process.env.MYSQL_HOST, port: Number(process.env.MYSQL_PORT || 3306),
+    database: process.env.MYSQL_DATABASE, user: process.env.MYSQL_USER, password: process.env.MYSQL_PASSWORD });
+  const schema = connection.escapeId(config.expectedImsSchema);
+  const purchaseOrderIds: number[] = [];
+  const xeroBillIds: string[] = [];
+  const variantIds: string[] = [config.fixtureVariantId];
+  let productId: string | null = null;
+  const checkpoint = (phase: string) => appendManifestState(config.runId, 'p1_created', {
+    scenario: 'Distinct receipt costs and variants', phase, productId, variantIds: [...variantIds],
+    purchaseOrderIds: [...purchaseOrderIds], xeroBillIds: [...xeroBillIds],
+  });
+  const command = async (endpoint: string, data: unknown, method: 'post' | 'put' = 'post') => {
+    const response = await page.request[method](endpoint, { data });
+    const body = await response.json();
+    expect(response.ok(), body.error).toBe(true);
+    expect(body.success, body.error).not.toBe(false);
+    return body;
+  };
+  const detail = async (poId: number) => (await (await page.request.get(`/api/ims/purchase-orders/${poId}`)).json()).data;
+  const snapshot = async () => {
+    const placeholders = variantIds.map(() => '?').join(',');
+    const [stock] = await connection.query<mysql.RowDataPacket[]>(`SELECT variant_id,location_id,qty_on_hand,qty_incoming,qty_committed
+      FROM ${schema}.ims_stock WHERE business_id=? AND variant_id IN (${placeholders}) ORDER BY variant_id,location_id`, [config.expectedBusinessId, ...variantIds]);
+    const [layers] = await connection.query<mysql.RowDataPacket[]>(`SELECT id,variant_id,location_id,original_quantity,remaining_quantity,unit_cost,source_reference_id
+      FROM ${schema}.ims_fifo_cost_layers WHERE business_id=? AND variant_id IN (${placeholders}) ORDER BY id`, [config.expectedBusinessId, ...variantIds]);
+    const [movements] = await connection.query<mysql.RowDataPacket[]>(`SELECT id,variant_id,location_id,qty_change,unit_cost,reference_type,reference_id
+      FROM ${schema}.ims_stock_movements WHERE business_id=? AND variant_id IN (${placeholders}) ORDER BY id`, [config.expectedBusinessId, ...variantIds]);
+    return { stock, layers, movements };
+  };
+  try {
+    const before = await loadAllocationFixtureSnapshot(config);
+    expect(before.stock).toEqual({ qtyOnHand: 0, qtyIncoming: 0, qtyCommitted: 0 });
+    const sku = `E2E-COST-${config.runId}`;
+    const product = await command('/api/ims/products', { name: `LIVE E2E ${config.runId} COST VARIANTS`,
+      base_sku: sku, is_stock_item: 1, is_active: 1, is_online: 0 });
+    productId = product.product_id;
+    expect(productId).toBeTruthy();
+    await checkpoint('unused_product_created');
+    for (const label of ['A', 'B']) {
+      const variant = await command('/api/ims/variants', { product_id: productId, sku: `${sku}-${label}`,
+        variant_name: label, is_active: 1, cost_aud: 0, price_rrp: 1 });
+      expect(variant.variant_id).toBeTruthy();
+      variantIds.push(variant.variant_id);
+      await checkpoint(`variant_${label}_created`);
+    }
+    const unitCosts = [[0.4, 0.2], [0.8, 0.6]].map(costs => costs.map(cost => cost * config.maxDocumentTotal));
+    const totals = unitCosts.map(costs => Number(((costs[0] + costs[1]) * 0.5).toFixed(2)));
+    expect(Number(totals.reduce((sum, value) => sum + value, 0).toFixed(2))).toBe(config.maxDocumentTotal);
+    for (let index = 0; index < 2; index++) {
+      const items = [config.fixtureVariantId, variantIds[index + 1]].map((variantId, itemIndex) => ({
+        variant_id: variantId, qty_ordered: 0.5, qty_received: 0, unit_cost: unitCosts[index][itemIndex], tax_rate: 0,
+        line_total: 0.5 * unitCosts[index][itemIndex],
+      }));
+      const created = await command('/api/ims/purchase-orders', { supplier_id: config.fixtureSupplierId,
+        location_id: config.fixtureLocationId, order_date: new Date().toISOString().slice(0, 10), tax_treatment: 'no_tax', currency_code: 'AUD',
+        supplier_invoice_number: `E2E-${config.runId}-${index + 1}`,
+        notes: `LIVE E2E ${config.runId} DISTINCT COST ${index + 1}`, status: 'draft',
+        subtotal: totals[index], tax_amount: 0, total_amount: totals[index], items });
+      const poId = Number(created.id);
+      expect(poId).toBeGreaterThan(0);
+      purchaseOrderIds.push(poId);
+      await checkpoint(`po_${index + 1}_draft_created`);
+      await command(`/api/ims/purchase-orders/${poId}`, { status: 'confirmed' }, 'put');
+      await expect.poll(async () => (await detail(poId)).xero_bill_id, { timeout: 45_000 }).toBeTruthy();
+      const confirmed = await detail(poId);
+      expect(Number(confirmed.total_amount)).toBe(totals[index]);
+      xeroBillIds.push(confirmed.xero_bill_id);
+      await checkpoint(`po_${index + 1}_confirmed`);
+      const receipt = { po_id: poId, location_id: config.fixtureLocationId, operation_key: `${config.runId}:receipt:${index + 1}`,
+        received_items: items.map(item => ({ variant_id: item.variant_id, qty_received: 0.5 })), mark_po_received: true, create_backorder_po: false };
+      await command('/api/ims/receive/batch', receipt);
+      const completed = await snapshot();
+      expect((await detail(poId)).status).toBe('complete');
+      for (const item of items) {
+        const sourceLayers = completed.layers.filter(layer => layer.variant_id === item.variant_id && Number(layer.source_reference_id) === poId);
+        expect(sourceLayers).toHaveLength(1);
+        expect([sourceLayers[0].original_quantity, sourceLayers[0].remaining_quantity, sourceLayers[0].unit_cost].map(Number))
+          .toEqual([0.5, 0.5, item.unit_cost]);
+      }
+      await checkpoint(`po_${index + 1}_received`);
+      await command('/api/ims/receive/batch', receipt);
+      expect(await snapshot()).toEqual(completed);
+      await expect.poll(async () => {
+        const bill = await xeroApiFetch(config.expectedBusinessId, `/Invoices/${confirmed.xero_bill_id}`, { method: 'GET' });
+        return [Number(bill.Invoices[0].Total), Number(bill.Invoices[0].TotalTax)];
+      }, { timeout: 45_000 }).toEqual([totals[index], 0]);
+    }
+    const received = await snapshot();
+    const positiveLayers = received.layers.filter(layer => layer.variant_id === config.fixtureVariantId && Number(layer.remaining_quantity) > 0);
+    expect(positiveLayers.map(layer => [Number(layer.remaining_quantity), Number(layer.unit_cost)]))
+      .toEqual([[0.5, unitCosts[0][0]], [0.5, unitCosts[1][0]]]);
+    expect((await loadAllocationFixtureSnapshot(config)).stock).toEqual({ qtyOnHand: 1, qtyIncoming: 0, qtyCommitted: 0 });
+    await appendManifestState(config.runId, 'awaiting_operator', { scenario: 'Distinct receipt costs and variants', productId,
+      variantIds, purchaseOrderIds, xeroBillIds, distinctCostsPassed: true, multiVariantReceiptPassed: true });
+    await appendManifestState(config.runId, 'acknowledged', { operator: 'Authorised exact routine receipt undo and unused product archive', purchaseOrderIds });
+    await appendManifestState(config.runId, 'compensating', { purchaseOrderIds, productId, variantIds, xeroBillIds });
+    for (const index of [1, 0]) {
+      const poId = purchaseOrderIds[index];
+      const current = await detail(poId);
+      const undo = await command(`/api/ims/purchase-orders/${poId}/undo-receipt`, {
+        operationKey: `${config.runId}:undo:${index + 1}`, expectedUpdatedAt: current.updated_at,
+      });
+      expect(undo.xeroWarning).toBeUndefined();
+      const state = await snapshot();
+      for (const layer of state.layers.filter(layer => Number(layer.source_reference_id) === poId)) expect(Number(layer.remaining_quantity)).toBe(0);
+      const reversals = state.movements.filter(row => row.reference_type === 'purchase_order' && Number(row.reference_id) === poId && Number(row.qty_change) < 0);
+      expect(reversals).toHaveLength(2);
+      expect(reversals.map(row => Number(row.unit_cost)).sort()).toEqual([...unitCosts[index]].sort());
+      expect(reversals.every(row => Number(row.qty_change) === -0.5)).toBe(true);
+      if (index === 1) {
+        expect((await loadAllocationFixtureSnapshot(config)).stock).toEqual({ qtyOnHand: 0.5, qtyIncoming: 0, qtyCommitted: 0 });
+        const untouched = state.layers.filter(layer => Number(layer.source_reference_id) === purchaseOrderIds[0]);
+        expect(untouched).toHaveLength(2);
+        expect(untouched.every(layer => Number(layer.remaining_quantity) === 0.5)).toBe(true);
+      }
+      const bill = await xeroApiFetch(config.expectedBusinessId, `/Invoices/${xeroBillIds[index]}`, { method: 'GET' });
+      expect(['DELETED', 'VOIDED']).toContain(bill.Invoices[0].Status);
+    }
+    const final = await snapshot();
+    expect(final.stock.every(row => [row.qty_on_hand, row.qty_incoming, row.qty_committed].every(value => Number(value) === 0))).toBe(true);
+    expect(final.layers.every(layer => Number(layer.remaining_quantity) === 0)).toBe(true);
+    await command(`/api/ims/products/${productId}`, { is_active: 0 }, 'put');
+    const fifo = await verifyLiveFifoIntegrity(config);
+    expect(fifo.stockQuantity).toBe(0);
+    expect(fifo.layerQuantity).toBe(0);
+    await appendManifestState(config.runId, 'clean', { scenario: 'Distinct receipt costs and variants', productId, variantIds, purchaseOrderIds, xeroBillIds,
+      distinctCostsPassed: true, multiVariantReceiptPassed: true, reverseOrderUndoPassed: true, receiptReplayPassed: true, allVariantsZero: true, unusedProductArchived: true });
+  } catch (error) {
+    await appendManifestState(config.runId, 'blocked', { scenario: 'Distinct receipt costs and variants', productId, variantIds,
+      purchaseOrderIds, xeroBillIds, error: error instanceof Error ? error.message : String(error) });
+    throw error;
+  } finally { await connection.end(); }
+});
+
 test('@branch-round-trip preserves FIFO cost across TEST and Warehouse Branch', async ({ page }) => {
   test.setTimeout(300_000);
   const config = loadLiveE2EConfig();

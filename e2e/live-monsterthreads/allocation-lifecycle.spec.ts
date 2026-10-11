@@ -13,12 +13,15 @@ type Documents = { purchaseOrderIds: number[]; salesOrderIds: number[]; received
 
 async function recordedDocuments(config: LiveE2EConfig): Promise<Documents> {
   const events = await readManifest(config.runId);
-  const details = events.findLast(event => event.state === 'allocation_created')?.details as Documents | undefined;
+  const details = events.findLast(event => ['allocation_created', 'awaiting_operator'].includes(event.state)
+    && Array.isArray((event.details as Documents)?.purchaseOrderIds)
+    && Array.isArray((event.details as Documents)?.salesOrderIds))?.details as Documents | undefined;
   return { purchaseOrderIds: [...(details?.purchaseOrderIds ?? [])], salesOrderIds: [...(details?.salesOrderIds ?? [])], receivedPurchaseOrderIds: [...(details?.receivedPurchaseOrderIds ?? [])] };
 }
 
 async function checkpoint(config: LiveE2EConfig, documents: Documents, phase: string) {
-  await appendManifestState(config.runId, 'allocation_created', { scenario: 'Incoming allocation', ...documents, phase });
+  const state = (await readManifest(config.runId)).at(-1)?.state === 'awaiting_operator' ? 'awaiting_operator' : 'allocation_created';
+  await appendManifestState(config.runId, state, { scenario: 'Incoming allocation', ...documents, phase });
 }
 
 async function detail(page: Page, kind: 'purchase-orders' | 'sales-orders', id: number) {

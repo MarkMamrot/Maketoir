@@ -335,7 +335,9 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const allowP8PreflightCarry = config.action === 'p8' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     let resumableAllocation = false;
-    const allocationCheckpoint = existingEvents.findLast(event => event.state === 'allocation_created')?.details as { purchaseOrderIds?: unknown; salesOrderIds?: unknown; receivedPurchaseOrderIds?: unknown } | undefined;
+    const allocationCheckpoint = existingEvents.findLast(event => ['allocation_created', 'awaiting_operator'].includes(event.state)
+      && Array.isArray((event.details as { purchaseOrderIds?: unknown })?.purchaseOrderIds)
+      && Array.isArray((event.details as { salesOrderIds?: unknown })?.salesOrderIds))?.details as { purchaseOrderIds?: unknown; salesOrderIds?: unknown; receivedPurchaseOrderIds?: unknown } | undefined;
     if (['allocation', 'allocation-compensate', 'allocation-received', 'allocation-received-compensate'].includes(config.action) && allocationCheckpoint) {
       if (!Array.isArray(allocationCheckpoint.purchaseOrderIds) || !Array.isArray(allocationCheckpoint.salesOrderIds)) {
         throw new Error('Live E2E blocked: allocation campaign document checkpoint is missing.');

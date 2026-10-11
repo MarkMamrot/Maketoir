@@ -1,5 +1,5 @@
 ---
-{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-08-30","owner":"inventory","quickSections":["Main operations","At a glance"]}
+{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","At a glance"]}
 ---
 # Branch Transfers
 
@@ -40,6 +40,12 @@ When the destination allows POS sales from incoming transfers, POS can sell the 
 Shipping Workspace also shows outstanding quantities from Sent and Partially Received transfers when its pre-label stock check finds a shortage at the destination branch. This explains expected supply but does not make the shipment ready: use **Receive transfer** only after the goods physically arrive. Received and Cancelled transfers are not counted as incoming.
 
 ## Step-by-step
+
+### Review completed history
+
+1. Search the transfer number in **Locations > Branch Transfers** and open its row.
+2. Review the route, received quantities, unit costs, and line values. On a small screen, scroll the line items horizontally to reach the rightmost values.
+3. Close the detail panel to return to the filtered list. Completed transfers remain in this list, not in **Receive Transfers**.
 
 ### Create and send
 

@@ -1469,7 +1469,7 @@
       },
       "order": 51,
       "summary": "Create, send, track, and receive stock moving between branches, including short and partial receipts.",
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
@@ -12442,7 +12442,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "Use one branch transfer to record goods leaving a source, travelling between branches, and arriving at the destination.",
       "sectionId": "ims-branch-transfers:1"
     },
@@ -12463,7 +12463,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "- Create and review a Draft transfer.\n- Add multiline transfer notes for packing instructions or selected Store Daybook needs.\n- Send the transfer when goods leave the source.\n- Keep Sent goods in transit until the destination counts them.\n- Edit a Sent transfer when its route, lines, quantities, costs, or notes need correction before receipt.\n- Receive the actual quantities or save a partial receipt for later.\n- Undo a mistaken partial or completed receipt and reopen the transfer as Sent.\n- Find completed transfer history in Branch Transfers.",
       "sectionId": "ims-branch-transfers:2"
     },
@@ -12484,7 +12484,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "| Status | Physical meaning | Stock position | Next action |\n|---|---|---|---|\n| Draft | Goods have not been dispatched | Source and destination are unchanged | Edit, send, cancel, or delete as offered |\n| Sent | Goods left the source and are in transit | Sent quantities are committed at the source; destination has not received them | Edit a dispatch error or receive at the destination |\n| Partially Received | Some quantities arrived or were confirmed | Only received quantities are at the destination; short lines remain visible | Continue receiving, finalise reviewed shorts, or undo a mistaken receipt |\n| Received | Destination receipt is finished | Actual received quantities are recorded at the destination | Review it or undo a mistaken receipt |\n| Cancelled | Transfer will not proceed | Retained for audit | Create a new transfer if goods move later |",
       "sectionId": "ims-branch-transfers:3"
     },
@@ -12505,7 +12505,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "- [ ] Confirm the source and destination are different active locations.\n- [ ] Count the variants and quantities being packed.\n- [ ] Check for another transfer covering the same goods.\n- [ ] At receipt, compare the transfer with the physical shipment before entering quantities.\n\n> **Important:** Sending and receiving are separate stages. Do not make matching manual adjustments at either branch for goods already covered by the transfer.\n\nWhen the destination allows POS sales from incoming transfers, POS can sell the same variant before receipt up to the transfer's outstanding quantity. The destination may temporarily show negative stock, and IMS Notifications identifies the sale for warehouse review. Receiving the transfer adds the confirmed arrival against that balance; do not create a separate adjustment.\n\nShipping Workspace also shows outstanding quantities from Sent and Partially Received transfers when its pre-label stock check finds a shortage at the destination branch. This explains expected supply but does not make the shipment ready: use **Receive transfer** only after the goods physically arrive. Received and Cancelled transfers are not counted as incoming.",
       "sectionId": "ims-branch-transfers:4"
     },
@@ -12526,12 +12526,33 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
-      "content": "### Create and send\n\n1. Open **Locations > Branch Transfers** and select **New Transfer**.\n2. Choose the source, destination, transfer date, and any useful packing notes. Notes support multiple lines. You can paste the combined clipboard built from Store Daybook Requests and Store needs; each copied request is separated by blank space and a divider.\n3. Add each product variant and quantity to send, then save the Draft.\n4. Review the transfer number, route, items, quantities, and value.\n\tThe Zone and Bin shown for each line are the storage coordinates at the transfer's source location, normally the warehouse. They are not the destination branch coordinates.\n5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.\n6. Mark the transfer **Sent** only when the goods physically leave the source.\n7. If a Sent transfer is wrong, use **Edit** before any receipt is recorded. Saving releases the previous source commitments and applies the corrected route and lines.\n\n> **Important:** Once receipt has started, use **Undo Receipt** before editing the transfer. This keeps destination stock and the transfer record aligned.\n\n### Receive at the destination\n\n1. Open **Receive Transfers** and choose the destination branch. Only Sent and Partially Received transfers appear here.\n2. Open the transfer. Received quantities begin at 0; scan each item or enter the quantity physically present.\n3. Use **Receive All** only after confirming every sent quantity arrived.\n4. Choose **Save & Continue Later** when more goods or checking is required. The transfer remains Partially Received.\n5. Choose **Confirm Receipt & Move Stock** when the entered receipt is final.\n6. For a partial transfer, use **Manage Partial** to review received quantities and short lines before marking it Received.\n\n### Undo a mistaken receipt\n\n1. Open **Locations > Branch Transfers** and find the Partially Received or Received transfer.\n2. Select **Undo Receipt** and review the confirmation carefully.\n3. Confirm only when the receipt was recorded against the wrong transfer, branch, or quantities.\n4. The received quantities are removed from the destination and returned to the source. The transfer reopens as Sent so the destination can receive it again correctly.\n\n> **Warning:** Undo Receipt is blocked when the destination no longer has enough of a variant to reverse all quantities received on the transfer. Review later sales, adjustments, or transfers for that stock before trying again. Do not use a manual adjustment to force the reversal.",
+      "lastReviewed": "2026-10-11",
+      "content": "### Review completed history\n\n1. Search the transfer number in **Locations > Branch Transfers** and open its row.\n2. Review the route, received quantities, unit costs, and line values. On a small screen, scroll the line items horizontally to reach the rightmost values.\n3. Close the detail panel to return to the filtered list. Completed transfers remain in this list, not in **Receive Transfers**.\n\n### Create and send\n\n1. Open **Locations > Branch Transfers** and select **New Transfer**.\n2. Choose the source, destination, transfer date, and any useful packing notes. Notes support multiple lines. You can paste the combined clipboard built from Store Daybook Requests and Store needs; each copied request is separated by blank space and a divider.\n3. Add each product variant and quantity to send, then save the Draft.\n4. Review the transfer number, route, items, quantities, and value.\n\tThe Zone and Bin shown for each line are the storage coordinates at the transfer's source location, normally the warehouse. They are not the destination branch coordinates.\n5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.\n6. Mark the transfer **Sent** only when the goods physically leave the source.\n7. If a Sent transfer is wrong, use **Edit** before any receipt is recorded. Saving releases the previous source commitments and applies the corrected route and lines.\n\n> **Important:** Once receipt has started, use **Undo Receipt** before editing the transfer. This keeps destination stock and the transfer record aligned.\n\n### Receive at the destination\n\n1. Open **Receive Transfers** and choose the destination branch. Only Sent and Partially Received transfers appear here.\n2. Open the transfer. Received quantities begin at 0; scan each item or enter the quantity physically present.\n3. Use **Receive All** only after confirming every sent quantity arrived.\n4. Choose **Save & Continue Later** when more goods or checking is required. The transfer remains Partially Received.\n5. Choose **Confirm Receipt & Move Stock** when the entered receipt is final.\n6. For a partial transfer, use **Manage Partial** to review received quantities and short lines before marking it Received.\n\n### Undo a mistaken receipt\n\n1. Open **Locations > Branch Transfers** and find the Partially Received or Received transfer.\n2. Select **Undo Receipt** and review the confirmation carefully.\n3. Confirm only when the receipt was recorded against the wrong transfer, branch, or quantities.\n4. The received quantities are removed from the destination and returned to the source. The transfer reopens as Sent so the destination can receive it again correctly.\n\n> **Warning:** Undo Receipt is blocked when the destination no longer has enough of a variant to reverse all quantities received on the transfer. Review later sales, adjustments, or transfers for that stock before trying again. Do not use a manual adjustment to force the reversal.",
       "sectionId": "ims-branch-transfers:5"
     },
     {
       "id": "ims-branch-transfers:5.1",
+      "documentId": "ims-branch-transfers",
+      "title": "Branch Transfers",
+      "heading": "Step-by-step > Review completed history",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "inventory",
+      "screen": "Locations > Branch Transfers",
+      "topicId": "ims-branch-transfers",
+      "contexts": [
+        "branch-transfers",
+        "smart-device-receive",
+        "receive-transfers"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-11",
+      "content": "1. Search the transfer number in **Locations > Branch Transfers** and open its row.\n2. Review the route, received quantities, unit costs, and line values. On a small screen, scroll the line items horizontally to reach the rightmost values.\n3. Close the detail panel to return to the filtered list. Completed transfers remain in this list, not in **Receive Transfers**.",
+      "sectionId": "ims-branch-transfers:5"
+    },
+    {
+      "id": "ims-branch-transfers:5.2",
       "documentId": "ims-branch-transfers",
       "title": "Branch Transfers",
       "heading": "Step-by-step > Create and send",
@@ -12547,12 +12568,12 @@
         "receive-transfers"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "1. Open **Locations > Branch Transfers** and select **New Transfer**.\n2. Choose the source, destination, transfer date, and any useful packing notes. Notes support multiple lines. You can paste the combined clipboard built from Store Daybook Requests and Store needs; each copied request is separated by blank space and a divider.\n3. Add each product variant and quantity to send, then save the Draft.\n4. Review the transfer number, route, items, quantities, and value.\n\tThe Zone and Bin shown for each line are the storage coordinates at the transfer's source location, normally the warehouse. They are not the destination branch coordinates.\n5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.\n6. Mark the transfer **Sent** only when the goods physically leave the source.\n7. If a Sent transfer is wrong, use **Edit** before any receipt is recorded. Saving releases the previous source commitments and applies the corrected route and lines.\n\n> **Important:** Once receipt has started, use **Undo Receipt** before editing the transfer. This keeps destination stock and the transfer record aligned.",
       "sectionId": "ims-branch-transfers:5"
     },
     {
-      "id": "ims-branch-transfers:5.2",
+      "id": "ims-branch-transfers:5.3",
       "documentId": "ims-branch-transfers",
       "title": "Branch Transfers",
       "heading": "Step-by-step > Receive at the destination",
@@ -12568,12 +12589,12 @@
         "receive-transfers"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "1. Open **Receive Transfers** and choose the destination branch. Only Sent and Partially Received transfers appear here.\n2. Open the transfer. Received quantities begin at 0; scan each item or enter the quantity physically present.\n3. Use **Receive All** only after confirming every sent quantity arrived.\n4. Choose **Save & Continue Later** when more goods or checking is required. The transfer remains Partially Received.\n5. Choose **Confirm Receipt & Move Stock** when the entered receipt is final.\n6. For a partial transfer, use **Manage Partial** to review received quantities and short lines before marking it Received.",
       "sectionId": "ims-branch-transfers:5"
     },
     {
-      "id": "ims-branch-transfers:5.3",
+      "id": "ims-branch-transfers:5.4",
       "documentId": "ims-branch-transfers",
       "title": "Branch Transfers",
       "heading": "Step-by-step > Undo a mistaken receipt",
@@ -12589,7 +12610,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "1. Open **Locations > Branch Transfers** and find the Partially Received or Received transfer.\n2. Select **Undo Receipt** and review the confirmation carefully.\n3. Confirm only when the receipt was recorded against the wrong transfer, branch, or quantities.\n4. The received quantities are removed from the destination and returned to the source. The transfer reopens as Sent so the destination can receive it again correctly.\n\n> **Warning:** Undo Receipt is blocked when the destination no longer has enough of a variant to reverse all quantities received on the transfer. Review later sales, adjustments, or transfers for that stock before trying again. Do not use a manual adjustment to force the reversal.",
       "sectionId": "ims-branch-transfers:5"
     },
@@ -12610,7 +12631,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Transfer is missing from Receive Transfers | It is Draft, Received, Cancelled, or for another destination | Search the transfer number in Branch Transfers and check status and route |\n| Destination quantity is still 0 | The transfer was sent but not received | Count the goods and complete the destination receipt |\n| IMS reports a POS sale used incoming transfer stock | The destination sold goods before recording this transfer's receipt | Confirm the goods arrived, complete the matching receipt, and verify destination stock |\n| Fewer goods arrived than sent | The shipment is short or still split | Enter only what arrived and save partial, or finalise the reviewed short quantity |\n| Undo Receipt says destination stock is insufficient | Some received stock has since been sold, adjusted, or moved | Review the variant's later activity and correct that activity first; then retry Undo Receipt |\n| A barcode does not match | The scanned SKU is not on this transfer | Stop and identify the item; do not add it as a different line casually |",
       "sectionId": "ims-branch-transfers:6"
     },
@@ -12631,7 +12652,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "### Send, hold in transit, and receive\n\nThe warehouse sends 12 mugs costing $8 each, transfer value $96. Marking the transfer Sent records 12 leaving the warehouse. While travelling, the store has not received them. The store counts 12 and confirms receipt, adding 12 to the destination once.\n\n### Receive a short shipment\n\nA transfer says 10 jackets were sent, but the branch receives 8. Enter 8 and choose **Save & Continue Later** while the other 2 are checked. If the final confirmed receipt remains 8, manage the partial transfer and mark it Received with the short quantity still visible in the transfer record.\n\n### Correct a receipt recorded against the wrong transfer\n\nA branch records 6 lamps as received, then discovers the cartons belong to another transfer. Use **Undo Receipt** before recording the correct transfer. The 6 lamps leave the destination stock, return to the source stock, and the original transfer returns to Sent with its received quantities cleared.",
       "sectionId": "ims-branch-transfers:7"
     },
@@ -12652,7 +12673,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "The warehouse sends 12 mugs costing $8 each, transfer value $96. Marking the transfer Sent records 12 leaving the warehouse. While travelling, the store has not received them. The store counts 12 and confirms receipt, adding 12 to the destination once.",
       "sectionId": "ims-branch-transfers:7"
     },
@@ -12673,7 +12694,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "A transfer says 10 jackets were sent, but the branch receives 8. Enter 8 and choose **Save & Continue Later** while the other 2 are checked. If the final confirmed receipt remains 8, manage the partial transfer and mark it Received with the short quantity still visible in the transfer record.",
       "sectionId": "ims-branch-transfers:7"
     },
@@ -12694,7 +12715,7 @@
         "receive-transfers"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-10-11",
       "content": "A branch records 6 lamps as received, then discovers the cartons belong to another transfer. Use **Undo Receipt** before recording the correct transfer. The 6 lamps leave the destination stock, return to the source stock, and the original transfer returns to Sent with its received quantities cleared.",
       "sectionId": "ims-branch-transfers:7"
     },

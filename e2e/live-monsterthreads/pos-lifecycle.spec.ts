@@ -427,11 +427,11 @@ async function posSaleOracle(config: LiveE2EConfig, localIds: string[]) {
   } finally { await connection.end(); }
 }
 
-test('@pos-fifo-return completes a linked cash sale and return with sole CN restock ownership', async ({ page }) => {
+test('@pos-fifo-return @pos-costed-return completes a linked cash sale and return with sole CN restock ownership', async ({ page }) => {
   test.setTimeout(300_000);
   const config = loadLiveE2EConfig();
   expect(config.action).toBe('build');
-  expect(config.expectedCostingMethod).toBe('fifo');
+  expect(['fifo', 'average_cost']).toContain(config.expectedCostingMethod);
   const events = await readManifest(config.runId);
   const recoveringSale = events.at(-1)?.state === 'blocked';
   expect(['awaiting_operator', 'blocked']).toContain(events.at(-1)?.state);
@@ -581,7 +581,8 @@ test('@pos-fifo-return completes a linked cash sale and return with sole CN rest
     const saleMovements = (await loadAllocationFixtureSnapshot(config)).movements.filter(row => Number(row.reference_id) === saleId && row.reference_type === 'pos_sale');
     expect(saleMovements).toHaveLength(1);
     expect(Number(saleMovements[0].unit_cost)).toBe(1);
-    expect((await verifyLiveFifoIntegrity(config)).layerQuantity).toBe(0);
+    expect(saleMovements[0].cost_method_snapshot).toBe(config.expectedCostingMethod);
+    if (config.expectedCostingMethod === 'fifo') expect((await verifyLiveFifoIntegrity(config)).layerQuantity).toBe(0);
     if (!recoveringSale) expect(Number((await command('/api/pos/sales', sale)).id)).toBe(saleId);
     expect(await posSaleOracle(config, [saleLocalId, returnLocalId])).toEqual(sold);
     const returned = { ...sale, local_id: returnLocalId, notes: returnLocalId, sale_type: 'return', return_of_sale_id: saleId,
@@ -598,8 +599,9 @@ test('@pos-fifo-return completes a linked cash sale and return with sole CN rest
     expect(returnMovements).toHaveLength(1);
     expect(Number(returnMovements[0].unit_cost)).toBe(1);
     expect(Number(returnMovements[0].qty_change)).toBe(1);
+    expect(returnMovements[0].cost_method_snapshot).toBe(config.expectedCostingMethod);
     expect((await loadAllocationFixtureSnapshot(config)).stock).toEqual({ qtyOnHand: 1, qtyIncoming: 0, qtyCommitted: 0 });
-    expect((await verifyLiveFifoIntegrity(config)).layerQuantity).toBe(1);
+    if (config.expectedCostingMethod === 'fifo') expect((await verifyLiveFifoIntegrity(config)).layerQuantity).toBe(1);
     const replay = await command('/api/pos/sales', returned);
     expect(Number(replay.id)).toBe(returnId);
     expect(replay.credit_note_id).toBe(result.credit_note_id);
@@ -618,9 +620,10 @@ test('@pos-fifo-return completes a linked cash sale and return with sole CN rest
     await command('/api/pos/register/close', { session_id: sessionId });
     expect((await registerOracle(config, registerId)).sessions.filter(session => session.status === 'open')).toHaveLength(0);
     expect((await loadAllocationFixtureSnapshot(config)).stock).toEqual({ qtyOnHand: 0, qtyIncoming: 0, qtyCommitted: 0 });
-    const fifo = await verifyLiveFifoIntegrity(config);
-    expect(fifo.layerQuantity).toBe(0);
+    const fifo = config.expectedCostingMethod === 'fifo' ? await verifyLiveFifoIntegrity(config) : null;
+    if (fifo) expect(fifo.layerQuantity).toBe(0);
     await appendManifestState(config.runId, 'clean', { ...source, scenario: 'POS FIFO', registerId, sessionId, saleId, returnId, supplierCreditNoteId, fifo,
+      costingMethod: config.expectedCostingMethod,
       surface, offlineCheckoutPassed: surface === 'offline-ui',
       recoveredExistingSaleWithoutResubmission: recoveringSale,
       permanentArtifacts: ['Cash sale and linked cash refund with sole completed CN restock', 'Completed PO and supplier return', 'Closed zero-float register session'] });

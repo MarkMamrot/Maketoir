@@ -5985,6 +5985,39 @@ async function restockCreditNoteItemsTx(
         if (Number.isFinite(capturedCost) && capturedCost >= 0) returnUnitCost = capturedCost;
       }
     }
+    if (costing.costingState.method === 'average_cost' && costing.source === 'pos' && costing.posSaleId) {
+      const [linkedSales] = await conn.execute<any[]>(
+        `SELECT original.id AS original_sale_id, SUM(ABS(returned_item.qty)) AS return_quantity,
+                (SELECT SUM(sold.qty) FROM pos_sale_items sold
+                  WHERE sold.sale_id = original.id AND sold.variant_id = ? AND sold.qty > 0) AS original_quantity
+           FROM pos_sales returned
+           JOIN pos_sale_items returned_item ON returned_item.sale_id = returned.id
+           JOIN pos_sales original ON original.id = returned.return_of_sale_id
+             AND original.business_id = returned.business_id AND original.status IN ('completed', 'layby_complete')
+           JOIN pos_sale_items original_item ON original_item.id = returned_item.return_of_sale_item_id
+             AND original_item.sale_id = original.id AND original_item.variant_id = returned_item.variant_id AND original_item.qty > 0
+          WHERE returned.id = ? AND returned.business_id = ? AND returned.sale_type = 'return'
+            AND returned_item.variant_id = ? AND returned_item.qty < 0
+          GROUP BY original.id FOR UPDATE`,
+        [item.variant_id, costing.posSaleId, businessId, item.variant_id],
+      );
+      if (linkedSales.length === 1 && Number(linkedSales[0].return_quantity) + 0.0001 >= qty
+        && Number(linkedSales[0].return_quantity) <= Number(linkedSales[0].original_quantity) + 0.0001) {
+        const [sourceMovements] = await conn.execute<any[]>(
+          `SELECT movement.qty_change, movement.unit_cost FROM ims_stock_movements movement
+            WHERE movement.business_id = ? AND movement.reference_type = 'pos_sale' AND movement.reference_id = ?
+              AND movement.movement_type = 'pos_sale' AND movement.variant_id = ? AND movement.location_id = ?
+              AND movement.qty_change < 0 FOR UPDATE`,
+          [businessId, linkedSales[0].original_sale_id, item.variant_id, locationId],
+        );
+        const sourceQuantity = sourceMovements.reduce((sum, movement) => sum - Number(movement.qty_change), 0);
+        const costs = sourceMovements.map(movement => movement.unit_cost == null ? null : Number(movement.unit_cost));
+        if (sourceMovements.length > 0 && Math.abs(sourceQuantity - Number(linkedSales[0].original_quantity)) < 0.0001
+          && costs.every(cost => cost != null && Number.isFinite(cost) && cost >= 0 && cost === costs[0])) {
+          returnUnitCost = costs[0];
+        }
+      }
+    }
     await conn.execute(
       `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)`,
       [businessId, item.variant_id, locationId],

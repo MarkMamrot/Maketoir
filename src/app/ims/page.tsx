@@ -572,8 +572,8 @@ function parseStyleStr(s: string): Record<string, string> {
 // Modal
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Modal({ title, onClose, children, wide, wider, width, zIndex = 1000 }: {
-  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number; zIndex?: number;
+function Modal({ title, onClose, children, wide, wider, width, zIndex = 1000, dialogLabel }: {
+  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number; zIndex?: number; dialogLabel?: string;
 }) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -585,7 +585,7 @@ function Modal({ title, onClose, children, wide, wider, width, zIndex = 1000 }: 
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, paddingBottom: 40, background: 'rgba(0,0,0,.6)', overflowY: 'auto' }}>
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: width ?? (wider ? 1360 : wide ? 1180 : 620), maxWidth: 'calc(100vw - 48px)', boxSizing: 'border-box', padding: 28, position: 'relative' }}>
+      <div role={dialogLabel ? 'dialog' : undefined} aria-modal={dialogLabel ? true : undefined} aria-label={dialogLabel} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: width ?? (wider ? 1360 : wide ? 1180 : 620), maxWidth: 'calc(100vw - 48px)', boxSizing: 'border-box', padding: 28, position: 'relative' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
@@ -24893,7 +24893,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
 
       {/* View Transfer Modal */}
       {viewModal.open && viewModal.bt && (
-        <Modal title={`${viewModal.bt.transfer_number} — ${viewModal.bt.status}`} onClose={() => setViewModal({ open: false, bt: null })} wide>
+        <Modal title={`${viewModal.bt.transfer_number} — ${viewModal.bt.status}`} dialogLabel={`Transfer ${viewModal.bt.transfer_number}`} onClose={() => setViewModal({ open: false, bt: null })} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <BTActions
               isAdvisor={isAdvisor}
@@ -24916,7 +24916,8 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
             <div><div style={labelStyle}>Total Value</div><div style={{ fontWeight: 600 }}>{fmtCurrency(viewModal.bt.total_value)}</div></div>
           </div>
           {viewModal.bt.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.bt.notes}</div>}
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+          <div role="region" aria-label="Transfer line items" tabIndex={0} style={{ width: '100%', minWidth: 0, overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-1)' }}>
                 {['SKU', 'Product', 'Variant', 'Qty Sent', 'Qty Received', 'Unit Cost', 'Line Value'].map(h => (
@@ -24953,6 +24954,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               </tr>
             </tfoot>
           </table>
+          </div>
         </Modal>
       )}
 

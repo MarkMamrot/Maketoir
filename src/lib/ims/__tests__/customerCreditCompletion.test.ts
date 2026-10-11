@@ -32,6 +32,8 @@ function connectionFor(options: {
   posReturn?: boolean;
   restockLinkedReturn?: boolean;
   sourceUnitCost?: number | null;
+  posLinkedQuantity?: number;
+  posSourceMovements?: { qty_change: number; unit_cost: number | null }[];
 } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -80,6 +82,12 @@ function connectionFor(options: {
     }
     if (normalized.includes('from ims_sales_order_items soi')) {
       return [[{ qty_fulfilled: options.fulfilledQty ?? 2, unit_cost: options.sourceUnitCost === undefined ? 10 : options.sourceUnitCost }]];
+    }
+    if (normalized.includes('from pos_sales returned')) {
+      return [[{ original_sale_id: 29, return_quantity: options.posLinkedQuantity ?? 2, original_quantity: 2 }]];
+    }
+    if (normalized.includes('from ims_stock_movements movement')) {
+      return [options.posSourceMovements ?? [{ qty_change: -2, unit_cost: options.sourceUnitCost === undefined ? 10 : options.sourceUnitCost }]];
     }
     if (normalized.includes('select so_type from ims_sales_orders')) {
       return [[{ so_type: 'wholesale' }]];
@@ -213,6 +221,27 @@ describe('ImsCNRepo.complete', () => {
       [21, 9, 'biz-1', 'v-1'],
     );
     expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { sourceUnitCost: 4.25, expectedCost: 4.25, posLinkedQuantity: 2 },
+    { sourceUnitCost: 0, expectedCost: 0, posLinkedQuantity: 2 },
+    { sourceUnitCost: null, expectedCost: null, posLinkedQuantity: 2 },
+    { sourceUnitCost: -1, expectedCost: null, posLinkedQuantity: 2 },
+    { sourceUnitCost: 4.25, expectedCost: null, posLinkedQuantity: 1 },
+    { sourceUnitCost: 4.25, expectedCost: null, posLinkedQuantity: 2, posSourceMovements: [{ qty_change: -1, unit_cost: 4.25 }] },
+    { sourceUnitCost: 4.25, expectedCost: null, posLinkedQuantity: 2, posSourceMovements: [{ qty_change: -1, unit_cost: 4.25 }, { qty_change: -1, unit_cost: 6 }] },
+  ])('captures only complete original POS cost provenance under Average Cost: $sourceUnitCost / $posLinkedQuantity', async (options) => {
+    const connection = connectionFor({ posReturn: true, ...options });
+
+    await ImsCNRepo.complete(12, 'biz-1');
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id'),
+      ['biz-1', 'v-1', 4, 'pos', 12, 31, 2, 7, options.expectedCost, 'average_cost', null],
+    );
+    expect(mockCreateFifoPosReturnLayers).not.toHaveBeenCalled();
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
