@@ -4,16 +4,33 @@ import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 interface ForeignHint { currency: string; amount: number }
-interface RepairMovement {
+export interface RepairMovement {
   id: number; sku: string | null; productName: string; locationName: string; movementType: string;
   referenceType: string; referenceId: number | null; quantity: number; unitCost: number | null;
   costMethod: 'average_cost' | 'fifo'; occurredAt: string;
   suggestions: { costAud: number | null; averageCost: number | null; foreign: ForeignHint[] };
 }
-interface Selection { value: string; source: 'cost_aud' | 'average_cost' | 'foreign_current_fx' | 'manual'; detail: Record<string, unknown> }
+export interface Selection { value: string; source: 'cost_aud' | 'average_cost' | 'foreign_current_fx' | 'manual'; detail: Record<string, unknown> }
 
 const aud = (value: number) => value.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const smallButton: React.CSSProperties = { border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', padding: '6px 8px', fontSize: 11, cursor: 'pointer' };
+
+export function fillBlankSelections(rows: RepairMovement[], current: Record<number, Selection>, source: 'cost_aud' | 'average_cost') {
+  const next = { ...current };
+  for (const row of rows) {
+    if (next[row.id]?.value.trim() && Number(next[row.id].value) > 0) continue;
+    const value = source === 'cost_aud' ? row.suggestions.costAud : row.suggestions.averageCost;
+    if (value == null || !Number.isFinite(value) || value <= 0) continue;
+    next[row.id] = {
+      value: String(Math.round(value * 10000) / 10000),
+      source,
+      detail: source === 'cost_aud'
+        ? { label: 'Current catalogue AUD cost', costAud: value }
+        : { label: 'Current average cost', averageCost: value },
+    };
+  }
+  return next;
+}
 
 export function CogsCostRepairPanel({ from, toExclusive, onClose, onSaved }: {
   from: string; toExclusive: string; onClose: () => void; onSaved: (message: string) => void;
@@ -55,6 +72,9 @@ export function CogsCostRepairPanel({ from, toExclusive, onClose, onSaved }: {
   };
   const selectedRows = movements.filter(row => selections[row.id] && Number(selections[row.id].value) > 0);
   const selectedFifo = selectedRows.some(row => row.costMethod === 'fifo');
+  const blankSelection = (row: RepairMovement) => !selections[row.id]?.value.trim() || Number(selections[row.id].value) <= 0;
+  const averageCostAvailable = movements.filter(row => blankSelection(row) && Number(row.suggestions.averageCost) > 0).length;
+  const costAudAvailable = movements.filter(row => blankSelection(row) && Number(row.suggestions.costAud) > 0).length;
 
   const save = async () => {
     if (!selectedRows.length || reason.trim().length < 3 || (selectedFifo && !fifoAccepted)) return;
@@ -84,7 +104,12 @@ export function CogsCostRepairPanel({ from, toExclusive, onClose, onSaved }: {
       <div style={{ padding: 18 }}>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>All amounts applied to movement COGS are tax-exclusive AUD unit costs. Catalogue and average costs are current hints, not proof of the historical cost. Foreign hints use today&apos;s displayed FX rate and record that rate with the repair.</p>
         {error && <div role="alert" style={{ marginBottom: 12, padding: 10, color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca' }}>{error}</div>}
-        {loading ? <div role="status">Loading unknown movement costs...</div> : movements.length === 0 ? <div role="status">No unknown COGS movement costs remain in this period.</div> : <div style={{ overflowX: 'auto' }}>
+        {loading ? <div role="status">Loading unknown movement costs...</div> : movements.length === 0 ? <div role="status">No unknown COGS movement costs remain in this period.</div> : <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+            <button disabled={averageCostAvailable === 0} onClick={() => setSelections(current => fillBlankSelections(movements, current, 'average_cost'))} style={{ ...smallButton, opacity: averageCostAvailable ? 1 : 0.55, cursor: averageCostAvailable ? 'pointer' : 'not-allowed' }}>Fill blanks with Average Cost ({averageCostAvailable})</button>
+            <button disabled={costAudAvailable === 0} onClick={() => setSelections(current => fillBlankSelections(movements, current, 'cost_aud'))} style={{ ...smallButton, opacity: costAudAvailable ? 1 : 0.55, cursor: costAudAvailable ? 'pointer' : 'not-allowed' }}>Fill blanks with Cost AUD ({costAudAvailable})</button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 930, borderCollapse: 'collapse', fontSize: 12 }}>
             <thead><tr>{['Movement', 'Product', 'Qty', 'Cost method', 'Choose a tax-exclusive AUD unit cost', 'Reviewed cost'].map(label => <th key={label} style={{ padding: '8px 10px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', color: 'var(--sv-text-dim)', fontSize: 11 }}>{label}</th>)}</tr></thead>
             <tbody>{movements.map(row => <tr key={row.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
@@ -103,7 +128,8 @@ export function CogsCostRepairPanel({ from, toExclusive, onClose, onSaved }: {
               <td style={{ padding: 10, verticalAlign: 'top' }}><label style={{ display: 'grid', gap: 4 }}><span style={{ color: 'var(--sv-text-dim)' }}>AUD per unit</span><input type="number" min="0.0001" step="0.0001" value={selections[row.id]?.value ?? ''} onChange={event => setSelections(current => ({ ...current, [row.id]: { value: event.target.value, source: 'manual', detail: { label: 'Manual reviewed AUD unit cost' } } }))} style={{ width: 130, padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)' }} /></label></td>
             </tr>)}</tbody>
           </table>
-        </div>}
+          </div>
+        </>}
         {movements.length > 0 && <div style={{ display: 'grid', gap: 12, marginTop: 18 }}>
           <label style={{ display: 'grid', gap: 5, maxWidth: 720 }}><strong style={{ fontSize: 12 }}>Review reason</strong><textarea value={reason} onChange={event => setReason(event.target.value)} maxLength={500} rows={2} placeholder="What evidence was reviewed, and why is this cost appropriate for these movements?" style={{ padding: 9, border: '1px solid var(--sv-etch)', borderRadius: 6, resize: 'vertical', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)' }} /></label>
           {selectedFifo && <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', maxWidth: 800, color: '#9a3412', fontSize: 12 }}><input type="checkbox" checked={fifoAccepted} onChange={event => setFifoAccepted(event.target.checked)} /><span>I understand this changes the movement&apos;s COGS unit cost only. Existing FIFO layers and allocations are not rewritten and may retain different historical cost evidence.</span></label>}
