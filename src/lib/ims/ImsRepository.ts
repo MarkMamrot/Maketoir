@@ -58,14 +58,10 @@ async function ensureVariantAvgCost(): Promise<void> {
     const cols = await imsQuery<any>(`SHOW COLUMNS FROM ims_product_variants LIKE 'avg_cost'`);
     if (!cols.length) {
       await imsExecute(`ALTER TABLE ims_product_variants ADD COLUMN avg_cost DECIMAL(15,4) DEFAULT NULL AFTER cost_aud`);
-      // Backfill: business-wide weighted avg from ims_stock, fall back to cost_aud
+      // Legacy schemas gaining the variant column use the current purchase cost.
       await imsExecute(`
         UPDATE ims_product_variants pv
-        SET pv.avg_cost = COALESCE(
-          (SELECT SUM(s.qty_on_hand * s.avg_cost) / NULLIF(SUM(s.qty_on_hand), 0)
-           FROM ims_stock s WHERE s.variant_id = pv.variant_id AND s.qty_on_hand > 0),
-          pv.cost_aud
-        )
+        SET pv.avg_cost = pv.cost_aud
         WHERE pv.avg_cost IS NULL
       `);
     }
@@ -74,19 +70,13 @@ async function ensureVariantAvgCost(): Promise<void> {
 }
 
 /**
- * Write a new org-wide average cost: primary to ims_product_variants,
- * then mirrors the same value to ALL ims_stock rows for that variant
- * (no location_id filter) so every location reflects the single org avg.
+ * Write the org-wide average cost to its authoritative variant record.
  * Must be called inside an open transaction (conn). Never throws.
  */
 async function setOrgAvgCost(conn: any, variantId: string, newAvg: number): Promise<void> {
   try {
     await conn.execute(
       `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
-      [newAvg, variantId],
-    );
-    await conn.execute(
-      `UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`,
       [newAvg, variantId],
     );
   } catch { /* non-critical — must never block a receive */ }
@@ -410,21 +400,6 @@ export interface ImsStocktakeItem {
 
 function variantLabel(v: { option1_value?: string; option2_value?: string; option3_value?: string }): string {
   return [v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ') || 'Default';
-}
-
-async function ensureStock(variantId: string, locationId: number): Promise<void> {
-  await imsExecute(
-    `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-    [variantId, locationId]
-  );
-}
-
-async function getStock(variantId: string, locationId: number): Promise<ImsStock | null> {
-  const rows = await imsQuery<ImsStock>(
-    `SELECT * FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
-    [variantId, locationId]
-  );
-  return rows[0] ?? null;
 }
 
 async function nextPONumber(): Promise<string> {
@@ -1116,7 +1091,9 @@ export const ImsStockRepo = {
     const where = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
     try {
       return await imsQuery<ImsStock>(
-        `SELECT s.*,
+        `SELECT s.id, s.business_id, s.variant_id, s.location_id,
+          s.qty_on_hand, s.qty_incoming, s.qty_committed, s.min_qty, s.reorder_qty,
+          v.avg_cost, s.zone, s.bin, s.updated_at,
                 (s.qty_on_hand - s.qty_committed) AS available,
           v.product_id AS product_id,
           v.sku, v.barcode, p.name AS product_name,
@@ -1143,7 +1120,9 @@ export const ImsStockRepo = {
       );
     } catch {
       return imsQuery<ImsStock>(
-        `SELECT s.*,
+        `SELECT s.id, s.business_id, s.variant_id, s.location_id,
+          s.qty_on_hand, s.qty_incoming, s.qty_committed, s.min_qty, s.reorder_qty,
+          v.avg_cost, s.zone, s.bin, s.updated_at,
                 (s.qty_on_hand - s.qty_committed) AS available,
           v.product_id AS product_id,
           v.sku, v.barcode, p.name AS product_name,
@@ -1211,7 +1190,9 @@ export const ImsStockRepo = {
     const where = businessId ? 'AND s.business_id = ?' : '';
     const params = businessId ? [businessId] : [];
     return imsQuery<ImsStock>(
-      `SELECT s.*,
+            `SELECT s.id, s.business_id, s.variant_id, s.location_id,
+              s.qty_on_hand, s.qty_incoming, s.qty_committed, s.min_qty, s.reorder_qty,
+              v.avg_cost, s.zone, s.bin, s.updated_at,
               v.sku, p.name AS product_name,
               l.name AS location_name,
               CONCAT_WS(' / ',
@@ -1382,7 +1363,6 @@ async function reversePurchaseOrderReceiptTx(
       [plan.receivedQty, options.restoreIncoming ? plan.receivedQty : 0, plan.variantId, po.location_id],
     );
     await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [plan.newAvg, plan.variantId]);
-    await conn.execute(`UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`, [plan.newAvg, plan.variantId]);
     const [[stockRow]] = await conn.execute<any[]>(
       `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
       [plan.variantId, po.location_id],
@@ -1511,7 +1491,7 @@ export const ImsPORepo = {
                 COALESCE(p.name, i.name_raw)      AS product_name,
                 p.brand                          AS brand,
                 i.is_stock_item                  AS is_stock_item,
-                st.avg_cost                       AS current_avg_cost,
+                v.avg_cost                        AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
                   NULLIF(v.option2_value,''),
@@ -1521,7 +1501,6 @@ export const ImsPORepo = {
          JOIN ims_purchase_orders po ON po.id = i.po_id
          LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
          LEFT JOIN ims_products p ON p.product_id = v.product_id
-         LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id
          WHERE i.po_id = ?`,
         [id]
       ).catch(() =>
@@ -1535,7 +1514,7 @@ export const ImsPORepo = {
                 p.name                           AS product_name,
                 p.brand                          AS brand,
                 i.is_stock_item                  AS is_stock_item,
-                st.avg_cost                      AS current_avg_cost,
+                v.avg_cost                       AS current_avg_cost,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
                   NULLIF(v.option2_value,''),
@@ -1545,7 +1524,6 @@ export const ImsPORepo = {
          JOIN ims_purchase_orders po ON po.id = i.po_id
          LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
          LEFT JOIN ims_products p ON p.product_id = v.product_id
-         LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id
          WHERE i.po_id = ?`,
         [id]
       ));
@@ -2222,10 +2200,6 @@ export const ImsPORepo = {
           );
           await conn.execute(
             `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
-            [plan.newAvg, plan.variantId],
-          );
-          await conn.execute(
-            `UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`,
             [plan.newAvg, plan.variantId],
           );
           const [[stockRow]] = await conn.execute<any[]>(
@@ -4037,10 +4011,11 @@ export const ImsDashboardRepo = {
       `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [soh] = await imsQuery<{ stock_value: number; stock_item_count: number }>(
-      `SELECT COALESCE(SUM(CASE WHEN qty_on_hand > 0 THEN qty_on_hand * avg_cost ELSE 0 END), 0) AS stock_value,
-              COUNT(CASE WHEN qty_on_hand > 0 THEN 1 END) AS stock_item_count
-       FROM ims_stock
-       ${businessId ? 'WHERE business_id = ?' : ''}`, p
+            `SELECT COALESCE(SUM(CASE WHEN s.qty_on_hand > 0 THEN s.qty_on_hand * COALESCE(v.avg_cost, 0) ELSE 0 END), 0) AS stock_value,
+              COUNT(CASE WHEN s.qty_on_hand > 0 THEN 1 END) AS stock_item_count
+             FROM ims_stock s
+             JOIN ims_product_variants v ON v.variant_id = s.variant_id
+             ${businessId ? 'WHERE s.business_id = ?' : ''}`, p
     );
     const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
     const todayAEST = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
@@ -4457,14 +4432,9 @@ export const ImsStocktakeRepo = {
         );
         await conn.execute(
           `UPDATE ims_stock
-              SET business_id = ?,
-                  qty_on_hand = ?,
-                  avg_cost = CASE
-                    WHEN ? > 0 AND (avg_cost IS NULL OR avg_cost <= 0) THEN ?
-                    ELSE avg_cost
-                  END
+              SET business_id = ?, qty_on_hand = ?
             WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
-          [businessId, counted, counted, avgCostAtTime, item.variant_id, full.location_id, businessId]
+          [businessId, counted, item.variant_id, full.location_id, businessId]
         );
         if (counted !== expected) {
           variances++;

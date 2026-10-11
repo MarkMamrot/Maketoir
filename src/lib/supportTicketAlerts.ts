@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-import { getSupportTicketNotificationEmail } from '@/lib/supportTickets';
+import { getSupportTicketNotificationEmail, setSupportTicketUpdateEmailStatus, type SupportTicket, type SupportTicketUpdate } from '@/lib/supportTickets';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function escapeHtml(value: string): string {
@@ -26,20 +26,21 @@ export async function sendSupportTicketStaffEmail(ticket: {
   submitted_by_email: string | null;
   subject: string;
   resolution_notes?: string | null;
-}, event: 'created' | 'resolved'): Promise<void> {
+}, event: 'created' | 'resolved' | 'updated', update?: { id: number; message: string }): Promise<boolean> {
   const recipient = ticket.submitted_by_email?.trim();
-  if (!recipient) return;
+  if (!recipient) return false;
   try {
     if (!process.env.RESEND_API_KEY) throw new Error('Support email delivery is not configured.');
-    const heading = event === 'created' ? 'Support ticket received' : 'Support ticket resolved';
+    const heading = event === 'created' ? 'Support ticket received' : event === 'updated' ? 'Support ticket update' : 'Support ticket resolved';
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
       to: [recipient],
       subject: `${heading} #${ticket.id}: ${ticket.subject}`,
-      html: `<h1>${heading}</h1><p>Ticket #${ticket.id}: ${escapeHtml(ticket.subject)}</p><p>${event === 'created' ? 'Your support request has been received.' : 'Your support request has been resolved.'}</p>${event === 'resolved' && ticket.resolution_notes ? `<p style="white-space:pre-wrap;">${escapeHtml(ticket.resolution_notes)}</p>` : ''}`,
-    }, { idempotencyKey: `support-ticket-staff-${event}-${ticket.id}` });
+      html: `<h1>${heading}</h1><p>Ticket #${ticket.id}: ${escapeHtml(ticket.subject)}</p><p>${event === 'created' ? 'Your support request has been received.' : event === 'updated' ? 'Our support team has posted an update.' : 'Your support request has been resolved.'}</p>${update ? `<p style="white-space:pre-wrap;">${escapeHtml(update.message)}</p>` : event === 'resolved' && ticket.resolution_notes ? `<p style="white-space:pre-wrap;">${escapeHtml(ticket.resolution_notes)}</p>` : ''}`,
+    }, { idempotencyKey: update ? `support-ticket-update-${update.id}` : `support-ticket-staff-${event}-${ticket.id}` });
     if (error) throw new Error(error.message);
+    return true;
   } catch (error) {
     await reportRuntimeIssue({
       businessId: ticket.business_id,
@@ -50,7 +51,16 @@ export async function sendSupportTicketStaffEmail(ticket: {
       error,
       reference: { type: 'support_ticket', id: ticket.id },
     });
+    return false;
   }
+}
+
+export async function sendSupportTicketUpdateEmail(ticket: SupportTicket, update: SupportTicketUpdate): Promise<SupportTicketUpdate['email_status']> {
+  if (update.email_status === 'sent') return 'sent';
+  const status = !ticket.submitted_by_email?.trim() ? 'no_email'
+    : await sendSupportTicketStaffEmail(ticket, 'updated', update) ? 'sent' : 'failed';
+  await setSupportTicketUpdateEmailStatus(update.id, status);
+  return status;
 }
 
 /** Best-effort notification only — never throws; callers should not fail ticket creation on email errors. */
@@ -62,7 +72,7 @@ export async function sendNewSupportTicketAlert(ticket: NewTicketAlertInput): Pr
   const { error } = await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
     to: [recipient],
-    subject: `New support ticket: ${ticket.subject}`,
+    subject: `New support ticket #${ticket.id}: ${ticket.subject}`,
     html: `<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#0f172a;">
       <h1 style="font-size:22px;">New support ticket</h1>
       <p><strong>${escapeHtml(ticket.businessName)}</strong> · ${escapeHtml(ticket.sourceApp.toUpperCase())}${ticket.screenContext ? ` · ${escapeHtml(ticket.screenContext)}` : ''}</p>

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import { requireSuperAdminTier } from '@/lib/sessionUtils';
-import { getSupportTicket, isSupportTicketStatus, updateSupportTicket } from '@/lib/supportTickets';
+import { getSupportTicket, isSupportTicketStatus, listSupportTicketUpdates, saveSupportTicketUpdate } from '@/lib/supportTickets';
 import { listSupportImages } from '@/lib/supportTicketImages';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { sendSupportTicketStaffEmail } from '@/lib/supportTicketAlerts';
+import { sendSupportTicketUpdateEmail } from '@/lib/supportTicketAlerts';
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const auth = requireSuperAdminTier();
@@ -15,8 +15,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const ticket = await getSupportTicket(id);
   if (!ticket) return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
   try {
-    const images = await listSupportImages(id);
-    return NextResponse.json({ success: true, ticket: { ...ticket, images } });
+    const [images, updates] = await Promise.all([listSupportImages(id), listSupportTicketUpdates(id)]);
+    return NextResponse.json({ success: true, ticket: { ...ticket, images, updates } });
   } catch (error) {
     await reportRuntimeIssue({ businessId: ticket.business_id, source: 'support-tickets', operation: 'list_images', title: 'Support ticket images could not be loaded', error, reference: { type: 'support_ticket', id } });
     return NextResponse.json({ error: 'Ticket images could not be loaded.' }, { status: 500 });
@@ -33,6 +33,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     status?: string;
     assignedTo?: number | null;
     resolutionNotes?: string;
+    message?: string;
+    requestId?: string;
+    retryUpdateId?: number;
   } | null;
   if (!body?.status || !isSupportTicketStatus(body.status)) {
     return NextResponse.json({ error: 'status must be open, in_progress, resolved, or closed.' }, { status: 400 });
@@ -45,13 +48,22 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const existing = await getSupportTicket(id);
   if (!existing) return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
 
-  await updateSupportTicket(id, {
-    status: body.status,
-    assignedTo,
-    resolutionNotes: body.resolutionNotes ?? null,
-  });
-  if ((body.status === 'resolved' || body.status === 'closed') && existing.status !== 'resolved' && existing.status !== 'closed') {
-    await sendSupportTicketStaffEmail({ ...existing, resolution_notes: body.resolutionNotes ?? null }, 'resolved');
+  const message = body.message ?? body.resolutionNotes ?? '';
+  if (typeof message !== 'string' || message.length > 10_000) return NextResponse.json({ error: 'Update must be at most 10,000 characters.' }, { status: 400 });
+  if (!body.retryUpdateId && (typeof body.requestId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.requestId))) {
+    return NextResponse.json({ error: 'A valid update request id is required.' }, { status: 400 });
   }
-  return NextResponse.json({ success: true });
+  try {
+    const update = body.retryUpdateId
+      ? (await listSupportTicketUpdates(id)).find(item => item.id === Number(body.retryUpdateId))
+      : await saveSupportTicketUpdate(id, {
+        status: body.status, assignedTo, message, requestId: body.requestId!, authorName: auth.user.name,
+      });
+    if (body.retryUpdateId && !update) return NextResponse.json({ error: 'Update not found.' }, { status: 404 });
+    const emailStatus = update ? await sendSupportTicketUpdateEmail(existing, update) : null;
+    return NextResponse.json({ success: true, emailStatus });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: existing.business_id, source: 'support-tickets', operation: 'post_update', title: 'Support ticket update could not complete', error, reference: { type: 'support_ticket', id } });
+    return NextResponse.json({ error: 'The update could not complete. Retry the same update.' }, { status: 500 });
+  }
 }

@@ -1,3 +1,9 @@
+## 2026-10-11 - Monsterthreads missing Average Cost backfill
+
+- Applied the guarded Monsterthreads-only Average Cost backfill to 3,168 stock variants: 1 used the latest positive receipt movement cost, 69 used effective AUD cost derived from the latest active legacy PO receipt line, and 3,098 fell back to positive Cost AUD. The same values were mirrored to 8,661 stock rows in one transaction; scoped readback found zero mismatches and an idempotent rerun found zero further repairable variants.
+- Sixty-three stock variants remain without Average Cost because they have neither positive active purchase evidence nor positive Cost AUD; 60 have stock rows containing 15 positive units in total. No movement cost, FIFO layer, costing method or Xero record was changed.
+- A broader read-only check found 5,007 pre-existing `ims_stock.avg_cost` mirror mismatches on variants that already had Average Cost. They were outside this missing-cost backfill and were not changed; investigate separately before any bulk mirror repair.
+
 ## 2026-10-03 - Klaviyo administrator controls and guarded rollout
 
 - Setup > Connections now has Admin-only Klaviyo customer and commerce sync controls: one master switch, profile sync, and separate POS, Solvantis Online Shop, wholesale/IMS, and Shopify source switches. Shopify requires explicit acknowledgement that the same events are not already sent directly to Klaviyo.

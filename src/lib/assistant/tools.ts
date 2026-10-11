@@ -370,7 +370,7 @@ async function lookupImsInventoryPosition(principal: ImsAssistantPrincipal, args
             COALESCE(s.qty_incoming, 0) AS qty_incoming,
             COALESCE(s.min_qty, 0) AS min_qty,
             COALESCE(s.reorder_qty, 0) AS reorder_qty,
-            COALESCE(s.avg_cost, v.avg_cost, 0) AS avg_cost
+            COALESCE(v.avg_cost, 0) AS avg_cost
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
        JOIN ims_stock s ON s.variant_id = v.variant_id

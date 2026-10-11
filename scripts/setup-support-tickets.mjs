@@ -42,6 +42,20 @@ try {
       notification_email VARCHAR(255) NULL,
       updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS support_ticket_updates (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      ticket_id BIGINT NOT NULL,
+      request_id VARCHAR(36) NOT NULL,
+      author_name VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      status ENUM('open','in_progress','resolved','closed') NOT NULL,
+      email_status ENUM('pending','sent','failed','no_email') NOT NULL DEFAULT 'pending',
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      UNIQUE KEY idx_support_update_request (ticket_id, request_id),
+      INDEX idx_support_update_ticket (ticket_id, id),
+      FOREIGN KEY (ticket_id) REFERENCES support_tickets(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
   const [businessIdColumns] = await connection.query(

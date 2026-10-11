@@ -387,13 +387,9 @@ export async function POST(req: Request) {
           [appliedQty, variant_id, location_id]
         );
 
-        // Org-wide avg: write to variant + mirror to all location stock rows
+        // Org-wide Average Cost is owned by the variant.
         await conn.execute(
           `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
-          [newAvg, variant_id],
-        );
-        await conn.execute(
-          `UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`,
           [newAvg, variant_id],
         );
 

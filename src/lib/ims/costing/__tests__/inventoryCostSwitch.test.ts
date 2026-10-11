@@ -130,7 +130,6 @@ describe('inventory cost method switching', () => {
 
     expect(result.preview.totalValue).toBe(80);
     expect(execute).toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_product_variants SET avg_cost = CASE variant_id WHEN ? THEN ?'), ['v-1', 16, 'biz-1', 'v-1']);
-    expect(execute).toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock SET avg_cost = CASE variant_id WHEN ? THEN ?'), ['v-1', 16, 'biz-1', 'v-1']);
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
@@ -148,27 +147,25 @@ describe('inventory cost method switching', () => {
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), execute };
     mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
     await switchInventoryCostMethod({ ...baseInput, targetMethod: 'average_cost', expectedRevision: 2 });
-    const updates = execute.mock.calls.filter(([sql]) => /UPDATE ims_(product_variants|stock) SET avg_cost/.test(sql));
-    expect(updates).toHaveLength(4);
+    const updates = execute.mock.calls.filter(([sql]) => /UPDATE ims_product_variants SET avg_cost/.test(sql));
+    expect(updates).toHaveLength(2);
     for (const [sql, values] of updates) {
       expect(sql).toContain('WHERE business_id = ? AND variant_id IN (');
       expect(values).toContain('biz-1');
     }
     expect(updates[0][1]).toHaveLength(1501);
-    expect(updates[1][1]).toEqual(updates[0][1]);
-    expect(updates[2][1]).toEqual(['v-500', 0, 'biz-1', 'v-500']);
-    expect(updates[3][1]).toEqual(updates[2][1]);
+    expect(updates[1][1]).toEqual(['v-500', 0, 'biz-1', 'v-500']);
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
-  it('rolls back the entire reverse switch when a bulk stock update fails', async () => {
+  it('rolls back the entire reverse switch when a bulk variant update fails', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT active_method')) return [[{ active_method: 'fifo', active_epoch_id: 40, revision: 2 }]];
       if (sql.includes('FROM ims_inventory_cost_epochs') && sql.includes('operation_key')) return [[]];
       if (sql.includes('FROM ims_stock s')) return [[{ variant_id: 'v-1', location_id: 1, qty_on_hand: 1, unit_cost: 99 }]];
       if (sql.includes('FROM ims_fifo_cost_layers')) return [[{ variant_id: 'v-1', location_id: 1, remaining_quantity: 1, unit_cost: 2 }]];
       if (sql.includes('INSERT INTO ims_inventory_cost_epochs')) return [{ insertId: 45 }];
-      if (sql.includes('UPDATE ims_stock SET avg_cost')) throw new Error('bulk update failed');
+      if (sql.includes('UPDATE ims_product_variants SET avg_cost')) throw new Error('bulk update failed');
       return [{ affectedRows: 1 }];
     });
     const connection = { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), execute };

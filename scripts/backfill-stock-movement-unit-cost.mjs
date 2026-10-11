@@ -5,8 +5,8 @@
  * - so_fulfilled: derive from ims_sales_order_items.unit_cost (same SO + variant)
  *
  * Optional heuristic mode (explicit opt-in):
- * - --include-pos-fallback: fill pos_sale rows from current ims_stock.avg_cost
- * - --include-stocktake-fallback: fill stocktake rows from current ims_stock.avg_cost
+ * - --include-pos-fallback: fill pos_sale rows from current variant avg_cost
+ * - --include-stocktake-fallback: fill stocktake rows from current variant avg_cost
  * - --include-variant-fallback: fill remaining pos_sale/stocktake rows from
  *   COALESCE(ims_product_variants.avg_cost, ims_product_variants.cost_aud)
  *
@@ -108,14 +108,11 @@ try {
   if (INCLUDE_POS_FALLBACK) {
     const [posUpdateRes] = await conn.execute(
       `UPDATE ims_stock_movements sm
-         JOIN ims_stock s
-           ON s.variant_id = sm.variant_id
-          AND s.location_id = sm.location_id
-          AND (sm.business_id = s.business_id OR sm.business_id IS NULL OR sm.business_id = '')
-          SET sm.unit_cost = s.avg_cost
+         JOIN ims_product_variants pv ON pv.variant_id = sm.variant_id
+          SET sm.unit_cost = pv.avg_cost
         WHERE sm.movement_type = 'pos_sale'
           AND sm.unit_cost IS NULL
-          AND s.avg_cost IS NOT NULL`
+          AND pv.avg_cost IS NOT NULL`
     );
     posUpdated = Number(posUpdateRes.affectedRows || 0);
     console.log(`pos_sale rows backfilled via CURRENT avg_cost fallback: ${posUpdated}`);
@@ -128,14 +125,11 @@ try {
   if (INCLUDE_STOCKTAKE_FALLBACK) {
     const [stUpdateRes] = await conn.execute(
       `UPDATE ims_stock_movements sm
-         JOIN ims_stock s
-           ON s.variant_id = sm.variant_id
-          AND s.location_id = sm.location_id
-          AND (sm.business_id = s.business_id OR sm.business_id IS NULL OR sm.business_id = '')
-          SET sm.unit_cost = s.avg_cost
+         JOIN ims_product_variants pv ON pv.variant_id = sm.variant_id
+          SET sm.unit_cost = pv.avg_cost
         WHERE sm.movement_type = 'stocktake'
           AND sm.unit_cost IS NULL
-          AND s.avg_cost IS NOT NULL`
+          AND pv.avg_cost IS NOT NULL`
     );
     stocktakeUpdated = Number(stUpdateRes.affectedRows || 0);
     console.log(`stocktake rows backfilled via CURRENT avg_cost fallback: ${stocktakeUpdated}`);

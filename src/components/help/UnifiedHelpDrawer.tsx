@@ -309,6 +309,7 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [ticketNumber, setTicketNumber] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const attachImages = (files: File[]) => {
@@ -352,6 +353,8 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
         setError(data?.error ?? 'Your ticket could not be submitted. Please try again.');
         return;
       }
+      const result = await response.json();
+      setTicketNumber(result.id ?? null);
       setSubmitted(true);
       setSubject('');
       setDescription('');
@@ -367,6 +370,7 @@ function ContactSupportForm({ endpoint, screenContext }: { endpoint: string; scr
     return (
       <div style={{ padding: 24 }}>
         <p style={{ fontWeight: 700, marginBottom: 6 }}>Ticket submitted</p>
+        {ticketNumber && <p style={{ fontSize: 13 }}>Support ticket #{ticketNumber}</p>}
         <p style={{ color: 'var(--sv-text-dim,#64748b)', fontSize: 13, marginBottom: 16 }}>
           Thanks — our support team has been notified and will follow up if needed.
         </p>

@@ -18,6 +18,7 @@ import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeL
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
+import { collectInvoiceImportLines, invoiceMatchNeedsReview } from '@/lib/ims/invoiceProductMatching';
 import { optionCombinations } from '@/lib/ims/bulkProductEditor';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { getCountryOptions } from '@/lib/ims/countryOptions';
@@ -8825,7 +8826,7 @@ type InvoiceParseResult = {
   po_comparison: Array<{
     po_line: { id: number; variant_id: string; qty_ordered: number; qty_received: number; unit_cost: number; sku: string; product_name: string; variant_label?: string } | null;
     invoice_line: { product_code: string | null; product_name: string; qty: number; unit_price: number } | null;
-    qty_diff: number | null; price_diff: number | null; not_in_po: boolean;
+    qty_diff: number | null; price_diff: number | null; not_in_po: boolean; requires_review?: boolean; review_reason?: string | null;
   }> | null;
 };
 
@@ -8848,6 +8849,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   const [taxTreatment, setTaxTreatment] = React.useState<'inc_tax' | 'ex_tax' | 'no_tax'>('ex_tax');
   const [overrides, setOverrides] = React.useState<Record<number, string>>({});
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
+  const [reviewedInvoiceLines, setReviewedInvoiceLines] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
   const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
   const [availableVariants, setAvailableVariants] = React.useState<any[]>(variants);
@@ -8880,7 +8882,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       setCurrency(r.invoice?.currency ?? 'AUD');
       setPayTerms(r.invoice?.payment_terms ?? '');
       setTaxTreatment(r.invoice?.prices_include_tax ?? 'ex_tax');
-      setOverrides({}); setSkipped(new Set()); setStage('review');
+      setOverrides({}); setSkipped(new Set()); setReviewedInvoiceLines(new Set()); setStage('review');
     } catch (e: any) { setError(e.message ?? 'An error occurred'); setStage('idle'); }
   }
 
@@ -8891,7 +8893,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
   function confidenceSt(c: string): React.CSSProperties {
     if (c === 'exact_sku' || c === 'exact_barcode') return { color: 'var(--sv-mint)', fontSize: 11, fontWeight: 600 };
-    if (c === 'fuzzy_name' || c === 'manual') return { color: '#f59e0b', fontSize: 11, fontWeight: 600 };
+    if (c === 'fuzzy_name' || c === 'normalized_sku' || c === 'manual') return { color: '#f59e0b', fontSize: 11, fontWeight: 600 };
     if (c === 'ai_high') return { color: '#818cf8', fontSize: 11, fontWeight: 600 };
     if (c === 'ai_match') return { color: '#a78bfa', fontSize: 11, fontWeight: 600 };
     return { color: 'var(--sv-red)', fontSize: 11, fontWeight: 600 };
@@ -8902,10 +8904,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
   function handleImport() {
     if (!result || !onImport) return;
-    const line_items = result.line_results
-      .filter((_, i) => !skipped.has(i))
-      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate ?? 0.1), line_total: lr.invoice_line.line_total ?? null, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+    if (result.line_results.some((lr, i) => !skipped.has(i) && (!getVid(i, lr) || (!(i in overrides) && invoiceMatchNeedsReview(lr.match?.confidence) && !reviewedInvoiceLines.has(i))))) return;
+    const line_items = collectInvoiceImportLines(result.line_results, skipped,
+      (lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate ?? 0.1), line_total: lr.invoice_line.line_total ?? null, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; });
     onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, freight_total: result.invoice.freight_total ?? null, line_items });
     onClose();
   }
@@ -8966,6 +8967,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
   function handlePreFillReceive() {
     if (!result?.po_comparison || !onPreFillReceive) return;
+    if (result.po_comparison.some((row, index) => row.requires_review && !reviewedInvoiceLines.has(index))) return;
     const qtys: Record<string, number> = {};
     for (const row of result.po_comparison) {
       if (row.po_line && row.invoice_line && !row.not_in_po) qtys[row.po_line.variant_id] = Number(row.invoice_line.qty) || 0;
@@ -8983,6 +8985,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       const linesToSend = result.line_results
         .map((lr, i) => ({ ...lr.invoice_line, index: i }))
         .filter((_, i) => {
+          if (skipped.has(i) || i in overrides) return false;
           const conf = result.line_results[i].match?.confidence;
           return conf !== 'exact_sku' && conf !== 'exact_barcode';
         });
@@ -8993,18 +8996,21 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       });
       const json = await res.json();
       if (!res.ok || !json.success) { setAiMatchError(json.error ?? 'AI matching failed'); return; }
+      if (!Array.isArray(json.matches)) { setAiMatchError('AI matching returned an invalid response.'); return; }
+      setReviewedInvoiceLines(current => new Set([...current].filter(index => !linesToSend.some(line => line.index === index))));
+      if (Array.isArray(json.warnings) && json.warnings.length) setAiMatchError(json.warnings.join(' '));
 
       // Merge AI matches into result — only override non-exact, non-manual lines
       setResult(prev => {
         if (!prev) return prev;
         const newLines = prev.line_results.map((lr, i) => {
+          if (!linesToSend.some(line => line.index === i)) return lr;
           const aiM = (json.matches as any[]).find(m => m.invoice_index === i);
-          if (!aiM?.variant_id) return lr;
           const existingConf = lr.match?.confidence ?? 'none';
           if (existingConf === 'exact_sku' || existingConf === 'exact_barcode') return lr;
           if (i in overrides) return lr; // user has manually set this line
-          if (aiM.confidence === 'low') return lr; // skip low-confidence AI matches
-          const imsV = availableVariants.find((v: any) => v.variant_id === aiM.variant_id);
+          if (!aiM?.variant_id || !['high', 'medium'].includes(aiM.confidence)) return { ...lr, match: null };
+          const imsV = aiM.variant ?? availableVariants.find((v: any) => v.variant_id === aiM.variant_id);
           return {
             ...lr,
             match: {
@@ -9013,7 +9019,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
               product_name:  imsV?.product_name  ?? null,
               variant_label: imsV?.variant_label ?? null,
               cost_aud:      imsV?.cost_aud      ?? null,
-              confidence:    aiM.confidence === 'high' ? 'ai_high' : 'ai_match',
+              confidence:    aiM.match_confidence ?? (aiM.confidence === 'high' ? 'ai_high' : 'ai_match'),
               method:        'AI second pass',
             },
           };
@@ -9059,6 +9065,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     const hasDisc = result.po_comparison.some(r => Math.abs(r.qty_diff ?? 0) > 0.001 || Math.abs(r.price_diff ?? 0) > 0.001);
     const extra   = result.po_comparison.filter(r => r.not_in_po);
     const missing = result.po_comparison.filter(r => r.po_line && !r.invoice_line);
+    const pendingComparisonReviews = result.po_comparison.filter((row, index) => row.requires_review && !reviewedInvoiceLines.has(index)).length;
     return (
       <Modal title="PO vs Invoice Comparison" onClose={onClose} wide>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
@@ -9092,10 +9099,15 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
                     <td style={{ ...tdSt, textAlign: 'right' }}>{il ? fmt$(il.unit_price) : '—'}</td>
                     <td style={{ ...tdSt, ...ds(pd) }}>{row.price_diff != null ? (pd > 0 ? '+' : '') + fmt$(Math.abs(pd)) : '—'}</td>
                     <td style={{ ...tdSt, whiteSpace: 'nowrap', fontSize: 11 }}>
-                      {row.not_in_po ? <span style={{ color: '#818cf8', fontWeight: 600 }}>Not in PO</span>
+                      {row.not_in_po ? <span style={{ color: '#818cf8', fontWeight: 600 }}>Not matched to PO</span>
                         : !il ? <span style={{ color: 'var(--sv-text-muted)' }}>Not on invoice</span>
+                        : row.requires_review ? <span style={{ color: '#f59e0b', fontWeight: 600 }}>Review match</span>
                         : (hasQD || hasPD) ? <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ Diff</span>
                         : <span style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>✓ Match</span>}
+                      {row.review_reason && <div title={row.review_reason} style={{ fontSize: 11, color: '#f59e0b', whiteSpace: 'normal', maxWidth: 180 }}>{row.review_reason}</div>}
+                      {row.requires_review && <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                        <input type="checkbox" checked={reviewedInvoiceLines.has(i)} onChange={event => setReviewedInvoiceLines(current => { const next = new Set(current); event.target.checked ? next.add(i) : next.delete(i); return next; })} /> {row.not_in_po ? 'Exclude from receipt' : 'Reviewed'}
+                      </label>}
                     </td>
                   </tr>
                 );
@@ -9107,7 +9119,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
         {extra.length > 0  && <div style={{ fontSize: 12, color: '#818cf8', marginBottom: 10 }}>{extra.length} invoice line{extra.length !== 1 ? 's' : ''} not in this PO.</div>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--sv-border)' }}>
           <button onClick={onClose} style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', color: 'var(--sv-text-muted)' }}>Close</button>
-          <button onClick={handlePreFillReceive} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Confirm &amp; Pre-fill Receive</button>
+          <button onClick={handlePreFillReceive} disabled={pendingComparisonReviews > 0} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: pendingComparisonReviews > 0 ? 'not-allowed' : 'pointer', opacity: pendingComparisonReviews > 0 ? 0.5 : 1 }}>Confirm &amp; Pre-fill Receive</button>
         </div>
       </Modal>
     );
@@ -9115,14 +9127,12 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
   // ── Pathway 1: line-item review ──
   const importableCount = result.line_results.filter((lr, i) => !skipped.has(i) && getVid(i, lr) !== null).length;
+  const reviewRequiredCount = result.line_results.filter((lr, i) => !skipped.has(i) && (!(i in overrides) && invoiceMatchNeedsReview(lr.match?.confidence) && !reviewedInvoiceLines.has(i) || !getVid(i, lr))).length;
   const exactN = result.line_results.filter(lr => lr.match?.confidence === 'exact_sku' || lr.match?.confidence === 'exact_barcode').length;
   const fuzzyN = result.line_results.filter(lr => lr.match?.confidence === 'fuzzy_name').length;
   const aiN    = result.line_results.filter(lr => lr.match?.confidence === 'ai_high' || lr.match?.confidence === 'ai_match').length;
   const noneN  = result.line_results.filter(lr => !lr.match).length;
-  const totalN = result.line_results.length;
-  const matchedN = exactN + fuzzyN + aiN;
-  const matchRate = totalN > 0 ? matchedN / totalN : 1;
-  const showAiBanner = matchRate < 0.7 && !aiMatchLoading;
+  const showAiBanner = result.line_results.some((lr, i) => !skipped.has(i) && !(i in overrides) && invoiceMatchNeedsReview(lr.match?.confidence)) || aiMatchLoading;
 
   return (
     <Modal title="Review Parsed Invoice" onClose={onClose} wide>
@@ -9151,10 +9161,10 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
 
       {/* Second-pass AI banner */}
       {showAiBanner && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '10px 14px', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10, padding: '10px 14px', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', borderRadius: 8 }}>
           <span style={{ fontSize: 18 }}>🤖</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Only {Math.round(matchRate * 100)}% matched — want to try a second AI pass?</div>
+          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>{aiMatchLoading ? 'Matching invoice rows...' : 'Invoice matches need review'}</div>
             <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>
               {supplierId ? 'AI will compare each unmatched invoice line against all products for this supplier.' : 'Select a supplier above first so AI knows which products to search.'}
             </div>
@@ -9192,11 +9202,11 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
               const effectiveVid = getVid(i, lr);
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
-              const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
+              const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'normalized_sku' ? '~ SKU format' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
               const imsV = effectiveVid ? availableVariants.find((v: any) => v.variant_id === effectiveVid) : null;
               const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
-                <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, borderBottom: '1px solid var(--sv-border)' }}>
+                <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, background: !isSkipped && !hasOverride && invoiceMatchNeedsReview(conf) && !reviewedInvoiceLines.has(i) ? 'rgba(245,158,11,.06)' : undefined, borderBottom: '1px solid var(--sv-border)' }}>
                   <td style={{ ...tdSt, width: 28 }}>
                     <input type="checkbox" checked={!isSkipped} title="Include this line" onChange={e => setSkipped(p => { const n = new Set(p); e.target.checked ? n.delete(i) : n.add(i); return n; })} />
                   </td>
@@ -9215,6 +9225,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
                   </td>
                   <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
                     <span style={confidenceSt(conf)}>{confLabel}</span>
+                    {!isSkipped && effectiveVid && !hasOverride && invoiceMatchNeedsReview(conf) && <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f59e0b', marginTop: 4 }}>
+                      <input type="checkbox" checked={reviewedInvoiceLines.has(i)} onChange={event => setReviewedInvoiceLines(current => { const next = new Set(current); event.target.checked ? next.add(i) : next.delete(i); return next; })} /> Reviewed
+                    </label>}
                     {conf !== 'none' && conf !== 'manual' && conf !== 'skipped' && !hasOverride && (
                       <button onClick={() => setOverrides(p => ({ ...p, [i]: lr.match?.variant_id ?? '' }))} title="Override" style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-muted)', fontSize: 11, padding: 0 }}>✎</button>
                     )}
@@ -9266,10 +9279,10 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
+        <div style={{ fontSize: 12, color: reviewRequiredCount ? '#f59e0b' : 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO{reviewRequiredCount > 0 ? `; ${reviewRequiredCount} need review or a match` : ''}</div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--sv-border)', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', color: 'var(--sv-text-muted)' }}>Cancel</button>
-          <button onClick={handleImport} disabled={importableCount === 0} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importableCount === 0 ? 'not-allowed' : 'pointer', opacity: importableCount === 0 ? 0.5 : 1 }}>
+          <button onClick={handleImport} disabled={importableCount === 0 || reviewRequiredCount > 0 || aiMatchLoading} style={{ padding: '8px 20px', background: 'var(--sv-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: importableCount === 0 || reviewRequiredCount > 0 ? 'not-allowed' : 'pointer', opacity: importableCount === 0 || reviewRequiredCount > 0 ? 0.5 : 1 }}>
             Import {importableCount > 0 ? `${importableCount} Line${importableCount !== 1 ? 's' : ''}` : ''} to PO
           </button>
         </div>

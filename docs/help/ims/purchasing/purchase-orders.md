@@ -56,6 +56,12 @@ Map **Non-stock Purchases** under **Xero > Chart of Accounts** before syncing a 
 
 When you use **Upload Invoice**, each printed line subtotal is the source of truth. If the printed quantity, pre-discount unit price and line discount reconcile to that subtotal, Solvantis carries the discount into the PO and shows its amount in the PO detail and generated PO document, with the derived percentage retained for accounting. If those columns do not reconcile, Solvantis preserves the subtotal and uses its effective unit cost instead of applying an uncertain discount twice.
 
+Upload Invoice checks exact SKU and barcode matches across the active catalogue, even when a product's default supplier differs from the invoice supplier. A name suggestion, a reformatted SKU, or an AI suggestion is not treated as a verified exact match. Check the product and variant, then tick **Reviewed**, select the correct product manually, or exclude that invoice line. Every included unmatched line must be matched before import; unmatched rows are not silently omitted.
+
+**Try AI Matching** is available whenever included rows have uncertain or missing matches. It checks small groups of invoice rows against relevant products for the selected supplier. Even a high-confidence AI suggestion requires review. If a group fails or a row has no convincing match, that row remains available for manual matching or exclusion. Retrying matching clears the review acknowledgement for the rows being checked again.
+
+When matching an invoice to an existing PO, uncertain matches must be reviewed and invoice rows not matched to a PO line must be explicitly excluded from receipt prefill. Multiple invoice rows matching one PO variant are flagged rather than using only the first row's quantity. Check their combined supplied quantity manually in Receive. For large or multi-page invoices, compare the extracted rows and totals with every supplied line in the source document before confirming.
+
 Supplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.
 
 Foreign-currency purchase orders imported from Cin7 are tax-free. Their line costs and totals are shown in the supplier currency, with the recorded exchange rate used to show the AUD equivalent. Check both amounts against the supplier invoice before relying on the imported order.

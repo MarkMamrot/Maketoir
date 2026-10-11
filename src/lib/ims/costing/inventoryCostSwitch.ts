@@ -62,8 +62,8 @@ function validateSwitchInput(input: SwitchInventoryCostMethodInput): void {
 
 async function loadStockSnapshots(conn: PoolConnection, businessId: string, lock: boolean): Promise<StockSnapshot[]> {
   const [rows] = await conn.execute<any[]>(
-    `SELECT s.variant_id, s.location_id, s.qty_on_hand,
-            COALESCE(pv.avg_cost, s.avg_cost) AS unit_cost
+        `SELECT s.variant_id, s.location_id, s.qty_on_hand,
+          pv.avg_cost AS unit_cost
        FROM ims_stock s
        JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
       WHERE s.business_id = ?
@@ -307,10 +307,6 @@ export async function switchInventoryCostMethod(input: SwitchInventoryCostMethod
         ];
         await conn.execute(
           `UPDATE ims_product_variants SET avg_cost = CASE variant_id ${cases} ELSE avg_cost END
-            WHERE business_id = ? AND variant_id IN (${placeholders})`, values,
-        );
-        await conn.execute(
-          `UPDATE ims_stock SET avg_cost = CASE variant_id ${cases} ELSE avg_cost END
             WHERE business_id = ? AND variant_id IN (${placeholders})`, values,
         );
       }

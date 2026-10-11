@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ send: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ send: vi.fn(), report: vi.fn(), setStatus: vi.fn() }));
 vi.mock('resend', () => ({ Resend: class { emails = { send: mocks.send }; } }));
-vi.mock('@/lib/supportTickets', () => ({ getSupportTicketNotificationEmail: vi.fn() }));
+vi.mock('@/lib/supportTickets', () => ({ getSupportTicketNotificationEmail: vi.fn(), setSupportTicketUpdateEmailStatus: mocks.setStatus }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 import { sendSupportTicketStaffEmail } from '../supportTicketAlerts';
 
@@ -20,11 +20,15 @@ describe('support ticket staff emails', () => {
   });
   it('reports delivery failures without rejecting', async () => {
     mocks.send.mockResolvedValue({ error: { message: 'Delivery failed' } });
-    await expect(sendSupportTicketStaffEmail(ticket, 'created')).resolves.toBeUndefined();
+    await expect(sendSupportTicketStaffEmail(ticket, 'created')).resolves.toBe(false);
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'test', operation: 'send_staff_created_email' }));
   });
   it('skips tickets with no email', async () => {
     await sendSupportTicketStaffEmail({ ...ticket, submitted_by_email: null }, 'created');
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+  it('emails each new update using its unique delivery key and ticket number', async () => {
+    expect(await sendSupportTicketStaffEmail(ticket, 'updated', { id: 12, message: '<Investigating>' })).toBe(true);
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ subject: expect.stringContaining('#8'), html: expect.stringContaining('&lt;Investigating&gt;') }), { idempotencyKey: 'support-ticket-update-12' });
   });
 });

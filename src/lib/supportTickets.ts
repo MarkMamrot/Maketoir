@@ -163,6 +163,73 @@ export async function updateSupportTicket(id: number, input: UpdateSupportTicket
   );
 }
 
+export interface SupportTicketUpdate {
+  id: number;
+  ticket_id: number;
+  request_id: string;
+  author_name: string;
+  message: string;
+  status: SupportTicketStatus;
+  email_status: 'pending' | 'sent' | 'failed' | 'no_email';
+  created_at: string;
+}
+
+export async function listSupportTicketUpdates(id: number): Promise<SupportTicketUpdate[]> {
+  return query<SupportTicketUpdate>('SELECT * FROM support_ticket_updates WHERE ticket_id = ? ORDER BY id', [id]);
+}
+
+export async function saveSupportTicketUpdate(id: number, input: {
+  status: SupportTicketStatus;
+  assignedTo: number | null;
+  message: string;
+  requestId: string;
+  authorName: string;
+}): Promise<SupportTicketUpdate | null> {
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [tickets] = await connection.execute<any[]>('SELECT status, assigned_to FROM support_tickets WHERE id = ? FOR UPDATE', [id]);
+    const existing = tickets[0];
+    if (!existing) throw new Error('Ticket not found.');
+    const [previous] = await connection.execute<any[]>('SELECT * FROM support_ticket_updates WHERE ticket_id = ? AND request_id = ?', [id, input.requestId]);
+    if (previous[0]) {
+      await connection.commit();
+      return previous[0] as SupportTicketUpdate;
+    }
+    const message = input.message.trim();
+    const changes = [
+      existing.status !== input.status ? `Status changed to ${input.status.replace('_', ' ')}.` : '',
+      Number(existing.assigned_to ?? 0) !== Number(input.assignedTo ?? 0) ? 'Support assignment updated.' : '',
+      message,
+    ].filter(Boolean).join('\n\n');
+    if (!changes) {
+      await connection.commit();
+      return null;
+    }
+    await connection.execute(
+      `UPDATE support_tickets SET status = ?, assigned_to = ?,
+       resolved_at = IF(? IN ('resolved','closed'), COALESCE(resolved_at, NOW(3)), NULL) WHERE id = ?`,
+      [input.status, input.assignedTo, input.status, id],
+    );
+    const [result] = await connection.execute<ResultSetHeader>(
+      'INSERT INTO support_ticket_updates (ticket_id, request_id, author_name, message, status) VALUES (?, ?, ?, ?, ?)',
+      [id, input.requestId, input.authorName, changes, input.status],
+    );
+    const [updates] = await connection.execute<any[]>('SELECT * FROM support_ticket_updates WHERE id = ?', [result.insertId]);
+    await connection.commit();
+    return updates[0] as SupportTicketUpdate;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function setSupportTicketUpdateEmailStatus(id: number, status: SupportTicketUpdate['email_status']): Promise<void> {
+  await execute('UPDATE support_ticket_updates SET email_status = ? WHERE id = ?', [status, id]);
+}
+
 export async function getSupportTicketNotificationEmail(): Promise<string> {
   const rows = await query<{ notification_email: string | null }>(
     `SELECT notification_email FROM support_ticket_settings WHERE id = 1 LIMIT 1`,

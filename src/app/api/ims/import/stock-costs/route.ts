@@ -86,9 +86,7 @@ function findHeaderRow(rows: string[][]): { headerIdx: number; skuCol: number; q
  *   total_value = sum of value
  *   avg_cost    = total_value / total_qty
  *
- * Writes to:
- *   ims_product_variants.cost_aud   (the unit cost used by reports/POs)
- *   ims_stock.avg_cost             (the per-location average cost)
+ * Writes Cost AUD and organisation-wide Average Cost to the product variant.
  */
 export async function POST(req: Request) {
   if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -164,10 +162,6 @@ export async function POST(req: Request) {
         'UPDATE ims_product_variants SET cost_aud = ?, avg_cost = ? WHERE variant_id = ?',
         [avgCost, avgCost, exactVariantId],
       );
-      await imsExecute(
-        'UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?',
-        [avgCost, exactVariantId],
-      );
       updated++;
       continue;
     }
@@ -184,10 +178,6 @@ export async function POST(req: Request) {
         await imsExecute(
           'UPDATE ims_product_variants SET cost_aud = ?, avg_cost = ? WHERE variant_id = ?',
           [avgCost, avgCost, variant_id],
-        );
-        await imsExecute(
-          'UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?',
-          [avgCost, variant_id],
         );
       }
       updated += prefixVariants.length;

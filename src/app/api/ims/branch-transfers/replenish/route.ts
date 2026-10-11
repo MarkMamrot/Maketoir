@@ -111,10 +111,11 @@ export async function POST(req: Request) {
     qty_on_hand: number;
     avg_cost: number | null;
   }>(
-    `SELECT s.variant_id,
+        `SELECT s.variant_id,
             GREATEST(0, s.qty_on_hand - COALESCE(s.qty_committed, 0)) AS qty_on_hand,
-            s.avg_cost
+          v.avg_cost
      FROM ims_stock s
+         JOIN ims_product_variants v ON v.variant_id = s.variant_id
      WHERE s.location_id = ? AND s.business_id = ? AND s.variant_id IN (${varPlaceholders})`,
     [warehouse_id, session.businessId, ...variantIds]
   );

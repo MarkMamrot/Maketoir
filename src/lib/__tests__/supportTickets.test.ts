@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/services/MySQLService', () => ({ getPool: () => ({ getConnection: async () => mocks }), execute: vi.fn(), query: vi.fn() }));
 vi.mock('@/lib/supportTicketImages', () => ({ saveSupportImages: mocks.saveSupportImages, removeSupportImages: mocks.removeSupportImages }));
-import { createSupportTicket } from '../supportTickets';
+import { createSupportTicket, saveSupportTicketUpdate } from '../supportTickets';
 
 const input = { businessId: 'test', submittedByUserId: 1, submittedByName: 'Staff', submittedByEmail: null, sourceApp: 'ims' as const, screenContext: null, subject: 'Error', description: 'Details' };
 
@@ -26,5 +26,22 @@ describe('support ticket persistence', () => {
     expect(mocks.removeSupportImages).toHaveBeenCalledWith(42);
     expect(mocks.commit).not.toHaveBeenCalled();
     expect(mocks.release).toHaveBeenCalled();
+  });
+  it('appends an update atomically with status changes', async () => {
+    mocks.execute.mockReset();
+    mocks.execute.mockResolvedValueOnce([[{ status: 'open', assigned_to: null }]])
+      .mockResolvedValueOnce([[]]).mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ insertId: 42 }]).mockResolvedValueOnce([[{ id: 42, message: 'Status changed to closed.\n\nFixed.' }]]);
+    const update = await saveSupportTicketUpdate(8, { status: 'closed', assignedTo: null, message: 'Fixed.', requestId: 'request-1', authorName: 'Admin' });
+    expect(update?.id).toBe(42);
+    expect(mocks.execute.mock.calls[3][1]).toEqual([8, 'request-1', 'Admin', 'Status changed to closed.\n\nFixed.', 'closed']);
+    expect(mocks.commit).toHaveBeenCalled();
+  });
+  it('replays a request without inserting another update or changing the status', async () => {
+    mocks.execute.mockReset();
+    mocks.execute.mockResolvedValueOnce([[{ status: 'closed' }]])
+      .mockResolvedValueOnce([[{ id: 42, email_status: 'sent' }]]);
+    expect((await saveSupportTicketUpdate(8, { status: 'closed', assignedTo: null, message: 'Fixed.', requestId: 'request-1', authorName: 'Admin' }))?.id).toBe(42);
+    expect(mocks.execute).toHaveBeenCalledTimes(2);
   });
 });

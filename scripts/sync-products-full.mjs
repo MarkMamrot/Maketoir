@@ -405,8 +405,8 @@ const locByName     = new Map(allLocs.map(r => [r.name, r.id]));
 // Match stock by SKU (primary) or barcode (fallback for size-grid products where /Stock
 // returns a shared product-level code but a unique barcode per size)
 const allVariants = await imsQuery('SELECT variant_id, sku, barcode, cost_aud FROM ims_product_variants');
-const variantByCode    = new Map(allVariants.filter(r => r.sku).map(r => [r.sku, { variantId: r.variant_id, cost: r.cost_aud }]));
-const variantByBarcode = new Map(allVariants.filter(r => r.barcode).map(r => [r.barcode, { variantId: r.variant_id, cost: r.cost_aud }]));
+const variantByCode    = new Map(allVariants.filter(r => r.sku).map(r => [r.sku, { variantId: r.variant_id }]));
+const variantByBarcode = new Map(allVariants.filter(r => r.barcode).map(r => [r.barcode, { variantId: r.variant_id }]));
 
 const stockAgg = new Map();
 for (const s of cin7Stock) {
@@ -422,14 +422,14 @@ for (const s of cin7Stock) {
     ?? (stockSkuFromSize ? variantByCode.get(stockSkuFromSize) : undefined)
     ?? (stockBarcode ? variantByBarcode.get(stockBarcode) : undefined);
   if (!variantMatch) continue;
-  const { variantId, cost: avgCostFallback } = variantMatch;
+  const { variantId } = variantMatch;
 
   const locationId = locByBranchId.get(cin7BranchId) ?? locByName.get((s.branchName ?? '').trim());
   if (!locationId) continue;
 
   const key = `${variantId}:${locationId}`;
   if (!stockAgg.has(key)) {
-    stockAgg.set(key, { variantId, locationId, soh: 0, incoming: 0, committed: 0, avgCost: avgCostFallback ?? null });
+    stockAgg.set(key, { variantId, locationId, soh: 0, incoming: 0, committed: 0 });
   }
   const entry = stockAgg.get(key);
   entry.soh       += Number(s.stockOnHand ?? 0);
@@ -440,15 +440,14 @@ for (const s of cin7Stock) {
 let stockSynced = 0;
 for (const s of stockAgg.values()) {
   await imsExec(
-    `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand, qty_incoming, qty_committed, avg_cost)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand, qty_incoming, qty_committed)
+     VALUES (?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        qty_on_hand   = VALUES(qty_on_hand),
        qty_incoming  = VALUES(qty_incoming),
        qty_committed = VALUES(qty_committed),
-       avg_cost      = COALESCE(VALUES(avg_cost), avg_cost),
        updated_at    = CURRENT_TIMESTAMP`,
-    [s.variantId, s.locationId, s.soh, s.incoming, s.committed, s.avgCost],
+    [s.variantId, s.locationId, s.soh, s.incoming, s.committed],
   );
   stockSynced++;
 }

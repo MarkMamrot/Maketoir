@@ -88,8 +88,7 @@ try {
        LEFT JOIN latest_receipt receipt
          ON receipt.variant_id = stock.variant_id AND receipt.receipt_rank = 1
       WHERE stock.business_id = ? AND stock.qty_on_hand > 0.00005
-        AND (COALESCE(variant.avg_cost, stock.avg_cost) IS NULL
-          OR ROUND(COALESCE(variant.avg_cost, stock.avg_cost), 6) = 0)
+        AND (variant.avg_cost IS NULL OR ROUND(variant.avg_cost, 6) = 0)
       ORDER BY stock.variant_id, stock.location_id`,
     [BUSINESS_ID, BUSINESS_ID],
   );
@@ -147,7 +146,6 @@ try {
   }
 
   let updatedVariants = 0;
-  let updatedStockRows = 0;
   if (APPLY) {
     for (const item of variants.values()) {
       const [variantResult] = await connection.execute(
@@ -156,14 +154,7 @@ try {
           WHERE business_id = ? AND variant_id = ?`,
         [item.cost, BUSINESS_ID, item.variantId],
       );
-      const [stockResult] = await connection.execute(
-        `UPDATE ${SCHEMA}.ims_stock
-            SET avg_cost = ?
-          WHERE business_id = ? AND variant_id = ?`,
-        [item.cost, BUSINESS_ID, item.variantId],
-      );
       updatedVariants += Number(variantResult.affectedRows);
-      updatedStockRows += Number(stockResult.affectedRows);
     }
 
     const [[remaining]] = await connection.execute(
@@ -172,8 +163,7 @@ try {
          JOIN ${SCHEMA}.ims_product_variants variant
            ON variant.business_id = stock.business_id AND variant.variant_id = stock.variant_id
         WHERE stock.business_id = ? AND stock.qty_on_hand > 0.00005
-          AND (COALESCE(variant.avg_cost, stock.avg_cost) IS NULL
-            OR ROUND(COALESCE(variant.avg_cost, stock.avg_cost), 6) = 0)`,
+          AND (variant.avg_cost IS NULL OR ROUND(variant.avg_cost, 6) = 0)`,
       [BUSINESS_ID],
     );
     if (Number(remaining.count) !== 0 || updatedVariants !== EXPECTED_VARIANTS) {
@@ -196,7 +186,6 @@ try {
     fallbackVariants: fallbackCount,
     fallbackCost: SANDBOX_FALLBACK_COST,
     updatedVariants,
-    updatedStockRows,
     costs: [...variants.values()],
   };
   const outputPath = path.resolve('tmp', `fifo-opening-cost-${APPLY ? 'application' : 'dry-run'}.json`);

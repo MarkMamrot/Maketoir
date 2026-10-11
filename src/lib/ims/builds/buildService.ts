@@ -351,10 +351,6 @@ async function setOrganizationAverageCost(
     `UPDATE ims_product_variants SET avg_cost = ? WHERE business_id = ? AND variant_id = ?`,
     [averageCost, businessId, variantId],
   );
-  await connection.execute(
-    `UPDATE ims_stock SET avg_cost = ? WHERE business_id = ? AND variant_id = ?`,
-    [averageCost, businessId, variantId],
-  );
 }
 
 export async function completeProductBuildInTransaction(

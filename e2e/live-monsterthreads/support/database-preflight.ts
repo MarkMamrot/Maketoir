@@ -524,7 +524,7 @@ export async function loadCampaignInventoryBaseline(config: LiveE2EConfig) {
     }
     const [positions] = await connection.query<mysql.RowDataPacket[]>(
       `SELECT stock.variant_id, stock.location_id, stock.qty_on_hand, stock.qty_incoming,
-              stock.qty_committed, COALESCE(variant.avg_cost, stock.avg_cost) AS unit_cost
+              stock.qty_committed, variant.avg_cost AS unit_cost
          FROM ${schema}.ims_stock stock
          JOIN ${schema}.ims_product_variants variant ON variant.variant_id = stock.variant_id
         WHERE stock.business_id = ? ORDER BY stock.variant_id, stock.location_id`,

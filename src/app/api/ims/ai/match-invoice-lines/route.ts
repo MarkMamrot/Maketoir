@@ -4,14 +4,17 @@ import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { createInvoiceVariantMatcher, selectInvoiceMatchCandidates, validateInvoiceAiMatches, type InvoiceMatchVariant } from '@/lib/ims/invoiceProductMatching';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 
 export async function POST(req: Request) {
   const session = await getImsSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
@@ -24,37 +27,54 @@ export async function POST(req: Request) {
     const body = await req.json();
     invoice_lines = body.invoice_lines;
     supplier_id   = Number(body.supplier_id);
-    if (!Array.isArray(invoice_lines) || !supplier_id) {
+    if (!Array.isArray(invoice_lines) || !Number.isSafeInteger(supplier_id) || supplier_id <= 0) {
       return NextResponse.json({ error: 'invoice_lines array and supplier_id are required.' }, { status: 400 });
+    }
+    if (invoice_lines.length > 1000) return NextResponse.json({ error: 'Match up to 1000 invoice lines at once.' }, { status: 400 });
+    invoice_lines = invoice_lines.map((line, index) => ({
+      index: line?.index ?? index,
+      product_code: typeof line?.product_code === 'string' ? line.product_code.slice(0, 255) : null,
+      barcode: typeof line?.barcode === 'string' ? line.barcode.slice(0, 255) : null,
+      product_name: typeof line?.product_name === 'string' ? line.product_name.slice(0, 1000) : null,
+    }));
+    if (invoice_lines.some(line => !Number.isSafeInteger(line.index) || line.index < 0) || new Set(invoice_lines.map(line => line.index)).size !== invoice_lines.length) {
+      return NextResponse.json({ error: 'Invoice row indexes must be unique non-negative integers.' }, { status: 400 });
     }
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  // Fetch supplier name
+  try {
+    return await runImsForBusiness(biz, async () => {
   const [supplier] = await imsQuery<{ name: string }>(
     `SELECT name FROM ims_contacts WHERE id = ? AND business_id = ?`,
     [supplier_id, biz],
   );
   if (!supplier) return NextResponse.json({ error: 'Supplier not found.' }, { status: 404 });
 
-  // Fetch all variants for this supplier
-  const variants = await imsQuery<{
-    variant_id: string; sku: string | null; barcode: string | null;
-    product_name: string | null; variant_label: string | null;
-  }>(
-    `SELECT v.variant_id, v.sku, v.barcode, p.name AS product_name,
+  const variants = await imsQuery<InvoiceMatchVariant & { supplier_contact_id: number | null }>(
+    `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign, p.name AS product_name, p.supplier_contact_id,
             CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
      FROM ims_product_variants v
      JOIN ims_products p ON p.product_id = v.product_id
-     WHERE p.supplier_contact_id = ? AND p.business_id = ? AND v.is_active = 1 AND p.is_active = 1
-     ORDER BY p.name`,
-    [supplier_id, biz],
+    WHERE p.business_id = ? AND v.is_active = 1 AND p.is_active = 1
+    ORDER BY v.variant_id`,
+      [biz],
   );
 
-  if (variants.length === 0) {
-    return NextResponse.json({ error: 'No active products found for this supplier in IMS.' }, { status: 404 });
+  const matchVariant = createInvoiceVariantMatcher(variants);
+  const supplierVariants = variants.filter(variant => Number(variant.supplier_contact_id) === supplier_id);
+  const matches: Array<ReturnType<typeof validateInvoiceAiMatches>[number] & { match_confidence?: string }> = [];
+  const pending: Array<any & { candidates: InvoiceMatchVariant[] }> = [];
+  for (const line of invoice_lines) {
+    const match = matchVariant(line);
+    if (match && match.confidence !== 'fuzzy_name') {
+      matches.push({ invoice_index: line.index, variant_id: match.variant_id, confidence: 'high', match_confidence: match.confidence, reason: match.method, variant: match });
+    } else {
+      pending.push({ ...line, candidates: selectInvoiceMatchCandidates(line, supplierVariants) });
+    }
   }
+  if (!pending.length) return NextResponse.json({ success: true, matches });
 
   let modelId = resolveBusinessAiModel(null, 'catalogueMatching');
   try {
@@ -71,77 +91,38 @@ export async function POST(req: Request) {
     referenceId: supplier_id,
   });
 
-  // Format variant list compactly for the prompt
-  const variantList = variants.map(v => ({
-    variant_id: v.variant_id,
-    sku:        v.sku        ?? '',
-    barcode:    v.barcode    ?? '',
-    name:       [v.product_name, v.variant_label].filter(Boolean).join(' · '),
-  }));
-
-  // Only send lines that need matching (skip already-exact lines)
-  const linesToMatch = invoice_lines.map((l, i) => ({ index: i, ...l }));
-
-  const prompt = `You are a product matching specialist for a retail inventory system.
-
-Match each invoice line item to the closest product in the IMS product catalogue below.
-
-SUPPLIER: ${supplier.name}
-
-INVOICE LINES TO MATCH (${linesToMatch.length} lines):
-${JSON.stringify(linesToMatch, null, 2)}
-
-IMS PRODUCT CATALOGUE FOR THIS SUPPLIER (${variantList.length} variants):
-${JSON.stringify(variantList, null, 2)}
-
-MATCHING RULES (in priority order):
-1. If invoice product_code exactly matches an IMS sku → HIGH confidence
-2. If invoice product_code matches an IMS barcode → HIGH confidence
-3. If invoice product_code is contained within IMS sku or vice versa → MEDIUM
-4. If invoice product name is very similar to IMS product name → MEDIUM
-5. If partial name match or likely the same product with different description → LOW
-6. No reasonable match → set variant_id to null
-
-Return a JSON array with one entry per invoice line:
-[
-  {
-    "invoice_index": 0,
-    "variant_id": "the_matched_variant_id_or_null",
-    "confidence": "high|medium|low|null",
-    "reason": "brief explanation"
+  const warnings: string[] = [];
+  for (let offset = 0; offset < pending.length; offset += 20) {
+    const batch = pending.slice(offset, offset + 20);
+    const matchable = batch.filter(line => line.candidates.length > 0);
+    matches.push(...validateInvoiceAiMatches([], batch.filter(line => !line.candidates.length)));
+    if (!matchable.length) continue;
+    try {
+      const prompt = `Match invoice rows for supplier ${supplier.name} to their individually listed catalogue candidates.
+Return a JSON array with exactly one entry for every supplied original index:
+[{"invoice_index":0,"variant_id":"candidate-id-or-null","confidence":"high|medium|low|null","reason":"brief reason"}]
+Never use a candidate from another row. Match size, colour, style and identifiers, not just the product family.
+Exact SKU or barcode supports high confidence. A uniquely convincing description plus variant supports medium. Ambiguous, conflicting or weak evidence must use low or null with variant_id null. Never guess to fill missing rows.
+${JSON.stringify(matchable.map(line => ({ index: line.index, product_code: line.product_code, barcode: line.barcode, product_name: line.product_name, candidates: line.candidates.map((variant: InvoiceMatchVariant) => ({ variant_id: variant.variant_id, sku: variant.sku, barcode: variant.barcode, name: variant.product_name, variant: variant.variant_label })) })))}`;
+      const result = await ai.models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+      } as any);
+      const raw = (result.text ?? '').replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
+      if (!raw) throw new Error('Empty response from AI');
+      const parsed = JSON.parse(raw);
+      matches.push(...validateInvoiceAiMatches(Array.isArray(parsed) ? parsed : parsed?.matches, matchable));
+    } catch (error) {
+      await reportRuntimeIssue({ businessId: biz, source: 'invoice-import', operation: 'match_invoice_batch', title: 'Invoice product matching batch failed', error, context: { rowCount: matchable.length, batchOffset: offset, modelId } });
+      matches.push(...validateInvoiceAiMatches([], matchable));
+      warnings.push('Some invoice rows could not be matched. Review them or retry AI matching.');
+    }
   }
-]
-
-Important: variant_id MUST be one of the variant_ids from the IMS catalogue above, or null. Do not invent variant_ids.`;
-
-  let matches: { invoice_index: number; variant_id: string | null; confidence: string | null; reason: string }[];
-  try {
-    const result = await ai.models.generateContent({
-      model: modelId,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    } as any);
-    const raw = (result.text ?? '').replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-    if (!raw) throw new Error('Empty response from AI');
-    const parsed = JSON.parse(raw);
-    matches = Array.isArray(parsed) ? parsed : (parsed.matches ?? []);
-  } catch (e: any) {
-    const detail = e?.message ?? String(e);
-    console.error('[match-invoice-lines] AI error:', detail);
-    const msg = detail.includes('404') || detail.includes('not found')
-      ? `Model "${modelId}" not found — update your AI model in Intel & Automation settings.`
-      : `AI matching failed: ${detail.slice(0, 150)}`;
-    return NextResponse.json({ error: msg }, { status: 500 });
+  return NextResponse.json({ success: true, matches: matches.sort((left, right) => left.invoice_index - right.invoice_index), warnings: [...new Set(warnings)] });
+    });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: biz, source: 'invoice-import', operation: 'prepare_line_matching', title: 'Invoice product matching failed', error, context: { rowCount: invoice_lines.length } });
+    return NextResponse.json({ error: 'Invoice product matching could not be completed.' }, { status: 500 });
   }
-
-  // Validate: ensure returned variant_ids exist in our catalogue
-  const validIds = new Set(variants.map(v => v.variant_id));
-  const safeMatches = matches.map(m => ({
-    invoice_index: Number(m.invoice_index),
-    variant_id:    m.variant_id && validIds.has(m.variant_id) ? m.variant_id : null,
-    confidence:    m.confidence ?? null,
-    reason:        m.reason ?? '',
-  }));
-
-  return NextResponse.json({ success: true, matches: safeMatches });
 }

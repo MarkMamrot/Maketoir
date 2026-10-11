@@ -40,7 +40,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 
 Open **Help > Contact Support**, enter a subject and description, then select **Submit ticket**. Paste an image directly into **Description** or select **Attach images**. Review the previews and remove unwanted images before submitting. Each ticket accepts up to five JPEG, PNG, WebP or GIF images, with a maximum size of 5 MB each. Do not include credentials or private customer details in screenshots.
 
-Enter the submitting staff member's address in **Your email**. This address is recorded on the ticket for support replies. Solvantis sends a submission confirmation and a resolution email, including any resolution notes, when support marks the ticket Resolved or Closed. Use your own reply address rather than another staff member's address. A delayed or failed email does not undo a saved ticket.
+Enter the submitting staff member's address in **Your email**. This address is recorded on the ticket for support replies. Solvantis shows the ticket number after submission and includes it in the confirmation email. Every new support update, including status changes and closure, is emailed to the original submitter. Use your own reply address rather than another staff member's address. A delayed or failed email does not undo a saved ticket.
 
 Support tickets require an internet connection. If submission fails, the description and images remain in the form for a retry. A successful submission displays **Ticket submitted**. Super Admins can view the ticket and its images in Admin or IMS Team Communications; POS staff do not have a ticket-management list.
 

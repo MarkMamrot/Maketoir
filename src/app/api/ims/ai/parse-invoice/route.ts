@@ -5,6 +5,9 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { normalizeParsedInvoice } from '@/lib/ims/invoiceImportParser';
+import { createInvoiceVariantMatcher, invoiceMatchNeedsReview, type InvoiceMatchVariant } from '@/lib/ims/invoiceProductMatching';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -47,64 +50,16 @@ function fuzzySupplierMatch(
   }) ?? null;
 }
 
-type Variant = {
-  variant_id: string;
-  sku?: string | null;
-  barcode?: string | null;
-  cost_aud?: number | null;
-  cost_foreign?: string | null;
-  product_name?: string | null;
-  variant_label?: string | null;
-  product_brand?: string | null;
-};
-
-function matchVariant(
-  productCode: string | null,
-  barcode: string | null,
-  productName: string | null,
-  variants: Variant[],
-): { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; product_brand?: string | null; cost_aud?: number | null; cost_foreign?: string | null; confidence: string; method: string } | null {
-  const pc = productCode?.trim().toLowerCase();
-  const bc = barcode?.trim().toLowerCase();
-
-  // 1. exact SKU (IMS SKU is often the supplier code)
-  if (pc) {
-    const m = variants.find(v => v.sku?.toLowerCase() === pc);
-    if (m) return { ...m, confidence: 'exact_sku', method: 'SKU' };
-  }
-
-  // 2. barcode match against product_code or barcode field
-  const bcAlt = pc ?? bc;
-  if (bcAlt) {
-    const m = variants.find(v => v.barcode && (
-      v.barcode.toLowerCase() === bcAlt || (bc && v.barcode.toLowerCase() === bc)
-    ));
-    if (m) return { ...m, confidence: 'exact_barcode', method: 'barcode' };
-  }
-
-  // 3. fuzzy product name
-  if (productName?.trim()) {
-    const normQ = normalize(productName);
-    if (normQ.length >= 4) {
-      const m = variants.find(v => {
-        const full = normalize((v.product_name ?? '') + (v.variant_label ?? ''));
-        return full.includes(normQ) || normQ.includes(full);
-      });
-      if (m) return { ...m, confidence: 'fuzzy_name', method: 'name' };
-    }
-  }
-
-  return null;
-}
-
 export async function POST(req: Request) {
   const session = await getImsSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
 
   const biz: string = session.businessId ?? '';
+  try {
+    return await runImsForBusiness(biz, async () => {
 
   // Parse multipart form
   let invoiceFile: File | null = null;
@@ -224,6 +179,8 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
 Notes:
 - product_code = the supplier's code for the item (often labelled "Item Code", "Part No", "SKU", "Code", "Style" etc.)
 - Extract ALL supplied stock product line items even if there are many
+- Read every page and preserve one row for each printed supplied product line, including repeated products. Never summarize or omit rows to shorten the response
+- Preserve product codes exactly, including hyphens, letter case and leading zeroes. Do not guess unreadable identifiers; return null instead
 - line_type = "product" for supplied items, "freight" for freight rows, or "backorder" for items not supplied on this invoice
 - Freight/delivery/shipping/postage rows must use line_type "freight", not "product"
 - line_total is the authoritative amount for each product. Preserve it exactly to two decimal places after line-level dollar or percentage discounts
@@ -249,14 +206,14 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
           { text: prompt },
         ],
       }],
-      generationConfig: { responseMimeType: 'application/json' },
+      generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 32768 },
     } as any);
     const raw = (result.text ?? '').replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
     if (!raw) throw new Error('Empty response from AI');
     parsedInvoice = JSON.parse(raw);
   } catch (e: any) {
     const detail = e?.message ?? String(e);
-    console.error('[parse-invoice] AI error:', detail);
+    await reportRuntimeIssue({ businessId: biz, source: 'invoice-import', operation: 'extract_invoice', title: 'Supplier invoice extraction failed', error: e, context: { modelId }, reference: poId ? { type: 'purchase_order', id: poId } : undefined });
     const msg = detail.includes('RESOURCE_EXHAUSTED')
       ? 'AI quota exceeded — try again in a moment.'
       : detail.includes('INVALID_ARGUMENT') || detail.includes('400')
@@ -278,33 +235,17 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
     matchedSupplier = fuzzySupplierMatch(parsedInvoice.supplier_name ?? '', suppliers);
   }
 
-  // Fetch variants
-  let variants: Variant[] = [];
-  if (matchedSupplier) {
-    variants = await imsQuery<Variant>(
-            `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
-              p.name AS product_name, p.brand AS product_brand,
-              CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
-       FROM ims_product_variants v
-       JOIN ims_products p ON p.product_id = v.product_id
-       WHERE p.supplier_contact_id = ? AND p.business_id = ? AND v.is_active = 1 AND p.is_active = 1
-       ORDER BY p.name`,
-      [matchedSupplier.id, biz],
-    );
-  } else {
-    // No supplier match — search all (capped to avoid huge payloads)
-    variants = await imsQuery<Variant>(
+  const variants = await imsQuery<InvoiceMatchVariant>(
             `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
               p.name AS product_name, p.brand AS product_brand,
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
        WHERE p.business_id = ? AND v.is_active = 1 AND p.is_active = 1
-       ORDER BY p.name
-       LIMIT 2000`,
+       ORDER BY v.variant_id`,
       [biz],
     );
-  }
+  const matchVariant = createInvoiceVariantMatcher(variants);
 
   // Match each invoice line to IMS variant
   const lineResults = normalizedInvoice.line_items.map((line: any) => ({
@@ -313,7 +254,7 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       product_type: pickAllowedValue(line?.product_type, allowedProductTypes.map(r => r.product_type).filter(Boolean)) ?? null,
       brand: pickAllowedValue(line?.brand, allowedBrands.map(r => r.name).filter(Boolean)) ?? null,
     },
-    match: matchVariant(line.product_code ?? null, line.barcode ?? null, line.product_name ?? null, variants),
+    match: matchVariant(line),
   }));
 
   // Pathway 2: compare against existing PO items
@@ -333,8 +274,9 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
     const matchedVariantIds = new Set<string>();
     poComparison = poItems.map((poLine: any) => {
       const lineRes = lineResults.find((lr: any) => lr.match?.variant_id === poLine.variant_id);
-      const invLine = lineRes?.invoice_line ?? null;
-      if (lineRes?.match) matchedVariantIds.add(poLine.variant_id);
+      const matchingLines = lineResults.filter((lr: any) => lr.match?.variant_id === poLine.variant_id);
+      const invLine = matchingLines.length === 1 ? lineRes?.invoice_line ?? null : null;
+      if (lineRes?.match && matchingLines.length === 1) matchedVariantIds.add(poLine.variant_id);
       return {
         po_line: {
           id: poLine.id,
@@ -347,6 +289,8 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
           variant_label: poLine.variant_label,
         },
         invoice_line: invLine,
+        requires_review: !!lineRes && (invoiceMatchNeedsReview(lineRes.match?.confidence) || matchingLines.length > 1),
+        review_reason: matchingLines.length > 1 ? 'Multiple invoice rows match this PO variant. Review their combined quantity in Receive.' : null,
         qty_diff:   invLine ? Number(invLine.qty)        - Number(poLine.qty_ordered) : null,
         price_diff: invLine ? Number(invLine.unit_price) - Number(poLine.unit_cost)   : null,
         not_in_po: false,
@@ -355,8 +299,8 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
 
     // Lines on invoice not matched to any PO item
     for (const lr of lineResults) {
-      if (lr.match && !matchedVariantIds.has(lr.match.variant_id)) {
-        poComparison.push({ po_line: null, invoice_line: lr.invoice_line, qty_diff: null, price_diff: null, not_in_po: true });
+      if (!lr.match || !matchedVariantIds.has(lr.match.variant_id)) {
+        poComparison.push({ po_line: null, invoice_line: lr.invoice_line, qty_diff: null, price_diff: null, not_in_po: true, requires_review: true });
       }
     }
   }
@@ -381,4 +325,9 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
     line_results:     lineResults,
     po_comparison:    poComparison,
   });
+    });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: biz, source: 'invoice-import', operation: 'prepare_invoice', title: 'Supplier invoice matching failed', error });
+    return NextResponse.json({ error: 'Invoice matching could not be completed. Please try again.' }, { status: 500 });
+  }
 }

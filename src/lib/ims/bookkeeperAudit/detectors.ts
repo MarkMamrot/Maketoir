@@ -205,7 +205,7 @@ export async function loadOperationalAuditFindings(
     dependencies.query<NegativeStockAuditRow>(
       `SELECT p.product_id, s.variant_id, COALESCE(v.sku, '') AS sku, COALESCE(p.name, 'Unknown product') AS product_name,
               s.location_id, COALESCE(l.name, 'Unknown location') AS location_name,
-              s.qty_on_hand, COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud, s.avg_cost, 0) AS unit_cost,
+              s.qty_on_hand, COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud, 0) AS unit_cost,
               DATE_FORMAT(s.updated_at, '%Y-%m-%dT%H:%i:%s.000Z') AS updated_at
          FROM ims_stock s
          JOIN ims_product_variants v ON v.variant_id = s.variant_id

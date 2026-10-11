@@ -168,7 +168,6 @@ function buildFakeConnection(state: {
           business_id: businessId,
           qty_on_hand: Number(qtyDelta),
           qty_incoming: 0,
-          avg_cost: 0,
         });
       }
       return [{ affectedRows: 1 }];
@@ -180,15 +179,6 @@ function buildFakeConnection(state: {
       const row = state.stockByVariant.get(key);
       if (row) row.qty_incoming = Math.max(0, Number(row.qty_incoming || 0) - Number(qty));
       return [{ affectedRows: row ? 1 : 0 }];
-    }
-
-    // Org-wide avg mirror: update ALL stock rows for this variant
-    if (s.startsWith('update ims_stock set avg_cost = ? where variant_id = ?')) {
-      const [avgCost, variantId] = params;
-      for (const row of state.stockByVariant.values()) {
-        if (row.variant_id === variantId) row.avg_cost = Number(avgCost);
-      }
-      return [{ affectedRows: 1 }];
     }
 
     if (s.startsWith('update ims_product_variants set avg_cost = ? where variant_id = ?')) {
@@ -305,7 +295,7 @@ describe('POST /api/ims/receive/batch', () => {
         },
       ],
       stockByVariant: new Map<string, Row>([
-        ['v-1|4', { variant_id: 'v-1', location_id: 4, business_id: 'biz-1', qty_on_hand: 10, qty_incoming: 5, avg_cost: 8 }],
+        ['v-1|4', { variant_id: 'v-1', location_id: 4, business_id: 'biz-1', qty_on_hand: 10, qty_incoming: 5 }],
       ]),
       landedRows: [{ amount: 20 }],
       paymentAgg: { tot_foreign: 100, tot_local: 150 },
@@ -334,7 +324,7 @@ describe('POST /api/ims/receive/batch', () => {
 
     // true cost = (11 inc tax -> 10 ex tax) * 1.5 + landed/freight allocation 3 = 18
     // new avg = (10*8 + 2*18) / 12 = 9.666666...
-    expect(stock.avg_cost).toBeCloseTo((10 * 8 + 2 * 18) / 12, 8);
+    expect(state.variantAvgById.get('v-1')).toBeCloseTo((10 * 8 + 2 * 18) / 12, 8);
 
     expect(state.movements).toHaveLength(1);
     expect(state.movements[0].business_id).toBe('biz-1');
@@ -391,7 +381,7 @@ describe('POST /api/ims/receive/batch', () => {
       po: { id: 12, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0, supplier_invoice_number: 'INV-12' },
       settings: [],
       items: [{ id: 102, po_id: 12, variant_id: 'v-2', qty_ordered: 2, qty_received: 0, unit_cost: 5, tax_rate: 0.1 }],
-      stockByVariant: new Map<string, Row>([['v-2|4', { variant_id: 'v-2', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2, avg_cost: 0 }]]),
+      stockByVariant: new Map<string, Row>([['v-2|4', { variant_id: 'v-2', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2 }]]),
       landedRows: [],
       paymentAgg: { tot_foreign: 0, tot_local: 0 },
       movements: [] as Row[],
@@ -498,7 +488,7 @@ describe('POST /api/ims/receive/batch', () => {
         },
       ],
       stockByVariant: new Map<string, Row>([
-        ['v-2|4', { variant_id: 'v-2', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 10, avg_cost: 0 }],
+        ['v-2|4', { variant_id: 'v-2', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 10 }],
       ]),
       landedRows: [{ amount: 999 }],
       paymentAgg: { tot_foreign: 100, tot_local: 150 },
@@ -526,7 +516,7 @@ describe('POST /api/ims/receive/batch', () => {
 
     // Settings exclude landed+freight, so receipt unit cost is ex-tax FX only:
     // 11 inc tax -> 10 ex tax; 10 * 1.5 = 15.
-    expect(stock.avg_cost).toBeCloseTo(15, 8);
+    expect(state.variantAvgById.get('v-2')).toBeCloseTo(15, 8);
     expect(state.movements[0].unit_cost).toBeCloseTo(15, 8);
 
     expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
@@ -537,7 +527,7 @@ describe('POST /api/ims/receive/batch', () => {
       po: { id: 23, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0, supplier_invoice_number: '   ' },
       settings: [],
       items: [{ id: 203, po_id: 23, variant_id: 'v-23', qty_ordered: 2, qty_received: 0, unit_cost: 5, tax_rate: 0.1 }],
-      stockByVariant: new Map<string, Row>([['v-23|4', { variant_id: 'v-23', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2, avg_cost: 0 }]]),
+      stockByVariant: new Map<string, Row>([['v-23|4', { variant_id: 'v-23', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2 }]]),
       landedRows: [],
       paymentAgg: { tot_foreign: 0, tot_local: 0 },
       movements: [] as Row[],

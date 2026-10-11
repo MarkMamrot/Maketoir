@@ -48,7 +48,7 @@ try {
      )
      SELECT stock.variant_id, stock.location_id, location.name AS location_name,
             variant.sku, product.name AS product_name, stock.qty_on_hand,
-            variant.avg_cost, stock.avg_cost AS location_avg_cost, variant.cost_aud AS current_purchase_cost,
+            variant.avg_cost, variant.cost_aud AS current_purchase_cost,
             receipt.unit_cost AS latest_receipt_cost, receipt.received_date AS latest_receipt_date,
             receipt.purchase_order_id
        FROM ${schema}.ims_stock stock
@@ -60,8 +60,7 @@ try {
          ON location.business_id = stock.business_id AND location.id = stock.location_id
       LEFT JOIN latest_receipt receipt ON receipt.variant_id = stock.variant_id AND receipt.receipt_rank = 1
       WHERE stock.business_id = ? AND stock.qty_on_hand > 0.00005
-        AND (COALESCE(variant.avg_cost, stock.avg_cost) IS NULL
-          OR ROUND(COALESCE(variant.avg_cost, stock.avg_cost), 6) = 0)
+        AND (variant.avg_cost IS NULL OR ROUND(variant.avg_cost, 6) = 0)
       ORDER BY product.name, variant.sku, stock.location_id`,
     [businessId, businessId],
   );
@@ -79,7 +78,6 @@ try {
       location_name: row.location_name,
       qty_on_hand: row.qty_on_hand,
       current_variant_avg_cost: row.avg_cost,
-      current_location_avg_cost: row.location_avg_cost,
       current_purchase_cost: row.current_purchase_cost,
       latest_receipt_cost: row.latest_receipt_cost,
       latest_receipt_date: row.latest_receipt_date instanceof Date ? row.latest_receipt_date.toISOString().slice(0, 10) : row.latest_receipt_date,
@@ -91,7 +89,7 @@ try {
   });
   const headers = Object.keys(outputRows[0] ?? {
     variant_id: '', sku: '', product_name: '', location_id: '', location_name: '', qty_on_hand: '',
-    current_variant_avg_cost: '', current_location_avg_cost: '', current_purchase_cost: '',
+    current_variant_avg_cost: '', current_purchase_cost: '',
     latest_receipt_cost: '', latest_receipt_date: '', purchase_order_id: '', recommended_cost: '',
     recommendation_source: '', review_status: '',
   });

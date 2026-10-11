@@ -632,19 +632,19 @@ export async function POST(req: Request) {
 
           // Load variants by SKU (primary) and barcode (fallback for size-grid products
           // where /Stock returns a unique barcode per size but a shared product-level code)
-          const allVariants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null; cost_aud: number | null }>(
-            'SELECT variant_id, sku, barcode, cost_aud FROM ims_product_variants',
+          const allVariants = await imsQuery<{ variant_id: string; sku: string | null; barcode: string | null }>(
+            'SELECT variant_id, sku, barcode FROM ims_product_variants',
           );
-          const variantByCode = new Map<string, { variantId: string; cost_aud: number | null }>(
-            allVariants.filter(r => r.sku).map(r => [r.sku!, { variantId: r.variant_id, cost_aud: r.cost_aud }]),
+          const variantByCode = new Map<string, { variantId: string }>(
+            allVariants.filter(r => r.sku).map(r => [r.sku!, { variantId: r.variant_id }]),
           );
-          const variantByBarcode = new Map<string, { variantId: string; cost_aud: number | null }>(
-            allVariants.filter(r => r.barcode).map(r => [r.barcode!, { variantId: r.variant_id, cost_aud: r.cost_aud }]),
+          const variantByBarcode = new Map<string, { variantId: string }>(
+            allVariants.filter(r => r.barcode).map(r => [r.barcode!, { variantId: r.variant_id }]),
           );
 
           const stockAgg = new Map<string, {
             variantId: string; locationId: number;
-            soh: number; incoming: number; committed: number; avgCost: number | null;
+            soh: number; incoming: number; committed: number;
           }>();
 
           for (const s of cin7Stock) {
@@ -660,7 +660,7 @@ export async function POST(req: Request) {
               ?? (stockSkuFromSize ? variantByCode.get(stockSkuFromSize) : undefined)
               ?? (stockBarcode ? variantByBarcode.get(stockBarcode) : undefined);
             if (!variantMatch) continue;
-            const { variantId, cost_aud: avgCostFallback } = variantMatch;
+            const { variantId } = variantMatch;
 
             const locationId = locByBranchId.get(cin7BranchId)
               ?? locByName.get((s.branchName ?? '').trim());
@@ -670,7 +670,6 @@ export async function POST(req: Request) {
             if (!stockAgg.has(key)) {
               stockAgg.set(key, {
                 variantId, locationId, soh: 0, incoming: 0, committed: 0,
-                avgCost: avgCostFallback,
               });
             }
             const entry = stockAgg.get(key)!;
@@ -683,15 +682,14 @@ export async function POST(req: Request) {
           for (const s of stockAgg.values()) {
             await imsExecute(
               `INSERT INTO ims_stock
-                 (variant_id, location_id, business_id, qty_on_hand, qty_incoming, qty_committed, avg_cost)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+                 (variant_id, location_id, business_id, qty_on_hand, qty_incoming, qty_committed)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                  qty_on_hand   = VALUES(qty_on_hand),
                  qty_incoming  = VALUES(qty_incoming),
                  qty_committed = VALUES(qty_committed),
-                 avg_cost      = COALESCE(VALUES(avg_cost), avg_cost),
                  updated_at    = CURRENT_TIMESTAMP`,
-              [s.variantId, s.locationId, businessId, s.soh, s.incoming, s.committed, s.avgCost],
+              [s.variantId, s.locationId, businessId, s.soh, s.incoming, s.committed],
             );
             stockSynced++;
           }

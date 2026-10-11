@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Send, RotateCw } from 'lucide-react';
 
 export interface SupportTicket {
   id: number;
@@ -20,6 +21,7 @@ export interface SupportTicket {
   created_at: string;
   updated_at: string;
   images?: Array<{ filename: string; url: string }>;
+  updates?: Array<{ id: number; author_name: string; message: string; status: SupportTicket['status']; email_status: 'pending' | 'sent' | 'failed' | 'no_email'; created_at: string }>;
 }
 
 const panel = { background: 'var(--sv-bg-1,#1e293b)', border: '1px solid var(--sv-etch,rgba(255,255,255,.1))', borderRadius: 8 };
@@ -58,6 +60,8 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const requestRef = useRef<{ key: string; id: string } | null>(null);
   const [assignedTo, setAssignedTo] = useState<number | null>(null);
   const [notificationEmail, setNotificationEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
@@ -120,23 +124,38 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
     const data = await responseJson(response);
     if (response.ok && data?.ticket) {
       setSelected(data.ticket);
-      setNotes(data.ticket.resolution_notes ?? '');
+      setNotes('');
+      setSaveError(null);
       setAssignedTo(data.ticket.assigned_to ?? null);
     }
   };
 
-  const save = async () => {
+  const save = async (retryUpdateId?: number) => {
     if (!selected) return;
     setSaving(true);
-    const response = await fetch(`/api/admin/support-tickets/${selected.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: selected.status, assignedTo, resolutionNotes: notes }),
-    });
-    setSaving(false);
-    if (response.ok) {
-      setSelected(null);
+    setSaveError(null);
+    const key = JSON.stringify({ id: selected.id, status: selected.status, assignedTo, message: notes });
+    if (requestRef.current?.key !== key) requestRef.current = { key, id: crypto.randomUUID() };
+    try {
+      const response = await fetch(`/api/admin/support-tickets/${selected.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: selected.status, assignedTo, message: notes, requestId: requestRef.current.id, retryUpdateId }),
+      });
+      const data = await responseJson(response);
+      if (!response.ok) throw new Error(data?.error ?? 'Update could not be saved.');
+      const detail = await fetch(`/api/admin/support-tickets/${selected.id}`);
+      const result = await responseJson(detail);
+      if (!detail.ok || !result?.ticket) throw new Error('Update saved, but the history could not reload. Reopen the ticket to check it.');
+      setSelected(result.ticket);
+      if (!retryUpdateId) { setNotes(''); requestRef.current = null; }
+      if (data?.emailStatus === 'failed') setSaveError('Update saved, but its email failed. Retry email from the update below.');
+      if (data?.emailStatus === 'no_email') setSaveError('Update saved. This older ticket has no submitter email address, so no email could be sent.');
       await load();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Update could not be saved. Please retry.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -182,7 +201,7 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
           <button key={ticket.id} onClick={() => void openTicket(ticket.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '90px minmax(140px,1fr) minmax(240px,2fr) 130px 150px', alignItems: 'center', padding: '11px 12px', border: 0, borderTop: '1px solid var(--sv-etch,#e2e8f0)', background: 'transparent', color: 'var(--sv-text-main,#475569)', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}>
             <span style={{ color: statusColor(ticket.status, false), fontWeight: 800, textTransform: 'uppercase', fontSize: 10 }}>{ticket.status.replace('_', ' ')}</span>
             <span>{ticket.business_name}</span>
-            <span><strong style={{ color: 'var(--sv-text-strong,#0f172a)' }}>{ticket.subject}</strong><br /><small style={{ color: 'var(--sv-text-dim,#64748b)' }}>{ticket.source_app.toUpperCase()}{ticket.screen_context ? ` · ${ticket.screen_context}` : ''}</small></span>
+            <span><strong style={{ color: 'var(--sv-text-strong,#0f172a)' }}>#{ticket.id} · {ticket.subject}</strong><br /><small style={{ color: 'var(--sv-text-dim,#64748b)' }}>{ticket.source_app.toUpperCase()}{ticket.screen_context ? ` · ${ticket.screen_context}` : ''}</small></span>
             <span>{ticket.assigned_name ?? '—'}</span>
             <span>{dateTime(ticket.created_at)}</span>
           </button>
@@ -197,7 +216,7 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
               <button aria-label="Close ticket" title="Close" onClick={() => setSelected(null)} style={{ width: 34, height: 34, border: '1px solid #475569', borderRadius: 6, background: '#1e293b', color: '#f8fafc', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
             </div>
             <div style={{ padding: '20px clamp(16px, 4vw, 28px) 32px' }}>
-              <h2 style={{ margin: '0 0 8px', color: '#f8fafc', fontSize: 20, lineHeight: 1.3 }}>{selected.subject}</h2>
+              <h2 style={{ margin: '0 0 8px', color: '#f8fafc', fontSize: 20, lineHeight: 1.3, overflowWrap: 'anywhere' }}>#{selected.id} · {selected.subject}</h2>
               <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.55, fontSize: 13, whiteSpace: 'pre-wrap' }}>{selected.description}</p>
               {Boolean(selected.images?.length) && <section aria-label="Ticket images" style={{ marginTop: 16 }}>
                 <h3 style={{ fontSize: 13 }}>Images</h3>
@@ -209,6 +228,7 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
               </section>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, ...drawerPanel, padding: 14, margin: '18px 0' }}>
                 <div><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>Submitted by</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{selected.submitted_by_name ?? 'Unknown'}</p></div>
+                <div style={{ overflowWrap: 'anywhere' }}><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>Reply email</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{selected.submitted_by_email ?? 'Not recorded'}</p></div>
                 <div><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>App</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{selected.source_app.toUpperCase()}{selected.screen_context ? ` · ${selected.screen_context}` : ''}</p></div>
                 <div><p style={{ margin: 0, color: '#94a3b8', fontSize: 10, textTransform: 'uppercase' }}>Created</p><p style={{ margin: '3px 0 0', fontSize: 13 }}>{dateTime(selected.created_at)}</p></div>
               </div>
@@ -227,10 +247,20 @@ export function SupportTicketsPanel({ showSettings = false, onOpenCountChange }:
                 {assignableUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
               </select>
 
-              <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Resolution notes</label>
-              <textarea aria-label="Resolution notes" value={notes} onChange={event => setNotes(event.target.value)} rows={4} style={{ ...drawerInput, width: '100%', boxSizing: 'border-box', resize: 'vertical', marginBottom: 16 }} />
-
-              <button onClick={() => void save()} disabled={saving} style={{ ...drawerInput, background: '#2563eb', color: '#fff', border: 0, fontWeight: 700, cursor: 'pointer', padding: '10px 16px' }}>{saving ? 'Saving…' : 'Save changes'}</button>
+              <section aria-label="Ticket updates" style={{ marginBottom: 18 }}>
+                <h3 style={{ fontSize: 14 }}>Updates</h3>
+                {selected.resolution_notes && <div style={{ borderBottom: '1px solid #334155', paddingBottom: 12 }}><p style={{ fontSize: 11, color: '#94a3b8' }}>Previous resolution notes</p><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13 }}>{selected.resolution_notes}</p></div>}
+                {selected.updates?.map(update => <div key={update.id} style={{ borderBottom: '1px solid #334155', padding: '12px 0' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', overflowWrap: 'anywhere' }}>{update.author_name} · {dateTime(update.created_at)}</p>
+                  <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13 }}>{update.message}</p>
+                  <span style={{ fontSize: 11, color: update.email_status === 'failed' ? '#fca5a5' : '#cbd5e1' }}>{update.email_status === 'sent' ? 'Email sent' : update.email_status === 'no_email' ? 'No reply email recorded' : update.email_status === 'failed' ? 'Email failed' : 'Email pending'}</span>
+                  {(update.email_status === 'failed' || update.email_status === 'pending') && <button title="Retry email" aria-label={`Retry email for update ${update.id}`} disabled={saving} onClick={() => void save(update.id)} style={{ ...drawerInput, marginLeft: 8, cursor: 'pointer' }}><RotateCw size={14} /></button>}
+                </div>)}
+              </section>
+              <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>New update</label>
+              <textarea aria-label="New update" maxLength={10_000} disabled={saving} value={notes} onChange={event => setNotes(event.target.value)} rows={4} style={{ ...drawerInput, width: '100%', boxSizing: 'border-box', resize: 'vertical', marginBottom: 16 }} />
+              {saveError && <p role="alert" style={{ color: '#fca5a5', fontSize: 12 }}>{saveError}</p>}
+              <button onClick={() => void save()} disabled={saving} style={{ ...drawerInput, background: '#2563eb', color: '#fff', border: 0, fontWeight: 700, cursor: 'pointer', padding: '10px 16px', display: 'inline-flex', alignItems: 'center', gap: 8 }}><Send size={15} />{saving ? 'Saving…' : notes.trim() ? 'Post update' : 'Save changes'}</button>
             </div>
           </aside>
         </div>

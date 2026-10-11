@@ -9,7 +9,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('UnifiedHelpDrawer layered topics', () => {
   it('requires and submits the POS staff reply email', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 42 }) });
     vi.stubGlobal('fetch', fetchMock);
     render(<UnifiedHelpDrawer open onOpenChange={vi.fn()} audience="pos" product="pos" chatEndpoint="/assistant" escalationEndpoint="/escalate" supportEndpoint="/api/pos/support-tickets" showFloatingTrigger={false} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Contact Support' }));
@@ -26,7 +26,7 @@ describe('UnifiedHelpDrawer layered topics', () => {
   it('submits pasted and selected images and allows removal', async () => {
     URL.createObjectURL = vi.fn(() => 'blob:preview');
     URL.revokeObjectURL = vi.fn();
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 42 }) });
     vi.stubGlobal('fetch', fetchMock);
     render(<UnifiedHelpDrawer open onOpenChange={vi.fn()} audience="ims" product="ims" chatEndpoint="/assistant" escalationEndpoint="/escalate" supportEndpoint="/api/ims/support-tickets" showFloatingTrigger={false} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Contact Support' }));
