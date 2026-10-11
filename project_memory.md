@@ -1,3 +1,9 @@
+## 2026-10-11 - Xero COGS journal deep links
+
+- COGS posting history resolves the connected Xero Organisation `ShortCode` and links directly to `https://go.xero.com/app/{ShortCode}/journals/view/{ManualJournalID}`. The prior homepage fallback is gone. The unreachable `LegacyCogsReconciliationTab`, its private response type and its unreferenced `/api/xero/cogs/report` endpoint were deleted so there is one maintained COGS reconciliation implementation.
+- Links are withheld for deleted, voided or not-found journals, invalid/missing short codes, and unavailable organisation identity. Organisation lookup failures are recorded through Runtime Issues rather than opening an ambiguous Xero page.
+- The supplied Monsterthreads July evidence (`!wbVHv` plus journal `1cc55728-8884-48ad-9774-5405eb32df7c`) is reproduced exactly by the tested URL builder. The configured browser account can access only Monsterthreads DEV SANDBOX, so production tenant API validation was not attempted through an unauthorized context; authenticated sandbox report/API and responsive checks passed without operational writes.
+
 ## 2026-10-11 - Monsterthreads missing Average Cost backfill
 
 - Applied the guarded Monsterthreads-only Average Cost backfill to 3,168 stock variants: 1 used the latest positive receipt movement cost, 69 used effective AUD cost derived from the latest active legacy PO receipt line, and 3,098 fell back to positive Cost AUD. The same values were mirrored to 8,661 stock rows in one transaction; scoped readback found zero mismatches and an idempotent rerun found zero further repairable variants.
