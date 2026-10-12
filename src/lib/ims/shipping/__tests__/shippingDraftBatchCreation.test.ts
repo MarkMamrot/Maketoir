@@ -48,6 +48,21 @@ beforeEach(() => {
   setup();
 });
 describe("draft creation membership and duplicate purchase protection", () => {
+  it("saves a measured order as explicitly unbatched without a postage quote", async () => {
+    const body = input();
+    delete body.shipments[0].service;
+    expect(await createShippingDrafts({ ...body, preparationOnly: true, batchId: null })).toEqual([{ soId: 10, shipmentId: 1 }]);
+    const creation = writes().find(([sql]) => sql.includes("ims_shipping_shipments"));
+    expect(creation?.[1].slice(8, 13)).toEqual([null, null, null, null, null]);
+    expect(writes().find(([sql]) => sql.includes("ims_shipping_batch_memberships"))?.[1]).toEqual(["tenant-a", 1, null]);
+    expect(mocks.commit).toHaveBeenCalledOnce();
+  });
+  it("does not permit the legacy batch-create path to skip a reviewed service", async () => {
+    const body = input();
+    delete body.shipments[0].service;
+    await expect(createShippingDrafts(body)).rejects.toThrow("choose a quoted shipping service");
+    expect(writes()).toHaveLength(0);
+  });
   it("rejects malformed order entries without accessing the database", async () => {
     await expect(createShippingDrafts({ ...input(), shipments: [null] } as unknown as ShippingDraftInput))
       .rejects.toMatchObject({ status: 400 });

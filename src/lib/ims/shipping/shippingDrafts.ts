@@ -24,11 +24,12 @@ import { getShippingBatchId, ShippingBatchError, validateShippingBatchId } from 
 export type ShippingDraftInput = {
   businessId: string;
   operationKey: string;
-  batchId?: string;
+  batchId?: string | null;
+  preparationOnly?: boolean;
   carrierAccountId: number;
   shipments: Array<
     ShippingRequestInput["shipments"][number] & {
-      service: {
+      service?: {
         serviceCode: string;
         serviceName: string;
         total: number;
@@ -95,7 +96,11 @@ export async function createShippingDrafts(
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150)
     throw new Error("A valid operation key is required.");
-  if (input.batchId !== undefined) validateShippingBatchId(input.batchId);
+  if (input.batchId !== undefined && input.batchId !== null) validateShippingBatchId(input.batchId);
+  if (input.preparationOnly && input.batchId !== null)
+    throw new ShippingBatchError("Order preparation must be saved without a batch.", 400);
+  if (!input.preparationOnly && input.batchId === null)
+    throw new ShippingBatchError("Choose a destination batch.", 400);
   if (!Array.isArray(input.shipments) || !input.shipments.length || input.shipments.length > 50 ||
       input.shipments.some((entry) => !entry || typeof entry !== "object" ||
         !Number.isSafeInteger(entry.soId) || entry.soId <= 0) ||
@@ -120,7 +125,7 @@ export async function createShippingDrafts(
     const batchShipments = await lockShippingBatchShipments(connection, input.businessId);
     const newEntries = prepared.filter((entry) => !batchShipments.some((shipment) =>
       shipment.operation_key === `${operationKey}:${entry.order.id}`));
-    if (input.batchId !== undefined && newEntries.length &&
+    if (input.batchId != null && newEntries.length &&
         !batchShipments.some((shipment) =>
           getShippingBatchId(shipment.operation_key, shipment.membership_id == null ? null : { batch_key: shipment.batch_key }) === input.batchId &&
           !["voided", "manifested"].includes(shipment.status) && shipment.manifest_id == null))
@@ -137,7 +142,7 @@ export async function createShippingDrafts(
     const result: Array<{ soId: number; shipmentId: number }> = [];
     for (const entry of prepared) {
       const service = servicesByOrder.get(entry.requested.soId);
-      if (!service?.serviceCode?.trim() || !service.serviceName?.trim())
+      if (!input.preparationOnly && (!service?.serviceCode?.trim() || !service.serviceName?.trim()))
         throw new Error(
           `${entry.order.so_number}: choose a quoted shipping service.`,
         );
@@ -203,7 +208,7 @@ export async function createShippingDrafts(
       await connection.execute(
         `INSERT INTO ims_shipping_batch_memberships (business_id, shipment_id, batch_key, revision)
          VALUES (?, ?, ?, 1)`,
-        [input.businessId, shipmentId, input.batchId ?? operationKey],
+        [input.businessId, shipmentId, input.preparationOnly ? null : input.batchId ?? operationKey],
       );
       for (const parcel of entry.requested.parcels) {
         const [parcelInsert] = await connection.execute<ResultSetHeader>(

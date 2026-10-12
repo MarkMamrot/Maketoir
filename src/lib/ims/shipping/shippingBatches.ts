@@ -18,6 +18,8 @@ type BatchShipment = RowDataPacket & {
   membership_id: number | null;
   batch_key: string | null;
   batch_revision: number | null;
+  parcel_count: number;
+  invalid_parcel_count: number;
 };
 type BatchLabel = RowDataPacket & {
   id: number;
@@ -34,6 +36,12 @@ export async function lockShippingBatchShipments(connection: PoolConnection, bus
             shipment.manifest_id, shipment.ims_fulfilled_at,
             membership.shipment_id AS membership_id, membership.batch_key,
             membership.revision AS batch_revision
+            , (SELECT COUNT(*) FROM ims_shipping_parcels parcel
+                 WHERE parcel.business_id = shipment.business_id AND parcel.shipment_id = shipment.id) AS parcel_count
+            , (SELECT COUNT(*) FROM ims_shipping_parcels parcel
+                 WHERE parcel.business_id = shipment.business_id AND parcel.shipment_id = shipment.id
+                   AND (COALESCE(parcel.length_mm, 0) <= 0 OR COALESCE(parcel.width_mm, 0) <= 0
+                     OR COALESCE(parcel.height_mm, 0) <= 0 OR COALESCE(parcel.weight_kg, 0) <= 0)) AS invalid_parcel_count
        FROM ims_shipping_shipments shipment
        LEFT JOIN ims_shipping_batch_memberships membership
          ON membership.business_id = shipment.business_id AND membership.shipment_id = shipment.id
@@ -76,6 +84,8 @@ export async function changeShippingBatchMembership(
         status: shipment.status, manifestId: shipment.manifest_id, imsFulfilledAt: shipment.ims_fulfilled_at,
       });
       if (issue) throw new ShippingBatchError(issue, 409);
+      if (input.batchId !== null && (!(Number(shipment.parcel_count) > 0) || Number(shipment.invalid_parcel_count) !== 0))
+        throw new ShippingBatchError("Save valid parcel dimensions and packed weight before adding orders to a batch.", 409);
       if (batchId(shipment) !== input.batchId) changed.push(shipment);
     }
     const changedIds = new Set(changed.map((shipment) => Number(shipment.id)));

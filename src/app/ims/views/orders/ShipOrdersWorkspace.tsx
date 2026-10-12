@@ -4,18 +4,18 @@ import {
   ClipboardList,
   Download,
   PackageCheck,
-  Plus,
   Printer,
   RefreshCw,
   Send,
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ShippingShipmentEditor, shippingShipmentEditBlocker, shipmentLabelInvalidationIds } from "./ShippingShipmentEditor";
+import { OrderShippingPreparation } from "./OrderShippingPreparation";
 import type { ShippingAmendmentResult } from "@/lib/ims/shipping/shippingAmendmentTypes";
 import { ShippingBatchControls, UnbatchedShipments, type BatchDestination } from "./ShippingBatchControls";
-import { groupWorkspaceBatches, mergeRemovedParcelAllocations, workspaceBatchLabel, workspaceContentsLabel, workspaceMembershipBlocker, workspaceShippingStatus, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
+import { groupWorkspaceBatches, workspaceBatchLabel, workspaceMembershipBlocker, workspaceShippingStatus, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
 
 import {
   suggestParcels,
@@ -23,27 +23,14 @@ import {
   type PackingPreset,
 } from "@/lib/ims/shipping/packingSuggestions";
 import {
-  canDeleteShippingDraft,
   getShippingOrderEligibility,
   isAustralianShippingCountry,
 } from "@/lib/ims/shipping/shippingWorkflow";
 import {
-  centimetreInputToMillimetres,
   millimetresToCentimetreInput,
 } from "@/lib/ims/shipping/parcelDimensions";
-import {
-  buildNonSaleDeclaredValueInputs,
-  buildWorkspaceCustomsRows,
-  getWorkspaceCustomsBlockers,
-  type WorkspaceCustomsLine,
-} from "@/lib/ims/shipping/workspaceCustoms";
-import type { ShippingExportPurpose } from "@/lib/ims/shipping/customs";
-import {
-  workspaceParcelItemLabel,
-  workspaceParcelQuantityIssue,
-} from "@/lib/ims/shipping/workspaceParcelQuantities";
 
-type SalesOrderSummary = {
+export type SalesOrderSummary = {
   id: number;
   so_number: string;
   channel_order_number?: string | null;
@@ -60,9 +47,10 @@ type SalesOrderSummary = {
   is_pos_ledger?: boolean;
   remaining_quantity?: number;
   delivery_country?: string | null;
+  preparation_shipment_id?: number | null;
 };
 
-type SalesOrderDetail = SalesOrderSummary & {
+export type SalesOrderDetail = SalesOrderSummary & {
   delivery_address?: string | null;
   delivery_suburb?: string | null;
   delivery_state?: string | null;
@@ -92,7 +80,7 @@ type SalesOrderDetail = SalesOrderSummary & {
   }>;
 };
 
-type CarrierAccount = {
+export type CarrierAccount = {
   id: number;
   displayName: string;
   provider: string;
@@ -217,21 +205,12 @@ export function ShipOrdersWorkspace({
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<CarrierAccount[]>([]);
   const [presets, setPresets] = useState<PackingPreset[]>([]);
-  const [carrierAccountId, setCarrierAccountId] = useState("");
-  const [parcelsByOrder, setParcelsByOrder] = useState<
-    Record<number, EditableParcel[]>
-  >({});
-  const [quotesByOrder, setQuotesByOrder] = useState<
-    Record<number, ShippingRate[]>
-  >({});
   const [selectedServiceByOrder, setSelectedServiceByOrder] = useState<
     Record<number, ShippingRate>
   >({});
-  const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [includeAusPostBranding, setIncludeAusPostBranding] = useState(true);
-  const [deleting, setDeleting] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMessage, setDispatchMessage] = useState("");
   const [created, setCreated] = useState<
@@ -244,23 +223,12 @@ export function ShipOrdersWorkspace({
     [],
   );
   const [readyOrders, setReadyOrders] = useState<SalesOrderSummary[]>([]);
-  const [readySelection, setReadySelection] = useState<Set<number>>(new Set());
-  const [addingOrders, setAddingOrders] = useState(false);
-  const [exportPurposeByOrder, setExportPurposeByOrder] = useState<
-    Record<number, ShippingExportPurpose>
-  >({});
-  const [nonSaleValuesByOrder, setNonSaleValuesByOrder] = useState<
-    Record<number, Record<number, string>>
-  >({});
-  const [confirmedNonSaleOrders, setConfirmedNonSaleOrders] = useState<
-    Set<number>
-  >(new Set());
   const [stockReadiness, setStockReadiness] = useState<ShippingStockReadiness | null>(null);
   const [checkingStock, setCheckingStock] = useState(false);
   const [stockShortfallAcknowledged, setStockShortfallAcknowledged] = useState(false);
   const [creatingAdjustmentForLocation, setCreatingAdjustmentForLocation] = useState<number | null>(null);
   const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
-  const workspaceBusy = saving || submitting || deleting || dispatching || movingShipments || refreshingWorkspace || addingOrders || quoting;
+  const workspaceBusy = saving || submitting || dispatching || movingShipments || refreshingWorkspace;
 
   function invalidateAmendedLabels(shipmentIds: number[]) {
     const affected = new Set(shipmentLabelInvalidationIds([...savedShipments, ...submissionResults], shipmentIds));
@@ -376,15 +344,15 @@ export function ShipOrdersWorkspace({
     }
   }
 
-  async function changeBatchMembership(ids: number[], destination: BatchDestination) {
+  async function changeBatchMembership(ids: number[], destination: BatchDestination, undoBatch = false): Promise<boolean> {
     const members = savedShipments.filter((shipment) => ids.includes(shipment.shipmentId));
     if (!members.length || members.length !== ids.length) {
       setError("The shipment selection changed. Refresh the workspace before moving shipments.");
-      return;
+      return false;
     }
     const blocker = members.map(workspaceMembershipBlocker).find(Boolean);
-    if (blocker) { setError(blocker); return; }
-    if (!window.confirm(`${destination.batchId === null ? "Remove" : "Move"} ${members.length} shipment${members.length === 1 ? "" : "s"} ${destination.batchId === null ? "to Unbatched shipments" : "to the selected batch"}?\nPreparation and existing postage will be retained. Postage will not be cancelled or purchased. Shared label PDFs may need refreshing; discard affected older copies.`)) return;
+    if (blocker) { setError(blocker); return false; }
+    if (!window.confirm(`${undoBatch ? "Undo this batch and remove" : destination.batchId === null ? "Remove" : "Add"} ${members.length} order${members.length === 1 ? "" : "s"} ${destination.batchId === null ? "from the working group" : destination.createBatch ? "to a new batch" : "to the selected batch"}?\nSaved dimensions and existing postage will be retained. Unpurchased orders return to Orders ready to ship; booked shipments remain Unbatched. Postage will not be cancelled or purchased. Shared label PDFs may need refreshing; discard affected older copies.`)) return false;
     setMovingShipments(true);
     setError("");
     setDispatchMessage("");
@@ -406,9 +374,11 @@ export function ShipOrdersWorkspace({
       if (result.data.requiresFreshLabels) invalidateAmendedLabels(affected);
       await refreshWorkspace();
       setMembershipSelection([]);
-      setDispatchMessage(`Batch membership updated. Preparation and postage retained.${result.data.requiresFreshLabels ? " Generate fresh labels and discard affected older PDFs." : ""}`);
+      setDispatchMessage(`${undoBatch ? "Batch undone." : "Batch membership updated."} Saved dimensions and postage retained.${result.data.requiresFreshLabels ? " Generate fresh labels and discard affected older PDFs." : ""}`);
+      return true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to update batch membership.");
+      return false;
     } finally {
       setMovingShipments(false);
     }
@@ -497,17 +467,6 @@ export function ShipOrdersWorkspace({
         );
         setAccounts(activeAccounts);
         setPresets(activePresets);
-        setCarrierAccountId(
-          activeAccounts[0] ? String(activeAccounts[0].id) : "",
-        );
-        setParcelsByOrder(
-          Object.fromEntries(
-            orderDetails.map((order) => [
-              order.id,
-              initialParcels(order, activePresets),
-            ]),
-          ),
-        );
         setSavedShipments(activeShipments);
         setReadyOrders(availableOrders);
       })
@@ -526,278 +485,6 @@ export function ShipOrdersWorkspace({
       active = false;
     };
   }, [selectedOrderKey]);
-
-  const savedOrderIds = new Set(
-    savedShipments.map((shipment) => shipment.soId),
-  );
-  const plans = details
-    .filter((order) => !savedOrderIds.has(order.id))
-    .map((order) => ({ order, ...buildPackingPlan(order, presets) }));
-  const selectedAccount = accounts.find(
-    (account) => String(account.id) === carrierAccountId,
-  );
-  const dispatchAddressReady = Boolean(
-    selectedAccount &&
-    selectedAccount.dispatchAddressMissingFields.length === 0,
-  );
-  const canCreate =
-    dispatchAddressReady &&
-    plans.length > 0 &&
-    plans.every(
-      (plan) =>
-        plan.ready &&
-        validEditableParcels(plan.order, parcelsByOrder[plan.order.id]) &&
-        customsBlockersForOrder(
-          plan.order,
-          parcelsByOrder[plan.order.id] ?? [],
-          exportPurposeByOrder[plan.order.id] ?? "sale",
-          nonSaleValuesByOrder[plan.order.id] ?? {},
-          confirmedNonSaleOrders.has(plan.order.id),
-        ).length === 0,
-    );
-  const shipments = plans.map((plan) => {
-    const purpose = exportPurposeByOrder[plan.order.id] ?? "sale";
-    const orderParcels = parcelsByOrder[plan.order.id] ?? [];
-    const customsRows = customsRowsForOrder(
-      plan.order,
-      orderParcels,
-      purpose,
-      nonSaleValuesByOrder[plan.order.id] ?? {},
-    );
-    return {
-      soId: plan.order.id,
-      ...(isInternationalOrder(plan.order) ? {
-        exportPurpose: purpose,
-        nonSaleValues: purpose === "sale"
-          ? undefined
-          : buildNonSaleDeclaredValueInputs(customsRows),
-        nonSaleValuesConfirmed: purpose === "sale"
-          ? undefined
-          : confirmedNonSaleOrders.has(plan.order.id),
-      } : {}),
-      parcels: orderParcels.map((parcel, index) => ({
-        parcelNumber: index + 1,
-        packagePresetId: parcel.packagePresetId
-          ? Number(parcel.packagePresetId)
-          : null,
-        packageType: parcel.packageType || "custom",
-        lengthMm: centimetreInputToMillimetres(parcel.lengthCm),
-        widthMm: centimetreInputToMillimetres(parcel.widthCm),
-        heightMm: centimetreInputToMillimetres(parcel.heightCm),
-        weightKg: Number(parcel.weightKg),
-        allocations: parcel.allocations.filter(
-          (allocation) => allocation.quantity > 0,
-        ),
-      })),
-    };
-  });
-
-  const changeExportPurpose = (
-    order: SalesOrderDetail,
-    purpose: ShippingExportPurpose,
-  ) => {
-    setPrepareDirty(true);
-    setExportPurposeByOrder((current) => ({ ...current, [order.id]: purpose }));
-    setConfirmedNonSaleOrders((current) => {
-      const next = new Set(current);
-      next.delete(order.id);
-      return next;
-    });
-    if (purpose !== "sale") {
-      const saleRows = customsRowsForOrder(
-        order,
-        parcelsByOrder[order.id] ?? [],
-        "sale",
-        {},
-      );
-      setNonSaleValuesByOrder((current) => ({
-        ...current,
-        [order.id]: Object.fromEntries(
-          saleRows.map((row) => [
-            row.id,
-            current[order.id]?.[row.id] ??
-              (row.unitValue == null ? "" : row.unitValue.toFixed(2)),
-          ]),
-        ),
-      }));
-    }
-    setError("");
-    setQuotesByOrder({});
-    setSelectedServiceByOrder({});
-  };
-
-  const updateParcel = (
-    soId: number,
-    parcelIndex: number,
-    patch: Partial<EditableParcel>,
-  ) => {
-    setPrepareDirty(true);
-    setParcelsByOrder((current) => ({
-      ...current,
-      [soId]: (current[soId] ?? []).map((parcel, index) =>
-        index === parcelIndex ? { ...parcel, ...patch } : parcel,
-      ),
-    }));
-    setError("");
-    setQuotesByOrder({});
-    setSelectedServiceByOrder({});
-  };
-
-  const choosePreset = (
-    soId: number,
-    parcelIndex: number,
-    presetId: string,
-  ) => {
-    const preset = presets.find((item) => item.id === Number(presetId));
-    updateParcel(
-      soId,
-      parcelIndex,
-      preset
-        ? {
-            packagePresetId: presetId,
-            packageType: preset.packageType,
-            lengthCm: millimetresToCentimetreInput(preset.lengthMm),
-            widthCm: millimetresToCentimetreInput(preset.widthMm),
-            heightCm: millimetresToCentimetreInput(preset.heightMm),
-          }
-        : { packagePresetId: "", packageType: "custom" },
-    );
-  };
-
-  const updateAllocation = (
-    soId: number,
-    parcelIndex: number,
-    soItemId: number,
-    quantity: string,
-  ) => {
-    const value = quantity === "" ? 0 : Number(quantity);
-    const parcel = parcelsByOrder[soId]?.[parcelIndex];
-    if (!parcel) return;
-    updateParcel(soId, parcelIndex, {
-      allocations: parcel.allocations.map((allocation) =>
-        allocation.soItemId === soItemId
-          ? { ...allocation, quantity: value }
-          : allocation,
-      ),
-    });
-  };
-
-  const addParcel = (order: SalesOrderDetail) => {
-    setPrepareDirty(true);
-    setParcelsByOrder((current) => ({
-      ...current,
-      [order.id]: [
-        ...(current[order.id] ?? []),
-        {
-          packagePresetId: "",
-          packageType: "custom",
-          lengthCm: "",
-          widthCm: "",
-          heightCm: "",
-          weightKg: "",
-          allocations: remainingAllocations(order, 0),
-        },
-      ],
-    }));
-    setError("");
-    setQuotesByOrder({});
-    setSelectedServiceByOrder({});
-  };
-
-  const removeParcel = (soId: number, parcelIndex: number) => {
-    if (!window.confirm("Remove this parcel? Its items will be moved to the first remaining parcel. Check the packed measurements and weight again.")) return;
-    setPrepareDirty(true);
-    setParcelsByOrder((current) => ({
-      ...current,
-      [soId]: mergeRemovedParcelAllocations(current[soId] ?? [], parcelIndex),
-    }));
-    setError("");
-    setQuotesByOrder({});
-    setSelectedServiceByOrder({});
-  };
-
-  const getQuotes = async () => {
-    setQuoting(true);
-    setError("");
-    setQuotesByOrder({});
-    try {
-      const response = await fetch("/api/ims/shipping/quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          carrierAccountId: Number(carrierAccountId),
-          shipments,
-        }),
-      });
-      const result = await readJsonResponse(response);
-      if (!response.ok || !result.success)
-        throw new Error(result.error || "Unable to retrieve shipping prices.");
-      const quotes = Object.fromEntries(
-        (result.data ?? []).map(
-          (quote: { soId: number; rates: ShippingRate[] }) => [
-            quote.soId,
-            quote.rates,
-          ],
-        ),
-      );
-      setQuotesByOrder(quotes);
-      setSelectedServiceByOrder({});
-      if (
-        (result.data ?? []).some(
-          (quote: { rates: ShippingRate[] }) => quote.rates.length === 0,
-        )
-      ) {
-        setError(
-          "Australia Post did not return a common service for every parcel on one or more orders.",
-        );
-      }
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to retrieve shipping prices.",
-      );
-    } finally {
-      setQuoting(false);
-    }
-  };
-
-  const createDrafts = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const response = await fetch("/api/ims/shipping/drafts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operationKey: crypto.randomUUID(),
-          ...(destinationBatchId ? { batchId: destinationBatchId } : {}),
-          carrierAccountId: Number(carrierAccountId),
-          shipments: shipments.map((shipment) => ({
-            ...shipment,
-            service: selectedServiceByOrder[shipment.soId],
-          })),
-        }),
-      });
-      const result = await readJsonResponse(response);
-      if (!response.ok || !result.success)
-        throw new Error(result.error || "Unable to prepare shipments.");
-      setCreated(result.data ?? []);
-      setPrepareDirty(false);
-      setActiveTab("batches");
-      const refreshed = await refreshWorkspace(destinationBatchId || null);
-      const firstCreated = refreshed.find((shipment) => shipment.shipmentId === result.data?.[0]?.shipmentId);
-      if (firstCreated?.batchId) openSavedShipments(refreshed.filter((shipment) => shipment.batchId === firstCreated.batchId));
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to prepare shipments.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const submitToCarrier = async () => {
     const currentReadiness = await refreshStockReadiness();
@@ -883,28 +570,23 @@ export function ShipOrdersWorkspace({
       setCreatingAdjustmentForLocation(null);
     }
   };
-
-  const hasSelectedServices =
-    plans.length > 0 &&
-    plans.every((plan) => Boolean(selectedServiceByOrder[plan.order.id]));
   const labelsPending = submissionResults.some(
     (result) => result.status === "label_pending",
   );
   const selectedSavedShipments = savedShipments.filter((shipment) => created.some((selected) => selected.shipmentId === shipment.shipmentId));
   const unsubmittedCount = created.length - selectedSavedShipments.filter((shipment) => shipment.providerShipmentId).length;
   const selectedOperationBlocked = selectedSavedShipments.some((shipment) => ["amending", "amendment_unknown", "submitting", "submission_unknown", "label_submitting"].includes(shipment.status));
+  const selectedServicesMissing = selectedSavedShipments.length !== created.length || selectedSavedShipments.some(
+    shipment => !shipment.providerShipmentId && (!shipment.serviceCode || shipment.quotedCost == null),
+  );
   const selectedAlreadyDispatched = selectedSavedShipments.length === created.length && selectedSavedShipments.length > 0 && selectedSavedShipments.every((shipment) => shipment.status === "complete");
   const selectedTrackingPending = selectedSavedShipments.some((shipment) => shipment.imsFulfilledAt && shipment.status !== "complete");
   const needsCarrierAction =
     !selectedAlreadyDispatched && (submissionResults.length < created.length || labelsPending);
   const visibleSavedShipments = savedShipments;
   const savedBatches = groupWorkspaceBatches(visibleSavedShipments);
-  const unbatchedShipments = savedShipments.filter((shipment) => shipment.batchId === null);
-  const availableReadyOrders = readyOrders.filter(
-    (order) =>
-      !details.some((detail) => Number(detail.id) === Number(order.id)) &&
-      !savedShipments.some((shipment) => shipment.soId === Number(order.id)),
-  );
+  const unbatchedShipments = savedShipments.filter((shipment) => shipment.batchId === null &&
+    (shipment.providerShipmentId || !["draft", "failed"].includes(shipment.status)));
   const openSavedShipments = (selected: SavedShippingShipment[], navigate = true) => {
     setOpenedBatchId(selected[0]?.batchId ?? null);
     if (navigate) setActiveTab("batches");
@@ -937,94 +619,6 @@ export function ShipOrdersWorkspace({
         })),
     );
     setError("");
-  };
-  const deleteSavedShipments = async (selected: SavedShippingShipment[]) => {
-    if (
-      !selected.length ||
-      selected.some(
-        (shipment) =>
-          !canDeleteShippingDraft(shipment.status, shipment.providerShipmentId),
-      )
-    )
-      return;
-    if (
-      !window.confirm(
-        `Delete ${selected.length} selected shipment draft${selected.length === 1 ? "" : "s"}? The orders will become available to prepare again.`,
-      )
-    )
-      return;
-    setDeleting(true);
-    setError("");
-    try {
-      const response = await fetch("/api/ims/shipping/drafts", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shipmentIds: selected.map((shipment) => shipment.shipmentId),
-        }),
-      });
-      const result = await readJsonResponse(response);
-      if (!response.ok || !result.success)
-        throw new Error(result.error || "Unable to delete shipment drafts.");
-      const deleted = new Set<number>(result.data?.deletedShipmentIds ?? []);
-      setSavedShipments((current) =>
-        current.filter((shipment) => !deleted.has(shipment.shipmentId)),
-      );
-      setMembershipSelection((current) => current.filter((id) => !deleted.has(id)));
-      await refreshWorkspace();
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to delete shipment drafts.",
-      );
-    } finally {
-      setDeleting(false);
-    }
-  };
-  const addReadyOrders = async () => {
-    const selected = availableReadyOrders.filter((order) =>
-      readySelection.has(Number(order.id)),
-    );
-    if (!selected.length) return;
-    setAddingOrders(true);
-    setError("");
-    try {
-      const added = await Promise.all(
-        selected.map(async (order) => {
-          const response = await fetch(`/api/ims/sales-orders/${order.id}`);
-          const result = await readJsonResponse(response);
-          if (!response.ok || !result.success)
-            throw new Error(
-              result.error || `Unable to load ${order.so_number}.`,
-            );
-          return result.data as SalesOrderDetail;
-        }),
-      );
-      setDetails((current) => [
-        ...current,
-        ...added.filter(
-          (order) =>
-            !current.some((item) => Number(item.id) === Number(order.id)),
-        ),
-      ]);
-      setParcelsByOrder((current) => ({
-        ...current,
-        ...Object.fromEntries(
-          added.map((order) => [order.id, initialParcels(order, presets)]),
-        ),
-      }));
-      setPrepareDirty(true);
-      setReadySelection(new Set());
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to add orders to this shipment batch.",
-      );
-    } finally {
-      setAddingOrders(false);
-    }
   };
   const markDispatched = async (allowNegativeStock = false) => {
     if (
@@ -1221,6 +815,21 @@ export function ShipOrdersWorkspace({
             </button>
           </div>
           <div role="tabpanel" id="shipping-workspace-panel" aria-labelledby={`shipping-${activeTab}-tab`}>
+              {!loading && <div hidden={activeTab !== "prepare"}>
+                <OrderShippingPreparation orders={readyOrders} shipments={savedShipments} accounts={accounts} presets={presets}
+                  busy={workspaceBusy} destinationBatchId={destinationBatchId}
+                  onDirtyChange={setPrepareDirty} onBusyChange={setSaving}
+                  onOpenProducts={() => { if (requestWorkspaceClose()) window.location.hash = "products"; }}
+                  onChanged={async () => { await refreshWorkspace(); }}
+                  onAdd={async (ids, destination) => {
+                    const updated = await changeBatchMembership(ids, destination);
+                    if (updated) {
+                      const refreshed = await refreshWorkspace();
+                      openSavedShipments(refreshed.filter(shipment => shipment.batchId === destination.batchId));
+                    }
+                    return updated;
+                  }} />
+              </div>}
           {activeTab === "manifests" ? (
             <ManifestsWorkspacePanel />
           ) : (
@@ -1252,7 +861,7 @@ export function ShipOrdersWorkspace({
               )}
               {!loading && <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
                 <p style={{ margin: 0, fontSize: 12, color: "var(--sv-text-dim)" }}>
-                  {activeTab === "prepare" ? "Check parcels > Get prices > Choose service > Add to batch. No postage is purchased while preparing." : "Batches are working groups. Creating labels purchases postage; dispatch updates stock. Manifests record carrier lodgement."}
+                  {activeTab === "prepare" ? "Save dimensions > Select measured orders > Create or join a batch. Choose postage in the batch." : "Choose postage for each order > Create labels > Print > Mark dispatched. Labels purchase postage; dispatch updates stock."}
                 </p>
                 <button type="button" style={secondaryButtonStyle} disabled={workspaceBusy} onClick={() => { setError(""); void refreshWorkspace().catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to refresh workspace.")); }}>
                   <RefreshCw size={14} /> {refreshingWorkspace ? "Refreshing..." : "Refresh workspace"}
@@ -1260,122 +869,6 @@ export function ShipOrdersWorkspace({
               </div>}
               {!loading && activeTab === "prepare" && <UnbatchedShipments shipments={unbatchedShipments} allShipments={savedShipments} busy={workspaceBusy} onMove={(ids, destination) => void changeBatchMembership(ids, destination)} onEdit={setEditingShipmentId} />}
               {!loading && activeTab === "batches" && !savedBatches.length && <p style={{ fontSize: 13 }}>No saved batches yet. Prepare orders or add unbatched shipments to a new batch.</p>}
-              {!loading &&
-                activeTab === "prepare" &&
-                availableReadyOrders.length > 0 && (
-                  <section style={{ marginBottom: 18 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        marginBottom: 8,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div>
-                        <strong style={{ fontSize: 13 }}>
-                          Orders ready to ship
-                        </strong>
-                        <div
-                          style={{
-                            marginTop: 2,
-                            fontSize: 11,
-                            color: "var(--sv-text-dim)",
-                          }}
-                        >
-                          Confirmed delivery orders without an active
-                          consignment.
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={!readySelection.size || workspaceBusy}
-                        onClick={addReadyOrders}
-                        style={{
-                          ...primaryButtonStyle,
-                          opacity:
-                            readySelection.size && !addingOrders ? 1 : 0.55,
-                        }}
-                      >
-                        <Plus size={14} />
-                        {addingOrders ? "Adding..." : "Prepare selected orders"}
-                      </button>
-                    </div>
-                    <div style={{ borderTop: "1px solid var(--sv-etch)" }}>
-                      {availableReadyOrders.map((order, orderIndex) => (
-                        <label
-                          key={order.id}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns:
-                              "24px repeat(auto-fit,minmax(140px,1fr))",
-                            gap: 10,
-                            alignItems: "center",
-                            padding: "10px 4px",
-                            borderBottom: "1px solid var(--sv-etch)",
-                            background: zebraRowBackground(orderIndex),
-                            fontSize: 12,
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            disabled={workspaceBusy}
-                            checked={readySelection.has(Number(order.id))}
-                            onChange={(event) =>
-                              setReadySelection((current) => {
-                                const next = new Set(current);
-                                if (event.target.checked)
-                                  next.add(Number(order.id));
-                                else next.delete(Number(order.id));
-                                return next;
-                              })
-                            }
-                          />
-                          <span>
-                            <strong>{order.so_number}</strong>
-                            {getChannelOrderNumber(order) && (
-                              <span
-                                style={{
-                                  display: "block",
-                                  color: "var(--sv-text-dim)",
-                                }}
-                              >
-                                {getChannelOrderNumber(order)}
-                              </span>
-                            )}
-                            {order.channel_display_name && (
-                              <div style={{ marginTop: 2, fontSize: 11, color: "var(--sv-action)" }}>
-                                {order.channel_display_name}
-                              </div>
-                            )}
-                          </span>
-                          <span>
-                            {order.customer_name || "No customer name"}
-                          </span>
-                          <span style={{ color: "var(--sv-text-dim)" }}>
-                            {destinationLabel(order.delivery_country)}
-                          </span>
-                          <span>
-                            {formatChannelShippingMethod(order) || "Delivery"}
-                          </span>
-                          <span
-                            style={{
-                              color: "var(--sv-text-dim)",
-                              fontWeight: 700,
-                            }}
-                          >
-                            {Number(order.remaining_quantity || 0)} unit
-                            {Number(order.remaining_quantity || 0) === 1
-                              ? ""
-                              : "s"}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </section>
-                )}
               {!loading && activeTab === "batches" && savedBatches.length > 0 && (
                 <section style={{ marginBottom: 18 }}>
                   <ShippingBatchControls selected={membershipSelection} shipments={savedShipments} busy={workspaceBusy} onMove={(ids, destination) => void changeBatchMembership(ids, destination)} onClear={() => setMembershipSelection([])} />
@@ -1406,12 +899,7 @@ export function ShipOrdersWorkspace({
                   </div>
                   <div style={{ display: "grid", gap: 10 }}>
                     {savedBatches.map((batch) => {
-                      const canDelete = batch.shipments.every((shipment) =>
-                        canDeleteShippingDraft(
-                          shipment.status,
-                          shipment.providerShipmentId,
-                        ),
-                      );
+                      const canUndo = batch.shipments.every(shipment => !workspaceMembershipBlocker(shipment));
                       return (
                         <div
                           key={batch.batchId}
@@ -1464,22 +952,22 @@ export function ShipOrdersWorkspace({
                               </button>
                               <button
                                 type="button"
-                                disabled={workspaceBusy || !canDelete}
+                                disabled={workspaceBusy || !canUndo}
                                 onClick={() =>
-                                  void deleteSavedShipments(batch.shipments)
+                                  void changeBatchMembership(batch.shipments.map(shipment => shipment.shipmentId), { batchId: null }, true)
                                 }
-                                title="Discard local draft preparation. This is different from removing shipments from a batch."
+                                title="Remove this working group while keeping saved dimensions and all existing postage."
                                 style={{
                                   ...secondaryButtonStyle,
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: 6,
                                   color: "var(--sv-red)",
-                                  opacity: canDelete && !deleting ? 1 : 0.55,
+                                  opacity: canUndo && !movingShipments ? 1 : 0.55,
                                 }}
                               >
                                 <Trash2 size={14} />
-                                {deleting ? "Deleting..." : "Discard local drafts"}
+                                {movingShipments ? "Updating..." : "Undo batch"}
                               </button>
                             </span>
                           </div>
@@ -1556,7 +1044,7 @@ export function ShipOrdersWorkspace({
                                   fontWeight: 700,
                                 }}
                               >
-                                {workspaceShippingStatus(shipment.status, shipment.labelStatus)}
+                                {!shipment.providerShipmentId && !shipment.serviceCode ? "Choose postage" : workspaceShippingStatus(shipment.status, shipment.labelStatus)}
                               </span>
                               <button
                                 type="button"
@@ -1565,7 +1053,7 @@ export function ShipOrdersWorkspace({
                                 title={shippingShipmentEditBlocker(shipment.status) || "Edit this saved shipment without reopening or replacing the batch"}
                                 onClick={() => setEditingShipmentId(shipment.shipmentId)}
                               >
-                                Edit shipment details
+                                {!shipment.providerShipmentId && !shipment.serviceCode ? "Get prices & choose postage" : "Edit shipment details"}
                               </button>
                               <button type="button" style={secondaryButtonStyle} disabled={movingShipments || submitting || dispatching || Boolean(workspaceMembershipBlocker(shipment))} onClick={() => void changeBatchMembership([shipment.shipmentId], { batchId: null })}>Remove from batch</button>
                               {workspaceMembershipBlocker(shipment) && <span role="status" style={{ color: "var(--sv-text-dim)", fontSize: 11 }}>{workspaceMembershipBlocker(shipment)}</span>}
@@ -1581,687 +1069,7 @@ export function ShipOrdersWorkspace({
                   </div>
                 </section>
               )}
-              <fieldset disabled={quoting || saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-              {!loading && activeTab === "prepare" && plans.length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ marginBottom: 10 }}>
-                    <strong style={{ fontSize: 13 }}>1. Check parcel details</strong>
-                    <div style={{ marginTop: 2, fontSize: 11, color: "var(--sv-text-dim)" }}>
-                      Enter packed measurements first. Item quantities are assigned automatically for a single parcel.
-                    </div>
-                  </div>
-                  <label style={{ display: "block", width: "min(360px,100%)" }}>
-                    <span
-                      style={{
-                        display: "block",
-                        marginBottom: 5,
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Carrier account
-                    </span>
-                    <select
-                      value={carrierAccountId}
-                      onChange={(event) => {
-                        setPrepareDirty(true);
-                        setCarrierAccountId(event.target.value);
-                        setError("");
-                        setQuotesByOrder({});
-                        setSelectedServiceByOrder({});
-                      }}
-                      style={selectStyle}
-                    >
-                      <option value="">Choose an account</option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.displayName}
-                          {account.verifiedAt ? "" : " (not verified)"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={{ display: "block", width: "min(420px,100%)", marginTop: 12 }}>
-                    <span style={{ display: "block", marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Add prepared orders to</span>
-                    <select aria-label="Preparation destination batch" style={selectStyle} value={destinationBatchId} onChange={(event) => { setDestinationBatchId(event.target.value); setPrepareDirty(true); }}>
-                      <option value="">New batch</option>
-                      {savedBatches.filter((batch) => batch.shipments.some((shipment) => !workspaceMembershipBlocker(shipment))).map((batch) => <option key={batch.batchId} value={batch.batchId}>{workspaceBatchLabel(batch.shipments)}</option>)}
-                    </select>
-                  </label>
-                  {!plans.length && <p style={{ fontSize: 12, color: "var(--sv-text-dim)" }}>Choose ready orders above, or add an existing unbatched shipment to a batch. Saved shipments are not prepared again.</p>}
-                  {selectedAccount?.dispatchAddressMissingFields.length ? (
-                    <div
-                      role="alert"
-                      style={{
-                        marginTop: 7,
-                        fontSize: 12,
-                        color: "var(--sv-red)",
-                      }}
-                    >
-                      Dispatch location{" "}
-                      <strong>
-                        {selectedAccount.dispatchLocationName || "not selected"}
-                      </strong>{" "}
-                      is missing{" "}
-                      {selectedAccount.dispatchAddressMissingFields.join(", ")}.{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (requestWorkspaceClose()) window.location.hash = "locations";
-                        }}
-                        style={linkButtonStyle}
-                      >
-                        Update location
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-              {!loading &&
-                activeTab === "prepare" &&
-                plans.map(
-                  ({
-                    order,
-                    remainingQuantity,
-                    eligibility,
-                    hasAddress,
-                    ready,
-                    suggestion,
-                  }, planIndex) => {
-                    const orderParcels = parcelsByOrder[order.id] ?? [];
-                    const rates = quotesByOrder[order.id] ?? [];
-                    const parcelIssue = editableParcelIssue(
-                      order,
-                      orderParcels,
-                    );
-                    const exportPurpose =
-                      exportPurposeByOrder[order.id] ?? "sale";
-                    const customsRows = customsRowsForOrder(
-                      order,
-                      orderParcels,
-                      exportPurpose,
-                      nonSaleValuesByOrder[order.id] ?? {},
-                    );
-                    const customsBlockers = customsBlockersForOrder(
-                      order,
-                      orderParcels,
-                      exportPurpose,
-                      nonSaleValuesByOrder[order.id] ?? {},
-                      confirmedNonSaleOrders.has(order.id),
-                    );
-                    const international = isInternationalOrder(order);
-                    return (
-                      <div
-                        key={order.id}
-                        style={{
-                          padding: "14px 12px",
-                          borderBottom: "1px solid var(--sv-etch)",
-                          background: zebraRowBackground(planIndex),
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns:
-                              "repeat(auto-fit,minmax(160px,1fr))",
-                            gap: 14,
-                            alignItems: "center",
-                          }}
-                        >
-                          <div>
-                            <strong style={{ fontSize: 13 }}>
-                              {order.so_number}
-                            </strong>
-                            {getChannelOrderNumber(order) && (
-                              <div
-                                style={{
-                                  marginTop: 2,
-                                  fontSize: 11,
-                                  color: "var(--sv-text-dim)",
-                                }}
-                              >
-                                Channel Order # {getChannelOrderNumber(order)}
-                              </div>
-                            )}
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: "var(--sv-text-dim)",
-                              }}
-                            >
-                              {remainingQuantity} unit
-                              {remainingQuantity === 1 ? "" : "s"} remaining
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 12 }}>
-                            {order.customer_name || "No customer name"}
-                            {formatChannelShippingMethod(order) && (
-                              <div
-                                style={{
-                                  marginTop: 2,
-                                  fontSize: 11,
-                                  color: "var(--sv-text-dim)",
-                                }}
-                              >
-                                {formatChannelShippingMethod(order)}
-                              </div>
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "var(--sv-text-dim)",
-                            }}
-                          >
-                            {hasAddress
-                              ? [
-                                  order.delivery_address,
-                                  order.delivery_suburb,
-                                  order.delivery_state,
-                                  order.delivery_postcode,
-                                  order.delivery_country,
-                                ]
-                                  .filter(Boolean)
-                                  .join(", ")
-                              : "Delivery address is incomplete"}
-                            <span style={{ display: "block", marginTop: 2 }}>
-                              {destinationLabel(
-                                order.delivery_country,
-                                international,
-                              )}
-                            </span>
-                          </div>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: ready
-                                ? "var(--sv-green)"
-                                : "var(--sv-red)",
-                            }}
-                          >
-                            {ready
-                              ? "Ready"
-                              : eligibility.eligible
-                                ? "Address required"
-                                : eligibility.reason}
-                          </span>
-                        </div>
-                        {ready && (
-                          <div
-                            style={{ marginTop: 12, display: "grid", gap: 10 }}
-                          >
-                            {suggestion.unpacked.length > 0 && (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: "var(--sv-text-dim)",
-                                }}
-                              >
-                                Automatic packing was unavailable for{" "}
-                                {suggestion.unpacked.length} item
-                                {suggestion.unpacked.length === 1 ? "" : "s"}.
-                                Enter the packed parcel details below.
-                              </div>
-                            )}
-                            {suggestion.parcels.length > 1 && suggestion.unpacked.length === 0 && orderParcels.length === 1 && <div style={{ fontSize: 12 }}>
-                              Suggested packing needs {suggestion.parcels.length} parcels.{" "}
-                              <button type="button" style={linkButtonStyle} onClick={() => { setPrepareDirty(true); setParcelsByOrder((current) => ({ ...current, [order.id]: suggestedEditableParcels(suggestion.parcels) })); setQuotesByOrder({}); setSelectedServiceByOrder({}); }}>Use suggested split</button>
-                            </div>}
-                            {orderParcels.map((parcel, parcelIndex) => (
-                              <div
-                                key={parcelIndex}
-                                style={{
-                                  padding: 10,
-                                  border: "1px solid var(--sv-etch)",
-                                  borderRadius: 6,
-                                  background: "var(--sv-bg-2)",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: 8,
-                                    marginBottom: 8,
-                                  }}
-                                >
-                                  <span
-                                    style={{ fontSize: 12, fontWeight: 700 }}
-                                  >
-                                    Parcel {parcelIndex + 1} - packed measurements
-                                  </span>
-                                  {orderParcels.length > 1 && (
-                                    <button
-                                      type="button"
-                                      title={`Remove parcel ${parcelIndex + 1}`}
-                                      onClick={() =>
-                                        removeParcel(order.id, parcelIndex)
-                                      }
-                                      style={smallIconButtonStyle}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                                <p style={{ margin: "0 0 8px", fontSize: 11, color: "var(--sv-text-dim)" }}>Confirm actual packed measurements and weight, including packaging. Preset or suggested values are a starting point.</p>
-                                <div
-                                  style={{
-                                    display: "grid",
-                                    gridTemplateColumns:
-                                      "repeat(auto-fit,minmax(130px,1fr))",
-                                    gap: 8,
-                                  }}
-                                >
-                                  <label style={fieldStyle}>
-                                    <span>Preset (optional)</span>
-                                    <select
-                                      value={parcel.packagePresetId}
-                                      onChange={(event) =>
-                                        choosePreset(
-                                          order.id,
-                                          parcelIndex,
-                                          event.target.value,
-                                        )
-                                      }
-                                      style={selectStyle}
-                                    >
-                                      <option value="">
-                                        Manual dimensions
-                                      </option>
-                                      {presets.map((preset) => (
-                                        <option
-                                          key={preset.id}
-                                          value={preset.id}
-                                        >
-                                          {preset.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  <ParcelNumberField
-                                    label="Length (cm)"
-                                    value={parcel.lengthCm}
-                                    step="0.1"
-                                    onChange={(value) =>
-                                      updateParcel(order.id, parcelIndex, {
-                                        lengthCm: value,
-                                      })
-                                    }
-                                  />
-                                  <ParcelNumberField
-                                    label="Width (cm)"
-                                    value={parcel.widthCm}
-                                    step="0.1"
-                                    onChange={(value) =>
-                                      updateParcel(order.id, parcelIndex, {
-                                        widthCm: value,
-                                      })
-                                    }
-                                  />
-                                  <ParcelNumberField
-                                    label="Height (cm)"
-                                    value={parcel.heightCm}
-                                    step="0.1"
-                                    onChange={(value) =>
-                                      updateParcel(order.id, parcelIndex, {
-                                        heightCm: value,
-                                      })
-                                    }
-                                  />
-                                  <ParcelNumberField
-                                    label="Packed weight (kg)"
-                                    value={parcel.weightKg}
-                                    step="0.001"
-                                    onChange={(value) =>
-                                      updateParcel(order.id, parcelIndex, {
-                                        weightKg: value,
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <details open={orderParcels.length > 1 || Boolean(workspaceParcelQuantityIssue(order.items ?? [], orderParcels))} style={{ marginTop: 12 }}>
-                                  <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
-                                    {orderParcels.length === 1 ? `Contents: all remaining items (${formatQuantity(remainingQuantity)} units)` : `Allocate items between parcels - parcel ${parcelIndex + 1}`}
-                                  </summary>
-                                {orderParcels.length === 1 && !workspaceParcelQuantityIssue(order.items ?? [], orderParcels) ? (
-                                  <ul style={{ fontSize: 12, margin: "8px 0", paddingLeft: 20 }}>
-                                    {(order.items ?? []).filter((item) => Number(item.qty_ordered) > Number(item.qty_fulfilled)).map((item) => <li key={item.id}>{workspaceContentsLabel(item)}: {formatQuantity(Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)))} units</li>)}
-                                  </ul>
-                                ) : <>
-                                <div style={{ marginTop: 12, fontSize: 12 }}>
-                                  <strong>Allocate existing item quantities</strong>
-                                  <div style={{ marginTop: 3, color: "var(--sv-text-dim)" }}>
-                                    Enter the number of units packed, not dimensions or weight.
-                                    The total across all parcels must match the remaining quantity for each item.
-                                  </div>
-                                </div>
-                                <div
-                                  style={{
-                                    display: "grid",
-                                    gridTemplateColumns:
-                                      "repeat(auto-fit,minmax(150px,1fr))",
-                                    gap: 8,
-                                    marginTop: 9,
-                                  }}
-                                >
-                                  {(order.items ?? []).map((item) => {
-                                    const remaining = Math.max(
-                                      0,
-                                      Number(item.qty_ordered) -
-                                        Number(item.qty_fulfilled),
-                                    );
-                                    if (remaining <= 0) return null;
-                                    const allocation = parcel.allocations.find(
-                                      (value) =>
-                                        value.soItemId === Number(item.id),
-                                    );
-                                    return (
-                                      <ParcelNumberField
-                                        key={item.id}
-                                        label={`${workspaceParcelItemLabel(item)} - units (${formatQuantity(remaining)} remaining)`}
-                                        value={
-                                          allocation?.quantity
-                                            ? String(allocation.quantity)
-                                            : ""
-                                        }
-                                        step="0.0001"
-                                        allowZero
-                                        onChange={(value) =>
-                                          updateAllocation(
-                                            order.id,
-                                            parcelIndex,
-                                            Number(item.id),
-                                            value,
-                                          )
-                                        }
-                                      />
-                                    );
-                                  })}
-                                </div>
-                                </>}
-                                </details>
-                              </div>
-                            ))}
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => addParcel(order)}
-                                style={{
-                                  ...secondaryButtonStyle,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 6,
-                                }}
-                              >
-                                <Plus size={14} />
-                                Split into another parcel
-                              </button>
-                            </div>
-                            {parcelIssue && (
-                              <div
-                                role="status"
-                                style={{ fontSize: 11, color: "var(--sv-red)" }}
-                              >
-                                {parcelIssue}
-                              </div>
-                            )}
-                            {international && (
-                              <section
-                                aria-label={`Customs declaration for ${order.so_number}`}
-                                style={{ marginTop: 8, minWidth: 0 }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "end",
-                                    justifyContent: "space-between",
-                                    gap: 12,
-                                    flexWrap: "wrap",
-                                    marginBottom: 8,
-                                  }}
-                                >
-                                  <div>
-                                    <strong style={{ fontSize: 13 }}>
-                                      Customs declaration
-                                    </strong>
-                                    <div style={{ fontSize: 11, color: "var(--sv-text-dim)" }}>
-                                      Values are declared in AUD and quantities follow the parcel allocations above.
-                                    </div>
-                                  </div>
-                                  <label style={{ ...fieldStyle, width: "min(220px,100%)" }}>
-                                    <span>Export purpose</span>
-                                    <select
-                                      value={exportPurpose}
-                                      onChange={(event) =>
-                                        changeExportPurpose(
-                                          order,
-                                          event.target.value as ShippingExportPurpose,
-                                        )
-                                      }
-                                      style={selectStyle}
-                                    >
-                                      <option value="sale">Sale</option>
-                                      <option value="gift">Gift</option>
-                                      <option value="sample">Sample</option>
-                                      <option value="return">Return</option>
-                                    </select>
-                                  </label>
-                                </div>
-                                <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-                                  <table
-                                    style={{
-                                      width: "100%",
-                                      minWidth: 760,
-                                      borderCollapse: "collapse",
-                                      fontSize: 11,
-                                    }}
-                                  >
-                                    <thead>
-                                      <tr style={{ color: "var(--sv-text-dim)", textAlign: "left" }}>
-                                        <th style={customsCellStyle}>Product / SKU</th>
-                                        <th style={customsCellStyle}>Description</th>
-                                        <th style={customsCellStyle}>HS code</th>
-                                        <th style={customsCellStyle}>Origin</th>
-                                        <th style={{ ...customsCellStyle, textAlign: "right" }}>Qty</th>
-                                        <th style={{ ...customsCellStyle, textAlign: "right" }}>Unit AUD</th>
-                                        <th style={{ ...customsCellStyle, textAlign: "right" }}>Total AUD</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {customsRows.map((row) => (
-                                        <tr key={row.id} style={{ borderTop: "1px solid var(--sv-etch)" }}>
-                                          <td style={customsCellStyle}>
-                                            <strong>{row.productName || row.sku}</strong>
-                                            <span style={{ display: "block", color: "var(--sv-text-dim)" }}>
-                                              {row.sku || `Line ${row.id}`}
-                                            </span>
-                                            {row.errors.length > 0 && row.productId && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  onClose();
-                                                  window.location.hash = `products/${encodeURIComponent(row.productId!)}`;
-                                                }}
-                                                style={linkButtonStyle}
-                                              >
-                                                Update product
-                                              </button>
-                                            )}
-                                          </td>
-                                          <td style={customsCellStyle}>{row.customsDescription || "Missing"}</td>
-                                          <td style={customsCellStyle}>{row.hsCode || "Missing"}</td>
-                                          <td style={customsCellStyle}>{row.countryOfOrigin || "Missing"}</td>
-                                          <td style={{ ...customsCellStyle, textAlign: "right" }}>{formatQuantity(row.quantity)}</td>
-                                          <td style={{ ...customsCellStyle, textAlign: "right" }}>
-                                            {exportPurpose === "sale" ? (
-                                              row.unitValue == null ? "Unavailable" : formatAud(row.unitValue)
-                                            ) : (
-                                              <input
-                                                type="number"
-                                                min="0.01"
-                                                step="0.01"
-                                                aria-label={`${row.sku || row.productName} declared unit value AUD`}
-                                                value={nonSaleValuesByOrder[order.id]?.[row.id] ?? ""}
-                                                onChange={(event) => {
-                                                  const value = event.target.value;
-                                                  setNonSaleValuesByOrder((current) => ({
-                                                    ...current,
-                                                    [order.id]: {
-                                                      ...(current[order.id] ?? {}),
-                                                      [row.id]: value,
-                                                    },
-                                                  }));
-                                                  setConfirmedNonSaleOrders((current) => {
-                                                    const next = new Set(current);
-                                                    next.delete(order.id);
-                                                    return next;
-                                                  });
-                                                  setQuotesByOrder({});
-                                                  setSelectedServiceByOrder({});
-                                                }}
-                                                style={{ ...selectStyle, width: 100, textAlign: "right" }}
-                                              />
-                                            )}
-                                          </td>
-                                          <td style={{ ...customsCellStyle, textAlign: "right", fontWeight: 700 }}>
-                                            {row.totalValue == null ? "-" : formatAud(row.totalValue)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                    <tfoot>
-                                      <tr style={{ borderTop: "1px solid var(--sv-etch)" }}>
-                                        <td colSpan={6} style={{ ...customsCellStyle, textAlign: "right", fontWeight: 700 }}>
-                                          Declaration total AUD
-                                        </td>
-                                        <td style={{ ...customsCellStyle, textAlign: "right", fontWeight: 700 }}>
-                                          {formatAud(customsRows.reduce((sum, row) => sum + Number(row.totalValue ?? 0), 0))}
-                                        </td>
-                                      </tr>
-                                    </tfoot>
-                                  </table>
-                                </div>
-                                {exportPurpose !== "sale" && (
-                                  <label
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "flex-start",
-                                      gap: 8,
-                                      marginTop: 10,
-                                      fontSize: 12,
-                                    }}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={confirmedNonSaleOrders.has(order.id)}
-                                      onChange={(event) => {
-                                        setPrepareDirty(true);
-                                        setConfirmedNonSaleOrders((current) => {
-                                          const next = new Set(current);
-                                          if (event.target.checked) next.add(order.id);
-                                          else next.delete(order.id);
-                                          return next;
-                                        });
-                                        setError("");
-                                        setQuotesByOrder({});
-                                        setSelectedServiceByOrder({});
-                                      }}
-                                    />
-                                    I confirm these non-sale declared values are complete and accurate.
-                                  </label>
-                                )}
-                                {customsBlockers.length > 0 && (
-                                  <div role="alert" style={{ marginTop: 8, color: "var(--sv-red)", fontSize: 11 }}>
-                                    {customsBlockers.map((message) => (
-                                      <div key={message}>{message}</div>
-                                    ))}
-                                  </div>
-                                )}
-                              </section>
-                            )}
-                            {rates.length > 0 && (
-                              <fieldset
-                                style={{ margin: 0, padding: 0, border: 0 }}
-                              >
-                                <legend
-                                  style={{
-                                    marginBottom: 6,
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    color: "var(--sv-text-dim)",
-                                  }}
-                                >
-                                  Choose shipping service
-                                </legend>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: 8,
-                                  }}
-                                >
-                                  {rates.map((rate) => {
-                                    const selected =
-                                      selectedServiceByOrder[order.id]
-                                        ?.serviceCode === rate.serviceCode;
-                                    return (
-                                      <label
-                                        key={rate.serviceCode}
-                                        style={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 7,
-                                          padding: "7px 9px",
-                                          border: `1px solid ${selected ? "var(--sv-action)" : "var(--sv-etch)"}`,
-                                          borderRadius: 6,
-                                          background: selected
-                                            ? "var(--sv-action-soft)"
-                                            : "var(--sv-bg-1)",
-                                          fontSize: 12,
-                                          cursor: "pointer",
-                                        }}
-                                      >
-                                        <input
-                                          type="radio"
-                                          name={`shipping-service-${order.id}`}
-                                          checked={selected}
-                                          onChange={() => {
-                                            setPrepareDirty(true);
-                                            setSelectedServiceByOrder(
-                                              (current) => ({
-                                                ...current,
-                                                [order.id]: rate,
-                                              }),
-                                            );
-                                            setError("");
-                                          }}
-                                        />
-                                        <span>
-                                          <strong>{rate.serviceName}</strong> ·{" "}
-                                          {formatAud(rate.total)}{" "}
-                                          <span
-                                            style={{
-                                              color: "var(--sv-text-dim)",
-                                            }}
-                                          >
-                                            incl. GST
-                                          </span>
-                                        </span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </fieldset>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  },
-                )}
-              </fieldset>
+              
               {activeTab === "batches" && created.length > 0 && (
                 <div
                   role="status"
@@ -2284,6 +1092,7 @@ export function ShipOrdersWorkspace({
                     {created.length} shipment{created.length === 1 ? "" : "s"} in this batch: {unsubmittedCount} awaiting postage; {created.length - unsubmittedCount} already booked with the carrier.
                   </div>
                   {selectedOperationBlocked && <p role="alert" style={{ fontSize: 12, color: "var(--sv-red)" }}>Resolve the pending shipment operation before creating labels or dispatching.</p>}
+                  {selectedServicesMissing && <p style={{ fontSize: 12 }}>Use <strong>Get prices &amp; choose postage</strong> beside each order without a service. Saving a service does not purchase postage.</p>}
                   {selectedAlreadyDispatched && <p style={{ fontSize: 12 }}>These shipments are dispatched. Continue in Manifests for carrier lodgement.</p>}
                   {[
                     ...new Map(
@@ -2327,25 +1136,24 @@ export function ShipOrdersWorkspace({
                   ))}
                 </div>
               )}
-              {activeTab === "batches" && created.length > 0 && needsCarrierAction && (
+              {activeTab === "batches" && created.length > 0 && needsCarrierAction && !selectedServicesMissing && (
                 <section
                   aria-label="Stock readiness"
                   style={{
                     marginTop: 14,
-                    padding: 14,
-                    border: `1px solid ${stockReadiness?.ready ? "var(--sv-green)" : "#d6a934"}`,
+                    padding: stockReadiness?.ready ? "9px 12px" : 14,
+                    border: `1px solid ${stockReadiness?.ready ? "var(--sv-etch)" : "#d6a934"}`,
                     borderRadius: 6,
                     background: "var(--sv-bg-2)",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <strong style={{ fontSize: 13 }}>Stock readiness before labels</strong>
+                    <strong role="status" style={{ fontSize: 12, color: stockReadiness?.ready ? "var(--sv-green)" : "var(--sv-text)" }}>{stockReadiness?.ready ? "Stock available for this batch" : checkingStock ? "Checking stock..." : stockReadiness ? "Stock shortage — review before buying labels" : "Stock check needed"}</strong>
                     <button type="button" disabled={checkingStock} onClick={() => void refreshStockReadiness()} style={secondaryButtonStyle}>
-                      <RefreshCw size={14} /> {checkingStock ? "Checking..." : "Refresh stock"}
+                      <RefreshCw size={14} /> {checkingStock ? "Checking..." : "Recheck stock"}
                     </button>
                   </div>
                   {checkingStock && !stockReadiness && <div style={{ marginTop: 8, fontSize: 12, color: "var(--sv-text-dim)" }}>Checking stock at each fulfilment branch...</div>}
-                  {stockReadiness?.ready && <div style={{ marginTop: 8, fontSize: 12, color: "var(--sv-green)" }}>All packed stock is currently on hand.</div>}
                   {stockReadiness && !stockReadiness.ready && (
                     <>
                       <div style={{ marginTop: 8, fontSize: 12 }}>
@@ -2412,57 +1220,8 @@ export function ShipOrdersWorkspace({
                   >
                     Close
                   </button>
-                  {activeTab === "prepare" && plans.length > 0 && (
-                    <button
-                      type="button"
-                      disabled={!canCreate || quoting || saving}
-                      onClick={getQuotes}
-                      style={{
-                        ...(hasSelectedServices ? secondaryButtonStyle : primaryButtonStyle),
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 7,
-                        opacity: canCreate && !quoting && !saving ? 1 : 0.55,
-                        cursor:
-                          canCreate && !quoting && !saving
-                            ? "pointer"
-                            : "not-allowed",
-                      }}
-                    >
-                      <RefreshCw size={15} />
-                      {quoting
-                        ? "Getting prices..."
-                        : Object.keys(quotesByOrder).length
-                          ? "Refresh prices"
-                          : "Get shipping prices"}
-                    </button>
-                  )}
-                  {activeTab === "prepare" && plans.length > 0 && (
-                    <button
-                      type="button"
-                      disabled={!canCreate || !hasSelectedServices || saving}
-                      onClick={createDrafts}
-                      title={
-                        canCreate && !hasSelectedServices
-                          ? "Choose a quoted shipping service for every order."
-                          : undefined
-                      }
-                      style={{
-                        ...(hasSelectedServices ? primaryButtonStyle : secondaryButtonStyle),
-                        opacity:
-                          canCreate && hasSelectedServices && !saving
-                            ? 1
-                            : 0.55,
-                        cursor:
-                          canCreate && hasSelectedServices && !saving
-                            ? "pointer"
-                            : "not-allowed",
-                      }}
-                    >
-                      <PackageCheck size={15} />
-                      {saving ? "Saving..." : destinationBatchId ? "Add to existing batch" : "Add to new batch"}
-                    </button>
-                  )}
+                  
+                  
                   {activeTab === "batches" && created.length > 0 && needsCarrierAction && (
                     <>
                       {!labelsPending && (
@@ -2477,12 +1236,12 @@ export function ShipOrdersWorkspace({
                       )}
                       <button
                         type="button"
-                        disabled={selectedOperationBlocked || submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
+                        disabled={selectedServicesMissing || selectedOperationBlocked || submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
                         onClick={submitToCarrier}
                         style={{
                           ...primaryButtonStyle,
-                          opacity: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? 0.55 : 1,
-                          cursor: submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? "not-allowed" : "pointer",
+                          opacity: selectedServicesMissing || submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? 0.55 : 1,
+                          cursor: selectedServicesMissing || submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged) ? "not-allowed" : "pointer",
                         }}
                       >
                         <Send size={15} />
@@ -2521,6 +1280,7 @@ export function ShipOrdersWorkspace({
         </div>
         {editingShipmentId != null && (
           <ShippingShipmentEditor
+            mode={savedShipments.some(shipment => shipment.shipmentId === editingShipmentId && !shipment.providerShipmentId && !shipment.serviceCode) ? "postage" : "edit"}
             key={editingShipmentId}
             shipmentId={editingShipmentId}
             accounts={accounts}
@@ -3028,32 +1788,6 @@ const primaryButtonStyle: React.CSSProperties = {
   color: "#fff",
   fontWeight: 700,
 };
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  border: "1px solid var(--sv-etch)",
-  borderRadius: 6,
-  background: "var(--sv-bg-1)",
-  color: "var(--sv-text-main)",
-};
-const fieldStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 4,
-  minWidth: 0,
-  color: "var(--sv-text-dim)",
-  fontSize: 11,
-  fontWeight: 700,
-};
-const linkButtonStyle: React.CSSProperties = {
-  padding: 0,
-  border: 0,
-  background: "transparent",
-  color: "var(--sv-action)",
-  font: "inherit",
-  fontWeight: 700,
-  textDecoration: "underline",
-  cursor: "pointer",
-};
 const tabButtonStyle = (active: boolean): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
@@ -3066,45 +1800,6 @@ const tabButtonStyle = (active: boolean): React.CSSProperties => ({
   fontWeight: 700,
   cursor: "pointer",
 });
-const customsCellStyle: React.CSSProperties = {
-  padding: "7px 8px",
-  verticalAlign: "top",
-};
-
-function ParcelNumberField({
-  label,
-  value,
-  step = "1",
-  onChange,
-  allowZero = false,
-}: {
-  label: string;
-  value: string;
-  step?: string;
-  onChange: (value: string) => void;
-  allowZero?: boolean;
-}) {
-  const errorId = useId();
-  const [touched, setTouched] = useState(false);
-  const invalid = (touched || value !== "") && (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0 || (!allowZero && Number(value) === 0));
-  return (
-    <label style={fieldStyle}>
-      <span>{label}</span>
-      <input
-        type="number"
-        min="0"
-        step={step}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={() => setTouched(true)}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? errorId : undefined}
-        style={selectStyle}
-      />
-      {invalid && <small id={errorId} role="status" style={{ color: "var(--sv-red)" }}>{allowZero ? "Enter zero or a positive item quantity." : "Enter a positive packed measurement."}</small>}
-    </label>
-  );
-}
 
 function buildPackingPlan(order: SalesOrderDetail, presets: PackingPreset[]) {
   const remainingQuantity = (order.items ?? []).reduce(
@@ -3215,17 +1910,6 @@ function remainingAllocations(
   }));
 }
 
-function formatChannelShippingMethod(order: SalesOrderSummary): string {
-  const method = String(order.channel_shipping_method ?? "").trim();
-  if (!method) return "";
-  if (
-    order.channel_delivery_type === "pickup" &&
-    !/pickup|collect/i.test(method)
-  )
-    return `Pickup in store at ${method}`;
-  return method;
-}
-
 function zebraRowBackground(index: number): string {
   return index % 2 === 1
     ? "color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))"
@@ -3308,53 +1992,6 @@ function destinationLabel(country: string | null | undefined, international?: bo
   return `${name} · ${isInternational ? "International" : "Domestic"}`;
 }
 
-function customsRowsForOrder(
-  order: SalesOrderDetail,
-  parcels: EditableParcel[],
-  exportPurpose: ShippingExportPurpose,
-  nonSaleValues: Record<number, string>,
-) {
-  return buildWorkspaceCustomsRows({
-    lines: (order.items ?? []).map((item): WorkspaceCustomsLine => ({
-      id: Number(item.id),
-      productId: item.product_id ? String(item.product_id) : null,
-      sku: String(item.sku ?? ""),
-      productName: String(item.product_name ?? ""),
-      customsDescription: item.customs_description ?? null,
-      hsCode: item.hs_code ?? null,
-      countryOfOrigin: item.country_of_origin ?? null,
-      isDangerousOrRestricted: Boolean(item.is_dangerous_or_restricted),
-      weightKg: item.weight_kg == null ? null : Number(item.weight_kg),
-      unitPrice: Number(item.unit_price),
-      discountPct: Number(item.discount_pct ?? 0),
-      taxRate: Number(item.tax_rate ?? 0),
-    })),
-    allocations: parcels.flatMap((parcel) => parcel.allocations),
-    exportPurpose,
-    taxTreatment: order.tax_treatment ?? "ex_tax",
-    nonSaleValues,
-  });
-}
-
-function customsBlockersForOrder(
-  order: SalesOrderDetail,
-  parcels: EditableParcel[],
-  exportPurpose: ShippingExportPurpose,
-  nonSaleValues: Record<number, string>,
-  nonSaleValuesConfirmed: boolean,
-): string[] {
-  if (!isInternationalOrder(order)) return [];
-  return getWorkspaceCustomsBlockers({
-    rows: customsRowsForOrder(order, parcels, exportPurpose, nonSaleValues),
-    exportPurpose,
-    nonSaleValuesConfirmed,
-  });
-}
-
-function formatQuantity(value: number): string {
-  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(4)));
-}
-
 function shippingAddressReady(order: SalesOrderDetail): boolean {
   if (!order.delivery_address || !order.delivery_country) return false;
   if (isInternationalOrder(order)) {
@@ -3367,61 +2004,9 @@ function shippingAddressReady(order: SalesOrderDetail): boolean {
   );
 }
 
-function validEditableParcels(
-  order: SalesOrderDetail,
-  parcels: EditableParcel[] | undefined,
-): boolean {
-  return editableParcelIssue(order, parcels) === "";
-}
-
-function editableParcelIssue(
-  order: SalesOrderDetail,
-  parcels: EditableParcel[] | undefined,
-): string {
-  if (!parcels?.length) return "Add at least one parcel.";
-  const invalidParcelIndex = parcels.findIndex(
-    (parcel) =>
-      ![
-        parcel.lengthCm,
-        parcel.widthCm,
-        parcel.heightCm,
-        parcel.weightKg,
-      ].every((value) => Number.isFinite(Number(value)) && Number(value) > 0),
-  );
-  if (invalidParcelIndex >= 0)
-    return `Enter positive dimensions and packed weight for parcel ${invalidParcelIndex + 1}.`;
-  const emptyParcelIndex = parcels.findIndex(
-    (parcel) =>
-      !parcel.allocations.some((allocation) => allocation.quantity > 0),
-  );
-  if (emptyParcelIndex >= 0)
-    return `Assign at least one item quantity to parcel ${emptyParcelIndex + 1}.`;
-  if (
-    parcels.some((parcel) =>
-      parcel.allocations.some(
-        (allocation) =>
-          !Number.isFinite(allocation.quantity) || allocation.quantity < 0,
-      ),
-    )
-  ) {
-    return "Parcel item quantities cannot be negative.";
-  }
-  return workspaceParcelQuantityIssue(order.items ?? [], parcels);
-}
-
 function formatAud(value: number): string {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
   }).format(value);
-}
-
-function getChannelOrderNumber(order: SalesOrderDetail): string {
-  return String(
-    order.channel_order_number ??
-      order.external_order_number ??
-      order.shopify_order_name ??
-      order.native_checkout_id ??
-      "",
-  ).trim();
 }

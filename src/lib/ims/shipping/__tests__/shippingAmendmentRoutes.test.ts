@@ -15,7 +15,8 @@ vi.mock('../shippingAmendments', () => ({
   quoteShippingAmendment: mocks.quote, reconcileShippingAmendment: mocks.reconcile,
 }));
 const params = { params: { id: '1' } };
-const request = () => new Request('http://localhost/api/ims/shipping/shipments/1', { method: 'PATCH', body: JSON.stringify({ businessId: 'wrong-tenant' }) });
+const service = { serviceCode: 'T28', serviceName: 'Parcel Post', total: 11, totalExGst: 10, gst: 1 };
+const request = () => new Request('http://localhost/api/ims/shipping/shipments/1', { method: 'PATCH', body: JSON.stringify({ businessId: 'wrong-tenant', service }) });
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.session.mockResolvedValue({ businessId: 'tenant-1', tier: 'Retail' });
@@ -45,7 +46,14 @@ describe('shipment amendment auth and response contracts', () => {
     const response = await PATCH(request(), params);
     expect(response.status).toBe(200);
     expect(mocks.context).toHaveBeenCalledWith('tenant-1', expect.any(Function));
-    expect(mocks.amend).toHaveBeenCalledWith('tenant-1', 1, { businessId: 'wrong-tenant' });
+    expect(mocks.amend).toHaveBeenCalledWith('tenant-1', 1, { businessId: 'wrong-tenant', service });
+  });
+  it('requires a service even when a client attempts the internal preparation-only flag', async () => {
+    const response = await PATCH(new Request('http://localhost', {
+      method: 'PATCH', body: JSON.stringify({ preparationOnly: true, service: null }),
+    }), params);
+    expect(response.status).toBe(400);
+    expect(mocks.amend).not.toHaveBeenCalled();
   });
   it('returns validation400 and stale/unknown409 with affected shared-label IDs', async () => {
     mocks.amend.mockRejectedValueOnce(new ShippingAmendmentError('Invalid parcels.', 400));

@@ -14,6 +14,7 @@ vi.mock("@/services/IMSMySQLService", () => ({ getIMSPool: () => ({ getConnectio
 const shipment = (id: number, changes: Record<string, unknown> = {}) => ({
   id, so_id: id + 100, operation_key: `legacy:${id}`, revision: 2, status: "label_ready",
   manifest_id: null, ims_fulfilled_at: null, membership_id: null, batch_key: null, batch_revision: null,
+  parcel_count: 1, invalid_parcel_count: 0,
   ...changes,
 });
 const label = (id: number, shipmentId: number, changes: Record<string, unknown> = {}) => ({
@@ -75,6 +76,12 @@ describe("shipping batch policy and migration compatibility", () => {
 });
 
 describe("atomic tenant-scoped batch membership", () => {
+  it.each([{ parcel_count: 0 }, { invalid_parcel_count: 1 }])("blocks batching orders without saved measurements: %j", async (changes) => {
+    setup([shipment(1, changes)]);
+    await expect(changeShippingBatchMembership("tenant-a", { ...input([1], "new"), createBatch: true })).rejects.toThrow("Save valid parcel dimensions");
+    expect(writes()).toHaveLength(0);
+    expect(mocks.rollback).toHaveBeenCalledOnce();
+  });
   it("detaches legacy membership without editing any shipping details, postage or stock", async () => {
     expect(await changeShippingBatchMembership("tenant-a", input())).toEqual({
       affectedShipmentIds: [1], requiresFreshLabels: false,

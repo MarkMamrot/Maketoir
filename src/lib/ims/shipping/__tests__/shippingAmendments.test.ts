@@ -58,6 +58,7 @@ beforeEach(() => {
       const sql = raw.replace(/\s+/g, ' ').trim();
       log.push(sql);
       if (sql.startsWith('SELECT * FROM ims_shipping_shipments')) return [p[0] === state.shipment.business_id && p[1] === 1 ? [clone(state.shipment)] : []];
+      if (sql.startsWith('SELECT batch_key FROM ims_shipping_batch_memberships')) return [[{ batch_key: state.shipment.batch_key ?? null }]];
       if (sql.startsWith('SELECT * FROM ims_shipping_parcels') || sql.startsWith('SELECT id FROM ims_shipping_parcels')) return [clone(state.parcels)];
       if (sql.startsWith('SELECT i.*')) return [clone(state.allocations)];
       if (sql.startsWith('SELECT * FROM ims_sales_orders')) return [[clone(state.order)]];
@@ -137,6 +138,29 @@ function carrier() {
       item_contents: [], item_summary: {}, label: {}, postage_details: {}, tracking_details: { article_id: 'article-12' } }] });
 }
 describe('shipping amendments', () => {
+  it('saves unbatched measurements without pricing or changing the Sales Order address', async () => {
+    const beforeOrder = clone(state.order);
+    const result = await amendShippingShipment('tenant-1', 1, { ...input(), preparationOnly: true, service: null });
+    expect(result.shipment.revision).toBe(1);
+    expect(result.shipment.service).toBeNull();
+    expect(state.order).toEqual(beforeOrder);
+    expect(mocks.quotes).not.toHaveBeenCalled();
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.labels).not.toHaveBeenCalled();
+  });
+  it('refuses a measurement-only update once the preparation joins a batch', async () => {
+    state.shipment.batch_key = 'batch-1';
+    await expect(amendShippingShipment('tenant-1', 1, { ...input(), preparationOnly: true, service: null })).rejects.toMatchObject({ status: 409 });
+    expect(state.shipment.revision).toBe(0);
+    expect(log).toContain('ROLLBACK');
+  });
+  it('does not allow measurement-only saves to bypass carrier amendment review', async () => {
+    carrier();
+    await expect(amendShippingShipment('tenant-1', 1, { ...input(), preparationOnly: true, service: null })).rejects.toMatchObject({ status: 409 });
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
   it('saves a local draft address and parcel details atomically without stock or carrier writes', async () => {
     const beforeItems = clone(state.items);
     const result = await amendShippingShipment('tenant-1', 1, input());

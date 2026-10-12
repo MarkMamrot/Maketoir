@@ -17,7 +17,7 @@ import { buildNonSaleDeclaredValueInputs, buildWorkspaceCustomsRows, getWorkspac
 import { workspaceParcelItemLabel, workspaceParcelQuantityIssue } from "@/lib/ims/shipping/workspaceParcelQuantities";
 import { mergeRemovedParcelAllocations, workspaceContentsLabel } from "@/lib/ims/shipping/workspacePresentation";
 
-type ParcelForm = Omit<ShippingAmendmentParcel, "lengthMm" | "widthMm" | "heightMm" | "weightKg" | "allocations"> & {
+export type ParcelForm = Omit<ShippingAmendmentParcel, "lengthMm" | "widthMm" | "heightMm" | "weightKg" | "allocations"> & {
   lengthCm: string; widthCm: string; heightCm: string; weightKg: string;
   allocations: { soItemId: number; quantity: string }[];
 };
@@ -84,7 +84,8 @@ const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", padd
 const buttonStyle: CSSProperties = { padding: "8px 12px", background: "var(--sv-bg-2)", color: "var(--sv-text)", border: "1px solid var(--sv-etch)", borderRadius: 4, cursor: "pointer" };
 const money = (value: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
 
-export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose, onSaved, onInvalidate, onFailure }: {
+export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose, onSaved, onInvalidate, onFailure, mode = "edit" }: {
+  mode?: "edit" | "postage";
   shipmentId: number;
   accounts: { id: number; displayName: string }[];
   presets: PackingPreset[];
@@ -314,7 +315,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
   }
 
   return <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-    <div ref={dialog} role="dialog" aria-modal="true" aria-label="Edit shipment details" tabIndex={-1}
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label={mode === "postage" ? "Choose postage service" : "Edit shipment details"} tabIndex={-1}
       onKeyDown={(event) => {
         if (event.key === "Escape") { event.stopPropagation(); cancel(); }
         if (event.key === "Tab") {
@@ -326,14 +327,15 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
         }
       }}
       style={{ width: "min(800px,100%)", maxHeight: "calc(100vh - 40px)", overflow: "auto", background: "var(--sv-bg-1)", color: "var(--sv-text)", border: "1px solid var(--sv-etch)", borderRadius: 8, padding: 18 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><h2 style={{ fontSize: 17, minWidth: 0, overflowWrap: "anywhere" }}>Edit shipment details {detail ? `— ${detail.soNumber}` : ""}</h2><button type="button" style={{ ...buttonStyle, flexShrink: 0 }} aria-label="Close shipment editor" onClick={cancel}><X size={16} /></button></header>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><h2 style={{ fontSize: 17, minWidth: 0, overflowWrap: "anywhere" }}>{mode === "postage" ? "Choose postage service" : "Edit shipment details"} {detail ? `— ${detail.soNumber}` : ""}</h2><button type="button" style={{ ...buttonStyle, flexShrink: 0 }} aria-label="Close shipment editor" onClick={cancel}><X size={16} /></button></header>
       {error && <div role="alert" style={{ color: "var(--sv-red)", marginBottom: 12, whiteSpace: "pre-wrap" }}>{error}</div>}
       {busy === "loading" && <p>Loading exact saved shipment details…</p>}
       {detail && recipient && <>
-        <p style={{ fontSize: 12, color: "var(--sv-text-dim)" }}>Address changes also update the Sales Order delivery address after a successful save. Products, prices and ordered quantities are unchanged.</p>
+        <p style={{ fontSize: 12, color: "var(--sv-text-dim)" }}>{mode === "postage" ? "Get prices for the saved parcel dimensions and choose a service. Saving your choice does not purchase postage." : "Address changes also update the Sales Order delivery address after a successful save. Products, prices and ordered quantities are unchanged."}</p>
         {blockReason && <p role="status" style={{ color: "var(--sv-red)" }}>{blockReason}</p>}
         {carrierCreated && <p style={{ fontSize: 12 }}>The existing carrier shipment and parcel identities are retained. Carrier account, parcel count and domestic/international destination category are fixed. After an amendment, fresh labels are required; discard all older printed/downloaded copies.</p>}
         {uncertain && <p role="status">Amendment outcome needs reconciliation. Do not submit another amendment or dispatch this shipment.</p>}
+        <details open={mode === "edit"}><summary style={{ fontSize: 12, cursor: "pointer", marginBottom: 8 }}>Review delivery and saved parcel details</summary>
         <fieldset disabled={!enabled} style={{ border: 0, padding: 0, margin: 0 }}>
           <label style={{ display: "block", marginBottom: 12 }}>Carrier account<select style={inputStyle} value={accountId} disabled={carrierCreated} onChange={(event) => changed(() => setAccountId(event.target.value))}>
             {!accounts.some((account) => String(account.id) === accountId) && <option value={accountId}>Saved account {accountId}</option>}
@@ -382,10 +384,11 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
           {!carrierCreated && <button type="button" style={buttonStyle} onClick={() => changed(() => setParcels((current) => [...current, { packageType: current[0]?.packageType || "box", parcelNumber: current.length + 1, lengthCm: "", widthCm: "", heightCm: "", weightKg: "", allocations: [] }]))}>Add parcel</button>}
           {detail.customs && <p style={{ fontSize: 12 }}>Saved customs purpose: {detail.customs.exportPurpose}. Saved declared values and confirmation are preserved; updated item allocations are validated before quoting or saving. Product customs details are not editable here.</p>}
         </fieldset>
+        </details>
         <h3 style={{ fontSize: 14 }}>Review carrier service and postage</h3>
         <p>Original service quote: {detail.service ? `${detail.service.serviceName} · ${money(detail.service.total)} quoted` : "No saved service"}</p>
         {carrierCreated && <p>Previous recorded carrier charge: {recordedCarrierCost == null ? "Not available" : money(recordedCarrierCost)}. This is separate from the service quote.</p>}
-        <button type="button" style={buttonStyle} disabled={!enabled} onClick={() => void getQuotes()}>{busy === "quotes" ? "Getting quotes…" : "Get fresh quotes for proposed details"}</button>
+        <button type="button" style={buttonStyle} disabled={!enabled} onClick={() => void getQuotes()}>{busy === "quotes" ? "Getting prices..." : mode === "postage" ? "Get shipping prices" : "Get fresh quotes for proposed details"}</button>
         <div style={{ display: "grid", gap: 6, marginTop: 10 }}>{quotes.map((quote, index) => <label key={`${quote.serviceCode}-${index}`}><input type="radio" name="amendment-service" disabled={!enabled} checked={service === quote} onChange={() => { setService(quote); setDirty(true); if (service !== quote) operation.current = null; }} /> {quote.serviceName} · {money(quote.total)} quoted</label>)}</div>
         {service && <p>Proposed: {service.serviceName} · {money(service.total)} quoted. Final carrier charges may differ.</p>}
       </>}
@@ -393,7 +396,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
         <button type="button" style={buttonStyle} onClick={cancel} disabled={Boolean(busy)}>Cancel</button>
         {uncertain && <button type="button" style={buttonStyle} disabled={Boolean(busy)} onClick={() => void reconcile()}>{busy === "reconcile" ? "Reconciling…" : "Reconcile amendment outcome"}</button>}
         {savedResult ? <button type="button" style={buttonStyle} disabled={Boolean(busy)} onClick={() => { setBusy("refresh"); setError(""); void finish(savedResult).catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to refresh saved batches.")).finally(() => setBusy(null)); }}>Refresh saved shipment state</button> :
-          <button type="button" style={{ ...buttonStyle, background: "var(--sv-action)", color: "white", opacity: enabled && service ? 1 : .55 }} disabled={!enabled || !service} onClick={() => void save()}>{busy === "save" ? "Saving…" : "Save shipment details"}</button>}
+          <button type="button" style={{ ...buttonStyle, background: "var(--sv-action)", color: "white", opacity: enabled && service ? 1 : .55 }} disabled={!enabled || !service} onClick={() => void save()}>{busy === "save" ? "Saving..." : mode === "postage" ? "Save postage service" : "Save shipment details"}</button>}
       </footer>
     </div>
   </div>;

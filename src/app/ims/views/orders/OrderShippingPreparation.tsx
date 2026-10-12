@@ -1,0 +1,303 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import type { PackingPreset } from "@/lib/ims/shipping/packingSuggestions";
+import type { ShippingEditableDetail } from "@/lib/ims/shipping/shippingAmendmentTypes";
+import type { ShippingExportPurpose } from "@/lib/ims/shipping/customs";
+import { isAustralianShippingCountry } from "@/lib/ims/shipping/shippingWorkflow";
+import { millimetresToCentimetreInput } from "@/lib/ims/shipping/parcelDimensions";
+import { workspaceParcelItemLabel, workspaceParcelQuantityIssue } from "@/lib/ims/shipping/workspaceParcelQuantities";
+import { buildNonSaleDeclaredValueInputs, buildWorkspaceCustomsRows, getWorkspaceCustomsBlockers } from "@/lib/ims/shipping/workspaceCustoms";
+import { groupWorkspaceBatches, workspaceBatchLabel, workspaceMembershipBlocker, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
+import { removeSavedParcel, shipmentParcelDraft, shipmentParcelForm, type ParcelForm } from "./ShippingShipmentEditor";
+import type { CarrierAccount, SalesOrderDetail, SalesOrderSummary } from "./ShipOrdersWorkspace";
+import type { BatchDestination } from "./ShippingBatchControls";
+
+const input: CSSProperties = { width: "100%", minWidth: 0, boxSizing: "border-box", padding: "8px", border: "1px solid var(--sv-etch)", borderRadius: 5, color: "var(--sv-text)", background: "var(--sv-bg-1)" };
+const button: CSSProperties = { padding: "8px 12px", border: "1px solid var(--sv-etch)", borderRadius: 5, color: "var(--sv-text)", background: "var(--sv-bg-2)", cursor: "pointer" };
+type CardState = { shipmentId: number | null; ready: boolean; dirty: boolean; saving: boolean };
+const emptyParcel = (parcelNumber: number): ParcelForm => ({
+  parcelNumber, packageType: "custom", lengthCm: "", widthCm: "", heightCm: "", weightKg: "", allocations: [],
+});
+
+export function OrderShippingPreparation({ orders, shipments, accounts, presets, busy, destinationBatchId, onChanged, onAdd, onDirtyChange, onBusyChange, onOpenProducts }: {
+  orders: SalesOrderSummary[]; shipments: WorkspaceShipment[]; accounts: CarrierAccount[]; presets: PackingPreset[];
+  busy: boolean; destinationBatchId: string;
+  onChanged: () => Promise<void>;
+  onAdd: (ids: number[], destination: BatchDestination) => Promise<boolean>;
+  onDirtyChange: (dirty: boolean) => void;
+  onBusyChange: (busy: boolean) => void;
+  onOpenProducts: () => void;
+}) {
+  const [states, setStates] = useState<Record<number, CardState>>({});
+  const [selected, setSelected] = useState<number[]>([]);
+  const [destination, setDestination] = useState(destinationBatchId || "new");
+  const [accountId, setAccountId] = useState(accounts[0] ? String(accounts[0].id) : "");
+  const callbacks = useRef({ onDirtyChange, onBusyChange });
+  callbacks.current = { onDirtyChange, onBusyChange };
+  useEffect(() => { setDestination(destinationBatchId || "new"); }, [destinationBatchId]);
+  useEffect(() => {
+    const current = orders.map(order => states[order.id]).filter(Boolean);
+    callbacks.current.onDirtyChange(current.some(state => state.dirty));
+    callbacks.current.onBusyChange(current.some(state => state.saving));
+  }, [states, orders]);
+  const selection = selected.filter(id => orders.some(order => order.id === id) && states[id]?.ready);
+  const batches = groupWorkspaceBatches(shipments).filter(batch => batch.shipments.some(shipment => !workspaceMembershipBlocker(shipment)));
+  return <section aria-label="Orders ready to ship" style={{ marginBottom: 20 }}>
+    <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Orders ready to ship</h3>
+    <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--sv-text-dim)" }}>Enter packed dimensions beneath each order and save them. Select saved orders to make a batch. Postage is chosen in the batch; saving dimensions does not buy postage or change stock.</p>
+    <label style={{ display: "block", maxWidth: 380, fontSize: 12, marginBottom: 12 }}>Carrier account
+      <select aria-label="Preparation carrier account" style={input} disabled={busy} value={accountId} onChange={event => setAccountId(event.target.value)}>
+        <option value="">Choose an account</option>
+        {accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}</option>)}
+      </select>
+    </label>
+    {!orders.length && <p style={{ fontSize: 12 }}>No delivery orders are waiting for parcel preparation.</p>}
+    {orders.map(order => <OrderPreparationCard key={order.id} order={order} savedRevision={shipments.find(shipment => shipment.shipmentId === Number(order.preparation_shipment_id))?.revision} accountId={Number(accountId)} presets={presets} busy={busy}
+      selected={selection.includes(order.id)}
+      onSelect={checked => setSelected(current => checked ? [...new Set([...current, order.id])] : current.filter(id => id !== order.id))}
+      onState={state => setStates(current => ({ ...current, [order.id]: state }))}
+      onSaved={onChanged} onOpenProducts={onOpenProducts} />)}
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
+      <span style={{ fontSize: 12 }}>{selection.length} measured order{selection.length === 1 ? "" : "s"} selected</span>
+      <label style={{ fontSize: 12 }}>Add to{" "}
+        <select aria-label="Preparation destination batch" style={{ ...input, width: "auto" }} disabled={busy} value={destination} onChange={event => setDestination(event.target.value)}>
+          <option value="new">New batch</option>
+          {batches.map(batch => <option key={batch.batchId} value={batch.batchId}>{workspaceBatchLabel(batch.shipments)}</option>)}
+        </select>
+      </label>
+      <button type="button" style={{ ...button, background: "var(--sv-action)", color: "white", opacity: selection.length && !busy ? 1 : .55 }} disabled={busy || !selection.length || selection.length > 50}
+        onClick={async () => {
+          const ids = selection.map(id => states[id].shipmentId!);
+          if (await onAdd(ids, { batchId: destination === "new" ? crypto.randomUUID() : destination, createBatch: destination === "new" })) setSelected([]);
+        }}>{destination === "new" ? "Create batch with selected orders" : "Add selected orders to batch"}</button>
+      {selection.length > 50 && <span role="alert">Select no more than 50 orders at once.</span>}
+    </div>
+  </section>;
+}
+
+function OrderPreparationCard({ order, savedRevision, accountId, presets, busy, selected, onSelect, onState, onSaved, onOpenProducts }: {
+  order: SalesOrderSummary; savedRevision?: number; accountId: number; presets: PackingPreset[];
+  busy: boolean; selected: boolean; onSelect: (checked: boolean) => void;
+  onState: (state: CardState) => void; onSaved: () => Promise<void>;
+  onOpenProducts: () => void;
+}) {
+  const [parcels, setParcels] = useState<ParcelForm[]>([emptyParcel(1)]);
+  const [detail, setDetail] = useState<SalesOrderDetail | null>(null);
+  const [saved, setSaved] = useState<ShippingEditableDetail | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(Boolean(order.preparation_shipment_id));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [showContents, setShowContents] = useState(false);
+  const [purpose, setPurpose] = useState<ShippingExportPurpose>("sale");
+  const [values, setValues] = useState<Record<number, string>>({});
+  const [confirmed, setConfirmed] = useState(false);
+  const dirtyRef = useRef(false);
+  const orderRef = useRef(order);
+  orderRef.current = order;
+  const operation = useRef<{ fingerprint: string; key: string } | null>(null);
+  const callbacks = useRef({ onState, onSaved });
+  callbacks.current = { onState, onSaved };
+  useEffect(() => {
+    callbacks.current.onState({ shipmentId: saved?.shipmentId ?? null, ready: Boolean(saved && !dirty && !loading && !error), dirty, saving });
+  }, [saved, dirty, saving, loading, error]);
+  const loadSaved = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/ims/shipping/preparation/${order.id}`, { cache: "no-store", signal });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Unable to load saved dimensions.");
+      if (signal?.aborted) return;
+      const shipment = result.data?.shipment as ShippingEditableDetail | undefined;
+      if (!shipment) throw new Error("Saved preparation is no longer available. Refresh the workstation.");
+      const taxTreatment = shipment.order.tax_treatment;
+      if (taxTreatment !== "ex_tax" && taxTreatment !== "inc_tax" && taxTreatment !== "no_tax")
+        throw new Error("The saved order tax treatment is invalid. Review the Sales Order before preparing it.");
+      setSaved(shipment);
+      setParcels(shipment.parcels.map(shipmentParcelForm));
+      const orderDetail: SalesOrderDetail = {
+        ...orderRef.current, ...shipment.order, tax_treatment: taxTreatment,
+        items: shipment.order.items.map(item => ({ ...item, is_dangerous_or_restricted: Number(item.is_dangerous_or_restricted) })),
+      };
+      setDetail(orderDetail);
+      setPurpose(shipment.customs?.exportPurpose ?? "sale");
+      setValues(Object.fromEntries((shipment.customs?.parcels.flatMap(parcel => parcel.items) ?? []).map(item => [item.soItemId, String(item.unitValue)])));
+      setConfirmed(shipment.customs?.nonSaleValuesConfirmed ?? false);
+      dirtyRef.current = false;
+      setDirty(false);
+      operation.current = null;
+    } catch (reason) {
+      if (!signal?.aborted) setError(reason instanceof Error ? reason.message : "Unable to load saved dimensions.");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, [order.id]);
+  useEffect(() => {
+    if (!order.preparation_shipment_id) return;
+    if (dirtyRef.current) { setError("Saved preparation changed while you were editing. Reload saved dimensions before continuing."); return; }
+    const controller = new AbortController();
+    void loadSaved(controller.signal);
+    return () => controller.abort();
+  }, [order.id, order.preparation_shipment_id, savedRevision, loadSaved]);
+
+  function changed(update: () => void) {
+    dirtyRef.current = true;
+    setDirty(true);
+    setError("");
+    operation.current = null;
+    update();
+  }
+  async function loadOrder(): Promise<SalesOrderDetail> {
+    if (detail) return detail;
+    const response = await fetch(`/api/ims/sales-orders/${order.id}`, { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || "Unable to load order items.");
+    const loaded = result.data as SalesOrderDetail;
+    setDetail(loaded);
+    return loaded;
+  }
+  function allocated(current: ParcelForm[], loaded: SalesOrderDetail): ParcelForm[] {
+    if (current.length !== 1 || current[0].allocations.length) return current;
+    return [{ ...current[0], allocations: (loaded.items ?? []).map(item => ({
+      soItemId: item.id, quantity: String(Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled))),
+    })).filter(item => Number(item.quantity) > 0) }];
+  }
+  function customsRows(loaded: SalesOrderDetail, prepared: ParcelForm[], exportPurpose: ShippingExportPurpose = purpose) {
+    return buildWorkspaceCustomsRows({
+      lines: (loaded.items ?? []).map(item => ({
+        id: item.id, productId: item.product_id ?? null, sku: item.sku || "", productName: item.product_name || "",
+        customsDescription: item.customs_description ?? null, hsCode: item.hs_code ?? null, countryOfOrigin: item.country_of_origin ?? null,
+        isDangerousOrRestricted: Boolean(item.is_dangerous_or_restricted), weightKg: item.weight_kg ?? null,
+        unitPrice: Number(item.unit_price), discountPct: Number(item.discount_pct ?? 0), taxRate: Number(item.tax_rate ?? 0),
+      })),
+      allocations: prepared.flatMap(parcel => parcel.allocations.map(item => ({ ...item, quantity: Number(item.quantity) }))),
+      taxTreatment: loaded.tax_treatment ?? "ex_tax", exportPurpose, nonSaleValues: values,
+    });
+  }
+  async function saveDimensions() {
+    setSaving(true);
+    setError("");
+    try {
+      const loaded = await loadOrder();
+      const prepared = allocated(parcels, loaded);
+      const parcelDrafts = prepared.map(shipmentParcelDraft);
+      const issue = workspaceParcelQuantityIssue(loaded.items ?? [], parcelDrafts);
+      if (issue) throw new Error(issue);
+      const international = !isAustralianShippingCountry(loaded.delivery_country || "");
+      if (international) {
+        const blockers = getWorkspaceCustomsBlockers({
+          rows: customsRows(loaded, prepared), exportPurpose: purpose, nonSaleValuesConfirmed: confirmed,
+        });
+        if (blockers.length) throw new Error(blockers.join(" "));
+      }
+      const payload = {
+        soId: order.id, carrierAccountId: saved?.carrierAccountId ?? accountId, parcels: parcelDrafts,
+        ...(saved ? { expectedRevision: saved.revision, expectedUpdatedAt: saved.updatedAt } : {}),
+        ...(international ? {
+          exportPurpose: purpose, nonSaleValues: purpose === "sale" ? undefined : buildNonSaleDeclaredValueInputs(customsRows(loaded, prepared)),
+          nonSaleValuesConfirmed: purpose === "sale" ? undefined : confirmed,
+        } : {}),
+      };
+      const fingerprint = JSON.stringify(payload);
+      if (operation.current?.fingerprint !== fingerprint) operation.current = { fingerprint, key: crypto.randomUUID() };
+      const response = await fetch(`/api/ims/shipping/preparation/${order.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, operationKey: operation.current.key }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Unable to save dimensions.");
+      const shipment = result.data.shipment as ShippingEditableDetail;
+      setSaved(shipment);
+      setParcels(shipment.parcels.map(shipmentParcelForm));
+      dirtyRef.current = false;
+      setDirty(false);
+      operation.current = null;
+      await callbacks.current.onSaved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save dimensions. Retry with unchanged details to check the outcome.");
+    } finally { setSaving(false); }
+  }
+  const disabled = busy || loading || saving;
+  const contents = detail ? allocated(parcels, detail) : parcels;
+  const international = !isAustralianShippingCountry(order.delivery_country || "");
+  return <article aria-label={`Parcel preparation ${order.so_number}`} style={{ padding: "14px 0", borderTop: "1px solid var(--sv-etch)" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", fontSize: 12 }}>
+      <input type="checkbox" aria-label={`Select measured order ${order.so_number}`} disabled={disabled || !saved || dirty || Boolean(error)} checked={selected}
+        onChange={event => onSelect(event.target.checked)} />
+      <div style={{ flex: "1 1 180px" }}><strong>{order.so_number}</strong>{(order.shopify_order_name || order.channel_order_number || order.native_checkout_id) && <span style={{ marginLeft: 8, color: "var(--sv-text-dim)" }}>{order.shopify_order_name || order.channel_order_number || order.native_checkout_id}</span>}
+        <div style={{ marginTop: 4 }}>{order.customer_name || "No customer name"} · {order.delivery_country || "Destination required"} · {order.remaining_quantity ?? ""} remaining units</div>
+        {order.channel_shipping_method && <div style={{ marginTop: 4, color: "var(--sv-text-dim)" }}>{order.channel_shipping_method}</div>}
+        {detail && <div style={{ marginTop: 4, color: "var(--sv-text-dim)" }}>{saved ? [...saved.recipient.lines, saved.recipient.suburb, saved.recipient.state, saved.recipient.postcode].filter(Boolean).join(", ") : [detail.delivery_address, detail.delivery_suburb, detail.delivery_state, detail.delivery_postcode].filter(Boolean).join(", ")}</div>}
+      </div>
+      <span role="status" style={{ color: saved && !dirty && !error ? "var(--sv-green)" : "var(--sv-text-dim)" }}>{loading ? "Loading saved dimensions..." : saving ? "Saving dimensions..." : error ? "Needs attention" : saved && !dirty ? "Dimensions saved · ready for batch" : dirty ? "Unsaved dimensions" : "Dimensions required"}</span>
+    </div>
+    <fieldset disabled={disabled} style={{ padding: 0, margin: "12px 0 0", border: 0, minWidth: 0 }}>
+      {parcels.map((parcel, index) => <div key={index} style={{ marginTop: index ? 12 : 0 }}>
+        {parcels.length > 1 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>Parcel {index + 1}<button type="button" style={button} onClick={() => {
+          if (!window.confirm("Remove this parcel and move its items to the first parcel? Recheck packed measurements and weight.")) return;
+          try { const remaining = removeSavedParcel(parcels, index); changed(() => setParcels(remaining)); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to remove parcel."); }
+        }}>Remove parcel</button></div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8 }}>
+          <label style={{ fontSize: 12 }}>Preset (optional)<select aria-label={`${order.so_number} parcel ${index + 1} preset`} style={input} value={parcel.packagePresetId ?? ""} onChange={event => {
+            const preset = presets.find(item => item.id === Number(event.target.value));
+            changed(() => setParcels(current => current.map((item, i) => i !== index ? item : { ...item, packagePresetId: preset?.id ?? null, packageType: preset?.packageType || "custom",
+              ...(preset ? { lengthCm: millimetresToCentimetreInput(preset.lengthMm), widthCm: millimetresToCentimetreInput(preset.widthMm), heightCm: millimetresToCentimetreInput(preset.heightMm) } : {}),
+            })));
+          }}><option value="">Manual dimensions</option>{presets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label>
+          {([["lengthCm", "Length (cm)"], ["widthCm", "Width (cm)"], ["heightCm", "Height (cm)"], ["weightKg", "Packed weight (kg)"]] as const).map(([field, label]) => <label key={field} style={{ fontSize: 12 }}>{label}<input aria-label={`${order.so_number} parcel ${index + 1} ${label}`} style={input} type="number" min="0" step="any" value={parcel[field]} onChange={event => changed(() => setParcels(current => current.map((item, i) => i === index ? { ...item, [field]: event.target.value } : item)))} /></label>)}
+        </div>
+        {parcels.length > 1 && <details style={{ fontSize: 12, marginTop: 8 }} open><summary>Allocate items between parcels</summary>{(detail?.items ?? []).map(item => <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>{workspaceParcelItemLabel(item)}<input aria-label={`${order.so_number} parcel ${index + 1} allocation ${item.id}`} style={{ ...input, width: 80 }} type="number" min="0" step="any" value={parcel.allocations.find(allocation => allocation.soItemId === item.id)?.quantity ?? "0"} onChange={event => changed(() => setParcels(current => current.map((p, i) => i !== index ? p : { ...p, allocations: (detail?.items ?? []).map(line => ({ soItemId: line.id, quantity: line.id === item.id ? event.target.value : p.allocations.find(allocation => allocation.soItemId === line.id)?.quantity ?? "0" })) })))} /></label>)}</details>}
+      </div>)}
+      <p style={{ fontSize: 11, color: "var(--sv-text-dim)", margin: "6px 0" }}>Use actual packed measurements, including packaging. All remaining items go in one parcel unless you split it.</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" style={button} onClick={async () => {
+          setError("");
+          try { await loadOrder(); setShowContents(current => !current); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to show items."); }
+        }}>{showContents ? "Hide contents" : "Show contents"}</button>
+        <button type="button" style={button} onClick={async () => {
+          try { const loaded = await loadOrder(); changed(() => setParcels(current => [...allocated(current, loaded), { ...emptyParcel(current.length + 1), allocations: (loaded.items ?? []).map(item => ({ soItemId: item.id, quantity: "0" })) }])); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to split parcels."); }
+        }}>Split into another parcel</button>
+      </div>
+      {showContents && <div style={{ fontSize: 12, marginTop: 8 }}>{(detail?.items ?? []).map(item => <div key={item.id}>{workspaceParcelItemLabel(item)} · {Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled))} remaining</div>)}</div>}
+      {international && <div style={{ marginTop: 12, fontSize: 12 }}>
+        <strong>Customs declaration</strong>{" "}
+        <button type="button" style={button} onClick={async () => {
+          try { await loadOrder(); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load customs information."); }
+        }}>Review customs</button>
+        <label>Customs purpose<select aria-label={`${order.so_number} customs purpose`} value={purpose} style={{ ...input, maxWidth: 260 }} onChange={async event => {
+          const next = event.target.value as ShippingExportPurpose;
+          changed(() => { setPurpose(next); setConfirmed(false); });
+          try {
+            const loaded = await loadOrder();
+            if (next !== "sale") setValues(Object.fromEntries(customsRows(loaded, allocated(parcels, loaded), "sale").map(row => [row.id, row.unitValue == null ? "" : row.unitValue.toFixed(2)])));
+          } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load customs."); }
+        }}><option value="sale">Sale</option><option value="gift">Gift</option><option value="sample">Sample</option><option value="return">Return</option></select></label>
+        {purpose !== "sale" && detail && <>
+          {customsRows(detail, contents).map(row => <label key={row.id} style={{ display: "block", marginTop: 6 }}>{row.productName || row.sku} · declared unit value (AUD)<input style={{ ...input, maxWidth: 160 }} type="number" min="0" step="any" value={values[row.id] ?? ""} onChange={event => changed(() => { setValues(current => ({ ...current, [row.id]: event.target.value })); setConfirmed(false); })} /></label>)}
+          <label style={{ display: "block", marginTop: 8 }}><input type="checkbox" checked={confirmed} onChange={event => changed(() => setConfirmed(event.target.checked))} /> I confirm these non-sale declared values are complete and accurate.</label>
+        </>}
+        {detail && customsRows(detail, contents).map(row => <div key={row.id} style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--sv-etch)" }}>
+          <strong>{row.productName || row.sku}</strong>
+          <div>{row.sku} · {row.quantity} units · {row.customsDescription || "Customs description required"}</div>
+          <div>HS code: {row.hsCode || "Required"} · Origin: {row.countryOfOrigin || "Required"}</div>
+          <div>Declared unit value: {row.unitValue == null ? "Required" : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(row.unitValue)} · Total: {row.totalValue == null ? "Required" : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(row.totalValue)}</div>
+        </div>)}
+        {detail && getWorkspaceCustomsBlockers({ rows: customsRows(detail, contents), exportPurpose: purpose, nonSaleValuesConfirmed: confirmed }).map(message => <div key={message} role="status" style={{ color: "var(--sv-red)", marginTop: 4 }}>{message}</div>)}
+        <button type="button" style={{ ...button, marginTop: 8 }} onClick={onOpenProducts}>Update product customs in Products</button>
+        <p style={{ color: "var(--sv-text-dim)" }}>Product customs information and declarations are checked when saving. Correct missing product details in Products before continuing.</p>
+      </div>}
+      <button type="button" style={{ ...button, marginTop: 12, background: "var(--sv-action)", color: "white" }} disabled={!accountId || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
+      {saved && <span style={{ marginLeft: 8, fontSize: 11, color: "var(--sv-text-dim)" }}>Changes require a new postage selection in the batch.</span>}
+    </fieldset>
+    {error && <div role="alert" style={{ marginTop: 8, color: "var(--sv-red)", fontSize: 12 }}>{error}{order.preparation_shipment_id && <button type="button" disabled={saving || busy} style={{ ...button, marginLeft: 8 }} onClick={() => {
+      if (dirtyRef.current && !window.confirm("Reload saved dimensions and discard your unsaved changes?")) return;
+      void loadSaved();
+    }}>Reload saved dimensions</button>}</div>}
+  </article>;
+}

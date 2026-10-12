@@ -29,8 +29,12 @@ type ShipmentRow = RowDataPacket & {
   charged_cost: number | null;
   ims_fulfilled_at: unknown; manifest_id: unknown; ims_fulfilment_operation_key: unknown;
 };
+export type ShippingPreparationAmendmentInput = Omit<ShippingAmendmentInput, 'service'> & {
+  service: null; preparationOnly: true;
+};
+type AmendableInput = ShippingAmendmentInput | ShippingPreparationAmendmentInput;
 type DesiredSnapshot = {
-  input: ShippingAmendmentInput;
+  input: AmendableInput;
   prepared: {
     account: PreparedShippingRequest['account'];
     entries: Array<Omit<PreparedShippingRequest['entries'][number], 'order'> & { order: { id: number } }>;
@@ -67,7 +71,7 @@ export async function quoteShippingAmendment(
 }
 
 export async function amendShippingShipment(
-  businessId: string, shipmentId: number, input: ShippingAmendmentInput,
+  businessId: string, shipmentId: number, input: AmendableInput,
 ): Promise<ShippingAmendmentResult> {
   validateOperation(input);
   const hash = amendmentRequestHash(input);
@@ -76,16 +80,21 @@ export async function amendShippingShipment(
   const detail = await getShippingEditableDetail(businessId, shipmentId);
   validateAmendmentConcurrency(detail, input);
   assertEditable(detail);
+  if (input.service === null && detail.providerShipmentId)
+    throw new ShippingAmendmentError('Booked shipments require a reviewed postage service.', 409);
   if (detail.providerShipmentId && input.confirmCarrierUpdate !== true)
     throw new ShippingAmendmentError('Review the new postage and confirm the carrier update before saving.');
   const orderGuard = await getOrderGuard(businessId, detail.soId);
   const prepared = await prepareAmendment(businessId, detail, input);
-  const quotes = await quotePreparedShippingRequest(businessId, input.carrierAccountId, prepared);
-  const quoted = quotes[0]?.rates.find(rate => rate.serviceCode === input.service.serviceCode);
-  if (!quoted || ['total', 'totalExGst', 'gst'].some(key =>
-    Math.abs(quoted[key as 'total'] - input.service[key as 'total']) > 0.005) ||
-    quoted.serviceName !== input.service.serviceName)
-    throw new ShippingAmendmentError('Shipping prices changed. Refresh prices and review the service again.', 409);
+  if (input.service) {
+    const service = input.service;
+    const quotes = await quotePreparedShippingRequest(businessId, input.carrierAccountId, prepared);
+    const quoted = quotes[0]?.rates.find(rate => rate.serviceCode === service.serviceCode);
+    if (!quoted || ['total', 'totalExGst', 'gst'].some(key =>
+      Math.abs(quoted[key as 'total'] - service[key as 'total']) > 0.005) ||
+      quoted.serviceName !== service.serviceName)
+      throw new ShippingAmendmentError('Shipping prices changed. Refresh prices and review the service again.', 409);
+  }
 
   let client: AusPostEparcelClient | undefined;
   let remoteRequest: AusPostUpdateShipmentRequest | undefined;
@@ -117,6 +126,14 @@ export async function amendShippingShipment(
       return replay(raced, hash);
     }
     validateAmendmentConcurrency({ revision: Number(row.revision), updatedAt: iso(row.updated_at) }, input);
+    if (input.service === null) {
+      const [memberships] = await connection.execute<RowDataPacket[]>(
+        'SELECT batch_key FROM ims_shipping_batch_memberships WHERE business_id = ? AND shipment_id = ? FOR UPDATE',
+        [businessId, shipmentId],
+      );
+      if (row.provider_shipment_id || memberships.length !== 1 || memberships[0].batch_key !== null)
+        throw new ShippingAmendmentError('This order has joined a batch or been booked. Refresh before saving dimensions.', 409);
+    }
     const eligibility = getShipmentEditEligibility(row);
     if (!eligibility.eligible) throw new ShippingAmendmentError(eligibility.reason!, 409);
     await assertOrderGuard(connection, businessId, detail.soId, orderGuard);
@@ -229,9 +246,10 @@ async function prepareAmendment(businessId: string, detail: ShippingEditableDeta
   });
 }
 
-function validateOperation(input: ShippingAmendmentInput): void {
+function validateOperation(input: AmendableInput): void {
   if (!input || typeof input.operationKey !== 'string' || !/^[A-Za-z0-9:_-]{1,150}$/.test(input.operationKey))
     throw new ShippingAmendmentError('A valid operation key is required.');
+  if (input.service === null && 'preparationOnly' in input && input.preparationOnly === true) return;
   if (!input.service || typeof input.service.serviceCode !== 'string' || !input.service.serviceCode.trim() ||
       input.service.serviceCode.length > 50 || typeof input.service.serviceName !== 'string' ||
       !input.service.serviceName.trim() || input.service.serviceName.length > 120 ||
@@ -358,7 +376,8 @@ async function applyLocalSnapshot(connection: PoolConnection, businessId: string
       customs_json = ?, request_hash = ?, safe_error = NULL, label_ready_at = NULL, updated_at = NOW()
      WHERE business_id = ? AND id = ?`,
     [input.carrierAccountId, desired.prepared.account.provider, entry.dispatchLocationId, carrier ? 'carrier_created' : 'draft',
-      input.service.serviceCode, input.service.serviceName, input.service.total, input.service.totalExGst, input.service.gst,
+      input.service?.serviceCode ?? null, input.service?.serviceName ?? null,
+      input.service?.total ?? null, input.service?.totalExGst ?? null, input.service?.gst ?? null,
       JSON.stringify(entry.sender), JSON.stringify(entry.recipient), entry.isInternational ? 1 : 0,
       entry.customs?.exportPurpose ?? null, entry.customs?.declaredCurrency ?? null, entry.customs ? JSON.stringify(entry.customs) : null,
       amendmentRequestHash({ shipment: entry.requested, service: input.service, customs: entry.customs }), businessId, shipmentId],
@@ -401,12 +420,14 @@ async function applyLocalSnapshot(connection: PoolConnection, businessId: string
       [businessId, parcelId, allocation.soItemId, allocation.quantity],
     );
   }
-  const r = entry.recipient;
-  await connection.execute(
-    `UPDATE ims_sales_orders SET delivery_address = ?, delivery_address2 = ?, delivery_suburb = ?, delivery_city = ?,
-      delivery_state = ?, delivery_postcode = ?, delivery_country = ? WHERE business_id = ? AND id = ?`,
-    [r.lines[0], r.lines[1] ?? null, r.suburb, r.suburb, r.state, r.postcode, r.country, businessId, entry.order.id],
-  );
+  if (input.service !== null) {
+    const r = entry.recipient;
+    await connection.execute(
+      `UPDATE ims_sales_orders SET delivery_address = ?, delivery_address2 = ?, delivery_suburb = ?, delivery_city = ?,
+        delivery_state = ?, delivery_postcode = ?, delivery_country = ? WHERE business_id = ? AND id = ?`,
+      [r.lines[0], r.lines[1] ?? null, r.suburb, r.suburb, r.state, r.postcode, r.country, businessId, entry.order.id],
+    );
+  }
 }
 
 async function finalizeCarrierAmendment(businessId: string, shipmentId: number, operationId: number, desired: DesiredSnapshot, readback: AusPostReadShipment): Promise<ShippingAmendmentResult> {
@@ -510,7 +531,9 @@ function pick(value: unknown, keys: readonly string[]): Record<string, unknown> 
   const object = value as Record<string, unknown>;
   return Object.fromEntries(keys.filter(key => object?.[key] != null).map(key => [key, object[key]]));
 }
-export function buildCarrierAmendmentRequest(detail: ShippingEditableDetail, input: ShippingAmendmentInput, prepared: PreparedShippingRequest, remote: AusPostReadShipment): AusPostUpdateShipmentRequest {
+export function buildCarrierAmendmentRequest(detail: ShippingEditableDetail, input: AmendableInput, prepared: PreparedShippingRequest, remote: AusPostReadShipment): AusPostUpdateShipmentRequest {
+  const service = input.service;
+  if (!service) throw new ShippingAmendmentError('A reviewed carrier service is required.');
   if (remote.shipment_id !== detail.providerShipmentId || remote.order_id || remote.shipment_summary?.order_id || !remote.from || !remote.to ||
       !remote.items || remote.items.length !== detail.parcels.length)
     throw new ShippingAmendmentError('Carrier readback does not identify an unmanifested shipment with the saved parcels.', 409);
@@ -538,7 +561,7 @@ export function buildCarrierAmendmentRequest(detail: ShippingEditableDetail, inp
     if (matches.length !== 1) throw new ShippingAmendmentError('Carrier item identities do not match the saved parcels.', 409);
     const original = matches[0];
     const result = {
-      ...pick(original, ITEM_FIELDS), item_id: parcel.providerItemId!, product_id: input.service.serviceCode,
+      ...pick(original, ITEM_FIELDS), item_id: parcel.providerItemId!, product_id: service.serviceCode,
       length: Math.round(parcel.lengthMm / 10 * 10) / 10, width: Math.round(parcel.widthMm / 10 * 10) / 10,
       height: Math.round(parcel.heightMm / 10 * 10) / 10, weight: parcel.weightKg,
     };
