@@ -745,6 +745,7 @@ export default function Landing() {
                   { label: 'Sign In', href: '/login' },
                   { label: 'Get Started', href: '/register' },
                   { label: 'Contact Sales', href: '#demo' },
+                  { label: 'SyncBooks Bookkeeping', href: '/syncbooks' },
                 ],
               },
             ].map((col) => (

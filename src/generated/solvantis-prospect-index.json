@@ -725,6 +725,18 @@
       "availability": "confirmed"
     },
     {
+      "id": "prospect-syncbooks",
+      "title": "SyncBooks Bookkeeping",
+      "summary": "SyncBooks offers general bookkeeping support for Australian businesses at /syncbooks, with local, overseas or blended delivery. Indicative monthly packages start at $499, $899 and $1,599 excluding GST, with custom scope available. Request a free consultation with explicit email contact consent. SyncBooks works alongside your accountant or registered BAS or tax agent; bookkeeping support is not regulated tax or financial advice.",
+      "capabilities": [
+        "accounting",
+        "support",
+        "pricing"
+      ],
+      "product": "prospect",
+      "availability": "qualified"
+    },
+    {
       "id": "public-capability:wholesale-getting-started-account-approval",
       "title": "Getting Started and Account Approval",
       "summary": "Apply for wholesale access, verify your email, understand approval states, and sign in with an approved email code.",

@@ -36,6 +36,7 @@ export interface ProspectAssistantResponse extends ProspectAssistantDecision {
 }
 
 export interface ProspectLeadInput {
+  enquiryDetails?: SyncBooksEnquiryDetails | null;
   conversationId?: string | null;
   name: string;
   company?: string | null;
@@ -61,4 +62,11 @@ export interface PublicIntegrationOffering {
   exampleProviders: string[];
   supportedWorkflows: string[];
   qualificationQuestions: string[];
+}
+
+export interface SyncBooksEnquiryDetails {
+  service: 'syncbooks';
+  teamSize: '' | '1-5 employees' | '6-15 employees' | '16-35 employees' | '35+ employees';
+  deliveryModel: '' | 'Local' | 'Overseas' | 'Blended';
+  needs: string;
 }

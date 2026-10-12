@@ -42,6 +42,7 @@ export default function Nav({ onDemo }: NavProps) {
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/#features" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition">Features</Link>
             <Link href="/pricing" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition">Pricing</Link>
+            <Link href="/syncbooks" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition">SyncBooks</Link>
             <Link href="/#integrations" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition">Integrations</Link>
             {demoEl}
           </nav>
@@ -75,6 +76,7 @@ export default function Nav({ onDemo }: NavProps) {
         <div className="md:hidden bg-white border-t border-slate-100 px-6 py-5 flex flex-col gap-4 shadow-lg">
           <Link href="/#features" className="text-sm font-medium text-slate-700" onClick={() => setOpen(false)}>Features</Link>
           <Link href="/pricing" className="text-sm font-medium text-slate-700" onClick={() => setOpen(false)}>Pricing</Link>
+          <Link href="/syncbooks" className="text-sm font-medium text-slate-700" onClick={() => setOpen(false)}>SyncBooks</Link>
           <Link href="/#integrations" className="text-sm font-medium text-slate-700" onClick={() => setOpen(false)}>Integrations</Link>
           {mobileDemoEl}
           <hr className="border-slate-100" />

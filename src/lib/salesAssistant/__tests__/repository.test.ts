@@ -8,7 +8,7 @@ function fakeRepository(respond: (sql: string) => unknown = () => ({ affectedRow
     commit: vi.fn(async () => { calls.push('commit'); }),
     rollback: vi.fn(async () => { calls.push('rollback'); }),
     release: vi.fn(() => { calls.push('release'); }),
-    execute: vi.fn(async (sql: string) => {
+    execute: vi.fn(async (sql: string, _values?: unknown[]) => {
       calls.push(sql.replace(/\s+/g, ' ').trim());
       return [respond(sql), []];
     }),
@@ -97,6 +97,23 @@ describe('sales assistant repository', () => {
     })).resolves.toEqual({ leadId: 42 });
     expect(connection.execute.mock.calls.some(call => String(call[0]).includes('ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)'))).toBe(true);
     expect(connection.execute.mock.calls.some(call => String(call[0]).includes('prospect_lead_events'))).toBe(true);
+  });
+
+  it('stores structured SyncBooks details without a conversation and queues alerts in the transaction', async () => {
+    const { repository, connection, calls } = fakeRepository(() => ({ affectedRows: 1, insertId: 42 }));
+    const input = { idempotencyKey: 'syncbooks:request-key', sessionId: 'owner', lead: {
+      name: 'Test', email: 'test@example.com', preferredContact: 'email' as const,
+      consentEmail: true, consentPhone: false, consentSms: false, sourcePath: '/syncbooks',
+      enquiryDetails: { service: 'syncbooks' as const, teamSize: '6-15 employees' as const, deliveryModel: 'Blended' as const, needs: 'Payroll' },
+    } };
+    expect(await repository.createConsentedLead(input)).toEqual({ leadId: 42 });
+    expect(await repository.createConsentedLead(input)).toEqual({ leadId: 42 });
+    const insert = connection.execute.mock.calls.find(([sql]) => sql.includes('INSERT INTO prospect_leads'))!;
+    expect(insert[0]).toContain('enquiry_details_json');
+    expect(insert[0]).toContain('ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
+    expect(insert[1]?.[1]).toBeNull();
+    expect(JSON.parse(String(insert[1]?.at(-1)))).toEqual(input.lead.enquiryDetails);
+    expect(calls.findIndex(sql => sql.includes("'alert_pending'"))).toBeLessThan(calls.indexOf('commit'));
   });
 
   it('records integration interest idempotently after checking conversation ownership', async () => {

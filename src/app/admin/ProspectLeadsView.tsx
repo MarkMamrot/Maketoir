@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Save, X } from 'lucide-react';
+import type { SyncBooksEnquiryDetails } from '@/lib/salesAssistant/types';
 
 const statuses = ['new', 'contacting', 'qualified', 'demo_booked', 'won', 'lost', 'spam'];
 const panel: React.CSSProperties = { background: '#172033', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, padding: 14 };
@@ -11,7 +12,7 @@ interface Capabilities { assignment: boolean; notes: boolean; lossReason: boolea
 interface Lead { id: number; name: string; company?: string; email?: string; phone?: string; preferred_contact: string; current_systems?: string; source_path?: string; status: string; created_at: string; last_user_prompt?: string }
 interface ConversationMessage { id: string; role: 'user' | 'assistant'; content: string }
 interface UserPrompt { id: string; content: string }
-interface LeadDetail { lead: Lead & { assigned_to?: number | null; notes?: string | null; loss_reason?: string | null }; conversation: { messages: ConversationMessage[]; finalUserPrompts: UserPrompt[] } }
+interface LeadDetail { lead: Lead & { assigned_to?: number | null; notes?: string | null; loss_reason?: string | null; enquiryDetails?: SyncBooksEnquiryDetails | null }; conversation: { messages: ConversationMessage[]; finalUserPrompts: UserPrompt[] } }
 interface LeadEdit { status: string; assignedTo: string | number | null; notes: string; lossReason: string }
 
 export default function ProspectLeadsView() {
@@ -69,6 +70,7 @@ export default function ProspectLeadsView() {
     {selected && <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,6,23,.82)', padding: 18, display: 'grid', placeItems: 'center' }}><div style={{ ...panel, width: 'min(1100px,100%)', maxHeight: '92vh', overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ flex: 1 }}><h2 style={{ margin: 0, fontSize: 18 }}>{selected.lead.name}</h2><p style={{ color: '#94a3b8', margin: '3px 0', fontSize: 12 }}>{selected.lead.company || 'No company'} | {selected.lead.email || selected.lead.phone}</p></div><button title="Close lead" onClick={() => setSelected(null)} style={{ ...button, background: 'transparent', padding: 5 }}><X size={18} /></button></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14, marginTop: 14 }}>
+        {selected.lead.enquiryDetails?.service === 'syncbooks' && <div style={{ gridColumn: '1 / -1', color: '#cbd5e1', fontSize: 13 }}><h3>SyncBooks consultation enquiry</h3><p>Team size: {selected.lead.enquiryDetails.teamSize || 'Not specified'}<br />Delivery preference: {selected.lead.enquiryDetails.deliveryModel || 'Open to advice'}<br />Software: {selected.lead.current_systems || 'Not specified'}</p><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selected.lead.enquiryDetails.needs || 'No brief supplied'}</p></div>}
         <div><div style={panel}><label style={{ color: '#94a3b8', fontSize: 12 }}>Status<select value={edit.status} onChange={e => setEdit({ ...edit, status: e.target.value })} style={{ ...input, marginTop: 5 }}>{statuses.map(value => <option key={value}>{value}</option>)}</select></label>
           {capabilities.assignment && <label style={{ display: 'block', color: '#94a3b8', fontSize: 12, marginTop: 10 }}>Assignee user ID<input type="number" value={edit.assignedTo || ''} onChange={e => setEdit({ ...edit, assignedTo: e.target.value })} style={{ ...input, marginTop: 5 }} /></label>}
           {capabilities.notes && <label style={{ display: 'block', color: '#94a3b8', fontSize: 12, marginTop: 10 }}>Notes<textarea rows={5} value={edit.notes} onChange={e => setEdit({ ...edit, notes: e.target.value })} style={{ ...input, marginTop: 5 }} /></label>}

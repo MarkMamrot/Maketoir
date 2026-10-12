@@ -1,4 +1,4 @@
-import type { ProspectLeadInput, ProspectPreferredContact } from './types';
+import type { ProspectLeadInput, ProspectPreferredContact, SyncBooksEnquiryDetails } from './types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{6,24}$/;
@@ -64,7 +64,21 @@ function hasPreferredChannelConsent(input: ProspectLeadInput, channel: ProspectP
   return input.consentSms;
 }
 
+export function parseSyncBooksEnquiryDetails(value: unknown): SyncBooksEnquiryDetails | null {
+  try {
+    const details = typeof value === 'string' ? JSON.parse(value) : value;
+    if (!details || typeof details !== 'object' || Array.isArray(details)
+      || details.service !== 'syncbooks'
+      || !['', '1-5 employees', '6-15 employees', '16-35 employees', '35+ employees'].includes(details.teamSize)
+      || !['', 'Local', 'Overseas', 'Blended'].includes(details.deliveryModel)
+      || typeof details.needs !== 'string' || details.needs.length > 3000) return null;
+    return { service: 'syncbooks', teamSize: details.teamSize, deliveryModel: details.deliveryModel, needs: optionalText(details.needs, 3000) || '' };
+  } catch { return null; }
+}
+
 export function validateProspectLead(input: ProspectLeadInput): ValidatedProspectLead {
+  const details = parseSyncBooksEnquiryDetails(input.enquiryDetails);
+  if (input.enquiryDetails != null && !details) throw new Error('Invalid enquiry details.');
   const name = optionalText(input.name, 255);
   const email = optionalText(input.email, 320)?.toLowerCase() ?? null;
   const phone = optionalText(input.phone, 32);
@@ -82,6 +96,7 @@ export function validateProspectLead(input: ProspectLeadInput): ValidatedProspec
 
   return {
     ...input,
+    enquiryDetails: details,
     name,
     company: optionalText(input.company, 255),
     email,

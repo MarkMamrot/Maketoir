@@ -233,12 +233,13 @@ export function createSalesAssistantRepository(overrides: Partial<SalesAssistant
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO prospect_leads
             (idempotency_key, conversation_id, name, company, email, phone, preferred_contact,
-             consent_email, consent_phone, consent_sms, consented_at, locations, current_systems, timeframe, source_path)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?, ?, ?, ?)
+             consent_email, consent_phone, consent_sms, consented_at, locations, current_systems, timeframe, source_path, enquiry_details_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
           [idempotencyKey, lead.conversationId ?? null, lead.name, lead.company, lead.email, lead.phone,
             lead.preferredContact, lead.consentEmail, lead.consentPhone, lead.consentSms,
-            lead.locations ?? null, lead.currentSystems ?? null, lead.timeframe ?? null, lead.sourcePath],
+            lead.locations ?? null, lead.currentSystems ?? null, lead.timeframe ?? null, lead.sourcePath,
+            lead.enquiryDetails ? json(lead.enquiryDetails) : null],
         );
         const leadId = Number(result.insertId);
         await connection.execute(

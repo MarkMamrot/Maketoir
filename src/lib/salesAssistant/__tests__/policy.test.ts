@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeProspectAttribution, validateProspectLead } from '../policy';
+import { parseSyncBooksEnquiryDetails, sanitizeProspectAttribution, validateProspectLead } from '../policy';
 import type { ProspectLeadInput } from '../types';
 
 function lead(overrides: Partial<ProspectLeadInput> = {}): ProspectLeadInput {
@@ -15,6 +15,15 @@ function lead(overrides: Partial<ProspectLeadInput> = {}): ProspectLeadInput {
 }
 
 describe('validateProspectLead', () => {
+  it('keeps ordinary leads compatible and whitelists optional enquiry metadata', () => {
+    expect(validateProspectLead(lead()).enquiryDetails).toBeNull();
+    expect(parseSyncBooksEnquiryDetails({ service: 'syncbooks', teamSize: '', deliveryModel: 'Local', needs: '  Payroll  ', secret: 'discard' }))
+      .toEqual({ service: 'syncbooks', teamSize: '', deliveryModel: 'Local', needs: 'Payroll' });
+    expect(parseSyncBooksEnquiryDetails('{broken')).toBeNull();
+    expect(parseSyncBooksEnquiryDetails({ service: 'other', teamSize: '', deliveryModel: '', needs: '' })).toBeNull();
+    expect(parseSyncBooksEnquiryDetails({ service: 'syncbooks', teamSize: 'bad', deliveryModel: '', needs: '' })).toBeNull();
+    expect(parseSyncBooksEnquiryDetails({ service: 'syncbooks', teamSize: '', deliveryModel: '', needs: 'x'.repeat(3001) })).toBeNull();
+  });
   it('normalizes a lead with explicit preferred-channel consent', () => {
     expect(validateProspectLead(lead())).toMatchObject({
       name: 'Ada Lovelace',

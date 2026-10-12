@@ -34,6 +34,10 @@ import {
   type WorkspaceCustomsLine,
 } from "@/lib/ims/shipping/workspaceCustoms";
 import type { ShippingExportPurpose } from "@/lib/ims/shipping/customs";
+import {
+  workspaceParcelItemLabel,
+  workspaceParcelQuantityIssue,
+} from "@/lib/ims/shipping/workspaceParcelQuantities";
 
 type SalesOrderSummary = {
   id: number;
@@ -66,6 +70,7 @@ type SalesOrderDetail = SalesOrderSummary & {
     id: number;
     sku?: string | null;
     product_name?: string | null;
+    notes?: string | null;
     product_id?: string | null;
     customs_description?: string | null;
     hs_code?: string | null;
@@ -1668,6 +1673,13 @@ export function ShipOrdersWorkspace({
                                     }
                                   />
                                 </div>
+                                <div style={{ marginTop: 12, fontSize: 12 }}>
+                                  <strong>Item quantities in this parcel</strong>
+                                  <div style={{ marginTop: 3, color: "var(--sv-text-dim)" }}>
+                                    Enter the number of units packed, not dimensions or weight.
+                                    The total across all parcels must match the remaining quantity for each item.
+                                  </div>
+                                </div>
                                 <div
                                   style={{
                                     display: "grid",
@@ -1691,7 +1703,7 @@ export function ShipOrdersWorkspace({
                                     return (
                                       <ParcelNumberField
                                         key={item.id}
-                                        label={`${item.sku || item.product_name || `Item ${item.id}`} (of ${remaining})`}
+                                        label={`${workspaceParcelItemLabel(item)} - units (${formatQuantity(remaining)} remaining)`}
                                         value={
                                           allocation?.quantity
                                             ? String(allocation.quantity)
@@ -3198,28 +3210,7 @@ function editableParcelIssue(
   ) {
     return "Parcel item quantities cannot be negative.";
   }
-  const incompleteItem = (order.items ?? []).find((item) => {
-    const remaining = Math.max(
-      0,
-      Number(item.qty_ordered) - Number(item.qty_fulfilled),
-    );
-    const allocated = parcels.reduce(
-      (sum, parcel) =>
-        sum +
-        (parcel.allocations.find((value) => value.soItemId === Number(item.id))
-          ?.quantity ?? 0),
-      0,
-    );
-    return Math.abs(remaining - allocated) >= 0.0001;
-  });
-  if (incompleteItem) {
-    const remaining = Math.max(
-      0,
-      Number(incompleteItem.qty_ordered) - Number(incompleteItem.qty_fulfilled),
-    );
-    return `Assign exactly ${remaining} of ${incompleteItem.sku || incompleteItem.product_name || `item ${incompleteItem.id}`} across the parcels.`;
-  }
-  return "";
+  return workspaceParcelQuantityIssue(order.items ?? [], parcels);
 }
 
 function formatAud(value: number): string {

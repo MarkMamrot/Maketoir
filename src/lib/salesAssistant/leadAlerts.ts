@@ -2,8 +2,11 @@ import { Resend } from 'resend';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getPool, query } from '@/services/MySQLService';
+import { parseSyncBooksEnquiryDetails } from './policy';
 
 interface LeadAlertRow {
+  enquiry_details_json?: unknown;
+  current_systems?: string | null;
   id: number;
   name: string;
   company: string | null;
@@ -47,7 +50,7 @@ export async function deliverProspectLeadAlert(leadId: number): Promise<boolean>
     if (!locked) return false;
     const [rows] = await connection.execute<LeadAlertRow[]>(
       `SELECT l.id, l.name, l.company, l.email, l.phone, l.preferred_contact, l.source_path,
-              l.conversation_id,
+              l.conversation_id, l.enquiry_details_json, l.current_systems,
               JSON_UNQUOTE(JSON_EXTRACT(m.metadata_json, '$.fit')) AS fit,
               JSON_UNQUOTE(JSON_EXTRACT(m.metadata_json, '$.requestedIntegration')) AS requested_integration,
               JSON_UNQUOTE(JSON_EXTRACT(m.metadata_json, '$.requestedProvider')) AS requested_provider,
@@ -64,15 +67,16 @@ export async function deliverProspectLeadAlert(leadId: number): Promise<boolean>
     );
     const lead = rows[0];
     if (!lead || Number(lead.alert_sent) === 1) return Boolean(lead);
+    const details = parseSyncBooksEnquiryDetails(lead.enquiry_details_json);
     const recipients = await salesLeadAlertRecipients();
     if (!process.env.RESEND_API_KEY || recipients.length === 0) throw new Error('Sales lead email delivery is not configured.');
     const appUrl = String(process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://solvantis.com.au').replace(/\/$/, '');
     const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
       to: recipients,
-      subject: `New Solvantis sales lead: ${lead.company || lead.name}`.slice(0, 200),
+      subject: `New ${details ? 'SyncBooks enquiry' : 'Solvantis sales lead'}: ${lead.company || lead.name}`.replace(/[\r\n]/g, ' ').slice(0, 200),
       html: `<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#0f172a">
-        <h1 style="font-size:22px">New consented sales lead</h1>
+        <h1 style="font-size:22px">${details ? 'New SyncBooks consultation enquiry' : 'New consented sales lead'}</h1>
         <p><strong>${escapeHtml(lead.name)}</strong>${lead.company ? ` · ${escapeHtml(lead.company)}` : ''}</p>
         <p>Preferred contact: ${escapeHtml(lead.preferred_contact)}<br>
         Email: ${escapeHtml(lead.email || 'Not provided')}<br>Phone: ${escapeHtml(lead.phone || 'Not provided')}</p>
@@ -80,7 +84,10 @@ export async function deliverProspectLeadAlert(leadId: number): Promise<boolean>
         Integration: ${escapeHtml(lead.requested_integration || 'Not specified')}<br>
         Provider: ${escapeHtml(lead.requested_provider || 'Not specified')}<br>
         Source: ${escapeHtml(lead.source_path || 'Not specified')}</p>
-        <p>The visitor transcript is available only in the restricted Admin view and is not included in this email.</p>
+        ${details ? `<p>Team size: ${escapeHtml(details.teamSize || 'Not specified')}<br>
+        Delivery: ${escapeHtml(details.deliveryModel || 'Open to advice')}<br>
+        Software: ${escapeHtml(lead.current_systems || 'Not specified')}</p>
+        <p>Brief: ${escapeHtml(details.needs || 'Not provided')}</p>` : '<p>The visitor transcript is available only in the restricted Admin view and is not included in this email.</p>'}
         <p><a href="${escapeHtml(appUrl)}/admin">Open Prospect Leads</a></p>
       </div>`,
     }, { idempotencyKey: `prospect-lead-alert-${lead.id}` });
@@ -101,7 +108,7 @@ export async function deliverProspectLeadAlert(leadId: number): Promise<boolean>
     ).catch(() => null);
     await reportRuntimeIssue({
       source: 'ProspectLeadAlerts', operation: 'deliver_alert', severity: 'error',
-      title: 'Prospect lead alert delivery failed', error,
+      title: 'Prospect lead alert delivery failed', error: new Error('Prospect notification delivery failed.'),
       context: { leadId, provider: 'resend', retryable: true },
       reference: { type: 'prospect_lead', id: leadId },
     }).catch(() => null);

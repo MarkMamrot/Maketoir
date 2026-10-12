@@ -3,6 +3,8 @@
 ---
 # Solvantis Product and Fit
 
+[SyncBooks](/syncbooks) is a separate general bookkeeping offering for Australian businesses, with local, overseas and blended delivery and a free initial consultation. Indicative pricing is subject to scope and excludes GST. See [SyncBooks Bookkeeping](./syncbooks.md) for services and professional boundaries.
+
 Solvantis supports retail operations from product and supplier management through selling, fulfilment, customer relationships and performance review. Browser-based point of sale, multi-location stock visibility, purchasing, customer orders, loyalty, wholesale and online commerce can work as one operating platform.
 
 The public feature map presents customer relationships and loyalty separately. It includes Store Daybooks, multiple Shopify storefronts, configured Amazon Australia channels and native online selling. Feature availability depends on the plan and provider setup; feature details link to the relevant product overview.

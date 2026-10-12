@@ -5,6 +5,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireSuperAdminTier } from '@/lib/sessionUtils';
 import { getPool, query } from '@/services/MySQLService';
 import { getLeadCapabilities, PROSPECT_LEAD_STATUSES } from '../helpers';
+import { parseSyncBooksEnquiryDetails } from '@/lib/salesAssistant/policy';
 
 function parseId(value: string): number | null {
   const id = Number(value);
@@ -50,7 +51,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       query<Record<string, unknown>>('SELECT id, event_type, event_data_json, created_at FROM prospect_lead_events WHERE lead_id = ? ORDER BY created_at DESC, id DESC LIMIT 200', [id]),
     ]);
     return NextResponse.json({
-      success: true, lead: leads[0], conversation: { messages, finalUserPrompts: promptRows.reverse() }, events, capabilities,
+      success: true, lead: { ...leads[0], enquiryDetails: parseSyncBooksEnquiryDetails(leads[0].enquiry_details_json) }, conversation: { messages, finalUserPrompts: promptRows.reverse() }, events, capabilities,
     });
   } catch (error) {
     await reportRuntimeIssue({

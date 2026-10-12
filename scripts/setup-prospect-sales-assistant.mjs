@@ -132,6 +132,7 @@ try {
     );
   }
   await ensureColumn('prospect_leads', 'assigned_to', 'INT NULL');
+  await ensureColumn('prospect_leads', 'enquiry_details_json', 'JSON NULL');
   await ensureColumn('prospect_leads', 'notes', 'TEXT NULL');
   await ensureColumn('prospect_leads', 'loss_reason', 'TEXT NULL');
   await ensureColumn('prospect_leads', 'first_contacted_at', 'DATETIME(3) NULL');
@@ -162,7 +163,7 @@ try {
     ['prospect_messages', 'content'], ['prospect_events', 'idempotency_key'],
     ['prospect_leads', 'preferred_contact'], ['prospect_leads', 'consented_at'], ['prospect_leads', 'assigned_to'],
     ['prospect_leads', 'notes'], ['prospect_leads', 'loss_reason'], ['prospect_leads', 'first_contacted_at'],
-    ['prospect_leads', 'followed_up_at'],
+    ['prospect_leads', 'followed_up_at'], ['prospect_leads', 'enquiry_details_json'],
     ['prospect_lead_events', 'idempotency_key'], ['prospect_demand_insights', 'fingerprint'],
     ['prospect_rate_limits', 'rate_key_hash'],
   ];

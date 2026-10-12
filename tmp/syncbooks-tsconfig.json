@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "../next-env.d.ts",
+    "../src/app/syncbooks/**/*.ts",
+    "../src/app/syncbooks/**/*.tsx",
+    "../src/app/api/public/syncbooks/enquiry/route.ts",
+    "../src/lib/salesAssistant/**/*.ts",
+    "../src/app/admin/ProspectLeadsView.tsx",
+    "../src/app/api/admin/prospect-leads/[id]/route.ts"
+  ],
+  "exclude": ["../node_modules", "../SyncBooks"]
+}
