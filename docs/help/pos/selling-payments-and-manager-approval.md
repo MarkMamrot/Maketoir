@@ -47,7 +47,7 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 
 1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.
 2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.
-3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.
+3. In Products mode, select a product and then choose the correct size, colour, or other variant. Clothing sizes appear smallest to largest; numbered sizes use numeric order. Use its **i** button to see the product image, description and every variant's stock at each location.
 4. Add the correct variant and set the quantity.
 5. Apply any permitted line discount, price change, or order discount before payment.
 6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.

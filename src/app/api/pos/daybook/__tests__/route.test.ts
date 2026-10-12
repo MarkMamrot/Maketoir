@@ -5,7 +5,7 @@ vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute, getIMSPool: vi.fn() }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
-import { GET } from '../route';
+import { GET, POST } from '../route';
 
 describe('Daybook task materialization', () => {
   beforeEach(() => {
@@ -39,5 +39,14 @@ describe('Daybook task materialization', () => {
     expect(response.status).toBe(500);
     expect(mocks.execute).toHaveBeenCalledTimes(1);
     expect(mocks.report).toHaveBeenCalledOnce();
+  });
+
+  it('rejects daily-task comments without writing a comment', async () => {
+    const response = await POST(new Request('http://localhost/api/pos/daybook', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_comment', item_type: 'task', item_id: 1, comment_text: 'Old task note', staff_name: 'Staff', staff_initials: 'ST' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.execute).not.toHaveBeenCalled();
   });
 });

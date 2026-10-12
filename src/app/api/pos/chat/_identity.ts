@@ -1,5 +1,6 @@
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export type ChatIdentity = {
   businessId: string;
@@ -13,6 +14,7 @@ export type ChatIdentity = {
 export async function resolveChatIdentity(surface: 'auto' | 'ims' = 'auto'): Promise<ChatIdentity | null> {
   const session = await getImsSession(surface === 'ims' ? ['marketoir_session'] : ['pos_session', 'marketoir_session']);
   if (!session?.businessId) return null;
+  return runImsForBusiness(session.businessId, async () => {
 
   const rawSession = session as typeof session & {
     location_id?: number;
@@ -59,4 +61,5 @@ export async function resolveChatIdentity(surface: 'auto' | 'ims' = 'auto'): Pro
     avatar: avatar.replace(/[^a-zA-Z0-9_.\-]/g, '').slice(0, 100),
     source: sessionLocationId > 0 ? 'pos' : 'ims',
   };
+  });
 }

@@ -440,7 +440,6 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
               await perform('delete_item', { item_type: 'task', item_id: task.template_id });
             }}
             onReorder={templateIds => perform('reorder_tasks', { template_ids: templateIds })}
-            onComment={(task, commentText) => perform('add_comment', { item_type: 'task', item_id: task.id, comment_text: commentText })}
             onAdd={workspace?.permissions.manager ? () => openEditor('task', { phase: taskPhase }) : undefined}
           />
         )}
@@ -517,7 +516,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   );
 }
 
-function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onReorder, onAdd, onComment }: {
+function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onReorder, onAdd }: {
   workspace: Workspace | null;
   phase: TaskPhase;
   onPhaseChange: (phase: TaskPhase) => void;
@@ -526,7 +525,6 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   onEdit: (task: EditableTask) => void;
   onDelete: (task: EditableTask) => Promise<void>;
   onReorder: (templateIds: number[]) => Promise<unknown>;
-  onComment: (task: Task, commentText: string) => Promise<unknown>;
   onAdd?: () => void;
 }) {
   if (!workspace) return null;
@@ -585,7 +583,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
             [orderedIds[rowIndex], orderedIds[rowIndex + offset]] = [orderedIds[rowIndex + offset], orderedIds[rowIndex]];
             void onReorder(orderedIds);
           };
-          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <span className={styles.taskInstructions}>{display.instructions}</span>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button><button type="button" onClick={() => move(-1)} disabled={saving || rowIndex === 0} title={`Move ${row.title} up`} aria-label={`Move ${row.title} up`}><ArrowUp size={15} /></button><button type="button" onClick={() => move(1)} disabled={saving || rowIndex === group.rows.length - 1} title={`Move ${row.title} down`} aria-label={`Move ${row.title} down`}><ArrowDown size={15} /></button></div>}{currentTask && <CommentThread comments={currentTask.comments ?? []} saving={saving} onAdd={commentText => onComment(currentTask, commentText)} />}</th>{displayDates.map(taskDate => {
+          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <span className={styles.taskInstructions}>{display.instructions}</span>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button><button type="button" onClick={() => move(-1)} disabled={saving || rowIndex === 0} title={`Move ${row.title} up`} aria-label={`Move ${row.title} up`}><ArrowUp size={15} /></button><button type="button" onClick={() => move(1)} disabled={saving || rowIndex === group.rows.length - 1} title={`Move ${row.title} down`} aria-label={`Move ${row.title} down`}><ArrowDown size={15} /></button></div>}</th>{displayDates.map(taskDate => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
             if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { resolveChatIdentity } from './_identity';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 // Lazy one-time migration — adds to_location_id column if absent
-let _dmColReady = false;
-async function ensureDmColumn() {
-  if (_dmColReady) return;
+const dmReadyBusinesses = new Set<string>();
+async function ensureDmColumn(businessId: string) {
+  if (dmReadyBusinesses.has(businessId)) return;
   // `ADD COLUMN IF NOT EXISTS` is unsupported on some MySQL versions, so check
   // information_schema first and only ALTER when the column is genuinely missing.
   try {
@@ -17,9 +19,10 @@ async function ensureDmColumn() {
     if (!cols[0]?.c) {
       await imsExecute('ALTER TABLE pos_chat_messages ADD COLUMN to_location_id INT NULL', []);
     }
-    _dmColReady = true;
-  } catch {
-    // leave _dmColReady false so a later request retries
+    dmReadyBusinesses.add(businessId);
+  } catch (error) {
+    await reportRuntimeIssue({ businessId, source: 'pos.chat', operation: 'ensure-dm-column', title: 'Chat direct-message schema check failed', error });
+    throw error;
   }
 }
 
@@ -31,7 +34,9 @@ export async function GET(req: Request) {
   const identity = await resolveChatIdentity(url.searchParams.get('surface') === 'ims' ? 'ims' : 'auto');
   if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
 
-  await ensureDmColumn();
+  try {
+    return await runImsForBusiness(identity.businessId, async () => {
+  await ensureDmColumn(identity.businessId);
 
   const type = url.searchParams.get('type') ?? 'group';
   const toId = parseInt(url.searchParams.get('to') ?? '0', 10);
@@ -108,6 +113,11 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({ messages });
+    });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: identity.businessId, source: 'pos.chat', operation: 'load-messages', title: 'Chat messages failed to load', error });
+    return NextResponse.json({ error: 'Chat messages could not be loaded.' }, { status: 500 });
+  }
 }
 
 // POST /api/pos/chat — send a group message or DM
@@ -120,7 +130,9 @@ export async function POST(req: Request) {
   const identity = await resolveChatIdentity(body.surface === 'ims' ? 'ims' : 'auto');
   if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
 
-  await ensureDmColumn();
+  try {
+    return await runImsForBusiness(identity.businessId, async () => {
+  await ensureDmColumn(identity.businessId);
 
   const message      = String(body.message ?? '').trim().slice(0, 500);
   if (!message) return NextResponse.json({ error: 'Message required.' }, { status: 400 });
@@ -145,4 +157,9 @@ export async function POST(req: Request) {
     [locationId, locationName, userName, avatar, message, toLocationId],
   );
   return NextResponse.json({ success: true, id: result.insertId });
+    });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: identity.businessId, source: 'pos.chat', operation: 'send-message', title: 'Chat message failed to send', error });
+    return NextResponse.json({ error: 'Chat message could not be sent.' }, { status: 500 });
+  }
 }

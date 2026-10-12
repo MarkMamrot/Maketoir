@@ -9,6 +9,7 @@ Use Team Communications for operational messages between the active POS location
 
 - Open Team Chat from the circled **T** in the Team Communications tray.
 - Read unread messages for the active location.
+- Hear a short alert when a new message arrives from another location, including while the POS tab is in the background. Audio becomes available after clicking or typing in POS; browser or device mute settings still apply. Opening history and replayed messages do not sound an alert.
 - Send a message to the shared team conversation.
 - Select an available branch or Warehouse avatar for a direct message.
 - Paste or attach supported screenshots and images.
@@ -22,7 +23,7 @@ Use Team Communications for operational messages between the active POS location
 | Open the shared conversation | The circled **T** in the Team Communications tray |
 | Message a specific destination | Select its branch or Warehouse avatar in the same tray |
 | See pending activity | Check the unread badge on the **T** circle, or on the minimized tray icon |
-| Attach evidence | Paste or choose up to three JPG, PNG, or WebP images |
+| Attach evidence | Paste up to three JPG, PNG, or WebP images, or choose images or PDF files |
 | Free up screen space | Select the minimize control on the Team Communications tray |
 | Ask how Solvantis works | Open **Help** or **Ask Solvantis** |
 | Record a structured daily task or issue | Open **Store Daybook** |
@@ -42,7 +43,7 @@ Use Team Communications for operational messages between the active POS location
 2. Read the recent messages and confirm the conversation or destination.
 3. For a direct message, select the appropriate branch or **Warehouse** avatar.
 4. Enter a concise operational message.
-5. If evidence helps, paste or choose up to three JPG, PNG, or WebP images, each no larger than 10 MB.
+5. If evidence helps, focus the message box and paste JPG, PNG, or WebP images, or choose images or PDF files. Use up to three attachments, each no larger than 10 MB.
 6. Review the message and attachments, then send.
 7. Confirm the message appears in the conversation before closing Team Communications.
 8. Use **Help** for maintained procedures or **Ask Solvantis** for a product question.
@@ -52,7 +53,8 @@ Use Team Communications for operational messages between the active POS location
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | Intended branch is not available | The destination is not enabled for the current communication list | Confirm the correct POS location and use the approved alternative channel |
-| Attachment is rejected | It is unsupported, too large, or exceeds the three-file limit | Use JPG, PNG, or WebP; reduce size or attachment count |
+| Attachment is rejected | It is unsupported, too large, or exceeds the three-file limit | Use JPG, PNG, WebP or PDF; reduce size or attachment count |
+| New messages have no sound | Audio is muted or browser audio has not been enabled by interaction | Click or type in POS, check the tab and device sound settings, and continue checking unread badges |
 | Message does not appear | The connection failed before it was accepted | Reconnect and check the conversation before sending again |
 | Unread count remains | More messages have not been viewed | Open the conversation showing the unread badge and review it |
 | The tray is minimized and messages are missed | Notifications still accumulate while minimized | Check the badge on the minimized icon and expand the tray |

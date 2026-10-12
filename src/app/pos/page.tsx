@@ -1,4 +1,6 @@
 ﻿'use client';
+import { compareProductVariants } from '@/lib/pos/productVariantOrder';
+import { isIncomingChatMessage, useChatNotificationSound } from '@/lib/pos/useChatNotificationSound';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
@@ -3432,6 +3434,7 @@ function PosAvatarBar({
   // Tracks every message id already processed by the SSE stream, so replays on
   // reconnect (the stream closes ~every 25s) never double-count DM unread badges.
   const seenMsgIdsRef = useRef<Set<number>>(new Set());
+  const playChatNotification = useChatNotificationSound();
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function showBubble(type: 'thought' | 'speech', text: string) {
@@ -3479,7 +3482,7 @@ function PosAvatarBar({
   function saveDmLastRead(partnerId: number, id: number) { try { localStorage.setItem(`pos_dm_last_read_${partnerId}`, String(id)); } catch {} dmLastReadRef.current = { ...dmLastReadRef.current, [partnerId]: id }; }
 
   function fetchMessages() {
-    fetch('/api/pos/chat')
+    return fetch('/api/pos/chat')
       .then(r => r.json())
       .then(d => {
         if (!d.messages) return;
@@ -3619,11 +3622,17 @@ function PosAvatarBar({
         }
       }
     } catch {}
-    fetchMessages(); // initial load via REST (fast, no streaming overhead)
+    const initialMessages = Promise.all([
+      fetchMessages(),
+      fetch('/api/pos/chat?type=inbox').then(response => response.json()).then(data => {
+        for (const message of data.messages ?? []) seenMsgIdsRef.current.add(message.id);
+      }).catch(() => {}),
+    ]);
 
     // SSE stream for near-instant new messages
     let es: EventSource | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
     function connectSSE() {
       const lastId = lastReadRef.current;
@@ -3638,6 +3647,7 @@ function PosAvatarBar({
           const fresh: ChatMessage[] = data.messages.filter((m: ChatMessage) => !seenMsgIdsRef.current.has(m.id));
           if (!fresh.length) return;
           for (const m of fresh) seenMsgIdsRef.current.add(m.id);
+          if (fresh.some(message => isIncomingChatMessage(message, myLocationId))) playChatNotification();
 
           // Split group vs DM messages
           const groupMsgs: ChatMessage[] = fresh.filter((m: ChatMessage) => !m.to_location_id);
@@ -3703,8 +3713,8 @@ function PosAvatarBar({
       };
     }
 
-    connectSSE();
-    return () => { es?.close(); if (retryTimer) clearTimeout(retryTimer); };
+    void initialMessages.then(() => { if (!cancelled) connectSSE(); });
+    return () => { cancelled = true; es?.close(); if (retryTimer) clearTimeout(retryTimer); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -4260,7 +4270,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
 
 function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]; onClose: () => void }) {
   type StockApiRow = { location_id?: number | string; location_name?: string; qty_on_hand?: number | string; qty_committed?: number | string };
-  const [stockByVariant, setStockByVariant] = useState<Record<string, { rows: { location_name: string; qty_on_hand: number; qty_committed: number }[]; error?: string }>>({});
+  const [stockByVariant, setStockByVariant] = useState<Record<string, { rows: { location_name: string; qty_on_hand: number; qty_committed: number }[]; description?: string | null; image_url?: string | null; error?: string }>>({});
   const [loading, setLoading] = useState(true);
   const productName = variants[0]?.name.split(' — ')[0] ?? 'Product';
 
@@ -4272,6 +4282,8 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
         const data = await response.json();
         if (!data.success) return [variant.variant_id, { rows: [], error: data.error ?? 'Failed to load stock.' }] as const;
         return [variant.variant_id, {
+          description: data.description,
+          image_url: data.image_url,
           rows: ((data.data ?? []) as StockApiRow[]).map(row => ({ location_name: row.location_name ?? `Loc ${row.location_id}`, qty_on_hand: Number(row.qty_on_hand ?? 0), qty_committed: Number(row.qty_committed ?? 0) })),
         }] as const;
       } catch (error: unknown) {
@@ -4285,6 +4297,9 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
     return () => { cancelled = true; };
   }, [variants]);
 
+  const description = variants.map(variant => stockByVariant[variant.variant_id]?.description).find(Boolean);
+  const imageUrl = variants.map(variant => stockByVariant[variant.variant_id]?.image_url || variant.image_url).find(Boolean);
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.25rem', width: 880, maxWidth: '96vw', maxHeight: '88vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
@@ -4296,7 +4311,11 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
           <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
         </div>
         {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loading…</div>}
-        {!loading && variants.map(variant => {
+        {(imageUrl || description) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16, alignItems: 'flex-start' }}>
+          {imageUrl && <img src={imageUrl} alt={productName} style={{ width: 220, maxWidth: '100%', maxHeight: 260, objectFit: 'contain', background: '#fff', borderRadius: 8 }} />}
+          {description && <div style={{ flex: '1 1 240px', minWidth: 0, color: 'var(--sv-text-main)', fontSize: '.85rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}><strong style={{ display: 'block', marginBottom: 6 }}>Description</strong>{description.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim()}</div>}
+        </div>}
+        {!loading && [...variants].sort(compareProductVariants).map(variant => {
           const detail = stockByVariant[variant.variant_id];
           const option = variant.name.includes(' — ') ? variant.name.split(' — ').slice(1).join(' — ') : variant.code ?? 'Default variant';
           return (
@@ -4348,7 +4367,7 @@ function PosVariantPicker({ variants, onSelect, onInfo, onClose }: { variants: C
           </div>
         </div>
         <div style={{ display: 'grid', gap: 7 }}>
-          {variants.map(variant => {
+          {[...variants].sort(compareProductVariants).map(variant => {
             const option = variant.name.includes(' — ') ? variant.name.split(' — ').slice(1).join(' — ') : variant.code ?? 'Default variant';
             return (
               <button key={variant.variant_id} onClick={() => onSelect(variant)} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 10, alignItems: 'center', width: '100%', padding: '.7rem .8rem', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7, color: 'var(--sv-text-main)', cursor: 'pointer', textAlign: 'left' }}>

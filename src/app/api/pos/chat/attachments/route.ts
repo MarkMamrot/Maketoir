@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { resolveChatIdentity } from '../_identity';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 3;
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
     const identity = await resolveChatIdentity(form.get('surface') === 'ims' ? 'ims' : 'auto');
     if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
     businessId = identity.businessId;
+    return await runImsForBusiness(businessId, async () => {
     messageId = Number(form.get('message_id'));
     const file = form.get('file');
     if (!messageId || !(file instanceof File)) {
@@ -70,6 +72,7 @@ export async function POST(req: Request) {
       [messageId, originalName, storedName, file.type, file.size],
     );
     return NextResponse.json({ success: true, attachment: { id: result.insertId, message_id: messageId, original_name: originalName, mime_type: file.type, file_size: file.size } });
+    });
   } catch (error: any) {
     if (storedPath) await fs.unlink(storedPath).catch(() => {});
     await reportRuntimeIssue({ businessId: businessId || undefined, source: 'pos.chat', operation: 'upload-attachment', title: 'POS chat attachment upload failed', error, context: { messageId } });

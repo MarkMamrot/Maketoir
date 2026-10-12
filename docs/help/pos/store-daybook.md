@@ -9,7 +9,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 - Choose the staff member using Daybook for the current day.
 - Complete and sign opening, throughout-the-day, weekly and closing tasks.
-- Add timestamped comments and handover updates to checklist tasks, communications, customer requests and store needs. Correct your own comment when needed; managers can correct any comment.
+- Add timestamped comments and handover updates to communications, customer requests and store needs. Correct your own comment when needed; managers can correct any comment. Daily checklist tasks have no comments.
 - Read newest-first store communications, use basic text formatting and acknowledge each notice.
 - See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
@@ -60,7 +60,7 @@ Task rows and sign-off cells use a compact layout so more of the week fits on sc
 
 ### Add comments and updates
 
-1. Open **Comments** on a current checklist task, customer request or store need. On a communication, select the comment icon and use its number badge to see how many replies exist.
+1. Open **Comments** on a customer request or store need. On a communication, select the comment icon and use its number badge to see how many replies exist. Daily checklist tasks do not have comment threads.
 2. Enter a concise update and select **Add comment**.
 3. The comment appears immediately with the staff name, initials and time. Other staff see it on their next silent refresh.
 4. Use the pencil beside your own comment to correct its wording. Managers can correct any comment. The original staff attribution and audit history remain retained.

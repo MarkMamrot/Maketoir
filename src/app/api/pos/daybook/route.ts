@@ -25,7 +25,7 @@ import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 const MANAGER_TIERS = new Set(['PosManager', 'StandardUser', 'Admin', 'SuperAdmin']);
 const RECORD_TYPES = new Set(['customer_request', 'store_need', 'stock_discrepancy', 'incident']);
-const COMMENT_ITEM_TYPES = new Set(['task', 'communication', 'record']);
+const COMMENT_ITEM_TYPES = new Set(['communication', 'record']);
 const STORE_NEED_CATEGORIES = new Set(['store_supplies', 'stock_request']);
 
 export type DaybookContext = {
@@ -382,7 +382,7 @@ export async function GET(request: Request) {
                 c.actor_user_id, c.actor_name, c.created_at
            FROM pos_daybook_comments c
           WHERE c.business_id = ? AND (
-            (c.item_type <> 'record' AND c.location_id = ?)
+            (c.item_type = 'communication' AND c.location_id = ?)
             OR (c.item_type = 'record' AND EXISTS (
               SELECT 1 FROM pos_daybook_records r
                WHERE r.id = c.item_id AND r.business_id = c.business_id
@@ -434,7 +434,6 @@ export async function GET(request: Request) {
     }));
     const tasks = rawTasks.map(item => ({
       ...item,
-      comments: commentsFor('task', Number(item.id)),
       can_edit: Boolean(item.is_active) && mayManageTask(context, selectedStaff, editPolicy, {
         author_user_id: item.created_by_id,
         author_staff_identity_id: item.created_by_staff_identity_id,
@@ -531,9 +530,7 @@ export async function POST(request: Request) {
       const itemId = Number(body.item_id ?? 0);
       const commentText = String(body.comment_text ?? '').trim().slice(0, 4000);
       if (!COMMENT_ITEM_TYPES.has(itemType) || !Number.isInteger(itemId) || itemId <= 0 || !commentText) return error('A valid item and comment are required.');
-      const ownershipSql = itemType === 'task'
-        ? 'SELECT id FROM pos_daybook_task_instances WHERE id = ? AND business_id = ? AND location_id = ? LIMIT 1'
-        : itemType === 'communication'
+      const ownershipSql = itemType === 'communication'
           ? `SELECT c.id FROM pos_daybook_communications c JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
                WHERE c.id = ? AND c.business_id = ? AND t.location_id = ? AND c.archived_at IS NULL LIMIT 1`
           : `SELECT id FROM pos_daybook_records WHERE id = ? AND business_id = ?
@@ -571,9 +568,7 @@ export async function POST(request: Request) {
       );
       const comment = comments[0];
       if (!comment || !COMMENT_ITEM_TYPES.has(comment.item_type)) return error('Comment not found.', 404);
-      const ownershipSql = comment.item_type === 'task'
-        ? 'SELECT id FROM pos_daybook_task_instances WHERE id = ? AND business_id = ? AND location_id = ? LIMIT 1'
-        : comment.item_type === 'communication'
+      const ownershipSql = comment.item_type === 'communication'
           ? `SELECT c.id FROM pos_daybook_communications c JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
                WHERE c.id = ? AND c.business_id = ? AND t.location_id = ? AND c.archived_at IS NULL LIMIT 1`
           : `SELECT id FROM pos_daybook_records WHERE id = ? AND business_id = ?
