@@ -1,9 +1,11 @@
-import { imsExecute, imsQuery } from "@/services/IMSMySQLService";
+import { getIMSPool, imsExecute, imsQuery } from "@/services/IMSMySQLService";
+import type { ResultSetHeader } from "mysql2/promise";
 import {
   AusPostApiError,
   AusPostEparcelClient,
   type AusPostCreatedShipment,
   type AusPostCreateShipmentsResponse,
+  type AusPostDomesticShipment,
   type AusPostInternationalShipment,
   type AusPostLabelResponse,
   type AusPostShipmentAddress,
@@ -36,6 +38,9 @@ type ShipmentRow = {
   recipient_json: string | CarrierAddress;
   is_international: number;
   customs_json: string | CustomsSnapshot | null;
+  revision?: number;
+  manifest_id?: number | null;
+  ims_fulfilled_at?: string | Date | null;
 };
 
 type ParcelRow = {
@@ -97,7 +102,7 @@ export async function submitShippingDraftsAndCreateLabels(input: {
     ? await ensureBatchLabels(input.businessId, shipments, input.includeAusPostBranding !== false)
     : new Map<number, { requestId: string; status: string; url?: string }>();
   const results = await Promise.all(
-    shipments.map(async (shipment) => {
+    shipments.map(async (shipment): Promise<ShippingSubmissionResult> => {
       const label = labels.get(shipment.id);
       const chargedRows = await imsQuery<{ charged_cost: number | null }>(
         "SELECT charged_cost FROM ims_shipping_shipments WHERE business_id = ? AND id = ? LIMIT 1",
@@ -158,6 +163,11 @@ async function submitOneShipment(
   let shipment = await getShipment(businessId, shipmentId);
   if (!shipment)
     throw new Error(`Prepared shipment ${shipmentId} was not found.`);
+  if (
+    shipment.manifest_id || shipment.ims_fulfilled_at ||
+    !["draft", "failed", "carrier_created", "label_ready", "label_pending", "label_submitting", "label_unknown"].includes(shipment.status)
+  )
+    throw new Error(`${shipment.so_number}: shipment details are not ready for label generation. Refresh the workspace or resolve the pending operation.`);
   if (shipment.provider !== "auspost_eparcel")
     throw new Error("Carrier submission is not supported for this shipment.");
   if (!shipment.service_code || !shipment.service_name)
@@ -179,12 +189,13 @@ async function submitOneShipment(
     );
 
   if (!shipment.provider_shipment_id) {
+    const quoteShipment = shipment;
     const liveRates = aggregateCarrierRates(
       await client.getRates({
         from: parseAddress(shipment.sender_json),
         to: parseAddress(shipment.recipient_json),
         parcels: parcels.map((parcel) => ({
-          reference: parcelReference(shipmentId, parcel.parcel_number),
+          reference: parcelReference(quoteShipment, parcel.parcel_number),
           lengthMm: Number(parcel.length_mm),
           widthMm: Number(parcel.width_mm),
           heightMm: Number(parcel.height_mm),
@@ -205,8 +216,9 @@ async function submitOneShipment(
       `UPDATE ims_shipping_shipments
           SET status = 'submitting', safe_error = NULL
         WHERE business_id = ? AND id = ? AND provider_shipment_id IS NULL
-          AND status IN ('draft', 'failed')`,
-      [businessId, shipmentId],
+          AND status IN ('draft', 'failed') AND revision = ?
+          AND manifest_id IS NULL AND ims_fulfilled_at IS NULL`,
+      [businessId, shipmentId, Number(shipment.revision ?? 0)],
     );
     if (!claimed.affectedRows) {
       shipment = (await getShipment(businessId, shipmentId)) ?? shipment;
@@ -243,7 +255,8 @@ async function submitOneShipment(
         const rejected =
           error instanceof AusPostApiError &&
           error.status >= 400 &&
-          error.status < 500;
+          error.status < 500 &&
+          ![408, 409, 429].includes(error.status);
         await imsExecute(
           `UPDATE ims_shipping_shipments SET status = ?, safe_error = ? WHERE business_id = ? AND id = ? AND provider_shipment_id IS NULL`,
           [
@@ -300,8 +313,9 @@ async function ensureBatchLabels(
         label_url_expires_at: string | Date | null;
       }>(
         `SELECT provider_request_id, status, label_url, label_url_expires_at FROM ims_shipping_labels
-        WHERE business_id = ? AND shipment_id = ? ORDER BY id DESC LIMIT 1`,
-        [businessId, shipment.id],
+        WHERE business_id = ? AND shipment_id = ? AND shipment_revision = ?
+          AND status <> 'superseded' ORDER BY id DESC LIMIT 1`,
+        [businessId, shipment.id, Number(shipment.revision ?? 0)],
       )
     )[0];
     if (existing?.provider_request_id) {
@@ -311,6 +325,7 @@ async function ensureBatchLabels(
       if (
         existing.status === "available" &&
         existing.label_url &&
+        shipment.status === "label_ready" &&
         (!expiresAt || expiresAt > Date.now())
       ) {
         results.set(shipment.id, {
@@ -335,6 +350,7 @@ async function ensureBatchLabels(
             shipment.id,
             existing.provider_request_id,
             response,
+            Number(shipment.revision ?? 0),
           ),
         );
         continue;
@@ -357,15 +373,16 @@ async function ensureBatchLabels(
     for (const shipment of unlabelled) {
       const claimed = await imsExecute(
         `UPDATE ims_shipping_shipments SET status = 'label_submitting', safe_error = NULL
-          WHERE business_id = ? AND id = ? AND provider_shipment_id = ? AND status IN ('carrier_created', 'failed')`,
-        [businessId, shipment.id, shipment.provider_shipment_id],
+          WHERE business_id = ? AND id = ? AND provider_shipment_id = ? AND status IN ('carrier_created', 'failed')
+            AND revision = ? AND manifest_id IS NULL AND ims_fulfilled_at IS NULL`,
+        [businessId, shipment.id, shipment.provider_shipment_id, Number(shipment.revision ?? 0)],
       );
       if (!claimed.affectedRows) {
         for (const claimedShipment of claimedShipments) {
           await imsExecute(
             `UPDATE ims_shipping_shipments SET status = 'carrier_created'
-              WHERE business_id = ? AND id = ? AND status = 'label_submitting'`,
-            [businessId, claimedShipment.id],
+              WHERE business_id = ? AND id = ? AND status = 'label_submitting' AND revision = ?`,
+            [businessId, claimedShipment.id, Number(claimedShipment.revision ?? 0)],
           );
         }
         throw new Error(
@@ -409,9 +426,9 @@ async function ensureBatchLabels(
           );
         await imsExecute(
           `INSERT INTO ims_shipping_labels
-             (business_id, shipment_id, provider_request_id, format, layout, status)
-           VALUES (?, ?, ?, 'PDF', ?, 'pending')`,
-          [businessId, shipment.id, requestId, batch.preference.layout],
+             (business_id, shipment_id, provider_request_id, format, layout, status, shipment_revision)
+           VALUES (?, ?, ?, 'PDF', ?, 'pending', ?)`,
+          [businessId, shipment.id, requestId, batch.preference.layout, Number(shipment.revision ?? 0)],
         );
         results.set(
           shipment.id,
@@ -420,6 +437,7 @@ async function ensureBatchLabels(
             shipment.id,
             requestId,
             response,
+            Number(shipment.revision ?? 0),
           ),
         );
       }
@@ -430,15 +448,18 @@ async function ensureBatchLabels(
     const rejected =
       error instanceof AusPostApiError &&
       error.status >= 400 &&
-      error.status < 500;
+      error.status < 500 &&
+      ![408, 409, 429].includes(error.status);
     for (const shipment of unlabelled) {
       await imsExecute(
-        `UPDATE ims_shipping_shipments SET status = ?, safe_error = ? WHERE business_id = ? AND id = ?`,
+        `UPDATE ims_shipping_shipments SET status = ?, safe_error = ? WHERE business_id = ? AND id = ?
+          AND revision = ? AND status = 'label_submitting'`,
         [
           rejected ? "carrier_created" : "label_unknown",
           safeError,
           businessId,
           shipment.id,
+          Number(shipment.revision ?? 0),
         ],
       );
     }
@@ -453,11 +474,14 @@ async function persistCarrierShipment(
   created: AusPostCreatedShipment,
 ): Promise<void> {
   const summary = created.shipment_summary ?? {};
-  await imsExecute(
+  const connection = await getIMSPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [persisted] = await connection.execute<ResultSetHeader>(
     `UPDATE ims_shipping_shipments
         SET status = 'carrier_created', provider_shipment_id = ?, charged_cost = ?,
             charged_cost_ex_gst = ?, charged_gst = ?, carrier_created_at = NOW(), safe_error = NULL
-      WHERE business_id = ? AND id = ? AND status = 'submitting'`,
+      WHERE business_id = ? AND id = ? AND status = 'submitting' AND revision = ?`,
     [
       text(created.shipment_id),
       numberOrNull(summary.total_cost),
@@ -465,8 +489,11 @@ async function persistCarrierShipment(
       numberOrNull(summary.total_gst),
       businessId,
       shipment.id,
+      Number(shipment.revision ?? 0),
     ],
   );
+  if (!persisted.affectedRows)
+    throw new Error("Shipment details changed during carrier submission. Reconcile the carrier shipment before continuing.");
   const parcelByReference = new Map(
     parcels.map((parcel) => [
       parcelReference(shipment, parcel.parcel_number),
@@ -476,7 +503,7 @@ async function persistCarrierShipment(
   for (const item of created.items ?? []) {
     const parcel = parcelByReference.get(text(item.item_reference));
     if (!parcel) continue;
-    await imsExecute(
+    await connection.execute(
       `UPDATE ims_shipping_parcels
           SET provider_item_id = ?, article_id = ?, consignment_id = ?, tracking_url = ?
         WHERE business_id = ? AND id = ? AND shipment_id = ?`,
@@ -491,6 +518,13 @@ async function persistCarrierShipment(
       ],
     );
   }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 function ausPostTrackingUrl(articleId: string): string {
@@ -504,6 +538,7 @@ async function persistLabelResponse(
   shipmentId: number,
   requestId: string,
   response: AusPostLabelResponse,
+  revision: number,
 ): Promise<{ requestId: string; status: string; url?: string }> {
   const label =
     response.labels?.find((item) => text(item.request_id) === requestId) ??
@@ -511,10 +546,16 @@ async function persistLabelResponse(
   const status = text(label?.status).toUpperCase() || "PENDING";
   const url = text(label?.url) || undefined;
   const available = status === "AVAILABLE" && Boolean(url);
-  await imsExecute(
-    `UPDATE ims_shipping_labels
-        SET status = ?, label_url = ?, label_url_expires_at = ?, available_at = ?, safe_error = ?
-      WHERE business_id = ? AND shipment_id = ? AND provider_request_id = ?`,
+  const updatedLabel = await imsExecute(
+    `UPDATE ims_shipping_labels label
+       JOIN ims_shipping_shipments shipment
+         ON shipment.id = label.shipment_id AND shipment.business_id = label.business_id
+        SET label.status = ?, label.label_url = ?, label.label_url_expires_at = ?, label.available_at = ?, label.safe_error = ?
+      WHERE label.business_id = ? AND label.shipment_id = ? AND label.provider_request_id = ?
+        AND label.shipment_revision = ? AND shipment.revision = ?
+        AND label.status <> 'superseded'
+        AND shipment.status IN ('carrier_created', 'label_submitting', 'label_pending', 'label_ready', 'label_unknown', 'failed')
+        AND shipment.manifest_id IS NULL AND shipment.ims_fulfilled_at IS NULL`,
     [
       available ? "available" : status.toLowerCase(),
       url ?? null,
@@ -526,11 +567,17 @@ async function persistLabelResponse(
       businessId,
       shipmentId,
       requestId,
+      revision,
+      revision,
     ],
   );
-  await imsExecute(
+  if (!updatedLabel.affectedRows)
+    throw new Error("Shipment details changed since this label request. Discard old labels and refresh the workspace.");
+  const updatedShipment = await imsExecute(
     `UPDATE ims_shipping_shipments SET status = ?, label_ready_at = ?, safe_error = ?
-      WHERE business_id = ? AND id = ?`,
+      WHERE business_id = ? AND id = ? AND revision = ?
+        AND status IN ('carrier_created', 'label_submitting', 'label_pending', 'label_ready', 'label_unknown', 'failed')
+        AND manifest_id IS NULL AND ims_fulfilled_at IS NULL`,
     [
       available
         ? "label_ready"
@@ -543,8 +590,11 @@ async function persistLabelResponse(
         : null,
       businessId,
       shipmentId,
+      revision,
     ],
   );
+  if (!updatedShipment.affectedRows)
+    throw new Error("Shipment details changed since this label request. Discard old labels and refresh the workspace.");
   if (status === "ERROR")
     throw new Error("Australia Post could not generate this label.");
   return { requestId, status: available ? "AVAILABLE" : status, url };
@@ -563,7 +613,7 @@ async function getShipment(
             shipment.provider, shipment.status, shipment.provider_shipment_id,
             shipment.provider_reference, shipment.service_code, shipment.service_name, shipment.quoted_cost,
             shipment.sender_json, shipment.recipient_json, shipment.is_international,
-            shipment.customs_json
+            shipment.customs_json, shipment.revision, shipment.manifest_id, shipment.ims_fulfilled_at
        FROM ims_shipping_shipments shipment
        JOIN ims_sales_orders sales_order ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
       WHERE shipment.business_id = ? AND shipment.id = ? LIMIT 1`,
@@ -587,7 +637,10 @@ async function getParcels(
 export function buildAusPostDomesticShipment(
   shipment: ShipmentRow,
   parcels: ParcelRow[],
-) {
+): AusPostDomesticShipment {
+  const serviceCode = shipment.service_code;
+  if (!serviceCode)
+    throw new Error(`${shipment.so_number}: choose and save a shipping service before submission.`);
   const sender = parseAddress(shipment.sender_json);
   const recipient = parseAddress(shipment.recipient_json);
   return {
@@ -601,7 +654,7 @@ export function buildAusPostDomesticShipment(
     to: carrierAddressPayload(recipient),
     items: parcels.map((parcel) => ({
       item_reference: parcelReference(shipment, parcel.parcel_number),
-      product_id: shipment.service_code,
+      product_id: serviceCode,
       length: millimetresToCentimetres(parcel.length_mm),
       width: millimetresToCentimetres(parcel.width_mm),
       height: millimetresToCentimetres(parcel.height_mm),

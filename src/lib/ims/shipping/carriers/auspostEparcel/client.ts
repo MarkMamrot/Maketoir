@@ -92,11 +92,44 @@ export type AusPostCreatedShipment = {
     total_cost?: number;
     total_cost_ex_gst?: number;
     total_gst?: number;
+    status?: string;
+    order_id?: string;
   };
 };
 
 export type AusPostCreateShipmentsResponse = {
   shipments?: AusPostCreatedShipment[];
+};
+
+export type AusPostReadShipment = Omit<AusPostCreatedShipment, 'items'> & {
+  shipment_reference?: string;
+  customer_reference_1?: string;
+  customer_reference_2?: string;
+  email_tracking_enabled?: boolean;
+  status?: string;
+  order_id?: string;
+  options?: Record<string, unknown>;
+  sender_references?: unknown[];
+  contains_s8_goods?: boolean;
+  movement_type?: string;
+  charge_to_account?: unknown;
+  from?: AusPostShipmentAddress;
+  to?: AusPostShipmentAddress;
+  items?: Array<NonNullable<AusPostCreatedShipment['items']>[number] & Record<string, unknown>>;
+};
+export type AusPostUpdateShipmentRequest = {
+  shipment_reference: string;
+  customer_reference_1?: string;
+  customer_reference_2?: string;
+  email_tracking_enabled?: boolean;
+  options?: Record<string, unknown>;
+  sender_references?: unknown[];
+  contains_s8_goods?: boolean;
+  movement_type?: string;
+  charge_to_account?: unknown;
+  from: AusPostShipmentAddress;
+  to: AusPostShipmentAddress;
+  items: Array<{ item_id: string; product_id: string; length: number; width: number; height: number; weight: number } & Record<string, unknown>>;
 };
 
 export type AusPostLabelRequest = {
@@ -188,6 +221,26 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter<
 
   createInternationalShipments(input: AusPostCreateShipmentsRequest): Promise<AusPostCreateShipmentsResponse> {
     return this.request('/shipments', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  // Official references: reference-update-shipment.html and reference-get-shipments.html.
+  updateShipment(shipmentId: string, input: AusPostUpdateShipmentRequest): Promise<AusPostCreateShipmentsResponse> {
+    if (!shipmentId.trim() || !input.items.length || input.items.some(item => !item.item_id?.trim()) ||
+        new Set(input.items.map(item => item.item_id)).size !== input.items.length)
+      throw new Error('An existing shipment and unique existing item IDs are required for amendment.');
+    return this.request(`/shipments/${encodeURIComponent(shipmentId)}`, {
+      method: 'PUT', body: JSON.stringify(input), signal: AbortSignal.timeout(30_000),
+    });
+  }
+
+  async getShipment(shipmentId: string): Promise<AusPostReadShipment> {
+    const response = await this.request<{ shipments?: AusPostReadShipment[] }>(
+      `/shipments?shipment_ids=${encodeURIComponent(shipmentId)}`,
+      { signal: AbortSignal.timeout(30_000) },
+    );
+    const matches = (response.shipments ?? []).filter(shipment => shipment.shipment_id === shipmentId);
+    if (matches.length !== 1) throw new Error('Australia Post did not return the requested shipment.');
+    return matches[0];
   }
 
   createLabels(input: AusPostLabelRequest): Promise<AusPostLabelResponse> {

@@ -62,6 +62,7 @@ export async function listShippingManifestWorkspace(
             shipment.charged_cost AS chargedCost,
             (SELECT latest.status FROM ims_shipping_labels latest
               WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+                AND latest.shipment_revision = shipment.revision AND latest.status <> 'superseded'
               ORDER BY latest.id DESC LIMIT 1) AS labelStatus,
             (SELECT COUNT(*) FROM ims_shipping_parcels parcel
               WHERE parcel.business_id = shipment.business_id AND parcel.shipment_id = shipment.id) AS parcelCount
@@ -95,6 +96,7 @@ export async function listShippingManifestWorkspace(
             COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channelOrderNumber,
             (SELECT latest.layout FROM ims_shipping_labels latest
               WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+                AND latest.shipment_revision = shipment.revision AND latest.status <> 'superseded'
               ORDER BY latest.id DESC LIMIT 1) AS labelLayout
        FROM ims_shipping_shipments shipment
        JOIN ims_sales_orders sales_order ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
@@ -360,9 +362,10 @@ export async function getShippingManifestLabelsPdf(
        JOIN ims_shipping_labels label ON label.id = (
          SELECT latest.id FROM ims_shipping_labels latest
           WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+            AND latest.shipment_revision = shipment.revision AND latest.status <> 'superseded'
           ORDER BY latest.id DESC LIMIT 1
        )
-      WHERE shipment.business_id = ? AND shipment.manifest_id = ? AND label.layout = ?
+      WHERE shipment.business_id = ? AND shipment.manifest_id = ? AND label.layout = ? AND label.status = 'available'
       ORDER BY shipment.id`,
     [businessId, manifestId, normalizedLayout],
   );
@@ -455,6 +458,7 @@ async function loadManifestCandidatesForUpdate(
             shipment.charged_cost AS chargedCost,
             (SELECT latest.status FROM ims_shipping_labels latest
               WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+                AND latest.shipment_revision = shipment.revision AND latest.status <> 'superseded'
               ORDER BY latest.id DESC LIMIT 1) AS labelStatus,
             (SELECT COUNT(*) FROM ims_shipping_parcels parcel
               WHERE parcel.business_id = shipment.business_id AND parcel.shipment_id = shipment.id) AS parcelCount

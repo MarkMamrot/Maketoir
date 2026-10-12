@@ -11,6 +11,7 @@ import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 type DispatchRow = {
   id: number; so_id: number; status: string; ims_fulfilment_operation_key: string | null;
+  revision: number; manifest_id: number | null; ims_fulfilled_at: string | Date | null;
   sales_channel: string | null; channel_instance_id: string | null; external_order_id: string | null;
   shopify_order_id: string | null; so_status: string;
 };
@@ -91,6 +92,7 @@ export async function dispatchShippingShipment(input: {
     await connection.beginTransaction();
     const [[shipment]] = await connection.execute<any[]>(
       `SELECT shipping.id, shipping.so_id, shipping.status, shipping.ims_fulfilment_operation_key,
+              shipping.revision, shipping.manifest_id, shipping.ims_fulfilled_at,
               sales_order.sales_channel, sales_order.channel_instance_id, sales_order.external_order_id,
               sales_order.shopify_order_id, sales_order.status AS so_status
          FROM ims_shipping_shipments shipping
@@ -110,6 +112,17 @@ export async function dispatchShippingShipment(input: {
     }
 
     if (row.status === 'label_ready') {
+      if (row.manifest_id || row.ims_fulfilled_at)
+        throw new Error('This shipment is already dispatched or included in a manifest.');
+      const [labels] = await connection.execute<any[]>(
+        `SELECT id FROM ims_shipping_labels
+          WHERE business_id = ? AND shipment_id = ? AND shipment_revision = ?
+            AND status = 'available' AND label_url IS NOT NULL
+          ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [input.businessId, row.id, row.revision],
+      );
+      if (!labels.length)
+        throw new Error('Generate fresh labels for the current shipment details before dispatch. Old labels must not be used.');
       const [allocations] = await connection.execute<any[]>(
         `SELECT parcel_item.so_item_id AS item_id, SUM(parcel_item.quantity) AS quantity
            FROM ims_shipping_parcel_items parcel_item

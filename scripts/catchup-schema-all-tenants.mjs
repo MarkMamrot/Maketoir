@@ -481,6 +481,7 @@ const TABLE_DDLS = [
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
     request_hash CHAR(64) NOT NULL, so_id INT NOT NULL, carrier_account_id BIGINT NOT NULL, manifest_id BIGINT NULL,
     dispatch_location_id INT NULL, provider VARCHAR(50) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    revision INT NOT NULL DEFAULT 0,
     provider_shipment_id VARCHAR(150) NULL, provider_reference VARCHAR(150) NOT NULL,
     service_code VARCHAR(50) NULL, service_name VARCHAR(120) NULL,
     quoted_cost DECIMAL(12,2) NULL, quoted_cost_ex_gst DECIMAL(12,2) NULL, quoted_gst DECIMAL(12,2) NULL,
@@ -502,6 +503,15 @@ const TABLE_DDLS = [
     CONSTRAINT fk_shipping_account FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
     CONSTRAINT fk_shipping_manifest FOREIGN KEY (manifest_id) REFERENCES ims_shipping_manifests(id) ON DELETE SET NULL,
     CONSTRAINT fk_shipping_dispatch_location FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS ims_shipping_batch_memberships (
+    business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    shipment_id BIGINT NOT NULL,
+    batch_key VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+    revision INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (business_id, shipment_id),
+    INDEX idx_shipping_batch_membership (business_id, batch_key, shipment_id),
+    CONSTRAINT fk_shipping_batch_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
@@ -526,14 +536,16 @@ const TABLE_DDLS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS ims_shipping_labels (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
+    shipment_revision INT NOT NULL DEFAULT 0,
     provider_request_id VARCHAR(150) NULL, format VARCHAR(20) NOT NULL, layout VARCHAR(50) NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'pending', label_url VARCHAR(2000) NULL, label_url_expires_at DATETIME NULL,
     safe_error VARCHAR(500) NULL, requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     available_at DATETIME NULL, last_printed_at DATETIME NULL, print_count INT NOT NULL DEFAULT 0,
-    UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id),
+    UNIQUE KEY uq_shipping_label_request (business_id, shipment_id, provider_request_id),
     INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
     CONSTRAINT fk_shipping_label_shipment FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  canonicalImsSchema.match(/CREATE TABLE IF NOT EXISTS ims_shipping_amendments \([\s\S]*?\n\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;/)[0].replace(/;$/, ''),
   `CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
     sales_channel VARCHAR(50) NOT NULL, operation_key VARCHAR(191) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'pending',
@@ -1344,6 +1356,8 @@ const COLUMNS = [
   ['ims_products', 'country_of_origin', 'CHAR(2) NULL AFTER hs_code'],
   ['ims_products', 'is_dangerous_or_restricted', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER country_of_origin'],
   ['ims_shipping_shipments', 'is_international', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER options_json'],
+  ['ims_shipping_shipments', 'revision', 'INT NOT NULL DEFAULT 0'],
+  ['ims_shipping_labels', 'shipment_revision', 'INT NOT NULL DEFAULT 0'],
   ['ims_shipping_shipments', 'export_purpose', 'VARCHAR(20) NULL AFTER is_international'],
   ['ims_shipping_shipments', 'declared_currency', 'CHAR(3) NULL AFTER export_purpose'],
   ['ims_shipping_shipments', 'customs_json', 'JSON NULL AFTER declared_currency'],
@@ -1872,6 +1886,19 @@ async function ensureNativeCheckoutIndex(schema) {
   await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders ADD UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id)`);
 }
 
+async function ensureShippingLabelRequestIndex(schema) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_shipping_labels' AND INDEX_NAME = 'uq_shipping_label_request'
+      ORDER BY SEQ_IN_INDEX`, [schema],
+  );
+  if (rows.map(row => row.COLUMN_NAME).join(',') === 'business_id,shipment_id,provider_request_id') return;
+  const drop = rows.length ? 'DROP INDEX uq_shipping_label_request, ' : '';
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.ims_shipping_labels ${drop}ADD UNIQUE INDEX uq_shipping_label_request (business_id, shipment_id, provider_request_id)`,
+  );
+}
+
 async function assertUniqueGiftCardTransactionIdentities(schema) {
   for (const column of ['idempotency_key', 'shopify_transaction_id']) {
     const [rows] = await conn.query(
@@ -1964,6 +1991,7 @@ async function migrateSchema(schema, businessId) {
     } catch (e) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
+    if (!requestedTable || requestedTable === 'ims_shipping_labels') await ensureShippingLabelRequestIndex(schema);
   }
   if (!requestedTable || requestedTable === 'ims_crm_lead_contact_points') {
     await conn.query(

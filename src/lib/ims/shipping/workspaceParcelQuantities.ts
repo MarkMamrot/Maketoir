@@ -7,7 +7,7 @@ type WorkspaceOrderItem = {
   qty_fulfilled: number;
 };
 
-export function workspaceParcelItemLabel(item: WorkspaceOrderItem): string {
+export function workspaceParcelItemLabel(item: Pick<WorkspaceOrderItem, "id" | "sku" | "product_name" | "notes">): string {
   const sku = String(item.sku ?? "").trim();
   const originalName = String(item.notes ?? "").trim();
   if (sku.toUpperCase() === "SHOPIFY-MISC" && originalName)

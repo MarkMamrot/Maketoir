@@ -1492,6 +1492,7 @@ CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
   dispatch_location_id     INT NULL,
   provider                 VARCHAR(50) NOT NULL,
   status                   VARCHAR(30) NOT NULL DEFAULT 'draft',
+  revision                 INT NOT NULL DEFAULT 0,
   provider_shipment_id     VARCHAR(150) NULL,
   provider_reference       VARCHAR(150) NOT NULL,
   service_code             VARCHAR(50) NULL,
@@ -1528,6 +1529,16 @@ CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
   FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
   FOREIGN KEY (manifest_id) REFERENCES ims_shipping_manifests(id) ON DELETE SET NULL,
   FOREIGN KEY (dispatch_location_id) REFERENCES ims_locations(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_shipping_batch_memberships (
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  shipment_id BIGINT NOT NULL,
+  batch_key VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  revision INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (business_id, shipment_id),
+  INDEX idx_shipping_batch_membership (business_id, batch_key, shipment_id),
+  FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_parcels (
@@ -1570,6 +1581,7 @@ CREATE TABLE IF NOT EXISTS ims_shipping_labels (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   shipment_id              BIGINT NOT NULL,
+  shipment_revision        INT NOT NULL DEFAULT 0,
   provider_request_id      VARCHAR(150) NULL,
   format                   VARCHAR(20) NOT NULL,
   layout                   VARCHAR(50) NOT NULL,
@@ -1581,9 +1593,29 @@ CREATE TABLE IF NOT EXISTS ims_shipping_labels (
   available_at             DATETIME NULL,
   last_printed_at          DATETIME NULL,
   print_count              INT NOT NULL DEFAULT 0,
-  UNIQUE KEY uq_shipping_label_request (business_id, provider_request_id),
+  UNIQUE KEY uq_shipping_label_request (business_id, shipment_id, provider_request_id),
   INDEX idx_shipping_label_shipment (business_id, shipment_id, requested_at),
   FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_shipping_amendments (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  shipment_id              BIGINT NOT NULL,
+  operation_key            VARCHAR(150) NOT NULL,
+  request_hash             CHAR(64) NOT NULL,
+  expected_revision        INT NOT NULL,
+  status                   VARCHAR(30) NOT NULL DEFAULT 'claimed',
+  previous_json            JSON NOT NULL,
+  desired_json             JSON NOT NULL,
+  result_json              JSON NULL,
+  safe_error               VARCHAR(500) NULL,
+  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  completed_at             DATETIME NULL,
+  UNIQUE KEY uq_shipping_amendment_operation (business_id, shipment_id, operation_key),
+  INDEX idx_shipping_amendment_status (business_id, shipment_id, status, id),
+  FOREIGN KEY (shipment_id) REFERENCES ims_shipping_shipments(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_shipping_channel_jobs (

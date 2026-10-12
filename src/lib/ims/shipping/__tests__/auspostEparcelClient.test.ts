@@ -9,6 +9,32 @@ const credentials = {
 };
 
 describe('AusPostEparcelClient', () => {
+  it('updates the existing shipment with existing item IDs using the official PUT body, not a create wrapper', async () => {
+    const body = {
+      shipment_reference: 'SO-source-reference', customer_reference_1: 'SO-1',
+      from: { name: 'Sender', lines: ['1 St'] }, to: { name: 'Buyer', lines: ['2 St'] },
+      items: [{ item_id: 'existing-item', product_id: 'T28', length: 20, width: 10, height: 10, weight: 1, authority_to_leave: false }],
+    };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ shipments: [{ shipment_id: 'existing-shipment' }] }), { status: 201 }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+    await client.updateShipment('existing-shipment', body);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://digitalapi.auspost.com.au/shipping/v1/shipments/existing-shipment',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(body) }),
+    );
+    expect(() => client.updateShipment('existing-shipment', { ...body, items: [{ ...body.items[0], item_id: '' }] })).toThrow(/existing/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('reads back only the requested existing shipment', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ shipments: [{ shipment_id: 'shipment/1' }] }), { status: 200 }));
+    const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
+    expect(await client.getShipment('shipment/1')).toEqual({ shipment_id: 'shipment/1' });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://digitalapi.auspost.com.au/shipping/v1/shipments?shipment_ids=shipment%2F1',
+      expect.anything(),
+    );
+    await expect(client.getShipment('wrong-shipment')).rejects.toThrow(/requested shipment/);
+  });
   it('verifies the account with Basic Auth and account-number headers', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ account_number: credentials.accountNumber }), { status: 200 }));
     const client = new AusPostEparcelClient(credentials, fetchImpl as typeof fetch);
@@ -26,7 +52,7 @@ describe('AusPostEparcelClient', () => {
   });
 
   it('converts millimetres to centimetres and normalizes contract rates', async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       items: [{ prices: [{
         product_id: 'T28',
         product_type: 'PARCEL POST',

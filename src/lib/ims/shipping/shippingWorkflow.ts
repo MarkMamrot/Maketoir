@@ -31,6 +31,7 @@ const SHIPMENT_TRANSITIONS: Record<
   submitting: ["carrier_created", "submission_unknown", "failed"],
   submission_unknown: ["carrier_created", "voided"],
   carrier_created: [
+    "amending",
     "label_submitting",
     "label_pending",
     "label_ready",
@@ -46,7 +47,9 @@ const SHIPMENT_TRANSITIONS: Record<
   ],
   label_pending: ["label_ready", "failed", "voided"],
   label_unknown: ["carrier_created", "label_pending", "label_ready", "voided"],
-  label_ready: ["ims_fulfilled", "failed", "voided"],
+  label_ready: ["ims_fulfilled", "failed", "voided", "amending"],
+  amending: ["carrier_created", "amendment_unknown"],
+  amendment_unknown: ["carrier_created"],
   ims_fulfilled: ["channel_pending", "complete"],
   channel_pending: ["complete", "failed"],
   complete: ["manifested"],

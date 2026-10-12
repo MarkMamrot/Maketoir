@@ -13,6 +13,8 @@ export const SHIPPING_SHIPMENT_STATUSES = [
   'label_pending',
   'label_unknown',
   'label_ready',
+  'amending',
+  'amendment_unknown',
   'ims_fulfilled',
   'channel_pending',
   'complete',

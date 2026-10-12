@@ -72,9 +72,11 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_shipping_package_presets',
   'ims_shipping_manifests',
   'ims_shipping_shipments',
+  'ims_shipping_batch_memberships',
   'ims_shipping_parcels',
   'ims_shipping_parcel_items',
   'ims_shipping_labels',
+  'ims_shipping_amendments',
   'ims_shipping_channel_jobs',
   'ims_po_receive_operations',
   'ims_order_amendment_operations',
@@ -162,6 +164,10 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  ims_shipping_shipments: ['revision'],
+  ims_shipping_batch_memberships: ['business_id', 'shipment_id', 'batch_key', 'revision'],
+  ims_shipping_labels: ['shipment_revision'],
+  ims_shipping_amendments: ['business_id', 'shipment_id', 'operation_key', 'request_hash', 'expected_revision', 'status', 'previous_json', 'desired_json', 'result_json'],
   ims_sales_channel_product_selections: ['business_id', 'channel_instance_id', 'variant_id', 'is_selected', 'inventory_enabled', 'price_enabled'],
   ims_sales_channel_product_mappings: ['business_id', 'channel_instance_id', 'variant_id', 'external_product_id', 'external_variant_id', 'external_inventory_id', 'mapping_status', 'last_seen_at'],
   ims_contact_channel_mappings: ['business_id', 'channel_instance_id', 'contact_id', 'external_customer_id', 'mapping_status', 'last_inbound_at', 'last_outbound_at', 'last_sync_status'],
@@ -314,6 +320,9 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_shipping_amendments: ['uq_shipping_amendment_operation', 'idx_shipping_amendment_status'],
+  ims_shipping_labels: ['uq_shipping_label_request'],
+  ims_shipping_batch_memberships: ['idx_shipping_batch_membership'],
   ims_klaviyo_profile_mappings: ['uq_klaviyo_mapping_contact', 'uq_klaviyo_mapping_profile', 'uq_klaviyo_mapping_external', 'idx_klaviyo_mapping_status'],
   ims_klaviyo_outbox: ['uq_klaviyo_outbox_operation', 'idx_klaviyo_outbox_work', 'idx_klaviyo_outbox_contact'],
   ims_brands: ['uq_ims_brand_per_tenant', 'idx_ims_brand_business'],

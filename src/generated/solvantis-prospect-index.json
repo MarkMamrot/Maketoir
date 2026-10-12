@@ -370,7 +370,7 @@
     {
       "id": "public-capability:ims-sales-orders-fulfilment",
       "title": "Sales Orders and Fulfilment",
-      "summary": "Create customer sales orders, move outstanding quantities between compatible orders, ship actual quantities, and resolve an unshipped remainder.",
+      "summary": "Create sales orders, edit eligible shipment details before dispatch, move outstanding quantities, fulfil actual quantities, and resolve an unshipped remainder.",
       "capabilities": [
         "ims",
         "orders"
@@ -425,7 +425,7 @@
     {
       "id": "public-capability:ims-shipping-settings",
       "title": "Shipping Settings",
-      "summary": "Connect an Australia Post eParcel account and optionally define reusable package presets.",
+      "summary": "Connect Australia Post eParcel, define package presets, prepare parcels, manage working batches, and understand carrier restrictions before dispatch.",
       "capabilities": [
         "ims",
         "orders"

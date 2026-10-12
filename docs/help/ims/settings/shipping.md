@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Step-by-step"},"order":53,"summary":"Connect an Australia Post eParcel account and optionally define reusable package presets.","lastReviewed":"2026-09-29","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Main operations"},"order":53,"summary":"Connect Australia Post eParcel, define package presets, prepare parcels, manage working batches, and understand carrier restrictions before dispatch.","lastReviewed":"2026-10-12","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 # Shipping Settings
 
@@ -12,6 +12,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 - Keep MyPost Business unavailable until approved partner access is supported.
 - Add package presets with internal dimensions, tare weight and an optional maximum weight.
 - Add selected Australia Post reference packaging to the editable preset list.
+- Use **Prepare** for packed measurements and **Batches** for saved working groups; manifests remain the later carrier lodgement step.
 - Create one manifest for each carrier account and physical pickup location, then print its lodgement summary.
 
 ## At a glance
@@ -46,7 +47,15 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 
 > **Note:** Preparing a shipment saves the selected service, price and parcels locally. The separate confirmed **Submit to Australia Post & create labels** action creates the billable carrier shipment. Neither action reduces stock; use Sales Order fulfilment when goods physically leave.
 
-Close the shipping dialog at any time and use **Shipping Workspace** in Sales Orders to reopen saved work. Local drafts that have not been submitted to the carrier can be selected and deleted, making their Sales Orders available to prepare again. Carrier-submitted shipments cannot be deleted there because postage may already have been charged. Once labelled parcels physically leave, **Mark dispatched** applies the parcel quantities to Sales Order fulfillment and sends tracking to the connected channel. Channel retries do not repeat stock movement or postage.
+Use **Shipping Workspace** in Sales Orders to reopen saved work. **Prepare** separates measurements from item allocation: a new single parcel automatically contains all remaining unshipped quantities, while multi-parcel allocation is shown separately. Check preset or suggested dimensions and confirm actual packed weight before choosing prices and adding orders to a batch. Switching tabs retains unsaved preparation; closing asks before discarding it.
+
+Use **Batches** to open saved groups, add new orders, or move already prepared shipments. **Remove from batch** retains the shipment in **Unbatched shipments** under Prepare, including any postage already created. Removing or moving a shipment does not cancel or buy postage and does not alter its measurements, address, service or stock. A batch of wholly local unsubmitted drafts can instead be discarded using the separate **Discard local drafts** action. Carrier-submitted shipments cannot be deleted there because postage may already have been charged. Once labelled parcels physically leave, **Mark dispatched** applies parcel quantities to Sales Order fulfillment and sends tracking to the connected channel. Channel retries do not repeat stock movement or postage.
+
+To correct an eligible saved shipment before dispatch, use **Edit shipment details** for that order in Shipping Workspace. An unsubmitted draft can change carrier account or parcel count. An existing carrier shipment keeps its account and parcel identities, and its destination must remain domestic or international as originally prepared. In-place carrier amendments must be verified before that editing path is available. Saving a delivery-address change also updates the Sales Order. Refresh prices and review the service before saving; an edit never automatically cancels or replaces purchased postage.
+
+Carrier-affecting edits require fresh labels. When several orders shared one PDF, Solvantis refreshes that shared document without changing the other orders' shipment details or postage. Discard old printed and downloaded copies. Dispatch is blocked until current labels are ready; uncertain carrier updates must be reconciled first.
+
+Changing batch membership can also require a fresh shared PDF when the old document would print removed shipments. This regenerates labels for the existing bookings, not replacement postage. Dispatched, manifested, in-flight or uncertain shipments cannot change working groups.
 
 Before the carrier pickup, open the **Manifests** tab. Solvantis groups dispatched shipments by carrier account and dispatch location. Choose the shipments in that pickup, then use **Create booking & manifest**. Australia Post requires one Order per pickup and a signed Order Summary when the parcels are lodged. Print the summary immediately or use manifest history when another copy is needed. A completed manifest cannot accept more shipments.
 

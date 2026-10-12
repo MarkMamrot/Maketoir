@@ -17,10 +17,14 @@ import {
   validateShippingParcels,
 } from "./shippingWorkflow";
 import type { ShippingParcelDraft } from "./types";
+import type { ShippingAmendmentRecipient } from "./shippingAmendmentTypes";
+import { lockShippingBatchShipments } from "./shippingBatches";
+import { getShippingBatchId, ShippingBatchError, validateShippingBatchId } from "./shippingBatchTypes";
 
 export type ShippingDraftInput = {
   businessId: string;
   operationKey: string;
+  batchId?: string;
   carrierAccountId: number;
   shipments: Array<
     ShippingRequestInput["shipments"][number] & {
@@ -40,6 +44,7 @@ export type ShippingRequestInput = {
   carrierAccountId: number;
   shipments: Array<{
     soId: number;
+    recipient?: ShippingAmendmentRecipient;
     exportPurpose?: ShippingExportPurpose;
     nonSaleValues?: NonSaleDeclaredValueInput[];
     nonSaleValuesConfirmed?: boolean;
@@ -90,6 +95,12 @@ export async function createShippingDrafts(
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 150)
     throw new Error("A valid operation key is required.");
+  if (input.batchId !== undefined) validateShippingBatchId(input.batchId);
+  if (!Array.isArray(input.shipments) || !input.shipments.length || input.shipments.length > 50 ||
+      input.shipments.some((entry) => !entry || typeof entry !== "object" ||
+        !Number.isSafeInteger(entry.soId) || entry.soId <= 0) ||
+      new Set(input.shipments.map((entry) => entry.soId)).size !== input.shipments.length)
+    throw new ShippingBatchError("Choose between 1 and 50 unique sales orders.", 400);
   const { account, entries: prepared } = await prepareShippingRequest(input);
   const servicesByOrder = new Map(
     input.shipments.map((shipment) => [shipment.soId, shipment.service]),
@@ -98,6 +109,31 @@ export async function createShippingDrafts(
   const connection = await getIMSPool().getConnection();
   try {
     await connection.beginTransaction();
+    const soIds = prepared.map((entry) => Number(entry.order.id)).sort((a, b) => a - b);
+    const [lockedOrders] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, status FROM ims_sales_orders
+        WHERE business_id = ? AND id IN (${soIds.map(() => "?").join(",")})
+        ORDER BY id FOR UPDATE`, [input.businessId, ...soIds],
+    );
+    if (lockedOrders.length !== soIds.length)
+      throw new ShippingBatchError("Sales order not found.", 404);
+    const batchShipments = await lockShippingBatchShipments(connection, input.businessId);
+    const newEntries = prepared.filter((entry) => !batchShipments.some((shipment) =>
+      shipment.operation_key === `${operationKey}:${entry.order.id}`));
+    if (input.batchId !== undefined && newEntries.length &&
+        !batchShipments.some((shipment) =>
+          getShippingBatchId(shipment.operation_key, shipment.membership_id == null ? null : { batch_key: shipment.batch_key }) === input.batchId &&
+          !["voided", "manifested"].includes(shipment.status) && shipment.manifest_id == null))
+      throw new ShippingBatchError("The destination batch no longer exists. Refresh the workspace.", 404);
+    for (const entry of newEntries) {
+      const order = lockedOrders.find((row) => Number(row.id) === Number(entry.order.id));
+      if (!order || !["confirmed", "partially_fulfilled"].includes(order.status))
+        throw new ShippingBatchError("This sales order is no longer ready to ship.", 409);
+      // The Sales Order lock serializes concurrent operation keys before any purchase can be prepared.
+      if (batchShipments.some((shipment) => Number(shipment.so_id) === Number(entry.order.id) &&
+          shipment.status !== "voided" && shipment.ims_fulfilled_at == null))
+        throw new ShippingBatchError("This sales order already has an active shipment. Refresh the workspace.", 409);
+    }
     const result: Array<{ soId: number; shipmentId: number }> = [];
     for (const entry of prepared) {
       const service = servicesByOrder.get(entry.requested.soId);
@@ -164,6 +200,11 @@ export async function createShippingDrafts(
         result.push({ soId: entry.order.id, shipmentId });
         continue;
       }
+      await connection.execute(
+        `INSERT INTO ims_shipping_batch_memberships (business_id, shipment_id, batch_key, revision)
+         VALUES (?, ?, ?, 1)`,
+        [input.businessId, shipmentId, input.batchId ?? operationKey],
+      );
       for (const parcel of entry.requested.parcels) {
         const [parcelInsert] = await connection.execute<ResultSetHeader>(
           `INSERT INTO ims_shipping_parcels
@@ -282,7 +323,7 @@ export async function prepareShippingRequest(
       country: location.country || "AU",
       phone: location.phone || "",
     };
-    const recipient = {
+    const recipient = requested.recipient ? validateShippingRecipient(requested.recipient) : {
       name: order.customer_name || order.so_number,
       lines: [order.delivery_address, order.delivery_address2].filter(
         (line): line is string => Boolean(line),
@@ -318,7 +359,7 @@ export async function prepareShippingRequest(
     if (isInternational) {
       const recipientErrors = getInternationalRecipientErrors({
         ...recipient,
-        name: order.customer_name,
+        name: recipient.name,
       });
       if (recipientErrors.length)
         throw new Error(`${order.so_number}: ${recipientErrors.join(", ")}.`);
@@ -375,6 +416,30 @@ export async function prepareShippingRequest(
     },
     entries,
   };
+}
+
+export function validateShippingRecipient(value: ShippingAmendmentRecipient): ShippingAmendmentRecipient {
+  if (!value || !Array.isArray(value.lines) || value.lines.length < 1 || value.lines.length > 2)
+    throw new Error("Delivery address requires one or two street address lines.");
+  if (value.lines.some(line => typeof line !== "string"))
+    throw new Error("Delivery street address lines are invalid.");
+  const result = { ...value, lines: value.lines.map(line => line.trim()) };
+  for (const field of ["name", "suburb", "state", "postcode", "country", "email", "phone"] as const) {
+    if (typeof value[field] !== "string") throw new Error(`Delivery ${field} is invalid.`);
+    result[field] = value[field].trim();
+  }
+  if (!result.name || !result.suburb || result.lines.some(line => !line))
+    throw new Error("Delivery name, street address and suburb are required.");
+  if (result.name.length > 35 || result.lines.some(line => line.length > 40) ||
+      result.suburb.length > 35 || result.state.length > 40 || result.postcode.length > 20 ||
+      result.email.length > 50 || result.phone.length > 20)
+    throw new Error("Delivery address exceeds the carrier field limits.");
+  const country = isAustralianShippingCountry(result.country) ? "AU" : normalizeIsoAlpha2(result.country);
+  if (!country) throw new Error("Destination country must be an ISO alpha-2 country code.");
+  result.country = country;
+  if (country === "AU" && (!/^(ACT|NSW|NT|QLD|SA|TAS|VIC|WA)$/.test(result.state) || !/^\d{4}$/.test(result.postcode)))
+    throw new Error("A valid Australian state and four-digit postcode are required.");
+  return result;
 }
 
 async function queryRows<T extends RowDataPacket>(

@@ -7,8 +7,16 @@ export type ShippingQuote = Pick<CarrierRate, 'serviceCode' | 'serviceName' | 't
 
 export async function quoteShippingRequest(input: ShippingRequestInput): Promise<Array<{ soId: number; rates: ShippingQuote[] }>> {
   const prepared = await prepareShippingRequest(input);
+  return quotePreparedShippingRequest(input.businessId, input.carrierAccountId, prepared);
+}
+
+export async function quotePreparedShippingRequest(
+  businessId: string,
+  carrierAccountId: number,
+  prepared: Awaited<ReturnType<typeof prepareShippingRequest>>,
+): Promise<Array<{ soId: number; rates: ShippingQuote[] }>> {
   if (prepared.account.provider !== 'auspost_eparcel') throw new Error('Shipping quotes are not supported for this carrier.');
-  const credentials = await ShippingSettingsRepository.getAccountCredentials(input.businessId, input.carrierAccountId);
+  const credentials = await ShippingSettingsRepository.getAccountCredentials(businessId, carrierAccountId);
   if (!credentials) throw new Error('Carrier account credentials are incomplete.');
   const client = new AusPostEparcelClient(credentials);
 

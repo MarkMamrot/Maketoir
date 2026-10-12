@@ -11,7 +11,11 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ShippingShipmentEditor, shippingShipmentEditBlocker, shipmentLabelInvalidationIds } from "./ShippingShipmentEditor";
+import type { ShippingAmendmentResult } from "@/lib/ims/shipping/shippingAmendmentTypes";
+import { ShippingBatchControls, UnbatchedShipments, type BatchDestination } from "./ShippingBatchControls";
+import { groupWorkspaceBatches, mergeRemovedParcelAllocations, workspaceBatchLabel, workspaceContentsLabel, workspaceMembershipBlocker, workspaceShippingStatus, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
 
 import {
   suggestParcels,
@@ -122,24 +126,7 @@ type ShippingSubmissionResult = {
   labelUrl: string | null;
   chargedCost: number | null;
 };
-type SavedShippingShipment = {
-  batchId: string;
-  shipmentId: number;
-  soId: number;
-  soNumber: string;
-  channelOrderNumber: string | null;
-  customerName: string | null;
-  status: string;
-  serviceCode: string | null;
-  serviceName: string | null;
-  quotedCost: number | null;
-  chargedCost: number | null;
-  providerShipmentId: string | null;
-  isInternational: boolean;
-  destinationCountry: string | null;
-  labelStatus: string | null;
-  labelUrl: string | null;
-};
+type SavedShippingShipment = WorkspaceShipment;
 
 type ManifestCandidateRow = {
   shipmentId: number;
@@ -210,9 +197,15 @@ export function ShipOrdersWorkspace({
   orders: SalesOrderSummary[];
   onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"shipments" | "manifests">(
-    "shipments",
+  const [activeTab, setActiveTab] = useState<"prepare" | "batches" | "manifests">(
+    "prepare",
   );
+  const [prepareDirty, setPrepareDirty] = useState(false);
+  const [destinationBatchId, setDestinationBatchId] = useState("");
+  const [openedBatchId, setOpenedBatchId] = useState<string | null>(null);
+  const [membershipSelection, setMembershipSelection] = useState<number[]>([]);
+  const [movingShipments, setMovingShipments] = useState(false);
+  const [refreshingWorkspace, setRefreshingWorkspace] = useState(false);
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
   const selectedOrderKey = orders
@@ -266,6 +259,160 @@ export function ShipOrdersWorkspace({
   const [checkingStock, setCheckingStock] = useState(false);
   const [stockShortfallAcknowledged, setStockShortfallAcknowledged] = useState(false);
   const [creatingAdjustmentForLocation, setCreatingAdjustmentForLocation] = useState<number | null>(null);
+  const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
+  const workspaceBusy = saving || submitting || deleting || dispatching || movingShipments || refreshingWorkspace || addingOrders || quoting;
+
+  function invalidateAmendedLabels(shipmentIds: number[]) {
+    const affected = new Set(shipmentLabelInvalidationIds([...savedShipments, ...submissionResults], shipmentIds));
+    setSubmissionResults((current) => current.filter((shipment) =>
+      !affected.has(shipment.shipmentId)));
+    setSavedShipments((current) => current.map((shipment) =>
+      affected.has(shipment.shipmentId)
+        ? { ...shipment, labelUrl: null, labelStatus: "stale" } : shipment));
+    setStockReadiness(null);
+    setStockShortfallAcknowledged(false);
+    return [...affected];
+  }
+
+  async function refreshAfterAmendment(result?: ShippingAmendmentResult, invalidatedShipmentIds: number[] = []) {
+    const [draftsResponse, ordersResponse] = await Promise.all([
+      fetch("/api/ims/shipping/drafts", { cache: "no-store" }),
+      fetch("/api/ims/shipping/orders", { cache: "no-store" }),
+    ]);
+    const [draftsResult, ordersResult] = await Promise.all([
+      readJsonResponse(draftsResponse), readJsonResponse(ordersResponse),
+    ]);
+    if (!draftsResponse.ok || !draftsResult.success || !ordersResponse.ok || !ordersResult.success)
+      throw new Error(draftsResult.error || ordersResult.error || "Refreshing saved batches failed. Refresh before continuing.");
+    const invalidated = new Set(invalidatedShipmentIds);
+    const refreshed = (draftsResult.data as SavedShippingShipment[]).map((shipment) =>
+      invalidated.has(shipment.shipmentId) ? { ...shipment, labelUrl: null, labelStatus: "stale" } : shipment);
+    setSavedShipments(refreshed);
+    setReadyOrders(ordersResult.data);
+    if (result) {
+    setDetails((current) => current.map((order) => order.id === result.shipment.soId
+      ? {
+        ...order,
+        status: result.shipment.order.status,
+        delivery_address: result.shipment.order.delivery_address,
+        delivery_suburb: result.shipment.order.delivery_suburb,
+        delivery_state: result.shipment.order.delivery_state,
+        delivery_postcode: result.shipment.order.delivery_postcode,
+        delivery_country: result.shipment.order.delivery_country,
+        customer_name: result.shipment.order.customer_name,
+        customer_email: result.shipment.order.customer_email,
+        customer_phone: result.shipment.order.customer_phone,
+      } : order));
+    if (result.shipment.service) {
+      setSelectedServiceByOrder((current) => ({ ...current, [result.shipment.soId]: result.shipment.service! }));
+    }
+    }
+    const selectedIds = new Set(created.map((item) => item.shipmentId));
+    if (selectedIds.size) openSavedShipments(refreshed.filter((shipment) => selectedIds.has(shipment.shipmentId)), false);
+    if (invalidated.size) setSubmissionResults((current) => current.filter((shipment) => !invalidated.has(shipment.shipmentId)));
+    await refreshStockReadiness(created.map((item) => item.shipmentId));
+    if (result) {
+      const recordedCarrierCost = refreshed.find((shipment) => shipment.shipmentId === result.shipment.shipmentId)?.chargedCost;
+      setDispatchMessage([
+        "Shipment details updated.",
+        result.shipment.providerShipmentId
+          ? recordedCarrierCost != null ? `Recorded carrier charge: ${formatAud(recordedCarrierCost)} (separate from the quote).` : "No recorded carrier charge is available; the selected quote is not a final charge."
+          : "",
+        result.requiresFreshLabels ? "Generate fresh labels and discard older printed/downloaded copies before dispatch." : "",
+      ].filter(Boolean).join(" "));
+    }
+  }
+
+  function requestWorkspaceClose(): boolean {
+    if (editingShipmentId != null) {
+      setError("Close the shipment editor before closing the shipping workspace.");
+      return false;
+    }
+    if (workspaceBusy) {
+      setError("Wait for the current shipping operation to finish before closing.");
+      return false;
+    }
+    if (prepareDirty && !window.confirm("Discard unsaved parcel preparation and close the workspace? Saved shipments and postage will not be changed."))
+      return false;
+    onClose();
+    return true;
+  }
+
+  function changeWorkspaceTab(tab: "prepare" | "batches" | "manifests") {
+    if (workspaceBusy || editingShipmentId !== null) return;
+    setActiveTab(tab);
+    setMembershipSelection([]);
+    setError("");
+  }
+
+  useEffect(() => {
+    if (!prepareDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [prepareDirty]);
+
+  async function refreshWorkspace(batchId = openedBatchId) {
+    setRefreshingWorkspace(true);
+    try {
+      const [draftsResponse, ordersResponse] = await Promise.all([
+        fetch("/api/ims/shipping/drafts", { cache: "no-store" }),
+        fetch("/api/ims/shipping/orders", { cache: "no-store" }),
+      ]);
+      const [draftsResult, ordersResult] = await Promise.all([readJsonResponse(draftsResponse), readJsonResponse(ordersResponse)]);
+      if (!draftsResponse.ok || !draftsResult.success || !ordersResponse.ok || !ordersResult.success)
+        throw new Error(draftsResult.error || ordersResult.error || "Unable to refresh shipping workspace.");
+      const refreshed: SavedShippingShipment[] = draftsResult.data;
+      setSavedShipments(refreshed);
+      setReadyOrders(ordersResult.data);
+      if (batchId) {
+        const members = refreshed.filter((shipment) => shipment.batchId === batchId);
+        if (members.length) openSavedShipments(members, false);
+        else { setCreated([]); setSubmissionResults([]); setOpenedBatchId(null); }
+      }
+      return refreshed;
+    } finally {
+      setRefreshingWorkspace(false);
+    }
+  }
+
+  async function changeBatchMembership(ids: number[], destination: BatchDestination) {
+    const members = savedShipments.filter((shipment) => ids.includes(shipment.shipmentId));
+    if (!members.length || members.length !== ids.length) {
+      setError("The shipment selection changed. Refresh the workspace before moving shipments.");
+      return;
+    }
+    const blocker = members.map(workspaceMembershipBlocker).find(Boolean);
+    if (blocker) { setError(blocker); return; }
+    if (!window.confirm(`${destination.batchId === null ? "Remove" : "Move"} ${members.length} shipment${members.length === 1 ? "" : "s"} ${destination.batchId === null ? "to Unbatched shipments" : "to the selected batch"}?\nPreparation and existing postage will be retained. Postage will not be cancelled or purchased. Shared label PDFs may need refreshing; discard affected older copies.`)) return;
+    setMovingShipments(true);
+    setError("");
+    setDispatchMessage("");
+    try {
+      const response = await fetch("/api/ims/shipping/batches/membership", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shipmentIds: members.map((shipment) => ({ shipmentId: shipment.shipmentId, expectedBatchRevision: shipment.batchRevision, expectedShipmentRevision: shipment.revision })),
+          ...destination,
+        }),
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok || !result.success) {
+        await refreshWorkspace();
+        throw new Error(result.error || "Unable to update batch membership.");
+      }
+      const affected: number[] = result.data.affectedShipmentIds;
+      if (result.data.requiresFreshLabels) invalidateAmendedLabels(affected);
+      await refreshWorkspace();
+      setMembershipSelection([]);
+      setDispatchMessage(`Batch membership updated. Preparation and postage retained.${result.data.requiresFreshLabels ? " Generate fresh labels and discard affected older PDFs." : ""}`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update batch membership.");
+    } finally {
+      setMovingShipments(false);
+    }
+  }
 
   async function refreshStockReadiness(shipmentIds = created.map((item) => item.shipmentId)) {
     if (!shipmentIds.length) {
@@ -449,6 +596,7 @@ export function ShipOrdersWorkspace({
     order: SalesOrderDetail,
     purpose: ShippingExportPurpose,
   ) => {
+    setPrepareDirty(true);
     setExportPurposeByOrder((current) => ({ ...current, [order.id]: purpose }));
     setConfirmedNonSaleOrders((current) => {
       const next = new Set(current);
@@ -483,6 +631,7 @@ export function ShipOrdersWorkspace({
     parcelIndex: number,
     patch: Partial<EditableParcel>,
   ) => {
+    setPrepareDirty(true);
     setParcelsByOrder((current) => ({
       ...current,
       [soId]: (current[soId] ?? []).map((parcel, index) =>
@@ -534,6 +683,7 @@ export function ShipOrdersWorkspace({
   };
 
   const addParcel = (order: SalesOrderDetail) => {
+    setPrepareDirty(true);
     setParcelsByOrder((current) => ({
       ...current,
       [order.id]: [
@@ -555,9 +705,11 @@ export function ShipOrdersWorkspace({
   };
 
   const removeParcel = (soId: number, parcelIndex: number) => {
+    if (!window.confirm("Remove this parcel? Its items will be moved to the first remaining parcel. Check the packed measurements and weight again.")) return;
+    setPrepareDirty(true);
     setParcelsByOrder((current) => ({
       ...current,
-      [soId]: (current[soId] ?? []).filter((_, index) => index !== parcelIndex),
+      [soId]: mergeRemovedParcelAllocations(current[soId] ?? [], parcelIndex),
     }));
     setError("");
     setQuotesByOrder({});
@@ -619,6 +771,7 @@ export function ShipOrdersWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           operationKey: crypto.randomUUID(),
+          ...(destinationBatchId ? { batchId: destinationBatchId } : {}),
           carrierAccountId: Number(carrierAccountId),
           shipments: shipments.map((shipment) => ({
             ...shipment,
@@ -630,6 +783,11 @@ export function ShipOrdersWorkspace({
       if (!response.ok || !result.success)
         throw new Error(result.error || "Unable to prepare shipments.");
       setCreated(result.data ?? []);
+      setPrepareDirty(false);
+      setActiveTab("batches");
+      const refreshed = await refreshWorkspace(destinationBatchId || null);
+      const firstCreated = refreshed.find((shipment) => shipment.shipmentId === result.data?.[0]?.shipmentId);
+      if (firstCreated?.batchId) openSavedShipments(refreshed.filter((shipment) => shipment.batchId === firstCreated.batchId));
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -651,7 +809,9 @@ export function ShipOrdersWorkspace({
     if (
       !labelsPending &&
       !window.confirm(
-        "Submit these shipments to Australia Post and create billable postage labels?",
+        unsubmittedCount
+          ? `Create billable postage for ${unsubmittedCount} new shipment${unsubmittedCount === 1 ? "" : "s"} and generate batch labels? Existing postage bookings will not be purchased again.`
+          : "Generate labels for the existing postage bookings? No replacement postage will be purchased. Discard affected older label PDFs.",
       )
     )
       return;
@@ -674,6 +834,7 @@ export function ShipOrdersWorkspace({
         throw new Error(
           result.error || "Unable to submit shipments to Australia Post.",
         );
+      await refreshWorkspace();
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -688,6 +849,7 @@ export function ShipOrdersWorkspace({
   const startStockAdjustment = async (locationId: number) => {
     const lines = stockReadiness?.lines.filter((line) => line.locationId === locationId) ?? [];
     if (!lines.length) return;
+    if (prepareDirty && !window.confirm("Leave unsaved parcel preparation to start the stock adjustment? Saved shipments are retained.")) return;
     setCreatingAdjustmentForLocation(locationId);
     setError("");
     try {
@@ -728,16 +890,24 @@ export function ShipOrdersWorkspace({
   const labelsPending = submissionResults.some(
     (result) => result.status === "label_pending",
   );
+  const selectedSavedShipments = savedShipments.filter((shipment) => created.some((selected) => selected.shipmentId === shipment.shipmentId));
+  const unsubmittedCount = created.length - selectedSavedShipments.filter((shipment) => shipment.providerShipmentId).length;
+  const selectedOperationBlocked = selectedSavedShipments.some((shipment) => ["amending", "amendment_unknown", "submitting", "submission_unknown", "label_submitting"].includes(shipment.status));
+  const selectedAlreadyDispatched = selectedSavedShipments.length === created.length && selectedSavedShipments.length > 0 && selectedSavedShipments.every((shipment) => shipment.status === "complete");
+  const selectedTrackingPending = selectedSavedShipments.some((shipment) => shipment.imsFulfilledAt && shipment.status !== "complete");
   const needsCarrierAction =
-    submissionResults.length < created.length || labelsPending;
+    !selectedAlreadyDispatched && (submissionResults.length < created.length || labelsPending);
   const visibleSavedShipments = savedShipments;
-  const savedBatches = groupSavedShipments(visibleSavedShipments);
+  const savedBatches = groupWorkspaceBatches(visibleSavedShipments);
+  const unbatchedShipments = savedShipments.filter((shipment) => shipment.batchId === null);
   const availableReadyOrders = readyOrders.filter(
     (order) =>
       !details.some((detail) => Number(detail.id) === Number(order.id)) &&
       !savedShipments.some((shipment) => shipment.soId === Number(order.id)),
   );
-  const openSavedShipments = (selected: SavedShippingShipment[]) => {
+  const openSavedShipments = (selected: SavedShippingShipment[], navigate = true) => {
+    setOpenedBatchId(selected[0]?.batchId ?? null);
+    if (navigate) setActiveTab("batches");
     setCreated(
       selected.map((shipment) => ({
         soId: shipment.soId,
@@ -800,6 +970,8 @@ export function ShipOrdersWorkspace({
       setSavedShipments((current) =>
         current.filter((shipment) => !deleted.has(shipment.shipmentId)),
       );
+      setMembershipSelection((current) => current.filter((id) => !deleted.has(id)));
+      await refreshWorkspace();
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -842,6 +1014,7 @@ export function ShipOrdersWorkspace({
           added.map((order) => [order.id, initialParcels(order, presets)]),
         ),
       }));
+      setPrepareDirty(true);
       setReadySelection(new Set());
     } catch (reason) {
       setError(
@@ -905,19 +1078,11 @@ export function ShipOrdersWorkspace({
           ? `${result.data.length} shipment${result.data.length === 1 ? "" : "s"} dispatched in Solvantis; ${pending.length} channel sync${pending.length === 1 ? "" : "s"} need retry.`
           : `${result.data.length} shipment${result.data.length === 1 ? "" : "s"} marked dispatched.`,
       );
-      setSavedShipments((current) =>
-        current.filter(
-          (item) =>
-            !(result.data ?? []).some(
-              (done: any) =>
-                done.shipmentId === item.shipmentId &&
-                done.shipmentStatus === "complete",
-            ),
-        ),
-      );
+      await refreshWorkspace();
       if (!pending.length) {
         setCreated([]);
         setSubmissionResults([]);
+        setOpenedBatchId(null);
       }
     } catch (reason) {
       setError(
@@ -935,6 +1100,7 @@ export function ShipOrdersWorkspace({
       role="dialog"
       aria-modal="true"
       aria-label="Ship orders"
+      onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); requestWorkspaceClose(); } }}
       style={{
         position: "fixed",
         inset: 0,
@@ -989,7 +1155,7 @@ export function ShipOrdersWorkspace({
           <button
             type="button"
             title="Close"
-            onClick={onClose}
+            onClick={requestWorkspaceClose}
             style={iconButtonStyle}
           >
             <X size={17} />
@@ -999,6 +1165,14 @@ export function ShipOrdersWorkspace({
           <div
             role="tablist"
             aria-label="Shipping workspace views"
+            onKeyDown={(event) => {
+              if (workspaceBusy || editingShipmentId !== null || !(event.target instanceof HTMLButtonElement) || event.target.getAttribute("role") !== "tab" || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const tabs: ("prepare" | "batches" | "manifests")[] = ["prepare", "batches", "manifests"];
+              const index = event.key === "Home" ? 0 : event.key === "End" ? 2 : (tabs.indexOf(activeTab) + (event.key === "ArrowRight" ? 1 : 2)) % tabs.length;
+              changeWorkspaceTab(tabs[index]);
+              event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index]?.focus();
+            }}
             style={{
               display: "flex",
               gap: 4,
@@ -1009,24 +1183,44 @@ export function ShipOrdersWorkspace({
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "shipments"}
-              onClick={() => setActiveTab("shipments")}
-              style={tabButtonStyle(activeTab === "shipments")}
+              id="shipping-prepare-tab"
+              aria-controls="shipping-workspace-panel"
+              tabIndex={activeTab === "prepare" ? 0 : -1}
+              aria-selected={activeTab === "prepare"}
+              onClick={() => changeWorkspaceTab("prepare")}
+              style={tabButtonStyle(activeTab === "prepare")}
             >
               <PackageCheck size={14} />
-              Shipments
+              Prepare
             </button>
             <button
               type="button"
               role="tab"
+              id="shipping-batches-tab"
+              aria-controls="shipping-workspace-panel"
+              tabIndex={activeTab === "batches" ? 0 : -1}
+              aria-selected={activeTab === "batches"}
+              onClick={() => changeWorkspaceTab("batches")}
+              style={tabButtonStyle(activeTab === "batches")}
+            >
+              <PackageCheck size={14} />
+              Batches ({savedBatches.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="shipping-manifests-tab"
+              aria-controls="shipping-workspace-panel"
+              tabIndex={activeTab === "manifests" ? 0 : -1}
               aria-selected={activeTab === "manifests"}
-              onClick={() => setActiveTab("manifests")}
+              onClick={() => changeWorkspaceTab("manifests")}
               style={tabButtonStyle(activeTab === "manifests")}
             >
               <ClipboardList size={14} />
               Manifests
             </button>
           </div>
+          <div role="tabpanel" id="shipping-workspace-panel" aria-labelledby={`shipping-${activeTab}-tab`}>
           {activeTab === "manifests" ? (
             <ManifestsWorkspacePanel />
           ) : (
@@ -1056,8 +1250,18 @@ export function ShipOrdersWorkspace({
                   {dispatchMessage}
                 </div>
               )}
+              {!loading && <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--sv-text-dim)" }}>
+                  {activeTab === "prepare" ? "Check parcels > Get prices > Choose service > Add to batch. No postage is purchased while preparing." : "Batches are working groups. Creating labels purchases postage; dispatch updates stock. Manifests record carrier lodgement."}
+                </p>
+                <button type="button" style={secondaryButtonStyle} disabled={workspaceBusy} onClick={() => { setError(""); void refreshWorkspace().catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to refresh workspace.")); }}>
+                  <RefreshCw size={14} /> {refreshingWorkspace ? "Refreshing..." : "Refresh workspace"}
+                </button>
+              </div>}
+              {!loading && activeTab === "prepare" && <UnbatchedShipments shipments={unbatchedShipments} allShipments={savedShipments} busy={workspaceBusy} onMove={(ids, destination) => void changeBatchMembership(ids, destination)} onEdit={setEditingShipmentId} />}
+              {!loading && activeTab === "batches" && !savedBatches.length && <p style={{ fontSize: 13 }}>No saved batches yet. Prepare orders or add unbatched shipments to a new batch.</p>}
               {!loading &&
-                !created.length &&
+                activeTab === "prepare" &&
                 availableReadyOrders.length > 0 && (
                   <section style={{ marginBottom: 18 }}>
                     <div
@@ -1087,7 +1291,7 @@ export function ShipOrdersWorkspace({
                       </div>
                       <button
                         type="button"
-                        disabled={!readySelection.size || addingOrders}
+                        disabled={!readySelection.size || workspaceBusy}
                         onClick={addReadyOrders}
                         style={{
                           ...primaryButtonStyle,
@@ -1096,7 +1300,7 @@ export function ShipOrdersWorkspace({
                         }}
                       >
                         <Plus size={14} />
-                        {addingOrders ? "Adding..." : "Add selected"}
+                        {addingOrders ? "Adding..." : "Prepare selected orders"}
                       </button>
                     </div>
                     <div style={{ borderTop: "1px solid var(--sv-etch)" }}>
@@ -1117,6 +1321,7 @@ export function ShipOrdersWorkspace({
                         >
                           <input
                             type="checkbox"
+                            disabled={workspaceBusy}
                             checked={readySelection.has(Number(order.id))}
                             onChange={(event) =>
                               setReadySelection((current) => {
@@ -1171,8 +1376,9 @@ export function ShipOrdersWorkspace({
                     </div>
                   </section>
                 )}
-              {!loading && !created.length && savedBatches.length > 0 && (
+              {!loading && activeTab === "batches" && savedBatches.length > 0 && (
                 <section style={{ marginBottom: 18 }}>
+                  <ShippingBatchControls selected={membershipSelection} shipments={savedShipments} busy={workspaceBusy} onMove={(ids, destination) => void changeBatchMembership(ids, destination)} onClear={() => setMembershipSelection([])} />
                   <div
                     style={{
                       display: "flex",
@@ -1185,7 +1391,7 @@ export function ShipOrdersWorkspace({
                   >
                     <div>
                       <strong style={{ fontSize: 13 }}>
-                        Prepared &amp; labelled batches
+                        Saved batches
                       </strong>
                       <div
                         style={{
@@ -1194,8 +1400,7 @@ export function ShipOrdersWorkspace({
                           color: "var(--sv-text-dim)",
                         }}
                       >
-                        A batch can contain several customer consignments. Open
-                        it to continue its next action.
+                        Open a batch to review its orders and continue its next step.
                       </div>
                     </div>
                   </div>
@@ -1211,7 +1416,7 @@ export function ShipOrdersWorkspace({
                         <div
                           key={batch.batchId}
                           style={{
-                            border: "1px solid var(--sv-etch)",
+                            border: `1px solid ${openedBatchId === batch.batchId ? "var(--sv-action)" : "var(--sv-etch)"}`,
                             borderRadius: 6,
                             overflow: "hidden",
                           }}
@@ -1229,8 +1434,7 @@ export function ShipOrdersWorkspace({
                           >
                             <span>
                               <strong>
-                                {batch.shipments.length} consignment
-                                {batch.shipments.length === 1 ? "" : "s"}
+                                {workspaceBatchLabel(batch.shipments)}
                               </strong>
                               <span
                                 style={{
@@ -1239,27 +1443,32 @@ export function ShipOrdersWorkspace({
                                   fontSize: 11,
                                 }}
                               >
-                                {batchStatusLabel(batch.shipments)}
+                                {batch.shipments.length} order{batch.shipments.length === 1 ? "" : "s"} / {batch.shipments.reduce((sum, shipment) => sum + shipment.parcelCount, 0)} parcels · {batchStatusLabel(batch.shipments)}
+                              </span>
+                              <span style={{ display: "block", color: "var(--sv-text-dim)", fontSize: 11 }}>
+                                {formatAud(batch.shipments.reduce((sum, shipment) => sum + Number(shipment.quotedCost ?? 0), 0))} quoted
+                                {batch.shipments.some((shipment) => shipment.chargedCost !== null) && ` · ${formatAud(batch.shipments.reduce((sum, shipment) => sum + Number(shipment.chargedCost ?? 0), 0))} recorded (${batch.shipments.filter((shipment) => shipment.chargedCost !== null).length} of ${batch.shipments.length} orders)`}
                               </span>
                             </span>
-                            <span style={{ display: "flex", gap: 8 }}>
+                            <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button type="button" style={secondaryButtonStyle} disabled={workspaceBusy || batch.shipments.every((shipment) => Boolean(workspaceMembershipBlocker(shipment)))} onClick={() => { setDestinationBatchId(batch.batchId); changeWorkspaceTab("prepare"); }}>Add orders</button>
                               <button
                                 type="button"
-                                disabled={deleting}
+                                disabled={workspaceBusy}
                                 onClick={() =>
                                   openSavedShipments(batch.shipments)
                                 }
                                 style={secondaryButtonStyle}
                               >
-                                Open batch
+                                {openedBatchId === batch.batchId ? "Selected batch" : "Open batch"}
                               </button>
                               <button
                                 type="button"
-                                disabled={deleting || !canDelete}
+                                disabled={workspaceBusy || !canDelete}
                                 onClick={() =>
                                   void deleteSavedShipments(batch.shipments)
                                 }
-                                title="Only batches not submitted to a carrier can be deleted"
+                                title="Discard local draft preparation. This is different from removing shipments from a batch."
                                 style={{
                                   ...secondaryButtonStyle,
                                   display: "inline-flex",
@@ -1270,9 +1479,13 @@ export function ShipOrdersWorkspace({
                                 }}
                               >
                                 <Trash2 size={14} />
-                                {deleting ? "Deleting..." : "Delete batch"}
+                                {deleting ? "Deleting..." : "Discard local drafts"}
                               </button>
                             </span>
+                          </div>
+                          {openedBatchId === batch.batchId && <>
+                          <div style={{ padding: "8px 12px", fontSize: 12 }}>
+                            <label><input type="checkbox" aria-label={`Select eligible shipments in ${workspaceBatchLabel(batch.shipments)}`} disabled={movingShipments || submitting || dispatching} checked={batch.shipments.filter((shipment) => !workspaceMembershipBlocker(shipment)).length > 0 && batch.shipments.filter((shipment) => !workspaceMembershipBlocker(shipment)).every((shipment) => membershipSelection.includes(shipment.shipmentId))} onChange={(event) => setMembershipSelection((current) => event.target.checked ? [...new Set([...current, ...batch.shipments.filter((shipment) => !workspaceMembershipBlocker(shipment)).map((shipment) => shipment.shipmentId)])] : current.filter((id) => !batch.shipments.some((shipment) => shipment.shipmentId === id)))} /> Select eligible orders to move or remove</label>
                           </div>
                           {batch.shipments.map((shipment) => (
                             <div
@@ -1289,6 +1502,7 @@ export function ShipOrdersWorkspace({
                               }}
                             >
                               <span>
+                                <input type="checkbox" aria-label={`Select ${shipment.soNumber} in batch`} style={{ marginRight: 8 }} disabled={movingShipments || submitting || dispatching || Boolean(workspaceMembershipBlocker(shipment))} checked={membershipSelection.includes(shipment.shipmentId)} onChange={(event) => setMembershipSelection((current) => event.target.checked ? [...current, shipment.shipmentId] : current.filter((id) => id !== shipment.shipmentId))} />
                                 <strong>{shipment.soNumber}</strong>
                                 {shipment.channelOrderNumber && (
                                   <span
@@ -1327,6 +1541,11 @@ export function ShipOrdersWorkspace({
                                     {formatAud(shipment.quotedCost)} quoted
                                   </span>
                                 )}
+                                {shipment.chargedCost != null && (
+                                  <span style={{ display: "block", color: "var(--sv-text-dim)", fontSize: 11 }}>
+                                    {formatAud(shipment.chargedCost)} recorded carrier charge
+                                  </span>
+                                )}
                               </span>
                               <span
                                 style={{
@@ -1337,22 +1556,38 @@ export function ShipOrdersWorkspace({
                                   fontWeight: 700,
                                 }}
                               >
-                                {shippingStatusLabel(shipment.status)}
+                                {workspaceShippingStatus(shipment.status, shipment.labelStatus)}
                               </span>
+                              <button
+                                type="button"
+                                style={secondaryButtonStyle}
+                                disabled={Boolean(shippingShipmentEditBlocker(shipment.status)) || submitting || dispatching || movingShipments}
+                                title={shippingShipmentEditBlocker(shipment.status) || "Edit this saved shipment without reopening or replacing the batch"}
+                                onClick={() => setEditingShipmentId(shipment.shipmentId)}
+                              >
+                                Edit shipment details
+                              </button>
+                              <button type="button" style={secondaryButtonStyle} disabled={movingShipments || submitting || dispatching || Boolean(workspaceMembershipBlocker(shipment))} onClick={() => void changeBatchMembership([shipment.shipmentId], { batchId: null })}>Remove from batch</button>
+                              {workspaceMembershipBlocker(shipment) && <span role="status" style={{ color: "var(--sv-text-dim)", fontSize: 11 }}>{workspaceMembershipBlocker(shipment)}</span>}
+                              {["amending", "amendment_unknown"].includes(shipment.status) && (
+                                <button type="button" style={secondaryButtonStyle} onClick={() => setEditingShipmentId(shipment.shipmentId)}>Reconcile amendment outcome</button>
+                              )}
                             </div>
                           ))}
+                          </>}
                         </div>
                       );
                     })}
                   </div>
                 </section>
               )}
-              {!loading && !created.length && (
+              <fieldset disabled={quoting || saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+              {!loading && activeTab === "prepare" && plans.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ marginBottom: 10 }}>
-                    <strong style={{ fontSize: 13 }}>Shipment details</strong>
+                    <strong style={{ fontSize: 13 }}>1. Check parcel details</strong>
                     <div style={{ marginTop: 2, fontSize: 11, color: "var(--sv-text-dim)" }}>
-                      Review the carrier, destination, packing and service for each order.
+                      Enter packed measurements first. Item quantities are assigned automatically for a single parcel.
                     </div>
                   </div>
                   <label style={{ display: "block", width: "min(360px,100%)" }}>
@@ -1369,6 +1604,7 @@ export function ShipOrdersWorkspace({
                     <select
                       value={carrierAccountId}
                       onChange={(event) => {
+                        setPrepareDirty(true);
                         setCarrierAccountId(event.target.value);
                         setError("");
                         setQuotesByOrder({});
@@ -1385,6 +1621,14 @@ export function ShipOrdersWorkspace({
                       ))}
                     </select>
                   </label>
+                  <label style={{ display: "block", width: "min(420px,100%)", marginTop: 12 }}>
+                    <span style={{ display: "block", marginBottom: 5, fontSize: 12, fontWeight: 700 }}>Add prepared orders to</span>
+                    <select aria-label="Preparation destination batch" style={selectStyle} value={destinationBatchId} onChange={(event) => { setDestinationBatchId(event.target.value); setPrepareDirty(true); }}>
+                      <option value="">New batch</option>
+                      {savedBatches.filter((batch) => batch.shipments.some((shipment) => !workspaceMembershipBlocker(shipment))).map((batch) => <option key={batch.batchId} value={batch.batchId}>{workspaceBatchLabel(batch.shipments)}</option>)}
+                    </select>
+                  </label>
+                  {!plans.length && <p style={{ fontSize: 12, color: "var(--sv-text-dim)" }}>Choose ready orders above, or add an existing unbatched shipment to a batch. Saved shipments are not prepared again.</p>}
                   {selectedAccount?.dispatchAddressMissingFields.length ? (
                     <div
                       role="alert"
@@ -1403,8 +1647,7 @@ export function ShipOrdersWorkspace({
                       <button
                         type="button"
                         onClick={() => {
-                          onClose();
-                          window.location.hash = "locations";
+                          if (requestWorkspaceClose()) window.location.hash = "locations";
                         }}
                         style={linkButtonStyle}
                       >
@@ -1415,7 +1658,7 @@ export function ShipOrdersWorkspace({
                 </div>
               )}
               {!loading &&
-                !created.length &&
+                activeTab === "prepare" &&
                 plans.map(
                   ({
                     order,
@@ -1561,6 +1804,10 @@ export function ShipOrdersWorkspace({
                                 Enter the packed parcel details below.
                               </div>
                             )}
+                            {suggestion.parcels.length > 1 && suggestion.unpacked.length === 0 && orderParcels.length === 1 && <div style={{ fontSize: 12 }}>
+                              Suggested packing needs {suggestion.parcels.length} parcels.{" "}
+                              <button type="button" style={linkButtonStyle} onClick={() => { setPrepareDirty(true); setParcelsByOrder((current) => ({ ...current, [order.id]: suggestedEditableParcels(suggestion.parcels) })); setQuotesByOrder({}); setSelectedServiceByOrder({}); }}>Use suggested split</button>
+                            </div>}
                             {orderParcels.map((parcel, parcelIndex) => (
                               <div
                                 key={parcelIndex}
@@ -1583,7 +1830,7 @@ export function ShipOrdersWorkspace({
                                   <span
                                     style={{ fontSize: 12, fontWeight: 700 }}
                                   >
-                                    Parcel {parcelIndex + 1}
+                                    Parcel {parcelIndex + 1} - packed measurements
                                   </span>
                                   {orderParcels.length > 1 && (
                                     <button
@@ -1598,6 +1845,7 @@ export function ShipOrdersWorkspace({
                                     </button>
                                   )}
                                 </div>
+                                <p style={{ margin: "0 0 8px", fontSize: 11, color: "var(--sv-text-dim)" }}>Confirm actual packed measurements and weight, including packaging. Preset or suggested values are a starting point.</p>
                                 <div
                                   style={{
                                     display: "grid",
@@ -1673,8 +1921,17 @@ export function ShipOrdersWorkspace({
                                     }
                                   />
                                 </div>
+                                <details open={orderParcels.length > 1 || Boolean(workspaceParcelQuantityIssue(order.items ?? [], orderParcels))} style={{ marginTop: 12 }}>
+                                  <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                                    {orderParcels.length === 1 ? `Contents: all remaining items (${formatQuantity(remainingQuantity)} units)` : `Allocate items between parcels - parcel ${parcelIndex + 1}`}
+                                  </summary>
+                                {orderParcels.length === 1 && !workspaceParcelQuantityIssue(order.items ?? [], orderParcels) ? (
+                                  <ul style={{ fontSize: 12, margin: "8px 0", paddingLeft: 20 }}>
+                                    {(order.items ?? []).filter((item) => Number(item.qty_ordered) > Number(item.qty_fulfilled)).map((item) => <li key={item.id}>{workspaceContentsLabel(item)}: {formatQuantity(Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled)))} units</li>)}
+                                  </ul>
+                                ) : <>
                                 <div style={{ marginTop: 12, fontSize: 12 }}>
-                                  <strong>Item quantities in this parcel</strong>
+                                  <strong>Allocate existing item quantities</strong>
                                   <div style={{ marginTop: 3, color: "var(--sv-text-dim)" }}>
                                     Enter the number of units packed, not dimensions or weight.
                                     The total across all parcels must match the remaining quantity for each item.
@@ -1710,6 +1967,7 @@ export function ShipOrdersWorkspace({
                                             : ""
                                         }
                                         step="0.0001"
+                                        allowZero
                                         onChange={(value) =>
                                           updateAllocation(
                                             order.id,
@@ -1722,6 +1980,8 @@ export function ShipOrdersWorkspace({
                                     );
                                   })}
                                 </div>
+                                </>}
+                                </details>
                               </div>
                             ))}
                             <div>
@@ -1736,7 +1996,7 @@ export function ShipOrdersWorkspace({
                                 }}
                               >
                                 <Plus size={14} />
-                                Add parcel
+                                Split into another parcel
                               </button>
                             </div>
                             {parcelIssue && (
@@ -1897,6 +2157,7 @@ export function ShipOrdersWorkspace({
                                       type="checkbox"
                                       checked={confirmedNonSaleOrders.has(order.id)}
                                       onChange={(event) => {
+                                        setPrepareDirty(true);
                                         setConfirmedNonSaleOrders((current) => {
                                           const next = new Set(current);
                                           if (event.target.checked) next.add(order.id);
@@ -1967,6 +2228,7 @@ export function ShipOrdersWorkspace({
                                           name={`shipping-service-${order.id}`}
                                           checked={selected}
                                           onChange={() => {
+                                            setPrepareDirty(true);
                                             setSelectedServiceByOrder(
                                               (current) => ({
                                                 ...current,
@@ -1999,7 +2261,8 @@ export function ShipOrdersWorkspace({
                     );
                   },
                 )}
-              {created.length > 0 && (
+              </fieldset>
+              {activeTab === "batches" && created.length > 0 && (
                 <div
                   role="status"
                   style={{
@@ -2009,9 +2272,7 @@ export function ShipOrdersWorkspace({
                   }}
                 >
                   <strong style={{ fontSize: 13 }}>
-                    {submissionResults.length
-                      ? "Australia Post submission"
-                      : "Shipment drafts prepared"}
+                    Selected batch - next step
                   </strong>
                   <div
                     style={{
@@ -2020,39 +2281,10 @@ export function ShipOrdersWorkspace({
                       fontSize: 12,
                     }}
                   >
-                    {submissionResults.length
-                      ? `${submissionResults.length} shipment${submissionResults.length === 1 ? "" : "s"} created with Australia Post.`
-                      : `${created.length} shipment${created.length === 1 ? "" : "s"} saved locally. Review and confirm the billable carrier submission.`}
+                    {created.length} shipment{created.length === 1 ? "" : "s"} in this batch: {unsubmittedCount} awaiting postage; {created.length - unsubmittedCount} already booked with the carrier.
                   </div>
-                  {!submissionResults.length &&
-                    created.map((item) => {
-                      const order = details.find(
-                        (detail) => Number(detail.id) === item.soId,
-                      );
-                      const service = selectedServiceByOrder[item.soId];
-                      return (
-                        <div
-                          key={item.shipmentId}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 10,
-                            marginTop: 10,
-                            paddingTop: 10,
-                            borderTop: "1px solid var(--sv-etch)",
-                            fontSize: 12,
-                          }}
-                        >
-                          <strong>
-                            {order?.so_number ?? `Shipment ${item.shipmentId}`}
-                          </strong>
-                          <span>
-                            {service?.serviceName} ·{" "}
-                            {service ? formatAud(service.total) : ""} incl. GST
-                          </span>
-                        </div>
-                      );
-                    })}
+                  {selectedOperationBlocked && <p role="alert" style={{ fontSize: 12, color: "var(--sv-red)" }}>Resolve the pending shipment operation before creating labels or dispatching.</p>}
+                  {selectedAlreadyDispatched && <p style={{ fontSize: 12 }}>These shipments are dispatched. Continue in Manifests for carrier lodgement.</p>}
                   {[
                     ...new Map(
                       submissionResults
@@ -2093,55 +2325,9 @@ export function ShipOrdersWorkspace({
                       </a>
                     </div>
                   ))}
-                  {submissionResults.map((result) => {
-                    const order = details.find(
-                      (item) => Number(item.id) === result.soId,
-                    );
-                    const saved = savedShipments.find(
-                      (item) => item.shipmentId === result.shipmentId,
-                    );
-                    return (
-                      <div
-                        key={result.shipmentId}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginTop: 10,
-                          paddingTop: 10,
-                          borderTop: "1px solid var(--sv-etch)",
-                          fontSize: 12,
-                        }}
-                      >
-                        <strong>
-                          {order?.so_number ??
-                            saved?.soNumber ??
-                            `Shipment ${result.shipmentId}`}
-                        </strong>
-                        <span style={{ color: "var(--sv-text-dim)" }}>
-                          {result.chargedCost == null
-                            ? ""
-                            : `${formatAud(result.chargedCost)} charged`}
-                        </span>
-                        <span
-                          style={{
-                            marginLeft: "auto",
-                            color:
-                              result.status === "label_ready"
-                                ? "var(--sv-green)"
-                                : "var(--sv-text-dim)",
-                          }}
-                        >
-                          {result.status === "label_ready"
-                            ? "Label ready"
-                            : "Label processing"}
-                        </span>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
-              {created.length > 0 && needsCarrierAction && (
+              {activeTab === "batches" && created.length > 0 && needsCarrierAction && (
                 <section
                   aria-label="Stock readiness"
                   style={{
@@ -2190,7 +2376,7 @@ export function ShipOrdersWorkspace({
                           </button>
                         ))}
                         {stockReadiness.lines.some((line) => line.incomingTransferQuantity > 0) && (
-                          <button type="button" onClick={() => { onClose(); window.location.hash = "receive-transfers"; }} style={secondaryButtonStyle}>
+                          <button type="button" onClick={() => { if (requestWorkspaceClose()) window.location.hash = "receive-transfers"; }} style={secondaryButtonStyle}>
                             <PackageCheck size={14} /> Receive transfer
                           </button>
                         )}
@@ -2211,22 +2397,28 @@ export function ShipOrdersWorkspace({
                     gap: 8,
                     marginTop: 18,
                     flexWrap: "wrap",
+                    position: "sticky",
+                    bottom: 0,
+                    background: "var(--sv-bg-1)",
+                    padding: "12px 0",
+                    borderTop: "1px solid var(--sv-etch)",
+                    zIndex: 1,
                   }}
                 >
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={requestWorkspaceClose}
                     style={secondaryButtonStyle}
                   >
-                    {created.length ? "Close" : "Cancel"}
+                    Close
                   </button>
-                  {!created.length && (
+                  {activeTab === "prepare" && plans.length > 0 && (
                     <button
                       type="button"
                       disabled={!canCreate || quoting || saving}
                       onClick={getQuotes}
                       style={{
-                        ...secondaryButtonStyle,
+                        ...(hasSelectedServices ? secondaryButtonStyle : primaryButtonStyle),
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 7,
@@ -2245,7 +2437,7 @@ export function ShipOrdersWorkspace({
                           : "Get shipping prices"}
                     </button>
                   )}
-                  {!created.length && (
+                  {activeTab === "prepare" && plans.length > 0 && (
                     <button
                       type="button"
                       disabled={!canCreate || !hasSelectedServices || saving}
@@ -2256,7 +2448,7 @@ export function ShipOrdersWorkspace({
                           : undefined
                       }
                       style={{
-                        ...primaryButtonStyle,
+                        ...(hasSelectedServices ? primaryButtonStyle : secondaryButtonStyle),
                         opacity:
                           canCreate && hasSelectedServices && !saving
                             ? 1
@@ -2268,10 +2460,10 @@ export function ShipOrdersWorkspace({
                       }}
                     >
                       <PackageCheck size={15} />
-                      {saving ? "Preparing..." : "Prepare Shipments"}
+                      {saving ? "Saving..." : destinationBatchId ? "Add to existing batch" : "Add to new batch"}
                     </button>
                   )}
-                  {created.length > 0 && needsCarrierAction && (
+                  {activeTab === "batches" && created.length > 0 && needsCarrierAction && (
                     <>
                       {!labelsPending && (
                         <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--sv-text-dim)" }}>
@@ -2285,7 +2477,7 @@ export function ShipOrdersWorkspace({
                       )}
                       <button
                         type="button"
-                        disabled={submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
+                        disabled={selectedOperationBlocked || submitting || checkingStock || !stockReadiness || (!stockReadiness.ready && !stockShortfallAcknowledged)}
                         onClick={submitToCarrier}
                         style={{
                           ...primaryButtonStyle,
@@ -2298,18 +2490,18 @@ export function ShipOrdersWorkspace({
                           ? "Submitting..."
                           : labelsPending
                             ? "Check label status"
-                            : "Submit to Australia Post & create labels"}
+                            : unsubmittedCount ? "Submit to Australia Post & create labels" : "Generate labels for existing postage"}
                       </button>
                     </>
                   )}
-                  {created.length > 0 &&
+                  {activeTab === "batches" && created.length > 0 && !selectedAlreadyDispatched &&
                     submissionResults.length === created.length &&
                     submissionResults.every(
                       (result) => result.status === "label_ready",
                     ) && (
                       <button
                         type="button"
-                        disabled={dispatching}
+                        disabled={selectedOperationBlocked || dispatching || submitting}
                         onClick={() => void markDispatched()}
                         style={{
                           ...primaryButtonStyle,
@@ -2318,7 +2510,7 @@ export function ShipOrdersWorkspace({
                         }}
                       >
                         <PackageCheck size={15} />
-                        {dispatching ? "Updating orders..." : "Mark dispatched"}
+                        {dispatching ? "Updating orders..." : selectedTrackingPending ? "Retry tracking sync" : "Mark dispatched"}
                       </button>
                     )}
                 </div>
@@ -2326,6 +2518,22 @@ export function ShipOrdersWorkspace({
             </>
           )}
         </div>
+        </div>
+        {editingShipmentId != null && (
+          <ShippingShipmentEditor
+            key={editingShipmentId}
+            shipmentId={editingShipmentId}
+            accounts={accounts}
+            presets={presets}
+            onClose={() => setEditingShipmentId(null)}
+            onSaved={refreshAfterAmendment}
+            onInvalidate={invalidateAmendedLabels}
+            onFailure={async (shipmentIds) => {
+              const affected = shipmentIds.length ? invalidateAmendedLabels(shipmentIds) : [];
+              await refreshAfterAmendment(undefined, affected);
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -2868,12 +3076,17 @@ function ParcelNumberField({
   value,
   step = "1",
   onChange,
+  allowZero = false,
 }: {
   label: string;
   value: string;
   step?: string;
   onChange: (value: string) => void;
+  allowZero?: boolean;
 }) {
+  const errorId = useId();
+  const [touched, setTouched] = useState(false);
+  const invalid = (touched || value !== "") && (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0 || (!allowZero && Number(value) === 0));
   return (
     <label style={fieldStyle}>
       <span>{label}</span>
@@ -2883,8 +3096,12 @@ function ParcelNumberField({
         step={step}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={() => setTouched(true)}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? errorId : undefined}
         style={selectStyle}
       />
+      {invalid && <small id={errorId} role="status" style={{ color: "var(--sv-red)" }}>{allowZero ? "Enter zero or a positive item quantity." : "Enter a positive packed measurement."}</small>}
     </label>
   );
 }
@@ -2949,25 +3166,18 @@ function aggregateAllocations(
   }));
 }
 
-function initialParcels(
+export function initialParcels(
   order: SalesOrderDetail,
   presets: PackingPreset[],
 ): EditableParcel[] {
   const plan = buildPackingPlan(order, presets);
   if (
-    plan.suggestion.parcels.length > 0 &&
+    plan.suggestion.parcels.length === 1 &&
     plan.suggestion.unpacked.length === 0
   ) {
-    return plan.suggestion.parcels.map((parcel) => ({
-      packagePresetId: String(parcel.preset.id),
-      packageType: parcel.preset.packageType,
-      lengthCm: millimetresToCentimetreInput(parcel.preset.lengthMm),
-      widthCm: millimetresToCentimetreInput(parcel.preset.widthMm),
-      heightCm: millimetresToCentimetreInput(parcel.preset.heightMm),
-      weightKg: String(Number(parcel.weightKg.toFixed(3))),
-      allocations: aggregateAllocations(parcel.units),
-    }));
+    return suggestedEditableParcels(plan.suggestion.parcels);
   }
+
   return [
     {
       packagePresetId: "",
@@ -2979,6 +3189,18 @@ function initialParcels(
       allocations: remainingAllocations(order),
     },
   ];
+}
+
+function suggestedEditableParcels(parcels: ReturnType<typeof suggestParcels>["parcels"]): EditableParcel[] {
+  return parcels.map((parcel) => ({
+    packagePresetId: String(parcel.preset.id),
+    packageType: parcel.preset.packageType,
+    lengthCm: millimetresToCentimetreInput(parcel.preset.lengthMm),
+    widthCm: millimetresToCentimetreInput(parcel.preset.widthMm),
+    heightCm: millimetresToCentimetreInput(parcel.preset.heightMm),
+    weightKg: String(Number(parcel.weightKg.toFixed(3))),
+    allocations: aggregateAllocations(parcel.units),
+  }));
 }
 
 function remainingAllocations(
@@ -3010,22 +3232,8 @@ function zebraRowBackground(index: number): string {
     : "var(--sv-bg-1)";
 }
 
-function groupSavedShipments(shipments: SavedShippingShipment[]): Array<{
-  batchId: string;
-  shipments: SavedShippingShipment[];
-}> {
-  const batches = new Map<string, SavedShippingShipment[]>();
-  for (const shipment of shipments) {
-    const batchId = shipment.batchId || `shipment-${shipment.shipmentId}`;
-    batches.set(batchId, [...(batches.get(batchId) ?? []), shipment]);
-  }
-  return [...batches].map(([batchId, batchShipments]) => ({
-    batchId,
-    shipments: batchShipments,
-  }));
-}
-
 function batchStatusLabel(shipments: SavedShippingShipment[]): string {
+  if (shipments.some((shipment) => ["stale", "superseded"].includes(shipment.labelStatus ?? ""))) return "Needs new labels";
   const statuses = new Set(shipments.map((shipment) => shipment.status));
   if (statuses.size === 1) return shippingStatusLabel(shipments[0].status);
   if (statuses.has("failed") || statuses.has("label_unknown"))
@@ -3036,19 +3244,7 @@ function batchStatusLabel(shipments: SavedShippingShipment[]): string {
 }
 
 function shippingStatusLabel(status: string): string {
-  return (
-    (
-      {
-        draft: "Prepared",
-        carrier_created: "Postage created",
-        label_submitting: "Creating labels",
-        label_pending: "Label processing",
-        label_unknown: "Label needs review",
-        label_ready: "Ready to dispatch",
-        failed: "Needs attention",
-      } as Record<string, string>
-    )[status] ?? status.replaceAll("_", " ")
-  );
+  return workspaceShippingStatus(status);
 }
 
 function manifestLabelButtonLabel(layout: string): string {

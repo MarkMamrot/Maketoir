@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getImsSession } from "@/lib/auth/imsSession";
 import { createShippingDrafts } from "@/lib/ims/shipping/shippingDrafts";
 import { canDeleteShippingDraft } from "@/lib/ims/shipping/shippingWorkflow";
+import { getShippingBatchId, ShippingBatchError } from "@/lib/ims/shipping/shippingBatchTypes";
 import { reportRuntimeIssue } from "@/lib/runtimeIssues";
 import { imsExecute, imsQuery } from "@/services/IMSMySQLService";
 
@@ -13,6 +14,13 @@ export async function GET() {
   try {
     const rows = await imsQuery<{
       shipment_id: number;
+      revision: number;
+      membership_id: number | null;
+      batch_key: string | null;
+      batch_revision: number | null;
+      parcel_count: number;
+      ims_fulfilled_at: string | Date | null;
+      manifest_id: number | null;
       so_id: number;
       so_number: string;
       channel_order_number: string | null;
@@ -34,7 +42,11 @@ export async function GET() {
       created_at: string | Date;
       updated_at: string | Date;
     }>(
-      `SELECT shipment.id AS shipment_id, shipment.so_id, shipment.operation_key, sales_order.so_number,
+      `SELECT shipment.id AS shipment_id, shipment.revision, shipment.so_id, shipment.operation_key, sales_order.so_number,
+              shipment.ims_fulfilled_at, shipment.manifest_id,
+              membership.shipment_id AS membership_id, membership.batch_key, membership.revision AS batch_revision,
+              (SELECT COUNT(*) FROM ims_shipping_parcels parcel
+                WHERE parcel.business_id = shipment.business_id AND parcel.shipment_id = shipment.id) AS parcel_count,
               COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channel_order_number,
               contact.name AS customer_name, shipment.status, shipment.service_code, shipment.service_name,
               shipment.quoted_cost, shipment.charged_cost, shipment.provider_shipment_id,
@@ -45,10 +57,13 @@ export async function GET() {
          JOIN ims_sales_orders sales_order
            ON sales_order.id = shipment.so_id AND sales_order.business_id = shipment.business_id
          LEFT JOIN ims_contacts contact ON contact.id = sales_order.customer_id AND contact.business_id = sales_order.business_id
+         LEFT JOIN ims_shipping_batch_memberships membership
+           ON membership.business_id = shipment.business_id AND membership.shipment_id = shipment.id
          LEFT JOIN ims_shipping_labels label
            ON label.id = (
              SELECT latest.id FROM ims_shipping_labels latest
               WHERE latest.business_id = shipment.business_id AND latest.shipment_id = shipment.id
+                AND latest.shipment_revision = shipment.revision AND latest.status <> 'superseded'
               ORDER BY latest.id DESC LIMIT 1
            )
         WHERE shipment.business_id = ?
@@ -61,9 +76,15 @@ export async function GET() {
       success: true,
       data: rows.map((row) => ({
         shipmentId: Number(row.shipment_id),
+        revision: Number(row.revision),
         soId: Number(row.so_id),
         soNumber: row.so_number,
-        batchId: row.operation_key.replace(/:\d+$/, ""),
+        batchId: getShippingBatchId(row.operation_key,
+          row.membership_id == null ? null : { batch_key: row.batch_key }),
+        batchRevision: Number(row.batch_revision ?? 0),
+        parcelCount: Number(row.parcel_count),
+        imsFulfilledAt: row.ims_fulfilled_at == null ? null : serializeDate(row.ims_fulfilled_at),
+        manifestId: row.manifest_id == null ? null : Number(row.manifest_id),
         channelOrderNumber: row.channel_order_number,
         customerName: row.customer_name,
         status: row.status,
@@ -79,8 +100,8 @@ export async function GET() {
         destinationCountry: getRecipientCountry(row.recipient_json),
         labelStatus: row.label_status,
         labelUrl: row.label_url,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        createdAt: serializeDate(row.created_at),
+        updatedAt: serializeDate(row.updated_at),
       })),
     });
   } catch (error) {
@@ -95,6 +116,10 @@ export async function GET() {
       { error: "Unable to load saved shipments." },
       { status: 500 },
     );
+  }
+
+  function serializeDate(value: string | Date): string {
+    return value instanceof Date ? value.toISOString() : value;
   }
 }
 
@@ -128,11 +153,16 @@ export async function POST(request: Request) {
     const data = await createShippingDrafts({
       businessId: session.businessId,
       operationKey: String(body?.operationKey ?? ""),
+      ...(body?.batchId === undefined ? {} : { batchId: body.batchId }),
       carrierAccountId: Number(body?.carrierAccountId),
       shipments: Array.isArray(body?.shipments) ? body.shipments : [],
     });
     return NextResponse.json({ success: true, data });
   } catch (error) {
+    if (error instanceof ShippingBatchError)
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    if (error instanceof SyntaxError)
+      return NextResponse.json({ success: false, error: "Invalid JSON request." }, { status: 400 });
     const message =
       error instanceof Error ? error.message : "Unable to prepare shipments.";
     const validation =
