@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShopifyOrderDeliveryAddress, parseShopifyOrderDeliveryMethod } from '../shopifyOrderAddress';
+import { parseShopifyOrderDeliveryAddress, parseShopifyOrderDeliveryMethod, parseShopifyOrderRecipientName } from '../shopifyOrderAddress';
 
 describe('parseShopifyOrderDeliveryAddress', () => {
   it('maps the Shopify shipping address to IMS delivery fields', () => {
@@ -23,6 +23,7 @@ describe('parseShopifyOrderDeliveryAddress', () => {
       delivery_postcode: '2300',
       delivery_country: 'AU',
     });
+
   });
 
   it('uses full state and country names when Shopify codes are absent', () => {
@@ -75,4 +76,31 @@ describe('parseShopifyOrderDeliveryAddress', () => {
       channel_delivery_type: 'unknown',
     });
   });
+});
+
+describe('parseShopifyOrderRecipientName', () => {
+  it('prefers the shipping recipient over the purchaser and billing names', () => {
+    expect(parseShopifyOrderRecipientName({
+      shipping_address: { name: ' Gift Recipient ' },
+      customer: { first_name: 'Order', last_name: 'Purchaser' },
+      billing_address: { name: 'Billing Name' },
+    })).toBe('Gift Recipient');
+  });
+
+  it('combines shipping first and last names when the full name is absent', () => {
+    expect(parseShopifyOrderRecipientName({
+      shipping_address: { name: ' ', first_name: ' Jane ', last_name: ' Smith ' },
+    })).toBe('Jane Smith');
+  });
+
+  it('supports guest recipients and falls back to customer then billing names', () => {
+    expect(parseShopifyOrderRecipientName({ shipping_address: { name: 'Guest' }, customer: null })).toBe('Guest');
+    expect(parseShopifyOrderRecipientName({ customer: { first_name: 'Jane', last_name: 'Smith' } })).toBe('Jane Smith');
+    expect(parseShopifyOrderRecipientName({ billing_address: { first_name: 'Jane' } })).toBe('Jane');
+  });
+
+  it.each([null, 'invalid', {}, { customer: { email: 'customer@example.test' } }, { shipping_address: { name: 42 } }])(
+    'does not invent a name from missing, invalid or email-only data',
+    order => expect(parseShopifyOrderRecipientName(order)).toBeNull(),
+  );
 });

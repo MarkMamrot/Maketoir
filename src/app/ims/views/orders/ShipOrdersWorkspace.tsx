@@ -287,7 +287,8 @@ export function ShipOrdersWorkspace({
         result.shipment.providerShipmentId
           ? recordedCarrierCost != null ? `Recorded carrier charge: ${formatAud(recordedCarrierCost)} (separate from the quote).` : "No recorded carrier charge is available; the selected quote is not a final charge."
           : "",
-        result.requiresFreshLabels ? "Generate fresh labels and discard older printed/downloaded copies before dispatch." : "",
+        result.shipment.providerShipmentId ? "Existing carrier shipment retained." : "",
+        result.requiresFreshLabels ? "Fresh labels required: the saved details may differ from the old label. Generate current labels and discard older printed/downloaded copies before dispatch." : "",
       ].filter(Boolean).join(" "));
     }
   }
@@ -708,7 +709,8 @@ export function ShipOrdersWorkspace({
     >
       <div
         style={{
-          width: "min(920px, 100%)",
+          width: "min(calc(100vw - 40px), max(920px, 75vw))",
+          boxSizing: "border-box",
           maxHeight: "calc(100vh - 40px)",
           overflow: "auto",
           background: "var(--sv-bg-1)",
@@ -1007,7 +1009,8 @@ export function ShipOrdersWorkspace({
                                 )}
                               </span>
                               <span>
-                                {shipment.customerName || "No customer name"}
+                                {shipment.customerName || "Customer name unavailable"}
+                                {shipment.customerNameIssue && <span role="alert" style={{ display: "block", fontSize: 11, color: "var(--sv-text-dim)" }}>{shipment.customerNameIssue}</span>}
                                 <span
                                   style={{
                                     display: "block",

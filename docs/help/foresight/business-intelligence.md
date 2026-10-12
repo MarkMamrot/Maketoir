@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-business-intelligence","title":"Business Profile","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Business Profile","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["business-profile","business-intelligence","business-info","brand-profile","sync-data","calculated-data","merchant-rate-calculator","inventory","inactive-candidates","lost-candidates","space-analysis","stock-turnover"],"contextSections":{"business-profile":"Business information and data","business-intelligence":"Business information and data","business-info":"Business information and data","brand-profile":"Business information and data","sync-data":"Refresh source data","calculated-data":"Read calculated results","merchant-rate-calculator":"Compare merchant rates","inventory":"Inventory analysis","inactive-candidates":"Inventory analysis","lost-candidates":"Inventory analysis","space-analysis":"Inventory analysis","stock-turnover":"Inventory analysis"},"relatedTopics":["foresight-workspaces","foresight-planning"],"order":10,"summary":"Keep business information current and investigate performance or inventory signals before acting.","lastReviewed":"2026-10-02","owner":"foresight","quickSections":["Main operations","Business information and data","Refresh source data"]}
+{"id":"foresight-business-intelligence","title":"Business Profile","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Business Profile","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["business-profile","business-intelligence","business-info","brand-profile","sync-data","calculated-data","merchant-rate-calculator","tyro-certification","inventory","inactive-candidates","lost-candidates","space-analysis","stock-turnover"],"contextSections":{"business-profile":"Business information and data","business-intelligence":"Business information and data","business-info":"Business information and data","brand-profile":"Business information and data","sync-data":"Refresh source data","calculated-data":"Read calculated results","merchant-rate-calculator":"Compare merchant rates","tyro-certification":"Run Tyro certification","inventory":"Inventory analysis","inactive-candidates":"Inventory analysis","lost-candidates":"Inventory analysis","space-analysis":"Inventory analysis","stock-turnover":"Inventory analysis"},"relatedTopics":["foresight-workspaces","foresight-planning"],"order":10,"summary":"Keep business information current and investigate performance or inventory signals before acting.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","Business information and data","Refresh source data"]}
 ---
 # Business Intelligence and Inventory Analysis
 
@@ -12,6 +12,7 @@ Use Business Profile to keep the information behind analysis current. Open **IMS
 - Match date ranges and locations when comparing figures.
 - Open the source records behind an inventory candidate before acting.
 - Ask the Assistant for a governed summary of the latest complete marketing and commerce days.
+- Run approved Tyro sandbox payment cases before payment activation.
 
 ## Business information and data
 
@@ -58,6 +59,21 @@ It shows provider merchant service fees, network costs, Solvantis Merchant Fee, 
 | Listed processing, transaction, administration, terminal rental, terminal SIM, and minimum service fees | Gateway, refund, chargeback, terminal incident, same-day funding, and Velocity fees | Indicative comparison, not a quote |
 
 > **Important:** Confirm the customer's actual card mix, transaction counts, equipment, and applicable contract terms before presenting savings.
+
+## Run Tyro certification
+
+SuperAdmins can open **Tyro Certification** from **Admin > Utilities** while the Tyro Pay connection is in sandbox mode. Enter the test amount and references required by the current certification case, create the payment, complete the Tyro-hosted form, and refresh the displayed status until Tyro confirms the result.
+
+The certification tool records the test request and confirmed provider status. It does not create an Online Shop order, reserve or move stock, start fulfilment, email a customer, or post accounting entries.
+
+| Status | Meaning | Next action |
+| --- | --- | --- |
+| Awaiting payment input | The hosted payment form is ready | Complete the current test case |
+| Processing or awaiting authentication | Tyro has not returned a final result | Wait, then refresh the status |
+| Success | Tyro confirmed the sandbox payment | Record the required certification evidence |
+| Failed or voided | Tyro did not complete the payment | Record the result when the test expected it, or review the case before retrying |
+
+> **Warning:** Use only the supplied sandbox cards and test locations in this tool. It cannot operate when the connection is set to production.
 
 ## Inventory analysis
 

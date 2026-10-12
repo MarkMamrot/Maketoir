@@ -4,6 +4,7 @@ import { getImsSession } from "@/lib/auth/imsSession";
 import { createShippingDrafts } from "@/lib/ims/shipping/shippingDrafts";
 import { canDeleteShippingDraft } from "@/lib/ims/shipping/shippingWorkflow";
 import { getShippingBatchId, ShippingBatchError } from "@/lib/ims/shipping/shippingBatchTypes";
+import { resolveShippingCustomerNames } from "@/lib/ims/shipping/shippingCustomerNames";
 import { reportRuntimeIssue } from "@/lib/runtimeIssues";
 import { imsExecute, imsQuery } from "@/services/IMSMySQLService";
 
@@ -26,6 +27,9 @@ export async function GET() {
       channel_order_number: string | null;
       operation_key: string;
       customer_name: string | null;
+      sales_channel: string | null;
+      channel_instance_id: string | null;
+      external_order_id: string | null;
       status: string;
       service_code: string | null;
       service_name: string | null;
@@ -48,7 +52,8 @@ export async function GET() {
               (SELECT COUNT(*) FROM ims_shipping_parcels parcel
                 WHERE parcel.business_id = shipment.business_id AND parcel.shipment_id = shipment.id) AS parcel_count,
               COALESCE(NULLIF(sales_order.shopify_order_name, ''), NULLIF(sales_order.native_checkout_id, '')) AS channel_order_number,
-              contact.name AS customer_name, shipment.status, shipment.service_code, shipment.service_name,
+              contact.name AS customer_name, sales_order.sales_channel, sales_order.channel_instance_id,
+              sales_order.external_order_id, shipment.status, shipment.service_code, shipment.service_name,
               shipment.quoted_cost, shipment.charged_cost, shipment.provider_shipment_id,
               shipment.is_international, shipment.export_purpose, shipment.declared_currency,
               shipment.customs_json, shipment.recipient_json,
@@ -72,6 +77,17 @@ export async function GET() {
         ORDER BY shipment.updated_at DESC, shipment.id DESC`,
       [session.businessId],
     );
+    const customerNames = await resolveShippingCustomerNames(session.businessId, rows.map(row => {
+      const recipient = parseJsonValue(row.recipient_json);
+      return {
+        shipmentId: Number(row.shipment_id),
+        recipientName: recipient && typeof recipient === "object" && "name" in recipient ? recipient.name : null,
+        customerName: row.customer_name,
+        salesChannel: row.sales_channel,
+        channelInstanceId: row.channel_instance_id,
+        externalOrderId: row.external_order_id,
+      };
+    }));
     return NextResponse.json({
       success: true,
       data: rows.map((row) => ({
@@ -86,7 +102,8 @@ export async function GET() {
         imsFulfilledAt: row.ims_fulfilled_at == null ? null : serializeDate(row.ims_fulfilled_at),
         manifestId: row.manifest_id == null ? null : Number(row.manifest_id),
         channelOrderNumber: row.channel_order_number,
-        customerName: row.customer_name,
+        customerName: customerNames.get(Number(row.shipment_id))?.name ?? null,
+        customerNameIssue: customerNames.get(Number(row.shipment_id))?.issue ?? null,
         status: row.status,
         serviceCode: row.service_code,
         serviceName: row.service_name,

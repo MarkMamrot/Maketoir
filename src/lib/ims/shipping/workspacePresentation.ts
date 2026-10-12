@@ -16,6 +16,7 @@ export type WorkspaceShipment = {
   soNumber: string;
   channelOrderNumber: string | null;
   customerName: string | null;
+  customerNameIssue?: string | null;
   status: string;
   serviceCode: string | null;
   serviceName: string | null;

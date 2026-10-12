@@ -283,6 +283,42 @@ CREATE TABLE IF NOT EXISTS online_shop_stripe_connections (
   INDEX idx_online_shop_stripe_ready (charges_enabled, business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS tyro_pay_requests (
+  id                    CHAR(36) PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  purpose               VARCHAR(32) NOT NULL,
+  source_reference      VARCHAR(191) NULL,
+  order_id              VARCHAR(50) NOT NULL,
+  tyro_pay_request_id   VARCHAR(191) NULL,
+  location_id           VARCHAR(191) NOT NULL,
+  amount_cents          INT UNSIGNED NOT NULL,
+  currency_code         CHAR(3) NOT NULL DEFAULT 'AUD',
+  status                VARCHAR(50) NOT NULL DEFAULT 'CREATING',
+  created_by_user_id    INT NULL,
+  safe_error            VARCHAR(500) NULL,
+  created_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_tyro_pay_order (order_id),
+  UNIQUE KEY uq_tyro_pay_request (tyro_pay_request_id),
+  INDEX idx_tyro_pay_business (business_id, created_at),
+  INDEX idx_tyro_pay_source (business_id, purpose, source_reference)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tyro_pay_webhook_events (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NULL,
+  event_type            VARCHAR(100) NOT NULL,
+  resource_type         VARCHAR(32) NOT NULL,
+  resource_id           VARCHAR(191) NOT NULL,
+  status                VARCHAR(32) NOT NULL DEFAULT 'received',
+  safe_error            VARCHAR(500) NULL,
+  received_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  processed_at          DATETIME(3) NULL,
+  UNIQUE KEY uq_tyro_pay_webhook_event (event_type, resource_type, resource_id),
+  INDEX idx_tyro_pay_webhook_status (status, received_at),
+  INDEX idx_tyro_pay_webhook_business (business_id, received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- wholesale supplier profiles (public-safe control plane)
 -- ---------------------------------------------------------

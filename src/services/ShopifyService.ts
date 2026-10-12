@@ -1,6 +1,7 @@
 // src/services/ShopifyService.ts
 import Shopify from 'shopify-api-node';
 import { StandardizedProduct } from '../types/StandardizedData';
+import { parseShopifyOrderRecipientName } from '@/lib/ims/shopifyOrderAddress';
 
 export class ShopifyAdminUserError extends Error {
   readonly userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>;
@@ -776,6 +777,27 @@ export class ShopifyService {
       }
     }
     return map;
+  }
+
+  async getOrderRecipientNames(ids: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.some(id => !/^[1-9]\d*$/.test(id))) throw new Error('Valid Shopify order IDs are required.');
+    const names = new Map<string, string>();
+    for (let offset = 0; offset < unique.length; offset += 250) {
+      const batch = unique.slice(offset, offset + 250);
+      const orders = await this.shopify.order.list({
+        ids: batch.join(','),
+        fields: 'id,shipping_address,customer,billing_address',
+        status: 'any',
+        limit: 250,
+      });
+      for (const order of orders) {
+        const id = String(order.id);
+        const name = parseShopifyOrderRecipientName(order);
+        if (batch.includes(id) && name) names.set(id, name);
+      }
+    }
+    return names;
   }
 
   /** List all Shopify locations (id, name, active). */

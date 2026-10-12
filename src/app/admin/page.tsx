@@ -14,6 +14,7 @@ import BusinessFeaturesView from './BusinessFeaturesView';
 import { BusinessApplicationsQueue } from './BusinessApplicationsQueue';
 import { BusinessContextSwitcher, switchBusinessContext } from '@/components/BusinessContextSwitcher';
 import { MerchantRateCalculatorView } from '../dashboard/MerchantRateCalculatorView';
+import { TyroCertificationView } from './TyroCertificationView';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Business {
@@ -28,7 +29,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings' | 'merchant-rate-calculator';
+type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings' | 'merchant-rate-calculator' | 'tyro-certification';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -817,6 +818,9 @@ export default function AdminPage() {
           <button onClick={() => setView('merchant-rate-calculator')} style={S.navBtn(view === 'merchant-rate-calculator')}>
             Merchant Rate Calculator
           </button>
+          <button onClick={() => setView('tyro-certification')} style={S.navBtn(view === 'tyro-certification')}>
+            Tyro Certification
+          </button>
         </div>
 
         {/* Main */}
@@ -838,6 +842,7 @@ export default function AdminPage() {
               <MerchantRateCalculatorView />
             </div>
           )}
+          {view === 'tyro-certification' && <TyroCertificationView />}
         </div>
       </div>
       <style jsx global>{`

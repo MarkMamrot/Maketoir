@@ -19,6 +19,18 @@ function text(value: unknown): string | null {
   return trimmed || null;
 }
 
+export function parseShopifyOrderRecipientName(order: unknown): string | null {
+  if (!order || typeof order !== 'object') return null;
+  const source = order as Record<string, unknown>;
+  for (const candidate of [source.shipping_address, source.customer, source.billing_address]) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const person = candidate as Record<string, unknown>;
+    const name = text(person.name) ?? [text(person.first_name), text(person.last_name)].filter(Boolean).join(' ');
+    if (name) return name;
+  }
+  return null;
+}
+
 export function parseShopifyOrderDeliveryAddress(order: unknown): ShopifyOrderDeliveryAddress {
   const source = order && typeof order === 'object'
     ? (order as { shipping_address?: unknown }).shipping_address
