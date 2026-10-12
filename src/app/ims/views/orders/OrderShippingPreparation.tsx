@@ -43,6 +43,7 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
   }, [states, orders]);
   const selection = selected.filter(id => orders.some(order => order.id === id) && states[id]?.ready);
   const batches = groupWorkspaceBatches(shipments).filter(batch => batch.shipments.some(shipment => !workspaceMembershipBlocker(shipment)));
+  const selectedBatch = batches.some(batch => batch.batchId === destination) ? destination : "new";
   return <section aria-label="Orders ready to ship" style={{ marginBottom: 20 }}>
     <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Orders ready to ship</h3>
     <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--sv-text-dim)" }}>Enter packed dimensions beneath each order and save them. Select saved orders to make a batch. Postage is chosen in the batch; saving dimensions does not buy postage or change stock.</p>
@@ -61,7 +62,7 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
       <span style={{ fontSize: 12 }}>{selection.length} measured order{selection.length === 1 ? "" : "s"} selected</span>
       <label style={{ fontSize: 12 }}>Add to{" "}
-        <select aria-label="Preparation destination batch" style={{ ...input, width: "auto" }} disabled={busy} value={destination} onChange={event => setDestination(event.target.value)}>
+        <select aria-label="Preparation destination batch" style={{ ...input, width: "auto" }} disabled={busy} value={selectedBatch} onChange={event => setDestination(event.target.value)}>
           <option value="new">New batch</option>
           {batches.map(batch => <option key={batch.batchId} value={batch.batchId}>{workspaceBatchLabel(batch.shipments)}</option>)}
         </select>
@@ -69,8 +70,8 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
       <button type="button" style={{ ...button, background: "var(--sv-action)", color: "white", opacity: selection.length && !busy ? 1 : .55 }} disabled={busy || !selection.length || selection.length > 50}
         onClick={async () => {
           const ids = selection.map(id => states[id].shipmentId!);
-          if (await onAdd(ids, { batchId: destination === "new" ? crypto.randomUUID() : destination, createBatch: destination === "new" })) setSelected([]);
-        }}>{destination === "new" ? "Create batch with selected orders" : "Add selected orders to batch"}</button>
+          if (await onAdd(ids, { batchId: selectedBatch === "new" ? crypto.randomUUID() : selectedBatch, createBatch: selectedBatch === "new" })) setSelected([]);
+        }}>{selectedBatch === "new" ? "Create batch with selected orders" : "Add selected orders to batch"}</button>
       {selection.length > 50 && <span role="alert">Select no more than 50 orders at once.</span>}
     </div>
   </section>;

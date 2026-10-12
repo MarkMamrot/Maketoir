@@ -200,6 +200,7 @@ export function ShipOrdersWorkspace({
     .map((order) => Number(order.id))
     .sort((left, right) => left - right)
     .join(",");
+  const readyOrdersUrl = `/api/ims/shipping/orders${selectedOrderKey ? `?selected=${encodeURIComponent(selectedOrderKey)}` : ""}`;
   const [details, setDetails] = useState<SalesOrderDetail[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -245,7 +246,7 @@ export function ShipOrdersWorkspace({
   async function refreshAfterAmendment(result?: ShippingAmendmentResult, invalidatedShipmentIds: number[] = []) {
     const [draftsResponse, ordersResponse] = await Promise.all([
       fetch("/api/ims/shipping/drafts", { cache: "no-store" }),
-      fetch("/api/ims/shipping/orders", { cache: "no-store" }),
+      fetch(readyOrdersUrl, { cache: "no-store" }),
     ]);
     const [draftsResult, ordersResult] = await Promise.all([
       readJsonResponse(draftsResponse), readJsonResponse(ordersResponse),
@@ -325,7 +326,7 @@ export function ShipOrdersWorkspace({
     try {
       const [draftsResponse, ordersResponse] = await Promise.all([
         fetch("/api/ims/shipping/drafts", { cache: "no-store" }),
-        fetch("/api/ims/shipping/orders", { cache: "no-store" }),
+        fetch(readyOrdersUrl, { cache: "no-store" }),
       ]);
       const [draftsResult, ordersResult] = await Promise.all([readJsonResponse(draftsResponse), readJsonResponse(ordersResponse)]);
       if (!draftsResponse.ok || !draftsResult.success || !ordersResponse.ok || !ordersResult.success)
@@ -445,7 +446,7 @@ export function ShipOrdersWorkspace({
           throw new Error(result.error || "Unable to load saved shipments.");
         return result.data as SavedShippingShipment[];
       }),
-      fetch("/api/ims/shipping/orders").then(async (response) => {
+      fetch(readyOrdersUrl).then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result.success)
           throw new Error(
@@ -484,7 +485,7 @@ export function ShipOrdersWorkspace({
     return () => {
       active = false;
     };
-  }, [selectedOrderKey]);
+  }, [readyOrdersUrl]);
 
   const submitToCarrier = async () => {
     const currentReadiness = await refreshStockReadiness();
@@ -903,6 +904,8 @@ export function ShipOrdersWorkspace({
                       return (
                         <div
                           key={batch.batchId}
+                          role="group"
+                          aria-label={workspaceBatchLabel(batch.shipments)}
                           style={{
                             border: `1px solid ${openedBatchId === batch.batchId ? "var(--sv-action)" : "var(--sv-etch)"}`,
                             borderRadius: 6,

@@ -4,12 +4,24 @@ import { getImsSession } from "@/lib/auth/imsSession";
 import { reportRuntimeIssue } from "@/lib/runtimeIssues";
 import { imsQuery } from "@/services/IMSMySQLService";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getImsSession();
   if (!session)
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const selection = new URL(request.url).searchParams.get("selected");
+  const selectedIds = selection ? selection.split(",") : [];
+  if (
+    selectedIds.length > 250 ||
+    selectedIds.some(id => !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id)))
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Select up to 250 valid sales orders." },
+      { status: 400 },
+    );
+  }
+  const prioritizedIds = [...new Set(selectedIds.map(Number))];
   try {
-    const rows = await imsQuery<any>(
+    const rows = await imsQuery<{ id: number | string; remaining_quantity: number | string }>(
       `SELECT sales_order.id, sales_order.so_number, sales_order.status, sales_order.so_type,
               sales_order.sales_channel, sales_order.shopify_order_name, sales_order.native_checkout_id,
               sales_order.channel_shipping_method, sales_order.channel_delivery_type,
@@ -50,9 +62,9 @@ export async function GET() {
                  sales_order.channel_shipping_method, sales_order.channel_delivery_type,
                  sales_order.delivery_country, contact.name
        HAVING remaining_quantity > 0
-        ORDER BY sales_order.order_date, sales_order.id
+        ORDER BY ${prioritizedIds.length ? `CASE WHEN sales_order.id IN (${prioritizedIds.map(() => "?").join(",")}) THEN 0 ELSE 1 END, ` : ""}sales_order.order_date, sales_order.id
         LIMIT 250`,
-      [session.businessId],
+      [session.businessId, ...prioritizedIds],
     );
     return NextResponse.json({
       success: true,
