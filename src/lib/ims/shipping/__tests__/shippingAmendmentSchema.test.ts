@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const schema = readFileSync(resolve(process.cwd(), 'scripts', 'ims-schema.sql'), 'utf8');
 const migration = readFileSync(resolve(process.cwd(), 'scripts', 'catchup-schema-all-tenants.mjs'), 'utf8');
@@ -21,7 +21,37 @@ describe('tenant-safe amendment schema', () => {
   it('supports per-shipment shared PDF rows and idempotently corrects the old index for each tenant', () => {
     expect(table('ims_shipping_labels')).toContain('UNIQUE KEY uq_shipping_label_request (business_id, shipment_id, provider_request_id)');
     expect(migration).toContain('information_schema.STATISTICS');
-    expect(migration).toContain("rows.map(row => row.COLUMN_NAME).join(',') === 'business_id,shipment_id,provider_request_id'");
     expect(migration).toContain("if (!requestedTable || requestedTable === 'ims_shipping_labels') await ensureShippingLabelRequestIndex(schema)");
   });
+
+  it.each([
+    ['business_id', 'shipment_id', 'provider_request_id'],
+    ['business_id', 'provider_request_id', 'shipment_id'],
+  ])('preserves an equivalent full-column unique index in order %j', async (...columns) => {
+    const query = vi.fn().mockResolvedValueOnce([
+      columns.map(COLUMN_NAME => ({ COLUMN_NAME, NON_UNIQUE: 0, SUB_PART: null })),
+    ]);
+    await runLabelIndexMigration(query);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [{ COLUMN_NAME: 'business_id', NON_UNIQUE: 0, SUB_PART: null }, { COLUMN_NAME: 'provider_request_id', NON_UNIQUE: 0, SUB_PART: null }],
+    ['business_id', 'shipment_id', 'provider_request_id'].map(COLUMN_NAME => ({ COLUMN_NAME, NON_UNIQUE: 1, SUB_PART: null })),
+    ['business_id', 'shipment_id', 'provider_request_id'].map(COLUMN_NAME => ({ COLUMN_NAME, NON_UNIQUE: 0, SUB_PART: 10 })),
+    [],
+  ])('repairs an incompatible label index %#', async (...rows) => {
+    const query = vi.fn().mockResolvedValueOnce([rows]).mockResolvedValueOnce([]);
+    await runLabelIndexMigration(query);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[1][0]).toContain('ADD UNIQUE INDEX uq_shipping_label_request (business_id, shipment_id, provider_request_id)');
+    expect(query.mock.calls[1][0].includes('DROP INDEX')).toBe(rows.length > 0);
+  });
 });
+
+async function runLabelIndexMigration(query: ReturnType<typeof vi.fn>) {
+  const definition = migration.match(/async function ensureShippingLabelRequestIndex\(schema\) \{[\s\S]*?\n\}/)?.[0];
+  if (!definition) throw new Error('Shipping label index migration not found.');
+  const execute = new Function('conn', `${definition}; return ensureShippingLabelRequestIndex;`)({ query });
+  await execute('registered_tenant');
+}

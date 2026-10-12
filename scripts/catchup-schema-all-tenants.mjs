@@ -4,6 +4,10 @@
  *
  * Safe to re-run — uses ADD COLUMN IF NOT EXISTS throughout.
  * Run: node scripts/catchup-schema-all-tenants.mjs
+ * Shipping batch/edit rollout only: run separately with --table=ims_shipping_shipments,
+ * --table=ims_shipping_labels, --table=ims_shipping_batch_memberships, and
+ * --table=ims_shipping_amendments. Each command covers registered tenants without
+ * running unrelated migrations. Optional --schema=registered_schema limits scope.
  */
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
@@ -1888,11 +1892,16 @@ async function ensureNativeCheckoutIndex(schema) {
 
 async function ensureShippingLabelRequestIndex(schema) {
   const [rows] = await conn.query(
-    `SELECT COLUMN_NAME FROM information_schema.STATISTICS
+    `SELECT COLUMN_NAME, NON_UNIQUE, SUB_PART FROM information_schema.STATISTICS
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_shipping_labels' AND INDEX_NAME = 'uq_shipping_label_request'
       ORDER BY SEQ_IN_INDEX`, [schema],
   );
-  if (rows.map(row => row.COLUMN_NAME).join(',') === 'business_id,shipment_id,provider_request_id') return;
+  const requiredColumns = ['business_id', 'shipment_id', 'provider_request_id'];
+  if (
+    rows.length === requiredColumns.length &&
+    requiredColumns.every(column => rows.some(row => row.COLUMN_NAME === column)) &&
+    rows.every(row => Number(row.NON_UNIQUE) === 0 && row.SUB_PART == null)
+  ) return;
   const drop = rows.length ? 'DROP INDEX uq_shipping_label_request, ' : '';
   await conn.query(
     `ALTER TABLE \`${schema}\`.ims_shipping_labels ${drop}ADD UNIQUE INDEX uq_shipping_label_request (business_id, shipment_id, provider_request_id)`,
