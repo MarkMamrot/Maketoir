@@ -107,7 +107,7 @@ Google responses provide usage quantities rather than a final dollar cost. Solva
 
 ### Resolve an issue in another business
 
-A SuperAdmin is signed in under Solvantis and needs to correct a purchase order for Sage. They choose **Sage** in the top bar, wait for IMS to reload, and confirm Sage is displayed before opening the order. They remain the same SuperAdmin throughout. After finishing, they choose **Solvantis** to return to their usual workspace.
+A SuperAdmin needs to correct a purchase order for another business. They choose that business in the top bar, wait for IMS to reload, and confirm its name is displayed before opening the order. They remain the same SuperAdmin throughout. After finishing, they choose their original business to return to their usual workspace.
 
 ### Move a business to a different AI plan
 

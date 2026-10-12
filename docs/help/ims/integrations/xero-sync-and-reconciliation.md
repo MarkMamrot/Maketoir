@@ -120,14 +120,14 @@ Completed configured periods remain visible even when no journal run was created
 
 ### See how the posting is split
 
-Solvantis does not drop the whole period into one anonymous COGS line. It splits the amount by **stock location and accounting channel**, then creates a balanced COGS and Inventory Asset pair for each split. A Monsterthreads month can therefore show lines such as:
+Solvantis does not drop the whole period into one anonymous COGS line. It splits the amount by **stock location and accounting channel**, then creates a balanced COGS and Inventory Asset pair for each split. Journal labels use your business's actual location names; the following examples use generic location roles:
 
 | Stock activity | Journal line label |
 |---|---|
-| Shopify stock shipped from Warehouse | Warehouse - Shopify / Online |
-| Wholesale stock shipped from Warehouse | Warehouse - B2B |
-| POS sales from Newtown | Newtown - POS |
-| POS sales from QVB | QVB - POS |
+| Shopify stock shipped from a dispatch location | Dispatch location - Shopify / Online |
+| Wholesale stock shipped from a dispatch location | Dispatch location - B2B |
+| POS sales from one store | Store A - POS |
+| POS sales from another store | Store B - POS |
 | Returned stock | The location plus Returns channel |
 
 Positive COGS debits the configured COGS account and credits Inventory Asset. A negative adjustment flips those signs. Xero tracking is added when a matching location or channel mapping is available. Open the period and expand **Journal line-item snapshot** to see the exact split saved for that run; **View journal** opens the matching manual journal in Xero.
@@ -185,4 +185,4 @@ A paid payout contains sales, a refund, fees, and the net bank settlement. Revie
 
 ### Calculate a POS card fee
 
-Newtown Card is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from Newtown's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.
+A store's Card payment method is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from that store's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.

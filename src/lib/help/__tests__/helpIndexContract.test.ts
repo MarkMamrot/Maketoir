@@ -6,6 +6,16 @@ import helpIndex from '@/generated/solvantis-help-index.json';
 const topics = helpIndex.topics;
 
 describe('generated Help presentation contract', () => {
+  it('keeps shared Help and Assistant content free of known tenant-specific names', () => {
+    const tenantNames = /\b(?:Kotara|Monsterthreads|Newtown|QVB|Bondi|St Peters|Sage)\b/i;
+    for (const topic of topics) {
+      expect(JSON.stringify(topic), topic.id).not.toMatch(tenantNames);
+    }
+    for (const chunk of assistantIndex.chunks) {
+      expect(JSON.stringify(chunk), chunk.id).not.toMatch(tenantNames);
+    }
+  });
+
   it('gives every topic a small valid set of default-open sections', () => {
     expect(topics).toHaveLength(71);
     for (const topic of topics) {

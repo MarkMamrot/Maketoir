@@ -119,7 +119,7 @@ Enabling or changing a schedule starts it with the current period, which must cl
 
 Sales completion and opening or refreshing this report do **not** trigger COGS journals. A completed eligible period with no change to its verified posted total does not create another journal. Existing drafts are not treated as posted and stop duplicate automatic creation until reviewed.
 
-Future COGS journals are requested from Xero as **POSTED** manual journals. Each location-accounting-channel amount creates a balanced pair: debit COGS and credit Inventory Asset for positive COGS, reversed for a negative adjustment. Examples include **Warehouse - Shopify / Online**, **Warehouse - B2B**, **Newtown - POS** and **QVB - POS**. Available Xero tracking mappings are applied to each pair. Returns remain a separate accounting channel.
+Future COGS journals are requested from Xero as **POSTED** manual journals. Each location-accounting-channel amount creates a balanced pair: debit COGS and credit Inventory Asset for positive COGS, reversed for a negative adjustment. Labels combine your business's actual location name with **Shopify / Online**, **B2B**, or **POS**, as appropriate. Available Xero tracking mappings are applied to each pair. Returns remain a separate accounting channel.
 
 Each run saves the exact line-item deltas used. Later adjustments compare current location-channel totals with prior saved posted buckets and send only each bucket's change. An older posted journal without a saved split remains **Prior unsplit journals** in the first split adjustment; Solvantis does not invent a historical branch allocation or rewrite the old journal.
 

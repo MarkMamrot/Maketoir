@@ -192,7 +192,7 @@ A Tuesday cleaning task appears under **Keep the day moving** alongside any one-
 
 ### Store supply sent by the warehouse
 
-Newtown requests large receipt rolls and selects the warehouse. Warehouse staff approve, pack and mark the request sent. Newtown confirms **Received** only after checking the physical delivery. Notes and times remain on the same request.
+A store requests large receipt rolls and selects its destination warehouse. Warehouse staff approve, pack and mark the request sent. The requesting store confirms **Received** only after checking the physical delivery. Notes and times remain on the same request.
 
 ### Quantity difference for manager review
 

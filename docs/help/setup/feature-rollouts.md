@@ -54,4 +54,4 @@ When **Intel & Automation Marketing** is off, the business does not see Marketin
 
 ## Worked examples
 
-Monsterthreads is participating in the initial Intel & Automation Marketing rollout. Its switch is On, while other businesses remain Off. Those other businesses continue to use the rest of Intel & Automation without seeing the Marketing Activities menu.
+A SuperAdmin enables Intel & Automation Marketing for one participating business while leaving it off for other businesses. Those other businesses continue to use the rest of Intel & Automation without seeing the Marketing Activities menu. Each business's current rollout settings determine its access.

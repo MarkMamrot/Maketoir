@@ -9,7 +9,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 
 - Confirm Shopify connection health and required access before syncing.
 - Import a Shopify catalogue into Solvantis in paced batches during onboarding or later catalogue maintenance.
-- Preview and import opening stock from matching Shopify Warehouse and Kotara locations.
+- Preview and import opening stock for the supported locations shown in the Shopify opening-stock preview.
 - Pull Shopify customers into IMS and choose how long customers without recent orders remain active.
 - Review products that are linked, not linked, or waiting for synchronization.
 - Trace customer, order, inventory, fulfilment, and webhook activity in sync history.
@@ -22,7 +22,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 | Need | Check | Safe action |
 |---|---|---|
 | Bring an existing Shopify catalogue into Solvantis | Shopify connection and existing SKU or barcode records | Use **Products > Import from Shopify** and review any warnings |
-| Establish opening stock after catalogue import | Warehouse and Kotara exist in both systems with matching names | Preview, review, then apply Shopify opening stock |
+| Establish opening stock after catalogue import | Each supported location shown in the preview maps to one active location in both systems | Preview, review, then apply Shopify opening stock |
 | Product is missing from Shopify sync | Product eligibility and sync status | Sync or retry where offered |
 | Shopify customer is missing from active lists | Customer Sync result and recent Shopify order activity | Pull customers again; a new identified order reactivates its linked customer automatically |
 | Inventory looks stale | Variant and inventory-item linkage, location mapping, and recent sync or webhook | Fix the cause, then wait for the queued update to retry |
@@ -100,19 +100,19 @@ Pull matches the Shopify customer ID first and then uses an exact email match wh
 ### Import opening stock from Shopify
 
 1. Complete the Shopify product import so variants retain their Shopify inventory links.
-2. Confirm there is one active location named **Warehouse** and one named **Kotara** in both Shopify and Solvantis.
+2. Confirm each supported opening-stock location has one active, matching location in Shopify and Solvantis. Check the locations named in the preview before applying.
 3. In the store's **Products** tab, choose **Preview Opening Stock**.
 4. Keep the page open while Solvantis reads linked variants in paced batches.
 5. Review the target unit totals, number of adjustments, and any negative quantities for each location.
 6. Choose **Apply Opening Stock** and confirm the change.
 7. Note the completed stocktake numbers shown when the import finishes.
-8. Review those stocktakes and the resulting Warehouse and Kotara stock before continuing onboarding.
+8. Review those stocktakes and the resulting stock at each previewed location before continuing onboarding.
 
-Shopify Warehouse quantities are applied only to Solvantis Warehouse. Shopify Kotara quantities are applied only to Solvantis Kotara. Preview reads Shopify and prepares short-lived, protected quantity snapshots. Apply validates those snapshots and processes small database-only batches, setting each linked variant to the previewed available quantity and recording the difference through completed stocktakes. Negative Shopify quantities become zero.
+Each Shopify location's quantities are applied only to its matching Solvantis location shown in the preview, not to other locations. Preview reads Shopify and prepares short-lived, protected quantity snapshots. Apply validates those snapshots and processes small database-only batches, setting each linked variant to the previewed available quantity and recording the difference through completed stocktakes. Negative Shopify quantities become zero.
 
 When opening stock was partly applied before an interruption, run Preview again. Solvantis compares the latest Shopify quantities with current stock and prepares apply batches only for variants that still differ. Variants already synchronized are shown in the scanned total but are not applied again.
 
-> **Warning:** Applying opening stock replaces the current on-hand quantity for each linked variant at Warehouse and Kotara. It does not add Shopify stock on top of the Solvantis balance.
+> **Warning:** Applying opening stock replaces the current on-hand quantity for each linked variant at the locations shown in the preview. It does not add Shopify stock on top of the Solvantis balance.
 
 > **Note:** If a completed opening-stock batch must be undone, open its stocktake and use the supported reversal workflow. Do not compensate with an unrelated manual quantity change.
 
@@ -154,7 +154,7 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 |---|---|---|
 | Import reports items needing review | A SKU or barcode matches variants on more than one Solvantis product | Inspect the listed products, correct the duplicate identifier, then run the import again |
 | Imported product has no stock | Catalogue import intentionally leaves stock unchanged | Preview and apply Shopify opening stock after confirming location mappings |
-| Opening-stock preview cannot map a location | Warehouse or Kotara is missing, inactive, or duplicated in either system | Correct the location names so each system has exactly one active Warehouse and one active Kotara |
+| Opening-stock preview cannot map a location | A required location is missing, inactive, or duplicated in either system | Read the location identified by the error and confirm it has exactly one active matching location in each system |
 | A Shopify quantity is negative | Shopify available stock is below zero | Review the warning; the opening-stock import applies zero |
 | Opening-stock apply stops partway through | A request or connection failed between batches | Preview again and retry; completed batches are protected from duplicate application |
 | Import stops partway through | The browser closed, the connection failed, or Shopify rejected a request | Correct the connection issue and run the import again; completed records will be updated rather than duplicated |
@@ -173,9 +173,9 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 
 A retailer connects a store with 620 products and starts **Import from Shopify**. Solvantis requests 25 products at a time, pauses between batches, creates missing products and variants, and records their Shopify image URLs. An existing SKU matches one clear IMS product, so that product is linked and refreshed. Two duplicate barcodes point to different IMS products, so those Shopify items are left for review instead of being guessed. No stock quantity changes during the import.
 
-### Establish Warehouse and Kotara opening stock
+### Establish opening stock at matched locations
 
-The opening-stock preview finds 600 linked variants. Shopify Warehouse has 2,400 available units and Shopify Kotara has 850. Solvantis shows 570 location and variant balances that differ. Staff apply the preview, and Solvantis creates completed stocktakes for each paced batch at each location. A Shopify quantity of -1 is recorded as zero and highlighted in the preview. Warehouse stock never flows into Kotara, and the import sets the final balances rather than adding to them.
+The opening-stock preview finds 600 linked variants across two supported locations, with 2,400 available units at one and 850 at the other. Solvantis shows 570 location and variant balances that differ. Staff apply the preview, and Solvantis creates completed stocktakes for each paced batch at each location. A Shopify quantity of -1 is recorded as zero and highlighted in the preview. Stock stays with its matched location, and the import sets the final balances rather than adding to them.
 
 ### Identify an unmatched size variant
 

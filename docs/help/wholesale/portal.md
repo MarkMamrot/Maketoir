@@ -62,7 +62,7 @@ When **Order Quantities** is set to **Whole packs**, each variant's **B2B Pack**
 
 ### Start an order for the correct shop
 
-Morgan is assigned to Sydney and Newcastle. The header shows Sydney, but the goods are for Newcastle. Morgan switches the buying location to Newcastle before opening Catalogue, then confirms the Newcastle shipping address in the cart before submission.
+A buyer is assigned to two stores. The header shows the first store, but the goods are for the second. The buyer switches the buying location to the second store before opening Catalogue, then confirms that store's shipping address in the cart before submission.
 
 ## Related tasks
 

@@ -79,7 +79,7 @@ By default, **POS Settings > Misc > Allow sales from incoming transfers** lets t
 
 ### Send 8 units and receive 7
 
-Bondi sends 8 black tees to QVB. The transfer becomes Sent and Bondi's source movement is recorded. QVB physically receives 7 and records that quantity, leaving the transfer Partial while the missing unit is investigated. QVB does not receive 8 or create a separate adjustment just to force the transfer closed.
+One store sends 8 black tees to another store. The transfer becomes Sent and the source store's movement is recorded. The destination store physically receives 7 and records that quantity, leaving the transfer Partial while the missing unit is investigated. The destination does not receive 8 or create a separate adjustment just to force the transfer closed.
 
 ## Related tasks
 
