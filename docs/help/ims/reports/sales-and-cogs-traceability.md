@@ -1,13 +1,13 @@
 ---
-{"id":"ims-cogs-traceability","title":"Sales and COGS Traceability","audiences":["ims"],"capability":"navigation","screen":"Reports > Sales & COGS Traceability","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-cogs-traceability"],"contextSections":{"report-cogs-traceability":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing","ims-bookkeeper-audit"],"order":62,"summary":"Trace sales, returns and captured COGS by channel, product and stock location, inspect FIFO receipt evidence, and reconcile accounting-period differences.","lastReviewed":"2026-10-08","owner":"reporting","quickSections":["Main operations","At a glance","Before you begin"]}
+{"id":"ims-cogs-traceability","title":"Sales and COGS Traceability","audiences":["ims"],"capability":"navigation","screen":"Reports > Sales & COGS Traceability","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-cogs-traceability"],"contextSections":{"report-cogs-traceability":"Main operations"},"relatedTopics":["ims-operational-reports","ims-report-guide","ims-inventory-costing","ims-bookkeeper-audit"],"order":62,"summary":"Trace sales, returns and captured COGS by channel, product and stock location, inspect FIFO receipt evidence, and reconcile accounting-period differences.","lastReviewed":"2026-10-12","owner":"reporting","quickSections":["Main operations","At a glance","Before you begin"]}
 ---
 # Sales and COGS Traceability
 
 ## Main operations
 
-Open **Reports > Sales & COGS Traceability**. Start with **Summary** grouped by Sales Channel, then use **Detail** to inspect individual sales and stock events. **Reconciliation** compares recorded stock costs with the accounting COGS period.
+Open **Reports > Sales & COGS Traceability** and work from the big picture down. **Summary** tells you where the money and margin came from, **Detail** shows the transactions behind it, and **Reconciliation** explains why the report and accounting period may differ.
 
-Use **Xero Postings** to review COGS journal runs, reconcile each accounting period, verify displayed journal statuses with Xero and open the actual journals. Opening the tab is read-only; scheduled or authorised posting workflows create journals separately.
+If you are checking month-end, jump to **Xero Postings**. It lines up each accounting period with its recorded journals, checks current journal status with Xero and links straight to the journal. Simply opening the report is read-only; it will not post or change stock.
 
 - Choose the date preset or custom range at the right, and select the date basis.
 - Use the labelled Order ref, Product / SKU, Channel and Location controls. Brand, Customer Name and Sales Order Status are under **More filters**. Empty controls do not narrow the results; **Clear filters** resets them.
@@ -50,6 +50,17 @@ Missing costs do not hide the costs that are known. The screen shows the capture
 > **Important:** Missing cost is not zero cost. A historical catalogue price or today's Average Cost is not substituted for missing recorded COGS.
 
 ## Step-by-step
+
+### Take a quick lap around the report
+
+1. Start in **Summary** with **Sales Channel** as the first grouping. This quickly separates POS, Shopify, wholesale and other channels.
+2. Add Location, Brand, SKU or Customer when you want to know what is driving a total. Keep an eye on **Partial** and **Not recorded** before trusting GP.
+3. Switch to **Detail** when a number looks odd. Search by order reference, product or SKU and check the sale, return and stock-movement evidence together.
+4. Open **Reconciliation** to compare the selected report figure with the full accounting movement period. Filters from the sales tabs do not shrink the accounting total.
+5. Use **Xero Postings** for the month-end hand-off: compare current eligible COGS with posted journals, inspect the saved location/channel split, and open the exact Xero journal.
+6. Export only after the filters and date basis look right. The CSV includes all matching results, not just the rows currently on screen.
+
+> **Tip:** A quick workflow is **Summary → Detail → Reconciliation → Xero Postings**. Start broad, chase the exceptions, then check what reached Xero.
 
 ### Compare sales channels
 

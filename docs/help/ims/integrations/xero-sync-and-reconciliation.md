@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero","activity-cogs"],"contextSections":{"xero":"Step-by-step","settings-xero":"Advisor access","activity-cogs":"Review and recover COGS postings"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-09","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero","activity-cogs"],"contextSections":{"xero":"Step-by-step","settings-xero":"Advisor access","activity-cogs":"Review and recover COGS postings"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-12","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Xero Sync and Reconciliation
 
@@ -114,22 +114,44 @@ COGS journals use the configured COGS and Inventory Asset accounts. Each positiv
 
 ## Review and recover COGS postings
 
-Open **Xero > Activity > COGS** to review completed accounting periods from the last 12 months by default. Change the date range when older evidence is required. Each period compares current eligible COGS with recorded journals and, when available, verifies linked journal status directly with Xero.
+Open **Xero > Activity > COGS** and think of it as your COGS month-end checklist. Each row answers three simple questions: what COGS should be posted, what Xero already has, and what still needs attention. The screen starts with the last 12 months; widen the date range when you need older periods.
 
 Completed configured periods remain visible even when no journal run was created. An unresolved period does not stop later completed periods from posting. Solvantis keeps the earlier month visible in Accounting Audit and creates an IMS notification so it is not silently skipped.
 
-1. Inspect the period's calculated COGS, amount Posted in Xero, difference and status. Actions are shown in their own column.
-2. Open the period to review every original or adjustment run, including its signed amount, saved location-channel lines, cost checks, safe failure detail and Xero journal link.
-3. For a confirmed failed run with no Xero journal, correct the named mapping or connection problem and press **Retry failed posting**. Solvantis retries only when the current period total still matches the failed run.
-4. If costs changed after the failed attempt, review the revised period and use **Post COGS**. Solvantis posts the current required amount instead of replaying the old journal request.
-5. When the period has missing or unexplained zero movement costs, choose **Fix Unknown COGS**. For each movement, select the current tax-exclusive AUD catalogue cost, current average cost, a foreign catalogue cost converted using the displayed current AUD rate, or enter a reviewed manual tax-exclusive AUD unit cost. **Fill blanks with Average Cost** and **Fill blanks with Cost AUD** prepare every still-empty reviewed-cost field that has that suggestion; they do not replace values already selected or save automatically. Enter the evidence reviewed, then save all selected costs together.
-6. Treat every suggestion as a review hint, not proof of historical cost. Current catalogue and average costs may have changed since the sale. A foreign hint records its native amount and displayed current conversion rate. A manual value must be AUD and tax-exclusive.
-7. A FIFO repair requires an additional acknowledgement. It changes the movement COGS cost but does not rewrite existing FIFO layers or allocations, which may retain different historical evidence.
-8. While costs are incomplete, the row offers **Fix Unknown COGS** and, for an administrator, **Post Known COGS**. It does not also show **Post COGS**. After all unknown costs are repaired, the posting choice changes to **Post COGS**.
-9. For a linked Draft or Posted journal in an unlocked Xero period, open the period and choose **Update & post journal**. Solvantis recalculates the period, replaces that same journal's lines and submits it as Posted. Xero lock dates are checked before any update.
-10. If Xero confirms that the linked journal no longer exists, the action changes to **Create replacement & post**. Solvantis creates a new journal, retains the missing journal ID in the run evidence, and links the replacement. A connection failure or unavailable live check never triggers a replacement.
-11. If the outcome is unknown, do not retry it. The screen keeps uncertain work out of posted totals until the Xero outcome can be verified.
-12. Confirm the resulting journal status and amount in Xero.
+### See how the posting is split
+
+Solvantis does not drop the whole period into one anonymous COGS line. It splits the amount by **stock location and accounting channel**, then creates a balanced COGS and Inventory Asset pair for each split. A Monsterthreads month can therefore show lines such as:
+
+| Stock activity | Journal line label |
+|---|---|
+| Shopify stock shipped from Warehouse | Warehouse - Shopify / Online |
+| Wholesale stock shipped from Warehouse | Warehouse - B2B |
+| POS sales from Newtown | Newtown - POS |
+| POS sales from QVB | QVB - POS |
+| Returned stock | The location plus Returns channel |
+
+Positive COGS debits the configured COGS account and credits Inventory Asset. A negative adjustment flips those signs. Xero tracking is added when a matching location or channel mapping is available. Open the period and expand **Journal line-item snapshot** to see the exact split saved for that run; **View journal** opens the matching manual journal in Xero.
+
+### Fix missing COGS quickly
+
+1. Find a row marked **Costs incomplete** and choose **Fix Unknown COGS**.
+2. For a quick first pass, use **Fill blanks with Average Cost** or **Fill blanks with Cost AUD**. These fill only empty reviewed-cost fields where that suggestion is available; they do not overwrite your choices or save anything yet.
+3. Check the suggestions against the historical evidence. Today's Average Cost or Cost AUD is a handy clue, but it is not automatic proof of what the item cost when it moved.
+4. Fill any remaining gaps with a reviewed tax-exclusive AUD amount, add the evidence you checked, then save the selected repairs together.
+5. FIFO repairs ask for one extra acknowledgement. They correct the movement cost without rewriting the existing FIFO layers or allocations.
+6. Refresh the period. Once the unknown costs are cleared, **Post COGS** replaces the incomplete-cost actions.
+
+> **Tip:** **Post Known COGS** is the exception path. It posts only the known subtotal with an administrator's reason and deliberately leaves the missing costs unresolved.
+
+### Finish the period
+
+1. Compare **Calculated COGS**, **Posted in Xero**, and **Difference**.
+2. Open the period to see every original or adjustment run, its saved split, cost checks, status, failure detail and journal link.
+3. For a confirmed failed run with no journal, fix the named mapping or connection problem, then choose **Retry failed posting**.
+4. If the underlying costs changed, use the newly calculated difference rather than replaying an old amount.
+5. For a linked Draft or Posted journal in an unlocked period, choose **Update & post journal**. Solvantis checks Xero's lock dates, replaces that journal's lines and submits it as Posted.
+6. If Xero confirms the journal is gone, use **Create replacement & post**. A failed live check never creates a replacement by itself.
+7. If the result is uncertain, stop and check Xero before retrying. Finish by opening **View journal** and confirming the amount and status.
 
 Administrators and Advisors with **Allow Advisors to trigger Xero syncs** can retry confirmed failures and post offered differences. Only an administrator can enter a required reason to post when missing or unexplained zero costs block the period. Draft, pending, successful, uncertain and live-unverified runs are not offered as ordinary retries.
 
