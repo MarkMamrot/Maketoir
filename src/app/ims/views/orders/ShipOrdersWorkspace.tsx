@@ -45,6 +45,7 @@ export type SalesOrderSummary = {
   so_type?: string | null;
   is_pos_ledger?: boolean;
   remaining_quantity?: number;
+  ordered_quantity?: number;
   delivery_country?: string | null;
   preparation_shipment_id?: number | null;
 };
@@ -822,6 +823,13 @@ export function ShipOrdersWorkspace({
                 <OrderShippingPreparation orders={readyOrders} shipments={savedShipments} accounts={accounts} presets={presets}
                   busy={workspaceBusy} destinationBatchId={destinationBatchId}
                   onDirtyChange={setPrepareDirty} onBusyChange={setSaving}
+                  onPresetsChanged={async () => {
+                    const response = await fetch("/api/ims/shipping/settings", { cache: "no-store" });
+                    const result = await readJsonResponse(response);
+                    if (!response.ok || !result.success) throw new Error(result.error || "Unable to refresh package presets.");
+                    const refreshed: Array<PackingPreset & { isActive?: boolean }> = result.data.presets;
+                    setPresets(refreshed.filter(preset => preset.isActive !== false));
+                  }}
                   onOpenProducts={() => { if (requestWorkspaceClose()) window.location.hash = "products"; }}
                   onChanged={async () => { await refreshWorkspace(); }}
                   onAdd={async (ids, destination) => {

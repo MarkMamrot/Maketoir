@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   }
   const prioritizedIds = [...new Set(selectedIds.map(Number))];
   try {
-    const rows = await imsQuery<{ id: number | string; remaining_quantity: number | string }>(
+    const rows = await imsQuery<{ id: number | string; ordered_quantity: number | string; remaining_quantity: number | string }>(
       `SELECT sales_order.id, sales_order.so_number, sales_order.status, sales_order.so_type,
               sales_order.sales_channel, sales_order.shopify_order_name, sales_order.native_checkout_id,
               sales_order.channel_shipping_method, sales_order.channel_delivery_type,
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
                   AND preparation.status IN ('draft', 'failed') AND membership.batch_key IS NULL
                 ORDER BY preparation.id DESC LIMIT 1) AS preparation_shipment_id,
               contact.name AS customer_name,
+              SUM(order_item.qty_ordered) AS ordered_quantity,
               SUM(GREATEST(order_item.qty_ordered - COALESCE(order_item.qty_fulfilled, 0), 0)) AS remaining_quantity
          FROM ims_sales_orders sales_order
          JOIN ims_sales_order_items order_item ON order_item.so_id = sales_order.id
@@ -71,6 +72,7 @@ export async function GET(request: Request) {
       data: rows.map((row) => ({
         ...row,
         id: Number(row.id),
+        ordered_quantity: Number(row.ordered_quantity),
         remaining_quantity: Number(row.remaining_quantity),
       })),
     });

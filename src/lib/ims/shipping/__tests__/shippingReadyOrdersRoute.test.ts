@@ -13,18 +13,21 @@ const request = (selection?: string) => new Request(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.session.mockResolvedValue({ businessId: "tenant-a" });
-  mocks.query.mockResolvedValue([{ id: "10", remaining_quantity: "1.5" }]);
+  mocks.query.mockResolvedValue([{ id: "10", ordered_quantity: "3.5", remaining_quantity: "1.5" }]);
 });
 
 describe("ready shipping orders", () => {
   it("keeps the default oldest-first queue and numeric output", async () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true, data: [{ id: 10, remaining_quantity: 1.5 }] });
+    expect(await response.json()).toEqual({ success: true, data: [{ id: 10, ordered_quantity: 3.5, remaining_quantity: 1.5 }] });
     expect(mocks.query).toHaveBeenCalledWith(
       expect.stringContaining("ORDER BY sales_order.order_date, sales_order.id"),
       ["tenant-a"],
     );
+    const [sql] = mocks.query.mock.calls[0];
+    expect(sql).toContain("SUM(order_item.qty_ordered) AS ordered_quantity");
+    expect(sql).toContain("SUM(GREATEST(order_item.qty_ordered - COALESCE(order_item.qty_fulfilled, 0), 0)) AS remaining_quantity");
   });
 
   it("prioritizes selected orders before the limit without bypassing eligibility or tenant filtering", async () => {

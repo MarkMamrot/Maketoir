@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
   validateCarrierAccountInput,
   validatePackagePresetInput,
@@ -20,6 +21,10 @@ export async function GET() {
     ]);
     return NextResponse.json({ success: true, data: { accounts, presets } });
   } catch (error) {
+    await reportRuntimeIssue({
+      businessId: session.businessId, source: 'ims_shipping', operation: 'load_shipping_settings',
+      title: 'Shipping settings could not be loaded', error,
+    });
     return NextResponse.json({ success: false, error: safeMessage(error, 'Unable to load shipping settings.') }, { status: 500 });
   }
 }
@@ -53,6 +58,7 @@ async function saveResource(request: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
+  let savingPreset = false;
   try {
     const body = await request.json();
     if (body?.resource === 'account') {
@@ -66,6 +72,7 @@ async function saveResource(request: Request) {
       return NextResponse.json({ success: true, id });
     }
     if (body?.resource === 'preset') {
+      savingPreset = true;
       const input = body.data as PackagePresetInput;
       const errors = validatePackagePresetInput(input);
       if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 });
@@ -85,6 +92,15 @@ async function saveResource(request: Request) {
     }
     return NextResponse.json({ error: 'Choose a shipping settings resource.' }, { status: 400 });
   } catch (error) {
+    if (savingPreset && typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json({
+        success: false, error: 'A package preset with that name already exists. Choose a different name or select the existing preset.',
+      }, { status: 409 });
+    }
+    await reportRuntimeIssue({
+      businessId: session.businessId, source: 'ims_shipping', operation: 'save_shipping_settings',
+      title: 'Shipping settings could not be saved', error, context: { resource: savingPreset ? 'preset' : 'other' },
+    });
     return NextResponse.json({ success: false, error: safeMessage(error, 'Unable to save shipping settings.') }, { status: 500 });
   }
 }

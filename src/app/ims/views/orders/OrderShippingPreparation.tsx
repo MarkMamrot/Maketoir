@@ -6,6 +6,7 @@ import type { ShippingEditableDetail } from "@/lib/ims/shipping/shippingAmendmen
 import type { ShippingExportPurpose } from "@/lib/ims/shipping/customs";
 import { isAustralianShippingCountry } from "@/lib/ims/shipping/shippingWorkflow";
 import { millimetresToCentimetreInput } from "@/lib/ims/shipping/parcelDimensions";
+import { buildDimensionPresetInput, validatePackagePresetInput } from "@/lib/ims/shipping/shippingSettings";
 import { workspaceParcelItemLabel, workspaceParcelQuantityIssue } from "@/lib/ims/shipping/workspaceParcelQuantities";
 import { buildNonSaleDeclaredValueInputs, buildWorkspaceCustomsRows, getWorkspaceCustomsBlockers } from "@/lib/ims/shipping/workspaceCustoms";
 import { groupWorkspaceBatches, workspaceBatchLabel, workspaceContentsProductName, workspaceMembershipBlocker, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
@@ -22,10 +23,11 @@ const emptyParcel = (parcelNumber: number): ParcelForm => ({
   parcelNumber, packageType: "custom", lengthCm: "", widthCm: "", heightCm: "", weightKg: "", allocations: [],
 });
 
-export function OrderShippingPreparation({ orders, shipments, accounts, presets, busy, destinationBatchId, onChanged, onAdd, onDirtyChange, onBusyChange, onOpenProducts }: {
+export function OrderShippingPreparation({ orders, shipments, accounts, presets, busy, destinationBatchId, onChanged, onPresetsChanged, onAdd, onDirtyChange, onBusyChange, onOpenProducts }: {
   orders: SalesOrderSummary[]; shipments: WorkspaceShipment[]; accounts: CarrierAccount[]; presets: PackingPreset[];
   busy: boolean; destinationBatchId: string;
   onChanged: () => Promise<void>;
+  onPresetsChanged: () => Promise<void>;
   onAdd: (ids: number[], destination: BatchDestination) => Promise<boolean>;
   onDirtyChange: (dirty: boolean) => void;
   onBusyChange: (busy: boolean) => void;
@@ -60,7 +62,7 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
       selected={selection.includes(order.id)}
       onSelect={checked => setSelected(current => checked ? [...new Set([...current, order.id])] : current.filter(id => id !== order.id))}
       onState={state => setStates(current => ({ ...current, [order.id]: state }))}
-      onSaved={onChanged} onOpenProducts={onOpenProducts} />)}
+      onSaved={onChanged} onPresetsChanged={onPresetsChanged} onOpenProducts={onOpenProducts} />)}
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
       <span style={{ fontSize: 12 }}>{selection.length} measured order{selection.length === 1 ? "" : "s"} selected</span>
       <label style={{ fontSize: 12 }}>Add to{" "}
@@ -79,10 +81,11 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
   </section>;
 }
 
-function OrderPreparationCard({ order, striped, savedRevision, accountId, presets, busy, selected, onSelect, onState, onSaved, onOpenProducts }: {
+function OrderPreparationCard({ order, striped, savedRevision, accountId, presets, busy, selected, onSelect, onState, onSaved, onPresetsChanged, onOpenProducts }: {
   order: SalesOrderSummary; striped: boolean; savedRevision?: number; accountId: number; presets: PackingPreset[];
   busy: boolean; selected: boolean; onSelect: (checked: boolean) => void;
   onState: (state: CardState) => void; onSaved: () => Promise<void>;
+  onPresetsChanged: () => Promise<void>;
   onOpenProducts: () => void;
 }) {
   const [parcels, setParcels] = useState<ParcelForm[]>([emptyParcel(1)]);
@@ -91,6 +94,12 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(Boolean(order.preparation_shipment_id));
   const [saving, setSaving] = useState(false);
+  const [presetDraft, setPresetDraft] = useState<{ parcelIndex: number; name: string } | null>(null);
+  const [presetSaving, setPresetSaving] = useState(false);
+  const [presetError, setPresetError] = useState("");
+  const [presetMessage, setPresetMessage] = useState("");
+  const presetDraftRef = useRef(presetDraft);
+  presetDraftRef.current = presetDraft;
   const [error, setError] = useState("");
   const [showContents, setShowContents] = useState(false);
   const [purpose, setPurpose] = useState<ShippingExportPurpose>("sale");
@@ -103,8 +112,11 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
   const callbacks = useRef({ onState, onSaved });
   callbacks.current = { onState, onSaved };
   useEffect(() => {
-    callbacks.current.onState({ shipmentId: saved?.shipmentId ?? null, ready: Boolean(saved && !dirty && !loading && !error), dirty, saving });
-  }, [saved, dirty, saving, loading, error]);
+    callbacks.current.onState({
+      shipmentId: saved?.shipmentId ?? null, ready: Boolean(saved && !dirty && !loading && !error && !presetDraft),
+      dirty: dirty || Boolean(presetDraft), saving: saving || presetSaving,
+    });
+  }, [saved, dirty, saving, loading, error, presetDraft, presetSaving]);
   const loadSaved = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError("");
@@ -139,7 +151,7 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
   }, [order.id]);
   useEffect(() => {
     if (!order.preparation_shipment_id) return;
-    if (dirtyRef.current) { setError("Saved preparation changed while you were editing. Reload saved dimensions before continuing."); return; }
+    if (dirtyRef.current || presetDraftRef.current) { setError("Saved preparation changed while you were editing. Reload saved dimensions before continuing."); return; }
     const controller = new AbortController();
     void loadSaved(controller.signal);
     return () => controller.abort();
@@ -222,23 +234,67 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
       setError(reason instanceof Error ? reason.message : "Unable to save dimensions. Retry with unchanged details to check the outcome.");
     } finally { setSaving(false); }
   }
-  const disabled = busy || loading || saving;
+  async function saveDimensionPreset() {
+    if (!presetDraft || presetSaving) return;
+    const data = buildDimensionPresetInput(presetDraft.name, parcels[presetDraft.parcelIndex]);
+    const errors = validatePackagePresetInput(data);
+    if (errors.length) { setPresetError(errors.join(" ")); return; }
+    if (presets.some(preset => preset.name.trim().toLowerCase() === data.name.toLowerCase())) {
+      setPresetError("A preset with that name already exists. Choose a different name or select the existing preset.");
+      return;
+    }
+    setPresetSaving(true);
+    setPresetError("");
+    setPresetMessage("");
+    let created = false;
+    try {
+      const response = await fetch("/api/ims/shipping/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource: "preset", data }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Unable to save the dimension preset.");
+      created = true;
+      setPresetDraft(null);
+      await onPresetsChanged();
+      setPresetMessage(`Preset "${data.name}" saved and available to all staff in this business.`);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Unable to save the dimension preset. Check Settings > Shipping before retrying.";
+      setPresetError(created ? `The preset was saved, but the list could not be refreshed. Refresh the workstation before saving it again. ${message}` : message);
+    } finally { setPresetSaving(false); }
+  }
+  const disabled = busy || loading || saving || presetSaving;
   const contents = detail ? allocated(parcels, detail) : parcels;
   const international = !isAustralianShippingCountry(order.delivery_country || "");
+  const orderFields = [
+    ["Sales order", order.so_number],
+    ["Channel order", order.shopify_order_name || order.channel_order_number || order.native_checkout_id || "Not supplied"],
+    ["Customer", order.customer_name || "No customer name"],
+    ["Country", order.delivery_country || "Destination required"],
+    ["Ordered units", order.ordered_quantity ?? "Unavailable"],
+    ["Units left to ship", order.remaining_quantity ?? "Unavailable"],
+    ["Shipping method", order.channel_shipping_method || "Not specified"],
+  ] as const;
   return <article aria-label={`Parcel preparation ${order.so_number}`} style={{ padding: 16, borderTop: "2px solid var(--sv-gray-700)", background: striped ? "var(--sv-bg-2)" : "var(--sv-bg-1)", minWidth: 0 }}>
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", fontSize: 12, paddingBottom: 12, borderBottom: "2px solid var(--sv-etch)" }}>
-      <input type="checkbox" aria-label={`Select measured order ${order.so_number}`} disabled={disabled || !saved || dirty || Boolean(error)} checked={selected}
+      <input type="checkbox" aria-label={`Select measured order ${order.so_number}`} disabled={disabled || !saved || dirty || Boolean(error) || Boolean(presetDraft)} checked={selected}
         onChange={event => onSelect(event.target.checked)} />
-      <div style={{ flex: "1 1 180px" }}><strong>{order.so_number}</strong>{(order.shopify_order_name || order.channel_order_number || order.native_checkout_id) && <span style={{ marginLeft: 8, color: "var(--sv-text-dim)" }}>{order.shopify_order_name || order.channel_order_number || order.native_checkout_id}</span>}
-        <div style={{ marginTop: 4 }}>{order.customer_name || "No customer name"} · {order.delivery_country || "Destination required"} · {order.remaining_quantity ?? ""} remaining units</div>
-        {order.channel_shipping_method && <div style={{ marginTop: 4, color: "var(--sv-text-dim)" }}>{order.channel_shipping_method}</div>}
-        {detail && <div style={{ marginTop: 4, color: "var(--sv-text-dim)" }}>{saved ? [...saved.recipient.lines, saved.recipient.suburb, saved.recipient.state, saved.recipient.postcode].filter(Boolean).join(", ") : [detail.delivery_address, detail.delivery_suburb, detail.delivery_state, detail.delivery_postcode].filter(Boolean).join(", ")}</div>}
+      <div style={{ flex: "1 1 0", minWidth: 0 }}>
+        <dl aria-label={`Order details for ${order.so_number}`} style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 6, margin: 0 }}>
+          {orderFields.map(([label, value]) => <div key={label} style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            <dt style={{ display: "inline", fontWeight: 600 }}>{label}: </dt>
+            <dd style={{ display: "inline", margin: 0, fontWeight: label === "Sales order" ? 600 : 400 }}>{value}</dd>
+          </div>)}
+        </dl>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginTop: 8, color: "var(--sv-text-dim)" }}>
+          {detail && <span>Delivery address: {saved ? [...saved.recipient.lines, saved.recipient.suburb, saved.recipient.state, saved.recipient.postcode].filter(Boolean).join(", ") : [detail.delivery_address, detail.delivery_suburb, detail.delivery_state, detail.delivery_postcode].filter(Boolean).join(", ")}</span>}
+          <span role="status" style={{ marginLeft: "auto", color: saved && !dirty && !error ? "var(--sv-green)" : "var(--sv-text-dim)" }}>{loading ? "Loading saved dimensions..." : saving ? "Saving dimensions..." : presetSaving ? "Saving preset..." : error ? "Needs attention" : saved && !dirty ? "Dimensions saved · ready for batch" : dirty ? "Unsaved dimensions" : "Dimensions required"}</span>
+        </div>
       </div>
-      <span role="status" style={{ color: saved && !dirty && !error ? "var(--sv-green)" : "var(--sv-text-dim)" }}>{loading ? "Loading saved dimensions..." : saving ? "Saving dimensions..." : error ? "Needs attention" : saved && !dirty ? "Dimensions saved · ready for batch" : dirty ? "Unsaved dimensions" : "Dimensions required"}</span>
     </div>
     <fieldset disabled={disabled} style={{ padding: 0, margin: "12px 0 0", border: 0, minWidth: 0 }}>
       {parcels.map((parcel, index) => <div key={index} style={{ marginTop: index ? 12 : 0 }}>
-        {parcels.length > 1 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>Parcel {index + 1}<button type="button" style={button} onClick={() => {
+        {parcels.length > 1 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>Parcel {index + 1}<button type="button" style={button} disabled={Boolean(presetDraft)} onClick={() => {
           if (!window.confirm("Remove this parcel and move its items to the first parcel? Recheck packed measurements and weight.")) return;
           try { const remaining = removeSavedParcel(parcels, index); changed(() => setParcels(remaining)); }
           catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to remove parcel."); }
@@ -252,8 +308,25 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
           }}><option value="">Manual dimensions</option>{presets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label>
           {([["lengthCm", "Length (cm)"], ["widthCm", "Width (cm)"], ["heightCm", "Height (cm)"], ["weightKg", "Packed weight (kg)"]] as const).map(([field, label]) => <label key={field} style={{ fontSize: 12 }}>{label}<input aria-label={`${order.so_number} parcel ${index + 1} ${label}`} style={input} type="number" min="0" step="any" value={parcel[field]} onChange={event => changed(() => setParcels(current => current.map((item, i) => i === index ? { ...item, [field]: event.target.value } : item)))} /></label>)}
         </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <button type="button" style={{ ...button, fontSize: 12 }} disabled={Boolean(presetDraft)} onClick={() => {
+            setPresetDraft({ parcelIndex: index, name: "" }); setPresetError(""); setPresetMessage("");
+          }}>Save as preset</button>
+        </div>
+        {presetDraft?.parcelIndex === index && <form aria-label={`Save dimension preset for ${order.so_number} parcel ${index + 1}`} style={{ marginTop: 8, padding: 12, border: "1px solid var(--sv-etch)", borderRadius: 5, background: "var(--sv-bg-2)", fontSize: 12 }} onSubmit={event => {
+          event.preventDefault(); void saveDimensionPreset();
+        }}>
+          <div style={{ display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 8 }}>
+            <label style={{ flex: "1 1 180px", maxWidth: 300 }}>Preset name<input aria-label={`${order.so_number} preset name`} style={input} maxLength={120} value={presetDraft.name} onChange={event => { setPresetDraft({ ...presetDraft, name: event.target.value }); setPresetError(""); }} /></label>
+            <button type="submit" style={button}>{presetSaving ? "Saving preset..." : "Save preset"}</button>
+            <button type="button" style={button} onClick={() => { setPresetDraft(null); setPresetError(""); }}>Cancel preset</button>
+          </div>
+          <p style={{ margin: "8px 0 0", color: "var(--sv-text-dim)" }}>Saves this parcel&apos;s length, width and height for all staff in this business. Packed weight is not saved; weigh each future parcel.</p>
+        </form>}
         {parcels.length > 1 && <details style={{ fontSize: 12, marginTop: 8 }} open><summary>Allocate items between parcels</summary>{(detail?.items ?? []).map(item => <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>{workspaceParcelItemLabel(item)}<input aria-label={`${order.so_number} parcel ${index + 1} allocation ${item.id}`} style={{ ...input, width: 80 }} type="number" min="0" step="any" value={parcel.allocations.find(allocation => allocation.soItemId === item.id)?.quantity ?? "0"} onChange={event => changed(() => setParcels(current => current.map((p, i) => i !== index ? p : { ...p, allocations: (detail?.items ?? []).map(line => ({ soItemId: line.id, quantity: line.id === item.id ? event.target.value : p.allocations.find(allocation => allocation.soItemId === line.id)?.quantity ?? "0" })) })))} /></label>)}</details>}
       </div>)}
+      {presetError && <div role="alert" style={{ marginTop: 8, color: "var(--sv-red)", fontSize: 12 }}>{presetError}</div>}
+      {presetMessage && <div role="status" style={{ marginTop: 8, fontSize: 12 }}>{presetMessage}</div>}
       <p style={{ fontSize: 11, color: "var(--sv-text-dim)", margin: "6px 0" }}>Use actual packed measurements, including packaging. All remaining items go in one parcel unless you split it.</p>
       <div id={`shipping-order-contents-${order.id}`} hidden={!showContents} style={{ marginTop: 12, border: "1px solid var(--sv-etch)", borderRadius: 5, overflow: "hidden" }}>
         <table aria-label={`Contents of ${order.so_number}`} style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12 }}>
@@ -298,20 +371,21 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
       </div>}
       {saved && <p style={{ margin: "12px 0 0", fontSize: 11, color: "var(--sv-text-dim)" }}>Changes require a new postage selection in the batch.</p>}
       <div role="group" aria-label={`Preparation actions for ${order.so_number}`} style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, width: "100%", maxWidth: 600, marginTop: 14, paddingTop: 12, borderTop: "2px solid var(--sv-etch)" }}>
-        <button type="button" style={{ ...preparationButton, background: "var(--sv-action)", color: "white" }} disabled={!accountId || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
+        <button type="button" style={{ ...preparationButton, background: "var(--sv-action)", color: "white" }} disabled={Boolean(presetDraft) || !accountId || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
         <button type="button" style={preparationButton} aria-expanded={showContents} aria-controls={`shipping-order-contents-${order.id}`} onClick={async () => {
           setError("");
           try { await loadOrder(); setShowContents(current => !current); }
           catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to show items."); }
         }}>{showContents ? "Hide contents" : "Show contents"}</button>
-        <button type="button" style={preparationButton} onClick={async () => {
+        <button type="button" style={preparationButton} disabled={Boolean(presetDraft)} onClick={async () => {
           try { const loaded = await loadOrder(); changed(() => setParcels(current => [...allocated(current, loaded), { ...emptyParcel(current.length + 1), allocations: (loaded.items ?? []).map(item => ({ soItemId: item.id, quantity: "0" })) }])); }
           catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to split parcels."); }
         }}>Split into another parcel</button>
       </div>
     </fieldset>
     {error && <div role="alert" style={{ marginTop: 8, color: "var(--sv-red)", fontSize: 12 }}>{error}{order.preparation_shipment_id && <button type="button" disabled={saving || busy} style={{ ...button, marginLeft: 8 }} onClick={() => {
-      if (dirtyRef.current && !window.confirm("Reload saved dimensions and discard your unsaved changes?")) return;
+      if ((dirtyRef.current || presetDraftRef.current) && !window.confirm("Reload saved dimensions and discard your unsaved changes?")) return;
+      setPresetDraft(null); setPresetError("");
       void loadSaved();
     }}>Reload saved dimensions</button>}</div>}
   </article>;

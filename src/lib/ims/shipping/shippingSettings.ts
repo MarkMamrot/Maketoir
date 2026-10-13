@@ -1,4 +1,5 @@
 import { SHIPPING_PROVIDERS, type ShippingProvider } from './types';
+import { centimetreInputToMillimetres } from './parcelDimensions';
 
 export type CarrierAccountInput = {
   id?: number;
@@ -24,6 +25,18 @@ export type PackagePresetInput = {
   sortPriority?: number;
   isActive?: boolean;
 };
+
+export function buildDimensionPresetInput(name: string, dimensions: {
+  lengthCm: string; widthCm: string; heightCm: string;
+}): PackagePresetInput {
+  return {
+    name: name.trim(), packageType: 'custom',
+    lengthMm: centimetreInputToMillimetres(dimensions.lengthCm),
+    widthMm: centimetreInputToMillimetres(dimensions.widthCm),
+    heightMm: centimetreInputToMillimetres(dimensions.heightCm),
+    tareWeightKg: 0, maxWeightKg: null, allowRotation: true, isActive: true,
+  };
+}
 
 export function validateCarrierAccountInput(input: CarrierAccountInput, credentialsAlreadyStored = false): string[] {
   const errors: string[] = [];

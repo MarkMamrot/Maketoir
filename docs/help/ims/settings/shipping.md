@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Main operations"},"order":53,"summary":"Connect Australia Post eParcel, define package presets, prepare parcels, manage working batches, and understand carrier restrictions before dispatch.","lastReviewed":"2026-10-12","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Main operations"},"order":53,"summary":"Connect Australia Post eParcel, define package presets, prepare parcels, manage working batches, and understand carrier restrictions before dispatch.","lastReviewed":"2026-10-13","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 # Shipping Settings
 
@@ -11,6 +11,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 - Test saved credentials against the Australia Post production Shipping API.
 - Keep MyPost Business unavailable until approved partner access is supported.
 - Add package presets with internal dimensions, tare weight and an optional maximum weight.
+- Use **Save as preset** in Shipping Workspace's **Prepare** tab to save a parcel's measurements as a named custom package for all staff in the same business. Packed weight is not saved; weigh each future parcel.
 - Add selected Australia Post reference packaging to the editable preset list.
 - **Save dimensions** beneath each ready order in **Prepare**, batch measured orders, then choose postage inside **Batches**; manifests remain the later carrier lodgement step.
 - Create one manifest for each carrier account and physical pickup location, then print its lodgement summary.
@@ -44,6 +45,8 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 8. Review imported dimensions and enter a measured tare weight where needed. Carrier packaging and service limits can change.
 9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.
 10. Save the preset. It becomes available when preparing selected Sales Orders.
+
+Alternatively, in Shipping Workspace's **Prepare** tab, enter a parcel's length, width and height in centimetres, select **Save as preset**, enter a unique name, and select **Save preset**. The new custom package appears immediately in the preset dropdowns and can be maintained in **Settings > Shipping**. This shortcut saves dimensions only: it starts with no empty-package weight or maximum-weight limit, and product rotation enabled. Review those settings before relying on packing suggestions. Saving a preset does not save the order's preparation or buy postage; use **Save dimensions** separately for the actual parcel details.
 
 > **Note:** Saving dimensions, making a batch and saving a postage service do not purchase postage or reduce stock. The confirmed **Submit to Australia Post & create labels** action creates billable carrier shipments. **Mark dispatched** reduces stock when labelled parcels physically leave.
 
