@@ -17,7 +17,7 @@ The Marketoir application now supports a role-based access control (RBAC) system
 
 - **Access:**
   - Everything including `/admin/users` management page
-  - All IMS, Inventory, Marketing features
+  - IMS and Inventory features; Marketing Activities and AI Helper tests when enabled for the active business
   - Settings & Setup
   - User Management UI
 
@@ -31,7 +31,7 @@ The Marketoir application now supports a role-based access control (RBAC) system
   - Can assign tiers: Admin, StandardUser, PosUser
 
 - **Access:**
-  - All IMS, Inventory, Marketing features
+  - IMS and Inventory features, excluding SuperAdmin-only test tools
   - Settings & Setup pages
   - User Management UI (`/admin/users`)
   - Cannot access `/admin/users` to manage SuperAdmin users
@@ -39,14 +39,14 @@ The Marketoir application now supports a role-based access control (RBAC) system
 ### 3. **StandardUser** (Default - Access Everything Except Settings)
 - **Permissions:**
   - Access all core application features
-  - Can view and manage IMS, Inventory, Marketing
+  - Can view and manage IMS and Inventory
   - Cannot modify settings or system configuration
   - Cannot manage users
   - Cannot access Setup pages
 
 - **Access:**
   - IMS, Inventory Management
-  - Marketing Activities
+  - Marketing Activities and AI Helper are not available: both are SuperAdmin-only tests
   - Website Management
   - Customer Service
   - Business Intelligence (read-only)
@@ -139,7 +139,8 @@ getTierDescription(tier): string
 |---------|-----------|-------|--------------|---------|
 | Dashboard | ✅ | ✅ | ✅ | ❌ |
 | IMS/Inventory | ✅ | ✅ | ✅ | ❌ |
-| Marketing | ✅ | ✅ | ✅ | ❌ |
+| Marketing Activities (Test, business rollout required) | ✅ | ❌ | ❌ | ❌ |
+| AI Helper (Test, business rollout required) | ✅ | ❌ | ❌ | ❌ |
 | Website Management | ✅ | ✅ | ✅ | ❌ |
 | Customer Service | ✅ | ✅ | ✅ | ❌ |
 | POS System | ✅ | ✅ | ✅ | ✅ |
@@ -252,13 +253,14 @@ node scripts/migrate-user-tiers.mjs
 - Create user with Admin tier
 - Log in as Admin
 - Verify no access to `/admin/users` (403)
-- Verify full access to other features
+- Verify normal IMS access, but no access to Marketing Activities or AI Helper even when the business rollout is on
 
 ### Test Case 3: StandardUser Restrictions
 - Create user with StandardUser tier
 - Log in as StandardUser
 - Verify no access to Settings (403)
-- Verify full access to Dashboard, IMS, Marketing
+- Verify normal access to the IMS Dashboard and core IMS workflows
+- Verify Marketing Activities and AI Helper are hidden and their API requests return 403 even when the business rollout is on
 
 ### Test Case 4: PosUser Restrictions
 - Create user with PosUser tier

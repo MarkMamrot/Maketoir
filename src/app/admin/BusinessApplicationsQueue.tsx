@@ -39,7 +39,7 @@ export function BusinessApplicationsQueue() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const [hasForesight, setHasForesight] = useState(true);
+  const hasForesight = true;
   const [hasIms, setHasIms] = useState(true);
   const [hasPos, setHasPos] = useState(true);
   const [aiPlanKey, setAiPlanKey] = useState('starter');
@@ -167,7 +167,6 @@ export function BusinessApplicationsQueue() {
                 <div style={{ borderTop: '1px solid var(--sv-border)', paddingTop: 18 }}>
                   <strong style={{ fontSize: 13 }}>Module Access</strong>
                   <div style={{ marginTop: 9, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    <label style={{ fontSize: 12 }}><input type="checkbox" checked={hasForesight} onChange={e => setHasForesight(e.target.checked)} /> Intel & Automation</label>
                     <label style={{ fontSize: 12 }}><input type="checkbox" checked={hasIms} onChange={e => setHasIms(e.target.checked)} /> IMS</label>
                     <label style={{ fontSize: 12 }}><input type="checkbox" checked={hasPos} onChange={e => setHasPos(e.target.checked)} /> POS</label>
                   </div>

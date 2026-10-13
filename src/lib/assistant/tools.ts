@@ -134,7 +134,7 @@ export const assistantToolDefinitions: AssistantToolDefinition[] = [
   { name: 'ims_xero_sync_diagnostics', description: 'Check local Xero connection readiness, up to 30 currently queued source documents, and categorized recent failed or skipped sync events. Does not contact Xero, retry work, or expose raw error details, tokens, contacts, or payloads.', audiences: ['ims'], arguments: { days: 'Failure-history lookback from 1 to 365 days; defaults to 30' }, maxRows: 30 },
   { name: 'ims_shopify_sync_diagnostics', description: 'Check local Shopify connection readiness, order-sync and webhook-secret configuration, catalogue linkage counts, and up to 30 recent sync outcomes. Does not contact Shopify, inspect live webhook registration, make changes, or expose credentials and raw payloads.', audiences: ['ims'], arguments: {}, maxRows: 30 },
   { name: 'ims_marketing_performance', description: 'Summarise 1 to 90 complete business days of governed paid-media and authoritative commerce metrics, including spend, platform attribution, MER, tax-inclusive sales, extracted tax, and data-quality caveats. Account and campaign identities are omitted.', audiences: ['ims'], arguments: { days: 'Complete-day lookback from 1 to 90 days; defaults to 30' } },
-  { name: 'ims_marketing_recommendations', description: 'Find up to 20 stored Intel & Automation marketing recommendations with sanitized evidence, review state, confidence, and operational follow-up status. Does not generate, approve, reject, execute, or modify recommendations.', audiences: ['ims'], arguments: { state: 'open, all, or an exact recommendation state' }, maxRows: 20 },
+  { name: 'ims_marketing_recommendations', description: 'Find up to 20 stored Marketing Activities marketing recommendations with sanitized evidence, review state, confidence, and operational follow-up status. Does not generate, approve, reject, execute, or modify recommendations.', audiences: ['ims'], arguments: { state: 'open, all, or an exact recommendation state' }, maxRows: 20 },
   { name: 'pos_product_lookup', description: 'Find product price and stock at the signed-in POS location.', audiences: ['pos'], arguments: { search: 'Product name, SKU, or barcode' } },
   { name: 'pos_session_context', description: 'Return the signed-in POS location and register context.', audiences: ['pos'], arguments: {} },
   { name: 'pos_register_status', description: 'Check the verified POS register session, tax-inclusive sales totals, extracted GST, expected payment-method takings net of petty cash, and whether End of Day counts have been saved. Staff and customer identities are omitted.', audiences: ['pos'], arguments: {} },
@@ -685,7 +685,7 @@ async function lookupImsShopifyDiagnostics(principal: ImsAssistantPrincipal) {
 async function assertMarketingEnabled(businessId: string) {
   const features = await getBusinessFeatureFlags(businessId);
   if (!features['foresight.marketing']) {
-    throw new AssistantToolAccessError('Intel & Automation Marketing is not enabled for this business.');
+    throw new AssistantToolAccessError('Marketing Activities Marketing is not enabled for this business.');
   }
 }
 

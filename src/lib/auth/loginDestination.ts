@@ -4,7 +4,7 @@ export type LoginDestination = 'ims' | 'foresight' | 'pos';
 
 const DESTINATION_ROUTES: Record<LoginDestination, string> = {
   ims: '/ims',
-  foresight: '/dashboard',
+  foresight: '/ims',
   pos: '/pos',
 };
 
@@ -14,8 +14,7 @@ export function parseLoginDestination(value: unknown): LoginDestination | null {
 
 export function canAccessLoginDestination(tier: UserTier, destination: LoginDestination): boolean {
   const permissions = getTierPermissions(tier);
-  if (destination === 'ims') return permissions.canAccessIMS;
-  if (destination === 'foresight') return permissions.canAccessDashboard;
+  if (destination === 'ims' || destination === 'foresight') return permissions.canAccessIMS;
   return permissions.canAccessPOS;
 }
 

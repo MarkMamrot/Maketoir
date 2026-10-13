@@ -26,7 +26,7 @@ export type ShippingDraftInput = {
   operationKey: string;
   batchId?: string | null;
   preparationOnly?: boolean;
-  carrierAccountId: number;
+  carrierAccountId: number | null;
   shipments: Array<
     ShippingRequestInput["shipments"][number] & {
       service?: {
@@ -42,7 +42,8 @@ export type ShippingDraftInput = {
 
 export type ShippingRequestInput = {
   businessId: string;
-  carrierAccountId: number;
+  carrierAccountId: number | null;
+  preparationOnly?: boolean;
   shipments: Array<{
     soId: number;
     recipient?: ShippingAmendmentRecipient;
@@ -59,7 +60,7 @@ export type ShippingRequestInput = {
 };
 
 export type PreparedShippingRequest = {
-  account: { id: number; provider: string; dispatchLocationId: number | null };
+  account: { id: number | null; provider: string; dispatchLocationId: number | null };
   entries: Array<{
     requested: ShippingRequestInput["shipments"][number];
     order: NonNullable<Awaited<ReturnType<typeof ImsSORepo.get>>> & {
@@ -256,12 +257,13 @@ export async function createShippingDrafts(
 export async function prepareShippingRequest(
   input: ShippingRequestInput,
 ): Promise<PreparedShippingRequest> {
-  if (!Number.isInteger(input.carrierAccountId) || input.carrierAccountId <= 0)
-    throw new Error("Choose a carrier account.");
+  const deferredCarrier = input.preparationOnly === true && input.carrierAccountId === null;
+  if (!deferredCarrier && (input.carrierAccountId === null || !Number.isInteger(input.carrierAccountId) || input.carrierAccountId <= 0))
+    throw new ShippingBatchError("Choose a carrier account.", 400);
   if (!input.shipments.length)
-    throw new Error("Choose at least one sales order.");
+    throw new ShippingBatchError("Choose at least one sales order.", 400);
 
-  const accountRows = await queryRows<
+  const accountRows = deferredCarrier ? [] : await queryRows<
     RowDataPacket & {
       id: number;
       provider: string;
@@ -273,13 +275,13 @@ export async function prepareShippingRequest(
     [input.businessId, input.carrierAccountId],
   );
   const accountRow = accountRows[0];
-  if (!accountRow) throw new Error("Active carrier account not found.");
+  if (!deferredCarrier && !accountRow) throw new ShippingBatchError("Active carrier account not found.", 400);
 
   const entries: PreparedShippingRequest["entries"] = [];
   for (const requested of input.shipments) {
     const order = await ImsSORepo.get(Number(requested.soId), input.businessId);
     if (!order?.items)
-      throw new Error(`Sales order ${requested.soId} was not found.`);
+      throw new ShippingBatchError(`Sales order ${requested.soId} was not found.`, 400);
     const remainingQuantity = order.items.reduce(
       (sum, item) =>
         sum +
@@ -297,7 +299,7 @@ export async function prepareShippingRequest(
       remainingQuantity,
     });
     if (!eligibility.eligible)
-      throw new Error(`${order.so_number}: ${eligibility.reason}`);
+      throw new ShippingBatchError(`${order.so_number}: ${eligibility.reason}`, 400);
     const lines = order.items.map((item) => ({
       soItemId: Number(item.id),
       remainingQuantity: Math.max(
@@ -307,18 +309,18 @@ export async function prepareShippingRequest(
     }));
     const parcelErrors = validateShippingParcels(lines, requested.parcels);
     if (parcelErrors.length)
-      throw new Error(`${order.so_number}: ${parcelErrors[0]}`);
+      throw new ShippingBatchError(`${order.so_number}: ${parcelErrors[0]}`, 400);
     const dispatchLocationId = Number(
-      accountRow.dispatch_location_id ?? order.location_id,
+      accountRow?.dispatch_location_id ?? order.location_id,
     );
     if (!Number.isInteger(dispatchLocationId) || dispatchLocationId <= 0)
-      throw new Error(`${order.so_number}: dispatch location is required.`);
+      throw new ShippingBatchError(`${order.so_number}: dispatch location is required.`, 400);
     const location = await ImsLocationsRepo.get(
       dispatchLocationId,
       input.businessId,
     );
     if (!location)
-      throw new Error(`${order.so_number}: dispatch location not found.`);
+      throw new ShippingBatchError(`${order.so_number}: dispatch location not found.`, 400);
     const sender = {
       name: location.name,
       lines: [location.address].filter((line): line is string => Boolean(line)),
@@ -341,14 +343,15 @@ export async function prepareShippingRequest(
       phone: order.customer_phone || "",
     };
     if (!recipient.country.trim())
-      throw new Error(`${order.so_number}: destination country is required.`);
+      throw new ShippingBatchError(`${order.so_number}: destination country is required.`, 400);
     const isInternational = !isAustralianShippingCountry(recipient.country);
     const destinationCountry = isInternational
       ? normalizeIsoAlpha2(recipient.country)
       : "AU";
     if (!destinationCountry)
-      throw new Error(
+      throw new ShippingBatchError(
         `${order.so_number}: destination country must be an ISO alpha-2 country code.`,
+        400,
       );
     recipient.country = destinationCountry;
     const missingSenderFields = [
@@ -358,8 +361,9 @@ export async function prepareShippingRequest(
       !sender.postcode ? "postcode" : "",
     ].filter(Boolean);
     if (missingSenderFields.length)
-      throw new Error(
+      throw new ShippingBatchError(
         `${order.so_number}: dispatch location ${location.name} is missing ${missingSenderFields.join(", ")}.`,
+        400,
       );
     if (isInternational) {
       const recipientErrors = getInternationalRecipientErrors({
@@ -367,14 +371,14 @@ export async function prepareShippingRequest(
         name: recipient.name,
       });
       if (recipientErrors.length)
-        throw new Error(`${order.so_number}: ${recipientErrors.join(", ")}.`);
+        throw new ShippingBatchError(`${order.so_number}: ${recipientErrors.join(", ")}.`, 400);
     } else if (
       !recipient.lines.length ||
       !recipient.suburb ||
       !recipient.state ||
       !recipient.postcode
     ) {
-      throw new Error(`${order.so_number}: delivery address is incomplete.`);
+      throw new ShippingBatchError(`${order.so_number}: delivery address is incomplete.`, 400);
     }
 
     let customs: Readonly<CustomsSnapshot> | null = null;
@@ -400,7 +404,7 @@ export async function prepareShippingRequest(
         nonSaleValuesConfirmed: requested.nonSaleValuesConfirmed,
       });
       if (!customsResult.ok)
-        throw new Error(`${order.so_number}: ${customsResult.errors.join(" ")}`);
+        throw new ShippingBatchError(`${order.so_number}: ${customsResult.errors.join(" ")}`, 400);
       customs = customsResult.snapshot;
     }
     entries.push({
@@ -415,9 +419,9 @@ export async function prepareShippingRequest(
   }
   return {
     account: {
-      id: Number(accountRow.id),
-      provider: accountRow.provider,
-      dispatchLocationId: accountRow.dispatch_location_id,
+      id: accountRow ? Number(accountRow.id) : null,
+      provider: accountRow ? accountRow.provider : "unassigned",
+      dispatchLocationId: accountRow?.dispatch_location_id ?? null,
     },
     entries,
   };
@@ -425,20 +429,20 @@ export async function prepareShippingRequest(
 
 export function validateShippingRecipient(value: ShippingAmendmentRecipient): ShippingAmendmentRecipient {
   if (!value || !Array.isArray(value.lines) || value.lines.length < 1 || value.lines.length > 2)
-    throw new Error("Delivery address requires one or two street address lines.");
+    throw new ShippingBatchError("Delivery address requires one or two street address lines.", 400);
   if (value.lines.some(line => typeof line !== "string"))
-    throw new Error("Delivery street address lines are invalid.");
+    throw new ShippingBatchError("Delivery street address lines are invalid.", 400);
   const result = { ...value, lines: value.lines.map(line => line.trim()) };
   for (const field of ["name", "suburb", "state", "postcode", "country", "email", "phone"] as const) {
-    if (typeof value[field] !== "string") throw new Error(`Delivery ${field} is invalid.`);
+    if (typeof value[field] !== "string") throw new ShippingBatchError(`Delivery ${field} is invalid.`, 400);
     result[field] = value[field].trim();
   }
   if (!result.name || !result.suburb || result.lines.some(line => !line))
-    throw new Error("Delivery name, street address and suburb are required.");
+    throw new ShippingBatchError("Delivery name, street address and suburb are required.", 400);
   if (result.name.length > 35 || result.lines.some(line => line.length > 40) ||
       result.suburb.length > 35 || result.state.length > 40 || result.postcode.length > 20 ||
       result.email.length > 50 || result.phone.length > 20)
-    throw new Error("Delivery address exceeds the carrier field limits.");
+    throw new ShippingBatchError("Delivery address exceeds the carrier field limits.", 400);
   const country = isAustralianShippingCountry(result.country) ? "AU" : normalizeIsoAlpha2(result.country);
   if (!country) throw new Error("Destination country must be an ISO alpha-2 country code.");
   result.country = country;

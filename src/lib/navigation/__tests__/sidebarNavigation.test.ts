@@ -23,4 +23,17 @@ describe('sidebar navigation', () => {
     expect(isSidebarSectionActive(contacts, 'contact-profile', ['contact-profile'])).toBe(true);
     expect(isSidebarSectionActive(contacts, 'reports')).toBe(false);
   });
+
+  it('marks Automations active for nested marketing and business-profile pages, not report pages', () => {
+    const automations = {
+      id: '__automation',
+      children: [
+        { id: '__marketing', children: [{ id: 'planning-workspace' }] },
+        { id: '__business-profile', children: [{ id: 'brand-profile' }] },
+      ],
+    };
+    expect(isSidebarSectionActive(automations, 'planning-workspace')).toBe(true);
+    expect(isSidebarSectionActive(automations, 'brand-profile')).toBe(true);
+    expect(isSidebarSectionActive(automations, 'stock-turnover')).toBe(false);
+  });
 });

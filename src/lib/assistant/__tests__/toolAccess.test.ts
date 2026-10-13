@@ -35,7 +35,9 @@ describe('Assistant tool access manifest', () => {
     expect(isAssistantToolAvailable(principal, 'ims_xero_sync_diagnostics')).toBe(false);
     expect(isAssistantToolAvailable(principal, 'ims_xero_sync_diagnostics', { xero: true })).toBe(true);
     expect(isAssistantToolAvailable(principal, 'ims_shopify_sync_diagnostics', { shopify: false })).toBe(false);
-    expect(isAssistantToolAvailable(principal, 'ims_marketing_recommendations', { 'foresight.marketing': true })).toBe(true);
+    expect(isAssistantToolAvailable(principal, 'ims_marketing_recommendations', { 'foresight.marketing': true })).toBe(false);
+    expect(isAssistantToolAvailable(ims('SuperAdmin'), 'ims_marketing_recommendations', { 'foresight.marketing': true })).toBe(true);
+    expect(isAssistantToolAvailable(ims('SuperAdmin'), 'ims_marketing_recommendations', { 'foresight.marketing': false })).toBe(false);
   });
 
   it('keeps POS and wholesale operations inside their verified principal types', () => {

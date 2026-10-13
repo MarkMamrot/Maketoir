@@ -18,6 +18,21 @@ beforeEach(() => {
   mocks.location.mockResolvedValue({ name: 'Store', address: '1 Main St', city: 'Melbourne', state: 'VIC', postcode: '3000', country: 'AU' });
 });
 describe('recipient override preparation', () => {
+  it('saves carrier-independent preparation without looking up a carrier account', async () => {
+    const prepared = await prepareShippingRequest({
+      businessId: 'tenant-1', carrierAccountId: null, preparationOnly: true,
+      shipments: [{ soId: 10, parcels: [{ parcelNumber: 1, lengthMm: 200, widthMm: 100, heightMm: 100, weightKg: 1,
+        allocations: [{ soItemId: 5, quantity: 2 }] }] }],
+    });
+    expect(prepared.account).toEqual({ id: null, provider: 'unassigned', dispatchLocationId: null });
+    expect(mocks.account).not.toHaveBeenCalled();
+    expect(mocks.order).toHaveBeenCalledWith(10, 'tenant-1');
+  });
+  it('does not allow a missing carrier for normal shipment preparation', async () => {
+    await expect(prepareShippingRequest({ businessId: 'tenant-1', carrierAccountId: null, shipments: [] }))
+      .rejects.toThrow('Choose a carrier account');
+    expect(mocks.account).not.toHaveBeenCalled();
+  });
   it('validates and prepares the proposed address without changing the Sales Order', async () => {
     const input = {
       businessId: 'tenant-1', carrierAccountId: 9,

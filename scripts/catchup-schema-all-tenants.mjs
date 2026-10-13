@@ -483,7 +483,7 @@ const TABLE_DDLS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
-    request_hash CHAR(64) NOT NULL, so_id INT NOT NULL, carrier_account_id BIGINT NOT NULL, manifest_id BIGINT NULL,
+    request_hash CHAR(64) NOT NULL, so_id INT NOT NULL, carrier_account_id BIGINT NULL, manifest_id BIGINT NULL,
     dispatch_location_id INT NULL, provider VARCHAR(50) NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'draft',
     revision INT NOT NULL DEFAULT 0,
     provider_shipment_id VARCHAR(150) NULL, provider_reference VARCHAR(150) NOT NULL,
@@ -2072,6 +2072,7 @@ async function migrateSchema(schema, businessId) {
     if (requestedTable === 'gift_cards') await migrateExactShopifyGiftCardOwnership(schema);
     if (requestedTable === 'ims_purchase_order_items') await repairPurchaseOrderOwnership(schema, businessId);
     if (requestedTable === 'ims_stock_movements') await repairStockMovementOwnership(schema);
+    if (requestedTable === 'ims_shipping_shipments') await ensureNullableColumn(schema, requestedTable, 'carrier_account_id', 'BIGINT NULL');
     console.log(`  ${schema}.${requestedTable}: ${added} columns and ${indexesAdded} indexes added`);
     return;
   }
@@ -2287,6 +2288,7 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
     await ensureEnumValues(schema, 'ims_cs_drafts', 'compose_type', ['ai_reply', 'manual_reply', 'forward', 'new_message']);
     await ensureNullableColumn(schema, 'ims_cs_drafts', 'target_message_id', 'BIGINT NULL');
+    await ensureNullableColumn(schema, 'ims_shipping_shipments', 'carrier_account_id', 'BIGINT NULL');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_transactions', 'balance_after', 'INT NOT NULL');
     await repairLoyaltyCollations(schema);

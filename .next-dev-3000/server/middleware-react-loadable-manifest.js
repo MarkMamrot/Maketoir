@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"app\\\\ims\\\\page.tsx -> ./views/AutomationWorkspace\":{\"id\":\"app\\\\ims\\\\page.tsx -> ./views/AutomationWorkspace\",\"files\":[\"static/chunks/_app-pages-browser_src_app_ims_views_AutomationWorkspace_tsx.js\"]}}"

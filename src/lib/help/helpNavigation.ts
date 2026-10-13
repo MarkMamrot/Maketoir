@@ -1,13 +1,13 @@
 import type { HelpProduct, HelpTopic } from './types';
 
-export const HELP_SECTION_ORDER = ['ims', 'intel-automation', 'pos', 'wholesale', 'setup', 'reference'] as const;
+export const HELP_SECTION_ORDER = ['ims', 'pos', 'wholesale', 'setup', 'reference'] as const;
 
 export type HelpSectionId = typeof HELP_SECTION_ORDER[number];
 
 const PRODUCT_SECTIONS: Record<HelpProduct, { id: HelpSectionId; label: string }> = {
   ims: { id: 'ims', label: 'IMS' },
-  dashboard: { id: 'intel-automation', label: 'Intel & Automation' },
-  foresight: { id: 'intel-automation', label: 'Intel & Automation' },
+  dashboard: { id: 'ims', label: 'IMS' },
+  foresight: { id: 'ims', label: 'IMS' },
   pos: { id: 'pos', label: 'POS' },
   wholesale: { id: 'wholesale', label: 'Wholesale' },
   setup: { id: 'setup', label: 'Setup' },

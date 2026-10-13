@@ -1,7 +1,9 @@
 ---
-{"id":"foresight-planning-workspace-lifecycle","title":"Planning Workspace Lifecycle","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Planning Workspace","product":"foresight","format":"task","parentId":"foresight-planning","contexts":["planning-workspace"],"contextSections":{"planning-workspace":"Step-by-step"},"relatedTopics":["foresight-planning","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":21,"summary":"Create a planning thread, draft a checked plan, and submit the exact version for review.","lastReviewed":"2026-08-29","owner":"foresight","quickSections":["Main operations","At a glance"]}
+{"id":"foresight-planning-workspace-lifecycle","title":"Planning Workspace Lifecycle","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Marketing Activities (Test) > Planning Workspace","product":"ims","format":"task","parentId":"foresight-planning","contexts":["planning-workspace"],"contextSections":{"planning-workspace":"Step-by-step"},"relatedTopics":["foresight-planning","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":21,"summary":"SuperAdmin-only test: Create a planning thread, draft a checked plan, and submit the exact version for review.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","At a glance"]}
 ---
 # Planning Workspace Lifecycle
+
+This is a SuperAdmin-only test workflow under **IMS > Automations > Marketing Activities (Test)**. Enable Marketing Activities for the active business in **Admin > Feature Rollouts** before opening it. Regular staff cannot access it.
 
 Use Planning Workspace to turn a business question or linked recommendation into a saved plan that a person can review.
 

@@ -59,7 +59,7 @@ export default function AdminUsersPage() {
 
         if (userData.tier !== 'SuperAdmin' && userData.tier !== 'Admin') {
           alert('This page is restricted to Admin users and above.');
-          router.push('/dashboard');
+          router.push('/ims');
           return;
         }
 

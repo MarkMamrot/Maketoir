@@ -90,8 +90,10 @@ describe('assistant tool policy', () => {
       'ims_stock_allocation_exceptions', 'ims_customer_lookup', 'ims_customer_activity',
       'ims_sales_performance', 'ims_reorder_forecast', 'ims_purchase_order_aging',
       'ims_xero_sync_diagnostics', 'ims_shopify_sync_diagnostics',
-      'ims_marketing_performance', 'ims_marketing_recommendations',
     ]);
+    expect(getAssistantToolDefinitions({ ...ims, tier: 'SuperAdmin' }, {
+      'foresight.marketing': true,
+    }).map(tool => tool.name)).toEqual(expect.arrayContaining(['ims_marketing_performance', 'ims_marketing_recommendations']));
   });
 
   it('feature-gates and bounds governed marketing performance for the verified business', async () => {
@@ -100,7 +102,7 @@ describe('assistant tool policy', () => {
     mockLoadAssistantMarketingPerformance.mockResolvedValueOnce({ paidMedia: [], commerce: [], quality: { grade: 'good', issues: [] } });
 
     const result = await executeAssistantTool({
-      audience: 'ims', businessId: 'biz-1', userId: 7, tier: 'Admin',
+      audience: 'ims', businessId: 'biz-1', userId: 7, tier: 'SuperAdmin',
     }, 'ims_marketing_performance', { days: 999 }) as any;
 
     expect(mockGetBusinessFeatureFlags).toHaveBeenCalledWith('biz-1');
@@ -118,7 +120,7 @@ describe('assistant tool policy', () => {
     mockLoadAssistantMarketingRecommendations.mockResolvedValueOnce({ rows: [], truncated: false });
 
     await executeAssistantTool({
-      audience: 'ims', businessId: 'biz-1', userId: 7, tier: 'StandardUser',
+      audience: 'ims', businessId: 'biz-1', userId: 7, tier: 'SuperAdmin',
     }, 'ims_marketing_recommendations', { state: 'pending_approval' });
 
     expect(mockLoadAssistantMarketingRecommendations).toHaveBeenCalledWith({
@@ -129,7 +131,14 @@ describe('assistant tool policy', () => {
   it('denies Foresight tools when Marketing is disabled', async () => {
     mockGetBusinessFeatureFlags.mockResolvedValueOnce({ 'foresight.marketing': false });
     await expect(executeAssistantTool({
-      audience: 'ims', businessId: 'biz-1', userId: 7, tier: 'Admin',
+      audience: 'ims', businessId: 'biz-1', userId: 7, tier: 'SuperAdmin',
+    }, 'ims_marketing_performance', {})).rejects.toMatchObject({ name: 'AssistantToolAccessError' });
+    expect(mockLoadAssistantMarketingPerformance).not.toHaveBeenCalled();
+  });
+
+  it.each(['Admin', 'StandardUser'] as const)('denies enabled marketing tools to %s', async tier => {
+    await expect(executeAssistantTool({
+      audience: 'ims', businessId: 'biz-1', userId: 7, tier,
     }, 'ims_marketing_performance', {})).rejects.toMatchObject({ name: 'AssistantToolAccessError' });
     expect(mockLoadAssistantMarketingPerformance).not.toHaveBeenCalled();
   });

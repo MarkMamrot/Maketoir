@@ -2406,7 +2406,7 @@ function SetupPageContent() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Workspace Setup</h1>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/ims')}
             className="px-4 py-2 text-sm font-semibold border rounded-lg shadow-sm bg-white text-gray-700 hover:bg-gray-100 transition-colors"
           >
             &larr; Back to Dashboard

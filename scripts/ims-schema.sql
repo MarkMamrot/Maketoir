@@ -1487,7 +1487,7 @@ CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
   operation_key            VARCHAR(191) NOT NULL,
   request_hash             CHAR(64) NOT NULL,
   so_id                    INT NOT NULL,
-  carrier_account_id       BIGINT NOT NULL,
+  carrier_account_id       BIGINT NULL,
   manifest_id              BIGINT NULL,
   dispatch_location_id     INT NULL,
   provider                 VARCHAR(50) NOT NULL,

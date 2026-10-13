@@ -6,6 +6,7 @@ export type ShippingBatchMembershipInput = {
   }>;
   batchId: string | null;
   createBatch?: boolean;
+  carrierAccountId?: number;
 };
 
 export type ShippingBatchMembershipResult = {
@@ -55,6 +56,9 @@ export function validateShippingBatchMembershipInput(
     throw new ShippingBatchError("Invalid create batch option.", 400);
   if (input.createBatch && input.batchId === null)
     throw new ShippingBatchError("A new batch needs a batch key.", 400);
+  if (input.carrierAccountId !== undefined &&
+      (!Number.isSafeInteger(input.carrierAccountId) || input.carrierAccountId <= 0 || input.batchId === null))
+    throw new ShippingBatchError("Choose a valid carrier account when adding orders to a batch.", 400);
   if (!Array.isArray(input.shipmentIds) || !input.shipmentIds.length || input.shipmentIds.length > 50)
     throw new ShippingBatchError("Choose between 1 and 50 shipments.", 400);
   const ids = new Set<number>();

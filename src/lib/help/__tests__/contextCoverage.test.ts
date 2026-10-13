@@ -22,14 +22,14 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
   { audience: 'wholesale', product: 'wholesale', ids: ['home', 'catalogue', 'lists', 'orders', 'account', 'help'] },
   {
     audience: 'ims',
-    product: 'foresight',
+    product: 'ims',
     ids: [
       'home', 'ai-helper', 'business-intelligence', 'business-info', 'brand-profile', 'sync-data', 'calculated-data',
       'inventory', 'inactive-candidates', 'lost-candidates', 'space-analysis', 'stock-turnover', 'marketing', 'sync-ads',
       'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit',
       'brand-assets', 'brand-assets-models', 'brand-assets-backdrops', 'brand-assets-poses', 'brand-assets-scenes',
       'brand-assets-templates', 'website', 'pending-online', 'product-description-template', 'bulk-edit-listings',
-      'customer-service', 'cs-inbox', 'cs-compose', 'cs-templates', 'connections', 'marketing-settings',
+      'customer-service', 'cs-inbox', 'cs-compose', 'cs-templates', 'marketing-settings',
     ],
   },
   { audience: 'ims', product: 'setup', ids: ['connections', 'business', 'profile', 'pos', 'team'] },

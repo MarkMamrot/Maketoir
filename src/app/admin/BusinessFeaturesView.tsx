@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-type Feature = { key: string; label: string; description: string; product: string };
+type Feature = { key: string; label: string; description: string; product: string; testOnly?: boolean };
 type Business = { business_id: string; name: string; features: Record<string, boolean> };
 
 export default function BusinessFeaturesView() {
@@ -43,7 +43,7 @@ export default function BusinessFeaturesView() {
 
   return <section>
     <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Feature Rollouts</h1>
-    <p style={{ margin: '5px 0 20px', color: 'var(--sv-text-dim,#94a3b8)', fontSize: 13 }}>Turn developing features on for selected businesses. Changes apply when that business next loads the product.</p>
+    <p style={{ margin: '5px 0 20px', color: 'var(--sv-text-dim,#94a3b8)', fontSize: 13 }}>Enable test features for SuperAdmins in selected businesses. Marketing Activities and AI Helper appear under IMS → Automations only when enabled. Regular users cannot access them, even with the switch on. Changes apply after reloading IMS.</p>
     {error && <div role="alert" style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid #ef4444', borderRadius: 7, background: 'rgba(239,68,68,.12)', color: '#fca5a5', fontSize: 13 }}>{error}</div>}
     <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch,rgba(255,255,255,.1))', borderRadius: 8 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>

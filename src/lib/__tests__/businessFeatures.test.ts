@@ -7,15 +7,19 @@ import {
 
 describe('business feature registry', () => {
   it('defaults every registered feature to disabled', () => {
-    expect(emptyBusinessFeatureFlags()).toEqual({ 'foresight.marketing': false });
+    expect(emptyBusinessFeatureFlags()).toEqual({ 'foresight.marketing': false, 'ims.ai-helper': false });
   });
 
   it('recognizes only registered feature keys', () => {
     expect(isBusinessFeatureKey('foresight.marketing')).toBe(true);
+    expect(isBusinessFeatureKey('ims.ai-helper')).toBe(true);
     expect(isBusinessFeatureKey('foresight.unreleased')).toBe(false);
   });
 
-  it('keeps the initial Marketing rollout in the Foresight product', () => {
-    expect(BUSINESS_FEATURES[0]).toMatchObject({ key: 'foresight.marketing', product: 'Intel & Automation' });
+  it('marks both IMS automation rollouts as test features', () => {
+    expect(BUSINESS_FEATURES).toEqual([
+      expect.objectContaining({ key: 'foresight.marketing', product: 'IMS', testOnly: true, label: 'Marketing Activities (Test)' }),
+      expect.objectContaining({ key: 'ims.ai-helper', product: 'IMS', testOnly: true, label: 'AI Helper (Test)' }),
+    ]);
   });
 });

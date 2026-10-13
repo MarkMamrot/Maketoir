@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-content-production-customer-service","title":"Content Production and Customer Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations and Settings","product":"foresight","format":"task","parentId":"foresight-content-service","contexts":["website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates"],"contextSections":{"website":"Step-by-step","pending-online":"Review content before use","product-description-template":"Prepare reliable inputs","bulk-edit-listings":"Review content before use","customer-service":"Customer-service replies","cs-inbox":"Customer-service replies","cs-compose":"Customer-service replies","cs-templates":"Customer-service replies"},"relatedTopics":["foresight-content-service","setup-business-brand-appearance","setup-integration-readiness-troubleshooting"],"order":31,"summary":"Prepare product content and customer replies, then check every customer-facing detail before use.","lastReviewed":"2026-10-02","owner":"commerce","quickSections":["Main operations","At a glance"]}
+{"id":"foresight-content-production-customer-service","title":"Content Production and Customer Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations and Settings","product":"ims","format":"task","parentId":"foresight-content-service","contexts":["website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates"],"contextSections":{"website":"Step-by-step","pending-online":"Review content before use","product-description-template":"Prepare reliable inputs","bulk-edit-listings":"Review content before use","customer-service":"Customer-service replies","cs-inbox":"Customer-service replies","cs-compose":"Customer-service replies","cs-templates":"Customer-service replies"},"relatedTopics":["foresight-content-service","setup-business-brand-appearance","setup-integration-readiness-troubleshooting"],"order":31,"summary":"Prepare product content and customer replies, then check every customer-facing detail before use.","lastReviewed":"2026-10-13","owner":"commerce","quickSections":["Main operations","At a glance"]}
 ---
 # Content Production and Customer Service
 
@@ -8,7 +8,7 @@ Use content and service tools to prepare drafts that a person checks before publ
 ## Main operations
 
 - Keep business, brand, product, and policy information current.
-- Choose the correct product and Web Field Template from **Settings**.
+- Choose the correct product and maintain its Web Field Template under **IMS > Automations > Web Field Templates**.
 - Review generated descriptions, titles, tags, and candidate images.
 - Check customer, order, recipients, tone, and claims before sending a reply.
 - Keep existing content or images until a replacement is approved.

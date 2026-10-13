@@ -36,7 +36,7 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
   const [states, setStates] = useState<Record<number, CardState>>({});
   const [selected, setSelected] = useState<number[]>([]);
   const [destination, setDestination] = useState(destinationBatchId || "new");
-  const [accountId, setAccountId] = useState(accounts[0] ? String(accounts[0].id) : "");
+  const [accountId, setAccountId] = useState(accounts.length === 1 ? String(accounts[0].id) : "");
   const callbacks = useRef({ onDirtyChange, onBusyChange });
   callbacks.current = { onDirtyChange, onBusyChange };
   useEffect(() => { setDestination(destinationBatchId || "new"); }, [destinationBatchId]);
@@ -49,40 +49,44 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
   const batches = groupWorkspaceBatches(shipments).filter(batch => batch.shipments.some(shipment => !workspaceMembershipBlocker(shipment)));
   const selectedBatch = batches.some(batch => batch.batchId === destination) ? destination : "new";
   return <section aria-label="Orders ready to ship" style={{ marginBottom: 20 }}>
-    <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Orders ready to ship</h3>
-    <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--sv-text-dim)" }}>Enter packed dimensions beneath each order and save them. Select saved orders to make a batch. Postage is chosen in the batch; saving dimensions does not buy postage or change stock.</p>
-    <label style={{ display: "block", maxWidth: 380, fontSize: 12, marginBottom: 12 }}>Carrier account
-      <select aria-label="Preparation carrier account" style={input} disabled={busy} value={accountId} onChange={event => setAccountId(event.target.value)}>
-        <option value="">Choose an account</option>
-        {accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}</option>)}
-      </select>
-    </label>
     {!orders.length && <p style={{ fontSize: 12 }}>No delivery orders are waiting for parcel preparation.</p>}
-    {orders.map((order, index) => <OrderPreparationCard key={order.id} order={order} striped={index % 2 === 1} savedRevision={shipments.find(shipment => shipment.shipmentId === Number(order.preparation_shipment_id))?.revision} accountId={Number(accountId)} presets={presets} busy={busy}
+    {orders.map((order, index) => <OrderPreparationCard key={order.id} order={order} striped={index % 2 === 1} savedRevision={shipments.find(shipment => shipment.shipmentId === Number(order.preparation_shipment_id))?.revision} presets={presets} busy={busy}
       selected={selection.includes(order.id)}
       onSelect={checked => setSelected(current => checked ? [...new Set([...current, order.id])] : current.filter(id => id !== order.id))}
       onState={state => setStates(current => ({ ...current, [order.id]: state }))}
       onSaved={onChanged} onPresetsChanged={onPresetsChanged} onOpenProducts={onOpenProducts} />)}
-    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
-      <span style={{ fontSize: 12 }}>{selection.length} measured order{selection.length === 1 ? "" : "s"} selected</span>
-      <label style={{ fontSize: 12 }}>Add to{" "}
-        <select aria-label="Preparation destination batch" style={{ ...input, width: "auto" }} disabled={busy} value={selectedBatch} onChange={event => setDestination(event.target.value)}>
+    <section aria-label="Make a shipping batch" style={{ marginTop: 16, padding: 16, border: "2px solid var(--sv-etch)", borderRadius: 6, background: "var(--sv-bg-2)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <strong style={{ fontSize: 14 }}>Make a shipping batch</strong>
+        <span style={{ fontSize: 12, color: "var(--sv-text-dim)" }}>{selection.length} measured order{selection.length === 1 ? "" : "s"} selected</span>
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+      <label style={{ fontSize: 12, flex: "1 1 200px", maxWidth: 340 }}>Carrier account
+        <select aria-label="Batch carrier account" style={input} disabled={busy} value={accountId} onChange={event => setAccountId(event.target.value)}>
+          <option value="">Choose an account</option>
+          {accounts.map(account => <option key={account.id} value={account.id}>{account.displayName}</option>)}
+        </select>
+      </label>
+      <label style={{ fontSize: 12, flex: "1 1 200px", maxWidth: 340 }}>Add to
+        <select aria-label="Preparation destination batch" style={input} disabled={busy} value={selectedBatch} onChange={event => setDestination(event.target.value)}>
           <option value="new">New batch</option>
           {batches.map(batch => <option key={batch.batchId} value={batch.batchId}>{workspaceBatchLabel(batch.shipments)}</option>)}
         </select>
       </label>
-      <button type="button" style={{ ...button, background: "var(--sv-action)", color: "white", opacity: selection.length && !busy ? 1 : .55 }} disabled={busy || !selection.length || selection.length > 50}
+      <button type="button" style={{ ...button, minHeight: 38, background: "var(--sv-action)", color: "white", opacity: selection.length && accountId && !busy ? 1 : .55 }} disabled={busy || !accountId || !selection.length || selection.length > 50}
         onClick={async () => {
           const ids = selection.map(id => states[id].shipmentId!);
-          if (await onAdd(ids, { batchId: selectedBatch === "new" ? crypto.randomUUID() : selectedBatch, createBatch: selectedBatch === "new" })) setSelected([]);
+          if (await onAdd(ids, { batchId: selectedBatch === "new" ? crypto.randomUUID() : selectedBatch, createBatch: selectedBatch === "new", carrierAccountId: Number(accountId) })) setSelected([]);
         }}>{selectedBatch === "new" ? "Create batch with selected orders" : "Add selected orders to batch"}</button>
-      {selection.length > 50 && <span role="alert">Select no more than 50 orders at once.</span>}
-    </div>
+      </div>
+      {selection.length > 50 && <p role="alert" style={{ fontSize: 12 }}>Select no more than 50 orders at once.</p>}
+      {!accounts.length && <p role="alert" style={{ fontSize: 12 }}>Add an active carrier account in Settings &gt; Shipping before making a batch. You can still save order dimensions.</p>}
+    </section>
   </section>;
 }
 
-function OrderPreparationCard({ order, striped, savedRevision, accountId, presets, busy, selected, onSelect, onState, onSaved, onPresetsChanged, onOpenProducts }: {
-  order: SalesOrderSummary; striped: boolean; savedRevision?: number; accountId: number; presets: PackingPreset[];
+function OrderPreparationCard({ order, striped, savedRevision, presets, busy, selected, onSelect, onState, onSaved, onPresetsChanged, onOpenProducts }: {
+  order: SalesOrderSummary; striped: boolean; savedRevision?: number; presets: PackingPreset[];
   busy: boolean; selected: boolean; onSelect: (checked: boolean) => void;
   onState: (state: CardState) => void; onSaved: () => Promise<void>;
   onPresetsChanged: () => Promise<void>;
@@ -208,7 +212,7 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
         if (blockers.length) throw new Error(blockers.join(" "));
       }
       const payload = {
-        soId: order.id, carrierAccountId: saved?.carrierAccountId ?? accountId, parcels: parcelDrafts,
+        soId: order.id, parcels: parcelDrafts,
         ...(saved ? { expectedRevision: saved.revision, expectedUpdatedAt: saved.updatedAt } : {}),
         ...(international ? {
           exportPurpose: purpose, nonSaleValues: purpose === "sale" ? undefined : buildNonSaleDeclaredValueInputs(customsRows(loaded, prepared)),
@@ -371,7 +375,7 @@ function OrderPreparationCard({ order, striped, savedRevision, accountId, preset
       </div>}
       {saved && <p style={{ margin: "12px 0 0", fontSize: 11, color: "var(--sv-text-dim)" }}>Changes require a new postage selection in the batch.</p>}
       <div role="group" aria-label={`Preparation actions for ${order.so_number}`} style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, width: "100%", maxWidth: 600, marginTop: 14, paddingTop: 12, borderTop: "2px solid var(--sv-etch)" }}>
-        <button type="button" style={{ ...preparationButton, background: "var(--sv-action)", color: "white" }} disabled={Boolean(presetDraft) || !accountId || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
+        <button type="button" style={{ ...preparationButton, background: "var(--sv-action)", color: "white" }} disabled={Boolean(presetDraft) || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
         <button type="button" style={preparationButton} aria-expanded={showContents} aria-controls={`shipping-order-contents-${order.id}`} onClick={async () => {
           setError("");
           try { await loadOrder(); setShowContents(current => !current); }

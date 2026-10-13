@@ -9,12 +9,16 @@ import {
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(), beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+  detail: vi.fn(), prepare: vi.fn(),
 }));
+vi.mock('../shippingAmendments', () => ({ getShippingEditableDetail: mocks.detail }));
+vi.mock('../shippingDrafts', () => ({ prepareShippingRequest: mocks.prepare }));
 vi.mock("@/services/IMSMySQLService", () => ({ getIMSPool: () => ({ getConnection: async () => mocks }) }));
 const shipment = (id: number, changes: Record<string, unknown> = {}) => ({
   id, so_id: id + 100, operation_key: `legacy:${id}`, revision: 2, status: "label_ready",
   manifest_id: null, ims_fulfilled_at: null, membership_id: null, batch_key: null, batch_revision: null,
   parcel_count: 1, invalid_parcel_count: 0,
+  carrier_account_id: 1, provider_shipment_id: `carrier-${id}`,
   ...changes,
 });
 const label = (id: number, shipmentId: number, changes: Record<string, unknown> = {}) => ({
@@ -28,6 +32,7 @@ function setup(shipments: unknown[], labels: unknown[] = []) {
   mocks.execute.mockImplementation(async (sql: string) => {
     if (sql.includes("SELECT shipment.id")) return [shipments, []];
     if (sql.includes("SELECT label.id")) return [labels, []];
+    if (sql.includes("SELECT id FROM ims_shipping_carrier_accounts")) return [[{ id: 9 }], []];
     return [{ affectedRows: 1 }, []];
   });
 }
@@ -36,6 +41,11 @@ const writes = () => mocks.execute.mock.calls.filter(([sql]) => /^\s*(INSERT|UPD
 beforeEach(() => {
   vi.clearAllMocks();
   setup([shipment(1), shipment(2)]);
+  mocks.detail.mockResolvedValue({ soId: 101, recipient: {}, parcels: [], customs: null });
+  mocks.prepare.mockResolvedValue({
+    account: { id: 9, provider: 'auspost_eparcel', dispatchLocationId: 3 },
+    entries: [{ dispatchLocationId: 3, sender: { name: 'Selected warehouse' } }],
+  });
 });
 
 describe("shipping batch policy and migration compatibility", () => {
@@ -59,6 +69,9 @@ describe("shipping batch policy and migration compatibility", () => {
       { ...input(), createBatch: true }, { ...input(), createBatch: "true" },
       { ...input(), shipmentIds: [{ shipmentId: 1, expectedBatchRevision: -1, expectedShipmentRevision: 2 }] },
       { ...input(), shipmentIds: [{ shipmentId: 1, expectedBatchRevision: 0, expectedShipmentRevision: "2" }] },
+      { ...input([1], 'new'), carrierAccountId: 0 }, { ...input([1], 'new'), carrierAccountId: null },
+      { ...input([1], 'new'), carrierAccountId: '9' }, { ...input([1], 'new'), carrierAccountId: 1.5 },
+      { ...input(), carrierAccountId: 9 },
     ]) expect(() => validateShippingBatchMembershipInput(value)).toThrow();
   });
   it("creates only empty membership structure with no backfill on repeat migrations", () => {
@@ -76,6 +89,41 @@ describe("shipping batch policy and migration compatibility", () => {
 });
 
 describe("atomic tenant-scoped batch membership", () => {
+  it('attaches the chosen carrier and its sender snapshot atomically when batching an accountless preparation', async () => {
+    setup([shipment(1, { carrier_account_id: null, provider_shipment_id: null, status: 'draft', membership_id: 1, batch_key: null })]);
+    await changeShippingBatchMembership('tenant-a', { ...input([1], 'new'), createBatch: true, carrierAccountId: 9 });
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'tenant-a', carrierAccountId: 9 }));
+    expect(mocks.detail).toHaveBeenCalledWith('tenant-a', 1);
+    expect(writes()[0]).toEqual([
+      expect.stringContaining('UPDATE ims_shipping_shipments SET carrier_account_id'),
+      [9, 'auspost_eparcel', 3, '{"name":"Selected warehouse"}', 'tenant-a', 1, 2],
+    ]);
+    expect(writes()[0][0]).toContain('revision = revision + 1');
+    expect(writes()[0][0]).toContain('provider_shipment_id IS NULL');
+    expect(writes()[1][0]).toContain('INSERT INTO ims_shipping_batch_memberships');
+    expect(mocks.commit).toHaveBeenCalledOnce();
+  });
+  it('requires an explicit carrier before batching an accountless preparation', async () => {
+    setup([shipment(1, { carrier_account_id: null, provider_shipment_id: null })]);
+    await expect(changeShippingBatchMembership('tenant-a', { ...input([1], 'new'), createBatch: true }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(writes()).toHaveLength(0);
+  });
+  it('never changes a booked shipment to a different carrier', async () => {
+    await expect(changeShippingBatchMembership('tenant-a', { ...input([1], 'new'), createBatch: true, carrierAccountId: 9 }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(writes()).toHaveLength(0);
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+  it('rolls back carrier assignment when preparation validation fails', async () => {
+    setup([shipment(1, { carrier_account_id: null, provider_shipment_id: null })]);
+    mocks.prepare.mockRejectedValue(new Error('database unavailable'));
+    await expect(changeShippingBatchMembership('tenant-a', { ...input([1], 'new'), createBatch: true, carrierAccountId: 9 }))
+      .rejects.toThrow('database unavailable');
+    expect(writes()).toHaveLength(0);
+    expect(mocks.rollback).toHaveBeenCalledOnce();
+    expect(mocks.commit).not.toHaveBeenCalled();
+  });
   it.each([{ parcel_count: 0 }, { invalid_parcel_count: 1 }])("blocks batching orders without saved measurements: %j", async (changes) => {
     setup([shipment(1, changes)]);
     await expect(changeShippingBatchMembership("tenant-a", { ...input([1], "new"), createBatch: true })).rejects.toThrow("Save valid parcel dimensions");

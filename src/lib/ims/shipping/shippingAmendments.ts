@@ -22,7 +22,7 @@ import type { CustomsSnapshot } from './customs';
 
 type ShipmentRow = RowDataPacket & {
   id: number; so_id: number; revision: number; updated_at: Date | string; status: string;
-  carrier_account_id: number; provider_shipment_id: string | null; provider: string;
+  carrier_account_id: number | null; provider_shipment_id: string | null; provider: string;
   provider_reference: string; recipient_json: unknown; customs_json: unknown; sender_json: unknown;
   service_code: string | null; service_name: string | null; quoted_cost: number | null;
   quoted_cost_ex_gst: number | null; quoted_gst: number | null; is_international: number;
@@ -65,6 +65,7 @@ export async function quoteShippingAmendment(
   const detail = await getShippingEditableDetail(businessId, shipmentId);
   validateAmendmentConcurrency(detail, input);
   assertEditable(detail);
+  if (input.carrierAccountId === null) throw new ShippingAmendmentError('Choose a carrier account before getting prices.');
   const prepared = await prepareAmendment(businessId, detail, input);
   const quotes = await quotePreparedShippingRequest(businessId, input.carrierAccountId, prepared);
   return quotes[0]?.rates ?? [];
@@ -87,6 +88,7 @@ export async function amendShippingShipment(
   const orderGuard = await getOrderGuard(businessId, detail.soId);
   const prepared = await prepareAmendment(businessId, detail, input);
   if (input.service) {
+    if (input.carrierAccountId === null) throw new ShippingAmendmentError('Choose a carrier account before saving postage.');
     const service = input.service;
     const quotes = await quotePreparedShippingRequest(businessId, input.carrierAccountId, prepared);
     const quoted = quotes[0]?.rates.find(rate => rate.serviceCode === service.serviceCode);
@@ -100,6 +102,7 @@ export async function amendShippingShipment(
   let remoteRequest: AusPostUpdateShipmentRequest | undefined;
   let previousCarrierReadback: AusPostReadShipment | undefined;
   if (detail.providerShipmentId) {
+    if (detail.carrierAccountId === null) throw new Error('A booked shipment is missing its carrier account.');
     client = await carrierClient(businessId, detail.carrierAccountId);
     previousCarrierReadback = await client.getShipment(detail.providerShipmentId);
     remoteRequest = buildCarrierAmendmentRequest(detail, input, prepared, previousCarrierReadback);
@@ -235,12 +238,12 @@ export async function reconcileShippingAmendment(businessId: string, shipmentId:
   }
 }
 
-async function prepareAmendment(businessId: string, detail: ShippingEditableDetail, input: ShippingAmendmentDraft): Promise<PreparedShippingRequest> {
+async function prepareAmendment(businessId: string, detail: ShippingEditableDetail, input: ShippingAmendmentDraft & { preparationOnly?: boolean }): Promise<PreparedShippingRequest> {
   if (!input) throw new ShippingAmendmentError('Shipment details are required.');
   const recipient = validateShippingRecipient(input.recipient);
   validateAmendmentIdentity(detail, { ...input, recipient });
   return prepareShippingRequest({
-    businessId, carrierAccountId: input.carrierAccountId,
+    businessId, carrierAccountId: input.carrierAccountId, preparationOnly: input.preparationOnly === true,
     shipments: [{ soId: detail.soId, recipient, parcels: input.parcels,
       exportPurpose: input.exportPurpose, nonSaleValues: input.nonSaleValues, nonSaleValuesConfirmed: input.nonSaleValuesConfirmed }],
   });
@@ -287,7 +290,7 @@ async function buildDetail(connection: PoolConnection, businessId: string, row: 
   const nullable = (key: string) => raw[key] == null ? null : String(raw[key]);
   return {
     shipmentId: Number(row.id), revision: Number(row.revision), updatedAt: iso(row.updated_at), status: row.status,
-    soId: Number(row.so_id), soNumber: order.so_number, carrierAccountId: Number(row.carrier_account_id),
+    soId: Number(row.so_id), soNumber: order.so_number, carrierAccountId: row.carrier_account_id == null ? null : Number(row.carrier_account_id),
     providerShipmentId: row.provider_shipment_id, isInternational: Boolean(Number(row.is_international)),
     editEligibility: getShipmentEditEligibility(row), carrierUpdateEnabled: carrierAmendmentsEnabled(Boolean(Number(row.is_international))),
     recipient: parseJson(row.recipient_json), customs: row.customs_json == null ? null : parseJson<CustomsSnapshot>(row.customs_json),

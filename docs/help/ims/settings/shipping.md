@@ -11,9 +11,10 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 - Test saved credentials against the Australia Post production Shipping API.
 - Keep MyPost Business unavailable until approved partner access is supported.
 - Add package presets with internal dimensions, tare weight and an optional maximum weight.
-- Use **Save as preset** in Shipping Workspace's **Prepare** tab to save a parcel's measurements as a named custom package for all staff in the same business. Packed weight is not saved; weigh each future parcel.
+- Use **Save as preset** in Shipping Workspace's **Orders ready to ship** tab to save a parcel's measurements as a named custom package for all staff in the same business. Packed weight is not saved; weigh each future parcel.
 - Add selected Australia Post reference packaging to the editable preset list.
-- **Save dimensions** beneath each ready order in **Prepare**, batch measured orders, then choose postage inside **Batches**; manifests remain the later carrier lodgement step.
+- **Save dimensions** beneath each ready order in **Orders ready to ship** without choosing a carrier. Choose the carrier in **Make a shipping batch**, then choose postage inside **Batches**; manifests remain the later carrier lodgement step.
+- **Close batch** collapses the current batch without closing the workspace or changing saved shipments, postage or stock.
 - Create one manifest for each carrier account and physical pickup location, then print its lodgement summary.
 
 ## At a glance
@@ -46,7 +47,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.
 10. Save the preset. It becomes available when preparing selected Sales Orders.
 
-Alternatively, in Shipping Workspace's **Prepare** tab, enter a parcel's length, width and height in centimetres, select **Save as preset**, enter a unique name, and select **Save preset**. The new custom package appears immediately in the preset dropdowns and can be maintained in **Settings > Shipping**. This shortcut saves dimensions only: it starts with no empty-package weight or maximum-weight limit, and product rotation enabled. Review those settings before relying on packing suggestions. Saving a preset does not save the order's preparation or buy postage; use **Save dimensions** separately for the actual parcel details.
+Alternatively, in Shipping Workspace's **Orders ready to ship** tab, enter a parcel's length, width and height in centimetres, select **Save as preset**, enter a unique name, and select **Save preset**. The new custom package appears immediately in the preset dropdowns and can be maintained in **Settings > Shipping**. This shortcut saves dimensions only: it starts with no empty-package weight or maximum-weight limit, and product rotation enabled. Review those settings before relying on packing suggestions. Saving a preset does not save the order's preparation or buy postage; use **Save dimensions** separately for the actual parcel details.
 
 > **Note:** Saving dimensions, making a batch and saving a postage service do not purchase postage or reduce stock. The confirmed **Submit to Australia Post & create labels** action creates billable carrier shipments. **Mark dispatched** reduces stock when labelled parcels physically leave.
 

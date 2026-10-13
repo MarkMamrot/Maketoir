@@ -1,7 +1,9 @@
 ---
-{"id":"foresight-experiments-outcomes-learning","title":"Experiments, Outcomes, and Learning","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Recommendation Inbox > Experiments","product":"foresight","format":"task","parentId":"foresight-planning","contexts":["experiments-outcomes-learning"],"contextSections":{"experiments-outcomes-learning":"Step-by-step"},"relatedTopics":["foresight-recommendations-creative-review-audits","foresight-planning-workspace-lifecycle"],"order":23,"summary":"Review an experiment design, record or perform its launch, and decide how its measured conclusion may be used.","lastReviewed":"2026-08-29","owner":"foresight","quickSections":["Main operations","At a glance"]}
+{"id":"foresight-experiments-outcomes-learning","title":"Experiments, Outcomes, and Learning","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Marketing Activities (Test) > Recommendation Inbox > Experiments","product":"ims","format":"task","parentId":"foresight-planning","contexts":["experiments-outcomes-learning"],"contextSections":{"experiments-outcomes-learning":"Step-by-step"},"relatedTopics":["foresight-recommendations-creative-review-audits","foresight-planning-workspace-lifecycle"],"order":23,"summary":"SuperAdmin-only test: Review an experiment design, record or perform its launch, and decide how its measured conclusion may be used.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","At a glance"]}
 ---
 # Experiments, Outcomes, and Learning
+
+This is a SuperAdmin-only test workflow under **IMS > Automations > Marketing Activities (Test)**. Enable Marketing Activities for the active business in **Admin > Feature Rollouts** before opening it. Regular staff cannot access it.
 
 Use the experiment workflow to compare a control and treatment under an accepted design, then review the measured conclusion.
 
@@ -37,7 +39,7 @@ Use the experiment workflow to compare a control and treatment under an accepted
 5. For a manual launch, make the external changes and record the launch against that accepted design.
 6. When a supported Meta launch package is available, select the exact control and treatment, confirm the read-only package, complete the final confirmation, and launch.
 7. Check the execution result. If it fails, verify external state before retrying.
-8. Wait until the scheduled end date. Intel & Automation then collects the supported result information.
+8. Wait until the scheduled end date. IMS Automations then collects the supported result information.
 9. Review the conclusion and choose **Acknowledge** or **Reject**.
 
 ## Experiment stages

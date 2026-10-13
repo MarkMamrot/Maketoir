@@ -1,5 +1,5 @@
 ---
-{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Settings > Users","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance","ims-workspaces"],"order":3,"summary":"Enroll people in one or more businesses, send password reset links, and review recent sign-in security activity.","lastReviewed":"2026-09-28","owner":"security","quickSections":["Main operations","At a glance"]}
+{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Settings > Users","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance","ims-workspaces"],"order":3,"summary":"Enroll people in one or more businesses, send password reset links, and review recent sign-in security activity.","lastReviewed":"2026-10-13","owner":"security","quickSections":["Main operations","At a glance"]}
 ---
 # Team Access and Security
 SuperAdmins can choose any active business with the top-bar selector while remaining signed in as themselves. Other users who are enrolled in more than one business use the same selector for their enrolled businesses. This is business administration, not staff impersonation. See **Businesses and AI Plans** for the switching workflow and POS Device Setup behaviour.
@@ -31,8 +31,9 @@ Access tiers are assigned separately for each business. For example, a person ca
 Ask Solvantis follows the person's verified access in the active business. It offers only supported read-only checks and cannot be used to bypass a hidden workspace, unavailable feature, or restricted account scope.
 
 - IMS users, including Advisors, can ask supported read-only questions about products, stock, orders, contacts, purchasing, and sales reports.
-- Advisor accounts cannot use Assistant checks for integration diagnostics or Intel & Automation Marketing.
-- Admin and Standard User accounts can use Xero, Shopify, and Intel & Automation Marketing checks only while the corresponding business capability is enabled.
+- Advisor accounts cannot use Assistant checks for integration diagnostics or marketing.
+- Admin and Standard User accounts can use Xero and Shopify checks only while the corresponding business capability is enabled.
+- Marketing checks and the AI Helper workspace are SuperAdmin-only test features. Enabling them for a business does not make them available to regular staff.
 - POS checks use only the location and register assigned to the signed-in POS session.
 - Wholesale checks use only the signed-in member's company, location, role, and brand access.
 

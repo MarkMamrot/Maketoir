@@ -6,6 +6,7 @@ import { ShippingSettingsRepository } from './shippingSettingsRepository';
 export type ShippingQuote = Pick<CarrierRate, 'serviceCode' | 'serviceName' | 'total' | 'totalExGst' | 'gst'>;
 
 export async function quoteShippingRequest(input: ShippingRequestInput): Promise<Array<{ soId: number; rates: ShippingQuote[] }>> {
+  if (input.carrierAccountId === null) throw new Error('Choose a carrier account before getting prices.');
   const prepared = await prepareShippingRequest(input);
   return quotePreparedShippingRequest(input.businessId, input.carrierAccountId, prepared);
 }

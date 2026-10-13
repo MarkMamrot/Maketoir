@@ -1,14 +1,16 @@
 ---
-{"id":"foresight-planning","title":"Planning and Review","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Planning","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["marketing","sync-ads","marketing-assistant"],"contextSections":{"marketing":"Evidence and recommendations","sync-ads":"Refresh marketing information","marketing-assistant":"Evidence and recommendations"},"relatedTopics":["foresight-planning-workspace-lifecycle","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":20,"summary":"Move current evidence through planning, review, implementation, and learning without confusing one stage for another.","lastReviewed":"2026-08-29","owner":"foresight","quickSections":["Main operations","Refresh marketing information","Evidence and recommendations"]}
+{"id":"foresight-planning","title":"Planning and Review","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Marketing Activities (Test) > Planning","product":"ims","format":"overview","parentId":"foresight-workspaces","contexts":["marketing","sync-ads","marketing-assistant","marketing-settings"],"contextSections":{"marketing":"Evidence and recommendations","sync-ads":"Refresh marketing information","marketing-assistant":"Evidence and recommendations","marketing-settings":"Marketing Settings"},"relatedTopics":["foresight-planning-workspace-lifecycle","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":20,"summary":"SuperAdmin-only test: Move current evidence through planning, review, implementation, and learning without confusing one stage for another.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","Refresh marketing information","Evidence and recommendations"]}
 ---
 # Planning and Review
+
+This is a SuperAdmin-only test workflow under **IMS > Automations > Marketing Activities (Test)**. Enable Marketing Activities for the active business in **Admin > Feature Rollouts** before opening it. Regular staff cannot access it.
 
 Use this overview to choose the next planning or review step and understand whether that step changes anything outside Solvantis.
 
 ## Main operations
 
 - Refresh marketing information before reviewing a time-sensitive recommendation.
-- Separate source facts from Intel & Automation suggestions.
+- Separate source facts from IMS Automations suggestions.
 - Draft and submit the exact plan version you want reviewed.
 - Record implementation separately from plan or recommendation approval.
 - Review experiment results before accepting them as future planning evidence.
@@ -23,7 +25,7 @@ Sync Marketing Data updates supported information from connected services. Check
 
 ## Evidence and recommendations
 
-Intel & Automation can combine source facts, business information, assumptions, and suggestions. Read the evidence and dates before deciding whether a recommendation deserves planning work.
+IMS Automations can combine source facts, business information, assumptions, and suggestions. Read the evidence and dates before deciding whether a recommendation deserves planning work.
 
 > **Important:** Evidence describes what the system can support. A recommendation says what may be worth doing. Neither proves that the suggested action is correct or already completed.
 
@@ -61,3 +63,6 @@ Confirm the evidence period and connected account, then decide whether the recom
 ### Reject weak evidence
 
 A recommendation refers to a partial day of results. Do not approve it because the headline looks urgent. Refresh after a complete reporting period or reject the recommendation with a short reason.
+## Marketing Settings
+
+SuperAdmins can open **IMS > Automations > Marketing Activities (Test) > Marketing Settings** to configure marketing options for the active business. This page is hidden when Marketing Activities is off and is never available to regular staff.

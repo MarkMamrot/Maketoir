@@ -1,7 +1,7 @@
 ---
-{"id":"foresight-workspaces","title":"Intel & Automation","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Intel & Automation workspace and understand what each area can change.","lastReviewed":"2026-08-29","owner":"foresight","quickSections":["Main operations","Choose a workspace","Dashboard"]}
+{"id":"foresight-workspaces","title":"IMS Automations","audiences":["ims"],"capability":"navigation","screen":"IMS Automations","product":"ims","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right IMS Automations workspace and understand what each area can change.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","Choose a workspace","Dashboard"]}
 ---
-# Intel & Automation
+# IMS Automations
 
 Use this page to choose the right workspace before you start reviewing data, planning work, or preparing customer-facing content.
 
@@ -15,7 +15,9 @@ Use this page to choose the right workspace before you start reviewing data, pla
 - Use Planning and Review to move a recommendation through a recorded human decision.
 - Use **IMS > Automations** to prepare online listings, manage brand assets, and handle customer service.
 
-Some developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu.
+**Marketing Activities (Test)** and **AI Helper (Test)** are under **IMS > Automations**. Both are SuperAdmin-only test features, with separate switches in **Admin > Feature Rollouts**. A missing or disabled switch hides the tool. Enabling a switch does not give regular users access. Unavailable test links return to the IMS Dashboard.
+
+The Dashboard is part of IMS. Sign in to IMS or POS; there is no separate analytics or automation product to select.
 
 ## Choose a workspace
 
@@ -39,7 +41,7 @@ Dashboard brings important figures and recent activity together. Use it to spot 
 
 ## AI Helper
 
-AI Helper can explain information available to its workflow and help you form the next question. Its conversation does not accept a plan, send content, publish a listing, or change an advertising account.
+AI Helper is a SuperAdmin-only test feature. When enabled for the active business, open **IMS > Automations > AI Helper (Test)**. It can explain selected business information, preview the information included with a question, and save a chat summary. Its conversation does not accept a plan, send content, publish a listing, or change an advertising account.
 
 | Input | Human decision | Output | External change |
 | --- | --- | --- | --- |

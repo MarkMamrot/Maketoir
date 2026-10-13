@@ -190,7 +190,7 @@ export async function POST(req: Request) {
   } catch (e: any) {
     const detail = e?.message ?? String(e);
     const msg = detail.includes('404') || detail.includes('not found')
-      ? `Model "${modelId}" not found — update your AI model in Intel & Automation settings.`
+      ? `Model "${modelId}" not found — update your AI model in IMS Settings > AI Models.`
       : `AI error: ${detail.slice(0, 200)}`;
     return NextResponse.json({ error: msg }, { status: 500 });
   }

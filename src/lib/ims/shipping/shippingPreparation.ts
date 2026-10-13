@@ -10,7 +10,6 @@ export type ShippingOrderPreparation = {
 };
 export type SaveShippingOrderPreparation = ShippingRequestInput['shipments'][number] & {
   operationKey: string;
-  carrierAccountId: number;
   expectedRevision?: number;
   expectedUpdatedAt?: string;
 };
@@ -61,7 +60,7 @@ export async function saveShippingOrderPreparation(
     if (!existing && input.expectedRevision !== undefined)
       throw new ShippingAmendmentError('The saved preparation changed. Refresh the order before saving.', 409);
     const [created] = await createShippingDrafts({
-      businessId, operationKey: input.operationKey, carrierAccountId: input.carrierAccountId,
+      businessId, operationKey: input.operationKey, carrierAccountId: null,
       preparationOnly: true, batchId: null,
       shipments: [{
         soId, parcels: input.parcels, exportPurpose: input.exportPurpose,
@@ -75,6 +74,7 @@ export async function saveShippingOrderPreparation(
   const detail = await getShippingEditableDetail(businessId, Number(existing.id));
   const result = await amendShippingShipment(businessId, Number(existing.id), {
     ...input,
+    carrierAccountId: null,
     operationKey: input.operationKey,
     expectedRevision: input.expectedRevision,
     expectedUpdatedAt: input.expectedUpdatedAt,

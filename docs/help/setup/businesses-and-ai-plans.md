@@ -1,5 +1,5 @@
 ---
-{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-09-01","owner":"platform","quickSections":["Main operations","At a glance"]}
+{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance"]}
 ---
 # Businesses and AI Plans
 
@@ -9,7 +9,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 
 - Open a business's settings and change its Solvantis AI plan.
 - Select any active business and administer it with your own SuperAdmin account.
-- Enable or disable Intel & Automation, IMS, and POS access.
+- Enable or disable IMS and POS access. Use **Feature Rollouts** for SuperAdmin-only Marketing Activities and AI Helper tests.
 - Identify sandbox businesses and pause their scheduled automation when required.
 - Set location and user limits and the monthly cost per location.
 - Open AI Usage & Credits for funding, enforcement, usage, model costs, and plan margins.
@@ -23,7 +23,8 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | --- | --- | --- |
 | Active business | Top bar or **Businesses > Open IMS** | Changes which business's IMS, POS, integrations, settings, and operational data are active |
 | Solvantis AI plan | **Businesses > Settings** | Selects the sell-rate plan for future AI usage |
-| Module access | **Businesses > Settings** | Controls access to Intel & Automation, IMS, and POS |
+| Module access | **Businesses > Settings** | Controls access to IMS and POS |
+| Test tools | **Feature Rollouts** | Enables Marketing Activities and AI Helper for SuperAdmins in selected businesses |
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
 | AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |
 | Supported model costs | **AI Usage & Credits > AI pricing** | Shows the published USD dimensions and converted AUD costs for six supported models |
@@ -58,7 +59,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 2. Find the active business you need to administer.
 3. Use **Open IMS**, or choose the business with the top-bar **Business** selector.
 4. Wait for the workspace to reload and confirm the selected business name in the top bar before viewing or changing data.
-5. Move between IMS, Intel & Automation, Setup, and POS as needed. Your SuperAdmin permissions remain available.
+5. Move between IMS, Setup, and POS as needed. Reports and Automations are inside IMS. Your SuperAdmin permissions remain available.
 6. To return, choose another business, including your usual business, from the same selector.
 
 When POS was configured for a different business, it returns to Device Setup after the change. Select a location and register belonging to the newly active business. Carts, parked sales, product caches, and offline queues remain separated by business.

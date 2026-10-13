@@ -11,7 +11,7 @@ export type ShippingAmendmentParcel = {
   heightMm: number; weightKg: number; allocations: { soItemId: number; quantity: number }[];
 };
 export type ShippingAmendmentDraft = {
-  carrierAccountId: number; recipient: ShippingAmendmentRecipient; parcels: ShippingAmendmentParcel[];
+  carrierAccountId: number | null; recipient: ShippingAmendmentRecipient; parcels: ShippingAmendmentParcel[];
   exportPurpose?: ShippingExportPurpose; nonSaleValues?: NonSaleDeclaredValueInput[];
   nonSaleValuesConfirmed?: boolean;
 };
@@ -27,7 +27,7 @@ export type ShippingEditableOrderItem = {
 };
 export type ShippingEditableDetail = {
   shipmentId: number; revision: number; updatedAt: string; status: string; soId: number;
-  soNumber: string; carrierAccountId: number; providerShipmentId: string | null;
+  soNumber: string; carrierAccountId: number | null; providerShipmentId: string | null;
   isInternational: boolean; editEligibility: { eligible: boolean; reason?: string };
   carrierUpdateEnabled: boolean; recipient: ShippingAmendmentRecipient; service: ShippingQuote | null;
   chargedCost: number | null;

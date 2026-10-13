@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-08","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-13","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -9,9 +9,9 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 
 - Use the Dashboard to spot work that needs attention.
 - Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.
-- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.
+- Open **Automations > Marketing Activities (Test)** or **Automations > AI Helper (Test)** for experimental marketing and advisory tools. These tools are available only to SuperAdmins when enabled for the active business in **Admin > Feature Rollouts**; regular users cannot see or open them.
 - Open the top-bar **Settings** (gear) drawer for Connections and the existing IMS settings sections. Choose **Sync & Import** to import supported source data into IMS or refresh cached sales totals.
-- Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.
+- Open **Automations > Web Field Templates** to maintain the templates used by the listing generator and bulk listing editor.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - On a narrow screen, the sidebar collapses automatically so the active workspace retains usable width. Use its arrow to expand it when needed.
@@ -41,7 +41,9 @@ If the full-page **Something went wrong** screen appears, select **Reload page**
 | Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |
 | Configure connections | Top-bar **Settings** > **Connections** | Shared account and provider connections |
 | Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |
-| Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
+| Maintain online listing templates | **Automations > Web Field Templates** | Description, title, and tag templates used by listing workflows |
+| Test marketing workflows | **Automations > Marketing Activities (Test)** | SuperAdmin-only data sync, assistant, planning, recommendations, creative review, audits, and Marketing Settings |
+| Test business advisory chat | **Automations > AI Helper (Test)** | SuperAdmin-only questions, data previews, and saved chat summaries |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
 
 ## Contact Support
@@ -62,7 +64,7 @@ Dashboard cards, CRM profiles, and reports help you find and understand activity
 
 Ask Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.
 
-Live checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.
+Live checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or marketing checks. Xero and Shopify checks appear only to eligible users while that capability is enabled. Marketing checks are test features available only to SuperAdmins in businesses with Marketing Activities enabled.
 
 Your recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.
 

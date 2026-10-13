@@ -226,6 +226,7 @@ export function ShipOrdersWorkspace({
   const [readyOrders, setReadyOrders] = useState<SalesOrderSummary[]>([]);
   const [stockReadiness, setStockReadiness] = useState<ShippingStockReadiness | null>(null);
   const [checkingStock, setCheckingStock] = useState(false);
+  const stockReadinessRequest = useRef(0);
   const [stockShortfallAcknowledged, setStockShortfallAcknowledged] = useState(false);
   const [creatingAdjustmentForLocation, setCreatingAdjustmentForLocation] = useState<number | null>(null);
   const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
@@ -387,8 +388,10 @@ export function ShipOrdersWorkspace({
   }
 
   async function refreshStockReadiness(shipmentIds = created.map((item) => item.shipmentId)) {
+    const requestId = ++stockReadinessRequest.current;
     if (!shipmentIds.length) {
       setStockReadiness(null);
+      setCheckingStock(false);
       return null;
     }
     setCheckingStock(true);
@@ -399,16 +402,18 @@ export function ShipOrdersWorkspace({
         body: JSON.stringify({ shipmentIds }),
       });
       const result = await readJsonResponse(response);
+      if (requestId !== stockReadinessRequest.current) return null;
       if (!response.ok || !result.success) throw new Error(result.error || "Unable to check shipment stock.");
       setStockReadiness(result.data);
       setStockShortfallAcknowledged(false);
       return result.data as ShippingStockReadiness;
     } catch (reason) {
+      if (requestId !== stockReadinessRequest.current) return null;
       setStockReadiness(null);
       setError(reason instanceof Error ? reason.message : "Unable to check shipment stock.");
       return null;
     } finally {
-      setCheckingStock(false);
+      if (requestId === stockReadinessRequest.current) setCheckingStock(false);
     }
   }
 
@@ -591,7 +596,14 @@ export function ShipOrdersWorkspace({
     (shipment.providerShipmentId || !["draft", "failed"].includes(shipment.status)));
   const openSavedShipments = (selected: SavedShippingShipment[], navigate = true) => {
     setOpenedBatchId(selected[0]?.batchId ?? null);
-    if (navigate) setActiveTab("batches");
+    if (navigate) {
+      stockReadinessRequest.current++;
+      setActiveTab("batches");
+      setMembershipSelection([]);
+      setStockReadiness(null);
+      setStockShortfallAcknowledged(false);
+      setDispatchMessage("");
+    }
     setCreated(
       selected.map((shipment) => ({
         soId: shipment.soId,
@@ -622,6 +634,20 @@ export function ShipOrdersWorkspace({
     );
     setError("");
   };
+  function closeBatch() {
+    if (workspaceBusy || editingShipmentId !== null) return;
+    stockReadinessRequest.current++;
+    setOpenedBatchId(null);
+    setCreated([]);
+    setSubmissionResults([]);
+    setMembershipSelection([]);
+    setDestinationBatchId("");
+    setSelectedServiceByOrder({});
+    setStockReadiness(null);
+    setStockShortfallAcknowledged(false);
+    setDispatchMessage("");
+    setError("");
+  }
   const markDispatched = async (allowNegativeStock = false) => {
     if (
       !allowNegativeStock &&
@@ -735,7 +761,7 @@ export function ShipOrdersWorkspace({
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <PackageCheck size={19} color="var(--sv-action)" />
             <div>
-              <h2 style={{ margin: 0, fontSize: 17 }}>Shipping workspace</h2>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Shipping workspace</h2>
               <div
                 style={{
                   marginTop: 2,
@@ -743,9 +769,7 @@ export function ShipOrdersWorkspace({
                   color: "var(--sv-text-dim)",
                 }}
               >
-                {orders.length
-                  ? `${orders.length} order${orders.length === 1 ? "" : "s"} selected`
-                  : "Saved shipping operations"}
+                Generate labels and ship orders with your carrier.
               </div>
             </div>
           </div>
@@ -773,6 +797,7 @@ export function ShipOrdersWorkspace({
             }}
             style={{
               display: "flex",
+              flexWrap: "wrap",
               gap: 4,
               marginBottom: 16,
               borderBottom: "1px solid var(--sv-etch)",
@@ -789,7 +814,7 @@ export function ShipOrdersWorkspace({
               style={tabButtonStyle(activeTab === "prepare")}
             >
               <PackageCheck size={14} />
-              Prepare
+              Orders ready to ship
             </button>
             <button
               type="button"
@@ -871,9 +896,7 @@ export function ShipOrdersWorkspace({
                 </div>
               )}
               {!loading && <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 12, color: "var(--sv-text-dim)" }}>
-                  {activeTab === "prepare" ? "Save dimensions > Select measured orders > Create or join a batch. Choose postage in the batch." : "Choose postage for each order > Create labels > Print > Mark dispatched. Labels purchase postage; dispatch updates stock."}
-                </p>
+                {activeTab === "batches" && <p style={{ margin: 0, fontSize: 12, color: "var(--sv-text-dim)" }}>A batch is a working group of orders you prepare and ship together.</p>}
                 <button type="button" style={secondaryButtonStyle} disabled={workspaceBusy} onClick={() => { setError(""); void refreshWorkspace().catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to refresh workspace.")); }}>
                   <RefreshCw size={14} /> {refreshingWorkspace ? "Refreshing..." : "Refresh workspace"}
                 </button>
@@ -956,12 +979,10 @@ export function ShipOrdersWorkspace({
                               <button
                                 type="button"
                                 disabled={workspaceBusy}
-                                onClick={() =>
-                                  openSavedShipments(batch.shipments)
-                                }
+                                onClick={() => openedBatchId === batch.batchId ? closeBatch() : openSavedShipments(batch.shipments)}
                                 style={secondaryButtonStyle}
                               >
-                                {openedBatchId === batch.batchId ? "Selected batch" : "Open batch"}
+                                {openedBatchId === batch.batchId ? "Close batch" : "Open batch"}
                               </button>
                               <button
                                 type="button"
@@ -1094,7 +1115,7 @@ export function ShipOrdersWorkspace({
                   }}
                 >
                   <strong style={{ fontSize: 13 }}>
-                    Selected batch - next step
+                    Batch actions
                   </strong>
                   <div
                     style={{
@@ -1439,6 +1460,15 @@ function ManifestsWorkspacePanel() {
 
   return (
     <div role="tabpanel">
+      <style jsx>{`
+        .shipping-manifest-history-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1.1fr) minmax(0, .5fr) minmax(0, 1.4fr);
+        }
+        @media (max-width: 760px) {
+          .shipping-manifest-history-row { grid-template-columns: minmax(0, 1fr); }
+        }
+      `}</style>
       {loading && (
         <div style={{ color: "var(--sv-text-dim)", fontSize: 13 }}>
           Loading dispatched shipments and manifest history...
@@ -1623,10 +1653,10 @@ function ManifestsWorkspacePanel() {
             manifests.map((manifest, manifestIndex) => (
               <div
                 key={manifest.id}
+                className="shipping-manifest-history-row"
+                role="group"
+                aria-label={`Manifest ${manifest.providerOrderId || manifest.providerReference}`}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "minmax(180px,1fr) minmax(130px,.7fr) auto",
                   gap: 12,
                   alignItems: "center",
                   padding: "10px 12px",
@@ -1635,7 +1665,7 @@ function ManifestsWorkspacePanel() {
                   fontSize: 12,
                 }}
               >
-                <span>
+                <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
                   <strong>
                     {manifest.providerOrderId || manifest.providerReference}
                   </strong>
@@ -1682,26 +1712,11 @@ function ManifestsWorkspacePanel() {
                     {manifestStatusLabel(manifest.status)}
                   </span>
                 </span>
-                <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, minWidth: 0 }}>
                   {manifest.status === "complete" ? (
                     <>
-                      {manifest.labelLayouts.map((layout) => (
-                        <a
-                          key={layout}
-                          href={`/api/ims/shipping/manifests/${manifest.id}/labels?layout=${encodeURIComponent(layout)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            ...secondaryButtonStyle,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            textDecoration: "none",
-                          }}
-                        >
-                          <Download size={14} />
-                          {manifestLabelButtonLabel(layout)}
-                        </a>
+                      {["A4-3pp", "A4-4pp"].filter(layout => manifest.labelLayouts.includes(layout)).map(layout => (
+                        <ManifestLabelDownload key={layout} manifestId={manifest.id} layout={layout} />
                       ))}
                       <a
                         href={`/api/ims/shipping/manifests/${manifest.id}/summary`}
@@ -1711,6 +1726,9 @@ function ManifestsWorkspacePanel() {
                           ...secondaryButtonStyle,
                           display: "inline-flex",
                           alignItems: "center",
+                          justifyContent: "center",
+                          width: "100%", minWidth: 0, minHeight: 42, boxSizing: "border-box",
+                          whiteSpace: "normal", textAlign: "center", gridColumn: 3, gridRow: 1,
                           gap: 6,
                           textDecoration: "none",
                         }}
@@ -1718,13 +1736,16 @@ function ManifestsWorkspacePanel() {
                         <Printer size={14} />
                         Print manifest
                       </a>
+                      {manifest.labelLayouts.filter(layout => layout !== "A4-3pp" && layout !== "A4-4pp").map(layout => (
+                        <ManifestLabelDownload key={layout} manifestId={manifest.id} layout={layout} />
+                      ))}
                     </>
                   ) : manifest.status === "submission_unknown" ? (
                     <button
                       type="button"
                       disabled={creating}
                       onClick={() => void reconcile(manifest)}
-                      style={secondaryButtonStyle}
+                      style={{ ...secondaryButtonStyle, gridColumn: 3 }}
                     >
                       Reconcile
                     </button>
@@ -1748,6 +1769,20 @@ function ManifestsWorkspacePanel() {
       )}
     </div>
   );
+}
+
+function ManifestLabelDownload({ manifestId, layout }: { manifestId: number; layout: string }) {
+  return <a href={`/api/ims/shipping/manifests/${manifestId}/labels?layout=${encodeURIComponent(layout)}`}
+    target="_blank" rel="noopener noreferrer"
+    style={{
+      ...secondaryButtonStyle, display: "inline-flex", alignItems: "center", justifyContent: "center",
+      gap: 6, textDecoration: "none", width: "100%", minWidth: 0, minHeight: 42, boxSizing: "border-box",
+      whiteSpace: "normal", textAlign: "center",
+      gridColumn: layout === "A4-3pp" ? 1 : layout === "A4-4pp" ? 2 : "1 / -1",
+      gridRow: layout === "A4-3pp" || layout === "A4-4pp" ? 1 : undefined,
+    }}>
+    <Download size={14} style={{ flexShrink: 0 }} />{manifestLabelButtonLabel(layout)}
+  </a>;
 }
 
 function manifestGroupKey(

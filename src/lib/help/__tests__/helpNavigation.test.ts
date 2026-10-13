@@ -22,9 +22,9 @@ function topic(id: string, product: HelpProduct): HelpTopic {
 }
 
 describe('Help navigation', () => {
-  it('combines dashboard and Foresight topics under Intel & Automation', () => {
-    expect(helpSectionForProduct('dashboard')).toEqual({ id: 'intel-automation', label: 'Intel & Automation' });
-    expect(helpSectionForProduct('foresight')).toEqual({ id: 'intel-automation', label: 'Intel & Automation' });
+  it('combines legacy dashboard and Foresight topics under IMS', () => {
+    expect(helpSectionForProduct('dashboard')).toEqual({ id: 'ims', label: 'IMS' });
+    expect(helpSectionForProduct('foresight')).toEqual({ id: 'ims', label: 'IMS' });
   });
 
   it('groups available topics in stable product order and omits empty sections', () => {
@@ -35,13 +35,13 @@ describe('Help navigation', () => {
       topic('inventory', 'ims'),
     ]);
 
-    expect(groups.map(group => group.label)).toEqual(['IMS', 'Intel & Automation', 'Setup', 'Reference']);
-    expect(groups[1].topics.map(item => item.id)).toEqual(['automation']);
+    expect(groups.map(group => group.label)).toEqual(['IMS', 'Setup', 'Reference']);
+    expect(groups[0].topics.map(item => item.id)).toEqual(['automation', 'inventory']);
   });
 
   it('initially expands only the section containing the contextual topic', () => {
     expect(initialHelpSection(topic('inventory', 'ims'))).toEqual(['ims']);
-    expect(initialHelpSection(topic('automation', 'foresight'))).toEqual(['intel-automation']);
+    expect(initialHelpSection(topic('automation', 'foresight'))).toEqual(['ims']);
     expect(initialHelpSection(null)).toEqual([]);
   });
 });

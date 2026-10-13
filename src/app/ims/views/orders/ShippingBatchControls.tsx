@@ -6,7 +6,7 @@ import { groupWorkspaceBatches, workspaceBatchLabel, workspaceMembershipBlocker,
 
 const button: CSSProperties = { border: "1px solid var(--sv-etch)", borderRadius: 5, padding: "7px 10px", background: "var(--sv-bg-2)", color: "var(--sv-text)", cursor: "pointer", fontSize: 12 };
 
-export type BatchDestination = { batchId: string | null; createBatch?: boolean };
+export type BatchDestination = { batchId: string | null; createBatch?: boolean; carrierAccountId?: number };
 
 export function ShippingBatchControls({ selected, shipments, busy, onMove, onClear, initialDestination = "unbatched" }: {
   selected: number[];

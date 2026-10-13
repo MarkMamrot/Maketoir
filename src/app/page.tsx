@@ -6,7 +6,7 @@ import Landing from './_landing';
 export default function Home() {
   const session = cookies().get('marketoir_session');
   if (session?.value) {
-    redirect('/dashboard');
+    redirect('/ims');
   }
   return <Landing />;
 }

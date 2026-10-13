@@ -25,7 +25,7 @@ describe('loginDestination', () => {
 
   it('maps destinations to fixed internal routes', () => {
     expect(getLoginDestinationRoute('ims')).toBe('/ims');
-    expect(getLoginDestinationRoute('foresight')).toBe('/dashboard');
+    expect(getLoginDestinationRoute('foresight')).toBe('/ims');
     expect(getLoginDestinationRoute('pos')).toBe('/pos');
   });
 });

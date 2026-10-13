@@ -35,8 +35,6 @@ export default function BusinessInfo() {
 
       if (response.ok) {
         setSuccess(data.message || 'Information saved successfully!');
-        // Could optionally redirect to dashboard here:
-        // router.push('/dashboard');
       } else {
         setError(data.error || 'Got an error from server.');
       }
@@ -52,7 +50,7 @@ export default function BusinessInfo() {
       {/* Absolute Header Navigation */}
       <div className="absolute top-4 left-4">
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={() => router.push('/ims')}
           className="px-4 py-2 border rounded shadow-md font-semibold bg-white text-gray-700 hover:bg-gray-100"
         >
           &larr; Back to Dashboard

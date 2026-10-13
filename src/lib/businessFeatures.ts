@@ -3,9 +3,17 @@ import { execute, query } from '@/services/MySQLService';
 export const BUSINESS_FEATURES = [
   {
     key: 'foresight.marketing',
-    label: 'Intel & Automation Marketing',
-    description: 'Marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings.',
-    product: 'Intel & Automation',
+    label: 'Marketing Activities (Test)',
+    description: 'Experimental marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings. SuperAdmin only.',
+    product: 'IMS',
+    testOnly: true,
+  },
+  {
+    key: 'ims.ai-helper',
+    label: 'AI Helper (Test)',
+    description: 'Experimental business advisory chat, data preview, and saved chat summaries. SuperAdmin only.',
+    product: 'IMS',
+    testOnly: true,
   },
 ] as const;
 

@@ -1,6 +1,6 @@
 export interface SidebarNavigationItem {
   id: string;
-  children?: readonly { id: string }[];
+  children?: readonly SidebarNavigationItem[];
 }
 
 export function isSidebarSectionActive(
@@ -9,7 +9,7 @@ export function isSidebarSectionActive(
   additionalActiveIds: readonly string[] = [],
 ): boolean {
   return item.id === activeId
-    || Boolean(item.children?.some(child => child.id === activeId))
+    || Boolean(item.children?.some(child => isSidebarSectionActive(child, activeId)))
     || additionalActiveIds.includes(activeId);
 }
 

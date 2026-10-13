@@ -1,7 +1,9 @@
 ---
-{"id":"foresight-recommendations-creative-review-audits","title":"Recommendations, Creative Review, and Audits","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Recommendation Inbox","product":"foresight","format":"task","parentId":"foresight-planning","contexts":["marketing-recommendations","creative-review","campaign-audit"],"contextSections":{"marketing-recommendations":"Step-by-step","creative-review":"Review creative work","campaign-audit":"Use campaign audits"},"relatedTopics":["foresight-planning-workspace-lifecycle","foresight-experiments-outcomes-learning","foresight-content-production-customer-service"],"order":22,"summary":"Review evidence, decide on the exact recommendation or creative version, and record what happened next.","lastReviewed":"2026-08-29","owner":"foresight","quickSections":["Main operations","At a glance"]}
+{"id":"foresight-recommendations-creative-review-audits","title":"Recommendations, Creative Review, and Audits","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Marketing Activities (Test) > Recommendation Inbox","product":"ims","format":"task","parentId":"foresight-planning","contexts":["marketing-recommendations","creative-review","campaign-audit"],"contextSections":{"marketing-recommendations":"Step-by-step","creative-review":"Review creative work","campaign-audit":"Use campaign audits"},"relatedTopics":["foresight-planning-workspace-lifecycle","foresight-experiments-outcomes-learning","foresight-content-production-customer-service"],"order":22,"summary":"SuperAdmin-only test: Review evidence, decide on the exact recommendation or creative version, and record what happened next.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","At a glance"]}
 ---
 # Recommendations, Creative Review, and Audits
+
+This is a SuperAdmin-only test workflow under **IMS > Automations > Marketing Activities (Test)**. Enable Marketing Activities for the active business in **Admin > Feature Rollouts** before opening it. Regular staff cannot access it.
 
 Use Recommendation Inbox and review screens to make a clear human decision without mistaking approval for completed work.
 
@@ -53,7 +55,7 @@ Use Recommendation Inbox and review screens to make a clear human decision witho
 | Execution failed | The action did not complete successfully | Read the error and verify external state before retrying |
 | Rejected | The recommendation will not continue | Record a reason where useful |
 
-The Assistant can list up to 20 recommendations by open, exact, or all states when **Intel & Automation Marketing** is enabled. It returns the evidence window, quality warnings, bounded observed metrics, confidence, proposed action type, expiry, and stored outcome or experiment follow-up status. It omits external account and campaign identifiers, contributor identities, actor details, review notes, generated rationale, and execution payloads.
+The Assistant can list up to 20 recommendations by open, exact, or all states when a SuperAdmin has **Marketing Activities (Test)** enabled for the active business. It returns the evidence window, quality warnings, bounded observed metrics, confidence, proposed action type, expiry, and stored outcome or experiment follow-up status. It omits external account and campaign identifiers, contributor identities, actor details, review notes, generated rationale, and execution payloads.
 
 This check does not generate a recommendation, approve or reject it, execute or roll back a change, or verify the current external platform state. Open Recommendation Inbox and inspect the exact evidence and live account before making a decision.
 

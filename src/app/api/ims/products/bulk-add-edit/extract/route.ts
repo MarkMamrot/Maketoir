@@ -20,7 +20,7 @@ function aiErrorMessage(error: unknown, modelId: string): string {
   const detail = error instanceof Error ? error.message : String(error);
   if (detail.includes('RESOURCE_EXHAUSTED')) return 'AI quota exceeded - try again in a moment.';
   if (detail.includes('INVALID_ARGUMENT') || detail.includes('400')) return 'AI could not read that document. Try a clearer PDF, image, CSV, TSV, TXT, or pasted table.';
-  if (detail.includes('404') || detail.toLowerCase().includes('not found')) return `Model "${modelId}" was not found. Update the Document Extraction model in Intel & Automation settings.`;
+  if (detail.includes('404') || detail.toLowerCase().includes('not found')) return `Model "${modelId}" was not found. Update the Document Extraction model in IMS Settings > AI Models.`;
   return 'Product data could not be extracted from that document.';
 }
 

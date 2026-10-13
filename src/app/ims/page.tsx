@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import type { BusinessFeatureFlags } from '@/lib/businessFeatures';
+import { IMS_AUTOMATION_VIEW_IDS, MARKETING_NAV_ITEMS, canAccessImsAutomationView, canAccessImsTestFeature, isImsAutomationView, type ImsAutomationView } from '@/lib/navigation/imsAutomationNavigation';
 import { AlertTriangle, ArrowLeftRight, Bookmark, BrainCircuit, ChevronDown, ClipboardCopy, Columns3, ExternalLink, FileDown, Link2, Link2Off, Mail, PackageCheck, RefreshCw, Save, Search, Trash2, Truck, WalletCards, Wrench } from 'lucide-react';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
@@ -110,7 +113,11 @@ import {
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ImsView =
+const AutomationWorkspace = dynamic(() => import('./views/AutomationWorkspace'), {
+  loading: () => <p role="status">Loading workspace...</p>,
+});
+
+type ImsView = ImsAutomationView
   | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
@@ -119,7 +126,7 @@ type ImsView =
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit' | 'report-cogs-traceability'
   | 'xero' | 'sales-channels' | 'online-shop';
 
-interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
+interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean; features?: BusinessFeatureFlags }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav structure
@@ -161,31 +168,34 @@ const NAV = [
   { id: 'stocktakes',       label: 'Stocktakes',       section: null },
   { id: '__reports',       label: 'Reports',          section: 'reports', children: [
     { id: 'reports', label: 'Reports Overview' },
-    { id: 'inactive-candidates', label: 'Inactive Candidates', href: '/dashboard#inactive-candidates' },
-    { id: 'lost-candidates', label: 'Possible Losses', href: '/dashboard#lost-candidates' },
-    { id: 'space-analysis', label: 'Space Efficiency', href: '/dashboard#space-analysis' },
-    { id: 'stock-turnover', label: 'Stock Turnover', href: '/dashboard#stock-turnover' },
+    { id: 'inactive-candidates', label: 'Inactive Candidates', href: '/ims#inactive-candidates' },
+    { id: 'lost-candidates', label: 'Possible Losses', href: '/ims#lost-candidates' },
+    { id: 'space-analysis', label: 'Space Efficiency', href: '/ims#space-analysis' },
+    { id: 'stock-turnover', label: 'Stock Turnover', href: '/ims#stock-turnover' },
   ]},
   { id: '__automation',    label: 'Automations',      section: 'automation', children: [
-    { id: 'pending-online', label: 'Bulk Online Listing Generator', href: '/dashboard#pending-online' },
-    { id: 'bulk-edit-listings', label: 'Bulk Edit Existing Listings', href: '/dashboard#bulk-edit-listings' },
+    { id: 'ai-helper', label: 'AI Helper (Test)' },
+    { id: '__marketing', label: 'Marketing Activities (Test)', children: MARKETING_NAV_ITEMS.map(item => ({ ...item, href: `/ims#${item.id}` })) },
+    { id: 'pending-online', label: 'Bulk Online Listing Generator', href: '/ims#pending-online' },
+    { id: 'bulk-edit-listings', label: 'Bulk Edit Existing Listings', href: '/ims#bulk-edit-listings' },
+    { id: 'product-description-template', label: 'Web Field Templates', href: '/ims#product-description-template' },
     { id: '__business-profile', label: 'Business Profile', children: [
-      { id: 'business-info', label: 'Business Key Information', href: '/dashboard#business-info' },
-      { id: 'brand-profile', label: 'Brand Profile', href: '/dashboard#brand-profile' },
-      { id: 'sync-data', label: 'Sync Data', href: '/dashboard#sync-data' },
-      { id: 'calculated-data', label: 'Reports', href: '/dashboard#calculated-data' },
+      { id: 'business-info', label: 'Business Key Information', href: '/ims#business-info' },
+      { id: 'brand-profile', label: 'Brand Profile', href: '/ims#brand-profile' },
+      { id: 'sync-data', label: 'Sync Data', href: '/ims#sync-data' },
+      { id: 'calculated-data', label: 'Reports', href: '/ims#calculated-data' },
     ]},
     { id: '__brand-assets', label: 'Brand Assets', children: [
-      { id: 'brand-assets-models', label: 'Models', href: '/dashboard#brand-assets-models' },
-      { id: 'brand-assets-backdrops', label: 'Backdrops', href: '/dashboard#brand-assets-backdrops' },
-      { id: 'brand-assets-poses', label: 'Poses', href: '/dashboard#brand-assets-poses' },
-      { id: 'brand-assets-scenes', label: 'Scenes', href: '/dashboard#brand-assets-scenes' },
-      { id: 'brand-assets-templates', label: 'Templates', href: '/dashboard#brand-assets-templates' },
+      { id: 'brand-assets-models', label: 'Models', href: '/ims#brand-assets-models' },
+      { id: 'brand-assets-backdrops', label: 'Backdrops', href: '/ims#brand-assets-backdrops' },
+      { id: 'brand-assets-poses', label: 'Poses', href: '/ims#brand-assets-poses' },
+      { id: 'brand-assets-scenes', label: 'Scenes', href: '/ims#brand-assets-scenes' },
+      { id: 'brand-assets-templates', label: 'Templates', href: '/ims#brand-assets-templates' },
     ]},
     { id: '__customer-service', label: 'Customer Service', children: [
-      { id: 'cs-inbox', label: 'Inbox', href: '/dashboard#cs-inbox' },
-      { id: 'cs-compose', label: 'Compose Email', href: '/dashboard#cs-compose' },
-      { id: 'cs-templates', label: 'Email Templates', href: '/dashboard#cs-templates' },
+      { id: 'cs-inbox', label: 'Inbox', href: '/ims#cs-inbox' },
+      { id: 'cs-compose', label: 'Compose Email', href: '/ims#cs-compose' },
+      { id: 'cs-templates', label: 'Email Templates', href: '/ims#cs-templates' },
     ]},
   ]},
   { id: '__finances',       label: 'Finances',         section: 'finances', children: [
@@ -659,7 +669,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // Sidebar
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
+function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string; features?: BusinessFeatureFlags }) {
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, __finances: false, __integrations: false });
   const [nestedOpen, setNestedOpen] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState(false);
@@ -672,6 +682,8 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
   const showNativeShop = capabilities.nativeShopEnabled;
   const showLocations = showMultipleLocations || showLocationDaybooks;
   const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
+  const showMarketing = canAccessImsTestFeature(userTier, features, 'foresight.marketing');
+  const showAiHelper = canAccessImsTestFeature(userTier, features, 'ims.ai-helper');
 
   useEffect(() => {
     const narrowViewport = window.matchMedia('(max-width: 700px)');
@@ -698,6 +710,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
 
   const itemContainsActiveView = (item: typeof NAV[number]) => {
     const aliases = [
+      ...(item.id === '__automation' && active === 'brand-assets' ? [active] : []),
       ...(item.id === '__sales' ? ['wholesale-applications'] : []),
       ...(item.id === '__contacts' ? ['contact-profile'] : []),
       ...(item.id === '__reports' && active.startsWith('report-') && active !== 'report-bookkeeper-audit' ? [active] : []),
@@ -785,6 +798,9 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
         const visibleChildren = 'children' in item
           ? (item as any).children.filter((child: any) => {
             if (child.id === 'location-daybooks') return showLocationDaybooks;
+            if (child.id === '__marketing') return showMarketing;
+            if (child.id === 'ai-helper') return showAiHelper;
+            if (['pending-online', 'bulk-edit-listings', 'product-description-template'].includes(child.id)) return capabilities.shopifyEnabled;
             if (child.id === 'builds') return showBuilds;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
             if (child.id === 'xero' || child.id === 'cash-banking') return showXero;
@@ -23194,7 +23210,7 @@ export default function ImsPage() {
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking','report-stock-availability','report-bookkeeper-audit','report-cogs-traceability',
-    'xero','sales-channels','online-shop',
+    'xero','sales-channels','online-shop', ...IMS_AUTOMATION_VIEW_IDS,
   ]), []);
 
   // On mount: restore view from hash; wire up browser back/forward.
@@ -23286,6 +23302,14 @@ export default function ImsPage() {
       window.history.pushState(window.history.state, '', `#${view}`);
     }
   }, [hasRestoredInitialHash, view]);
+
+  useEffect(() => {
+    if (!authChecked || !settingsLoaded || !isImsAutomationView(view)) return;
+    if (!canAccessImsAutomationView(view, user?.tier, user?.features, pageCapabilities.shopifyEnabled)) {
+      window.history.replaceState(window.history.state, '', '#dashboard');
+      setViewSafe('dashboard');
+    }
+  }, [authChecked, settingsLoaded, view, user, pageCapabilities.shopifyEnabled, setViewSafe]);
 
   useEffect(() => {
     if (!hasRestoredInitialHash || !settingsLoaded || pageCapabilities.xeroAccountingEnabled || (view !== 'xero' && view !== 'cash-banking')) return;
@@ -23459,8 +23483,6 @@ export default function ImsPage() {
             <span style={{ color: '#f8fafc', fontWeight: 800, fontSize: 17, letterSpacing: -.3 }}>Solvantis</span>
             <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: -.3, color: '#35bfd6', marginLeft: 6 }}>IMS</span>
             <span style={{ color: 'rgba(255,255,255,.45)', margin: '0 9px', fontSize: 13 }}>|</span>
-            {!isAdvisor && <a href="/dashboard" style={{ fontSize: 13, color: 'rgba(255,255,255,.72)', textDecoration: 'none', fontWeight: 600, opacity: .82, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.82')}>Intel &amp; Automation</a>}
-            {!isAdvisor && <span style={{ color: 'rgba(255,255,255,.45)', margin: '0 9px', fontSize: 13 }}>|</span>}
             {!isAdvisor && <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'rgba(255,255,255,.72)', textDecoration: 'none', fontWeight: 600, opacity: .82, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.82')}>POS</a>}
             {user && (user as any).tier === 'SuperAdmin' && (
               <>
@@ -23708,9 +23730,22 @@ export default function ImsPage() {
         </header>
 
         <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
-          <Sidebar active={view} onSelect={(v) => setViewSafe(v)} userTier={user?.tier} />
+          <Sidebar active={view} onSelect={(v) => setViewSafe(v)} userTier={user?.tier} features={user?.features} />
           <main style={{ flex: 1, minWidth: 0, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
-            <MainSections
+            {isImsAutomationView(view) ? (
+              settingsLoaded && canAccessImsAutomationView(view, user?.tier, user?.features, pageCapabilities.shopifyEnabled)
+                ? <AutomationWorkspace
+                    key={view}
+                    activeView={view}
+                    databaseId={user?.businessId ?? ''}
+                    businessName={user?.company ?? ''}
+                    userTier={user?.tier ?? ''}
+                    marketingEnabled={canAccessImsTestFeature(user?.tier, user?.features, 'foresight.marketing')}
+                    aiHelperEnabled={canAccessImsTestFeature(user?.tier, user?.features, 'ims.ai-helper')}
+                    shopifyEnabled={pageCapabilities.shopifyEnabled}
+                  />
+                : <p role="status">Checking workspace access...</p>
+            ) : <MainSections
               view={view}
               xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
               shopifyEnabled={pageCapabilities.shopifyEnabled}
@@ -23778,7 +23813,7 @@ export default function ImsPage() {
               BookkeeperAuditView={BookkeeperAuditView}
               XeroView={XeroView}
               OrderPlannerView={OrderPlannerView}
-            />
+            />}
           </main>
         </div>
       </div>
@@ -29702,6 +29737,3 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     </div>
   );
 }
-
-
-

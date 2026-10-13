@@ -1,7 +1,7 @@
 {
-  "/login/page": "app/login/page.js",
   "/admin/page": "app/admin/page.js",
-  "/auth/mfa/challenge/page": "app/auth/mfa/challenge/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/login/page": "app/login/page.js",
+  "/auth/mfa/challenge/page": "app/auth/mfa/challenge/page.js",
   "/ims/page": "app/ims/page.js"
 }

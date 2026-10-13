@@ -85,6 +85,31 @@ describe('Advisor Xero retry middleware exception', () => {
   beforeEach(() => {
     verifySession.mockResolvedValue({ businessId: 'tenant-1', tier: 'Advisor' });
   });
+
+  describe('IMS test-feature API access', () => {
+    it.each(['Admin', 'StandardUser', 'Advisor', 'PosManager', 'PosUser'])(
+      'rejects %s even for read requests', async tier => {
+        verifySession.mockResolvedValue({ businessId: 'tenant-1', tier });
+        const response = await middleware(request('GET', false, '/api/foresight/marketing/recommendations'));
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toMatchObject({ code: 'test_feature_superadmin_only' });
+      },
+    );
+    it.each(['/api/ai/ask', '/api/ai/chat-summary', '/api/sync/marketing', '/api/ai/marketing-mission', '/api/ai/campaign-audit'])(
+      'rejects regular-user requests to %s', async pathname => {
+        verifySession.mockResolvedValue({ tier: 'Admin' });
+        expect((await middleware(request('POST', false, pathname))).status).toBe(403);
+      },
+    );
+    it('allows SuperAdmin test requests', async () => {
+      verifySession.mockResolvedValue({ tier: 'SuperAdmin' });
+      expect((await middleware(request('POST', false, '/api/ai/ask'))).status).toBe(200);
+    });
+    it('preserves unauthenticated cron handling but rejects unauthenticated test APIs', async () => {
+      expect((await middleware(new NextRequest('http://localhost/api/foresight/digests/cron'))).status).toBe(200);
+      expect((await middleware(new NextRequest('http://localhost/api/ai/ask', { method: 'POST' }))).status).toBe(401);
+    });
+  });
   it('delegates only the exact POST retry route to its business permission guard', async () => {
     expect((await middleware(request('POST', false, '/api/ims/xero/push'))).status).toBe(200);
   });

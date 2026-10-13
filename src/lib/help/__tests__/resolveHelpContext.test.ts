@@ -67,7 +67,8 @@ describe('resolveHelpContext', () => {
     const topics = listHelpTopics('ims');
     expect(topics.every(topic => topic.audiences.includes('ims'))).toBe(true);
     expect(topics.some(topic => topic.product === 'ims')).toBe(true);
-    expect(topics.some(topic => topic.product === 'foresight')).toBe(true);
+    expect(topics.some(topic => topic.id === 'foresight-workspaces' && topic.product === 'ims')).toBe(true);
+    expect(topics.some(topic => topic.product === 'foresight')).toBe(false);
     expect(topics.some(topic => topic.product === 'setup')).toBe(true);
     expect(topics.some(topic => topic.product === 'pos')).toBe(true);
   });

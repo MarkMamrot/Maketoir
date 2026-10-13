@@ -43,6 +43,7 @@ describe('order-owned shipping preparation', () => {
     expect(await saveShippingOrderPreparation('tenant-a', 10, input)).toEqual({ shipment: detail });
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'tenant-a', operationKey: 'prepare-1', preparationOnly: true, batchId: null,
+      carrierAccountId: null,
       shipments: [expect.objectContaining({ soId: 10, parcels: [parcel] })],
     }));
     expect(mocks.create.mock.calls[0][0].shipments[0]).not.toHaveProperty('service');
@@ -59,6 +60,7 @@ describe('order-owned shipping preparation', () => {
     await saveShippingOrderPreparation('tenant-a', 10, { ...input, expectedRevision: 0, expectedUpdatedAt: detail.updatedAt });
     expect(mocks.amend).toHaveBeenCalledWith('tenant-a', 1, expect.objectContaining({
       service: null, preparationOnly: true, expectedRevision: 0, expectedUpdatedAt: detail.updatedAt,
+      carrierAccountId: null,
       recipient: detail.recipient,
     }));
     expect(mocks.create).not.toHaveBeenCalled();

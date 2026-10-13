@@ -118,7 +118,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
       setDetail(saved);
       setRecipient({ ...saved.recipient, lines: [...saved.recipient.lines] });
       setParcels(saved.parcels.map(shipmentParcelForm));
-      setAccountId(String(saved.carrierAccountId));
+      setAccountId(saved.carrierAccountId == null ? "" : String(saved.carrierAccountId));
       setUncertain(["amending", "amendment_unknown"].includes(saved.status));
     }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load saved shipment."); })
       .finally(() => { if (active) setBusy(null); });
@@ -261,7 +261,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
             setDetail(saved);
             setRecipient({ ...saved.recipient, lines: [...saved.recipient.lines] });
             setParcels(saved.parcels.map(shipmentParcelForm));
-            setAccountId(String(saved.carrierAccountId));
+            setAccountId(saved.carrierAccountId == null ? "" : String(saved.carrierAccountId));
             setQuotes([]);
             setService(null);
             setDirty(false);

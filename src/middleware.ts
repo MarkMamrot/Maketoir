@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAdminSessionEdge } from '@/lib/auth/adminSessionTokenEdge';
 import { isWholesalePreviewMutationAllowed, type WholesaleStaffPreviewMode } from '@/lib/wholesale/wholesalePortalSettings';
+import { isImsTestFeatureApi } from '@/lib/navigation/imsAutomationNavigation';
 
 /**
  * Global write-access guard.
@@ -98,7 +99,12 @@ export async function middleware(req: NextRequest) {
   }
 
   const raw = req.cookies.get('marketoir_session')?.value;
-  if (!raw) return NextResponse.next(); // unauthenticated — let the route return 401
+  if (!raw) {
+    if (isImsTestFeatureApi(req.nextUrl.pathname)) {
+      return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    }
+    return NextResponse.next();
+  }
 
   if (PUBLIC_AUTH_PATHS.has(req.nextUrl.pathname)) return NextResponse.next();
 
@@ -118,6 +124,13 @@ export async function middleware(req: NextRequest) {
       : NextResponse.redirect(new URL('/login', req.url));
     response.cookies.delete('marketoir_session');
     return response;
+  }
+
+  if (isImsTestFeatureApi(req.nextUrl.pathname) && session.tier !== 'SuperAdmin') {
+    return NextResponse.json(
+      { error: 'This test feature is available only to SuperAdmins.', code: 'test_feature_superadmin_only' },
+      { status: 403 },
+    );
   }
 
   if (!WRITE_METHODS.has(req.method)) return NextResponse.next();
