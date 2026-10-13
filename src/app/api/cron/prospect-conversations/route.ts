@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { runProspectConversationMaintenance } from '@/lib/salesAssistant/retention';
 
@@ -20,6 +21,8 @@ function authorized(request: Request): boolean {
 
 async function handle(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const paused = await checkCronJobEnabled('prospect-conversations');
+  if (paused) return paused;
   try {
     return NextResponse.json(await runProspectConversationMaintenance());
   } catch {

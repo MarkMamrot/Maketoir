@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/cron/settings', () => ({ checkCronJobEnabled: vi.fn().mockResolvedValue(null) }));
 
 const { mockQuery, mockRunIms, mockTimeZone, mockGenerate, mockGenerateWeekly, mockEvaluateOutcomes, mockEvaluateCampaignOutcomes, mockMonitoringSync, mockCollectExperiments } = vi.hoisted(() => ({
   mockQuery: vi.fn(), mockRunIms: vi.fn(), mockTimeZone: vi.fn(), mockGenerate: vi.fn(), mockGenerateWeekly: vi.fn(), mockEvaluateOutcomes: vi.fn(), mockEvaluateCampaignOutcomes: vi.fn(), mockMonitoringSync: vi.fn(), mockCollectExperiments: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('@/lib/foresight/ForesightExperimentEvidenceCollectionService', () => ({
 }));
 
 import { POST } from '../route';
+import { MARKETING_SCHEDULED_AUTOMATION_KEY } from '@/lib/foresight/marketingAutomationSettings';
 
 function request(secret?: string, body?: Record<string, unknown>): Request {
   return new Request('http://localhost/api/foresight/digests/cron', {
@@ -48,6 +50,22 @@ describe('POST /api/foresight/digests/cron', () => {
   it('rejects missing or invalid cron credentials', async () => {
     expect((await POST(request())).status).toBe(401);
     expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it.each(['daily_operations', 'weekly_summary'])('skips disabled marketing schedules before entering tenant context (%s)', async digestType => {
+    mockQuery.mockResolvedValue([]);
+    const response = await POST(request('test-secret', { digestType }));
+    expect(response.status).toBe(200);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('AND NOT EXISTS'), [MARKETING_SCHEDULED_AUTOMATION_KEY]);
+    expect(mockQuery.mock.calls[0][0]).toContain('BINARY marketing_setting.business_id = BINARY b.business_id');
+    expect(mockQuery.mock.calls[0][0]).toContain('COALESCE(b.automation_paused, 0) = 0');
+    expect(mockRunIms).not.toHaveBeenCalled();
+    expect(mockMonitoringSync).not.toHaveBeenCalled();
+    expect(mockGenerate).not.toHaveBeenCalled();
+    expect(mockGenerateWeekly).not.toHaveBeenCalled();
+    expect(mockEvaluateOutcomes).not.toHaveBeenCalled();
+    expect(mockCollectExperiments).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({ businesses: 0, generated: 0 });
   });
 
   it('isolates tenant contexts and continues after one business fails', async () => {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { query } from '@/services/MySQLService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { requireAdminSession } from '@/lib/sessionUtils';
@@ -8,6 +9,8 @@ export async function POST(req: Request) {
   const cronSecret = req.headers.get('x-cron-secret');
   if (cronSecret) {
     if (cronSecret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+    const paused = await checkCronJobEnabled('customer-service-sync');
+    if (paused) return paused;
     const businesses = await query<{ business_id: string; name: string }>(
       `SELECT business_id, name FROM businesses
         WHERE deleted_at IS NULL

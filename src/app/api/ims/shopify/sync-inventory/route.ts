@@ -11,6 +11,7 @@
  * Auth: x-cron-secret header (cron) OR an authenticated IMS session (manual).
  */
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
@@ -101,6 +102,8 @@ async function handlePost(req: Request) {
     if (cronSecret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
+    const paused = await checkCronJobEnabled('shopify-inventory');
+    if (paused) return paused;
     // Each tenant's queue lives in its own schema — drain them one by one
     // inside a bound schema context.
     const businesses = await query<{ business_id: string }>(

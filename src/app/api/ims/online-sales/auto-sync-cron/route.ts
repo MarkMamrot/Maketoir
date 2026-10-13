@@ -10,6 +10,7 @@
  * and pushes each one to Xero as a daily summary invoice.
  */
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('online-sales');
+  if (paused) return paused;
 
   // Iterate businesses from the main registry and bind each tenant's IMS schema
   // before querying orders. Do not discover businesses from the default IMS DB.

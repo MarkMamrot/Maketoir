@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { ForesightDigestService } from '@/lib/foresight/ForesightDigestService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
@@ -6,6 +7,7 @@ import { ForesightMonitoringSyncService } from '@/lib/foresight/ForesightMonitor
 import { ForesightExperimentEvidenceCollectionService } from '@/lib/foresight/ForesightExperimentEvidenceCollectionService';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { query } from '@/services/MySQLService';
+import { MARKETING_SCHEDULED_AUTOMATION_KEY } from '@/lib/foresight/marketingAutomationSettings';
 
 function addDays(date: string, days: number): string {
   const value = new Date(`${date}T00:00:00Z`);
@@ -23,12 +25,20 @@ export async function POST(request: Request) {
   if (digestType !== 'daily_operations' && digestType !== 'weekly_summary') {
     return NextResponse.json({ error: 'Invalid digestType.' }, { status: 400 });
   }
+  const paused = await checkCronJobEnabled(digestType === 'weekly_summary' ? 'marketing-weekly' : 'marketing-daily');
+  if (paused) return paused;
 
   const businesses = await query<{ business_id: string }>(
-    `SELECT business_id FROM businesses
-     WHERE deleted_at IS NULL
-       AND COALESCE(automation_paused, 0) = 0
-     ORDER BY business_id`,
+    `SELECT b.business_id FROM businesses b
+     WHERE b.deleted_at IS NULL
+       AND COALESCE(b.automation_paused, 0) = 0
+       AND NOT EXISTS (
+         SELECT 1 FROM config marketing_setting
+          WHERE BINARY marketing_setting.business_id = BINARY b.business_id
+            AND marketing_setting.\`key\` = ? AND marketing_setting.value = 'false'
+       )
+     ORDER BY b.business_id`,
+    [MARKETING_SCHEDULED_AUTOMATION_KEY],
   );
   const results: Array<{
     businessId: string;

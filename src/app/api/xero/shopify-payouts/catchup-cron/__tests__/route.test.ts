@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/cron/settings', () => ({ checkCronJobEnabled: vi.fn().mockResolvedValue(null) }));
 
 const { mockQuery, mockRunImsForBusiness, mockGetCreds, mockFetchPayouts, mockIngest, mockAutoPost } = vi.hoisted(() => ({
   mockQuery: vi.fn(),

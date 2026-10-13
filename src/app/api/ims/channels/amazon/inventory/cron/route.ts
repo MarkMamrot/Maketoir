@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { syncChangedAmazonInventoryForChannel } from '@/lib/channels/amazonInventorySync';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -16,6 +17,8 @@ export async function POST(request: Request) {
   if (!process.env.CRON_SECRET || request.headers.get('x-cron-secret') !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('amazon-inventory');
+  if (paused) return paused;
 
   const body = await request.json().catch(() => ({}));
   const limit = Math.max(1, Math.min(100, Math.floor(Number(body?.limit ?? 100))));

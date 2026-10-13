@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('shopify-gift-cards');
+  if (paused) return paused;
 
   let businesses: BusinessRow[];
   try {

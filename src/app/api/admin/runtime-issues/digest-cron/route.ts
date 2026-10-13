@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { retryPendingRuntimeIssueAlerts, sendRuntimeIssuesDailyDigest } from '@/lib/runtimeIssueAlerts';
 
@@ -9,6 +10,8 @@ export async function POST(request: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('runtime-issues-digest');
+  if (paused) return paused;
 
   try {
     const alertRetries = await retryPendingRuntimeIssueAlerts();

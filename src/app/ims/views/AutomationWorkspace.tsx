@@ -1314,6 +1314,8 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
   const [highMin, setHighMin] = useState('65');
   const [midMin,  setMidMin]  = useState('40');
   const [budgetChangeNotificationEmail, setBudgetChangeNotificationEmail] = useState('');
+  const [scheduledMarketingEnabled, setScheduledMarketingEnabled] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('loading');
   const [error,   setError]   = useState('');
 
@@ -1322,22 +1324,38 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
   const mid  = parseFloat(midMin)  || 40;
 
   useEffect(() => {
+    let active = true;
+    setSettingsLoaded(false);
     if (!databaseId) { setStatus('idle'); return; }
     setStatus('loading');
     fetch(`/api/user/marketing-settings?databaseId=${encodeURIComponent(databaseId)}`)
-      .then(r => r.json())
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok || data.error) throw new Error(data.error || 'Marketing settings could not be loaded.');
+        return data;
+      })
       .then(d => {
+        if (!active) return;
         if (d.thresholds) {
           setHighMin(String(d.thresholds.high));
           setMidMin(String(d.thresholds.mid));
         }
         setBudgetChangeNotificationEmail(String(d.budgetChangeNotificationEmail ?? ''));
+        setScheduledMarketingEnabled(d.scheduledMarketingEnabled !== false);
+        setSettingsLoaded(true);
+        setError('');
         setStatus('idle');
       })
-      .catch(() => setStatus('idle'));
+      .catch(error => {
+        if (!active) return;
+        setError(error instanceof Error ? error.message : 'Marketing settings could not be loaded.');
+        setStatus('error');
+      });
+    return () => { active = false; };
   }, [databaseId]);
 
   const save = async () => {
+    if (!settingsLoaded) return;
     const h = parseFloat(highMin);
     const m = parseFloat(midMin);
     if (!Number.isFinite(h) || h <= 0 || h > 100) { setError('High threshold must be 1–100.'); return; }
@@ -1348,7 +1366,7 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
       const res = await fetch('/api/user/marketing-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId, highMin: h, midMin: m, budgetChangeNotificationEmail }),
+        body: JSON.stringify({ databaseId, highMin: h, midMin: m, budgetChangeNotificationEmail, scheduledMarketingEnabled }),
       });
       const d = await res.json();
       if (!res.ok || d.error) throw new Error(d.error || 'Save failed');
@@ -1376,6 +1394,20 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
       <div>
         <h2 className="text-xl font-semibold text-white mb-1">Marketing Settings</h2>
         <p className="text-sm text-gray-400">Configure how brands are classified into margin tiers. Tiers affect break-even ROAS targets and campaign audit scores.</p>
+      </div>
+
+      <div className="border-b border-gray-700 pb-5">
+        <h3 className="text-sm font-semibold text-gray-200 mb-3">Scheduled Marketing Automation</h3>
+        <label className="flex items-center gap-3 text-sm text-gray-200 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={scheduledMarketingEnabled}
+            onChange={event => setScheduledMarketingEnabled(event.target.checked)}
+            disabled={!settingsLoaded || status === 'saving'}
+            className="h-4 w-4 shrink-0 accent-emerald-500"
+          />
+          Scheduled marketing jobs
+        </label>
       </div>
 
       {/* Threshold inputs */}
@@ -1449,7 +1481,7 @@ function MarketingSettingsView({ databaseId }: { databaseId: string }) {
       {error && <p className="text-sm text-red-400">{error}</p>}
       <button
         onClick={save}
-        disabled={status === 'saving'}
+        disabled={!settingsLoaded || status === 'saving'}
         className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors"
       >
         {status === 'saving' ? 'Saving…' : status === 'saved' ? '✓ Saved' : 'Save Settings'}

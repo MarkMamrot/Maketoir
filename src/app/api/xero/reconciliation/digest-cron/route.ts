@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getReconciliationDigestSchedule, type ReconciliationDigestFrequency } from '@/lib/xero/reconciliation/digestSchedule';
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('xero-reconciliation-digest');
+  if (paused) return paused;
   const now = new Date();
   let schedules: DigestScheduleRow[];
   try {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { syncAmazonOrdersForChannel } from '@/lib/channels/amazonOrderSync';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
   if (!process.env.CRON_SECRET || request.headers.get('x-cron-secret') !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('amazon-orders');
+  if (paused) return paused;
   const channels = await query<ActiveAmazonChannelRow>(
     `SELECT instance.business_id, instance.channel_instance_id
        FROM sales_channel_instances instance

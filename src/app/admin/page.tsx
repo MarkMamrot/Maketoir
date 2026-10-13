@@ -8,6 +8,7 @@ import IntegrationOfferingsView from './IntegrationOfferingsView';
 import ProspectInsightsView from './ProspectInsightsView';
 import ProspectLeadsView from './ProspectLeadsView';
 import RuntimeIssuesView from './RuntimeIssuesView';
+import CronJobsView from './CronJobsView';
 import SupportTicketsView from './SupportTicketsView';
 import WorkflowFindingsView from './WorkflowFindingsView';
 import BusinessFeaturesView from './BusinessFeaturesView';
@@ -29,7 +30,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'support-tickets' | 'workflow-findings' | 'merchant-rate-calculator' | 'tyro-certification';
+type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'cron-jobs' | 'support-tickets' | 'workflow-findings' | 'merchant-rate-calculator' | 'tyro-certification';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -804,6 +805,7 @@ export default function AdminPage() {
             { id: 'prospect-insights', label: 'Prospect Insights' },
             { id: 'ai-billing', label: 'AI Usage & Credits' },
             { id: 'runtime-issues', label: `Runtime Issues${openIssueCount ? ` (${openIssueCount})` : ''}` },
+            { id: 'cron-jobs', label: 'Cron Jobs' },
             { id: 'support-tickets', label: `Support Tickets${openTicketCount ? ` (${openTicketCount})` : ''}` },
             { id: 'workflow-findings', label: 'Workflow Findings' },
           ] as { id: View; label: string }[]).map(item => (
@@ -829,6 +831,7 @@ export default function AdminPage() {
           {view === 'prospect-insights' && <ProspectInsightsView />}
           {view === 'ai-billing' && <AiUsageCreditsDashboard />}
           {view === 'runtime-issues' && <RuntimeIssuesView />}
+          {view === 'cron-jobs' && <CronJobsView />}
           {view === 'support-tickets' && <SupportTicketsView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
           {view === 'merchant-rate-calculator' && (

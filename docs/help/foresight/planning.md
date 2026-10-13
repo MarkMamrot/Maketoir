@@ -14,6 +14,19 @@ Use this overview to choose the next planning or review step and understand whet
 - Draft and submit the exact plan version you want reviewed.
 - Record implementation separately from plan or recommendation approval.
 - Review experiment results before accepting them as future planning evidence.
+- Use Marketing Settings to enable or pause scheduled marketing jobs for the active business.
+
+## Marketing Settings
+
+SuperAdmins can open **IMS > Automations > Marketing Activities (Test) > Marketing Settings** to configure marketing options for the active business. This page is hidden when Marketing Activities is off and is never available to regular staff.
+
+Under **Scheduled Marketing Automation**, select or clear **Scheduled marketing jobs**, then choose **Save Settings**. The switch is on by default and applies only to the active business.
+
+Turning it off skips scheduled daily marketing monitoring, paid-media and campaign outcome checks, experiment evidence collection, and daily and weekly marketing digests. Manual marketing actions remain available. Retail, inventory, accounting, and customer-service schedules are unaffected.
+
+The business-wide **Pause scheduled automation** setting still takes precedence. Turning marketing jobs back on does not override that wider pause. Saving this preference affects future runs; it does not cancel a run already in progress.
+
+The platform-wide **Daily marketing monitoring and digest** and **Weekly marketing digest** master switches in **Admin > Cron Jobs** also take precedence. A business's marketing switch can remain On while a platform master switch is Off.
 
 ## Refresh marketing information
 
@@ -63,6 +76,3 @@ Confirm the evidence period and connected account, then decide whether the recom
 ### Reject weak evidence
 
 A recommendation refers to a partial day of results. Do not approve it because the headline looks urgent. Refresh after a complete reporting period or reject the recommendation with a short reason.
-## Marketing Settings
-
-SuperAdmins can open **IMS > Automations > Marketing Activities (Test) > Marketing Settings** to configure marketing options for the active business. This page is hidden when Marketing Activities is off and is never available to regular staff.

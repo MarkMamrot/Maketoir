@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('xero-reconciliation');
+  if (paused) return paused;
 
   let schedules: ReconciliationSchedule[];
   try {

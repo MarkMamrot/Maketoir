@@ -7,10 +7,12 @@
  *   Writes thresholds to Config tab.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getAdminSession } from '@/lib/sessionUtils';
 import { GoogleSheetsService } from '../../../../services/GoogleSheetsService';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { BUDGET_CHANGE_NOTIFICATION_EMAIL } from '@/lib/foresight/budgetChangeNotification';
+import { isMarketingScheduledAutomationEnabled, MARKETING_SCHEDULED_AUTOMATION_KEY } from '@/lib/foresight/marketingAutomationSettings';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const DEFAULT_THRESHOLDS = { high: 65, mid: 40 };
 function validEmail(value: string): boolean {
@@ -18,9 +20,7 @@ function validEmail(value: string): boolean {
 }
 
 function requireSession() {
-  const session = cookies().get('marketoir_session');
-  if (!session) return null;
-  try { return JSON.parse(session.value); } catch { return null; }
+  return getAdminSession();
 }
 
 function nc(v: unknown) {
@@ -55,10 +55,11 @@ export async function GET(req: Request) {
 
   try {
     const sheets = new GoogleSheetsService();
-    const [rawHigh, rawMid, budgetChangeNotificationEmail] = await Promise.all([
+    const [rawHigh, rawMid, budgetChangeNotificationEmail, marketingScheduledAutomation] = await Promise.all([
       readConfig(sheets, databaseId, 'MarginTier_High'),
       readConfig(sheets, databaseId, 'MarginTier_Mid'),
       ConfigRepository.get(user.businessId, BUDGET_CHANGE_NOTIFICATION_EMAIL),
+      ConfigRepository.get(user.businessId, MARKETING_SCHEDULED_AUTOMATION_KEY),
     ]);
     const high = rawHigh ? parseFloat(rawHigh) : DEFAULT_THRESHOLDS.high;
     const mid  = rawMid  ? parseFloat(rawMid)  : DEFAULT_THRESHOLDS.mid;
@@ -70,8 +71,10 @@ export async function GET(req: Request) {
       },
       defaults: DEFAULT_THRESHOLDS,
       budgetChangeNotificationEmail: budgetChangeNotificationEmail ?? '',
+      scheduledMarketingEnabled: isMarketingScheduledAutomationEnabled(marketingScheduledAutomation),
     });
   } catch (e: any) {
+    await reportRuntimeIssue({ businessId: user.businessId, source: 'marketing-settings', operation: 'load', title: 'Marketing settings failed to load', error: e });
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -80,9 +83,16 @@ export async function POST(req: Request) {
   const user = requireSession();
   if (!user) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
 
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'A settings object is required.' }, { status: 400 });
+  }
   try {
-    const { databaseId, highMin, midMin, budgetChangeNotificationEmail } = await req.json();
+    const { databaseId, highMin, midMin, budgetChangeNotificationEmail, scheduledMarketingEnabled } = body;
     if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    if (scheduledMarketingEnabled !== undefined && typeof scheduledMarketingEnabled !== 'boolean') {
+      return NextResponse.json({ error: 'scheduledMarketingEnabled must be true or false.' }, { status: 400 });
+    }
 
     const high = parseFloat(String(highMin));
     const mid  = parseFloat(String(midMin));
@@ -102,14 +112,19 @@ export async function POST(req: Request) {
       writeConfig(sheets, databaseId, 'MarginTier_High', String(high)),
       writeConfig(sheets, databaseId, 'MarginTier_Mid',  String(mid)),
       ConfigRepository.set(user.businessId, BUDGET_CHANGE_NOTIFICATION_EMAIL, notificationEmail),
+      ...(scheduledMarketingEnabled === undefined ? [] : [
+        ConfigRepository.set(user.businessId, MARKETING_SCHEDULED_AUTOMATION_KEY, String(scheduledMarketingEnabled)),
+      ]),
     ]);
 
     return NextResponse.json({
       success: true,
       thresholds: { high, mid },
       budgetChangeNotificationEmail: notificationEmail,
+      ...(scheduledMarketingEnabled === undefined ? {} : { scheduledMarketingEnabled }),
     });
   } catch (e: any) {
+    await reportRuntimeIssue({ businessId: user.businessId, source: 'marketing-settings', operation: 'save', title: 'Marketing settings failed to save', error: e });
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

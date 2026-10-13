@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import {
   fetchPaidShopifyPayouts,
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('shopify-payouts');
+  if (paused) return paused;
 
   const instances = await query<{ business_id: string; channel_instance_id: string }>(
     `SELECT b.business_id, instance.channel_instance_id

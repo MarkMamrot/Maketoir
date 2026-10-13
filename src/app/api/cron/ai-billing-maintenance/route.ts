@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { reconcileAiBilling } from '@/lib/ai/billing/reconciliation';
 import { AiBillingRepository } from '@/lib/ai/billing/repository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -10,6 +11,8 @@ export async function GET(request: Request) {
     || request.headers.get('authorization') === `Bearer ${secret}`
   );
   if (!authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const paused = await checkCronJobEnabled('ai-billing-maintenance');
+  if (paused) return paused;
   try {
     const cyclesAdvanced = await AiBillingRepository.advanceDueCycles();
     const findings = await reconcileAiBilling();

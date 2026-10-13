@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { syncAmazonRefundsForChannel } from '@/lib/channels/amazonRefundSync';
 import { syncAmazonReturnsForChannel } from '@/lib/channels/amazonReturnSync';
@@ -12,6 +13,8 @@ export async function POST(request: Request) {
   if (!process.env.CRON_SECRET || request.headers.get('x-cron-secret') !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('amazon-returns');
+  if (paused) return paused;
   const channels = await query<{ business_id: string; channel_instance_id: string }>(
     `SELECT instance.business_id, instance.channel_instance_id
        FROM sales_channel_instances instance

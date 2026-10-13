@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/cron/settings', () => ({ checkCronJobEnabled: vi.fn().mockResolvedValue(null) }));
 
 const mocks = vi.hoisted(() => ({ advance: vi.fn(), reconcile: vi.fn(), report: vi.fn() }));
 vi.mock('@/lib/ai/billing/repository', () => ({ AiBillingRepository: { advanceDueCycles: mocks.advance } }));

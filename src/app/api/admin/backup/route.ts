@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { timingSafeEqual } from 'crypto';
 import { query } from '@/services/MySQLService';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
   if (!secret || !isAuthorized(auth, secret)) {
     return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('database-backup');
+  if (paused) return paused;
 
   try {
     const drive = new GoogleSheetsService();
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
     // Query all tables
     const tables: Record<string, unknown[]> = {};
     const tablesToBackup = [
-      'businesses', 'users', 'invites', 'config', 'connections',
+      'businesses', 'users', 'invites', 'config', 'connections', 'cron_job_settings',
       'business_info', 'brand_profile', 'branches', 'suppliers',
       'products', 'stock', 'sales', 'calc_reports', 'yearly_revenue',
       'chats', 'shopify_products', 'shopify_orders', 'marketing_data',

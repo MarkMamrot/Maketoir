@@ -17,7 +17,7 @@ describe('generated Help presentation contract', () => {
   });
 
   it('gives every topic a small valid set of default-open sections', () => {
-    expect(topics).toHaveLength(71);
+    expect(topics).toHaveLength(72);
     for (const topic of topics) {
       expect(topic.quickSections.length, topic.id).toBeGreaterThanOrEqual(1);
       expect(topic.quickSections.length, topic.id).toBeLessThanOrEqual(4);

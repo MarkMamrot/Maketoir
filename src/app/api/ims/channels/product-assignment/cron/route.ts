@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { runChannelProductAssignmentAutomation } from '@/lib/channels/channelProductAssignmentAutomation';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
   if (!process.env.CRON_SECRET || request.headers.get('x-cron-secret') !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('product-assignment');
+  if (paused) return paused;
   const body = await request.json().catch(() => ({}));
   const batchSize = Math.max(1, Math.min(500, Math.floor(Number(body?.batchSize ?? 500))));
   let channels: AssignmentChannelRow[];

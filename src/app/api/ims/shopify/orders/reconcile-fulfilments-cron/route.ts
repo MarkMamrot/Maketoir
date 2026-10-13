@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronJobEnabled } from '@/lib/cron/settings';
 
 import { reconcileShopifyFulfilmentsForChannel } from '@/lib/channels/shopifyFulfilmentReconciliation';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
   if (!process.env.CRON_SECRET || request.headers.get('x-cron-secret') !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
+  const paused = await checkCronJobEnabled('shopify-fulfilments');
+  if (paused) return paused;
 
   const startedAt = Date.now();
   const windowEnd = new Date(startedAt).toISOString();
