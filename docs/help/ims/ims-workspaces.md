@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-13","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-08","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
 ---
 # IMS Workspaces
 
@@ -9,9 +9,9 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 
 - Use the Dashboard to spot work that needs attention.
 - Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.
-- Open **Automations > Marketing Activities (Test)** or **Automations > AI Helper (Test)** for experimental marketing and advisory tools. These tools are available only to SuperAdmins when enabled for the active business in **Admin > Feature Rollouts**; regular users cannot see or open them.
+- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.
 - Open the top-bar **Settings** (gear) drawer for Connections and the existing IMS settings sections. Choose **Sync & Import** to import supported source data into IMS or refresh cached sales totals.
-- Open **Automations > Web Field Templates** to maintain the templates used by the listing generator and bulk listing editor.
+- Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - On a narrow screen, the sidebar collapses automatically so the active workspace retains usable width. Use its arrow to expand it when needed.
@@ -41,20 +41,18 @@ If the full-page **Something went wrong** screen appears, select **Reload page**
 | Review or send customer email | **Automations > Customer Service** | Inbox, Compose Email, and Email Templates |
 | Configure connections | Top-bar **Settings** > **Connections** | Shared account and provider connections |
 | Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |
-| Maintain online listing templates | **Automations > Web Field Templates** | Description, title, and tag templates used by listing workflows |
-| Test marketing workflows | **Automations > Marketing Activities (Test)** | SuperAdmin-only data sync, assistant, planning, recommendations, creative review, audits, and Marketing Settings |
-| Test business advisory chat | **Automations > AI Helper (Test)** | SuperAdmin-only questions, data previews, and saved chat summaries |
+| Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
 
 ## Contact Support
 
 Open **Help > Contact Support**, enter a subject and description, then press **Submit ticket**. An internet connection is required. The ticket includes the screen where Help was opened.
 
-The ticket records the signed-in staff member's email address. The submission confirmation shows the ticket number, which is also included in emails. Solvantis emails the original submitter when support posts an update or changes the ticket's status or assignment. Email delivery does not determine whether the ticket was saved; use the **Ticket submitted** message to confirm submission.
+The ticket records the signed-in staff member's email address. Solvantis sends a confirmation to that address after submission and a resolution email, including any resolution notes, when support marks the ticket Resolved or Closed. Email delivery does not determine whether the ticket was saved; use the **Ticket submitted** message to confirm submission.
 
 Paste an image directly into the **Description** box or press **Attach images** to choose files. Images appear as previews below the description; remove any unwanted image before submitting. Each ticket accepts up to five JPEG, PNG, WebP or GIF images, up to 5 MB each. Remove private customer details and credentials from screenshots before sending.
 
-Super Admins review tickets and images in **Admin > Support Tickets** or the **Support Tickets** tab in IMS Team Communications. They can assign a ticket to a Super Admin, change its status, and use **New update > Post update** to add a message. Updates retain their author and timestamp rather than replacing earlier messages; previous resolution notes remain visible. Each update displays Email sent, Email pending, Email failed, or No reply email recorded. Use **Retry email** for a pending or failed update without posting it again. Older tickets without a recorded reply email cannot receive updates by email. The badge counts Open and In Progress tickets. The support-team notification address is configured in **Admin > Support Tickets**; it does not replace the submitter's reply address. Images are viewed securely in the ticket rather than attached to emails.
+Super Admins review tickets and images in **Admin > Support Tickets** or the **Support Tickets** tab in IMS Team Communications. They can assign a ticket to a Super Admin, change its status, and enter resolution notes. The badge counts Open and In Progress tickets. The notification email address is configured in **Admin > Support Tickets**; images are viewed securely in the ticket rather than attached to the notification email.
 
 If submission fails, the form keeps the description and selected images for another attempt. A successful submission displays **Ticket submitted**; there is no requester-facing ticket list.
 
@@ -64,7 +62,7 @@ Dashboard cards, CRM profiles, and reports help you find and understand activity
 
 Ask Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.
 
-Live checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or marketing checks. Xero and Shopify checks appear only to eligible users while that capability is enabled. Marketing checks are test features available only to SuperAdmins in businesses with Marketing Activities enabled.
+Live checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.
 
 Your recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.
 

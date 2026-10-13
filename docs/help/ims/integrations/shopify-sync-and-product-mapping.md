@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify","shopify-refund"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Step-by-step","shopify-refund":"Shopify refunds and return costs"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-10-11","owner":"integrations","quickSections":["Main operations","At a glance"]}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify","shopify-refund"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Check order sync and webhook verification","shopify-refund":"Shopify refunds and return costs"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.","lastReviewed":"2026-10-13","owner":"integrations","quickSections":["Main operations","At a glance"]}
 ---
 # Shopify Sync and Product Mapping
 
@@ -44,7 +44,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 
 Assistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.
 
-This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Integrations > Sales Channels**, configure the exact Shopify store, and use its Orders & Inventory and Activity tabs for live registration and operational history.
+This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Integrations > Sales Channels**, configure the exact Shopify store, and use its **Connection**, **Orders**, and **Activity** tabs for saved webhook status, order settings, and operational history.
 
 For products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.
 
@@ -61,6 +61,17 @@ Initiate Shopify refunds in Shopify Admin. Solvantis records the refund as an ex
 Returned stock stays linked to the original fulfilled sales-order line. Under FIFO, its cost comes from the original stock allocations, not today's product cost. Under Average Cost, the return uses the original line's captured cost. Missing or inconsistent source history blocks the stock return rather than inventing a cost.
 
 If Shopify has already refunded the customer but Solvantis could not complete the return, correct the reported linkage or source-history issue and retry processing that existing refund. Do not issue another Shopify refund or manually add the same returned stock. Reprocessing a completed refund does not create another credit note or restock it again.
+
+## Check order sync and webhook verification
+
+1. Open **Integrations > Sales Channels**, choose **Configure** on the intended Shopify store, then open **Connection**.
+2. Confirm the connection is active and the supported order webhooks are registered against that store's displayed callback.
+3. For a legacy Admin API token connection, use the **API secret key** from the same Shopify app's API credentials as the webhook signing secret. The access token and the separate signing secret for manually created Shopify Notifications webhooks are not substitutes. Client-credential connections use their saved app secret.
+4. Open **Orders** and confirm order sync is enabled, the start date includes the affected order, and an online-orders location is configured.
+5. Compare a new Shopify order with its IMS Sales Order and review **Activity**. Successful registration alone does not prove that real deliveries pass signature verification.
+6. After correcting the configuration, use the store's order import to recover missing orders. Existing orders are reused and interrupted Drafts resume through the normal confirmation workflow; do not create a second order or make a compensating stock adjustment.
+
+With automatic daily Xero batch sync enabled, opening IMS also attempts a catch-up order import once per browser session. This is not continuous polling and does not replace real-time webhooks. An earlier order appearing after opening IMS does not prove that later Shopify orders will arrive automatically.
 
 ## Step-by-step
 
