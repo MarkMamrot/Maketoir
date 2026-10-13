@@ -1,9 +1,15 @@
 import { workspaceParcelItemLabel } from "./workspaceParcelQuantities";
 
+export function workspaceContentsProductName(item: Parameters<typeof workspaceParcelItemLabel>[0]): string | null {
+  const originalName = item.notes?.trim();
+  if (item.sku?.trim().toUpperCase() === "SHOPIFY-MISC" && originalName) return originalName;
+  return item.product_name?.trim() || null;
+}
+
 export function workspaceContentsLabel(item: Parameters<typeof workspaceParcelItemLabel>[0]): string {
   const sku = item.sku?.trim();
   if (sku?.toUpperCase() === "SHOPIFY-MISC") return workspaceParcelItemLabel(item);
-  const name = item.product_name?.trim();
+  const name = workspaceContentsProductName(item);
   return name ? `${name}${sku ? ` (${sku})` : ""}` : workspaceParcelItemLabel(item);
 }
 

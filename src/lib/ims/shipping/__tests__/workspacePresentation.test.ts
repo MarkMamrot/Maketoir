@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { groupWorkspaceBatches, mergeRemovedParcelAllocations, workspaceBatchLabel, workspaceContentsLabel, workspaceMembershipBlocker, workspaceShippingStatus } from "../workspacePresentation";
+import { groupWorkspaceBatches, mergeRemovedParcelAllocations, workspaceBatchLabel, workspaceContentsLabel, workspaceContentsProductName, workspaceMembershipBlocker, workspaceShippingStatus } from "../workspacePresentation";
 
 describe("shipping workspace presentation", () => {
+  it("provides separate product names for contents tables without substituting SKU codes", () => {
+    expect(workspaceContentsProductName({ id: 1, product_name: " Test product ", sku: "123" })).toBe("Test product");
+    expect(workspaceContentsProductName({ id: 1, product_name: "Shopify misc", sku: " shopify-misc ", notes: " Original title " })).toBe("Original title");
+    expect(workspaceContentsProductName({ id: 1, product_name: "Known product", sku: "SHOPIFY-MISC", notes: " " })).toBe("Known product");
+    expect(workspaceContentsProductName({ id: 1, sku: "123", product_name: " " })).toBeNull();
+  });
   it("shows product names in contents while preserving unmatched Shopify titles", () => {
     expect(workspaceContentsLabel({ id: 1, product_name: "Test product", sku: "123" })).toBe("Test product (123)");
     expect(workspaceContentsLabel({ id: 1, product_name: "Shopify misc", sku: "SHOPIFY-MISC", notes: "Original title" })).toBe("Original title (SHOPIFY-MISC)");

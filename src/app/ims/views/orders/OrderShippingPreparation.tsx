@@ -8,13 +8,15 @@ import { isAustralianShippingCountry } from "@/lib/ims/shipping/shippingWorkflow
 import { millimetresToCentimetreInput } from "@/lib/ims/shipping/parcelDimensions";
 import { workspaceParcelItemLabel, workspaceParcelQuantityIssue } from "@/lib/ims/shipping/workspaceParcelQuantities";
 import { buildNonSaleDeclaredValueInputs, buildWorkspaceCustomsRows, getWorkspaceCustomsBlockers } from "@/lib/ims/shipping/workspaceCustoms";
-import { groupWorkspaceBatches, workspaceBatchLabel, workspaceMembershipBlocker, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
+import { groupWorkspaceBatches, workspaceBatchLabel, workspaceContentsProductName, workspaceMembershipBlocker, type WorkspaceShipment } from "@/lib/ims/shipping/workspacePresentation";
 import { removeSavedParcel, shipmentParcelDraft, shipmentParcelForm, type ParcelForm } from "./ShippingShipmentEditor";
 import type { CarrierAccount, SalesOrderDetail, SalesOrderSummary } from "./ShipOrdersWorkspace";
 import type { BatchDestination } from "./ShippingBatchControls";
 
 const input: CSSProperties = { width: "100%", minWidth: 0, boxSizing: "border-box", padding: "8px", border: "1px solid var(--sv-etch)", borderRadius: 5, color: "var(--sv-text)", background: "var(--sv-bg-1)" };
 const button: CSSProperties = { padding: "8px 12px", border: "1px solid var(--sv-etch)", borderRadius: 5, color: "var(--sv-text)", background: "var(--sv-bg-2)", cursor: "pointer" };
+const preparationButton: CSSProperties = { ...button, width: "100%", minWidth: 0, minHeight: 42, fontSize: 13, fontWeight: 600, lineHeight: 1.4, whiteSpace: "normal" };
+const contentsCell: CSSProperties = { padding: "8px 10px", borderBottom: "1px solid var(--sv-etch)", textAlign: "left", overflowWrap: "anywhere", verticalAlign: "top" };
 type CardState = { shipmentId: number | null; ready: boolean; dirty: boolean; saving: boolean };
 const emptyParcel = (parcelNumber: number): ParcelForm => ({
   parcelNumber, packageType: "custom", lengthCm: "", widthCm: "", heightCm: "", weightKg: "", allocations: [],
@@ -54,7 +56,7 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
       </select>
     </label>
     {!orders.length && <p style={{ fontSize: 12 }}>No delivery orders are waiting for parcel preparation.</p>}
-    {orders.map(order => <OrderPreparationCard key={order.id} order={order} savedRevision={shipments.find(shipment => shipment.shipmentId === Number(order.preparation_shipment_id))?.revision} accountId={Number(accountId)} presets={presets} busy={busy}
+    {orders.map((order, index) => <OrderPreparationCard key={order.id} order={order} striped={index % 2 === 1} savedRevision={shipments.find(shipment => shipment.shipmentId === Number(order.preparation_shipment_id))?.revision} accountId={Number(accountId)} presets={presets} busy={busy}
       selected={selection.includes(order.id)}
       onSelect={checked => setSelected(current => checked ? [...new Set([...current, order.id])] : current.filter(id => id !== order.id))}
       onState={state => setStates(current => ({ ...current, [order.id]: state }))}
@@ -77,8 +79,8 @@ export function OrderShippingPreparation({ orders, shipments, accounts, presets,
   </section>;
 }
 
-function OrderPreparationCard({ order, savedRevision, accountId, presets, busy, selected, onSelect, onState, onSaved, onOpenProducts }: {
-  order: SalesOrderSummary; savedRevision?: number; accountId: number; presets: PackingPreset[];
+function OrderPreparationCard({ order, striped, savedRevision, accountId, presets, busy, selected, onSelect, onState, onSaved, onOpenProducts }: {
+  order: SalesOrderSummary; striped: boolean; savedRevision?: number; accountId: number; presets: PackingPreset[];
   busy: boolean; selected: boolean; onSelect: (checked: boolean) => void;
   onState: (state: CardState) => void; onSaved: () => Promise<void>;
   onOpenProducts: () => void;
@@ -223,8 +225,8 @@ function OrderPreparationCard({ order, savedRevision, accountId, presets, busy, 
   const disabled = busy || loading || saving;
   const contents = detail ? allocated(parcels, detail) : parcels;
   const international = !isAustralianShippingCountry(order.delivery_country || "");
-  return <article aria-label={`Parcel preparation ${order.so_number}`} style={{ padding: "14px 0", borderTop: "1px solid var(--sv-etch)" }}>
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", fontSize: 12 }}>
+  return <article aria-label={`Parcel preparation ${order.so_number}`} style={{ padding: 16, borderTop: "2px solid var(--sv-gray-700)", background: striped ? "var(--sv-bg-2)" : "var(--sv-bg-1)", minWidth: 0 }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", fontSize: 12, paddingBottom: 12, borderBottom: "2px solid var(--sv-etch)" }}>
       <input type="checkbox" aria-label={`Select measured order ${order.so_number}`} disabled={disabled || !saved || dirty || Boolean(error)} checked={selected}
         onChange={event => onSelect(event.target.checked)} />
       <div style={{ flex: "1 1 180px" }}><strong>{order.so_number}</strong>{(order.shopify_order_name || order.channel_order_number || order.native_checkout_id) && <span style={{ marginLeft: 8, color: "var(--sv-text-dim)" }}>{order.shopify_order_name || order.channel_order_number || order.native_checkout_id}</span>}
@@ -253,18 +255,19 @@ function OrderPreparationCard({ order, savedRevision, accountId, presets, busy, 
         {parcels.length > 1 && <details style={{ fontSize: 12, marginTop: 8 }} open><summary>Allocate items between parcels</summary>{(detail?.items ?? []).map(item => <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>{workspaceParcelItemLabel(item)}<input aria-label={`${order.so_number} parcel ${index + 1} allocation ${item.id}`} style={{ ...input, width: 80 }} type="number" min="0" step="any" value={parcel.allocations.find(allocation => allocation.soItemId === item.id)?.quantity ?? "0"} onChange={event => changed(() => setParcels(current => current.map((p, i) => i !== index ? p : { ...p, allocations: (detail?.items ?? []).map(line => ({ soItemId: line.id, quantity: line.id === item.id ? event.target.value : p.allocations.find(allocation => allocation.soItemId === line.id)?.quantity ?? "0" })) })))} /></label>)}</details>}
       </div>)}
       <p style={{ fontSize: 11, color: "var(--sv-text-dim)", margin: "6px 0" }}>Use actual packed measurements, including packaging. All remaining items go in one parcel unless you split it.</p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" style={button} onClick={async () => {
-          setError("");
-          try { await loadOrder(); setShowContents(current => !current); }
-          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to show items."); }
-        }}>{showContents ? "Hide contents" : "Show contents"}</button>
-        <button type="button" style={button} onClick={async () => {
-          try { const loaded = await loadOrder(); changed(() => setParcels(current => [...allocated(current, loaded), { ...emptyParcel(current.length + 1), allocations: (loaded.items ?? []).map(item => ({ soItemId: item.id, quantity: "0" })) }])); }
-          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to split parcels."); }
-        }}>Split into another parcel</button>
+      <div id={`shipping-order-contents-${order.id}`} hidden={!showContents} style={{ marginTop: 12, border: "1px solid var(--sv-etch)", borderRadius: 5, overflow: "hidden" }}>
+        <table aria-label={`Contents of ${order.so_number}`} style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 12 }}>
+          <colgroup><col style={{ width: "52%" }} /><col style={{ width: "28%" }} /><col style={{ width: "20%" }} /></colgroup>
+          <thead style={{ background: "var(--sv-bg-2)", color: "var(--sv-text-strong)" }}>
+            <tr><th scope="col" style={{ ...contentsCell, borderBottomWidth: 2 }}>Product</th><th scope="col" style={{ ...contentsCell, borderBottomWidth: 2 }}>SKU / Code</th><th scope="col" style={{ ...contentsCell, borderBottomWidth: 2, textAlign: "right" }}>Qty to ship</th></tr>
+          </thead>
+          <tbody>{(detail?.items ?? []).map((item, index) => <tr key={item.id} style={{ background: index % 2 ? "var(--sv-bg-2)" : "var(--sv-bg-1)" }}>
+            <td style={contentsCell}>{workspaceContentsProductName(item) || "Product name unavailable"}</td>
+            <td style={contentsCell}>{item.sku?.trim() || "No code"}</td>
+            <td style={{ ...contentsCell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled))}</td>
+          </tr>)}</tbody>
+        </table>
       </div>
-      {showContents && <div style={{ fontSize: 12, marginTop: 8 }}>{(detail?.items ?? []).map(item => <div key={item.id}>{workspaceParcelItemLabel(item)} · {Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled))} remaining</div>)}</div>}
       {international && <div style={{ marginTop: 12, fontSize: 12 }}>
         <strong>Customs declaration</strong>{" "}
         <button type="button" style={button} onClick={async () => {
@@ -293,8 +296,19 @@ function OrderPreparationCard({ order, savedRevision, accountId, presets, busy, 
         <button type="button" style={{ ...button, marginTop: 8 }} onClick={onOpenProducts}>Update product customs in Products</button>
         <p style={{ color: "var(--sv-text-dim)" }}>Product customs information and declarations are checked when saving. Correct missing product details in Products before continuing.</p>
       </div>}
-      <button type="button" style={{ ...button, marginTop: 12, background: "var(--sv-action)", color: "white" }} disabled={!accountId || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
-      {saved && <span style={{ marginLeft: 8, fontSize: 11, color: "var(--sv-text-dim)" }}>Changes require a new postage selection in the batch.</span>}
+      {saved && <p style={{ margin: "12px 0 0", fontSize: 11, color: "var(--sv-text-dim)" }}>Changes require a new postage selection in the batch.</p>}
+      <div role="group" aria-label={`Preparation actions for ${order.so_number}`} style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, width: "100%", maxWidth: 600, marginTop: 14, paddingTop: 12, borderTop: "2px solid var(--sv-etch)" }}>
+        <button type="button" style={{ ...preparationButton, background: "var(--sv-action)", color: "white" }} disabled={!accountId || (saved !== null && !dirty)} onClick={() => void saveDimensions()}>{saving ? "Saving..." : "Save dimensions"}</button>
+        <button type="button" style={preparationButton} aria-expanded={showContents} aria-controls={`shipping-order-contents-${order.id}`} onClick={async () => {
+          setError("");
+          try { await loadOrder(); setShowContents(current => !current); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to show items."); }
+        }}>{showContents ? "Hide contents" : "Show contents"}</button>
+        <button type="button" style={preparationButton} onClick={async () => {
+          try { const loaded = await loadOrder(); changed(() => setParcels(current => [...allocated(current, loaded), { ...emptyParcel(current.length + 1), allocations: (loaded.items ?? []).map(item => ({ soItemId: item.id, quantity: "0" })) }])); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to split parcels."); }
+        }}>Split into another parcel</button>
+      </div>
     </fieldset>
     {error && <div role="alert" style={{ marginTop: 8, color: "var(--sv-red)", fontSize: 12 }}>{error}{order.preparation_shipment_id && <button type="button" disabled={saving || busy} style={{ ...button, marginLeft: 8 }} onClick={() => {
       if (dirtyRef.current && !window.confirm("Reload saved dimensions and discard your unsaved changes?")) return;

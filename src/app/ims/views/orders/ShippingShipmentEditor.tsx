@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { X } from "lucide-react";
 import type { PackingPreset } from "@/lib/ims/shipping/packingSuggestions";
 import type {
   ShippingAmendmentDraft,
@@ -327,7 +326,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
         }
       }}
       style={{ width: "min(calc(100vw - 40px), max(920px, 75vw))", boxSizing: "border-box", maxHeight: "calc(100vh - 40px)", overflow: "auto", background: "var(--sv-bg-1)", color: "var(--sv-text)", border: "1px solid var(--sv-etch)", borderRadius: 8, padding: 18 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><h2 style={{ fontSize: 17, minWidth: 0, overflowWrap: "anywhere" }}>{mode === "postage" ? "Choose postage service" : "Edit shipment details"} {detail ? `— ${detail.soNumber}` : ""}</h2><button type="button" style={{ ...buttonStyle, flexShrink: 0 }} aria-label="Close shipment editor" onClick={cancel}><X size={16} /></button></header>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><h2 style={{ fontSize: 17, minWidth: 0, overflowWrap: "anywhere" }}>{mode === "postage" ? "Choose postage service" : "Edit shipment details"} {detail ? `— ${detail.soNumber}` : ""}</h2><button type="button" style={{ background: "none", border: "none", color: "var(--sv-text-dim)", cursor: "pointer", fontSize: 22, lineHeight: 1, flexShrink: 0 }} title="Close" aria-label="Close shipment editor" onClick={cancel}>&times;</button></header>
       {error && <div role="alert" style={{ color: "var(--sv-red)", marginBottom: 12, whiteSpace: "pre-wrap" }}>{error}</div>}
       {busy === "loading" && <p>Loading exact saved shipment details…</p>}
       {detail && recipient && <>
@@ -392,7 +391,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
       </>}
       <footer style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
         {detail && <button type="button" style={{ ...buttonStyle, marginRight: "auto" }} disabled={!enabled} onClick={() => void getQuotes()}>{busy === "quotes" ? "Getting prices..." : mode === "postage" ? "Get shipping prices" : "Get fresh quotes for proposed details"}</button>}
-        <button type="button" style={buttonStyle} onClick={cancel} disabled={Boolean(busy)}>Cancel</button>
+        <button type="button" style={{ ...buttonStyle, color: "var(--sv-text-main)", padding: "8px 16px", borderRadius: 6, fontSize: 14, fontWeight: 500, transition: "opacity .15s", whiteSpace: "nowrap" }} onClick={cancel} disabled={Boolean(busy)}>Cancel</button>
         {uncertain && <button type="button" style={buttonStyle} disabled={Boolean(busy)} onClick={() => void reconcile()}>{busy === "reconcile" ? "Reconciling…" : "Reconcile amendment outcome"}</button>}
         {savedResult ? <button type="button" style={buttonStyle} disabled={Boolean(busy)} onClick={() => { setBusy("refresh"); setError(""); void finish(savedResult).catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to refresh saved batches.")).finally(() => setBusy(null)); }}>Refresh saved shipment state</button> :
           <button type="button" style={{ ...buttonStyle, background: "var(--sv-action)", color: "white", opacity: enabled && service ? 1 : .55 }} disabled={!enabled || !service} onClick={() => void save()}>{busy === "save" ? "Saving..." : mode === "postage" ? "Save postage service" : "Save shipment details"}</button>}

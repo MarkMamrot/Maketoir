@@ -8,7 +8,6 @@ import {
   RefreshCw,
   Send,
   Trash2,
-  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ShippingShipmentEditor, shippingShipmentEditBlocker, shipmentLabelInvalidationIds } from "./ShippingShipmentEditor";
@@ -752,10 +751,11 @@ export function ShipOrdersWorkspace({
           <button
             type="button"
             title="Close"
+            aria-label="Close shipping workspace"
             onClick={requestWorkspaceClose}
-            style={iconButtonStyle}
+            style={{ background: "none", border: "none", color: "var(--sv-text-dim)", cursor: "pointer", fontSize: 22, lineHeight: 1, flexShrink: 0 }}
           >
-            <X size={17} />
+            &times;
           </button>
         </header>
         <div style={{ padding: 18 }}>
@@ -1222,7 +1222,7 @@ export function ShipOrdersWorkspace({
                   <button
                     type="button"
                     onClick={requestWorkspaceClose}
-                    style={secondaryButtonStyle}
+                    style={{ ...secondaryButtonStyle, padding: "8px 16px", background: "var(--sv-bg-2)", fontSize: 14, fontWeight: 500, transition: "opacity .15s", whiteSpace: "nowrap" }}
                   >
                     Close
                   </button>
