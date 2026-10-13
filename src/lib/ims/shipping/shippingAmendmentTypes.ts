@@ -31,6 +31,8 @@ export type ShippingEditableDetail = {
   isInternational: boolean; editEligibility: { eligible: boolean; reason?: string };
   carrierUpdateEnabled: boolean; recipient: ShippingAmendmentRecipient; service: ShippingQuote | null;
   chargedCost: number | null;
+  suggestedRecipientName?: string | null;
+  recipientNameIssue?: string | null;
   parcels: ShippingAmendmentParcel[]; customs: CustomsSnapshot | null;
   order: {
     id: number; so_number: string; status: string; so_type: string | null; tax_treatment: string;

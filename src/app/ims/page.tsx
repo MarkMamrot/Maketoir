@@ -32,6 +32,7 @@ import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '
 import { audAmountFromPayment, canonicalExchangeRate, displayedExchangeRate, exchangeRateFromPaymentAmounts, type ExchangeRateDirection } from '@/lib/ims/foreignPaymentMath';
 import { purchaseOrderCurrencyCost } from '@/lib/ims/purchaseOrderCurrencyCost';
 import { sanitizePurchaseOrderWorkspace, type PurchaseOrderWorkspaceSettings } from '@/lib/ims/purchaseOrderWorkspace';
+import { DEFAULT_PURCHASE_ORDER_DISPLAY_FIELDS, DEFAULT_SALES_ORDER_DISPLAY_FIELDS, sanitizeOrderDisplayFieldSelection } from '@/lib/ims/orderDisplayFields';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
@@ -9678,18 +9679,14 @@ type OrderDisplayField = {
 };
 
 function useOrderDisplayFields(storageKey: string, fields: readonly OrderDisplayField[], defaultIds: readonly string[]) {
-  const requiredIds = fields.filter(field => field.required).map(field => field.id);
-  const sanitize = useCallback((ids: readonly string[]) => {
-    const allowed = new Set(fields.map(field => field.id));
-    return [...new Set([...requiredIds, ...ids.filter(id => allowed.has(id))])];
-  }, [fields, requiredIds]);
+  const sanitize = useCallback((ids: unknown) => sanitizeOrderDisplayFieldSelection(ids, fields, defaultIds), [fields, defaultIds]);
   const [selectedIds, setSelectedIdsState] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return sanitize(defaultIds);
+    if (typeof window === 'undefined') return sanitize(null);
     try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
-      return sanitize(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : defaultIds);
+      return sanitize(JSON.parse(localStorage.getItem(storageKey) ?? 'null'));
     } catch {
-      return sanitize(defaultIds);
+      console.warn('Could not load saved order display fields; using defaults.');
+      return sanitize(null);
     }
   });
   const setSelectedIds = useCallback((ids: string[]) => {
@@ -9700,7 +9697,7 @@ function useOrderDisplayFields(storageKey: string, fields: readonly OrderDisplay
   return { selectedIds, setSelectedIds, selectedFields: fields.filter(field => selectedIds.includes(field.id)) };
 }
 
-function OrderDisplayFieldsMenu({ fields, selectedIds, onChange }: { fields: readonly OrderDisplayField[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
+function OrderDisplayFieldsMenu({ fields, selectedIds, defaultIds, onChange }: { fields: readonly OrderDisplayField[]; selectedIds: string[]; defaultIds: readonly string[]; onChange: (ids: string[]) => void }) {
   const [open, setOpen] = useState(false);
   return <div style={{ position: 'relative' }}>
     <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><Columns3 size={14} />Display Fields</button>
@@ -9710,6 +9707,7 @@ function OrderDisplayFieldsMenu({ fields, selectedIds, onChange }: { fields: rea
         if (!groupFields.length) return null;
         return <div key={group}><div style={{ margin: '7px 4px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{group}</div>{groupFields.map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedIds.includes(field.id)} onChange={event => onChange(event.target.checked ? [...selectedIds, field.id] : selectedIds.filter(id => id !== field.id))} />{field.label}</label>)}</div>;
       })}
+      <button type="button" onClick={() => onChange([...defaultIds])} style={{ ...btnStyle('ghost', 'sm'), width: '100%', marginTop: 8 }}>Reset to defaults</button>
     </div></>}
   </div>;
 }
@@ -9813,7 +9811,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const { selectedIds: selectedPoFieldIds, setSelectedIds: setSelectedPoFieldIds, selectedFields: selectedPoFields } = useOrderDisplayFields(
     `solvantis:${businessId || 'unknown'}:purchase-orders:display-fields`,
     poDisplayFields,
-    ['po_number', 'supplier_name', 'supplier_invoice_number', 'location_name', 'order_date', 'total_amount', 'status'],
+    DEFAULT_PURCHASE_ORDER_DISPLAY_FIELDS,
   );
   const poWorkspaceStorageKey = `solvantis:${businessId || 'unknown'}:purchase-orders:workspace:v1`;
   const applyPoWorkspace = (value: unknown, presetId = '') => {
@@ -10529,7 +10527,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
         {!isAdvisor && <button onClick={() => window.open('/receive', '_blank')} style={btnStyle('ghost')}>📱 Smart Device Receive</button>}
         {!isAdvisor && <button onClick={() => setImportPOsOpen(true)} style={btnStyle('ghost')}>⬆ Import POs</button>}
-        <OrderDisplayFieldsMenu fields={poDisplayFields} selectedIds={selectedPoFieldIds} onChange={setSelectedPoFieldIds} />
+        <OrderDisplayFieldsMenu fields={poDisplayFields} selectedIds={selectedPoFieldIds} defaultIds={DEFAULT_PURCHASE_ORDER_DISPLAY_FIELDS} onChange={setSelectedPoFieldIds} />
         {!isAdvisor && <button data-testid="po-new" onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -14363,7 +14361,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const { selectedIds: selectedSoFieldIds, setSelectedIds: setSelectedSoFieldIds, selectedFields: selectedSoFields } = useOrderDisplayFields(
     `solvantis:${businessId || 'unknown'}:sales-orders:display-fields`,
     soDisplayFields,
-    ['so_number', 'customer_name', 'channel_order_number', 'sales_channel', 'location_name', 'order_date', 'total_amount', 'status'],
+    DEFAULT_SALES_ORDER_DISPLAY_FIELDS,
   );
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
@@ -15261,7 +15259,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
         {!isAdvisor && <button type="button" onClick={() => { setSelectedSoIds(new Set()); setShipOrdersOpen(true); }} style={{ ...btnStyle('secondary'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Shipping Workspace</button>}
         {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
-        <OrderDisplayFieldsMenu fields={soDisplayFields} selectedIds={selectedSoFieldIds} onChange={setSelectedSoFieldIds} />
+        <OrderDisplayFieldsMenu fields={soDisplayFields} selectedIds={selectedSoFieldIds} defaultIds={DEFAULT_SALES_ORDER_DISPLAY_FIELDS} onChange={setSelectedSoFieldIds} />
         {!isAdvisor && <button data-testid="so-new" onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>

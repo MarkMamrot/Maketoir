@@ -22,7 +22,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { buildCogsBucketDescription, buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
 import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
 import crypto from 'crypto';
-import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getXeroConfigurationNotice, reportXeroFailure } from '@/lib/xero/reportXeroFailure';
 import {
   claimXeroAccountingAction,
   completeXeroAccountingAction,
@@ -230,8 +230,8 @@ async function logSync(
       `INSERT INTO xero_sync_log (business_id, sync_type, reference_id, xero_id, status, xero_state, detail) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [businessId, syncType, referenceId, xeroId, status, xeroState ?? null, detail ?? null],
     );
-    if (status === 'error') {
-      await reportRuntimeIssue({
+    if (status === 'error' || (status === 'skipped' && getXeroConfigurationNotice(detail))) {
+      await reportXeroFailure({
         businessId,
         source: 'xero',
         operation: syncType,
@@ -2287,7 +2287,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
         const refreshedInvoice = await xeroApiFetch(businessId, `/Invoices/${xeroId}`);
         finalXeroState = refreshedInvoice?.Invoices?.[0]?.Status ?? finalXeroState;
       } catch (refreshError: any) {
-        await reportRuntimeIssue({
+        await reportXeroFailure({
           businessId,
           source: 'xero',
           operation: 'online_batch_post_payment_status_refresh',
@@ -2902,7 +2902,7 @@ export async function syncLaybyAccounting(businessId: string, locationId: number
       if (xeroId) await logSync(businessId, 'layby_accounting', event.sale_id, xeroId, 'success', `${reference} ${event.kind}`, event.kind === 'receipt' ? 'AUTHORISED' : 'POSTED');
     } catch (error) {
       await imsExecute("UPDATE pos_layby_events SET xero_status = 'error', xero_error = ? WHERE id = ? AND business_id = ?", ['Layby accounting failed; retry from End of Day.', event.id, businessId]);
-      await reportRuntimeIssue({ businessId, source: 'xero_layby', operation: event.kind, title: 'Layby Xero accounting failed', error, reference: { type: 'pos_sale', id: event.sale_id }, context: { eventId: event.id, locationId } });
+      await reportXeroFailure({ businessId, source: 'xero_layby', operation: event.kind, title: 'Layby Xero accounting failed', error, reference: { type: 'pos_sale', id: event.sale_id }, context: { eventId: event.id, locationId } });
       throw error;
     }
   }
@@ -3132,7 +3132,7 @@ async function postPosEodFee(input: {
         WHERE business_id = ? AND eod_reconciliation_id = ?`,
       [message, input.businessId, input.reconciliationId],
     ).catch(() => {});
-    await reportRuntimeIssue({
+    await reportXeroFailure({
       businessId: input.businessId,
       source: 'xero',
       operation: 'post_pos_eod_fee',

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders","ims-shipping-settings"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Main operations"},"order":31,"summary":"Create sales orders, edit eligible shipment details before dispatch, move outstanding quantities, fulfil actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-10-13","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders","ims-shipping-settings"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Choose list fields"},"order":31,"summary":"Create sales orders, edit eligible shipment details before dispatch, move outstanding quantities, fulfil actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-10-13","owner":"sales","quickSections":["Main operations","At a glance"]}
 ---
 
 # Sales Orders and Fulfilment
@@ -20,7 +20,8 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - Use **Close batch** to collapse its orders and action panel while keeping the workspace open. The saved batch, dimensions and postage are unchanged; **Open batch** resumes it.
 - Prepare one parcel with all remaining quantities automatically; expand item allocation only when splitting parcels.
 - Add, remove, move, or **Undo batch** without deleting saved dimensions or cancelling existing postage.
-- Identify batch orders by their saved recipient or order-specific Shopify name without amending purchased postage.
+- Identify batch orders by their saved recipient or order-specific Shopify name. New shipments use that recipient name for the carrier, not the generic Online Customer contact.
+- In **Edit shipment details**, review the order-specific recipient name filled in for a generic saved recipient. Save the amendment to apply it to purchased postage, then generate fresh labels and discard older copies. Opening the editor alone does not change the carrier shipment or existing labels.
 - Edit an eligible shipment's parcel details, delivery address and service before dispatch. Details stay visible; refresh prices from the bottom of the editor and follow any fresh-label reminder after saving.
 - Close the workspace or editor with its top-right close control or bottom **Close**/**Cancel** button. Confirm before discarding unsaved preparation or edits.
 - Close dispatched shipments into a carrier manifest and print the lodgement summary.
@@ -62,7 +63,9 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 
 ## Choose list fields
 
-Select **Display Fields** above the Sales Orders list to choose its visible columns. **SO #** and **Customer** remain visible and frozen while the rest of the table scrolls horizontally. Your selection is saved for the current business.
+Select **Display Fields** above the Sales Orders list to choose its visible columns. The defaults are **SO #**, **Customer**, **Channel Order #**, **Store / Channel**, **Location**, **Status**, **Order Date**, and **Total**. **SO #** and **Customer** remain visible and frozen while the rest of the table scrolls horizontally.
+
+Your selection is saved for the current business in this browser. Existing custom selections are preserved; choose **Reset to defaults** in the Display Fields menu to restore the default columns.
 
 **Channel Order #** shows the order reference supplied by Shopify or another connected sales channel, while **SO #** remains the Solvantis order number. **Shipping Method** preserves the delivery or pickup method supplied by the connected channel. Search matches customer names, Solvantis order numbers and connected-channel order references. Other optional fields include channel, location, status, dates, payment details, totals, notes and delivery address.
 

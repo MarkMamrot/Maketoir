@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { resolveChatIdentity } from '../../_identity';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
@@ -15,10 +15,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   try {
     return await runImsForBusiness(identity.businessId, async () => {
     const rows = await imsQuery<{
-      original_name: string; stored_name: string; mime_type: string;
+      original_name: string; stored_name: string; mime_type: string; file_content: Buffer | null;
       location_id: number; to_location_id: number | null; message_id: number;
     }>(
-      `SELECT a.original_name, a.stored_name, a.mime_type, a.message_id, m.location_id, m.to_location_id
+      `SELECT a.original_name, a.stored_name, a.mime_type, a.file_content, a.message_id, m.location_id, m.to_location_id
        FROM pos_chat_attachments a
        JOIN pos_chat_messages m ON m.id = a.message_id
        WHERE a.id = ? LIMIT 1`,
@@ -32,7 +32,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const safeStoredName = path.basename(attachment.stored_name);
     if (safeStoredName !== attachment.stored_name) return new Response('Invalid attachment', { status: 400 });
     const filePath = path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', identity.businessId, 'POSChat', String(attachment.message_id), safeStoredName);
-    const bytes = await fs.readFile(filePath);
+    const bytes = attachment.file_content ?? await fs.readFile(filePath);
+    if (attachment.file_content == null) {
+      await imsExecute('UPDATE pos_chat_attachments SET file_content = ? WHERE id = ? AND file_content IS NULL', [bytes, attachmentId])
+        .catch(error => reportRuntimeIssue({ businessId: identity.businessId, source: 'pos.chat', operation: 'preserve-legacy-attachment', title: 'Legacy chat attachment could not be preserved', error, context: { attachmentId } }));
+    }
     const safeDownloadName = attachment.original_name.replace(/["\r\n]/g, '_');
     return new Response(bytes, {
       headers: {

@@ -42,6 +42,8 @@ Open **Help > Contact Support**, enter a subject and description, then select **
 
 Enter the submitting staff member's address in **Your email**. This address is recorded on the ticket for support replies. Solvantis shows the ticket number after submission and includes it in the confirmation email. Every new support update, including status changes and closure, is emailed to the original submitter. Use your own reply address rather than another staff member's address. A delayed or failed email does not undo a saved ticket.
 
+Support email requires a configured sender from a verified sending domain. If delivery is blocked by sender configuration, ask support to check delivery rather than submitting a duplicate ticket; the saved ticket and updates remain available to support.
+
 Support tickets require an internet connection. If submission fails, the description and images remain in the form for a retry. A successful submission displays **Ticket submitted**. Super Admins can view the ticket and its images in Admin or IMS Team Communications; POS staff do not have a ticket-management list.
 
 ## Before you begin

@@ -50,6 +50,8 @@ Open **Help > Contact Support**, enter a subject and description, then press **S
 
 The ticket records the signed-in staff member's email address. Solvantis sends a confirmation to that address after submission and a resolution email, including any resolution notes, when support marks the ticket Resolved or Closed. Email delivery does not determine whether the ticket was saved; use the **Ticket submitted** message to confirm submission.
 
+Support email requires a configured sender from a verified sending domain; a testing-only sender cannot deliver normal staff updates. A delivery failure does not remove the saved ticket or its updates. Ask support to check delivery configuration rather than submitting the same ticket again.
+
 Paste an image directly into the **Description** box or press **Attach images** to choose files. Images appear as previews below the description; remove any unwanted image before submitting. Each ticket accepts up to five JPEG, PNG, WebP or GIF images, up to 5 MB each. Remove private customer details and credentials from screenshots before sending.
 
 Super Admins review tickets and images in **Admin > Support Tickets** or the **Support Tickets** tab in IMS Team Communications. They can assign a ticket to a Super Admin, change its status, and enter resolution notes. The badge counts Open and In Progress tickets. The notification email address is configured in **Admin > Support Tickets**; images are viewed securely in the ticket rather than attached to the notification email.

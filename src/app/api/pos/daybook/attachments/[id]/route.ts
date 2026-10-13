@@ -2,7 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { resolveContext } from '../../route';
 
 // GET /api/pos/daybook/attachments/[id]?location_id=X — download a communication attachment.
@@ -15,8 +16,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!attachmentId) return new Response('Invalid attachment.', { status: 400 });
 
   try {
-    const rows = await imsQuery<{ original_name: string; stored_name: string; mime_type: string; communication_id: number }>(
-      `SELECT a.original_name, a.stored_name, a.mime_type, a.communication_id
+    return await runImsForBusiness(context.businessId, async () => {
+    const rows = await imsQuery<{ original_name: string; stored_name: string; mime_type: string; communication_id: number; file_content: Buffer | null }>(
+      `SELECT a.original_name, a.stored_name, a.mime_type, a.communication_id, a.file_content
        FROM pos_daybook_communication_attachments a
        JOIN pos_daybook_communications c ON c.id = a.communication_id AND c.business_id = a.business_id
        JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
@@ -28,7 +30,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const safeStoredName = path.basename(attachment.stored_name);
     if (safeStoredName !== attachment.stored_name) return new Response('Invalid attachment.', { status: 400 });
     const filePath = path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', context.businessId, 'DaybookCommunications', String(attachment.communication_id), safeStoredName);
-    const bytes = await fs.readFile(filePath);
+    const bytes = attachment.file_content ?? await fs.readFile(filePath);
+    if (attachment.file_content == null) {
+      await imsExecute('UPDATE pos_daybook_communication_attachments SET file_content = ? WHERE id = ? AND business_id = ? AND file_content IS NULL', [bytes, attachmentId, context.businessId])
+        .catch(error => reportRuntimeIssue({ businessId: context.businessId, source: 'pos.daybook', operation: 'preserve-legacy-attachment', title: 'Legacy Daybook attachment could not be preserved', error, context: { attachmentId } }));
+    }
     const safeDownloadName = attachment.original_name.replace(/["\r\n]/g, '_');
     return new Response(bytes, {
       headers: {
@@ -38,8 +44,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         'Cache-Control': 'private, max-age=300',
       },
     });
+    });
   } catch (error: any) {
-    if (error?.code === 'ENOENT') return new Response('File not found.', { status: 404 });
+    if (error?.code === 'ENOENT') {
+      await reportRuntimeIssue({ businessId: context.businessId, source: 'pos.daybook', operation: 'missing-attachment-file', title: 'Stored Daybook attachment file is missing', context: { attachmentId } });
+      return new Response('File not found.', { status: 404 });
+    }
     await reportRuntimeIssue({ businessId: context.businessId, source: 'pos.daybook', operation: 'download-attachment', title: 'Store Daybook attachment download failed', error, context: { attachmentId } });
     return new Response('Attachment download failed.', { status: 500 });
   }

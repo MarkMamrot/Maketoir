@@ -175,6 +175,15 @@ async function submitOneShipment(
       `${shipment.so_number}: choose and save a shipping service before submission.`,
     );
 
+  let correctedRecipient: CarrierAddress | null = null;
+  const savedRecipient = parseAddress(shipment.recipient_json);
+  if (!shipment.provider_shipment_id && isPlaceholderShippingCustomerName(savedRecipient.name)) {
+    const customer = await resolveShippingOrderCustomerName(businessId, Number(shipment.so_id), savedRecipient.name);
+    if (!customer.name)
+      throw new Error(`${shipment.so_number}: ${customer.issue} Enter the actual delivery recipient before buying labels.`);
+    correctedRecipient = { ...savedRecipient, name: customer.name };
+  }
+
   const credentials = await ShippingSettingsRepository.getAccountCredentials(
     businessId,
     Number(shipment.carrier_account_id),
@@ -193,7 +202,7 @@ async function submitOneShipment(
     const liveRates = aggregateCarrierRates(
       await client.getRates({
         from: parseAddress(shipment.sender_json),
-        to: parseAddress(shipment.recipient_json),
+        to: correctedRecipient ?? savedRecipient,
         parcels: parcels.map((parcel) => ({
           reference: parcelReference(quoteShipment, parcel.parcel_number),
           lengthMm: Number(parcel.length_mm),
@@ -214,11 +223,11 @@ async function submitOneShipment(
     }
     const claimed = await imsExecute(
       `UPDATE ims_shipping_shipments
-          SET status = 'submitting', safe_error = NULL
+          SET status = 'submitting', safe_error = NULL${correctedRecipient ? ", recipient_json = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP" : ""}
         WHERE business_id = ? AND id = ? AND provider_shipment_id IS NULL
           AND status IN ('draft', 'failed') AND revision = ?
           AND manifest_id IS NULL AND ims_fulfilled_at IS NULL`,
-      [businessId, shipmentId, Number(shipment.revision ?? 0)],
+      [...(correctedRecipient ? [JSON.stringify(correctedRecipient)] : []), businessId, shipmentId, Number(shipment.revision ?? 0)],
     );
     if (!claimed.affectedRows) {
       shipment = (await getShipment(businessId, shipmentId)) ?? shipment;
@@ -227,6 +236,7 @@ async function submitOneShipment(
           `${shipment.so_number}: this shipment is already being submitted.`,
         );
     } else {
+      if (correctedRecipient) shipment = { ...shipment, recipient_json: correctedRecipient, revision: Number(shipment.revision ?? 0) + 1 };
       try {
         const request = {
           shipments: [
@@ -364,6 +374,8 @@ async function ensureBatchLabels(
         `${shipment.so_number}: label request outcome is unknown. Review it before retrying.`,
       );
     }
+    if (isPlaceholderShippingCustomerName(parseAddress(shipment.recipient_json).name))
+      throw new Error(`${shipment.so_number}: edit shipment details and save the actual recipient name before generating fresh labels. The purchased shipment still has Online Customer as its recipient.`);
     unlabelled.push(shipment);
   }
   if (!unlabelled.length) return results;
@@ -889,3 +901,4 @@ export function validateSelectedShippingRate(
     );
   }
 }
+import { isPlaceholderShippingCustomerName, resolveShippingOrderCustomerName } from "./shippingCustomerNames";

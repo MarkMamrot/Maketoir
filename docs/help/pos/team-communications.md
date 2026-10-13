@@ -48,6 +48,8 @@ Use Team Communications for operational messages between the active POS location
 7. Confirm the message appears in the conversation before closing Team Communications.
 8. Use **Help** for maintained procedures or **Ask Solvantis** for a product question.
 
+Successfully saved new attachments remain available when returning to the conversation. If an older attachment reports **File not found**, ask the sender to attach the original file again. Its filename alone cannot recreate an unavailable original.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | What to do |

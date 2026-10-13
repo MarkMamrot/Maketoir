@@ -342,6 +342,12 @@ export async function prepareShippingRequest(
       email: order.customer_email || "",
       phone: order.customer_phone || "",
     };
+    if (isPlaceholderShippingCustomerName(recipient.name)) {
+      const customer = await resolveShippingOrderCustomerName(input.businessId, Number(order.id), recipient.name);
+      if (customer.name) recipient.name = customer.name;
+      else if (!input.preparationOnly)
+        throw new ShippingBatchError(`${order.so_number}: ${customer.issue} Enter the actual delivery recipient before buying labels.`, 400);
+    }
     if (!recipient.country.trim())
       throw new ShippingBatchError(`${order.so_number}: destination country is required.`, 400);
     const isInternational = !isAustralianShippingCountry(recipient.country);
@@ -463,3 +469,4 @@ async function queryRows<T extends RowDataPacket>(
     connection.release();
   }
 }
+import { isPlaceholderShippingCustomerName, resolveShippingOrderCustomerName } from "./shippingCustomerNames";

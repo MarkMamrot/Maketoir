@@ -14,7 +14,7 @@ vi.mock('@/lib/ims/builds/buildRequirementService', () => ({
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportIssue }));
 
-import { updateShopifyOrder } from '@/lib/channels/shopifyOrderUpdate';
+import { ShopifyOrderImportPendingError, updateShopifyOrder } from '@/lib/channels/shopifyOrderUpdate';
 
 const payload = {
   id: 1001,
@@ -101,6 +101,17 @@ describe('updateShopifyOrder', () => {
     expect(mocks.reportIssue).toHaveBeenCalledWith(expect.objectContaining({
       operation: 'unmapped_catalogue_line', reference: { type: 'shopify_order', id: '1001' },
     }));
+  });
+
+  it('signals waiting for normal import before any writes', async () => {
+    mocks.query.mockResolvedValueOnce([]);
+    await expect(updateShopifyOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-2', order: payload,
+    })).rejects.toBeInstanceOf(ShopifyOrderImportPendingError);
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.mapping).not.toHaveBeenCalled();
+    expect(mocks.fallback).not.toHaveBeenCalled();
   });
 
   it('does not update an order with the same external ID in another instance', async () => {

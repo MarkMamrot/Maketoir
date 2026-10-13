@@ -1,6 +1,9 @@
 import { getShopifyOperationContext } from "@/lib/channels/shopifyOperationContext";
 import { reportRuntimeIssue } from "@/lib/runtimeIssues";
 import { ShopifyService } from "@/services/ShopifyService";
+import { imsQuery } from "@/services/IMSMySQLService";
+import { isPlaceholderShippingCustomerName } from "./shippingWorkflow";
+export { isPlaceholderShippingCustomerName } from "./shippingWorkflow";
 
 type ShippingCustomerSource = {
   shipmentId: number;
@@ -16,7 +19,36 @@ type ShippingCustomerDisplay = { name: string | null; issue: string | null };
 function specificName(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const name = value.trim();
-  return name && name.toLowerCase() !== "online customer" ? name : null;
+  return name && !isPlaceholderShippingCustomerName(name) ? name : null;
+}
+
+export async function resolveShippingOrderCustomerName(
+  businessId: string, soId: number, recipientName: unknown,
+): Promise<ShippingCustomerDisplay> {
+  const savedName = specificName(recipientName);
+  if (savedName) return { name: savedName, issue: null };
+  const rows = await imsQuery<{
+    customer_name: string | null; sales_channel: string | null;
+    channel_instance_id: string | null; external_order_id: string | null;
+  }>(
+    `SELECT contact.name AS customer_name, sales_order.sales_channel,
+            sales_order.channel_instance_id, sales_order.external_order_id
+       FROM ims_sales_orders sales_order
+       LEFT JOIN ims_contacts contact
+         ON contact.id = sales_order.customer_id AND contact.business_id = sales_order.business_id
+      WHERE sales_order.business_id = ? AND sales_order.id = ? LIMIT 1`,
+    [businessId, soId],
+  );
+  if (!rows[0]) throw new Error("Sales order not found while resolving the shipping recipient.");
+  const row = rows[0];
+  const names = await resolveShippingCustomerNames(businessId, [{
+    shipmentId: soId, recipientName, customerName: row.customer_name,
+    salesChannel: row.sales_channel, channelInstanceId: row.channel_instance_id,
+    externalOrderId: row.external_order_id,
+  }]);
+  const result = names.get(soId);
+  if (!result) throw new Error("Shipping recipient lookup returned no result.");
+  return result;
 }
 
 export async function resolveShippingCustomerNames(

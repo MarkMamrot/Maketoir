@@ -60,6 +60,12 @@ This check reads Solvantis records only. It does not contact Xero, refresh live 
 
 ## Step-by-step
 
+### Configuration notifications
+
+New recognised Xero setup problems appear in your business notification stream: missing account mappings, an inventory-type account rejected for a transaction, or a linked invoice missing from the connected Xero organisation. The notification identifies the affected accounting action and the setup or document-link check required. Sync History continues to retain the failed or blocked action.
+
+Correct the configuration and retry only the unfinished accounting action. Do not repeat a completed sale, stock receipt, payment or fulfilment. Unexpected service, network and other operational failures remain Runtime Issues. Existing historical Runtime Issues are not moved into notifications automatically.
+
 ### Configure a posting path
 
 **Settings > Xero** contains advisor access controls and quick links. Select **Open Accounts & Tracking** to change account mappings in the Xero integration workspace. Mapping access, read-only Shopify payout access, and permission to trigger Xero syncs are separate advisor permissions.

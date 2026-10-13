@@ -142,9 +142,20 @@ export async function claimShopifyWebhookEvent(webhook: VerifiedShopifyWebhook):
 
 export async function finishShopifyWebhookEvent(input: {
   webhook: VerifiedShopifyWebhook;
-  status: 'complete' | 'failed' | 'ignored';
+  status: 'complete' | 'failed' | 'ignored' | 'pending';
   safeError?: string | null;
 }): Promise<void> {
+  if (input.status === 'pending') {
+    await imsExecute(
+      `UPDATE ims_sales_channel_events
+          SET status = 'pending', attempts = GREATEST(attempts - 1, 0),
+              processed_at = NULL, safe_error = ?
+        WHERE business_id = ? AND channel_instance_id = ? AND external_event_id = ? AND status = 'processing'`,
+      [String(input.safeError ?? 'Waiting for order import.').slice(0, 500),
+        input.webhook.businessId, input.webhook.channelInstanceId, input.webhook.webhookId],
+    );
+    return;
+  }
   await imsExecute(
     `UPDATE ims_sales_channel_events
         SET status = ?, processed_at = CURRENT_TIMESTAMP(3), safe_error = ?

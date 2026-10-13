@@ -270,6 +270,7 @@ export async function POST(req: Request) {
       saleId,
       locationId,
       durationMs: saleDurationMs,
+      phaseTimings: completed.phaseTimings,
       itemCount: Array.isArray(body.items) ? body.items.length : 0,
       paymentCount: Array.isArray(body.payments) ? body.payments.length : 0,
     }));
@@ -279,12 +280,14 @@ export async function POST(req: Request) {
         source: 'pos_sale',
         operation: 'slow_completion',
         severity: 'warning',
+        deferAlert: true,
         title: 'POS sale completion was unusually slow',
         error: `POS sale completion exceeded ${SLOW_POS_SALE_MS}ms.`,
         context: {
           saleId,
           locationId,
           durationMs: saleDurationMs,
+          phaseTimings: completed.phaseTimings,
           itemCount: Array.isArray(body.items) ? body.items.length : 0,
           paymentCount: Array.isArray(body.payments) ? body.payments.length : 0,
           deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,

@@ -20,6 +20,14 @@ interface NewTicketAlertInput {
   description: string;
 }
 
+function supportEmailSender(): string {
+  const sender = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!sender || /@resend\.dev\b/i.test(sender)) {
+    throw new Error('Configure RESEND_FROM_EMAIL with a verified sending domain before sending support email.');
+  }
+  return sender;
+}
+
 export async function sendSupportTicketStaffEmail(ticket: {
   id: number;
   business_id: string | null;
@@ -31,10 +39,11 @@ export async function sendSupportTicketStaffEmail(ticket: {
   if (!recipient) return false;
   try {
     if (!process.env.RESEND_API_KEY) throw new Error('Support email delivery is not configured.');
+    const sender = supportEmailSender();
     const heading = event === 'created' ? 'Support ticket received' : event === 'updated' ? 'Support ticket update' : 'Support ticket resolved';
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
+      from: sender,
       to: [recipient],
       subject: `${heading} #${ticket.id}: ${ticket.subject}`,
       html: `<h1>${heading}</h1><p>Ticket #${ticket.id}: ${escapeHtml(ticket.subject)}</p><p>${event === 'created' ? 'Your support request has been received.' : event === 'updated' ? 'Our support team has posted an update.' : 'Your support request has been resolved.'}</p>${update ? `<p style="white-space:pre-wrap;">${escapeHtml(update.message)}</p>` : event === 'resolved' && ticket.resolution_notes ? `<p style="white-space:pre-wrap;">${escapeHtml(ticket.resolution_notes)}</p>` : ''}`,
@@ -68,9 +77,10 @@ export async function sendNewSupportTicketAlert(ticket: NewTicketAlertInput): Pr
   const recipient = await getSupportTicketNotificationEmail();
   if (!recipient || !process.env.RESEND_API_KEY) return;
 
+  const sender = supportEmailSender();
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
+    from: sender,
     to: [recipient],
     subject: `New support ticket #${ticket.id}: ${ticket.subject}`,
     html: `<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#0f172a;">

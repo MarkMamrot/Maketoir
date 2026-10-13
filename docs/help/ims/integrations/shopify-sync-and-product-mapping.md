@@ -71,6 +71,8 @@ If Shopify has already refunded the customer but Solvantis could not complete th
 5. Compare a new Shopify order with its IMS Sales Order and review **Activity**. Successful registration alone does not prove that real deliveries pass signature verification.
 6. After correcting the configuration, use the store's order import to recover missing orders. Existing orders are reused and interrupted Drafts resume through the normal confirmation workflow; do not create a second order or make a compensating stock adjustment.
 
+If an order update arrives before its matching order has been imported from that same storefront, Solvantis leaves the update pending and asks Shopify to retry delivery. Waiting does not consume the processing retry allowance, import an order, or create stock commitments. A later delivery can apply the update after the normal order import completes. Shopify's redelivery window is limited; if the order or update remains missing, review the store's import settings and Activity with support rather than creating a duplicate order.
+
 With automatic daily Xero batch sync enabled, opening IMS also attempts a catch-up order import once per browser session. This is not continuous polling and does not replace real-time webhooks. An earlier order appearing after opening IMS does not prove that later Shopify orders will arrive automatically.
 
 ## Step-by-step

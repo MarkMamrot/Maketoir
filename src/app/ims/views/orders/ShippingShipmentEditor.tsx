@@ -10,7 +10,7 @@ import type {
 } from "@/lib/ims/shipping/shippingAmendmentTypes";
 import type { ShippingQuote } from "@/lib/ims/shipping/shippingQuotes";
 import { centimetreInputToMillimetres, millimetresToCentimetreInput } from "@/lib/ims/shipping/parcelDimensions";
-import { isAustralianShippingCountry } from "@/lib/ims/shipping/shippingWorkflow";
+import { isAustralianShippingCountry, isPlaceholderShippingCustomerName } from "@/lib/ims/shipping/shippingWorkflow";
 import { SHIPPING_EXPORT_PURPOSES } from "@/lib/ims/shipping/customs";
 import { buildNonSaleDeclaredValueInputs, buildWorkspaceCustomsRows, getWorkspaceCustomsBlockers } from "@/lib/ims/shipping/workspaceCustoms";
 import { workspaceParcelItemLabel, workspaceParcelQuantityIssue } from "@/lib/ims/shipping/workspaceParcelQuantities";
@@ -116,7 +116,8 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
       if (!active) return;
       const saved = result.data as ShippingEditableDetail;
       setDetail(saved);
-      setRecipient({ ...saved.recipient, lines: [...saved.recipient.lines] });
+      setRecipient({ ...saved.recipient, name: saved.suggestedRecipientName ?? saved.recipient.name, lines: [...saved.recipient.lines] });
+      setDirty(Boolean(saved.suggestedRecipientName));
       setParcels(saved.parcels.map(shipmentParcelForm));
       setAccountId(saved.carrierAccountId == null ? "" : String(saved.carrierAccountId));
       setUncertain(["amending", "amendment_unknown"].includes(saved.status));
@@ -161,6 +162,7 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
 
   function draft(): ShippingAmendmentDraft {
     if (!detail || !recipient) throw new Error("Saved shipment details are not loaded.");
+    if (isPlaceholderShippingCustomerName(recipient.name)) throw new Error("Enter the actual delivery recipient instead of Online Customer.");
     if (!Number.isInteger(Number(accountId)) || Number(accountId) <= 0) throw new Error("Choose a carrier account.");
     if (!recipient.name.trim() || !recipient.lines.some((line) => line.trim()) || !recipient.suburb.trim() || !recipient.postcode.trim() || !recipient.country.trim())
       throw new Error("Enter recipient name, delivery address, suburb, postcode and country.");
@@ -259,12 +261,12 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
             sent = false;
             const saved = latest.data as ShippingEditableDetail;
             setDetail(saved);
-            setRecipient({ ...saved.recipient, lines: [...saved.recipient.lines] });
+            setRecipient({ ...saved.recipient, name: saved.suggestedRecipientName ?? saved.recipient.name, lines: [...saved.recipient.lines] });
             setParcels(saved.parcels.map(shipmentParcelForm));
             setAccountId(saved.carrierAccountId == null ? "" : String(saved.carrierAccountId));
             setQuotes([]);
             setService(null);
-            setDirty(false);
+            setDirty(Boolean(saved.suggestedRecipientName));
             operation.current = null;
             throw new Error(`${result.error || "The shipment changed while you were editing."} Latest saved details have been reloaded; review them and get fresh quotes.`);
           }
@@ -339,6 +341,10 @@ export function ShippingShipmentEditor({ shipmentId, accounts, presets, onClose,
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.displayName}</option>)}
           </select></label>
           <h3 style={{ fontSize: 14 }}>Delivery recipient</h3>
+          {detail.suggestedRecipientName && <p role="status" style={{ fontSize: 12 }}>
+            The order-specific recipient name is filled in for review. Save the shipment to apply it{carrierCreated ? ", then generate fresh labels" : ""}. Existing labels have not been changed.
+          </p>}
+          {detail.recipientNameIssue && <p role="alert" style={{ fontSize: 12 }}>{detail.recipientNameIssue} Enter the actual delivery recipient before saving.</p>}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
             {(["name", "suburb", "state", "postcode", "country", "email", "phone"] as const).map((field) => <label key={field}>{field === "country" ? "Country (two-letter code)" : field[0].toUpperCase() + field.slice(1)}<input style={inputStyle} value={recipient[field]} onChange={(event) => changed(() => setRecipient({ ...recipient, [field]: event.target.value }))} /></label>)}
             <label>Delivery address lines<textarea aria-label="Delivery address lines" style={inputStyle} rows={3} value={recipient.lines.join("\n")} onChange={(event) => changed(() => setRecipient({ ...recipient, lines: event.target.value.split("\n") }))} /></label>

@@ -3,7 +3,7 @@ import { trackedGenerateContentRest } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
-import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
+import { parseAiJsonResponse, requestAiJsonResponse } from '@/lib/website/aiJsonResponse';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { DEFAULT_BUSINESS_TIME_ZONE } from '@/lib/ims/businessTimeZone';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -383,51 +383,20 @@ export async function POST(req: Request) {
       restBody.tools = [{ google_search: {} }];
     }
 
-    let parsed: Record<string, any> | null = null;
-    let lastText = '';
-    let lastError = '';
-    for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
-      let genRes: Response;
-      try {
-        genRes = await trackedGenerateContentRest(apiKey, modelId, {
+    const { parsed, lastText, lastError, attempts, requestFailed } = await requestAiJsonResponse<Record<string, any>>(
+      attempt => trackedGenerateContentRest(apiKey, modelId, {
               ...restBody,
               generationConfig: { ...restBody.generationConfig, temperature: attempt === 0 ? 0.2 : 0 },
-            }, { businessId: databaseId, area: 'website_content', operation: 'generate_product_content', actorType: 'user', referenceType: 'product', referenceId: product?.id ?? product?.product_id ?? null }, AbortSignal.timeout(attempt === 0 ? 30000 : 15000));
-      } catch (error) {
-        lastError = error instanceof Error && error.name === 'TimeoutError'
-          ? 'AI content generation timed out.'
-          : `AI content generation request failed: ${error instanceof Error ? error.message : String(error)}`;
-        continue;
-      }
-      const rawResponse = await genRes.text();
-      if (!genRes.ok) {
-        lastError = `Gemini API error (HTTP ${genRes.status}): ${rawResponse.slice(0, 300)}`;
-        if (genRes.status < 500 || attempt === 1) break;
-        continue;
-      }
-
-      let genJson: any;
-      try {
-        genJson = JSON.parse(rawResponse);
-      } catch {
-        lastError = `Gemini returned a non-JSON HTTP response: ${rawResponse.slice(0, 300)}`;
-        continue;
-      }
-      const textParts = (genJson.candidates?.[0]?.content?.parts ?? [])
-        .map((part: any) => typeof part.text === 'string' ? part.text : '')
-        .filter(Boolean);
-      lastText = textParts.join('\n').trim();
-      lastError = lastText ? 'AI response could not be parsed as JSON.' : 'AI returned an empty response.';
-      parsed = parseAiJsonResponse<Record<string, any>>(textParts);
-    }
+            }, { businessId: databaseId, area: 'website_content', operation: 'generate_product_content', actorType: 'user', referenceType: 'product', referenceId: product?.id ?? product?.product_id ?? null }, AbortSignal.timeout(60000)),
+    );
 
     if (!parsed) {
       await reportRuntimeIssue({
         businessId: session.businessId,
         source: 'website-content',
-        operation: 'generate_content_parse_response',
+        operation: requestFailed ? 'generate_content_request' : 'generate_content_parse_response',
         severity: 'error',
-        title: 'Website content AI returned invalid JSON',
+        title: requestFailed ? 'Website content AI request failed' : 'Website content AI returned invalid JSON',
         error: new Error(lastError || 'Gemini content response could not be parsed after retry.'),
         context: {
           productName: String(product.name ?? '').slice(0, 200),
@@ -435,9 +404,14 @@ export async function POST(req: Request) {
           field: String(field ?? '').slice(0, 50),
           modelId: modelId.slice(0, 100),
           responseLength: lastText.length,
+          attempts,
+          requestFailed,
         },
       });
-      return NextResponse.json({ error: `${lastError} Retried once.`, raw: lastText.slice(0, 500) }, { status: 502 });
+      const retryMessage = requestFailed
+        ? 'No further automatic retry was made. Review AI Usage & Credits before submitting again.'
+        : attempts > 1 ? 'Retried once.' : '';
+      return NextResponse.json({ error: `${lastError} ${retryMessage}`.trim(), raw: lastText.slice(0, 500) }, { status: 502 });
     }
 
     // Normalise content structure

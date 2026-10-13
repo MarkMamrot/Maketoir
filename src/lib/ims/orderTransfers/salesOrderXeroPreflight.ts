@@ -1,5 +1,5 @@
 import { assessXeroDocumentEdit } from '@/lib/xero/documentEditPolicy';
-import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { reportXeroFailure } from '@/lib/xero/reportXeroFailure';
 import { getXeroInvoiceEditState } from '@/services/XeroSyncService';
 
 export type SalesOrderXeroDocument = {
@@ -34,7 +34,7 @@ export async function preflightSalesOrderXeroDocuments(
         conflict: assessment.message,
       }] as const;
     } catch (error) {
-      await reportRuntimeIssue({
+      await reportXeroFailure({
         businessId,
         source: 'ims_sales_orders',
         operation: 'xero_transfer_preflight',

@@ -16,7 +16,7 @@ export interface ReportRuntimeIssueInput {
   operation: string;
   severity?: RuntimeIssueSeverity;
   title: string;
-  error: unknown;
+  error?: unknown;
   context?: Record<string, unknown>;
   reference?: RuntimeIssueReference;
   notifyDevelopers?: boolean;
@@ -78,7 +78,7 @@ function normalizeError(error: unknown): { name: string; message: string; stack:
 }
 
 export function runtimeIssueFingerprint(input: ReportRuntimeIssueInput): string {
-  const normalized = normalizeError(input.error);
+  const normalized = normalizeError(input.error === undefined ? input.title : input.error);
   return crypto.createHash('sha256').update([
     input.businessId || '__system__',
     input.source.trim().toLowerCase(),
@@ -91,7 +91,7 @@ export function runtimeIssueFingerprint(input: ReportRuntimeIssueInput): string 
 export async function reportRuntimeIssue(input: ReportRuntimeIssueInput): Promise<number | null> {
   if (!input.source?.trim() || !input.operation?.trim() || !input.title?.trim()) return null;
 
-  const normalized = normalizeError(input.error);
+  const normalized = normalizeError(input.error === undefined ? input.title : input.error);
   const fingerprint = runtimeIssueFingerprint(input);
   const contextJson = serializeRuntimeContext(input.context);
   let pool;

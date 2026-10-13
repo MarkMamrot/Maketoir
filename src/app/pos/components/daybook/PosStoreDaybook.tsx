@@ -244,14 +244,20 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
     return `/api/pos/daybook/attachments/${attachmentId}${locationOverride ? `?location_id=${location.id}` : ''}`;
   }
 
-  async function uploadCommunicationAttachment(communicationId: number, file: File) {
+  async function saveCommunicationAttachments(communicationId: number, attachments: CommunicationAttachment[], files: File[], originalAttachmentIds: number[]) {
+    if (!staff) { setIdentityOpen(true); throw new Error('Choose your staff identity first.'); }
     const form = new FormData();
     form.set('communication_id', String(communicationId));
-    form.set('file', file);
+    form.set('retained_attachment_ids', JSON.stringify(attachments.map(attachment => attachment.id)));
+    form.set('original_attachment_ids', JSON.stringify(originalAttachmentIds));
+    form.set('staff_identity_id', String(staff.id ?? ''));
+    form.set('staff_name', staff.name);
+    form.set('staff_initials', staff.initials);
+    files.forEach(file => form.append('files', file));
     if (locationOverride) form.set('location_id', String(location.id));
-    const response = await fetch('/api/pos/daybook/attachments', { method: 'POST', body: form });
+    const response = await fetch('/api/pos/daybook/attachments', { method: 'PUT', body: form });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? `Failed to upload ${file.name}`);
+    if (!response.ok) throw new Error(result.error ?? 'Attachment changes could not be saved.');
     await load(staff, false);
   }
 
@@ -445,7 +451,7 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
         )}
 
         {!loading && active === 'communications' && (
-          <CommunicationsView workspace={workspace} saving={saving} perform={perform} onUploadAttachment={uploadCommunicationAttachment} attachmentUrl={communicationAttachmentUrl} />
+          <CommunicationsView workspace={workspace} saving={saving} perform={perform} onSaveAttachments={saveCommunicationAttachments} attachmentUrl={communicationAttachmentUrl} />
         )}
 
         {!loading && ['customer_request', 'store_need', 'stock_discrepancy', 'incident'].includes(active) && (
@@ -601,24 +607,29 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
 function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className={styles.search}><Search size={17} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>; }
 
-type CommunicationDraft = { id?: number; message: string; priority: string; backgroundColor: string | null; locationIds: string; files: File[] };
+type CommunicationDraft = { id?: number; message: string; priority: string; backgroundColor: string | null; locationIds: string; files: File[]; attachments?: CommunicationAttachment[]; originalAttachmentIds?: number[] };
 
 const COMMUNICATION_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
-export function CommunicationsView({ workspace, saving, perform, onUploadAttachment, attachmentUrl }: {
+export function CommunicationsView({ workspace, saving, perform, onSaveAttachments, attachmentUrl }: {
   workspace: Workspace | null;
   saving: boolean;
   perform: (action: string, payload?: Record<string, unknown>) => Promise<unknown>;
-  onUploadAttachment: (communicationId: number, file: File) => Promise<unknown>;
+  onSaveAttachments: (communicationId: number, attachments: CommunicationAttachment[], files: File[], originalAttachmentIds: number[]) => Promise<unknown>;
   attachmentUrl: (attachmentId: number) => string;
 }) {
   const [draft, setDraft] = useState<CommunicationDraft | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState('');
   const communications = workspace?.communications ?? [];
 
   async function saveDraft() {
-    if (!draft || !communicationHasText(draft.message)) return;
+    if (!draft || savingDraft || !communicationHasText(draft.message)) return;
+    setSavingDraft(true);
+    setDraftError('');
+    try {
     const result: any = await perform(draft.id ? 'update_communication' : 'create_communication', {
       communication_id: draft.id,
       message: draft.message,
@@ -628,10 +639,16 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
     });
     if (!result) return;
     const newCommunicationId = Number(result.id ?? draft.id);
-    if (!draft.id && newCommunicationId && draft.files.length > 0) {
-      for (const file of draft.files) await onUploadAttachment(newCommunicationId, file);
+    if (!draft.id) setDraft({ ...draft, id: newCommunicationId });
+    if (newCommunicationId && (draft.id || draft.files.length > 0)) {
+      await onSaveAttachments(newCommunicationId, draft.attachments ?? [], draft.files, draft.originalAttachmentIds ?? []);
     }
     setDraft(null);
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : 'The communication could not be saved.');
+    } finally {
+      setSavingDraft(false);
+    }
   }
 
   function toggleComments(id: number) {
@@ -643,13 +660,14 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
   }
 
   return <section className={`${styles.contentSection} ${styles.communicationsSection}`}>
-    <Title title="Store communications" subtitle="Latest first" action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => setDraft({ message: '', priority: 'normal', backgroundColor: null, locationIds: String(workspace.location.id), files: [] })}><Plus size={17} /> Add new</button> : undefined} />
-    {draft && !draft.id && <InlineCommunicationEditor draft={draft} setDraft={setDraft} locations={workspace?.locations ?? []} saving={saving} onSave={saveDraft} onCancel={() => setDraft(null)} />}
+    <Title title="Store communications" subtitle="Latest first" action={workspace?.permissions.manager ? <button className={styles.addButton} disabled={saving || savingDraft} onClick={() => { setDraftError(''); setDraft({ message: '', priority: 'normal', backgroundColor: null, locationIds: String(workspace.location.id), files: [] }); }}><Plus size={17} /> Add new</button> : undefined} />
+    {draftError && <p role="alert" className={styles.attachmentError}>{draftError}</p>}
+    {draft && !draft.id && <InlineCommunicationEditor draft={draft} setDraft={setDraft} locations={workspace?.locations ?? []} saving={saving || savingDraft} attachmentUrl={attachmentUrl} onSave={saveDraft} onCancel={() => { setDraft(null); setDraftError(''); }} />}
     <div className={styles.communicationFeed}>
       {communications.length === 0 && !draft && <p className={styles.empty}>No communications have been published.</p>}
       {communications.map(item => {
         const commentsVisible = openComments.has(item.id);
-        if (draft?.id === item.id) return <InlineCommunicationEditor key={item.id} draft={draft} setDraft={setDraft} locations={[]} saving={saving} onSave={saveDraft} onCancel={() => setDraft(null)} />;
+        if (draft?.id === item.id) return <InlineCommunicationEditor key={item.id} draft={draft} setDraft={setDraft} locations={[]} saving={saving || savingDraft} attachmentUrl={attachmentUrl} onSave={saveDraft} onCancel={() => { setDraft(null); setDraftError(''); }} />;
         return <article className={`${styles.communicationRow} ${item.background_color === 'fluoro_yellow' ? styles.communicationHighlighted : ''}`} key={item.id}>
           <div className={styles.communicationMeta}>
             <time>{shortTime(item.published_at)}</time>
@@ -663,8 +681,8 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
               : <a key={file.id} href={attachmentUrl(file.id)} target="_blank" rel="noreferrer" className={styles.communicationFileLink}>{file.original_name}</a>)}</div>}
           </div>
           <div className={styles.communicationTools}>
-            {item.can_edit && <div className={styles.moreMenu}><button type="button" onClick={() => setMenuId(menuId === item.id ? null : item.id)} aria-label="Communication actions" aria-expanded={menuId === item.id}><Ellipsis size={18} /></button>{menuId === item.id && <div role="menu">
-              <button type="button" role="menuitem" onClick={() => { setDraft({ id: item.id, message: item.message, priority: item.priority, backgroundColor: item.background_color ?? null, locationIds: '', files: [] }); setMenuId(null); }}><Pencil size={15} /> Edit</button>
+            {item.can_edit && <div className={styles.moreMenu}><button type="button" disabled={saving || savingDraft} onClick={() => setMenuId(menuId === item.id ? null : item.id)} aria-label="Communication actions" aria-expanded={menuId === item.id}><Ellipsis size={18} /></button>{menuId === item.id && <div role="menu">
+              <button type="button" role="menuitem" onClick={() => { setDraft({ id: item.id, message: item.message, priority: item.priority, backgroundColor: item.background_color ?? null, locationIds: '', files: [], attachments: item.attachments ?? [], originalAttachmentIds: (item.attachments ?? []).map(attachment => attachment.id) }); setDraftError(''); setMenuId(null); }}><Pencil size={15} /> Edit</button>
               <button type="button" role="menuitem" onClick={() => { void perform('update_communication', { communication_id: item.id, message: item.message, priority: item.priority, background_color: item.background_color === 'fluoro_yellow' ? null : 'fluoro_yellow' }); setMenuId(null); }}><Highlighter size={15} /> {item.background_color === 'fluoro_yellow' ? 'Remove highlight' : 'Highlight'}</button>
               <button type="button" role="menuitem" onClick={() => { setOpenComments(current => new Set(current).add(item.id)); setMenuId(null); }}><MessageSquare size={15} /> Comment</button>
               <button type="button" role="menuitem" className={styles.dangerMenuItem} onClick={() => { setMenuId(null); if (confirm('Delete this communication? Acknowledgment history will be retained.')) void perform('delete_item', { item_type: 'communication', item_id: item.id }); }}><Trash2 size={15} /> Delete</button>
@@ -679,21 +697,40 @@ export function CommunicationsView({ workspace, saving, perform, onUploadAttachm
   </section>;
 }
 
-function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave, onCancel }: {
+function CommunicationAttachmentPreview({ file, url, name, mimeType }: { file?: File; url?: string; name: string; mimeType: string }) {
+  const [previewUrl, setPreviewUrl] = useState(url ?? '');
+  useEffect(() => {
+    if (!file) { setPreviewUrl(url ?? ''); return; }
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file, url]);
+  return <a className={styles.attachmentPreview} href={previewUrl || undefined} target="_blank" rel="noreferrer" aria-label={`Preview ${name}`} title={`Preview ${name}`}>
+    {mimeType.startsWith('image/') && previewUrl ? <img src={previewUrl} alt={name} /> : <Eye size={24} />}
+    <span>{name}</span>
+  </a>;
+}
+
+function InlineCommunicationEditor({ draft, setDraft, locations, saving, attachmentUrl, onSave, onCancel }: {
   draft: CommunicationDraft;
   setDraft: (draft: CommunicationDraft) => void;
   locations: Location[];
   saving: boolean;
+  attachmentUrl: (attachmentId: number) => string;
   onSave: () => Promise<void>;
   onCancel: () => void;
 }) {
+  const [fileValidationError, setFileValidationError] = useState('');
+  const attachments = draft.attachments ?? [];
   function addFiles(incoming: File[]) {
-    const accepted = incoming.filter(file => COMMUNICATION_ATTACHMENT_TYPES.includes(file.type) && file.size <= 10 * 1024 * 1024);
+    const accepted = incoming.filter(file => COMMUNICATION_ATTACHMENT_TYPES.includes(file.type) && file.size > 0 && file.size <= 10 * 1024 * 1024);
+    const available = Math.max(0, 3 - attachments.length - draft.files.length);
+    setFileValidationError(accepted.length !== incoming.length ? 'Use JPG, PNG, WebP or PDF files between 1 byte and 10 MB.' : accepted.length > available ? 'A communication can have up to 3 attachments.' : '');
     if (!accepted.length) return;
-    setDraft({ ...draft, files: [...draft.files, ...accepted].slice(0, 3) });
+    setDraft({ ...draft, files: [...draft.files, ...accepted.slice(0, available)] });
   }
   function handlePasteFiles(event: React.ClipboardEvent) {
-    if (draft.id) return;
+    if (saving) return;
     const images = Array.from(event.clipboardData.items)
       .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
       .map(item => item.getAsFile())
@@ -703,6 +740,7 @@ function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave,
     addFiles(images);
   }
   return <form className={styles.inlineCommunicationEditor} onSubmit={event => { event.preventDefault(); void onSave(); }}>
+    <fieldset disabled={saving} className={styles.communicationEditorFields}>
     <div onPasteCapture={handlePasteFiles}>
       <FormattedMessageField value={draft.message} onChange={message => setDraft({ ...draft, message })} />
     </div>
@@ -714,23 +752,27 @@ function InlineCommunicationEditor({ draft, setDraft, locations, saving, onSave,
         {locations.map(location => <label key={location.id}><input type="checkbox" checked={selectedIds.has(String(location.id))} onChange={event => { const ids = new Set(draft.locationIds.split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setDraft({ ...draft, locationIds: [...ids].join(',') }); }} />{location.name}</label>)}
       </div>;
     })()}
-    {!draft.id && (
       <div className={styles.inlineAttachments}>
+        {attachments.map(attachment => <div key={attachment.id} className={styles.attachmentDraft}>
+          <CommunicationAttachmentPreview url={attachmentUrl(attachment.id)} name={attachment.original_name} mimeType={attachment.mime_type} />
+          <button type="button" onClick={() => setDraft({ ...draft, attachments: attachments.filter(item => item.id !== attachment.id) })} aria-label={`Remove ${attachment.original_name}`} title={`Remove ${attachment.original_name}`}><X size={15} /></button>
+        </div>)}
         {draft.files.map((file, index) => (
-          <span key={`${file.name}-${index}`} className={styles.inlineAttachmentChip}>
-            {file.name}
+          <div key={`${file.name}-${index}`} className={styles.attachmentDraft}>
+            <CommunicationAttachmentPreview file={file} name={file.name} mimeType={file.type} />
             <button type="button" onClick={() => setDraft({ ...draft, files: draft.files.filter((_, fileIndex) => fileIndex !== index) })} aria-label={`Remove ${file.name}`}><X size={13} /></button>
-          </span>
+          </div>
         ))}
-        {draft.files.length < 3 && (
+        {draft.files.length + attachments.length < 3 && (
           <label className={styles.inlineAttachButton}>
             <ClipboardPlus size={14} /> Attach
             <input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" style={{ display: 'none' }} onChange={event => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
           </label>
         )}
       </div>
-    )}
-    <div className={styles.inlineEditorActions}><button type="button" onClick={onCancel} aria-label="Cancel"><X size={17} /></button><button type="submit" disabled={saving || !communicationHasText(draft.message) || (!draft.id && !draft.locationIds)}>{saving ? 'Saving…' : draft.id ? 'Save' : 'Add'}</button></div>
+    {fileValidationError && <p role="alert" className={styles.attachmentError}>{fileValidationError}</p>}
+    </fieldset>
+    <div className={styles.inlineEditorActions}><button type="button" onClick={onCancel} disabled={saving} aria-label="Cancel"><X size={17} /></button><button type="submit" disabled={saving || !communicationHasText(draft.message) || (!draft.id && !draft.locationIds)}>{saving ? 'Saving…' : draft.id ? 'Save' : 'Add'}</button></div>
   </form>;
 }
 

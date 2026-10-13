@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import fs from 'fs/promises';
 import path from 'path';
 import { NextResponse } from 'next/server';
 
@@ -17,13 +16,8 @@ const ALLOWED_TYPES = new Map([
   ['image/webp', '.webp'],
 ]);
 
-function uploadDirectory(businessId: string, messageId: number): string {
-  return path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', businessId, 'POSChat', String(messageId));
-}
-
 export async function POST(req: Request) {
   let messageId = 0;
-  let storedPath = '';
   let businessId = '';
   try {
     const form = await req.formData();
@@ -61,20 +55,16 @@ export async function POST(req: Request) {
     }
 
     const storedName = `${crypto.randomUUID()}${expectedExtension}`;
-    const directory = uploadDirectory(businessId, messageId);
-    await fs.mkdir(directory, { recursive: true });
-    storedPath = path.join(directory, storedName);
-    await fs.writeFile(storedPath, Buffer.from(await file.arrayBuffer()), { flag: 'wx' });
+    const bytes = Buffer.from(await file.arrayBuffer());
     const originalName = path.basename(file.name).replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 255) || `attachment${expectedExtension}`;
     const result = await imsExecute(
-      `INSERT INTO pos_chat_attachments (message_id, original_name, stored_name, mime_type, file_size)
-       VALUES (?, ?, ?, ?, ?)`,
-      [messageId, originalName, storedName, file.type, file.size],
+      `INSERT INTO pos_chat_attachments (message_id, original_name, stored_name, mime_type, file_size, file_content)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [messageId, originalName, storedName, file.type, file.size, bytes],
     );
     return NextResponse.json({ success: true, attachment: { id: result.insertId, message_id: messageId, original_name: originalName, mime_type: file.type, file_size: file.size } });
     });
   } catch (error: any) {
-    if (storedPath) await fs.unlink(storedPath).catch(() => {});
     await reportRuntimeIssue({ businessId: businessId || undefined, source: 'pos.chat', operation: 'upload-attachment', title: 'POS chat attachment upload failed', error, context: { messageId } });
     return NextResponse.json({ error: error.message ?? 'Attachment upload failed.' }, { status: 500 });
   }

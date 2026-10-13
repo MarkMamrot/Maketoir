@@ -51,10 +51,18 @@ type AmendmentRow = RowDataPacket & {
 
 export async function getShippingEditableDetail(businessId: string, shipmentId: number): Promise<ShippingEditableDetail> {
   const connection = await getIMSPool().getConnection();
+  let detail: ShippingEditableDetail;
   try {
     const row = await getShipment(connection, businessId, shipmentId);
-    return await buildDetail(connection, businessId, row);
+    detail = await buildDetail(connection, businessId, row);
   } finally { connection.release(); }
+  const customer = await resolveShippingOrderCustomerName(businessId, detail.soId, detail.recipient.name);
+  return {
+    ...detail,
+    suggestedRecipientName: customer.name && isPlaceholderShippingCustomerName(detail.recipient.name) ? customer.name : null,
+    recipientNameIssue: customer.issue,
+    order: { ...detail.order, customer_name: customer.name ?? detail.order.customer_name },
+  };
 }
 
 export async function quoteShippingAmendment(
@@ -288,12 +296,13 @@ async function buildDetail(connection: PoolConnection, businessId: string, row: 
   );
   const raw = order as unknown as Record<string, unknown>;
   const nullable = (key: string) => raw[key] == null ? null : String(raw[key]);
+  const recipient = parseJson<ShippingEditableDetail['recipient']>(row.recipient_json);
   return {
     shipmentId: Number(row.id), revision: Number(row.revision), updatedAt: iso(row.updated_at), status: row.status,
     soId: Number(row.so_id), soNumber: order.so_number, carrierAccountId: row.carrier_account_id == null ? null : Number(row.carrier_account_id),
     providerShipmentId: row.provider_shipment_id, isInternational: Boolean(Number(row.is_international)),
     editEligibility: getShipmentEditEligibility(row), carrierUpdateEnabled: carrierAmendmentsEnabled(Boolean(Number(row.is_international))),
-    recipient: parseJson(row.recipient_json), customs: row.customs_json == null ? null : parseJson<CustomsSnapshot>(row.customs_json),
+    recipient, customs: row.customs_json == null ? null : parseJson<CustomsSnapshot>(row.customs_json),
     service: row.service_code ? { serviceCode: row.service_code, serviceName: row.service_name ?? row.service_code,
       total: Number(row.quoted_cost ?? 0), totalExGst: Number(row.quoted_cost_ex_gst ?? 0), gst: Number(row.quoted_gst ?? 0) } : null,
     chargedCost: row.charged_cost == null ? null : Number(row.charged_cost),
@@ -305,7 +314,8 @@ async function buildDetail(connection: PoolConnection, businessId: string, row: 
     })),
     order: {
       id: order.id, so_number: order.so_number, status: order.status, so_type: nullable('so_type'), tax_treatment: order.tax_treatment ?? 'ex_tax',
-      customer_name: order.customer_name ?? '', customer_email: nullable('customer_email'), customer_phone: nullable('customer_phone'),
+      customer_name: recipient.name && !isPlaceholderShippingCustomerName(recipient.name) ? recipient.name : order.customer_name ?? '',
+      customer_email: nullable('customer_email'), customer_phone: nullable('customer_phone'),
       contact_id: raw.customer_id == null ? null : Number(raw.customer_id),
       delivery_address: nullable('delivery_address'), delivery_address2: nullable('delivery_address2'), delivery_suburb: nullable('delivery_suburb'),
       delivery_city: nullable('delivery_city'), delivery_state: nullable('delivery_state'), delivery_postcode: nullable('delivery_postcode'),
@@ -627,3 +637,4 @@ function parseJson<T>(value: unknown): T {
   return (typeof value === 'string' ? JSON.parse(value) : value) as T;
 }
 function iso(value: string | Date): string { return new Date(value).toISOString(); }
+import { isPlaceholderShippingCustomerName, resolveShippingOrderCustomerName } from './shippingCustomerNames';

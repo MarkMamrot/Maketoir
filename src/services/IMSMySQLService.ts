@@ -76,7 +76,7 @@ function sleep(ms: number): Promise<void> {
 
 function isRetryableDbError(err: any): boolean {
   const code = String(err?.code ?? '');
-  return RETRYABLE_ERROR_CODES.has(code);
+  return err?.message === 'Pool is closed.' || RETRYABLE_ERROR_CODES.has(code);
 }
 
 // ─── Tenant gatekeeper ───────────────────────────────────────────────────────
@@ -207,12 +207,16 @@ export async function imsQuery<T = any>(
   db?: string,
 ): Promise<T[]> {
   const resolvedDb = await resolveTenantDb(db);
-  const pool = getIMSPool(resolvedDb);
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const pool = getIMSPool(resolvedDb);
     try {
       const [rows] = await pool.execute(sql, params);
       return rows as T[];
     } catch (err: any) {
+      if (err?.message === 'Pool is closed.' && pools.get(resolvedDb) === pool) {
+        pools.delete(resolvedDb);
+        lastUsed.delete(resolvedDb);
+      }
       if (!isRetryableDbError(err) || attempt === 1) throw err;
       recordPoolRetry(telemetryLabel(resolvedDb));
       await sleep(250);
@@ -227,12 +231,16 @@ export async function imsExecute(
   db?: string,
 ): Promise<mysql.ResultSetHeader> {
   const resolvedDb = await resolveTenantDb(db);
-  const pool = getIMSPool(resolvedDb);
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const pool = getIMSPool(resolvedDb);
     try {
       const [result] = await pool.execute(sql, params);
       return result as mysql.ResultSetHeader;
     } catch (err: any) {
+      if (err?.message === 'Pool is closed.' && pools.get(resolvedDb) === pool) {
+        pools.delete(resolvedDb);
+        lastUsed.delete(resolvedDb);
+      }
       if (!isRetryableDbError(err) || attempt === 1) throw err;
       recordPoolRetry(telemetryLabel(resolvedDb));
       await sleep(250);

@@ -76,6 +76,26 @@ const KLAVIYO_TABLES = [
 
 const LAYBY_TABLES = ['pos_laybys', 'pos_layby_events', 'pos_layby_reservations'];
 const COGS_REPAIR_TABLES = ['ims_cogs_cost_repairs'];
+const EARLY_PAYMENT_DISCOUNT_TABLES = [
+  'ims_early_payment_discount_rules',
+  'ims_early_payment_discount_applications',
+];
+const PRODUCT_BUILD_TABLES = [
+  'ims_product_build_batches',
+  'ims_product_build_recipes',
+  'ims_product_build_recipe_versions',
+  'ims_product_build_recipe_components',
+  'ims_product_build_items',
+  'ims_product_build_item_components',
+  'ims_product_build_requirements',
+  'ims_product_build_reversals',
+];
+const MISC_TENANT_TABLES = [
+  'ims_shopify_inventory_queue',
+  'ims_po_files',
+  'ims_payment_methods',
+  'ims_backorder_merges',
+];
 
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
@@ -138,10 +158,31 @@ const COGS_REPAIR_TABLE_DDLS = COGS_REPAIR_TABLES.map(table => {
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
   return match[0].replace(/;$/, '');
 });
+const EARLY_PAYMENT_DISCOUNT_TABLE_DDLS = EARLY_PAYMENT_DISCOUNT_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
+const PRODUCT_BUILD_TABLE_DDLS = PRODUCT_BUILD_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
+const MISC_TENANT_TABLE_DDLS = MISC_TENANT_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const TABLE_DDLS = [
   ...LAYBY_TABLE_DDLS,
   ...COGS_REPAIR_TABLE_DDLS,
+  ...EARLY_PAYMENT_DISCOUNT_TABLE_DDLS,
+  ...PRODUCT_BUILD_TABLE_DDLS,
+  ...MISC_TENANT_TABLE_DDLS,
   ...DAYBOOK_TABLE_DDLS,
   ...INVENTORY_COSTING_TABLE_DDLS,
   ...SALES_CHANNEL_TABLE_DDLS,
@@ -1295,6 +1336,8 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['pos_chat_attachments', 'file_content', 'LONGBLOB NULL AFTER file_size'],
+  ['pos_daybook_communication_attachments', 'file_content', 'LONGBLOB NULL AFTER file_size'],
   ['ims_contacts', 'lead_temperature', "ENUM('cold','warm','hot') NULL AFTER shopify_customer_id"],
   ['ims_shopify_sync_log', 'channel_instance_id', 'VARCHAR(36) NULL AFTER business_id'],
   ['ims_sales_channel_product_mappings', 'external_inventory_id', 'VARCHAR(191) NULL AFTER external_variant_id'],
@@ -1582,6 +1625,42 @@ const COLUMNS = [
   ['ims_purchase_order_items', 'discount_pct', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER unit_cost'],
   ['ims_sales_order_items', 'shopify_line_item_id', 'VARCHAR(100) NULL AFTER so_id'],
   ['ims_sales_order_items', 'external_order_item_id', 'VARCHAR(100) NULL AFTER shopify_line_item_id'],
+  ['ims_sales_order_items', 'code', 'VARCHAR(100) NULL AFTER external_order_item_id'],
+  ['ims_sales_order_items', 'name', 'VARCHAR(500) NULL AFTER code'],
+  ['ims_contacts', 'customer_early_payment_discount_rule_id', 'INT DEFAULT NULL AFTER wholesale_allowed_brands_json'],
+  ['ims_contacts', 'supplier_early_payment_discount_rule_id', 'INT DEFAULT NULL AFTER customer_early_payment_discount_rule_id'],
+  ['ims_products', 'uses_builds', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active'],
+  ['ims_purchase_orders', 'early_payment_discount_rule_id', 'INT NULL AFTER supplier_name_raw'],
+  ['ims_purchase_orders', 'early_payment_discount_name', 'VARCHAR(120) NULL AFTER early_payment_discount_rule_id'],
+  ['ims_purchase_orders', 'early_payment_discount_basis_points', 'INT UNSIGNED NULL AFTER early_payment_discount_name'],
+  ['ims_purchase_orders', 'early_payment_discount_days', 'INT UNSIGNED NULL AFTER early_payment_discount_basis_points'],
+  ['ims_purchase_orders', 'early_payment_discount_base', 'VARCHAR(32) NULL AFTER early_payment_discount_days'],
+  ['ims_purchase_orders', 'early_payment_discount_date_basis', 'VARCHAR(40) NULL AFTER early_payment_discount_base'],
+  ['ims_purchase_orders', 'early_payment_discount_cutoff_date', 'DATE NULL AFTER early_payment_discount_date_basis'],
+  ['ims_purchase_orders', 'early_payment_discount_source', 'VARCHAR(32) NULL AFTER early_payment_discount_cutoff_date'],
+  ['ims_purchase_order_items', 'landed_cost_per_unit', 'DECIMAL(12,4) NOT NULL DEFAULT 0.0000 AFTER unit_cost'],
+  ['ims_po_landed_costs', 'created_at', 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP AFTER amount'],
+  ['ims_sales_orders', 'early_payment_discount_rule_id', 'INT NULL AFTER discount'],
+  ['ims_sales_orders', 'early_payment_discount_name', 'VARCHAR(120) NULL AFTER early_payment_discount_rule_id'],
+  ['ims_sales_orders', 'early_payment_discount_basis_points', 'INT UNSIGNED NULL AFTER early_payment_discount_name'],
+  ['ims_sales_orders', 'early_payment_discount_days', 'INT UNSIGNED NULL AFTER early_payment_discount_basis_points'],
+  ['ims_sales_orders', 'early_payment_discount_base', 'VARCHAR(32) NULL AFTER early_payment_discount_days'],
+  ['ims_sales_orders', 'early_payment_discount_date_basis', 'VARCHAR(40) NULL AFTER early_payment_discount_base'],
+  ['ims_sales_orders', 'early_payment_discount_cutoff_date', 'DATE NULL AFTER early_payment_discount_date_basis'],
+  ['ims_sales_orders', 'early_payment_discount_source', 'VARCHAR(32) NULL AFTER early_payment_discount_cutoff_date'],
+  ['ims_shipping_carrier_accounts', 'base_url', 'VARCHAR(255) NULL AFTER account_number'],
+  ['ims_shipping_manifests', 'operation_key', 'VARCHAR(191) NOT NULL AFTER business_id'],
+  ['ims_shipping_manifests', 'request_hash', 'CHAR(64) NOT NULL AFTER operation_key'],
+  ['ims_shipping_manifests', 'provider', 'VARCHAR(32) NOT NULL AFTER request_hash'],
+  ['ims_shipping_manifests', 'provider_reference', 'VARCHAR(191) NOT NULL AFTER provider'],
+  ['ims_shipping_manifests', 'parcel_count', 'INT NOT NULL DEFAULT 0 AFTER provider_reference'],
+  ['ims_shipping_manifests', 'submitted_at', 'DATETIME NULL AFTER created_at'],
+  ['ims_shipping_shipments', 'manifested_at', 'DATETIME NULL AFTER manifest_id'],
+  ['ims_stocktakes', 'xero_journal_id', 'VARCHAR(100) NULL AFTER reversed_by'],
+  ['ims_stocktakes', 'xero_synced_at', 'DATETIME NULL AFTER xero_journal_id'],
+  ['ims_stocktakes', 'xero_sync_status', "ENUM('synced','queued','error') NULL AFTER xero_synced_at"],
+  ['ims_stocktake_items', 'business_id', "VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '' AFTER id"],
+  ['ims_branch_transfer_items', 'business_id', "VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '' AFTER id"],
 ];
 
 if (

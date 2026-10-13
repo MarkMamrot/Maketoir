@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   website_url         VARCHAR(500) DEFAULT NULL,
   price_tier          VARCHAR(20) DEFAULT 'retail',
   wholesale_allowed_brands_json JSON DEFAULT NULL,
+  customer_early_payment_discount_rule_id INT DEFAULT NULL,
+  supplier_early_payment_discount_rule_id INT DEFAULT NULL,
   -- Misc
   notes       TEXT,
   is_active   TINYINT(1) NOT NULL DEFAULT 1,
@@ -63,6 +65,53 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_business_id (business_id),
   UNIQUE KEY idx_shopify_customer_id (business_id, shopify_customer_id),
   INDEX idx_customer_code (business_id, customer_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_early_payment_discount_rules (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  name VARCHAR(120) NOT NULL,
+  discount_basis_points INT UNSIGNED NOT NULL,
+  discount_days INT UNSIGNED NOT NULL,
+  discount_base VARCHAR(32) NOT NULL DEFAULT 'merchandise',
+  date_basis VARCHAR(40) NOT NULL DEFAULT 'invoice_date_order_fallback',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by INT DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_early_payment_rule_name (business_id, name),
+  INDEX idx_early_payment_rule_active (business_id, is_active, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_early_payment_discount_applications (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  document_type VARCHAR(20) NOT NULL,
+  document_id INT NOT NULL,
+  settlement_payment_id INT DEFAULT NULL,
+  operation_key VARCHAR(191) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  cutoff_date DATE NOT NULL,
+  paid_by_cutoff DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount_taxable_net DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount_tax_free DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount_net DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount_tax DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount_gross DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
+  customer_credit_note_id INT DEFAULT NULL,
+  supplier_credit_note_id INT DEFAULT NULL,
+  xero_credit_note_id VARCHAR(100) DEFAULT NULL,
+  xero_allocation_id VARCHAR(100) DEFAULT NULL,
+  xero_status VARCHAR(32) DEFAULT NULL,
+  xero_error VARCHAR(500) DEFAULT NULL,
+  applied_by INT DEFAULT NULL,
+  applied_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_early_payment_application_operation (business_id, operation_key),
+  UNIQUE KEY uq_early_payment_application_document (business_id, document_type, document_id),
+  INDEX idx_early_payment_application_status (business_id, status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_crm_lead_discoveries (
@@ -455,6 +504,7 @@ CREATE TABLE IF NOT EXISTS pos_chat_attachments (
   stored_name   VARCHAR(255) NOT NULL,
   mime_type     VARCHAR(100) NOT NULL,
   file_size     INT UNSIGNED NOT NULL,
+  file_content  LONGBLOB NULL,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_pos_chat_attachment_message (message_id),
   CONSTRAINT fk_pos_chat_attachment_message FOREIGN KEY (message_id)
@@ -758,6 +808,7 @@ CREATE TABLE IF NOT EXISTS ims_products (
   bin                   VARCHAR(100),
   allow_indent_wholesale TINYINT(1) NOT NULL DEFAULT 0,
   is_stock_item         TINYINT(1) NOT NULL DEFAULT 1,
+  uses_builds           TINYINT(1) NOT NULL DEFAULT 0,
   is_active             TINYINT(1) NOT NULL DEFAULT 1,
   shopify_product_id    VARCHAR(100),
   created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1026,6 +1077,12 @@ CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
   INDEX idx_ssl_channel_created (channel_instance_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ims_shopify_inventory_queue (
+  variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
+  queued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_q_queued (queued_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Website Content Attempts ────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1168,6 +1225,14 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   tax_treatment ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
   tax_code VARCHAR(50) NULL,
   supplier_name_raw VARCHAR(255) NULL,
+  early_payment_discount_rule_id INT NULL,
+  early_payment_discount_name VARCHAR(120) NULL,
+  early_payment_discount_basis_points INT UNSIGNED NULL,
+  early_payment_discount_days INT UNSIGNED NULL,
+  early_payment_discount_base VARCHAR(32) NULL,
+  early_payment_discount_date_basis VARCHAR(40) NULL,
+  early_payment_discount_cutoff_date DATE NULL,
+  early_payment_discount_source VARCHAR(32) NULL,
   subtotal      DECIMAL(12,2) NOT NULL DEFAULT 0,
   tax_amount    DECIMAL(12,2) NOT NULL DEFAULT 0,
   freight       DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -1194,6 +1259,7 @@ CREATE TABLE IF NOT EXISTS ims_po_landed_costs (
   reference  VARCHAR(200),
   amount     DECIMAL(12,2) NOT NULL DEFAULT 0,
   sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
   INDEX idx_business_id (business_id),
   INDEX idx_polc_po (po_id)
@@ -1208,6 +1274,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   qty_ordered  DECIMAL(12,4) NOT NULL,
   qty_received DECIMAL(12,4) NOT NULL DEFAULT 0,
   unit_cost    DECIMAL(12,4) NOT NULL,
+  landed_cost_per_unit DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
   discount_pct DECIMAL(8,4) NOT NULL DEFAULT 0,
   tax_rate     DECIMAL(6,4) NOT NULL DEFAULT 0,
   line_total   DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -1238,6 +1305,20 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
   INDEX idx_pop_po (po_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_po_files (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  po_id INT NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  filename VARCHAR(255) NOT NULL,
+  original_name VARCHAR(255) DEFAULT NULL,
+  mime_type VARCHAR(100) DEFAULT NULL,
+  file_size INT DEFAULT NULL,
+  uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id),
+  INDEX idx_po (po_id),
+  FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Sales Orders ─────────────────────────────────────────────
@@ -1283,6 +1364,14 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   tax_treatment    ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
   freight          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   discount         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  early_payment_discount_rule_id INT NULL,
+  early_payment_discount_name VARCHAR(120) NULL,
+  early_payment_discount_basis_points INT UNSIGNED NULL,
+  early_payment_discount_days INT UNSIGNED NULL,
+  early_payment_discount_base VARCHAR(32) NULL,
+  early_payment_discount_date_basis VARCHAR(40) NULL,
+  early_payment_discount_cutoff_date DATE NULL,
+  early_payment_discount_source VARCHAR(32) NULL,
   subtotal         DECIMAL(12,2) NOT NULL DEFAULT 0,
   tax_amount       DECIMAL(12,2) NOT NULL DEFAULT 0,
   total_amount     DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -1328,6 +1417,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   so_id         INT NOT NULL,
   shopify_line_item_id BIGINT NULL,
   external_order_item_id VARCHAR(100) NULL,
+  code          VARCHAR(100) NULL,
+  name          VARCHAR(500) NULL,
   variant_id    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   qty_ordered   DECIMAL(12,4) NOT NULL,
   qty_fulfilled DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -1364,6 +1455,18 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE,
   INDEX idx_sop_so (so_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_payment_methods (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  name VARCHAR(100) NOT NULL,
+  type ENUM('po','so') NOT NULL DEFAULT 'po',
+  xero_account_code VARCHAR(50) NOT NULL DEFAULT '',
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
@@ -1425,6 +1528,7 @@ CREATE TABLE IF NOT EXISTS ims_shipping_carrier_accounts (
   provider                 VARCHAR(50) NOT NULL,
   display_name             VARCHAR(120) NOT NULL,
   environment              VARCHAR(20) NOT NULL DEFAULT 'test',
+  base_url                 VARCHAR(500) NULL,
   account_number           VARCHAR(100) NULL,
   username_encrypted       TEXT NULL,
   password_encrypted       TEXT NULL,
@@ -1465,16 +1569,24 @@ CREATE TABLE IF NOT EXISTS ims_shipping_package_presets (
 CREATE TABLE IF NOT EXISTS ims_shipping_manifests (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  operation_key            VARCHAR(191) NOT NULL DEFAULT '',
+  request_hash             CHAR(64) NOT NULL DEFAULT '',
   carrier_account_id       BIGINT NOT NULL,
   dispatch_location_id     INT NULL,
+  provider                 VARCHAR(50) NOT NULL DEFAULT 'auspost_eparcel',
+  provider_reference       VARCHAR(50) NOT NULL DEFAULT '',
   provider_order_id        VARCHAR(150) NULL,
   status                   VARCHAR(30) NOT NULL DEFAULT 'submitting',
   shipment_count           INT NOT NULL DEFAULT 0,
+  parcel_count             INT NOT NULL DEFAULT 0,
   summary_url              VARCHAR(2000) NULL,
   summary_url_expires_at   DATETIME NULL,
   safe_error               VARCHAR(500) NULL,
   created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  submitted_at             DATETIME NULL,
   completed_at             DATETIME NULL,
+  UNIQUE KEY uq_shipping_manifest_operation (business_id, operation_key),
+  UNIQUE KEY uq_shipping_manifest_reference (business_id, provider, provider_reference),
   UNIQUE KEY uq_shipping_manifest_provider (business_id, carrier_account_id, provider_order_id),
   INDEX idx_shipping_manifest_status (business_id, status, created_at),
   FOREIGN KEY (carrier_account_id) REFERENCES ims_shipping_carrier_accounts(id),
@@ -1518,6 +1630,7 @@ CREATE TABLE IF NOT EXISTS ims_shipping_shipments (
   label_ready_at           DATETIME NULL,
   ims_fulfilled_at         DATETIME NULL,
   completed_at             DATETIME NULL,
+  manifested_at            DATETIME NULL,
   voided_at                DATETIME NULL,
   UNIQUE KEY uq_shipping_operation (business_id, operation_key),
   UNIQUE KEY uq_shipping_provider_reference (business_id, provider, provider_reference),
@@ -1894,6 +2007,21 @@ CREATE TABLE IF NOT EXISTS ims_so_backorder_lines (
   FOREIGN KEY (backorder_so_item_id) REFERENCES ims_sales_order_items(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ims_backorder_merges (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  operation_key VARCHAR(191) NOT NULL,
+  request_hash CHAR(64) DEFAULT NULL,
+  backorder_type ENUM('customer','supplier') NOT NULL,
+  target_order_id INT NOT NULL,
+  source_order_ids JSON NOT NULL,
+  response_json JSON DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME DEFAULT NULL,
+  UNIQUE KEY uq_backorder_merge_operation (business_id, operation_key),
+  INDEX idx_backorder_merge_target (business_id, backorder_type, target_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Customer Credit Notes / Returns ─────────────────────────
 CREATE TABLE IF NOT EXISTS ims_credit_notes (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
@@ -2107,6 +2235,7 @@ CREATE TABLE IF NOT EXISTS ims_stocktakes (
 
 CREATE TABLE IF NOT EXISTS ims_stocktake_items (
   id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   stocktake_id  INT NOT NULL,
   variant_id    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   expected_qty  DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -2138,6 +2267,7 @@ CREATE TABLE IF NOT EXISTS ims_branch_transfers (
 
 CREATE TABLE IF NOT EXISTS ims_branch_transfer_items (
   id           INT AUTO_INCREMENT PRIMARY KEY,
+  business_id  VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   transfer_id  INT NOT NULL,
   variant_id   VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   qty_sent     DECIMAL(10,4) NOT NULL DEFAULT 0,
@@ -2146,6 +2276,169 @@ CREATE TABLE IF NOT EXISTS ims_branch_transfer_items (
   line_value   DECIMAL(12,2) NOT NULL DEFAULT 0,
   notes        TEXT NULL,
   FOREIGN KEY (transfer_id) REFERENCES ims_branch_transfers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Product Builds / Assemblies ─────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_product_build_batches (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  build_number VARCHAR(50) NOT NULL,
+  location_id INT NOT NULL,
+  status ENUM('completed','partially_reversed','reversed') NOT NULL DEFAULT 'completed',
+  source_type ENUM('manual','pos_sale','sales_order') NOT NULL DEFAULT 'manual',
+  source_id VARCHAR(100) DEFAULT NULL,
+  source_channel VARCHAR(50) DEFAULT NULL,
+  notes TEXT,
+  operation_key VARCHAR(191) NOT NULL,
+  request_hash CHAR(64) NOT NULL,
+  actor_id INT DEFAULT NULL,
+  actor_name VARCHAR(255) DEFAULT NULL,
+  completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_batch_number (business_id, build_number),
+  UNIQUE KEY uq_build_batch_operation (business_id, operation_key),
+  INDEX idx_build_batch_history (business_id, completed_at, id),
+  INDEX idx_build_batch_location (business_id, location_id, completed_at),
+  INDEX idx_build_batch_source (business_id, source_type, source_id),
+  CONSTRAINT fk_build_batch_location FOREIGN KEY (location_id) REFERENCES ims_locations(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_recipes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  output_variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  active_version_id BIGINT DEFAULT NULL,
+  is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  created_by INT DEFAULT NULL,
+  created_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_recipe_output (business_id, output_variant_id),
+  INDEX idx_build_recipe_active (business_id, is_enabled, output_variant_id),
+  CONSTRAINT fk_build_recipe_output FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_recipe_versions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  recipe_id BIGINT NOT NULL,
+  revision INT NOT NULL,
+  base_output_quantity DECIMAL(12,4) NOT NULL DEFAULT 1.0000,
+  overhead_per_output DECIMAL(15,4) NOT NULL DEFAULT 0.0000,
+  notes TEXT,
+  created_by INT DEFAULT NULL,
+  created_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_recipe_revision (business_id, recipe_id, revision),
+  INDEX idx_build_recipe_version (business_id, recipe_id, id),
+  CONSTRAINT fk_build_version_recipe FOREIGN KEY (recipe_id) REFERENCES ims_product_build_recipes(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_recipe_components (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  recipe_version_id BIGINT NOT NULL,
+  component_variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  quantity_per_output DECIMAL(12,4) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_recipe_component (business_id, recipe_version_id, component_variant_id),
+  INDEX idx_build_component_variant (business_id, component_variant_id, recipe_version_id),
+  CONSTRAINT fk_build_component_version FOREIGN KEY (recipe_version_id) REFERENCES ims_product_build_recipe_versions(id),
+  CONSTRAINT fk_build_component_variant FOREIGN KEY (component_variant_id) REFERENCES ims_product_variants(variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_items (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  batch_id BIGINT NOT NULL,
+  output_variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  recipe_id BIGINT NOT NULL,
+  recipe_version_id BIGINT NOT NULL,
+  recipe_revision INT NOT NULL,
+  quantity_built DECIMAL(12,4) NOT NULL,
+  quantity_reversed DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
+  component_cost_total DECIMAL(15,4) NOT NULL,
+  component_cost_per_output DECIMAL(15,4) NOT NULL,
+  overhead_per_output DECIMAL(15,4) NOT NULL DEFAULT 0.0000,
+  output_unit_cost DECIMAL(15,4) NOT NULL,
+  output_avg_cost_before DECIMAL(15,4) NOT NULL,
+  output_avg_cost_after DECIMAL(15,4) NOT NULL,
+  source_line_id VARCHAR(100) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_batch_output (business_id, batch_id, output_variant_id),
+  INDEX idx_build_item_output (business_id, output_variant_id, created_at),
+  INDEX idx_build_item_recipe (business_id, recipe_version_id),
+  CONSTRAINT fk_build_item_batch FOREIGN KEY (batch_id) REFERENCES ims_product_build_batches(id),
+  CONSTRAINT fk_build_item_output FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id),
+  CONSTRAINT fk_build_item_recipe FOREIGN KEY (recipe_id) REFERENCES ims_product_build_recipes(id),
+  CONSTRAINT fk_build_item_version FOREIGN KEY (recipe_version_id) REFERENCES ims_product_build_recipe_versions(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_item_components (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  build_item_id BIGINT NOT NULL,
+  component_variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  quantity_per_output DECIMAL(12,4) NOT NULL,
+  quantity_consumed DECIMAL(12,4) NOT NULL,
+  component_avg_cost DECIMAL(15,4) NOT NULL,
+  component_cost_total DECIMAL(15,4) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_item_component (business_id, build_item_id, component_variant_id),
+  INDEX idx_build_snapshot_variant (business_id, component_variant_id, build_item_id),
+  CONSTRAINT fk_build_consumed_item FOREIGN KEY (build_item_id) REFERENCES ims_product_build_items(id),
+  CONSTRAINT fk_build_consumed_variant FOREIGN KEY (component_variant_id) REFERENCES ims_product_variants(variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_requirements (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  sales_order_id INT NOT NULL,
+  sales_order_item_id INT NOT NULL,
+  location_id INT NOT NULL,
+  output_variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  source_channel VARCHAR(50) NOT NULL,
+  detected_shortfall DECIMAL(12,4) NOT NULL,
+  state ENUM('open','completed','dismissed','no_longer_needed') NOT NULL DEFAULT 'open',
+  linked_build_item_id BIGINT DEFAULT NULL,
+  detected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at DATETIME DEFAULT NULL,
+  resolved_by INT DEFAULT NULL,
+  resolved_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_requirement_source (business_id, sales_order_item_id, location_id),
+  INDEX idx_build_requirement_queue (business_id, state, location_id, detected_at),
+  INDEX idx_build_requirement_order (business_id, sales_order_id, state),
+  CONSTRAINT fk_build_req_so FOREIGN KEY (sales_order_id) REFERENCES ims_sales_orders(id),
+  CONSTRAINT fk_build_req_so_item FOREIGN KEY (sales_order_item_id) REFERENCES ims_sales_order_items(id),
+  CONSTRAINT fk_build_req_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  CONSTRAINT fk_build_req_variant FOREIGN KEY (output_variant_id) REFERENCES ims_product_variants(variant_id),
+  CONSTRAINT fk_build_req_build_item FOREIGN KEY (linked_build_item_id) REFERENCES ims_product_build_items(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_product_build_reversals (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  reversal_number VARCHAR(50) NOT NULL,
+  build_item_id BIGINT NOT NULL,
+  quantity_reversed DECIMAL(12,4) NOT NULL,
+  reason VARCHAR(500) NOT NULL,
+  operation_key VARCHAR(191) NOT NULL,
+  request_hash CHAR(64) NOT NULL,
+  output_avg_cost_before DECIMAL(15,4) NOT NULL,
+  output_avg_cost_after DECIMAL(15,4) NOT NULL,
+  actor_id INT DEFAULT NULL,
+  actor_name VARCHAR(255) DEFAULT NULL,
+  reversed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_build_reversal_number (business_id, reversal_number),
+  UNIQUE KEY uq_build_reversal_operation (business_id, operation_key),
+  INDEX idx_build_reversal_item (business_id, build_item_id, reversed_at),
+  CONSTRAINT fk_build_reversal_item FOREIGN KEY (build_item_id) REFERENCES ims_product_build_items(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -2394,6 +2687,7 @@ CREATE TABLE IF NOT EXISTS pos_daybook_communication_attachments (
   stored_name       VARCHAR(255) NOT NULL,
   mime_type         VARCHAR(100) NOT NULL,
   file_size         INT UNSIGNED NOT NULL,
+  file_content      LONGBLOB NULL,
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_daybook_communication_attachment (business_id, communication_id),
   CONSTRAINT fk_daybook_communication_attachment FOREIGN KEY (communication_id)

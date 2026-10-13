@@ -8,6 +8,13 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 import { reportUnmappedShopifyOrderLines, unmappedTrackedShopifyOrderLines } from './shopifyOrderLineMapping';
 
+export class ShopifyOrderImportPendingError extends Error {
+  constructor(externalOrderId: string) {
+    super(`Shopify order ${externalOrderId} is not available for exact-instance update.`);
+    this.name = 'ShopifyOrderImportPendingError';
+  }
+}
+
 function amount(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -32,7 +39,7 @@ export async function updateShopifyOrder(input: {
     [input.businessId, input.channelInstanceId, externalOrderId],
   );
   const order = orders[0];
-  if (!order) throw new Error(`Shopify order ${externalOrderId} is not available for exact-instance update.`);
+  if (!order) throw new ShopifyOrderImportPendingError(externalOrderId);
 
   const externalCustomerId = getShopifyOrderCustomerId(input.order);
   const customerMapping = externalCustomerId

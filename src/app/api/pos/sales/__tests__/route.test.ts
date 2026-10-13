@@ -181,6 +181,7 @@ describe('POST /api/pos/sales training mode', () => {
     expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'sage',
       operation: 'slow_completion',
+      deferAlert: true,
       context: expect.objectContaining({ saleId: 101, locationId: 2, durationMs: 11_050, itemCount: 1, paymentCount: 1 }),
       reference: { type: 'pos_sale', id: 101 },
     }));

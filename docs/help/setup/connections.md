@@ -41,6 +41,8 @@ Use Setup to maintain business information, team access, POS payment options, an
 
 A green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.
 
+If Meta monitoring reports that its access token has expired, reconnect the intended Meta account through Connections before retrying monitoring. Repeated expiry reports use the same actionable message; Solvantis does not renew or replace the account's authorisation automatically.
+
 ## Configure Klaviyo customer and sales sync
 
 1. Enter and save the Klaviyo private API key, then select **Test Connection**.

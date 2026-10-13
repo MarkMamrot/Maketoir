@@ -11,6 +11,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 - Complete and sign opening, throughout-the-day, weekly and closing tasks.
 - Add timestamped comments and handover updates to communications, customer requests and store needs. Correct your own comment when needed; managers can correct any comment. Daily checklist tasks have no comments.
 - Read newest-first store communications, use basic text formatting and acknowledge each notice.
+- Preview communication attachments before posting, and remove or replace them through **Edit** when your editing policy permits.
 - See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
 - Build one clipboard from selected Requests and Store needs for pasting into branch transfer notes.
@@ -87,6 +88,17 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 7. Daybook remembers the acknowledgement when you leave and return. Another staff member using the same register must acknowledge it under their own Daybook identity.
 
 Managers add and edit communications directly in the list rather than in a popup. Enter the message in the full-width editor and use the toolbar above it for bold text, italic text or a bulleted list. Formatting appears directly in the editor. Optionally apply the standard yellow highlight. When adding a communication, choose its target stores; that audience remains fixed after publication. A separate headline is not required; use bold text at the start when the message needs a heading. Yellow is the only communication highlight so highlighted notices remain easy to recognise across every Daybook colour scheme.
+
+### Add or correct communication attachments
+
+1. In a new communication or its **Edit** view, select **Attach** or paste a screenshot into the message editor.
+2. Use up to three JPG, JPEG, PNG, WebP or PDF files, each between 1 byte and 10 MB. Existing files count towards the limit when editing.
+3. Review the image thumbnails. Select a thumbnail or PDF preview link to open the file before saving.
+4. Use the cross on an attachment to remove it from the draft. To replace a file, remove it and attach the correct file.
+5. Select **Add** or **Save**. Attachment removals and replacements are saved together; if attachment saving fails, the existing files remain and the draft stays open for retry. A communication created before an attachment failure remains published, and retry updates that communication rather than publishing it again.
+6. Select **Cancel** to discard unsaved attachment selections. If another person has changed the saved attachments, reload the communication before making further changes.
+
+Attachment editing follows the same policy as communication editing and does not reset acknowledgements. Successfully saved new attachments remain available when returning to Daybook. If an older attachment reports **File not found**, ask its author for the original file and replace the unavailable attachment; a missing original cannot be recreated from its filename.
 
 ### Add operational follow-up
 

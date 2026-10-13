@@ -6,12 +6,19 @@ import {
   getAusPostLabelBatchLimit,
   getShippingOrderEligibility,
   isAustralianShippingCountry,
+  isPlaceholderShippingCustomerName,
   splitAusPostLabelBatch,
   validateManifestCandidates,
   validateShippingParcels,
 } from "../shippingWorkflow";
 
 describe("shipping workflow", () => {
+  it("recognizes the generic shipping customer without rejecting real recipient names", () => {
+    expect(isPlaceholderShippingCustomerName(" ONLINE CUSTOMER ")).toBe(true);
+    expect(isPlaceholderShippingCustomerName("Online Customer")).toBe(true);
+    expect(isPlaceholderShippingCustomerName("Jane Smith")).toBe(false);
+    expect(isPlaceholderShippingCustomerName(null)).toBe(false);
+  });
   it("recognizes supported Australian country forms and rejects international destinations", () => {
     expect(isAustralianShippingCountry("AU")).toBe(true);
     expect(isAustralianShippingCountry("Australia")).toBe(true);

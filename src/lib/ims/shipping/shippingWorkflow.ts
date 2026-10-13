@@ -9,6 +9,10 @@ import type {
 const QUANTITY_SCALE = 10_000;
 const AUSPOST_MANIFEST_PARCEL_LIMIT = 2_000;
 
+export function isPlaceholderShippingCustomerName(value: unknown): boolean {
+  return typeof value === "string" && value.trim().toLowerCase() === "online customer";
+}
+
 export type ManifestCandidate = {
   shipmentId: number;
   carrierAccountId: number;

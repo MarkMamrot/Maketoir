@@ -49,7 +49,7 @@ vi.mock('../repositories/ImsCommerceRepository', () => ({
   ImsCommerceRepository: { getDailyCommerce: mocks.getCommerce },
 }));
 
-import { ForesightMonitoringSyncService } from '../ForesightMonitoringSyncService';
+import { ForesightMonitoringSyncService, normalizeMetaMonitoringError } from '../ForesightMonitoringSyncService';
 
 const googleRow = {
   segments: { date: '2026-07-31' },
@@ -59,6 +59,22 @@ const googleRow = {
 };
 
 describe('ForesightMonitoringSyncService', () => {
+  it.each([
+    new Error('Error validating access token: Session has expired on Sunday, 27-Sep-26. The current time is Monday, 12-Oct-26.'),
+    { message: 'Error validating access token: Session has expired on Sunday, 27-Sep-26. The current time is Tuesday, 13-Oct-26.' },
+  ])('groups expired-token failures without changing current-time text (%s)', error => {
+    expect(normalizeMetaMonitoringError(error)).toMatchObject({
+      name: 'MetaAuthenticationError',
+      message: 'Meta access token has expired. Reconnect Meta in Connections before retrying monitoring.',
+    });
+  });
+
+  it('preserves unexpected Meta failures for operational reporting', () => {
+    const error = new Error('Database unavailable');
+    expect(normalizeMetaMonitoringError(error)).toBe(error);
+    expect(normalizeMetaMonitoringError(undefined)).toBeUndefined();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.startRun.mockResolvedValue(91);

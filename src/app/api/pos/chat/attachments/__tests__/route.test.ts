@@ -30,6 +30,7 @@ describe('chat attachment upload tenant scope', () => {
     const response = await POST(new Request('http://localhost/api/pos/chat/attachments', { method: 'POST', body: form }));
     expect(response.status).toBe(200);
     expect(mocks.run).toHaveBeenCalledWith('tenant-a', expect.any(Function));
-    expect(mocks.write).toHaveBeenCalledWith(expect.stringContaining('tenant-a'), expect.any(Buffer), { flag: 'wx' });
+    expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('file_content'), [3, 'screenshot.png', expect.any(String), 'image/png', 5, Buffer.from('image')]);
+    expect(mocks.write).not.toHaveBeenCalled();
   });
 });

@@ -39,6 +39,8 @@ Use content and service tools to prepare drafts that a person checks before publ
 7. Generate the online listing, select each exact destination, and confirm the inclusion.
 8. Check each destination after its channel publication workflow runs rather than assuming inclusion means the provider accepted it.
 
+Product content generation allows up to one minute for each request. A completed response with unusable content may be retried once. A timed-out, aborted or failed request is not automatically resubmitted: check **Account & AI Credits** and contact support about any unresolved reservation before generating again. A request failure is distinct from an invalid content response.
+
 ## Prepare reliable inputs
 
 | Input | Check | Why it matters |

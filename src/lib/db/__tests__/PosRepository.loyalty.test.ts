@@ -181,6 +181,13 @@ describe('PosSalesRepo loyalty earning', () => {
     expect(saleConnection.release.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
     expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(result).toMatchObject({ saleId: 101, loyaltyPoints: 100, loyalty: { transactionId: 8 } });
+    expect(result.phaseTimings).toEqual({
+      poolWaitMs: expect.any(Number),
+      transactionMs: expect.any(Number),
+      postCommitStockMs: expect.any(Number),
+      loyaltySyncMs: expect.any(Number),
+    });
+    expect(Object.values(result.phaseTimings).every(value => Number.isFinite(value) && value >= 0)).toBe(true);
   });
 
   it('applies FIFO stock and COGS atomically before committing the sale', async () => {

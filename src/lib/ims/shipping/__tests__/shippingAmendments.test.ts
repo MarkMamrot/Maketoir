@@ -6,6 +6,10 @@ import type { ShippingAmendmentInput } from '../shippingAmendmentTypes';
 const mocks = vi.hoisted(() => ({
   pool: vi.fn(), order: vi.fn(), prepare: vi.fn(), quotes: vi.fn(), read: vi.fn(), update: vi.fn(),
   labels: vi.fn(), runtime: vi.fn(), credentials: vi.fn(),
+  name: vi.fn(),
+}));
+vi.mock('../shippingCustomerNames', async importOriginal => ({
+  ...await importOriginal<typeof import('../shippingCustomerNames')>(), resolveShippingOrderCustomerName: mocks.name,
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mocks.pool }));
 vi.mock('@/lib/ims/ImsRepository', () => ({ ImsSORepo: { get: mocks.order } }));
@@ -36,6 +40,9 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.name.mockImplementation(async (_businessId: string, _soId: number, name: string) => ({
+    name: name === 'Online Customer' ? 'Order Recipient' : name, issue: null,
+  }));
   vi.stubEnv('AUSPOST_DOMESTIC_AMENDMENTS_VERIFIED', 'true');
   state = {
     shipment: { id: 1, so_id: 10, business_id: 'tenant-1', revision: 0, updated_at: '2026-10-12T01:00:00Z', status: 'draft',
@@ -138,6 +145,26 @@ function carrier() {
       item_contents: [], item_summary: {}, label: {}, postage_details: {}, tracking_details: { article_id: 'article-12' } }] });
 }
 describe('shipping amendments', () => {
+  it('suggests the real recipient in the editor without rewriting a purchased shipment or labels', async () => {
+    carrier();
+    state.shipment.recipient_json = { ...recipient, name: 'Online Customer' };
+    state.order.customer_name = 'Online Customer';
+    const before = clone(state);
+    const detail = await getShippingEditableDetail('tenant-1', 1);
+    expect(detail.order.customer_name).toBe('Order Recipient');
+    expect(detail.suggestedRecipientName).toBe('Order Recipient');
+    expect(detail.recipient.name).toBe('Online Customer');
+    expect(state).toEqual(before);
+    expect(log.some(sql => sql.startsWith('UPDATE') || sql.startsWith('INSERT'))).toBe(false);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.labels).not.toHaveBeenCalled();
+  });
+  it('uses the saved recipient in amendment results even when the shared contact remains generic', async () => {
+    state.order.customer_name = 'Online Customer';
+    const result = await amendShippingShipment('tenant-1', 1, input());
+    expect(result.shipment.order.customer_name).toBe('Buyer');
+    expect(state.order.customer_name).toBe('Online Customer');
+  });
   it('saves unbatched measurements without pricing or changing the Sales Order address', async () => {
     const beforeOrder = clone(state.order);
     const result = await amendShippingShipment('tenant-1', 1, { ...input(), preparationOnly: true, service: null });

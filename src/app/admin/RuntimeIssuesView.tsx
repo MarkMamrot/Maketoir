@@ -138,23 +138,23 @@ export default function RuntimeIssuesView() {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Runtime Issues</h1>
-          <p style={{ margin: '5px 0 0', color: '#94a3b8', fontSize: 12 }}>Cross-organisation integration failures and application exceptions.</p>
+          <p style={{ margin: '5px 0 0', color: 'var(--sv-text-dim,#475569)', fontSize: 12 }}>Cross-organisation integration failures and application exceptions.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(['new', 'in_progress', 'fixed'] as const).map(item => (
-            <button key={item} onClick={() => setStatus(item)} style={{ ...panel, padding: '8px 12px', cursor: 'pointer', color: status === item ? '#fff' : '#94a3b8', background: status === item ? '#2563eb' : panel.background, fontSize: 12, fontWeight: 700 }}>
+            <button key={item} onClick={() => setStatus(item)} style={{ ...panel, padding: '8px 12px', cursor: 'pointer', color: status === item ? '#fff' : 'var(--sv-text-main,#1e293b)', background: status === item ? '#2563eb' : panel.background, fontSize: 12, fontWeight: 700 }}>
               {item === 'in_progress' ? 'In progress' : item[0].toUpperCase() + item.slice(1)} · {summary[item] ?? 0}
             </button>
           ))}
-          <button onClick={() => setStatus('')} style={{ ...panel, padding: '8px 12px', cursor: 'pointer', color: status === '' ? '#fff' : '#94a3b8', background: status === '' ? '#2563eb' : panel.background, fontSize: 12 }}>All</button>
+          <button onClick={() => setStatus('')} style={{ ...panel, padding: '8px 12px', cursor: 'pointer', color: status === '' ? '#fff' : 'var(--sv-text-main,#1e293b)', background: status === '' ? '#2563eb' : panel.background, fontSize: 12 }}>All</button>
         </div>
       </div>
 
-      <div style={{ ...panel, padding: 12, display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 180px 160px 160px auto', gap: 8, marginBottom: 12 }}>
+      <div style={{ ...panel, padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8, marginBottom: 12 }}>
         <input aria-label="Search issues" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search title, message, operation" style={input} />
         <select aria-label="Organisation" value={businessId} onChange={event => setBusinessId(event.target.value)} style={input}>
           <option value="">All organisations</option>
@@ -171,16 +171,16 @@ export default function RuntimeIssuesView() {
         <button onClick={() => void load()} style={{ ...input, cursor: 'pointer', fontWeight: 700 }}>Refresh</button>
       </div>
 
-      <div style={{ ...panel, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(140px,1fr) 150px minmax(240px,2fr) 90px 150px', padding: '9px 12px', background: '#334155', color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
+      <div style={{ ...panel, overflowX: 'auto' }}>
+        <div style={{ display: 'grid', minWidth: 960, gridTemplateColumns: '110px minmax(140px,1fr) 150px minmax(240px,2fr) 90px 150px', padding: '9px 12px', background: '#334155', color: '#f8fafc', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
           <span>Severity</span><span>Organisation</span><span>Source</span><span>Issue</span><span>Count</span><span>Last seen</span>
         </div>
-        {loading ? <p style={{ padding: 24, color: '#94a3b8' }}>Loading…</p> : loadError ? <p style={{ padding: 24, color: '#fca5a5' }}>{loadError}</p> : issues.length === 0 ? <p style={{ padding: 24, color: '#94a3b8' }}>No matching runtime issues.</p> : issues.map(issue => (
-          <button key={issue.id} onClick={() => void openIssue(issue.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '110px minmax(140px,1fr) 150px minmax(240px,2fr) 90px 150px', alignItems: 'center', padding: '11px 12px', border: 0, borderTop: '1px solid rgba(255,255,255,.07)', background: 'transparent', color: '#e2e8f0', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}>
-            <span style={{ color: severityColor(issue.severity), fontWeight: 800, textTransform: 'uppercase', fontSize: 10 }}>{issue.severity}</span>
+        {loading ? <p style={{ padding: 24, color: 'var(--sv-text-dim,#475569)' }}>Loading…</p> : loadError ? <p style={{ padding: 24, color: '#b91c1c' }}>{loadError}</p> : issues.length === 0 ? <p style={{ padding: 24, color: 'var(--sv-text-dim,#475569)' }}>No matching runtime issues.</p> : issues.map((issue, index) => (
+          <button key={issue.id} onClick={() => void openIssue(issue.id)} style={{ width: '100%', minWidth: 960, display: 'grid', gridTemplateColumns: '110px minmax(140px,1fr) 150px minmax(240px,2fr) 90px 150px', alignItems: 'center', padding: '11px 12px', border: 0, borderTop: '1px solid var(--sv-etch,#e2e8f0)', background: index % 2 === 0 ? 'var(--sv-bg-1,#fff)' : 'var(--sv-bg-2,#f1f5f9)', color: 'var(--sv-text-main,#1e293b)', textAlign: 'left', cursor: 'pointer', fontSize: 12, lineHeight: 1.5 }}>
+            <span style={{ color: issue.severity === 'critical' ? '#be123c' : issue.severity === 'error' ? '#b45309' : '#0369a1', fontWeight: 800, textTransform: 'uppercase', fontSize: 10 }}>{issue.severity}</span>
             <span>{issue.business_name}</span>
-            <span><strong>{issue.source}</strong><br /><small style={{ color: '#94a3b8' }}>{issue.operation}</small></span>
-            <span><strong>{issue.title}</strong><br /><small style={{ color: '#94a3b8' }}>{issue.message}</small></span>
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><strong>{issue.source}</strong><br /><small style={{ color: 'var(--sv-text-dim,#475569)' }}>{issue.operation}</small></span>
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><strong>{issue.title}</strong><br /><small style={{ color: 'var(--sv-text-dim,#475569)' }}>{issue.message}</small></span>
             <span>{issue.occurrence_count}</span>
             <span>{dateTime(issue.last_seen_at)}</span>
           </button>

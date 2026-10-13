@@ -1,5 +1,5 @@
 ---
-{"id":"setup-runtime-issues","title":"Runtime Issues","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Runtime Issues","product":"setup","format":"task","parentId":"setup-connections","contexts":["runtime-issues"],"contextSections":{"runtime-issues":"Step-by-step"},"relatedTopics":["setup-integration-readiness-troubleshooting","setup-team-access-security","pos-store-daybook","ims-workspaces"],"order":6,"summary":"Review operational failures, record the outcome, and close only issues that have been verified.","lastReviewed":"2026-10-08","owner":"platform","quickSections":["Main operations","At a glance"]}
+{"id":"setup-runtime-issues","title":"Runtime Issues","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Runtime Issues","product":"setup","format":"task","parentId":"setup-connections","contexts":["runtime-issues"],"contextSections":{"runtime-issues":"Step-by-step"},"relatedTopics":["setup-integration-readiness-troubleshooting","setup-team-access-security","pos-store-daybook","ims-workspaces"],"order":6,"summary":"Review operational failures, record the outcome, and close only issues that have been verified.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance"]}
 ---
 # Runtime Issues
 
@@ -40,6 +40,8 @@ A fixed issue automatically returns to **New** if the same failure occurs again.
 6. Enter resolution notes that state what was checked and why the selected status is accurate.
 7. Select **In progress** when work or a decision remains, or **Mark fixed** only after verification.
 
+On smaller screens, the filters wrap onto additional rows. Scroll the issue list horizontally to read all columns, then select a row to open its detail panel.
+
 > **Important:** A stopped recurrence is useful evidence, but it does not prove that affected stock, payments, orders, gift cards, or external links are correct. Verify those records separately.
 
 ## Reading the detail panel
@@ -60,6 +62,8 @@ Avoid credentials, access tokens, customer details, or raw external payloads in 
 | --- | --- | --- |
 | A fixed issue appears under New again | The same fingerprint occurred after it was closed | Review the newest occurrence; do not assume the earlier fix covered it |
 | A recurring issue has many occurrences | Repeated events were grouped together | Start with the latest event and compare only enough history to establish the pattern |
+| Dashboard statistics temporarily fail to load | A temporary connection failure interrupted a read | A safe retry may recover automatically; reload if the error persists and report it. Do not repeat a payment, order or stock operation because the dashboard failed |
+| A completed POS sale is reported as slow | Checkout took longer than expected even though the sale was saved | Verify the existing sale and ask support to review completion timings; do not repeat the sale or payment |
 | A full-page error returns after recovery | Recovery did not resolve the original failure | Select **Reload page** to reopen the current address; keep the issue open until the original cause is verified, and check source records before repeating an action |
 | An issue references stock, money, or customer value | Operational data may need review | Keep it open until the intended correction is authorised and verified |
 | An issue references an external ID that no longer exists | The local integration link may be stale | Verify identity in the external service before relinking or clearing anything |

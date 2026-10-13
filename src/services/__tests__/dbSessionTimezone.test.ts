@@ -42,6 +42,7 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({
 }));
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.resetModules();
   delete process.env.NEXT_PHASE;
   fakePool = makeFakePool();
@@ -55,6 +56,31 @@ beforeEach(() => {
 });
 
 describe('IMS pool — session time_zone pinning', () => {
+  it.each(['imsQuery', 'imsExecute'] as const)('reacquires the same tenant pool after a pre-acquisition closed-pool error (%s)', async operation => {
+    const retiredPool = fakePool;
+    const freshPool = makeFakePool();
+    const result = operation === 'imsQuery' ? [{ ok: 1 }] : { affectedRows: 1 };
+    retiredPool.execute.mockRejectedValueOnce(new Error('Pool is closed.'));
+    freshPool.execute.mockResolvedValueOnce([result]);
+    createPool.mockReturnValueOnce(retiredPool).mockReturnValueOnce(freshPool);
+    const service = await import('../IMSMySQLService');
+
+    await expect(service[operation]('SELECT 1', [], 'same_tenant_schema')).resolves.toEqual(result);
+    expect(createPool).toHaveBeenCalledTimes(2);
+    expect(createPool.mock.calls.every(call => call[0].database === 'same_tenant_schema')).toBe(true);
+    expect(retiredPool.execute).toHaveBeenCalledOnce();
+    expect(freshPool.execute).toHaveBeenCalledOnce();
+    expect(service.getIMSPool('same_tenant_schema')).toBe(freshPool);
+  });
+
+  it('does not retry an ambiguous non-retryable write error', async () => {
+    fakePool.execute.mockRejectedValueOnce(new Error('Server outcome unknown'));
+    const { imsExecute } = await import('../IMSMySQLService');
+    await expect(imsExecute('UPDATE fixture SET value = 1', [], 'same_tenant_schema')).rejects.toThrow('Server outcome unknown');
+    expect(fakePool.execute).toHaveBeenCalledOnce();
+    expect(createPool).toHaveBeenCalledOnce();
+  });
+
   it('does not prime the business registry during a production build', async () => {
     process.env.NEXT_PHASE = 'phase-production-build';
     const registry = await import('@/lib/db/BusinessRegistry');

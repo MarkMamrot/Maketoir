@@ -556,9 +556,12 @@ export const PosSalesRepo = {
     loyalty: LoyaltyMutationResult | null;
     loyaltyPoints: number;
     loyaltyRedemption: LoyaltyRedemptionResult | null;
+    phaseTimings: { poolWaitMs: number; transactionMs: number; postCommitStockMs: number; loyaltySyncMs: number };
   }> {
+    const startedAt = performance.now();
     const pool = getIMSPool();
     const conn = await pool.getConnection();
+    const acquiredAt = performance.now();
     let loyaltyWriteAttempted = false;
     let loyalty: LoyaltyMutationResult | null = null;
     let loyaltyPoints = 0;
@@ -917,6 +920,7 @@ export const PosSalesRepo = {
       await conn.commit();
       conn.release();
       saleConnectionReleased = true;
+      const committedAt = performance.now();
 
       // 4. Deduct IMS stock AFTER the sale transaction has committed.
       //    Separated so a stock failure (e.g. unsynced variant FK error) never
@@ -942,6 +946,7 @@ export const PosSalesRepo = {
         }
       }
 
+      const stockCompletedAt = performance.now();
       if (loyaltyWriteAttempted && data.customer_id) {
         await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
           businessId: data.business_id,
@@ -949,7 +954,13 @@ export const PosSalesRepo = {
         });
       }
 
-      return { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption };
+      const phaseTimings = {
+        poolWaitMs: Math.round(acquiredAt - startedAt),
+        transactionMs: Math.round(committedAt - acquiredAt),
+        postCommitStockMs: Math.round(stockCompletedAt - committedAt),
+        loyaltySyncMs: Math.round(performance.now() - stockCompletedAt),
+      };
+      return { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption, phaseTimings };
     } catch (err) {
       if (!saleConnectionReleased) await conn.rollback();
       if (loyaltyWriteAttempted && !(err instanceof LoyaltyValidationError)) {

@@ -50,6 +50,8 @@ A prepaid account spends from a credit balance. An account-limit account records
 
 Solvantis reserves a conservative amount before generation starts so simultaneous requests cannot exceed an enforced account. After a successful request, the actual usage charge replaces the reservation. A request whose final provider status is uncertain can remain reserved for review instead of being treated as free usage.
 
+An unknown outcome is not proof that the provider did no work. Website product-content generation does not automatically repeat a request after a timeout, abort or transport failure. Review the reservation with support before submitting another request; an administrator must verify the outcome before releasing held value.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Safe action |

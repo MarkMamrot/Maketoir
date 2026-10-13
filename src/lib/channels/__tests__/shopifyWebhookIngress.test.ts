@@ -77,6 +77,19 @@ describe('Shopify webhook ingress', () => {
     expect(mocks.imsExecute.mock.calls[0][0]).toContain('ON DUPLICATE KEY UPDATE');
   });
 
+  it('defers waiting work without exhausting processing attempts', async () => {
+    mocks.imsExecute.mockResolvedValue({ affectedRows: 1 });
+    const verified = await verifyShopifyWebhook(request);
+    await finishShopifyWebhookEvent({ webhook: verified, status: 'pending', safeError: 'Waiting for order import.' });
+    expect(mocks.imsExecute.mock.calls[0][0]).toContain('attempts = GREATEST(attempts - 1, 0)');
+    expect(mocks.imsExecute.mock.calls[0][0]).toContain('processed_at = NULL');
+    expect(mocks.imsExecute.mock.calls[0][0]).toContain("status = 'processing'");
+    expect(mocks.imsExecute.mock.calls[0][1]).toEqual([
+      'Waiting for order import.', 'business-1', 'instance-1', 'webhook-1',
+    ]);
+    await expect(claimShopifyWebhookEvent(verified)).resolves.toBe(true);
+  });
+
   it('atomically claims pending or failed work and records terminal status', async () => {
     mocks.imsExecute.mockResolvedValueOnce({ affectedRows: 1 }).mockResolvedValueOnce({ affectedRows: 1 });
     const verified = await verifyShopifyWebhook(request);

@@ -23,7 +23,10 @@ vi.mock('@/lib/channels/shopifyOrderFulfilment', () => ({
 vi.mock('@/lib/channels/shopifyOrderRefund', () => ({ applyShopifyOrderRefund: mocks.refundOrder }));
 vi.mock('@/lib/channels/shopifyPaidOrderLoyalty', () => ({ applyShopifyPaidOrderLoyalty: mocks.paidLoyalty }));
 vi.mock('@/lib/ims/shopifyGiftCardWebhook', () => ({ reconcileGiftCardsFromPaidShopifyOrder: mocks.reconcileGiftCards }));
-vi.mock('@/lib/channels/shopifyOrderUpdate', () => ({ updateShopifyOrder: mocks.updateOrder }));
+vi.mock('@/lib/channels/shopifyOrderUpdate', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/channels/shopifyOrderUpdate')>(),
+  updateShopifyOrder: mocks.updateOrder,
+}));
 vi.mock('@/lib/db/BusinessRegistry', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/db/BusinessRegistry')>(),
   getImsDbNameStrict: mocks.getDb,
@@ -33,6 +36,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/ims/businessOperations', () => ({ isOnlineChannelDisabledError: () => false }));
 
 import { ShopifyWebhookIngressError } from '@/lib/channels/shopifyWebhookIngress';
+import { ShopifyOrderImportPendingError } from '@/lib/channels/shopifyOrderUpdate';
 import { POST } from '@/app/api/webhooks/shopify/channels/[channelInstanceId]/route';
 
 function request(topic = 'orders/create') {
@@ -240,6 +244,40 @@ describe('exact-instance Shopify webhook route', () => {
       businessId: 'business-1', channelInstanceId: 'instance-1',
     }));
     expect(mocks.importOrder).not.toHaveBeenCalled();
+  });
+
+  it('defers an early update without importing or consuming a processing attempt', async () => {
+    mocks.verify.mockResolvedValue({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      topic: 'orders/updated', webhookId: 'webhook-1', shopDomain: 'retail.myshopify.com', payloadHash: 'hash' });
+    mocks.updateOrder.mockRejectedValueOnce(new ShopifyOrderImportPendingError('1001'));
+
+    const response = await POST(fulfilledOrderUpdateRequest(), { params: { channelInstanceId: 'instance-1' } });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get('Retry-After')).toBe('30');
+    expect(await response.json()).toMatchObject({ ok: false, eventStatus: 'pending' });
+    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
+      webhook: expect.objectContaining({ businessId: 'business-1', channelInstanceId: 'instance-1' }),
+      status: 'pending',
+    }));
+    expect(mocks.importOrder).not.toHaveBeenCalled();
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
+    expect(mocks.report).not.toHaveBeenCalled();
+
+    const retry = await POST(fulfilledOrderUpdateRequest(), { params: { channelInstanceId: 'instance-1' } });
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ eventStatus: 'complete', salesOrderId: 44 });
+    expect(mocks.importOrder).not.toHaveBeenCalled();
+  });
+
+  it('still records unexpected update failures as operational issues', async () => {
+    mocks.verify.mockResolvedValue({ businessId: 'business-1', channelInstanceId: 'instance-1',
+      topic: 'orders/updated', webhookId: 'webhook-1', shopDomain: 'retail.myshopify.com', payloadHash: 'hash' });
+    mocks.updateOrder.mockRejectedValueOnce(new Error('Database unavailable'));
+    const response = await POST(request('orders/updated'), { params: { channelInstanceId: 'instance-1' } });
+    expect(response.status).toBe(500);
+    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }));
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'business-1' }));
   });
 
   it('uses a fulfilled order update to reconcile a missed fulfilment event', async () => {

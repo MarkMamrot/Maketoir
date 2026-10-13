@@ -71,6 +71,8 @@ The destination preview evaluates saved product data. Unsaved changes to brand, 
 
 JPG and JPEG are both supported product-photo formats. If a saved photo shows a placeholder, reopen the product and check the photo while online. In POS, refresh the product images using Sync. If the image still cannot be opened, contact support with the product SKU and the original image; a placeholder does not mean JPEG files are unsupported.
 
+If support confirms that a stored photo is missing, repeated Sync cannot restore it. Supply the original photo or an available backup, and verify the restored or replacement photo before removing the existing media entry. Correcting a serving error does not by itself restore a missing photo.
+
 When **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.
 
 Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.

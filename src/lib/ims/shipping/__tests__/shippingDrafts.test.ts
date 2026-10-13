@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prepareShippingRequest, validateShippingRecipient } from '../shippingDrafts';
 
-const mocks = vi.hoisted(() => ({ account: vi.fn(), order: vi.fn(), location: vi.fn() }));
+const mocks = vi.hoisted(() => ({ account: vi.fn(), order: vi.fn(), location: vi.fn(), name: vi.fn() }));
+vi.mock('../shippingCustomerNames', async importOriginal => ({
+  ...await importOriginal<typeof import('../shippingCustomerNames')>(), resolveShippingOrderCustomerName: mocks.name,
+}));
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: () => ({ getConnection: async () => ({ execute: mocks.account, release: vi.fn() }) }),
 }));
@@ -9,6 +12,7 @@ vi.mock('@/lib/ims/ImsRepository', () => ({ ImsSORepo: { get: mocks.order }, Ims
 const recipient = { name: 'New recipient', lines: ['2 New St'], suburb: 'Sydney', state: 'NSW', postcode: '2000', country: 'AU', email: '', phone: '' };
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.name.mockResolvedValue({ name: 'Order Recipient', issue: null });
   mocks.account.mockResolvedValue([[{ id: 9, provider: 'auspost_eparcel', dispatch_location_id: 3 }]]);
   mocks.order.mockResolvedValue({
     id: 10, so_number: 'SO-10', status: 'confirmed', so_type: 'online', location_id: 3, customer_name: 'Original buyer',
@@ -18,6 +22,24 @@ beforeEach(() => {
   mocks.location.mockResolvedValue({ name: 'Store', address: '1 Main St', city: 'Melbourne', state: 'VIC', postcode: '3000', country: 'AU' });
 });
 describe('recipient override preparation', () => {
+  it('uses the real order recipient rather than the generic contact when preparing postage', async () => {
+    const order = await mocks.order();
+    mocks.order.mockResolvedValue({ ...order, customer_name: 'Online Customer' });
+    const prepared = await prepareShippingRequest({
+      businessId: 'tenant-1', carrierAccountId: 9,
+      shipments: [{ soId: 10, parcels: [{ parcelNumber: 1, lengthMm: 200, widthMm: 100, heightMm: 100, weightKg: 1, allocations: [{ soItemId: 5, quantity: 2 }] }] }],
+    });
+    expect(prepared.entries[0].recipient.name).toBe('Order Recipient');
+    expect(mocks.name).toHaveBeenCalledWith('tenant-1', 10, 'Online Customer');
+  });
+  it('blocks unresolved generic names for postage but still permits saving measurements', async () => {
+    const order = await mocks.order();
+    mocks.order.mockResolvedValue({ ...order, customer_name: 'Online Customer' });
+    mocks.name.mockResolvedValue({ name: null, issue: 'Unable to load the customer name.' });
+    const shipments = [{ soId: 10, parcels: [{ parcelNumber: 1, lengthMm: 200, widthMm: 100, heightMm: 100, weightKg: 1, allocations: [{ soItemId: 5, quantity: 2 }] }] }];
+    await expect(prepareShippingRequest({ businessId: 'tenant-1', carrierAccountId: 9, shipments })).rejects.toThrow('actual delivery recipient');
+    expect((await prepareShippingRequest({ businessId: 'tenant-1', carrierAccountId: null, preparationOnly: true, shipments })).entries[0].recipient.name).toBe('Online Customer');
+  });
   it('saves carrier-independent preparation without looking up a carrier account', async () => {
     const prepared = await prepareShippingRequest({
       businessId: 'tenant-1', carrierAccountId: null, preparationOnly: true,

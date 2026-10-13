@@ -76,6 +76,32 @@ describe('runtime issue reporting', () => {
     expect(mockConnection.release).toHaveBeenCalledOnce();
   });
 
+  it('records a missing-file notice without an error object', async () => {
+    await expect(reportRuntimeIssue({
+      businessId: 'biz-1',
+      source: 'product-images',
+      operation: 'missing_file',
+      title: 'Stored product image file is missing',
+      reference: { type: 'product', id: 'product-1' },
+      context: { imageId: 23496 },
+    })).resolves.toBe(42);
+
+    expect(mockConnection.execute.mock.calls[0][1][5]).toBe('Stored product image file is missing');
+    expect(mockConnection.execute.mock.calls[1][1][2]).toBe('Stored product image file is missing');
+    expect(mockConnection.commit).toHaveBeenCalledOnce();
+  });
+
+  it.each([undefined, null])('accepts a nullish error value (%s)', error => {
+    expect(() => runtimeIssueFingerprint({
+      source: 'product-images', operation: 'missing_file', title: 'Missing image', error,
+    })).not.toThrow();
+  });
+
+  it('uses the same notice fingerprint for an omitted or undefined error', () => {
+    const input = { source: 'product-images', operation: 'missing_file', title: 'Missing image' };
+    expect(runtimeIssueFingerprint(input)).toBe(runtimeIssueFingerprint({ ...input, error: undefined }));
+  });
+
   it('does not throw when persistence fails', async () => {
     mockConnection.execute.mockReset().mockRejectedValueOnce(new Error('database unavailable'));
     await expect(reportRuntimeIssue({

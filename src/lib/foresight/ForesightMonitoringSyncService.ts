@@ -23,6 +23,15 @@ function addDays(value: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function normalizeMetaMonitoringError(error: unknown): unknown {
+  const message = error instanceof Error ? error.message
+    : error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
+  if (!/Error validating access token:\s*Session has expired|Session has expired on/i.test(message)) return error;
+  const normalized = new Error('Meta access token has expired. Reconnect Meta in Connections before retrying monitoring.');
+  normalized.name = 'MetaAuthenticationError';
+  return normalized;
+}
+
 export async function fetchMetaDaily(accountId: string, accessToken: string, startDate: string, endDate: string, level: 'campaign' | 'adset') {
   const id = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
   const url = new URL(`https://graph.facebook.com/${process.env.META_GRAPH_API_VERSION || 'v25.0'}/${id}/insights`);
@@ -119,7 +128,8 @@ export const ForesightMonitoringSyncService = {
         await ForesightIngestionRepository.appendPaidMediaEntityObservations(runId, businessId, entities);
         await record({ source: 'meta_ads', state: 'succeeded', rows: daily.length }, accountId, 'Meta_DailyPerformance', 'Daily Performance');
       } catch (error) {
-        await record({ source: 'meta_ads', state: 'failed', rows: 0, error: error instanceof Error ? error.message : 'Meta monitoring sync failed.' }, accountId, 'Meta_DailyPerformance', 'Daily Performance');
+        const normalized = normalizeMetaMonitoringError(error);
+        await record({ source: 'meta_ads', state: 'failed', rows: 0, error: normalized instanceof Error ? normalized.message : 'Meta monitoring sync failed.' }, accountId, 'Meta_DailyPerformance', 'Daily Performance');
       }
       try {
         const service = new MetaAdsReadService(accessToken, accountId);
@@ -128,10 +138,11 @@ export const ForesightMonitoringSyncService = {
         await ForesightCreativeRepository.ingest(runId, businessId, creatives);
         await record({ source: 'meta_ads', state: 'succeeded', rows: creatives.length }, accountId, 'Meta_Creatives', 'Creative History');
       } catch (error) {
+        const normalized = normalizeMetaMonitoringError(error);
         await reportRuntimeIssue({ businessId, source: 'ForesightMonitoringSyncService', operation: 'ingest_meta_creatives',
-          title: 'Meta creative history ingestion failed', error, context: { accountId, startDate, throughDate },
+          title: 'Meta creative history ingestion failed', error: normalized, context: { accountId, startDate, throughDate },
           reference: { type: 'foresight_sync_run', id: runId } });
-        await record({ source: 'meta_ads', state: 'failed', rows: 0, error: error instanceof Error ? error.message : 'Meta creative sync failed.' }, accountId, 'Meta_Creatives', 'Creative History');
+        await record({ source: 'meta_ads', state: 'failed', rows: 0, error: normalized instanceof Error ? normalized.message : 'Meta creative sync failed.' }, accountId, 'Meta_Creatives', 'Creative History');
       }
     }
 

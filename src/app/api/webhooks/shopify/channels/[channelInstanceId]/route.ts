@@ -6,7 +6,7 @@ import { applyShopifyPaidOrderLoyalty } from '@/lib/channels/shopifyPaidOrderLoy
 import { applyShopifyOrderFulfilment } from '@/lib/channels/shopifyOrderFulfilment';
 import { cancelShopifyOrder, importShopifyOrder } from '@/lib/channels/shopifyOrderImport';
 import { applyShopifyOrderRefund } from '@/lib/channels/shopifyOrderRefund';
-import { updateShopifyOrder } from '@/lib/channels/shopifyOrderUpdate';
+import { ShopifyOrderImportPendingError, updateShopifyOrder } from '@/lib/channels/shopifyOrderUpdate';
 import { getImsDbNameStrict, runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { isOnlineChannelDisabledError } from '@/lib/ims/businessOperations';
 import { reconcileGiftCardsFromPaidShopifyOrder } from '@/lib/ims/shopifyGiftCardWebhook';
@@ -155,6 +155,10 @@ export async function POST(request: Request, context: { params: { channelInstanc
         await finishShopifyWebhookEvent({ webhook: verified!, status: 'complete' });
         return { eventStatus: 'complete' as const, outcome: imported.outcome, salesOrderId: imported.salesOrderId };
       } catch (error) {
+        if (error instanceof ShopifyOrderImportPendingError) {
+          await finishShopifyWebhookEvent({ webhook: verified!, status: 'pending', safeError: error.message });
+          throw error;
+        }
         await finishShopifyWebhookEvent({
           webhook: verified!, status: 'failed',
           safeError: error instanceof Error ? error.message : 'Shopify order processing failed.',
@@ -164,6 +168,10 @@ export async function POST(request: Request, context: { params: { channelInstanc
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof ShopifyOrderImportPendingError) {
+      return NextResponse.json({ ok: false, eventStatus: 'pending', error: 'Waiting for the normal order import.' },
+        { status: 503, headers: { 'Retry-After': '30' } });
+    }
     if (error instanceof ShopifyWebhookIngressError || isOnlineChannelDisabledError(error)) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }

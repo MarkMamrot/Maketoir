@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveShippingCustomerNames } from "../shippingCustomerNames";
+import { isPlaceholderShippingCustomerName, resolveShippingCustomerNames, resolveShippingOrderCustomerName } from "../shippingCustomerNames";
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), names: vi.fn(), report: vi.fn(), constructor: vi.fn() }));
+const mocks = vi.hoisted(() => ({ context: vi.fn(), names: vi.fn(), report: vi.fn(), constructor: vi.fn(), query: vi.fn() }));
+vi.mock("@/services/IMSMySQLService", () => ({ imsQuery: mocks.query }));
 vi.mock("@/lib/channels/shopifyOperationContext", () => ({ getShopifyOperationContext: mocks.context }));
 vi.mock("@/lib/runtimeIssues", () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock("@/services/ShopifyService", () => ({
@@ -20,9 +21,34 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.context.mockResolvedValue({ credentials: { shopName: "store-a", token: "private-token" } });
   mocks.names.mockResolvedValue(new Map([["100", "Jane Smith"]]));
+  mocks.query.mockResolvedValue([{ customer_name: "Online Customer", sales_channel: "shopify", channel_instance_id: "store-a", external_order_id: "100" }]);
 });
 
 describe("display-only shipping customer names", () => {
+  it("recognizes only the generic contact, including whitespace and case differences", () => {
+    for (const value of ["Online Customer", " ONLINE CUSTOMER "]) expect(isPlaceholderShippingCustomerName(value)).toBe(true);
+    for (const value of ["Jane Smith", "", null]) expect(isPlaceholderShippingCustomerName(value)).toBe(false);
+  });
+
+  it("resolves an order recipient using tenant-filtered metadata and the exact store", async () => {
+    expect(await resolveShippingOrderCustomerName("tenant-a", 12, "Online Customer")).toEqual({ name: "Jane Smith", issue: null });
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining("sales_order.business_id = ? AND sales_order.id = ?"), ["tenant-a", 12]);
+    expect(mocks.context).toHaveBeenCalledWith({ businessId: "tenant-a", channelInstanceId: "store-a" });
+  });
+
+  it("keeps specific manual recipients without querying contact or Shopify data", async () => {
+    expect(await resolveShippingOrderCustomerName("tenant-a", 12, "Gift Recipient")).toEqual({ name: "Gift Recipient", issue: null });
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.context).not.toHaveBeenCalled();
+  });
+
+  it("does not turn a missing order or lookup failure into a usable shipping name", async () => {
+    mocks.query.mockResolvedValueOnce([]);
+    await expect(resolveShippingOrderCustomerName("tenant-a", 12, "Online Customer")).rejects.toThrow("Sales order not found");
+    mocks.names.mockRejectedValue(new Error("provider unavailable"));
+    expect(await resolveShippingOrderCustomerName("tenant-a", 12, "Online Customer")).toMatchObject({ name: null, issue: expect.stringContaining("Refresh to retry") });
+    expect(mocks.report).toHaveBeenCalled();
+  });
   it("uses a specific saved recipient first without requesting Shopify or altering input", async () => {
     const input = Object.freeze({ ...shipment, recipientName: " Saved Recipient ", customerName: "Purchaser" });
     const names = await resolveShippingCustomerNames("tenant-a", [input]);
