@@ -49,14 +49,14 @@ type AmendmentRow = RowDataPacket & {
   updated_at: Date | string;
 };
 
-export async function getShippingEditableDetail(businessId: string, shipmentId: number): Promise<ShippingEditableDetail> {
-  const connection = await getIMSPool().getConnection();
+export async function getShippingEditableDetail(businessId: string, shipmentId: number, callerConnection?: PoolConnection): Promise<ShippingEditableDetail> {
+  const connection = callerConnection ?? await getIMSPool().getConnection();
   let detail: ShippingEditableDetail;
   try {
     const row = await getShipment(connection, businessId, shipmentId);
     detail = await buildDetail(connection, businessId, row);
-  } finally { connection.release(); }
-  const customer = await resolveShippingOrderCustomerName(businessId, detail.soId, detail.recipient.name);
+  } finally { if (!callerConnection) connection.release(); }
+  const customer = await resolveShippingOrderCustomerName(businessId, detail.soId, detail.recipient.name, callerConnection);
   return {
     ...detail,
     suggestedRecipientName: customer.name && isPlaceholderShippingCustomerName(detail.recipient.name) ? customer.name : null,

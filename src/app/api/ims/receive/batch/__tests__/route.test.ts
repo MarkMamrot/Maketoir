@@ -12,6 +12,7 @@ const {
   mockCreateNotification,
   mockLockInventoryCostState,
   mockCreateFifoCostLayer,
+  mockPoolExecute,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockCreateNotification: vi.fn(),
   mockLockInventoryCostState: vi.fn(),
   mockCreateFifoCostLayer: vi.fn(),
+  mockPoolExecute: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -37,7 +39,7 @@ vi.mock('@/lib/ims/cacheHelper', () => ({
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
-  getIMSPool: () => ({ getConnection: mockGetConnection }),
+  getIMSPool: () => ({ execute: mockPoolExecute, getConnection: mockGetConnection }),
 }));
 
 vi.mock('@/lib/runtimeIssues', () => ({
@@ -259,6 +261,7 @@ function buildFakeConnection(state: {
 describe('POST /api/ims/receive/batch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPoolExecute.mockResolvedValue([[{ xero_bill_id: null }]]);
     mockGetImsSession.mockResolvedValue({ businessId: 'biz-1' });
     mockTriggerPOXeroSync.mockResolvedValue(undefined);
     mockRefreshVariantCache.mockResolvedValue(undefined);

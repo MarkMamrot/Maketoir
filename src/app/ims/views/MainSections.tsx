@@ -306,6 +306,8 @@ export function MainSections(props: MainSectionsProps) {
         <SalesChannelsView
           canManage={userTier === 'Admin' || userTier === 'SuperAdmin'}
           xeroAccountingEnabled={xeroAccountingEnabled}
+          onConfigureBuiltIn={section => { setSettingsSection(section); setSettingsOpen(true); }}
+          onManageLocations={() => setView('locations')}
         />
       )}
       {view === 'xero' && xeroAccountingEnabled && (

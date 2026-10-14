@@ -170,6 +170,7 @@ export const LaybyRepository = {
   }) {
     if (!/^[a-zA-Z0-9:_-]{8,120}$/.test(input.operationKey)) throw new LaybyValidationError('A valid operation reference is required.');
     const now = await timestamp(input.actor.businessId);
+    const adoptionTimeZone = input.action === 'adopt' ? await getBusinessTimeZone(input.actor.businessId) : undefined;
     const connection = await getIMSPool().getConnection();
     try {
       await connection.beginTransaction();
@@ -196,7 +197,7 @@ export const LaybyRepository = {
         const [payments]: any = await connection.execute('SELECT * FROM pos_payments WHERE sale_id = ? ORDER BY id', [input.saleId]);
         const originalActor = { ...input.actor, registerId: sale.register_id, registerSessionId: sale.register_session_id };
         const originalTime = sale.created_at instanceof Date
-          ? sale.created_at.toLocaleString('sv-SE', { timeZone: await getBusinessTimeZone(input.actor.businessId) }).replace('T', ' ')
+          ? sale.created_at.toLocaleString('sv-SE', { timeZone: adoptionTimeZone }).replace('T', ' ')
           : String(sale.created_at);
         await initializeLayby(connection, sale, items, payments, originalActor, originalTime);
         await event(connection, { actor: input.actor, saleId: sale.id, key: input.operationKey, kind: 'cancellation', reason: 'Existing layby adopted; no payment or refund', now });

@@ -12,6 +12,7 @@ import { calculateEarnedPoints, calculatePosEligibleSpend, calculatePosReturnEli
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { toBusinessDateTime } from '@/lib/shopifyDate';
 import { collectLaybyInTransaction, initializeLayby } from '@/lib/pos/laybyRepository';
 import { laybyCents, LaybyValidationError } from '@/lib/pos/laybyPayments';
 import { planPosStockChange } from '@/lib/ims/posStockFloor';
@@ -503,6 +504,7 @@ export const PosSalesRepo = {
   async complete(data: {
     business_id:       string;
     local_id:          string | null;
+    recorded_at?:      string | null;
     register_id:       number | null;
     register_session_id?: number | null;
     location_id:       number;
@@ -571,7 +573,7 @@ export const PosSalesRepo = {
     try {
       await conn.beginTransaction();
 
-      const now = localNow();
+      const now = data.recorded_at ? toBusinessDateTime(data.recorded_at) : localNow();
       const completedAt = ['completed', 'layby_complete', 'voided'].includes(data.status) ? now : null;
       const costingState = (data.status === 'completed' || data.status === 'layby_complete' || data.sale_type === 'layby')
         ? await lockInventoryCostState(conn, data.business_id)
@@ -1082,6 +1084,7 @@ export const PosSalesRepo = {
     const pool = getIMSPool();
     const stockConn = await pool.getConnection();
     const stockWarnings: PosStockWarning[] = [];
+    let stockConnectionReleased = false;
     try {
       await stockConn.beginTransaction();
       const costingState = await lockInventoryCostState(stockConn, sale.business_id);
@@ -1187,6 +1190,8 @@ export const PosSalesRepo = {
         [id],
       );
       await stockConn.commit();
+      stockConn.release();
+      stockConnectionReleased = true;
       if (sale.customer_id) {
         await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
           businessId: sale.business_id,
@@ -1195,7 +1200,7 @@ export const PosSalesRepo = {
       }
       return { giftCardReversals, loyaltyReversals, stockWarnings };
     } catch (err) {
-      await stockConn.rollback();
+      if (!stockConnectionReleased) await stockConn.rollback();
       if (!(err instanceof LoyaltyValidationError)
         && !(err instanceof LoyaltyVoidBlockedError)
         && !(err instanceof FifoCostingConflict)) {
@@ -1211,7 +1216,7 @@ export const PosSalesRepo = {
       }
       throw err;
     } finally {
-      stockConn.release();
+      if (!stockConnectionReleased) stockConn.release();
     }
   },
 

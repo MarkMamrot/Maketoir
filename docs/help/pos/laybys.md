@@ -55,6 +55,8 @@ Use Layby mode for a new layby and **More > Laybys** for its later payments, col
 
 If the terminal outcome is unconfirmed, check terminal history before proceeding. An approved refund can be recorded using manual entry without issuing it again. Do not restart the refund merely because the browser lost the terminal response.
 
+Once a layby action is confirmed, its receipt opens while POS refreshes local stock in the background. Reprinting a receipt does not remove stock again. If the receipt warns that local stock could not be refreshed, use **Sync** before relying on stock counts; do not repeat the payment or collection.
+
 ## Accounting and older laybys
 
 Each deposit, instalment and refund contributes to its own payment day's takings and register session. Partial deposits are a liability, not merchandise revenue. GST is recognised on final payment, even when collection is later. Merchandise revenue is recognised on collection, without charging GST twice. Retained cancellation fees are revenue with GST extracted from the fee.

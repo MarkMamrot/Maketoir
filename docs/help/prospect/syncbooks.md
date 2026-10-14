@@ -1,5 +1,5 @@
 ---
-{"id":"prospect-syncbooks","title":"SyncBooks Bookkeeping","audiences":["prospect"],"product":"prospect","summary":"SyncBooks offers general bookkeeping support for Australian businesses at /syncbooks, with local, overseas or blended delivery. Indicative monthly packages start at $499, $899 and $1,599 excluding GST, with custom scope available. Request a free consultation with explicit email contact consent. SyncBooks works alongside your accountant or registered BAS or tax agent; bookkeeping support is not regulated tax or financial advice.","capabilityTags":["accounting","support","pricing"],"lastReviewed":"2026-10-12","owner":"sales"}
+{"id":"prospect-syncbooks","title":"SyncBooks Bookkeeping","audiences":["prospect"],"product":"prospect","summary":"SyncBooks offers general bookkeeping support for Australian businesses at /syncbooks, with local, overseas or blended delivery. Indicative monthly packages start at $399, $599 and $999 excluding GST, with custom scope available. Request a free consultation with explicit email contact consent. SyncBooks works alongside your accountant or registered BAS or tax agent; bookkeeping support is not regulated tax or financial advice.","capabilityTags":["accounting","support","pricing"],"lastReviewed":"2026-10-14","owner":"sales"}
 ---
 # SyncBooks Bookkeeping
 
@@ -19,9 +19,9 @@ Discuss Australian-based local support, overseas processing capacity or blended 
 
 | Package | Monthly starting price excluding GST | Indicative scope |
 | --- | --- | --- |
-| Essentials | $499 | Up to 8 hours; 1-5 employees; weekly processing |
-| Growth | $899 | Up to 20 hours; 6-15 employees; 2-3 processing days weekly |
-| Established | $1,599 | Up to 40 hours; 16-35 employees; frequent processing |
+| Essentials | $399 | Up to 8 hours; 1-5 employees; weekly processing |
+| Growth | $599 | Up to 20 hours; 6-15 employees; 2-3 processing days weekly |
+| Established | $999 | Up to 40 hours; 16-35 employees; frequent processing |
 | Custom | By discussion | Complex, high-volume, inventory-heavy or multi-entity needs |
 
 Final pricing depends on transaction volume, complexity, payroll cycles, software and delivery model. The free initial consultation is a scope discussion with no obligation, not a subscription purchase.

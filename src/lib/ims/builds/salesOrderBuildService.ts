@@ -116,6 +116,7 @@ export async function buildAndConfirmSalesOrder(input: {
     throw new ProductBuildConflictError('A valid operation key is required.', 'sales_order_build_operation_key_invalid');
   }
   const connection = await getIMSPool().getConnection();
+  let released = false;
   try {
     await connection.beginTransaction();
     const { order, items } = await loadOrderForBuild(connection, input.businessId, input.soId);
@@ -170,6 +171,8 @@ export async function buildAndConfirmSalesOrder(input: {
       [input.soId, input.businessId],
     );
     await connection.commit();
+    connection.release();
+    released = true;
     await refreshSalesOrderBuildCache(
       input.businessId,
       input.soId,
@@ -179,7 +182,7 @@ export async function buildAndConfirmSalesOrder(input: {
     await recomputeBuildRequirementsSafely({ businessId: input.businessId, salesOrderId: input.soId });
     return { soId: input.soId, status: 'confirmed' as const, ...buildResult };
   } catch (error) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     if (!(error instanceof ProductBuildConflictError) && !(error instanceof FifoCostingConflict)) {
       await reportRuntimeIssue({
         businessId: input.businessId, source: 'ims_sales_orders', operation: 'build_and_confirm',
@@ -188,7 +191,7 @@ export async function buildAndConfirmSalesOrder(input: {
       }).catch(() => {});
     }
     throw error;
-  } finally { connection.release(); }
+  } finally { if (!released) connection.release(); }
 }
 
 export async function buildAndFulfilSalesOrder(input: {
@@ -200,6 +203,7 @@ export async function buildAndFulfilSalesOrder(input: {
     throw new ProductBuildConflictError('A valid operation key is required.', 'sales_order_build_operation_key_invalid');
   }
   const connection = await getIMSPool().getConnection();
+  let released = false;
   try {
     await connection.beginTransaction();
     const [completedOperations] = await connection.execute<any[]>(
@@ -242,6 +246,8 @@ export async function buildAndFulfilSalesOrder(input: {
       shipmentQuantities: input.shipmentQuantities, finalizeWhenComplete: true,
     });
     await connection.commit();
+    connection.release();
+    released = true;
     await refreshSalesOrderBuildCache(
       input.businessId,
       input.soId,
@@ -251,7 +257,7 @@ export async function buildAndFulfilSalesOrder(input: {
     await recomputeBuildRequirementsSafely({ businessId: input.businessId, salesOrderId: input.soId });
     return { build, fulfilment };
   } catch (error) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     if (!(error instanceof ProductBuildConflictError)) {
       await reportRuntimeIssue({
         businessId: input.businessId, source: 'ims_sales_orders', operation: 'build_and_fulfil',
@@ -260,5 +266,5 @@ export async function buildAndFulfilSalesOrder(input: {
       }).catch(() => {});
     }
     throw error;
-  } finally { connection.release(); }
+  } finally { if (!released) connection.release(); }
 }

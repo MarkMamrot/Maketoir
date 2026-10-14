@@ -99,20 +99,21 @@ export async function transferSalesOrderItemsBatch(
     targetOrderId: input.targetOrderId,
     sources: sources.map(source => ({ sourceOrderId: source.sourceOrderId, lines: source.lines })),
   })).digest('hex');
-  const connection = await getIMSPool().getConnection();
-
-  try {
-    const allOrderIds = [input.targetOrderId, ...sourceOrderIds];
-    const [xeroLinkedOrders] = await connection.execute<XeroLinkedOrder[]>(
+  const pool = getIMSPool();
+  const allOrderIds = [input.targetOrderId, ...sourceOrderIds];
+  const [xeroLinkedOrders] = await pool.execute<XeroLinkedOrder[]>(
       `SELECT id, so_number, xero_invoice_id FROM ims_sales_orders
         WHERE business_id = ? AND id IN (${allOrderIds.map(() => '?').join(', ')})`,
       [input.businessId, ...allOrderIds],
     );
-    const xeroClearances = await preflightSalesOrderXeroDocuments(input.businessId, xeroLinkedOrders.map(order => ({
+  const xeroClearances = await preflightSalesOrderXeroDocuments(input.businessId, xeroLinkedOrders.map(order => ({
       orderId: Number(order.id),
       orderNumber: String(order.so_number),
       xeroDocumentId: order.xero_invoice_id ?? null,
-    })));
+  })));
+  const connection = await pool.getConnection();
+  let released = false;
+  try {
     await connection.beginTransaction();
     const [existingRows] = await connection.execute<any[]>(
       `SELECT request_hash, state, after_header_json
@@ -200,12 +201,14 @@ export async function transferSalesOrderItemsBatch(
         Number(batchOperationResult.insertId)],
     );
     await connection.commit();
+    connection.release();
+    released = true;
     await reconcileSalesOrderTransferXero(input.businessId, transfers);
     return result;
   } catch (error) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     throw error;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }

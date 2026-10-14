@@ -108,7 +108,7 @@ export async function changeShippingBatchMembership(
       for (const expected of input.shipmentIds) {
         const shipment = byId.get(expected.shipmentId)!;
         if (shipment.provider_shipment_id) continue;
-        const detail = await getShippingEditableDetail(businessId, expected.shipmentId);
+        const detail = await getShippingEditableDetail(businessId, expected.shipmentId, connection);
         const prepared = await prepareShippingRequest({
             businessId, carrierAccountId: input.carrierAccountId,
             shipments: [{
@@ -117,7 +117,7 @@ export async function changeShippingBatchMembership(
               nonSaleValues: detail.customs?.parcels.flatMap(parcel => parcel.items.map(item => ({ soItemId: item.soItemId, unitValue: item.unitValue }))),
               nonSaleValuesConfirmed: detail.customs?.nonSaleValuesConfirmed,
             }],
-          });
+          }, connection);
         carrierUpdates.push({ shipment, revision: expected.expectedShipmentRevision, carrierAccountId: input.carrierAccountId, prepared });
       }
     }

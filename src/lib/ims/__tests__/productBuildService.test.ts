@@ -35,6 +35,7 @@ vi.mock('../costing/fifoCostingService', () => ({
 import { completeProductBuildInTransaction, listProductBuildBatches, previewProductBuildBatch, reverseProductBuild } from '../builds/buildService';
 import { listBuildRequirements } from '../builds/buildRequirementService';
 import { saveProductBuildRecipe } from '../builds/recipeService';
+import { refreshVariantCache } from '../cacheHelper';
 
 const connection = {
   execute: mocks.execute,
@@ -197,6 +198,11 @@ describe('product build services', () => {
       .mockResolvedValueOnce({ allocatedValue: 13, unitCost: 13, allocationCount: 1 })
       .mockResolvedValueOnce({ allocatedValue: 12, unitCost: 6, allocationCount: 1 });
 
+    vi.mocked(refreshVariantCache).mockImplementationOnce(async () => {
+      expect(mocks.release).toHaveBeenCalledOnce();
+      expect(mocks.commit).toHaveBeenCalledOnce();
+      return 0;
+    });
     await expect(reverseProductBuild({
       businessId: 'business-1',
       buildItemId: 31,

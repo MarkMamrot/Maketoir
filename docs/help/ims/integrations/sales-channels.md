@@ -1,13 +1,15 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review and configure each connected online storefront separately.","lastReviewed":"2026-10-13","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"integrations","label":"Configure sales channels"}}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify","ims-business-operations-pos-settings"],"order":91,"summary":"Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"integrations","label":"Configure sales channels"}}
 ---
 # Sales Channels
 
-Sales Channels shows each online storefront separately. A business can connect multiple Amazon Seller Central accounts, while each Shopify store and the Solvantis Online Store also appears as its own channel.
+Sales Channels brings together Point of Sale, the B2B Wholesale Portal and each online storefront. Point of Sale appears once for the business, with its active POS location count. A business can connect multiple Amazon Seller Central accounts, while each Shopify store and the Solvantis Online Store also appears as its own channel.
 
 ## Main operations
 
 - Confirm that every expected storefront appears as a separate channel.
+- Review whether Point of Sale and the B2B Wholesale Portal are enabled in Business Operations.
+- Choose **Configure** on either built-in channel to open its existing settings. Use **Manage locations** for POS locations or **Preview portal** for the enabled B2B portal.
 - Check whether a channel is active, paused, waiting for setup, or needs attention.
 - Review the external account identity and last successful synchronization time.
 - Compare the operations supported by each provider.
@@ -35,6 +37,10 @@ Sales Channels shows each online storefront separately. A business can connect m
 - Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.
 
 ## Review channel instances
+
+The **Point of Sale** and **B2B Wholesale Portal** rows use existing Business Operations settings. Administrators choose **Configure** to open **Settings > Point of Sale** or **Settings > Wholesale Portal**. POS shows **Setup pending** when enabled without active POS locations. Its count includes active locations marked for POS or with a POS location code; inactive and non-POS locations are excluded. **Manage locations** opens the existing Locations workspace. **Preview portal** opens the enabled wholesale portal's staff preview in a new tab.
+
+These built-in rows are navigation summaries, not new online integrations. They do not change stock, pricing, order attribution, accounting or product publishing. They do not have external connection tests or synchronization timestamps. Staff without administrator access can use the location and preview links but do not receive a Configure action.
 
 Open **Integrations > Sales Channels**. Each compact row identifies the storefront, provider, operating state, account identity, last successful synchronization time, and number of supported features. A current safe error appears beneath the affected channel when it needs attention.
 

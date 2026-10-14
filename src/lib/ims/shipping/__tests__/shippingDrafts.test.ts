@@ -30,7 +30,7 @@ describe('recipient override preparation', () => {
       shipments: [{ soId: 10, parcels: [{ parcelNumber: 1, lengthMm: 200, widthMm: 100, heightMm: 100, weightKg: 1, allocations: [{ soItemId: 5, quantity: 2 }] }] }],
     });
     expect(prepared.entries[0].recipient.name).toBe('Order Recipient');
-    expect(mocks.name).toHaveBeenCalledWith('tenant-1', 10, 'Online Customer');
+    expect(mocks.name).toHaveBeenCalledWith('tenant-1', 10, 'Online Customer', undefined);
   });
   it('blocks unresolved generic names for postage but still permits saving measurements', async () => {
     const order = await mocks.order();
@@ -48,7 +48,7 @@ describe('recipient override preparation', () => {
     });
     expect(prepared.account).toEqual({ id: null, provider: 'unassigned', dispatchLocationId: null });
     expect(mocks.account).not.toHaveBeenCalled();
-    expect(mocks.order).toHaveBeenCalledWith(10, 'tenant-1');
+    expect(mocks.order).toHaveBeenCalledWith(10, 'tenant-1', undefined);
   });
   it('does not allow a missing carrier for normal shipment preparation', async () => {
     await expect(prepareShippingRequest({ businessId: 'tenant-1', carrierAccountId: null, shipments: [] }))
@@ -64,8 +64,19 @@ describe('recipient override preparation', () => {
     const prepared = await prepareShippingRequest(input);
     expect(prepared.entries[0].recipient).toEqual(recipient);
     expect(prepared.entries[0].order.delivery_address).toBe('Old address');
-    expect(mocks.order).toHaveBeenCalledWith(10, 'tenant-1');
-    expect(mocks.location).toHaveBeenCalledWith(3, 'tenant-1');
+    expect(mocks.order).toHaveBeenCalledWith(10, 'tenant-1', undefined);
+    expect(mocks.location).toHaveBeenCalledWith(3, 'tenant-1', undefined);
+  });
+  it('keeps account, order and dispatch reads on the caller-owned connection', async () => {
+    const connection = { execute: mocks.account, release: vi.fn() };
+    await prepareShippingRequest({
+      businessId: 'tenant-1', carrierAccountId: 9,
+      shipments: [{ soId: 10, recipient, parcels: [{ parcelNumber: 1, lengthMm: 200, widthMm: 100, heightMm: 100, weightKg: 1,
+        allocations: [{ soItemId: 5, quantity: 2 }] }] }],
+    }, connection);
+    expect(mocks.order).toHaveBeenCalledWith(10, 'tenant-1', connection);
+    expect(mocks.location).toHaveBeenCalledWith(3, 'tenant-1', connection);
+    expect(connection.release).not.toHaveBeenCalled();
   });
   it('rejects incomplete and malformed address overrides', () => {
     for (const change of [{ name: '' }, { lines: [] }, { lines: [{}] }, { state: 'bad' }, { postcode: '20' }, { country: 'bad' }]) {

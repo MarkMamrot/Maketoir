@@ -93,14 +93,26 @@ export async function GET(req: Request) {
 
 // POST /api/pos/sales — create/complete a sale (supports offline-first via local_id)
 export async function POST(req: Request) {
+  const requestStartedAt = Date.now();
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   await getImsSession(['pos_session']);
 
+  let sourceLocalId: string | undefined;
   try {
     const body = await req.json();
+    if (typeof body.local_id === 'string') sourceLocalId = body.local_id.slice(0, 255);
     const businessId = String(session.businessId ?? '');
     if (!businessId) return NextResponse.json({ error: 'Business context is required.' }, { status: 400 });
+    if (body.business_id != null && body.business_id !== businessId) {
+      return NextResponse.json({ error: 'This queued sale belongs to a different business. Sign in to its original business before syncing.' }, { status: 409 });
+    }
+    if (body.completed_at != null && (typeof body.completed_at !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(body.completed_at)
+      || !Number.isFinite(Date.parse(body.completed_at))
+      || new Date(body.completed_at).toISOString() !== body.completed_at)) {
+      return NextResponse.json({ error: 'The recorded sale time is invalid.' }, { status: 400 });
+    }
     const locationId = Number(body.location_id ?? session.location_id);
     if (!Number.isFinite(locationId)) return NextResponse.json({ error: 'POS location is required.' }, { status: 400 });
     if (body.sale_type === 'layby' && body.status === 'layby_active'
@@ -214,11 +226,12 @@ export async function POST(req: Request) {
       completed = await PosSalesRepo.complete({
       business_id:       businessId,
       local_id:          body.local_id ?? null,
+      recorded_at:       body.completed_at ?? null,
       register_id:       registerId,
       register_session_id: registerSessionId,
       location_id:       locationId,
       cashier_id:        (body.cashier_id || session.pos_user_id) || null,
-      cashier_name:      session.full_name || session.username || null,
+      cashier_name:      typeof body.cashier_name === 'string' ? body.cashier_name.slice(0, 255) : session.full_name || session.username || null,
       sale_type:         body.sale_type   ?? 'sale',
       collect_layby:     body.collect_layby !== false,
       status:            body.status      ?? 'completed',
@@ -270,11 +283,13 @@ export async function POST(req: Request) {
       saleId,
       locationId,
       durationMs: saleDurationMs,
+      requestDurationMs: Date.now() - requestStartedAt,
+      preCompletionMs: saleStartedAt - requestStartedAt,
       phaseTimings: completed.phaseTimings,
       itemCount: Array.isArray(body.items) ? body.items.length : 0,
       paymentCount: Array.isArray(body.payments) ? body.payments.length : 0,
     }));
-    if (saleDurationMs >= SLOW_POS_SALE_MS) {
+    if (Date.now() - requestStartedAt >= SLOW_POS_SALE_MS) {
       await reportRuntimeIssue({
         businessId,
         source: 'pos_sale',
@@ -287,6 +302,8 @@ export async function POST(req: Request) {
           saleId,
           locationId,
           durationMs: saleDurationMs,
+          requestDurationMs: Date.now() - requestStartedAt,
+          preCompletionMs: saleStartedAt - requestStartedAt,
           phaseTimings: completed.phaseTimings,
           itemCount: Array.isArray(body.items) ? body.items.length : 0,
           paymentCount: Array.isArray(body.payments) ? body.payments.length : 0,
@@ -360,8 +377,16 @@ export async function POST(req: Request) {
     const status = err instanceof LaybyValidationError ? err.status : err instanceof LoyaltyReturnBlockedError ? err.status
       : err instanceof LoyaltyValidationError || err instanceof ProductBuildValidationError ? 400
         : err instanceof ProductBuildConflictError || err instanceof FifoCostingConflict ? 409 : 500;
+    if (status >= 500) {
+      await reportRuntimeIssue({
+        businessId: String(session.businessId), source: 'pos_sale', operation: 'save_sale',
+        title: 'POS sale save could not be confirmed', error: err,
+        context: { locationId: session.location_id, requestDurationMs: Date.now() - requestStartedAt },
+        reference: sourceLocalId ? { type: 'pos_sale_local_id', id: sourceLocalId } : undefined,
+      });
+    }
     const safeError = status >= 500
-      ? 'The sale could not be completed and was not recorded. If a card payment was approved, keep it in the cart and retry Complete Sale without charging the customer again.'
+      ? 'The sale save could not be confirmed. Keep its device record and retry syncing or saving without charging the customer again.'
       : err.message || String(err);
     return NextResponse.json({
       error: safeError,

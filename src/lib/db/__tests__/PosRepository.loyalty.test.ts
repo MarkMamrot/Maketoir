@@ -161,6 +161,13 @@ describe('PosSalesRepo loyalty earning', () => {
     mockConsumeFifoCostLayers.mockResolvedValue({ allocatedValue: 20, unitCost: 20, allocationCount: 1, allocations: [] });
   });
 
+  it('preserves the checkout time when a device sale is uploaded later', async () => {
+    const { saleConnection } = setupConnections([]);
+    await PosSalesRepo.complete({ ...saleData(), recorded_at: '2026-10-13T14:59:00.000Z' });
+    const insert = saleConnection.execute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO pos_sales'));
+    expect(insert?.[1]).toEqual(expect.arrayContaining(['2026-10-14 01:59:00']));
+  });
+
   it('awards enrolled customer points before committing the sale', async () => {
     const { saleConnection } = setupConnections([
       { key: 'loyalty_enabled', value: '1' },
@@ -629,6 +636,8 @@ describe('PosSalesRepo loyalty earning', () => {
     });
     expect(mockReversePosSale.mock.invocationCallOrder[0]).toBeLessThan(stockConnection.commit.mock.invocationCallOrder[0]);
     expect(stockConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+    expect(stockConnection.release.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+    expect(stockConnection.release).toHaveBeenCalledOnce();
     expect(stockConnection.execute.mock.calls[1][0]).toContain("status = 'voided'");
   });
 

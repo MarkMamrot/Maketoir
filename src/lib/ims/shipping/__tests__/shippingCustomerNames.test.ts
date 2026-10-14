@@ -41,6 +41,13 @@ describe("display-only shipping customer names", () => {
     expect(mocks.query).not.toHaveBeenCalled();
     expect(mocks.context).not.toHaveBeenCalled();
   });
+  it("uses a caller-owned connection for recipient metadata without borrowing another IMS slot", async () => {
+    const execute = vi.fn().mockResolvedValue([[{ customer_name: 'Saved Buyer', sales_channel: 'shopify', channel_instance_id: 'store-a', external_order_id: '100' }]]);
+    expect(await resolveShippingOrderCustomerName('tenant-a', 12, 'Online Customer', { execute })).toEqual({ name: 'Saved Buyer', issue: null });
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining('sales_order.business_id = ? AND sales_order.id = ?'), ['tenant-a', 12]);
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.names).not.toHaveBeenCalled();
+  });
 
   it("does not turn a missing order or lookup failure into a usable shipping name", async () => {
     mocks.query.mockResolvedValueOnce([]);

@@ -11,7 +11,7 @@ const connection = {
 };
 
 vi.mock('@/services/IMSMySQLService', () => ({
-  getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
+  getIMSPool: vi.fn(() => ({ execute: (...args: unknown[]) => execute(...args), getConnection: vi.fn(async () => connection) })),
 }));
 vi.mock('../orderTransfers/salesOrderTransfer', () => ({
   SalesOrderTransferConflict: class SalesOrderTransferConflict extends Error {},
@@ -22,6 +22,7 @@ vi.mock('../orderTransfers/salesOrderXeroReconciliation', () => ({
 }));
 
 import { transferSalesOrderItemsBatch } from '../orderTransfers/salesOrderBatchTransfer';
+import { reconcileSalesOrderTransferXero } from '../orderTransfers/salesOrderXeroReconciliation';
 
 const sourceOne = {
   sourceOrderId: 20,
@@ -100,6 +101,7 @@ describe('transferSalesOrderItemsBatch', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
     expect(connection.release).toHaveBeenCalledOnce();
+    expect(connection.release.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(reconcileSalesOrderTransferXero).mock.invocationCallOrder[0]);
   });
 
   it('rolls back every source when any transfer fails', async () => {

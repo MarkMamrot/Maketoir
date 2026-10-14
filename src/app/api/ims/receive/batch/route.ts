@@ -143,7 +143,22 @@ export async function POST(req: Request) {
     }
 
     const pool = getIMSPool();
+    let preflightXeroBillId: string | null = null;
+    if (create_backorder_po) {
+      const [[preflightPo]] = await pool.execute<any[]>(
+        'SELECT xero_bill_id FROM ims_purchase_orders WHERE id = ? AND business_id = ?',
+        [po_id, businessId],
+      );
+      if (preflightPo?.xero_bill_id) {
+        preflightXeroBillId = String(preflightPo.xero_bill_id);
+        const xeroStatus = await getXeroInvoiceStatus(businessId, preflightXeroBillId);
+        if (xeroStatus !== 'DRAFT') {
+          return NextResponse.json({ error: `The linked Xero bill is ${xeroStatus ?? 'unavailable'} and cannot be split.` }, { status: 409 });
+        }
+      }
+    }
     const conn = await pool.getConnection();
+    let released = false;
     const operationKey = typeof operation_key === 'string' && operation_key.trim() ? operation_key.trim() : randomUUID();
     const requestHash = createHash('sha256').update(JSON.stringify({
       po_id,
@@ -181,6 +196,8 @@ export async function POST(req: Request) {
           ? JSON.parse(receiveOperation.response_json)
           : receiveOperation.response_json;
         await conn.commit();
+        conn.release();
+        released = true;
         const receivedVariantIds = received_items.map(i => i.variant_id).filter(Boolean);
         if (receivedVariantIds.length > 0) refreshVariantCache(receivedVariantIds).catch(() => {});
         if (replayedResponse?.newStatus === 'complete') {
@@ -218,11 +235,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Release this supplier backorder before receiving it.' }, { status: 409 });
       }
       if (create_backorder_po && poRow.xero_bill_id) {
-        const xeroStatus = await getXeroInvoiceStatus(businessId, String(poRow.xero_bill_id));
-        if (xeroStatus !== 'DRAFT') {
+        if (String(poRow.xero_bill_id) !== preflightXeroBillId) {
           await conn.rollback();
           return NextResponse.json({
-            error: `The linked Xero bill is ${xeroStatus ?? 'unavailable'} and cannot be split.`,
+            error: 'The linked Xero bill changed during review. Refresh the purchase order before receiving it.',
           }, { status: 409 });
         }
       }
@@ -654,6 +670,8 @@ export async function POST(req: Request) {
         [JSON.stringify(response), businessId, operationKey],
       );
       await conn.commit();
+      conn.release();
+      released = true;
 
       // ─── 6. Post-commit side effects ──────────────────────────────────────
       // Refresh variant cache for received items
@@ -678,8 +696,11 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json(response);
+    } catch (error) {
+      if (!released) await conn.rollback();
+      throw error;
     } finally {
-      conn.release();
+      if (!released) conn.release();
     }
   } catch (e: any) {
     console.error('Batch receive error:', e);
@@ -693,4 +714,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
-

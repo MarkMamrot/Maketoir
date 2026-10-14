@@ -1,5 +1,5 @@
 // localStorage helpers for the POS system
-import type { DeviceConfig, CachedProduct, CartItem, ParkedSale } from './_types';
+import type { DeviceConfig, CachedProduct, CartItem, ParkedSale, CompletedSale } from './_types';
 
 const KEYS = {
   deviceConfig:  'pos_device_config',
@@ -10,6 +10,7 @@ const KEYS = {
   parkedSales:   'pos_parked_sales',
   currentCart:   'pos_current_cart',
   sessionLocal:  'pos_session_local',
+  lastReceipt:   'pos_last_receipt',
 };
 
 // ── Device Config ────────────────────────────────────────────
@@ -287,60 +288,150 @@ export interface OfflineQueueEntry {
   queued_at:   string;
   attempts:    number;
   last_error?: string;
+  receipt?:    CompletedSale;
+  next_attempt_at?: string;
+}
+
+type StoredSale = OfflineQueueEntry & { state: 'pending' | 'failed' };
+export const POS_OUTBOX_CHANGED = 'pos-sale-outbox-change';
+const volatileSales = new Map<string, StoredSale>();
+const drains = new Map<string, Promise<void>>();
+const SALE_UPLOAD_TIMEOUT_MS = 15_000;
+
+function saleLocalId(payload: unknown): string {
+  if (payload && typeof payload === 'object' && 'local_id' in payload
+    && typeof payload.local_id === 'string' && payload.local_id.trim()) return payload.local_id;
+  throw new Error('A queued sale must have a stable local ID.');
+}
+
+function outboxPrefix(): string {
+  const businessId = loadDeviceConfig()?.business_id;
+  if (!businessId) throw new Error('Configure the POS business before storing sales.');
+  return `pos_sale_outbox:${encodeURIComponent(businessId)}:`;
+}
+
+function saleKey(prefix: string, payload: unknown): string {
+  return `${prefix}${encodeURIComponent(saleLocalId(payload))}`;
+}
+
+function notifyOutboxChanged(sync = false) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(POS_OUTBOX_CHANGED, { detail: { sync } }));
+}
+
+export function reportPosSaleBrowserIssue(
+  operation: 'pos_sale_local_storage' | 'pos_sale_sync' | 'pos_catalogue_refresh',
+  localId?: string,
+  businessId = loadDeviceConfig()?.business_id,
+): void {
+  console.error(`[POS] ${operation}`, localId ?? '');
+  void fetch('/api/runtime-issues/client', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+    body: JSON.stringify({
+      name: 'PosSaleRecoveryError', operation,
+      message: operation === 'pos_catalogue_refresh'
+        ? 'POS stock catalogue could not be refreshed after a saved layby. Use Sync before relying on local stock counts.'
+        : operation === 'pos_sale_local_storage'
+        ? 'POS sale storage requires recovery. Keep the device open and do not recharge the customer.'
+        : 'A paid POS sale needs sync review. Its device record has been retained.',
+      businessId,
+      localId, pathname: typeof window === 'undefined' ? '/pos' : window.location.pathname,
+    }),
+  }).then(response => {
+    if (!response.ok) throw new Error(`Recovery issue reporting returned HTTP ${response.status}.`);
+  }).catch(error => { console.error('[POS] Could not report sale recovery issue', error); });
+}
+
+function writeSale(key: string, entry: StoredSale) {
+  try {
+    localStorage.setItem(key, JSON.stringify(entry));
+    volatileSales.delete(key);
+  } catch (error) {
+    // An approved payment must remain recoverable in this tab even when storage is full.
+    volatileSales.set(key, entry);
+    reportPosSaleBrowserIssue('pos_sale_local_storage', saleLocalId(entry.payload), decodeURIComponent(key.split(':')[1]));
+    throw error;
+  } finally { notifyOutboxChanged(); }
+}
+
+function migrateLegacyQueue(prefix: string, key: string, state: StoredSale['state']) {
+  const raw = getTenantItem(key);
+  if (raw == null) return;
+  const entries: OfflineQueueEntry[] = JSON.parse(raw);
+  if (!Array.isArray(entries)) throw new Error('The saved POS queue is invalid. Keep device storage intact.');
+  for (const entry of entries) {
+    const destination = saleKey(prefix, entry.payload);
+    if (localStorage.getItem(destination) == null) writeSale(destination, volatileSales.get(destination) ?? { ...entry, state });
+  }
+  removeTenantItem(key);
+}
+
+function readSales(prefix: string): StoredSale[] {
+  const entries = new Map<string, StoredSale>();
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith(prefix)) continue;
+    const raw = localStorage.getItem(key);
+    if (raw != null) entries.set(key, JSON.parse(raw));
+  }
+  for (const [key, entry] of volatileSales) if (key.startsWith(prefix)) entries.set(key, entry);
+  return [...entries.values()].sort((a, b) => a.queued_at.localeCompare(b.queued_at));
+}
+
+function currentSales(): StoredSale[] {
+  if (!loadDeviceConfig()?.business_id) return [];
+  const prefix = outboxPrefix();
+  migrateLegacyQueue(prefix, KEYS.offlineQueue, 'pending');
+  migrateLegacyQueue(prefix, KEYS.failedQueue, 'failed');
+  return readSales(prefix);
 }
 
 export function loadOfflineQueue(): OfflineQueueEntry[] {
-  try {
-    const raw = getTenantItem(KEYS.offlineQueue);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+  return currentSales().filter(entry => entry.state === 'pending');
 }
-
-export function addToOfflineQueue(payload: unknown): void {
-  const queue = loadOfflineQueue();
-  queue.push({ payload, queued_at: new Date().toISOString(), attempts: 0 });
-  setTenantItem(KEYS.offlineQueue, JSON.stringify(queue));
-}
-
-export function saveOfflineQueue(queue: OfflineQueueEntry[]): void {
-  setTenantItem(KEYS.offlineQueue, JSON.stringify(queue));
-}
-
-/** Remove a single offline queue entry by its payload's local_id. */
-export function removeFromOfflineQueue(localId: string): void {
-  const queue = loadOfflineQueue().filter(e => (e.payload as any)?.local_id !== localId);
-  saveOfflineQueue(queue);
-}
-
-// ── Failed (dead-letter) queue ────────────────────────────────
-// Sales that repeatedly failed to sync are moved here so they are NEVER lost.
-// They are surfaced to the operator for manual retry rather than silently dropped.
 
 export function loadFailedQueue(): OfflineQueueEntry[] {
+  return currentSales().filter(entry => entry.state === 'failed');
+}
+
+export function addToOfflineQueue(payload: unknown, receipt?: CompletedSale): OfflineQueueEntry {
+  const prefix = outboxPrefix();
+  const key = saleKey(prefix, payload);
+  const existing = readSales(prefix).find(entry => saleLocalId(entry.payload) === saleLocalId(payload));
+  if (existing) return existing;
+  const entry: StoredSale = { payload, receipt, queued_at: new Date().toISOString(), attempts: 0, state: 'pending' };
   try {
-    const raw = getTenantItem(KEYS.failedQueue);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+    writeSale(key, entry);
+  } finally { notifyOutboxChanged(true); }
+  return entry;
 }
 
-export function saveFailedQueue(queue: OfflineQueueEntry[]): void {
-  setTenantItem(KEYS.failedQueue, JSON.stringify(queue));
+function removeQueuedSale(localId: string) {
+  const key = `${outboxPrefix()}${encodeURIComponent(localId)}`;
+  localStorage.removeItem(key);
+  volatileSales.delete(key);
+  notifyOutboxChanged();
 }
 
-/** Remove a single failed queue entry by its payload's local_id. */
-export function removeFromFailedQueue(localId: string): void {
-  const queue = loadFailedQueue().filter(e => (e.payload as any)?.local_id !== localId);
-  saveFailedQueue(queue);
-}
+export function removeFromOfflineQueue(localId: string): void { removeQueuedSale(localId); }
+export function removeFromFailedQueue(localId: string): void { removeQueuedSale(localId); }
 
-/** Move every dead-lettered sale back into the live queue for another attempt. */
 export function retryFailedQueue(): void {
-  const failed = loadFailedQueue();
-  if (!failed.length) return;
-  const queue = loadOfflineQueue();
-  for (const entry of failed) queue.push({ ...entry, attempts: 0 });
-  saveOfflineQueue(queue);
-  saveFailedQueue([]);
+  const prefix = outboxPrefix();
+  for (const entry of currentSales().filter(sale => sale.state === 'failed')) {
+    writeSale(saleKey(prefix, entry.payload), { ...entry, attempts: 0, state: 'pending', next_attempt_at: undefined });
+  }
+}
+
+export function loadLastCompletedSale(): CompletedSale | null {
+  const raw = getTenantItem(KEYS.lastReceipt);
+  const archived: CompletedSale | null = raw ? JSON.parse(raw) : null;
+  const receipts: CompletedSale[] = currentSales().flatMap(entry => entry.receipt ? [{
+    ...entry.receipt,
+    sync_status: volatileSales.has(saleKey(outboxPrefix(), entry.payload))
+      ? 'storage_failed' as const : entry.state === 'failed' ? 'needs_review' as const : 'pending' as const,
+  }] : []);
+  if (archived) receipts.push(archived);
+  return receipts.sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
 }
 
 // ── UUID generator ────────────────────────────────────────────
@@ -351,48 +442,87 @@ export function newLocalId(): string {
 }
 
 // ── Drain offline queue ───────────────────────────────────────
-// Sends each queued sale to the server. Entries that keep failing are moved to a
-// dead-letter queue (loadFailedQueue) after MAX_LIVE_ATTEMPTS — they are NEVER
-// silently discarded, so no sale can disappear. A 4xx (other than network/5xx)
-// for a malformed payload is also dead-lettered rather than retried forever.
+// Retry outages without discarding paid sales. Domain rejections stay visible
+// in Failed sales for review, rather than being silently treated as uploaded.
 
-const MAX_LIVE_ATTEMPTS = 5;
+export function drainOfflineQueue(options: { force?: boolean } = {}): Promise<void> {
+  const config = loadDeviceConfig();
+  if (!config?.business_id || (typeof navigator !== 'undefined' && navigator.onLine === false)) return Promise.resolve();
+  const prefix = outboxPrefix();
+  const active = drains.get(prefix);
+  if (active) return active;
+  const run = () => drainSales(prefix, config, options.force === true);
+  const promise = (typeof navigator !== 'undefined' && navigator.locks
+    ? navigator.locks.request<void>(prefix, run) : run())
+    .finally(() => { drains.delete(prefix); });
+  drains.set(prefix, promise);
+  return promise;
+}
 
-export async function drainOfflineQueue(): Promise<void> {
+async function drainSales(prefix: string, config: DeviceConfig, force: boolean): Promise<void> {
   const queue = loadOfflineQueue();
-  if (!queue.length) return;
-
-  const remaining: OfflineQueueEntry[] = [];
-  const failed = loadFailedQueue();
-
-  for (const entry of queue) {
+  for (const original of queue) {
+    if (!force && original.next_attempt_at && Date.parse(original.next_attempt_at) > Date.now()) break;
+    const currentConfig = loadDeviceConfig();
+    if (currentConfig?.business_id !== config.business_id || currentConfig.location_id !== config.location_id
+      || currentConfig.register_id !== config.register_id) break;
+    const key = saleKey(prefix, original.payload);
+    const entry = readSales(prefix).find(sale => saleKey(prefix, sale.payload) === key && sale.state === 'pending');
+    if (!entry) continue;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SALE_UPLOAD_TIMEOUT_MS);
     try {
       const res = await fetch('/api/pos/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry.payload),
+        body: JSON.stringify({
+          ...(entry.payload && typeof entry.payload === 'object' ? entry.payload : {}),
+          business_id: config.business_id,
+        }),
+        signal: controller.signal,
       });
-      if (res.ok) continue; // synced — drop from queue
-
-      // Read the actual error body for a useful diagnostic message
+      if (res.ok) {
+        const result: {
+          success?: boolean; id?: number; stockWarning?: string;
+          stockWarnings?: Array<{ itemName?: string }>;
+        } = await res.json();
+        if (result.success !== true || !Number.isInteger(result.id) || Number(result.id) <= 0) {
+          throw new Error('The server did not acknowledge the sale.');
+        }
+        if (entry.receipt) {
+          const receiptKey = `${KEYS.lastReceipt}:${config.business_id}`;
+          const raw = localStorage.getItem(receiptKey);
+          const last: CompletedSale | null = raw ? JSON.parse(raw) : null;
+          if (!last || last.created_at <= entry.receipt.created_at) {
+            const stockWarning = result.stockWarning || (Array.isArray(result.stockWarnings) && result.stockWarnings.length > 0)
+              ? 'Stock needs review for this sale. Check its stock warning in IMS before making a correction.' : undefined;
+            localStorage.setItem(receiptKey, JSON.stringify({
+              ...entry.receipt, id: result.id, sync_status: 'synced', stock_sync_warning: stockWarning,
+            }));
+          }
+        }
+        localStorage.removeItem(key);
+        volatileSales.delete(key);
+        notifyOutboxChanged();
+        continue;
+      }
       let errMsg = `HTTP ${res.status}`;
-      try {
-        const body = await res.clone().json();
-        if (body?.error) errMsg = `${res.status}: ${body.error}`;
-      } catch { /* ignore parse failures */ }
-
-      entry.attempts++;
-      entry.last_error = errMsg;
-      if (entry.attempts < MAX_LIVE_ATTEMPTS) remaining.push(entry);
-      else failed.push(entry); // dead-letter — kept for manual retry, never lost
-    } catch (e: any) {
-      entry.attempts++;
-      entry.last_error = e?.message || 'Network error';
-      // Network errors keep retrying in the live queue (don't dead-letter on offline)
-      remaining.push(entry);
-    }
+      const body: { error?: string } | null = await res.json().catch(() => null);
+      if (typeof body?.error === 'string') errMsg = `${res.status}: ${body.error}`;
+      if (!readSales(prefix).some(sale => saleKey(prefix, sale.payload) === key)) continue;
+      const attempts = entry.attempts + 1;
+      const state = res.status >= 500 || [401, 403, 408, 429].includes(res.status) ? 'pending' : 'failed';
+      writeSale(key, { ...entry, attempts, last_error: errMsg, state,
+        next_attempt_at: new Date(Date.now() + Math.min(300_000, 15_000 * 2 ** Math.min(attempts, 5))).toISOString() });
+      if (state === 'failed') reportPosSaleBrowserIssue('pos_sale_sync', saleLocalId(entry.payload), config.business_id);
+      if (state === 'pending') break;
+    } catch (error) {
+      if (readSales(prefix).some(sale => saleKey(prefix, sale.payload) === key)) {
+        writeSale(key, { ...entry, attempts: entry.attempts + 1,
+          last_error: error instanceof Error ? error.message : 'Sale upload could not be confirmed.',
+          next_attempt_at: new Date(Date.now() + Math.min(300_000, 15_000 * 2 ** Math.min(entry.attempts + 1, 5))).toISOString() });
+      }
+      break;
+    } finally { clearTimeout(timeout); }
   }
-
-  saveOfflineQueue(remaining);
-  saveFailedQueue(failed);
 }

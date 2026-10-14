@@ -11,10 +11,17 @@ export async function POST(request: Request) {
     digest?: string;
     pathname?: string;
     operation?: string;
+    businessId?: string;
+    localId?: string;
   } | null;
-  const isPosOperation = ['pos_login_cache_write', 'pos_terminal_refund', 'pos_terminal_purchase'].includes(body?.operation ?? '');
+  const isSaleRecovery = ['pos_sale_local_storage', 'pos_sale_sync'].includes(body?.operation ?? '');
+  const isCatalogueFailure = body?.operation === 'pos_catalogue_refresh';
+  const isPosOperation = isSaleRecovery || isCatalogueFailure || ['pos_login_cache_write', 'pos_terminal_refund', 'pos_terminal_purchase'].includes(body?.operation ?? '');
   const session = await getImsSession(isPosOperation ? ['pos_session', 'marketoir_session'] : ['marketoir_session', 'pos_session']);
   if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  if (body?.businessId && body.businessId !== session.businessId) {
+    return NextResponse.json({ error: 'POS business changed before the issue was reported.' }, { status: 409 });
+  }
   if (!body?.message?.trim()) {
     return NextResponse.json({ error: 'message is required.' }, { status: 400 });
   }
@@ -27,15 +34,17 @@ export async function POST(request: Request) {
   const isTerminalFailure = body.operation === 'pos_terminal_refund' || body.operation === 'pos_terminal_purchase';
   await reportRuntimeIssue({
     businessId: session.businessId,
-    source: isTerminalFailure ? 'pos_terminal' : 'browser',
-    operation: isTerminalFailure ? body.operation! : isPosCacheFailure ? 'pos_login_cache_write' : 'react_error_boundary',
-    title: isTerminalFailure ? `POS terminal ${body.operation === 'pos_terminal_refund' ? 'refund' : 'payment'} failed` : isPosCacheFailure ? 'POS browser cache could not be persisted' : 'Unhandled browser application error',
+    source: isCatalogueFailure ? 'pos_catalogue' : isSaleRecovery ? 'pos_sale' : isTerminalFailure ? 'pos_terminal' : 'browser',
+    operation: isSaleRecovery || isTerminalFailure || isCatalogueFailure ? body.operation! : isPosCacheFailure ? 'pos_login_cache_write' : 'react_error_boundary',
+    title: isCatalogueFailure ? 'POS stock catalogue could not be refreshed' : isSaleRecovery ? 'Paid POS sale requires device recovery' : isTerminalFailure ? `POS terminal ${body.operation === 'pos_terminal_refund' ? 'refund' : 'payment'} failed` : isPosCacheFailure ? 'POS browser cache could not be persisted' : 'Unhandled browser application error',
     error,
     context: {
       digest: body.digest?.slice(0, 255) || null,
       pathname: body.pathname?.slice(0, 500) || null,
       user_agent: request.headers.get('user-agent')?.slice(0, 500) || null,
     },
+    reference: (isSaleRecovery || isCatalogueFailure) && typeof body.localId === 'string' && body.localId
+      ? { type: 'pos_sale_local_id', id: body.localId.slice(0, 255) } : undefined,
   });
 
   return NextResponse.json({ success: true });

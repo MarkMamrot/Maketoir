@@ -160,7 +160,7 @@
     {
       "id": "public-capability:ims-sales-channels",
       "title": "Sales Channels",
-      "summary": "Review and configure each connected online storefront separately.",
+      "summary": "Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.",
       "capabilities": [
         "ims",
         "integrations"
@@ -602,7 +602,7 @@
     {
       "id": "public-capability:pos-selling-payments-manager-approval",
       "title": "Selling, Payments, and Manager Approval",
-      "summary": "Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.",
+      "summary": "Build a tax-inclusive sale, take split tender, print ordinary paid-sale receipts without waiting for upload, and respond to manager approval prompts.",
       "capabilities": [
         "pos"
       ],
@@ -612,7 +612,7 @@
     {
       "id": "public-capability:pos-settings-terminals-offline-recovery",
       "title": "Settings, Terminals, and Offline Recovery",
-      "summary": "Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.",
+      "summary": "Manage POS settings, pair Zeller, print saved ordinary receipts without waiting for upload, and recover queued or rejected sales safely.",
       "capabilities": [
         "pos"
       ],
@@ -750,7 +750,7 @@
     {
       "id": "prospect-syncbooks",
       "title": "SyncBooks Bookkeeping",
-      "summary": "SyncBooks offers general bookkeeping support for Australian businesses at /syncbooks, with local, overseas or blended delivery. Indicative monthly packages start at $499, $899 and $1,599 excluding GST, with custom scope available. Request a free consultation with explicit email contact consent. SyncBooks works alongside your accountant or registered BAS or tax agent; bookkeeping support is not regulated tax or financial advice.",
+      "summary": "SyncBooks offers general bookkeeping support for Australian businesses at /syncbooks, with local, overseas or blended delivery. Indicative monthly packages start at $399, $599 and $999 excluding GST, with custom scope available. Request a free consultation with explicit email contact consent. SyncBooks works alongside your accountant or registered BAS or tax agent; bookkeeping support is not regulated tax or financial advice.",
       "capabilities": [
         "accounting",
         "support",

@@ -4,6 +4,7 @@ import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin,
 import { useEffect, useState } from 'react';
 
 import AmazonChannelDetailView from './AmazonChannelDetailView';
+import BuiltInSalesChannels from './BuiltInSalesChannels';
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
 import SalesChannelRow from './SalesChannelRow';
 import ShopifyChannelDetailView from './ShopifyChannelDetailView';
@@ -111,7 +112,13 @@ function formatLastSync(value: string | null): string {
   }).format(date);
 }
 
-export default function SalesChannelsView({ canManage = false, xeroAccountingEnabled = false }: { canManage?: boolean; xeroAccountingEnabled?: boolean }) {
+export default function SalesChannelsView({ canManage = false, xeroAccountingEnabled = false, onConfigureBuiltIn, onManageLocations }: {
+  canManage?: boolean;
+  xeroAccountingEnabled?: boolean;
+  onConfigureBuiltIn?: (section: 'pos' | 'wholesale') => void;
+  onManageLocations?: () => void;
+}) {
+  const [builtInRefreshKey, setBuiltInRefreshKey] = useState(0);
   const [instances, setInstances] = useState<ChannelInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -811,7 +818,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
         <div>
           <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 22, fontWeight: 750 }}>Sales Channels</h1>
-          <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>Connected storefronts and their current operating state.</p>
+          <p style={{ margin: '6px 0 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>In-store, B2B and online sales channels and their current operating state.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {canManage && (
@@ -821,7 +828,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
           )}
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => { setBuiltInRefreshKey(key => key + 1); void load(); }}
             disabled={loading}
             title="Refresh sales channels"
             aria-label="Refresh sales channels"
@@ -847,12 +854,19 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
         </div>
       )}
 
+      <BuiltInSalesChannels
+        canManage={canManage}
+        refreshKey={builtInRefreshKey}
+        onConfigure={onConfigureBuiltIn}
+        onManageLocations={onManageLocations}
+      />
+
       {loading && instances.length === 0 ? (
         <div style={{ padding: '48px 0', color: 'var(--sv-text-dim)', textAlign: 'center', fontSize: 13 }}>Loading sales channels...</div>
       ) : !error && instances.length === 0 ? (
         <div style={{ padding: '52px 20px', borderTop: '1px solid var(--sv-border)', borderBottom: '1px solid var(--sv-border)', textAlign: 'center' }}>
           <Store size={24} aria-hidden="true" style={{ margin: '0 auto 10px', color: 'var(--sv-text-dim)' }} />
-          <div style={{ color: 'var(--sv-text-strong)', fontWeight: 700 }}>No sales channels</div>
+          <div style={{ color: 'var(--sv-text-strong)', fontWeight: 700 }}>No online storefronts connected</div>
         </div>
       ) : (
         <div style={{ borderTop: '1px solid var(--sv-border)' }}>

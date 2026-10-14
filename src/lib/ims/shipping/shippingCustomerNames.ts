@@ -2,6 +2,7 @@ import { getShopifyOperationContext } from "@/lib/channels/shopifyOperationConte
 import { reportRuntimeIssue } from "@/lib/runtimeIssues";
 import { ShopifyService } from "@/services/ShopifyService";
 import { imsQuery } from "@/services/IMSMySQLService";
+import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { isPlaceholderShippingCustomerName } from "./shippingWorkflow";
 export { isPlaceholderShippingCustomerName } from "./shippingWorkflow";
 
@@ -24,21 +25,23 @@ function specificName(value: unknown): string | null {
 
 export async function resolveShippingOrderCustomerName(
   businessId: string, soId: number, recipientName: unknown,
+  connection?: Pick<PoolConnection, 'execute'>,
 ): Promise<ShippingCustomerDisplay> {
   const savedName = specificName(recipientName);
   if (savedName) return { name: savedName, issue: null };
-  const rows = await imsQuery<{
+  type CustomerRow = RowDataPacket & {
     customer_name: string | null; sales_channel: string | null;
     channel_instance_id: string | null; external_order_id: string | null;
-  }>(
-    `SELECT contact.name AS customer_name, sales_order.sales_channel,
+  };
+  const sql = `SELECT contact.name AS customer_name, sales_order.sales_channel,
             sales_order.channel_instance_id, sales_order.external_order_id
        FROM ims_sales_orders sales_order
        LEFT JOIN ims_contacts contact
          ON contact.id = sales_order.customer_id AND contact.business_id = sales_order.business_id
-      WHERE sales_order.business_id = ? AND sales_order.id = ? LIMIT 1`,
-    [businessId, soId],
-  );
+      WHERE sales_order.business_id = ? AND sales_order.id = ? LIMIT 1`;
+  const rows = connection
+    ? (await connection.execute<CustomerRow[]>(sql, [businessId, soId]))[0]
+    : await imsQuery<CustomerRow>(sql, [businessId, soId]);
   if (!rows[0]) throw new Error("Sales order not found while resolving the shipping recipient.");
   const row = rows[0];
   const names = await resolveShippingCustomerNames(businessId, [{

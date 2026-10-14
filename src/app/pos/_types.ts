@@ -78,6 +78,8 @@ export interface ParkedSale {
 
 export interface CompletedSale {
   id:            number | null;
+  sync_status?:  'pending' | 'synced' | 'storage_failed' | 'needs_review';
+  stock_sync_warning?: string;
   is_training?:  boolean;
   local_id:      string;
   location_name: string;

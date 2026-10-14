@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 
 import { ImsLocationsRepo, ImsSORepo } from "@/lib/ims/ImsRepository";
 import { getIMSPool } from "@/services/IMSMySQLService";
@@ -256,6 +256,7 @@ export async function createShippingDrafts(
 
 export async function prepareShippingRequest(
   input: ShippingRequestInput,
+  connection?: Pick<PoolConnection, 'execute'>,
 ): Promise<PreparedShippingRequest> {
   const deferredCarrier = input.preparationOnly === true && input.carrierAccountId === null;
   if (!deferredCarrier && (input.carrierAccountId === null || !Number.isInteger(input.carrierAccountId) || input.carrierAccountId <= 0))
@@ -272,14 +273,14 @@ export async function prepareShippingRequest(
   >(
     `SELECT id, provider, dispatch_location_id FROM ims_shipping_carrier_accounts
       WHERE business_id = ? AND id = ? AND is_active = 1 LIMIT 1`,
-    [input.businessId, input.carrierAccountId],
+    [input.businessId, input.carrierAccountId], connection,
   );
   const accountRow = accountRows[0];
   if (!deferredCarrier && !accountRow) throw new ShippingBatchError("Active carrier account not found.", 400);
 
   const entries: PreparedShippingRequest["entries"] = [];
   for (const requested of input.shipments) {
-    const order = await ImsSORepo.get(Number(requested.soId), input.businessId);
+    const order = await ImsSORepo.get(Number(requested.soId), input.businessId, connection);
     if (!order?.items)
       throw new ShippingBatchError(`Sales order ${requested.soId} was not found.`, 400);
     const remainingQuantity = order.items.reduce(
@@ -318,6 +319,7 @@ export async function prepareShippingRequest(
     const location = await ImsLocationsRepo.get(
       dispatchLocationId,
       input.businessId,
+      connection,
     );
     if (!location)
       throw new ShippingBatchError(`${order.so_number}: dispatch location not found.`, 400);
@@ -343,7 +345,7 @@ export async function prepareShippingRequest(
       phone: order.customer_phone || "",
     };
     if (isPlaceholderShippingCustomerName(recipient.name)) {
-      const customer = await resolveShippingOrderCustomerName(input.businessId, Number(order.id), recipient.name);
+      const customer = await resolveShippingOrderCustomerName(input.businessId, Number(order.id), recipient.name, connection);
       if (customer.name) recipient.name = customer.name;
       else if (!input.preparationOnly)
         throw new ShippingBatchError(`${order.so_number}: ${customer.issue} Enter the actual delivery recipient before buying labels.`, 400);
@@ -460,7 +462,12 @@ export function validateShippingRecipient(value: ShippingAmendmentRecipient): Sh
 async function queryRows<T extends RowDataPacket>(
   sql: string,
   params: Array<string | number | null>,
+  callerConnection?: Pick<PoolConnection, 'execute'>,
 ): Promise<T[]> {
+  if (callerConnection) {
+    const [rows] = await callerConnection.execute<RowDataPacket[]>(sql, params);
+    return rows as T[];
+  }
   const connection = await getIMSPool().getConnection();
   try {
     const [rows] = await connection.execute<RowDataPacket[]>(sql, params);

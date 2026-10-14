@@ -156,13 +156,14 @@ describe('POST /api/pos/sales training mode', () => {
 
     expect(response.status).toBe(500);
     const body = await response.json();
-    expect(body.error).toContain('keep it in the cart');
+    expect(body.error).toContain('save could not be confirmed');
+    expect(body.error).toContain('without charging the customer again');
     expect(body.error).not.toContain('collation');
     expect(body.error).not.toContain('approved-payment');
   });
 
   it('reports slow successful sales without payment or customer data', async () => {
-    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(12_050);
+    const now = vi.spyOn(Date, 'now').mockReturnValue(12_050).mockReturnValueOnce(1_000).mockReturnValueOnce(1_000);
     const response = await POST(new Request('http://localhost/api/pos/sales', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -182,7 +183,7 @@ describe('POST /api/pos/sales training mode', () => {
       businessId: 'sage',
       operation: 'slow_completion',
       deferAlert: true,
-      context: expect.objectContaining({ saleId: 101, locationId: 2, durationMs: 11_050, itemCount: 1, paymentCount: 1 }),
+      context: expect.objectContaining({ saleId: 101, locationId: 2, durationMs: 11_050, requestDurationMs: 11_050, preCompletionMs: 0, itemCount: 1, paymentCount: 1 }),
       reference: { type: 'pos_sale', id: 101 },
     }));
     expect(JSON.stringify(mocks.reportRuntimeIssue.mock.calls[0][0])).not.toContain('secret-transaction-reference');

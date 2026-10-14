@@ -92,8 +92,8 @@ describe("atomic tenant-scoped batch membership", () => {
   it('attaches the chosen carrier and its sender snapshot atomically when batching an accountless preparation', async () => {
     setup([shipment(1, { carrier_account_id: null, provider_shipment_id: null, status: 'draft', membership_id: 1, batch_key: null })]);
     await changeShippingBatchMembership('tenant-a', { ...input([1], 'new'), createBatch: true, carrierAccountId: 9 });
-    expect(mocks.prepare).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'tenant-a', carrierAccountId: 9 }));
-    expect(mocks.detail).toHaveBeenCalledWith('tenant-a', 1);
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'tenant-a', carrierAccountId: 9 }), mocks);
+    expect(mocks.detail).toHaveBeenCalledWith('tenant-a', 1, mocks);
     expect(writes()[0]).toEqual([
       expect.stringContaining('UPDATE ims_shipping_shipments SET carrier_account_id'),
       [9, 'auspost_eparcel', 3, '{"name":"Selected warehouse"}', 'tenant-a', 1, 2],

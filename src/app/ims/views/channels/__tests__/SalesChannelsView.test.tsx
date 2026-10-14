@@ -37,10 +37,11 @@ const instances = [
 describe('SalesChannelsView', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/ims#sales-channels');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, instances }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })));
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => Promise.resolve(new Response(JSON.stringify(
+      url === '/api/ims/settings' ? { success: true, data: { business_requires_pos: 'yes', sells_wholesale: 'yes' } }
+        : url === '/api/ims/locations' ? { success: true, data: [{ is_active: 1, has_pos: 1 }] }
+          : { success: true, instances },
+    ), { status: 200, headers: { 'Content-Type': 'application/json' } }))));
   });
 
   afterEach(() => {
@@ -54,6 +55,8 @@ describe('SalesChannelsView', () => {
     render(<SalesChannelsView canManage />);
 
     await screen.findByText('Retail Shopify');
+    await screen.findByRole('region', { name: 'Point of Sale' });
+    expect(screen.getByRole('region', { name: 'B2B Wholesale Portal' })).toBeTruthy();
     expect(screen.getAllByText('9 supported features')).toHaveLength(3);
     expect(screen.queryByText('Automatic assignment')).toBeNull();
     expect(screen.queryByText('Sync listings')).toBeNull();
@@ -64,5 +67,13 @@ describe('SalesChannelsView', () => {
     await waitFor(() => expect(window.location.hash).toBe('#sales-channels/amazon/amazon-1'));
     expect(screen.getByRole('heading', { name: 'Connection & readiness' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sync listings' })).toBeTruthy();
+  });
+
+  it('refreshes built-in channel settings with the overview', async () => {
+    const user = userEvent.setup();
+    render(<SalesChannelsView canManage />);
+    await screen.findByRole('region', { name: 'Point of Sale' });
+    await user.click(screen.getByRole('button', { name: 'Refresh sales channels' }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/ims/settings')).toHaveLength(2));
   });
 });

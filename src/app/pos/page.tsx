@@ -7,6 +7,7 @@ import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, P
 import { isInStockAtLocation } from './_productFilters';
 import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
+import { canCompleteSaleLocally, recordLocalSale } from './_localSale';
 import * as Zeller from '@/lib/zeller';
 import { executeZellerTransaction, getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import { canSaveLaybyDeposit } from '@/lib/pos/laybyPayments';
@@ -22,8 +23,9 @@ import {
   loadImageCache, saveImageCache, mergeImageDelta, getImageSyncWatermark, mergeProductImages,
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
-  addToOfflineQueue, drainOfflineQueue, loadOfflineQueue, removeFromOfflineQueue,
+  drainOfflineQueue, loadOfflineQueue, removeFromOfflineQueue,
   loadFailedQueue, retryFailedQueue, removeFromFailedQueue,
+  loadLastCompletedSale, POS_OUTBOX_CHANGED, reportPosSaleBrowserIssue,
   saveLocalSession, loadLocalSession, clearLocalSession,
   newLocalId,
 } from './_store';
@@ -1724,6 +1726,15 @@ function MainPos({
 
   function refreshQueueCount() { setQueueCount(loadOfflineQueue().length); setFailedCount(loadFailedQueue().length); }
 
+  useEffect(() => {
+    window.addEventListener(POS_OUTBOX_CHANGED, refreshQueueCount);
+    window.addEventListener('storage', refreshQueueCount);
+    return () => {
+      window.removeEventListener(POS_OUTBOX_CHANGED, refreshQueueCount);
+      window.removeEventListener('storage', refreshQueueCount);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   function discardQueueEntry(localId: string, fromFailed: boolean) {
     if (!confirm('Discard this queued sale?\n\nOnly do this if the sale never happened or was already recorded another way. This cannot be undone.')) return;
     if (fromFailed) removeFromFailedQueue(localId);
@@ -1756,12 +1767,13 @@ function MainPos({
     setSyncing(true);
     setSyncMsg(null);
     try {
-      await drainOfflineQueue();
+      await drainOfflineQueue({ force: true });
       refreshQueueCount();
       // Manual "Sync" is user-initiated and infrequent — always do a full
       // fetch so staff can trust it as a "make sure everything's right" action.
       await onSync(true);
-      setSyncMsg('✓ Synced');
+      const remaining = loadOfflineQueue().length + loadFailedQueue().length;
+      setSyncMsg(remaining > 0 ? `${remaining} sale${remaining === 1 ? '' : 's'} still awaiting sync or review` : '✓ Synced');
     } catch {
       setSyncMsg('Sync failed');
     } finally {
@@ -1771,7 +1783,13 @@ function MainPos({
   }
 
   // Persist cart on change
-  useEffect(() => { saveCurrentCart(cart); }, [cart]);
+  useEffect(() => {
+    try { saveCurrentCart(cart); }
+    catch {
+      reportPosSaleBrowserIssue('pos_sale_local_storage');
+      setSaleSubmitError('Device storage could not save the cart. Keep this page open and ask a manager to recover it.');
+    }
+  }, [cart]);
 
   // Drain offline queue on mount
   useEffect(() => { drainOfflineQueue().then(refreshQueueCount); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2089,7 +2107,11 @@ function MainPos({
     loyaltySaleLocalIdRef.current = null;
     setContactSearch('');
     setContactResults([]);
-    saveCurrentCart([]);
+    try { saveCurrentCart([]); }
+    catch {
+      reportPosSaleBrowserIssue('pos_sale_local_storage');
+      setSaleSubmitError('The old cart could not be cleared from device storage. Do not charge it again after reloading.');
+    }
   }
 
   async function startLinkedReturn(saleId: number) {
@@ -2230,19 +2252,22 @@ function MainPos({
         setSaleSubmitError('Saving a layby requires an internet connection. Keep the recorded deposit and retry without charging the customer again.');
         return;
       }
-      if ((isLayby || selectedReward || linkedReturnSaleId != null) && !loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
-      const localId = isLayby || selectedReward || linkedReturnSaleId != null ? loyaltySaleLocalIdRef.current! : (saleLocalId ?? newLocalId());
+      if (!loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
+      const localId = loyaltySaleLocalIdRef.current;
       const now = new Date().toISOString();
       const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
       const db_discount_total = discount_total + order_disc_amount + totals.loyalty_discount_amount;
 
       const payload: Record<string, unknown> = {
         is_training:   trainingMode,
+        business_id:   loadDeviceConfig()?.business_id,
         local_id:       localId,
+        completed_at:   now,
         register_id:    session.register_id ?? null,
-        ...(isLayby ? { register_session_id: regSession?.id } : {}),
+        register_session_id: regSession?.id,
         location_id:    session.location_id,
         cashier_id:     session.pos_user_id,
+        cashier_name:   session.full_name,
         sale_type:      isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
         return_of_sale_id: linkedReturnSaleId,
         status:         isLayby ? 'layby_active' : 'completed',
@@ -2304,15 +2329,52 @@ function MainPos({
         };
       }
 
+      const completedSale: CompletedSale = {
+        id: null,
+        is_training: trainingMode,
+        local_id: localId,
+        location_name: session.location_name,
+        cashier_name: session.full_name,
+        sale_type: isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
+        status: isLayby ? 'layby_active' : 'completed',
+        items: cart,
+        payments,
+        subtotal, discount_total: db_discount_total, tax_total, total,
+        cash_rounding: cashRounding || undefined,
+        change_due: changeDue > 0.004 ? Math.round(changeDue * 100) / 100 : undefined,
+        customer_name: customerName || null,
+        customer_phone: customerPhone || null,
+        notes: saleNotes || null,
+        created_at: now,
+      };
+      if (canCompleteSaleLocally({
+        training: trainingMode, layby: isLayby, reward: Boolean(selectedReward),
+        linkedReturn: linkedReturnSaleId != null, buildRequired: buildDependentItems.length > 0,
+        items: cart, payments,
+      })) {
+        const recorded = recordLocalSale(payload, completedSale);
+        onSaleCompleted(recorded);
+        setShowPayment(false);
+        if (changeDue > 0.004) onChangeDue(Math.round(changeDue * 100) / 100);
+        onReceipt(recorded);
+        clearCart();
+        return;
+      }
+
       let serverId: number | null = null;
       let laybyCollected = false;
       try {
+        if (!navigator.onLine) {
+          setSaleSubmitError('This sale requires online confirmation. Keep its recorded payments in this page and retry saving without charging again.');
+          return;
+        }
         if (navigator.onLine) {
           if (isLayby) localStorage.setItem(`pos_layby_opening:${loadDeviceConfig()?.business_id}:${session.location_id}:${session.register_id}`, JSON.stringify(payload));
           const res = await fetch('/api/pos/sales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(15_000),
           });
           const data = await res.json();
           if (res.ok) {
@@ -2333,27 +2395,17 @@ function MainPos({
               );
             }
           }
-          else if (isLayby || trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
-            setSaleSubmitError(data.error || (linkedReturnSaleId != null ? 'The linked return could not be completed.' : 'Loyalty redemption could not be completed.'));
+          else {
+            setSaleSubmitError(data.error || 'The sale save could not be confirmed. Keep the recorded payments and retry saving without charging again.');
             return;
-          } else addToOfflineQueue(payload);
+          }
         } else {
-          if (trainingMode) {
-            setSaleSubmitError('Training Mode requires an internet connection so the training audit can be recorded.');
-            return;
-          }
-          if (selectedReward) {
-            setSaleSubmitError('Loyalty rewards can only be redeemed while online.');
-            return;
-          }
-          addToOfflineQueue(payload);
-        }
-      } catch {
-        if (isLayby || trainingMode || selectedReward || linkedReturnSaleId != null || payload.build_consent) {
-          setSaleSubmitError(isLayby ? 'The layby save could not be confirmed. Retry saving the recorded deposit without charging the customer again.' : linkedReturnSaleId != null ? 'The linked return could not reach the server. Try again while online.' : 'Loyalty redemption could not reach the server. Try completing the sale again.');
+          setSaleSubmitError('This sale requires online confirmation. Keep the recorded payments and retry saving without charging again.');
           return;
         }
-        addToOfflineQueue(payload);
+      } catch {
+        setSaleSubmitError('The sale save could not be confirmed. Keep this page open and retry saving its recorded payments without charging again.');
+        return;
       }
       refreshQueueCount();
 
@@ -2384,25 +2436,10 @@ function MainPos({
         }
       }
 
-      const completedSale: CompletedSale = {
-        id:            serverId,
-        is_training:   trainingMode,
-        local_id:      localId,
-        location_name: session.location_name,
-        cashier_name:  session.full_name,
-        sale_type:     isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
-        status:        isLayby ? (laybyCollected ? 'layby_complete' : 'layby_active') : 'completed',
-        items:         cart,
-        payments,
-        subtotal, discount_total: db_discount_total, tax_total, total,
-        cash_rounding:        cashRounding || undefined,
-        change_due:           changeDue > 0.004 ? Math.round(changeDue * 100) / 100 : undefined,
-        customer_name:        customerName || null,
-        customer_phone:       customerPhone || null,
-        created_at:           now,
-        gc_replacement_codes: gcReplacementCodes.length ? gcReplacementCodes : undefined,
-        gc_sync_warnings:     gcSyncWarnings.length ? gcSyncWarnings : undefined,
-      };
+      completedSale.id = serverId;
+      completedSale.status = isLayby ? (laybyCollected ? 'layby_complete' : 'layby_active') : 'completed';
+      completedSale.gc_replacement_codes = gcReplacementCodes.length ? gcReplacementCodes : undefined;
+      completedSale.gc_sync_warnings = gcSyncWarnings.length ? gcSyncWarnings : undefined;
 
       // lastSale is lifted to PosPage — notify parent instead
       onSaleCompleted(completedSale);
@@ -2496,6 +2533,7 @@ function MainPos({
             {[...loadOfflineQueue().map(e => ({ ...e, fromFailed: false })), ...loadFailedQueue().map(e => ({ ...e, fromFailed: true }))].map((entry, i) => {
               const p = entry.payload as any;
               const lid = p?.local_id ?? `entry-${i}`;
+              const savedReceipt = entry.receipt;
               return (
                 <div key={lid} style={{ background: 'var(--sv-bg-2, #111)', borderRadius: 6, padding: '10px 12px', marginBottom: 8, border: `1px solid ${entry.fromFailed ? 'rgba(248,113,113,.3)' : 'rgba(251,191,36,.2)'}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -2506,6 +2544,12 @@ function MainPos({
                       {p?.items?.length > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)' }}>{p.items.length} item{p.items.length !== 1 ? 's' : ''}</span>}
                       {entry.attempts > 0 && <span style={{ marginLeft: 8, color: '#f87171' }}>{entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}{entry.last_error ? ` — ${entry.last_error}` : ''}</span>}
                     </div>
+                    {savedReceipt && (
+                      <button onClick={() => { onReceipt(savedReceipt); setQueueInspectOpen(false); }}
+                        style={{ ...smallBtn, padding: '2px 8px', fontSize: 11 }}>
+                        Receipt
+                      </button>
+                    )}
                     <button
                       onClick={() => discardQueueEntry(lid, entry.fromFailed)}
                       title="Discard this queued sale"
@@ -5149,7 +5193,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   total:              number;
   methods:            string[];
   isLayby:            boolean;
-  onComplete:         (payments: PaymentEntry[], changeDue?: number, cashRounding?: number, saleLocalId?: string) => void;
+  onComplete:         (payments: PaymentEntry[], changeDue?: number, cashRounding?: number, saleLocalId?: string) => void | Promise<void>;
   onCancel:           () => void;
   zellerEnabled?:     boolean;
   cardTerminalMethods?: string[];
@@ -5163,6 +5207,9 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const terminalInFlight = useRef(false);
   const [terminalOutcomeUnknown, setTerminalOutcomeUnknown] = useState(false);
   const capturedPaymentIds = useRef(new Set<string>());
+  const approvedSaleIdRef = useRef<string>();
+  const completionInFlight = useRef(false);
+  const [savingSale, setSavingSale] = useState(false);
   const [manualOverride, setManualOverride] = useState(false);
   const isRefund  = total < 0;
   const absTotal  = Math.abs(total);
@@ -5233,7 +5280,23 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     finally { setGcLoading(false); }
   }
 
+  async function finishPayment(recordedPayments: PaymentEntry[], changeDue?: number, cashRounding?: number, saleLocalId?: string) {
+    if (completionInFlight.current) return;
+    completionInFlight.current = true;
+    setSavingSale(true);
+    try {
+      await onComplete(recordedPayments, changeDue, cashRounding, saleLocalId ?? approvedSaleIdRef.current);
+    } catch {
+      reportPosSaleBrowserIssue('pos_sale_local_storage', saleLocalId ?? approvedSaleIdRef.current);
+      setZellerError('Payment has been recorded, but saving needs recovery. Keep this page open and do not charge again.');
+    } finally {
+      completionInFlight.current = false;
+      setSavingSale(false);
+    }
+  }
+
   function addPayment() {
+    if (completionInFlight.current || terminalInFlight.current) return;
     setZellerError(null);
 
     // ── Gift Card (redemption) ──────────────────────────────────────────────
@@ -5250,7 +5313,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       setGcData(null);
       setGcCode('');
       if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
-        onComplete(newPayments, 0, 0);
+        void finishPayment(newPayments, 0, 0);
       }
       return;
     }
@@ -5267,7 +5330,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       setPayments(newPayments);
       setAmount('');
       if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
-        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
+        void finishPayment(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
       }
       return;
     }
@@ -5284,7 +5347,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       setAmount('');
       setGcCode('');
       if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
-        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
+        void finishPayment(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
       }
       return;
     }
@@ -5300,7 +5363,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       setPayments(newPayments);
       setAmount('');
       if (newPayments.reduce((s, p) => s + p.amount, 0) >= absTotal - 0.001) {
-        onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
+        void finishPayment(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, 0);
       }
       return;
     }
@@ -5326,7 +5389,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
     const roundingAdj = isCashMethod ? cashRoundAdj : 0;
     if (newPaid - roundingAdj >= absTotal - 0.001) {
       const changeAmt = Math.round((tendered - contribution) * 100) / 100;
-      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0, roundingAdj !== 0 ? roundingAdj : undefined);
+      void finishPayment(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, changeAmt > 0.004 ? changeAmt : 0, roundingAdj !== 0 ? roundingAdj : undefined);
     }
   }
 
@@ -5339,7 +5402,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   }
 
   async function handleZellerTransaction() {
-    if (terminalInFlight.current || terminalOutcomeUnknown || capturedPaymentIds.current.size > 0) return;
+    if (completionInFlight.current || terminalInFlight.current || terminalOutcomeUnknown || capturedPaymentIds.current.size > 0) return;
     terminalInFlight.current = true;
     setZellerPending(true);
     setZellerError(null);
@@ -5392,17 +5455,18 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         return;
       }
       const txId = approved.transactionUuid;
+      if (!approvedSaleIdRef.current) approvedSaleIdRef.current = `zeller:${txId}`;
       const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: amountCents / 100, reference: txId };
       capturedPaymentIds.current.add(newPayment.localId);
       const newPayments = [...payments, newPayment];
       setPayments(newPayments);
       setAmount('');
       const rounding = isCashMethod ? cashRoundAdj : 0;
-      onComplete(
+      await finishPayment(
         isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments,
         0,
         rounding !== 0 ? rounding : undefined,
-        `zeller:${txId}`,
+        approvedSaleIdRef.current,
       );
     } catch (e: any) {
       if (sentToTerminal) setTerminalOutcomeUnknown(true);
@@ -5417,12 +5481,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const isZellerActive = zellerEnabled && !manualOverride && (cardTerminalMethods ?? []).some(m => m.toLowerCase() === activeMethod.toLowerCase());
 
   function removePayment(localId: string) {
-    if (capturedPaymentIds.current.has(localId)) return;
+    if (completionInFlight.current || capturedPaymentIds.current.has(localId)) return;
     setPayments(prev => prev.filter(p => p.localId !== localId));
   }
 
   function completeZeroTotal() {
-    onComplete([{ localId: newLocalId(), method: 'No Charge', amount: 0, reference: '100% discount / giveaway' }]);
+    void finishPayment([{ localId: newLocalId(), method: 'No Charge', amount: 0, reference: '100% discount / giveaway' }]);
   }
 
   return (
@@ -5436,6 +5500,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         {submitError && (
           <div style={{ marginBottom: '1rem', padding: '.65rem .75rem', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 7, color: 'var(--sv-red)', fontSize: '.82rem', lineHeight: 1.4 }}>
             {submitError}
+          </div>
+        )}
+
+        {savingSale && (
+          <div role='status' style={{ marginBottom: '1rem', color: 'var(--sv-amber)' }}>
+            Payment recorded - confirming the sale. Do not charge again.
           </div>
         )}
 
@@ -5614,10 +5684,10 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         </div>
 
         <div style={{ display: 'flex', gap: '.75rem' }}>
-          <button disabled={zellerPending || capturedPaymentIds.current.size > 0} onClick={onCancel} style={{ ...smallBtn, flex: 1, opacity: zellerPending || capturedPaymentIds.current.size > 0 ? .4 : 1 }}>Cancel</button>
+          <button disabled={zellerPending || savingSale || capturedPaymentIds.current.size > 0} onClick={onCancel} style={{ ...smallBtn, flex: 1, opacity: zellerPending || savingSale || capturedPaymentIds.current.size > 0 ? .4 : 1 }}>Cancel</button>
           <button
-            onClick={() => isZeroTotal ? completeZeroTotal() : onComplete(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
-            disabled={!canComplete || zellerPending}
+            onClick={() => isZeroTotal ? completeZeroTotal() : void finishPayment(isRefund ? payments.map(p => ({ ...p, amount: -p.amount })) : payments)}
+            disabled={!canComplete || zellerPending || savingSale}
             style={{ flex: 2, padding: '.75rem', background: canComplete ? 'var(--sv-mint)' : 'var(--sv-bg-2)', border: 'none', borderRadius: 8, color: canComplete ? '#fff' : 'var(--sv-text-muted)', cursor: canComplete ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '1rem' }}
           >
             {isZeroTotal ? 'Complete No-Charge Sale' : isLayby ? `Save Layby` : isRefund ? `Complete Refund` : `Complete Sale`} ✓
@@ -5674,6 +5744,7 @@ interface ReceiptPrintSettings {
 }
 
 function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: CompletedSale; onClose: () => void; printSettings?: ReceiptPrintSettings; changeDue?: number }) {
+  const [helpOpen, setHelpOpen] = useState(false);
   const [printMode, setPrintMode] = useState<'normal' | 'gift'>('normal');
   const [emailAddr,   setEmailAddr]   = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -5761,6 +5832,23 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
         }
       `}</style>
 
+      <button className='no-print' onClick={() => setHelpOpen(true)} style={smallBtn}>Help</button>
+      <UnifiedHelpDrawer open={helpOpen} onOpenChange={setHelpOpen} audience='pos' product='pos' currentContext='pos-receipt'
+        chatEndpoint='/api/pos/assistant/chat' escalationEndpoint='/api/pos/assistant/escalate' supportEndpoint='/api/pos/support-tickets' />
+      {sale.stock_sync_warning && (
+        <div className='no-print' role='status' style={{ maxWidth: 600, color: 'var(--sv-amber)' }}>
+          {sale.stock_sync_warning}
+        </div>
+      )}
+      {sale.sync_status && sale.sync_status !== 'synced' && (
+        <div className='no-print' role='status' style={{ maxWidth: 600, padding: '1rem', border: '1px solid var(--sv-amber)', borderRadius: 8, color: 'var(--sv-amber)' }}>
+          {sale.sync_status === 'storage_failed'
+            ? 'Payment recorded, but device storage failed. Print the receipt and keep this page open. Ask a manager to recover the sale; do not charge again or clear browser data.'
+            : sale.sync_status === 'needs_review'
+            ? 'Payment recorded. The saved sale needs sync review; ask a manager to inspect Failed sales. Do not charge again.'
+            : 'Payment recorded and receipt ready. Saved on this device; syncing in the background. Do not enter or charge this sale again.'}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
         {/* Gift card replacement alert — shown when combined-mode partial redemption issued a new card */}
         {sale.gc_replacement_codes && sale.gc_replacement_codes.length > 0 && (
@@ -8575,6 +8663,40 @@ export default function PosPage() {
   const [openEodOnMount, setOpenEodOnMount] = useState(false);
   const syncCoordinator = useMemo(() => createPosSyncCoordinator(), []);
 
+  useEffect(() => {
+    if (!session || !deviceConfig?.business_id) return;
+    const refreshReceipt = () => {
+      try {
+        const latest = loadLastCompletedSale();
+        if (latest) {
+          setLastSale(latest);
+          setCompletedSale(current => current?.local_id === latest.local_id ? latest : current);
+        }
+      } catch {
+        reportPosSaleBrowserIssue('pos_sale_local_storage');
+        setCompletedSale(current => current ? { ...current, sync_status: 'storage_failed' } : current);
+      }
+    };
+    const syncSales = () => {
+      void drainOfflineQueue().catch(() => { reportPosSaleBrowserIssue('pos_sale_local_storage'); });
+    };
+    refreshReceipt();
+    const interval = window.setInterval(syncSales, 15_000);
+    const changed = (event: Event) => {
+      refreshReceipt();
+      if (event instanceof CustomEvent && event.detail?.sync) window.setTimeout(syncSales, 0);
+    };
+    window.addEventListener(POS_OUTBOX_CHANGED, changed);
+    window.addEventListener('online', syncSales);
+    const initialSync = window.setTimeout(syncSales, 0);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(initialSync);
+      window.removeEventListener(POS_OUTBOX_CHANGED, changed);
+      window.removeEventListener('online', syncSales);
+    };
+  }, [session, deviceConfig]);
+
   function checkRegisterGate(sess: PosSession, cfg: DeviceConfig, thenGoPos: () => void) {
     if (!cfg.register_id) { thenGoPos(); return; }
     // Validate the configured register still exists and is active. If it was
@@ -8814,6 +8936,22 @@ export default function PosPage() {
     }
   }
 
+  function showCompletedReceipt(sale: CompletedSale) {
+    setCompletedSale(sale);
+    setLastSale(sale);
+    setScreen('receipt');
+    if (sale.sale_type === 'layby') {
+      const config = deviceConfig;
+      void handleSync(false, config ?? undefined).catch(error => {
+        console.error('[POS] Layby stock catalogue refresh failed', error);
+        reportPosSaleBrowserIssue('pos_catalogue_refresh', sale.local_id, config?.business_id);
+        setCompletedSale(current => current?.local_id === sale.local_id
+          ? { ...current, stock_sync_warning: 'Local stock could not be refreshed. Use Sync before relying on stock counts.' }
+          : current);
+      });
+    }
+  }
+
   const mainPosContent = (
     <MainPos
       deviceConfig={deviceConfig}
@@ -8826,7 +8964,6 @@ export default function PosPage() {
       onEodMounted={() => setOpenEodOnMount(false)}
       onSync={handleSync}
       lastSale={lastSale}
-      onSaleCompleted={(sale) => setLastSale(sale)}
       onChangeDue={(amount) => setPendingChangeDue(amount)}
       onReceiptSettingsSaved={(footer, giftMsg) => setPrintSettings(prev => ({ ...prev, pos_receipt_footer: footer, gift_receipt_message: giftMsg }))}
       receiptCloseToken={receiptCloseToken}
@@ -8847,7 +8984,8 @@ export default function PosPage() {
         setSession(null);
         setScreen('login');
       }}
-      onReceipt={(sale) => {
+      onSaleCompleted={(sale) => {
+        if (sale.is_training || (sale.sale_type === 'layby' && sale.status !== 'layby_complete')) { setLastSale(sale); return; }
         // Instantly patch local SOH so counts update without waiting for a full sync
         if (sale.sale_type !== 'return') {
           setProducts(prev => {
@@ -8871,10 +9009,9 @@ export default function PosPage() {
             return updated;
           });
         }
-        setCompletedSale(sale);
         setLastSale(sale);
-        setScreen('receipt');
       }}
+      onReceipt={showCompletedReceipt}
     />
   );
   return (

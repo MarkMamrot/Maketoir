@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-customers","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-09-29","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Make sales, take payments and park carts","subgroup":"Selling & customer value"}}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-customers","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day"],"contexts":["pos","parked","pos-receipt"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale","pos-receipt":"Receipts and background saving"},"order":10,"summary":"Build a tax-inclusive sale, take split tender, print ordinary paid-sale receipts without waiting for upload, and respond to manager approval prompts.","lastReviewed":"2026-10-14","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Make sales, take payments and park carts","subgroup":"Selling & customer value"}}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -12,6 +12,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 - Find, create, or reactivate and link a retail customer when using store credit or loyalty.
 - Park an unfinished cart on this device and resume it later.
 - Add more than one tender when the customer splits payment.
+- Print an ordinary paid-sale receipt immediately while its saved device record uploads in the background.
 - Ask a manager to authorise an action only when POS displays the manager PIN prompt.
 
 ## At a glance
@@ -24,6 +25,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Product results | The image, price, and **i** action stay top-aligned while optional product details use the remaining space |
 | Split tender | Add payment lines until **Remaining** is zero |
 | Cash | The remaining balance is rounded to the nearest 5 cents; tendered cash and change are shown on the printed receipt |
+| Ordinary paid-sale receipt | Opens from the saved device record without waiting for a server response; a pending upload is not a failed payment |
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |
 | Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |
 | Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |
@@ -64,6 +66,21 @@ When **Allow sales from incoming transfers** is enabled, a sale can take locatio
 Products with **Tracks Inventory** off can be sold in any whole quantity at any POS location. They do not reduce on-hand stock, create a stock warning, or use incoming transfer quantities.
 
 When the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.
+
+## Receipts and background saving
+
+For an ordinary sale paid by cash, a manual tender, or an approved integrated card payment, POS saves the completed sale and receipt on this device before uploading it. The receipt opens without waiting for upload, so staff can print it and start the next sale.
+
+- **Saved on this device; syncing in the background** means payment is recorded and the receipt is ready. The sale appears in Reports once upload is confirmed.
+- A temporary server or network failure leaves the sale queued for automatic retry. **Sync** requests an immediate retry.
+- Retries reuse the original sale identity, payment reference, checkout time, and recorded register session. Do not re-enter the sale or charge the customer again.
+- **Reprint Last Sale** can reopen the latest saved ordinary receipt after a reload. The queue panel also offers **Receipt** for locally saved receipts that have not uploaded.
+- If POS warns that **device storage failed**, print the receipt and keep the page open. Ask a manager to recover the sale. Do not refresh, log out, clear browser data, or assume the sale will survive closing the browser.
+- If the sale **needs sync review**, inspect Failed sales and correct the reported problem before retrying. The payment is not repeated.
+
+Laybys, returns, reward redemption, gift-card or store-credit activity, Training Mode, and sales requiring a stock build retain their required online checks. They are not treated as successful ordinary offline sales. If an approved payment is shown while one of these saves is pending, retry saving the recorded payment without charging again.
+
+Stock warnings received during background upload require review in IMS. A warning does not undo the customer's payment or invalidate their receipt.
 
 ## Park and resume a sale
 

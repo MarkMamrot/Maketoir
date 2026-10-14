@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { PoolConnection } from 'mysql2/promise';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { calculateSupplierCreditTotals } from './supplierCreditTotals';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
@@ -692,10 +692,12 @@ export const ImsLocationsRepo = {
     return locations.map(location => ({ ...location, can_delete: !blockedIds.has(Number(location.id)) }));
   },
 
-  async get(id: number, businessId?: string): Promise<ImsLocation | null> {
+  async get(id: number, businessId?: string, connection?: Pick<PoolConnection, 'execute'>): Promise<ImsLocation | null> {
     const where = businessId ? 'WHERE id = ? AND business_id = ?' : 'WHERE id = ?';
     const params = businessId ? [id, businessId] : [id];
-    const rows = await imsQuery<any>(`SELECT * FROM ims_locations ${where}`, params);
+    const rows = connection
+      ? (await connection.execute<RowDataPacket[]>(`SELECT * FROM ims_locations ${where}`, params))[0]
+      : await imsQuery<any>(`SELECT * FROM ims_locations ${where}`, params);
     return rows[0] ? stripManagerPinHash(rows[0]) : null;
   },
 
@@ -2093,7 +2095,7 @@ export const ImsPORepo = {
       // Load landed costs for distribution on receive
       let landedCostRows: LandedCostRow[] = [];
       try {
-        landedCostRows = await imsQuery<LandedCostRow>(
+        [landedCostRows] = await conn.execute<Array<RowDataPacket & LandedCostRow>>(
           `SELECT * FROM ims_po_landed_costs WHERE po_id = ? ORDER BY sort_order ASC, id ASC`, [id]
         );
       } catch {}
@@ -4282,7 +4284,7 @@ export const ImsStocktakeRepo = {
           varWheres.push(sohCondition.sql);
           varParams.push(...sohCondition.params);
         }
-        const variants = await imsQuery<{ variant_id: string; qty_on_hand: number }>(
+        const [variants] = await conn.execute<Array<RowDataPacket & { variant_id: string; qty_on_hand: number }>>(
           `SELECT v.variant_id,
                   COALESCE(s.qty_on_hand, 0) AS qty_on_hand
            FROM ims_product_variants v
@@ -4944,7 +4946,7 @@ export const ImsBTRepo = {
       const [[bt]] = await conn.execute<any[]>(`SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [id, businessId]);
       if (!bt) throw new Error('Branch transfer not found');
 
-      const items = await imsQuery<ImsBTItem>(
+      const [items] = await conn.execute<Array<RowDataPacket & ImsBTItem>>(
         `SELECT * FROM ims_branch_transfer_items WHERE transfer_id = ?`, [id]
       );
 

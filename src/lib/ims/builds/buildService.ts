@@ -607,10 +607,13 @@ async function refreshAfterCommit(businessId: string, operation: string, variant
 
 export async function completeProductBuildBatch(input: ProductBuildBatchInput) {
   const connection = await getIMSPool().getConnection();
+  let released = false;
   try {
     await connection.beginTransaction();
     const result = await completeProductBuildInTransaction(connection, input);
     await connection.commit();
+    connection.release();
+    released = true;
     await refreshAfterCommit(input.businessId, 'complete', result.touchedVariantIds, result.batchId);
     if (input.sourceType === 'sales_order' && Number(input.sourceId) > 0) {
       await recomputeBuildRequirementsSafely({
@@ -621,7 +624,7 @@ export async function completeProductBuildBatch(input: ProductBuildBatchInput) {
     }
     return result;
   } catch (error) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     if (!(error instanceof ProductBuildValidationError)
       && !(error instanceof ProductBuildConflictError)
       && !(error instanceof FifoCostingConflict)) {
@@ -629,7 +632,7 @@ export async function completeProductBuildBatch(input: ProductBuildBatchInput) {
     }
     throw error;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }
 
@@ -741,6 +744,7 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
   });
   const connection = await getIMSPool().getConnection();
   let touchedVariantIds: string[] = [];
+  let released = false;
   try {
     await connection.beginTransaction();
     await assertBuildsEnabledOnConnection(connection, input.businessId);
@@ -944,10 +948,12 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
     );
     const shopifyQueued = await queueShopifyVariants(connection, touchedVariantIds);
     await connection.commit();
+    connection.release();
+    released = true;
     await refreshAfterCommit(input.businessId, 'reverse', touchedVariantIds, reversalId);
     return { reversalId, reversalNumber, buildItemId: input.buildItemId, quantity: input.quantity, replayed: false, shopifyQueued };
   } catch (error) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     if (!(error instanceof ProductBuildValidationError)
       && !(error instanceof ProductBuildConflictError)
       && !(error instanceof FifoCostingConflict)
@@ -956,6 +962,6 @@ export async function reverseProductBuild(rawInput: ProductBuildReversalInput) {
     }
     throw error;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }

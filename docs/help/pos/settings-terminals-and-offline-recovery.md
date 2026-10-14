@@ -1,5 +1,5 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Settings and recovery decisions","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Configure terminals and recover offline sales","subgroup":"Devices & recovery"}}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Recover queued sales","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage POS settings, pair Zeller, print saved ordinary receipts without waiting for upload, and recover queued or rejected sales safely.","lastReviewed":"2026-10-14","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Configure terminals and recover offline sales","subgroup":"Devices & recovery"}}
 ---
 # Settings, Terminals, and Offline Recovery
 
@@ -23,12 +23,12 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 | Workflow | Works offline? | What happens |
 |---|---|---|
 | Browse cached products and build a cart | Yes | Cached names, prices, and stock are shown; stale data is flagged |
-| Complete an ordinary sale with a manual tender | Yes | The sale is saved in this device's queue for later upload |
+| Complete an ordinary sale with a manual tender | Yes | The completed sale and printable receipt are saved on this device before background upload |
 | Park or resume a cart on this device | Yes | The cart remains in this browser only |
 | Linked return | No | The original sale and credit-note flow require the server |
 | Loyalty balance or reward | No | Current balance and redemption must be validated online |
 | Gift-card verification or store-credit lookup | No | Current value cannot be safely confirmed offline |
-| Zeller terminal payment | No | The browser and terminal both need working internet |
+| Zeller terminal payment | No | The browser and terminal need internet for approval; an approved ordinary sale can still print while its upload is queued |
 | Petty cash | No | The register entry and receipt upload require an open online session |
 | Branch transfer, Reports, register open/close, or End of Day | No | These workflows require current shared records |
 | Ask Solvantis | No | Assistant questions are not queued |
@@ -91,7 +91,7 @@ Training Mode does not create a live sale or affect inventory, Reports, End of D
 5. Leave **Terminal active this session** on when configured card methods should route to Zeller.
 6. At payment, wait for terminal approval. Use **manual entry instead** only when the business has separately completed or authorised the payment.
 
-### Recover queued sales
+## Recover queued sales
 
 1. Keep the same browser open and restore connectivity.
 2. If POS says queued sales have no open register session, open the register first so recent sales can link to it. If you upload without doing so, End of Day expected totals may omit them.
@@ -99,6 +99,12 @@ Training Mode does not create a live sale or affect inventory, Reports, End of D
 4. Open the queue panel to inspect anything still queued or marked Failed.
 5. Select the failed-sales retry action after correcting the connection or validation problem.
 6. Confirm each sale appears once in **Reports** before discarding any local entry.
+
+Ordinary sales enter the device queue before their first upload, including while POS shows Online. Upload retries happen in the background and reuse the original sale identity; they never charge the terminal again. Temporary outages, expired sign-in, and unavailable servers leave sales queued with a delay between attempts. A rejected sale remains in Failed for review. Newly recorded sales remain saved when an older upload completes.
+
+Use **Receipt** beside a queued sale to reopen its locally saved receipt. **Reprint Last Sale** also restores the latest saved ordinary receipt after reloading this device. A receipt can use a local reference until the server confirms the sale.
+
+> **Warning:** If device storage fails, the approved sale may only remain in the open page. Print its receipt, keep that page open, and ask a manager to recover the record. Do not refresh, log out, clear browser storage, or charge again.
 
 ### Reprint an old receipt
 
@@ -119,7 +125,7 @@ The browser controls its copy count and the Windows printer queue. Solvantis can
 | Product cache is stale | Verify prices with the customer and sync as soon as possible |
 | Products return after Sync but disappear after reload | Browser catalogue persistence is unavailable or was cleared | Keep the terminal online, reload once, and allow the catalogue rebuild to finish; ask a manager to review browser storage if it repeats |
 | POS reports incoming transfer stock was used | Complete the matching transfer receipt and verify the location quantity; do not add a separate positive adjustment |
-| A queued sale reaches repeated failures | Inspect its error, correct the cause, then retry from the failed queue |
+| A sale is rejected during upload | Inspect its error, correct the cause, then retry from the failed queue |
 | You are unsure whether a queued sale happened | Check the payment evidence and Reports; do not discard or duplicate it |
 
 > **Note:** Zeller connects through its cloud service. The POS device and terminal both require internet access; being on the same local network is not the deciding factor.
@@ -132,7 +138,9 @@ The browser controls its copy count and the Windows printer queue. Solvantis can
 | Training sale cannot complete | The device is offline or the cart uses a restricted workflow | Reconnect and use an ordinary sale without returns, laybys, rewards, gift cards, or store credit |
 | Terminal payment cannot start | Pairing, terminal availability, or internet is missing | Check the exact terminal message, then pair or reconnect |
 | Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |
-| A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |
+| A sale is in Failed | The server rejected its details; the paid-sale record remains saved locally | Correct the cause and use the failed-sales retry action without charging again |
+| Payment approved but sale is still queued | The server has not acknowledged upload | Print the saved receipt, keep device storage intact, and let Sync retry |
+| Device storage failed after payment | Browser storage could not retain the sale | Print the receipt, keep the page open, and ask a manager to recover it; do not refresh or recharge |
 | Offline POS has no products | This browser has no usable cached catalogue | Reconnect and sign in to refresh products before trading |
 | Products repeatedly disappear until Sync is selected | The device could not retain its IndexedDB catalogue or site data is being cleared | Keep the device online, run Sync once, then reload and confirm products remain; escalate if they disappear again |
 | An offline sale used incoming transfer stock | The transfer check occurred when the queued sale uploaded | Open IMS Notifications, complete the matching receipt, and verify location stock |
