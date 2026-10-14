@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { OrderPlannerRow as PlannerRow } from '@/lib/ims/orderPlanner';
+import { ReportScrollTable } from '../ims/views/reports/ReportScrollTable';
 
 type FilterType = 'brand' | 'supplier';
 
@@ -15,30 +17,20 @@ interface BranchOption {
   isActive: boolean;
 }
 
-interface PlannerRow {
-  productId: string;
-  optionId: string;
-  code: string;
-  name: string;
-  brand: string;
-  supplierId: string;
-  supplierName: string;
-  createdDate: string;
-  daysInStock: number;
-  effectiveSalesDays: number;
-  totalSOH: number;
-  totalAvailable: number;
-  totalIncoming: number;
-  salesQty: number;
-  avgDailySales: number;
-  leadTimeDays: number;
-  coverageDays: number;
-  suggestedQty: number;
-  packSize: number;
-  reorderQty: number;
-  cost: number;
-  estimatedLineValue: number;
+interface PlanParameters {
+  databaseId: string;
+  filterType: FilterType;
+  filterValue: string;
+  salesWindowDays: number;
+  orderFrequencyDays: number;
+  supplierLeadTimeOverrides: Record<string, number>;
+  salesScope: 'all' | 'selected';
+  salesBranchIds: string[];
 }
+
+const COLUMN_WIDTHS = [120, 310, 90, 90, 100, 100, 120, 100, 130, 120, 130, 140, 180, 110, 110];
+const TABLE_WIDTH = COLUMN_WIDTHS.reduce((total, width) => total + width, 0);
+const renderColGroup = () => <colgroup>{COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
 interface PlannerResponse {
   success: boolean;
@@ -98,6 +90,15 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
   const [salesBranchIds, setSalesBranchIds] = useState<string[]>([]);
   const [rows, setRows] = useState<PlannerRow[]>([]);
   const [showZeroRows, setShowZeroRows] = useState(false);
+  const [builtPlan, setBuiltPlan] = useState<PlanParameters | null>(null);
+  const currentDatabase = useRef(databaseId);
+  const planParameters: PlanParameters = {
+    databaseId, filterType, filterValue, salesWindowDays, orderFrequencyDays,
+    supplierLeadTimeOverrides: leadTimeOverride > 0 ? { __global: leadTimeOverride } : {},
+    salesScope,
+    salesBranchIds: salesScope === 'selected' ? salesBranchIds : [],
+  };
+  const controlsChanged = builtPlan !== null && JSON.stringify(builtPlan) !== JSON.stringify(planParameters);
 
   const activeBranches = useMemo(
     () => branches.filter(branch => branch.isActive),
@@ -133,7 +134,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
   }, [currentFilterOptions, filterQuery]);
 
   const filteredRows = useMemo(
-    () => showZeroRows ? rows : rows.filter(row => row.reorderQty > 0 || row.suggestedQty > 0),
+    () => showZeroRows ? rows : rows.filter(row => row.missingStockBranchIds.length > 0 || row.reorderQty > 0 || (row.suggestedQty ?? 0) > 0),
     [rows, showZeroRows],
   );
 
@@ -162,6 +163,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
         }),
       });
       const data = await res.json() as PlannerResponse;
+      if (currentDatabase.current !== databaseId) return;
       if (!data.success) throw new Error(data.error ?? 'Failed to load order planner options.');
       setBrandOptions(data.options?.brands ?? []);
       setSupplierOptions(data.options?.suppliers ?? []);
@@ -171,12 +173,16 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
         setSalesBranchIds((data.branches ?? []).filter(branch => branch.isActive).map(branch => branch.id));
       }
     } catch (e: any) {
+      if (currentDatabase.current !== databaseId) return;
       setError(e.message ?? 'Failed to load order planner options.');
     }
     setLoading(false);
   };
 
   useEffect(() => {
+    currentDatabase.current = databaseId;
+    setRows([]);
+    setBuiltPlan(null);
     loadOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [databaseId]);
@@ -205,6 +211,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
   const generatePlan = async () => {
     if (!databaseId) { setError('No business selected.'); return; }
     if (!filterValue) { setError(`Select a ${filterType} first.`); return; }
+    if (salesScope === 'selected' && salesBranchIds.length === 0) { setError('Select at least one sales branch.'); return; }
     setLoading(true);
     setError('');
     setMessage('');
@@ -216,16 +223,11 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'preview',
-          databaseId,
-          filterType,
-          filterValue,
-          salesWindowDays,
-          orderFrequencyDays,
-          supplierLeadTimeOverrides: leadTimeOverride > 0 ? { __global: leadTimeOverride } : {},
-          salesBranchIds: salesScope === 'selected' ? salesBranchIds : [],
+          ...planParameters,
         }),
       });
       const data = await res.json() as PlannerResponse;
+      if (currentDatabase.current !== databaseId) return;
       if (!data.success) throw new Error(data.error ?? 'Failed to build order plan.');
       setBrandOptions(data.options?.brands ?? []);
       setSupplierOptions(data.options?.suppliers ?? []);
@@ -237,16 +239,22 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
         estimatedLineValue: round((Number(row.reorderQty) || 0) * (Number(row.cost) || 0)),
       }));
       setRows(mappedRows);
-      const nonZeroCount = mappedRows.filter(r => r.reorderQty > 0 || r.suggestedQty > 0).length;
+      setBuiltPlan(planParameters);
+      const nonZeroCount = mappedRows.filter(r => r.reorderQty > 0 || (r.suggestedQty ?? 0) > 0).length;
+      const incompleteCount = mappedRows.filter(row => row.missingStockBranchIds.length > 0).length;
       const totalRows = data.summary?.totalRows ?? 0;
-      if (nonZeroCount === 0 && totalRows > 0) {
+      if (incompleteCount > 0) {
+        setMessage(`Built ${totalRows} products — ${incompleteCount} need branch stock checks. Their suggestions are withheld; check stock before entering a manual quantity.`);
+      } else if (nonZeroCount === 0 && totalRows > 0) {
         setMessage(`Built ${totalRows} product${totalRows === 1 ? '' : 's'} for this ${filterType} — all have zero suggested reorder quantity. Enable "Show zero-qty rows" to review them.`);
       } else {
         setMessage(`Built ${totalRows} product${totalRows === 1 ? '' : 's'} — ${nonZeroCount} have a non-zero reorder quantity.`);
       }
     } catch (e: any) {
+      if (currentDatabase.current !== databaseId) return;
       setError(e.message ?? 'Failed to build order plan.');
       setRows([]);
+      setBuiltPlan(null);
     }
     setLoading(false);
   };
@@ -254,6 +262,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
   const updateRow = (targetKey: string, field: 'reorderQty' | 'cost', nextValue: number) => {
     setRows(prev => prev.map(row => {
       if (rowKey(row) !== targetKey) return row;
+      if (field === 'reorderQty' && row.missingStockBranchIds.length > 0 && !row.stockChecked) return row;
       let value = nextValue;
       if (field === 'reorderQty' && row.packSize > 0 && value > 0) {
         value = Math.max(row.packSize, Math.round(value / row.packSize) * row.packSize);
@@ -264,9 +273,15 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
     }));
   };
 
+  const acknowledgeStock = (targetKey: string, checked: boolean) => {
+    setRows(previous => previous.map(row => rowKey(row) === targetKey
+      ? { ...row, stockChecked: checked, reorderQty: checked ? row.reorderQty : 0, estimatedLineValue: checked ? row.estimatedLineValue : 0 }
+      : row));
+  };
+
   const persist = async () => {
     if (!databaseId) { setError('No business selected.'); return; }
-    if (rows.length === 0) { setError('Generate an order plan first.'); return; }
+    if (rows.length === 0 || !builtPlan || builtPlan.databaseId !== databaseId) { setError('Generate an order plan for this business first.'); return; }
 
     setError('');
     setMessage('');
@@ -277,14 +292,8 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...builtPlan,
           action: 'save-draft',
-          databaseId,
-          filterType,
-          filterValue,
-          salesWindowDays,
-          orderFrequencyDays,
-          supplierLeadTimeOverrides: leadTimeOverride > 0 ? { __global: leadTimeOverride } : {},
-          salesBranchIds: salesScope === 'selected' ? salesBranchIds : [],
           rows,
         }),
       });
@@ -303,7 +312,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-xl">🧾</div>
@@ -520,12 +529,16 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="font-bold text-gray-800 text-base">Recommendation Lines</h3>
-            <p className="text-xs text-gray-500">Rows with non-zero reorder quantities are shown by default.</p>
+            <p className="text-xs text-gray-500">Non-zero quantities and incomplete-stock lines are shown by default.</p>
+            {builtPlan && <p className="text-xs text-gray-600">
+              Plan scope: {builtPlan.salesScope === 'all' ? 'All branches' : builtPlan.salesBranchIds.map(id => branches.find(branch => branch.id === id)?.name ?? id).join(', ')}; {builtPlan.salesWindowDays} days.
+            </p>}
+            {controlsChanged && <p role="status" className="text-xs text-amber-700">Controls changed. Rebuild to apply them; saving keeps the scope used to build this plan.</p>}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={persist}
-              disabled={saving || rows.length === 0}
+              disabled={saving || loading || rows.length === 0 || builtPlan?.databaseId !== databaseId}
               className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving…' : 'Save Draft Order'}
@@ -552,15 +565,18 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-gray-600">
+        <ReportScrollTable
+          ariaLabel="Order planner table. Use arrow keys to scroll."
+          bodyClassName="order-planner-table-scroll"
+          tableWidth={TABLE_WIDTH}
+          renderColGroup={renderColGroup}
+          frozenColumnWidths={[120]}
+          headerRows={<tr className="bg-gray-50 text-gray-600">
                 {['Code', 'Product', 'Sales Qty', 'Avg/Day', 'Available', 'Incoming', 'Suggested', 'Pack Size', 'Reorder Qty', 'Cost', 'Line Value', 'Brand', 'Supplier', 'Created', 'Days In Stock'].map(label => (
                   <th key={label} className="text-left font-semibold px-3 py-2 border-b border-gray-200 whitespace-nowrap">{label}</th>
                 ))}
-              </tr>
-            </thead>
+              </tr>}
+        >
             <tbody>
               {filteredRows.length === 0 && (
                 <tr>
@@ -584,22 +600,31 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
                 </tr>
               )}
               {filteredRows.map(row => (
-                <tr key={rowKey(row)} className="border-b border-gray-100 hover:bg-gray-50/70">
-                  <td className="px-3 py-2 font-mono text-gray-700 whitespace-nowrap">{row.code || '—'}</td>
+                <tr key={rowKey(row)} className="border-b border-gray-100 hover:bg-gray-50/70" style={{ background: 'var(--sv-bg-1)' }}>
+                  <td title={row.code} className="px-3 py-2 font-mono text-gray-700 whitespace-nowrap truncate">{row.code || '—'}</td>
                   <td className="px-3 py-2 min-w-52">
                     <div className="font-semibold text-gray-800">{row.name}</div>
                     <div className="text-gray-400">Option ID: {row.optionId || '—'}</div>
+                    {row.missingStockBranchIds.length > 0 && <div className="mt-2 text-amber-700">
+                      <p>Stock incomplete: {row.missingStockBranchIds.map(id => branches.find(branch => branch.id === id)?.name ?? id).join(', ')}. Suggestion withheld.</p>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={row.stockChecked} onChange={event => acknowledgeStock(rowKey(row), event.target.checked)} />
+                        Stock checked — allow manual quantity
+                      </label>
+                    </div>}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">{row.salesQty}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{row.avgDailySales}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.totalAvailable}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.totalIncoming}</td>
-                  <td className="px-3 py-2 whitespace-nowrap font-semibold text-gray-800">{row.suggestedQty}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{row.totalAvailable ?? '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{row.totalIncoming ?? '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap font-semibold text-gray-800">{row.suggestedQty ?? 'Withheld'}</td>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-500">{row.packSize > 0 ? row.packSize : '—'}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <input
                       type="number"
                       min={0}
+                      aria-label={`Reorder quantity for ${row.code || row.name}`}
+                      disabled={row.missingStockBranchIds.length > 0 && !row.stockChecked}
                       value={row.reorderQty}
                       onChange={e => updateRow(rowKey(row), 'reorderQty', Math.max(0, Number(e.target.value) || 0))}
                       className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg bg-white"
@@ -626,8 +651,7 @@ export function OrderPlannerView({ databaseId }: { databaseId: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </ReportScrollTable>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 ---
-{"id":"shared-troubleshooting-by-symptom","title":"Troubleshooting by Symptom","audiences":["ims","pos","wholesale"],"capability":"navigation","screen":"Shared Help","product":"shared","format":"reference","contexts":["shared-troubleshooting"],"relatedTopics":["shared-plain-language-glossary"],"order":901,"summary":"Match a visible symptom to a safe first check, one sensible retry, and a clear point to stop.","lastReviewed":"2026-10-13","owner":"help","quickSections":["Main operations","Safe retry rules","Find the symptom"]}
+{"id":"shared-troubleshooting-by-symptom","title":"Troubleshooting by Symptom","audiences":["ims","pos","wholesale"],"capability":"navigation","screen":"Shared Help","product":"shared","format":"reference","contexts":["shared-troubleshooting"],"relatedTopics":["shared-plain-language-glossary"],"order":901,"summary":"Match a visible symptom to a safe first check, one sensible retry, and a clear point to stop.","lastReviewed":"2026-10-13","owner":"help","quickSections":["Main operations","Safe retry rules","Find the symptom"],"navigation":{"category":"reference","label":"Find a symptom and recover safely"}}
 ---
 # Troubleshooting by Symptom
 

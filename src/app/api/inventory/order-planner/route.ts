@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
 import { execute } from '@/services/MySQLService';
 import { getProductsWithSales, getSuppliers, getBranches, getStockPerBranch } from '@/lib/dataProvider';
-import type { StandardizedVariantWithSales, StandardizedContact, StandardizedLocation, VariantBranchStock } from '@/types/StandardizedData';
+import type { StandardizedContact } from '@/types/StandardizedData';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
-import { calculateReorderSuggestion } from '@/lib/ims/orderPlanner';
-
-const SALES_FIELD_BY_WINDOW: Record<number, keyof StandardizedVariantWithSales> = {
-  7: 'sales_qty_7d',
-  90: 'sales_qty_90d',
-  180: 'sales_qty_180d',
-  365: 'sales_qty_12m',
-};
+import { buildPlannerRows, buildPlannerBranchStockMap, type OrderPlannerRow as PlannerRow } from '@/lib/ims/orderPlanner';
+import { getOrderPlannerBranchSales } from '@/lib/ims/orderPlannerQuery';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const DRAFT_HEADERS = [
   'createdAt',
@@ -51,31 +47,6 @@ interface BranchOption {
   id: string;
   name: string;
   isActive: boolean;
-}
-
-interface PlannerRow {
-  productId: string;
-  optionId: string;
-  code: string;
-  name: string;
-  brand: string;
-  supplierId: string;
-  supplierName: string;
-  createdDate: string;
-  daysInStock: number;
-  effectiveSalesDays: number;
-  totalSOH: number;
-  totalAvailable: number;
-  totalIncoming: number;
-  salesQty: number;
-  avgDailySales: number;
-  leadTimeDays: number;
-  coverageDays: number;
-  suggestedQty: number;
-  packSize: number;
-  reorderQty: number;
-  cost: number;
-  estimatedLineValue: number;
 }
 
 function sleep(ms: number) {
@@ -157,106 +128,12 @@ function buildFilterOptions(products: StandardizedVariantWithSales[], supplierNa
   };
 }
 
-function buildPlannerRows(args: {
-  products: StandardizedVariantWithSales[];
-  stockPerBranch: VariantBranchStock[];
-  supplierNameMap: Map<string, string>;
-  supplierLeadTimeMap: Map<string, number>;
-  filterType: PlannerFilterType;
-  filterValue: string;
-  salesWindowDays: number;
-  orderFrequencyDays: number;
-  salesBranchIds: string[];
-}): PlannerRow[] {
-  const {
-    products, stockPerBranch, supplierNameMap, supplierLeadTimeMap,
-    filterType, filterValue, salesWindowDays, orderFrequencyDays, salesBranchIds,
-  } = args;
-  if (products.length === 0) return [];
-
-  // Build per-variant filtered stock when a branch filter is active
-  const filteredStockMap = new Map<string, { soh: number; available: number; incoming: number }>();
-  if (salesBranchIds.length > 0) {
-    for (const s of stockPerBranch) {
-      if (!salesBranchIds.includes(s.branch_id)) continue;
-      const existing = filteredStockMap.get(s.variant_id);
-      if (!existing) {
-        filteredStockMap.set(s.variant_id, { soh: s.soh, available: s.available, incoming: s.incoming });
-      } else {
-        existing.soh += s.soh;
-        existing.available += s.available;
-        existing.incoming += s.incoming;
-      }
-    }
-  }
-
-  const salesField = SALES_FIELD_BY_WINDOW[salesWindowDays] ?? 'sales_qty_90d';
-  return products
-    .map((p): PlannerRow | null => {
-      const supplierId = String(p.supplier_id ?? '');
-      const brand = p.brand ?? '';
-      const filterMatch = filterType === 'brand' ? brand === filterValue : supplierId === filterValue;
-      if (!filterMatch) return null;
-
-      const optId = p.source_id;
-      const branchStock = salesBranchIds.length > 0 ? filteredStockMap.get(optId) : null;
-      const totalSOH = round(branchStock ? branchStock.soh : p.qty_on_hand, 2);
-      const totalAvailable = round(branchStock ? branchStock.available : p.global_available, 2);
-      const totalIncoming = round(branchStock ? branchStock.incoming : p.qty_incoming, 2);
-      const salesQty = round(Number((p as any)[salesField] ?? 0), 2);
-      const createdDate = p.created_date ?? '';
-      const leadTimeDays = supplierLeadTimeMap.get(supplierId) ?? supplierLeadTimeMap.get('__global') ?? 0;
-      const cost = round(Number(p.cost ?? 0));
-      const packSize = Math.max(0, Math.round(Number(p.pack_size ?? 0)));
-      const suggestion = calculateReorderSuggestion({
-        salesQuantity: salesQty,
-        salesWindowDays,
-        createdDate,
-        supplierLeadTimeDays: leadTimeDays,
-        orderFrequencyDays,
-        availableQuantity: totalAvailable,
-        incomingQuantity: totalIncoming,
-        packSize,
-      });
-
-      return {
-        productId: p.parent_source_id ?? p.source_id,
-        optionId: optId,
-        code: p.sku ?? '',
-        name: p.name ?? '',
-        brand,
-        supplierId,
-        supplierName: supplierNameMap.get(supplierId) ?? (supplierId ? `Supplier ${supplierId}` : 'Unassigned'),
-        createdDate,
-        daysInStock: suggestion.daysInStock,
-        effectiveSalesDays: suggestion.effectiveSalesDays,
-        totalSOH,
-        totalAvailable,
-        totalIncoming,
-        salesQty,
-        avgDailySales: suggestion.averageDailySales,
-        leadTimeDays,
-        coverageDays: suggestion.coverageDays,
-        suggestedQty: suggestion.suggestedQuantity,
-        packSize,
-        reorderQty: suggestion.reorderQuantity,
-        cost,
-        estimatedLineValue: round(suggestion.reorderQuantity * cost),
-      };
-    })
-    .filter((r): r is PlannerRow => r !== null)
-    .sort((a, b) => {
-      if (b.reorderQty !== a.reorderQty) return b.reorderQty - a.reorderQty;
-      return a.name.localeCompare(b.name);
-    });
-}
-
 async function loadContext(databaseId: string) {
   const [products, suppliers, branches, stockPerBranch] = await Promise.all([
-    getProductsWithSales(databaseId, 'solvantis').catch(() => [] as StandardizedVariantWithSales[]),
-    getSuppliers(databaseId, 'solvantis').catch(() => [] as StandardizedContact[]),
-    getBranches(databaseId, 'solvantis').catch(() => [] as StandardizedLocation[]),
-    getStockPerBranch(databaseId, 'solvantis').catch(() => [] as VariantBranchStock[]),
+    getProductsWithSales(databaseId, 'solvantis'),
+    getSuppliers(databaseId, 'solvantis'),
+    getBranches(databaseId, 'solvantis'),
+    getStockPerBranch(databaseId, 'solvantis'),
   ]);
   return { products, suppliers, branches, stockPerBranch };
 }
@@ -351,13 +228,14 @@ export async function POST(req: Request) {
   const databaseId = String(body?.databaseId ?? '').trim();
   const filterType = (body?.filterType === 'brand' ? 'brand' : 'supplier') as PlannerFilterType;
   const filterValue = String(body?.filterValue ?? '').trim();
-  const salesWindowDays = Number(body?.salesWindowDays) || 90;
+  const salesWindowDays = Number(body?.salesWindowDays ?? 90);
   const orderFrequencyDays = Math.max(1, Number(body?.orderFrequencyDays) || 30);
   const branchId = String(body?.branchId ?? '').trim();
   const branchName = String(body?.branchName ?? '').trim();
-  const salesBranchIds = Array.isArray(body?.salesBranchIds)
-    ? body.salesBranchIds.map((v: any) => String(v ?? '').trim()).filter(Boolean)
+  const salesBranchIds: string[] = Array.isArray(body?.salesBranchIds)
+    ? [...new Set<string>(body.salesBranchIds.map((v: unknown) => String(v ?? '').trim()).filter(Boolean))]
     : [];
+  const salesScope = body?.salesScope ?? (salesBranchIds.length > 0 ? 'selected' : 'all');
   const editedRows = Array.isArray(body?.rows) ? body.rows : [];
   const supplierLeadTimeOverrides = (body?.supplierLeadTimeOverrides && typeof body.supplierLeadTimeOverrides === 'object')
     ? body.supplierLeadTimeOverrides as Record<string, unknown>
@@ -368,26 +246,41 @@ export async function POST(req: Request) {
   }
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
+  if (!['preview', 'save-draft'].includes(action) || ![7, 90, 180, 365].includes(salesWindowDays)) {
+    return NextResponse.json({ success: false, error: 'Choose a supported action and sales window.' }, { status: 400 });
+  }
+  if (!['all', 'selected'].includes(salesScope)
+    || (salesScope === 'selected' && salesBranchIds.length === 0)
+    || (salesScope === 'all' && salesBranchIds.length > 0)) {
+    return NextResponse.json({ success: false, error: 'Select at least one branch for a selected-branch plan.' }, { status: 400 });
+  }
 
   try {
-    const context = await loadContext(databaseId);
-    if (context.products.length === 0) {
-      return NextResponse.json({ success: false, error: 'No products found. Run Sync Inventory → Product Data first.' }, { status: 400 });
-    }
+    return await runImsForBusiness(databaseId, async () => {
+      const context = await loadContext(databaseId);
+      if (context.products.length === 0) {
+        return NextResponse.json({ success: false, error: 'No products found. Run Sync Inventory → Product Data first.' }, { status: 400 });
+      }
 
-    const supplierNameMap = buildSupplierNameMap(context.suppliers);
-    const supplierLeadTimeMap = applySupplierLeadTimeOverrides(
-      buildSupplierLeadTimeMap(context.suppliers),
-      supplierLeadTimeOverrides,
-    );
-    const options = buildFilterOptions(context.products, supplierNameMap);
-    const branches: BranchOption[] = context.branches
-      .filter(b => b.source_id && b.name)
-      .map(b => ({ id: b.source_id, name: b.name, isActive: b.is_active }));
+      const supplierNameMap = buildSupplierNameMap(context.suppliers);
+      const supplierLeadTimeMap = applySupplierLeadTimeOverrides(
+        buildSupplierLeadTimeMap(context.suppliers),
+        supplierLeadTimeOverrides,
+      );
+      const options = buildFilterOptions(context.products, supplierNameMap);
+      const branches: BranchOption[] = context.branches
+        .filter(b => b.source_id && b.name)
+        .map(b => ({ id: b.source_id, name: b.name, isActive: b.is_active }));
+      if (salesBranchIds.some(id => !branches.some(branch => branch.id === id))) {
+        return NextResponse.json({ success: false, error: 'A selected branch is unavailable. Refresh Lists and select the branches again.' }, { status: 400 });
+      }
 
-    if (action === 'preview') {
-      const rows = filterValue
-        ? buildPlannerRows({
+      if (action === 'preview') {
+        const branchSalesQuantities = salesBranchIds.length > 0 && filterValue
+          ? await getOrderPlannerBranchSales(salesBranchIds, salesWindowDays)
+          : new Map<string, number>();
+        const rows = filterValue
+          ? buildPlannerRows({
             products: context.products,
             stockPerBranch: context.stockPerBranch,
             supplierNameMap,
@@ -397,69 +290,98 @@ export async function POST(req: Request) {
             salesWindowDays,
             orderFrequencyDays,
             salesBranchIds,
+            branchSalesQuantities,
           })
-        : [];
+          : [];
 
-      return NextResponse.json({
-        success: true,
-        options,
-        supplierLeadTimes: Object.fromEntries(supplierLeadTimeMap.entries()),
-        selectedSalesBranches: salesBranchIds,
-        branches,
-        rows,
-        summary: {
-          totalRows: rows.length,
-          totalUnits: rows.reduce((sum, row) => sum + row.reorderQty, 0),
-          totalValue: round(rows.reduce((sum, row) => sum + row.estimatedLineValue, 0)),
-        },
-      });
-    }
+        return NextResponse.json({
+          success: true,
+          options,
+          supplierLeadTimes: Object.fromEntries(supplierLeadTimeMap.entries()),
+          selectedSalesBranches: salesBranchIds,
+          branches,
+          rows,
+          summary: {
+            totalRows: rows.length,
+            totalUnits: rows.reduce((sum, row) => sum + row.reorderQty, 0),
+            totalValue: round(rows.reduce((sum, row) => sum + row.estimatedLineValue, 0)),
+          },
+        });
+      }
 
-    const normalizedRows: PlannerRow[] = editedRows.map((row: any) => ({
-      productId: String(row?.productId ?? '').trim(),
-      optionId: String(row?.optionId ?? '').trim(),
-      code: String(row?.code ?? '').trim(),
-      name: String(row?.name ?? '').trim(),
-      brand: String(row?.brand ?? '').trim(),
-      supplierId: String(row?.supplierId ?? '').trim(),
-      supplierName: String(row?.supplierName ?? '').trim(),
-      createdDate: String(row?.createdDate ?? '').trim(),
-      daysInStock: parseNumber(row?.daysInStock),
-      effectiveSalesDays: parseNumber(row?.effectiveSalesDays),
-      totalSOH: parseNumber(row?.totalSOH),
-      totalAvailable: parseNumber(row?.totalAvailable),
-      totalIncoming: parseNumber(row?.totalIncoming),
-      salesQty: parseNumber(row?.salesQty),
-      avgDailySales: parseNumber(row?.avgDailySales),
-      leadTimeDays: Math.max(0, Math.round(parseNumber(row?.leadTimeDays))),
-      coverageDays: Math.max(1, Math.round(parseNumber(row?.coverageDays) || (orderFrequencyDays + parseNumber(row?.leadTimeDays)))),
-      suggestedQty: Math.max(0, Math.round(parseNumber(row?.suggestedQty))),
-      packSize: Math.max(0, Math.round(parseNumber(row?.packSize))),
-      reorderQty: Math.max(0, Math.round(parseNumber(row?.reorderQty))),
-      cost: round(parseNumber(row?.cost)),
-      estimatedLineValue: round(parseNumber(row?.reorderQty) * parseNumber(row?.cost)),
-    })).filter((row: PlannerRow) => row.code || row.name || row.optionId);
+      const stockMap = buildPlannerBranchStockMap(context.stockPerBranch, salesBranchIds);
+      const normalizedRows: PlannerRow[] = editedRows.map((row: Partial<PlannerRow>) => ({
+        productId: String(row?.productId ?? '').trim(),
+        optionId: String(row?.optionId ?? '').trim(),
+        code: String(row?.code ?? '').trim(),
+        name: String(row?.name ?? '').trim(),
+        brand: String(row?.brand ?? '').trim(),
+        supplierId: String(row?.supplierId ?? '').trim(),
+        supplierName: String(row?.supplierName ?? '').trim(),
+        createdDate: String(row?.createdDate ?? '').trim(),
+        daysInStock: parseNumber(row?.daysInStock),
+        effectiveSalesDays: parseNumber(row?.effectiveSalesDays),
+        totalSOH: row?.totalSOH === null ? null : parseNumber(row?.totalSOH),
+        totalAvailable: row?.totalAvailable === null ? null : parseNumber(row?.totalAvailable),
+        totalIncoming: row?.totalIncoming === null ? null : parseNumber(row?.totalIncoming),
+        salesQty: parseNumber(row?.salesQty),
+        avgDailySales: parseNumber(row?.avgDailySales),
+        leadTimeDays: Math.max(0, Math.round(parseNumber(row?.leadTimeDays))),
+        coverageDays: Math.max(1, Math.round(parseNumber(row?.coverageDays) || (orderFrequencyDays + parseNumber(row?.leadTimeDays)))),
+        suggestedQty: row?.suggestedQty === null ? null : Math.max(0, Math.round(parseNumber(row?.suggestedQty))),
+        packSize: Math.max(0, Math.round(parseNumber(row?.packSize))),
+        reorderQty: Math.max(0, Math.round(parseNumber(row?.reorderQty))),
+        cost: round(parseNumber(row?.cost)),
+        estimatedLineValue: round(parseNumber(row?.reorderQty) * parseNumber(row?.cost)),
+        missingStockBranchIds: salesBranchIds.length > 0
+          ? stockMap.get(String(row?.optionId ?? ''))?.missingStockBranchIds ?? salesBranchIds
+          : [],
+        stockChecked: row?.stockChecked === true,
+        salesBranchIds,
+      })).filter((row: PlannerRow) => row.code || row.name || row.optionId);
+      for (const row of normalizedRows) {
+        if (row.missingStockBranchIds.length === 0) continue;
+        row.totalSOH = null;
+        row.totalAvailable = null;
+        row.totalIncoming = null;
+        row.suggestedQty = null;
+        if (row.reorderQty > 0 && !row.stockChecked) {
+          return NextResponse.json({
+            success: false, error: 'Check branch stock and acknowledge Stock checked before entering a manual quantity for an incomplete line.',
+          }, { status: 400 });
+        }
+      }
 
-    if (normalizedRows.length === 0) {
-      return NextResponse.json({ success: false, error: 'No order rows were provided.' }, { status: 400 });
-    }
+      if (normalizedRows.length === 0) {
+        return NextResponse.json({ success: false, error: 'No order rows were provided.' }, { status: 400 });
+      }
 
-    if (action === 'save-draft') {
-      const draft = await saveDraftOrder({
-        databaseId,
-        filterType,
-        filterValue,
-        salesWindowDays,
-        orderFrequencyDays,
-        branchId,
-        branchName,
-        rows: normalizedRows,
-      });
-      return NextResponse.json({ success: true, ...draft });
-    }
+      if (action === 'save-draft') {
+        const draft = await saveDraftOrder({
+          databaseId,
+          filterType,
+          filterValue,
+          salesWindowDays,
+          orderFrequencyDays,
+          branchId,
+          branchName,
+          rows: normalizedRows,
+        });
+        return NextResponse.json({ success: true, ...draft });
+      }
 
-    return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e?.message ?? 'Unknown error' }, { status: 500 });
+      return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
+    });
+  } catch (error: unknown) {
+    await reportRuntimeIssue({
+      businessId: databaseId,
+      source: 'ims-order-planner',
+      operation: action === 'save-draft' ? 'save_draft' : 'preview',
+      title: 'Order Planner could not complete the request',
+      error,
+      context: { salesWindowDays, salesScope, selectedBranchCount: salesBranchIds.length },
+      reference: { type: 'business', id: databaseId },
+    });
+    return NextResponse.json({ success: false, error: 'Order Planner could not load or save the plan. Please try again or contact support.' }, { status: 500 });
   }
 }

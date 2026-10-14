@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review and configure each connected online storefront separately.","lastReviewed":"2026-10-13","owner":"integrations","quickSections":["Main operations"]}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify"],"order":91,"summary":"Review and configure each connected online storefront separately.","lastReviewed":"2026-10-13","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"integrations","label":"Configure sales channels"}}
 ---
 # Sales Channels
 

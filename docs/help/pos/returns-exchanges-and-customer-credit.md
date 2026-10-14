@@ -1,5 +1,5 @@
 ---
-{"id":"pos-returns-exchanges-customer-credit","title":"Returns, Exchanges, and Customer Credit","audiences":["pos","ims"],"capability":"pos","screen":"POS Reports > Return","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-reports-transactions","pos-selling-payments-manager-approval","pos-gift-cards","pos-store-credit","pos-end-of-day-xero","ims-customer-orders"],"contexts":["pos-return"],"contextSections":{"pos-return":"Step-by-step"},"order":20,"summary":"Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.","lastReviewed":"2026-10-11","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-returns-exchanges-customer-credit","title":"Returns, Exchanges, and Customer Credit","audiences":["pos","ims"],"capability":"pos","screen":"POS Reports > Return","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-reports-transactions","pos-selling-payments-manager-approval","pos-gift-cards","pos-store-credit","pos-end-of-day","ims-customer-orders"],"contexts":["pos-return"],"contextSections":{"pos-return":"Step-by-step"},"order":20,"summary":"Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.","lastReviewed":"2026-10-11","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Process returns, exchanges and customer credit","subgroup":"Selling & customer value"}}
 ---
 # Returns, Exchanges, and Customer Credit
 
@@ -81,4 +81,4 @@ A customer returns a $70.00 item and chooses a $95.00 replacement. Staff complet
 
 ## Related tasks
 
-See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Xero** for how return payments affect the counted day.
+See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Register Close** for checking the counted day.

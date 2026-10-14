@@ -4,6 +4,17 @@ export type HelpProduct = 'dashboard' | 'foresight' | 'ims' | 'pos' | 'wholesale
 export type OperationCapability = 'xero' | 'shopify' | 'native_shop';
 export type AvailableOperationCapabilities = Partial<Record<OperationCapability, boolean>>;
 
+export type HelpCategory = 'getting-started' | 'products' | 'sales' | 'purchasing' | 'contacts'
+  | 'locations-stock' | 'finances' | 'reports' | 'integrations' | 'automations'
+  | 'settings' | 'pos' | 'wholesale' | 'reference' | 'platform';
+
+export interface HelpNavigation {
+  category: HelpCategory;
+  label: string;
+  subgroup?: string;
+  sections?: Array<{ heading: string; label: string }>;
+}
+
 export interface HelpSection {
   id: string;
   heading: string;
@@ -19,6 +30,8 @@ export interface HelpTopic {
   requiresCapabilities?: OperationCapability[];
   screen: string;
   product: HelpProduct;
+  navigation: HelpNavigation;
+  requiredTier?: 'SuperAdmin';
   parentId?: string | null;
   relatedTopics?: string[];
   contexts: string[];

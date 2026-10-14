@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import type { PoolConnection } from 'mysql2/promise';
 import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { calculateSupplierCreditTotals } from './supplierCreditTotals';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
@@ -3016,14 +3017,21 @@ export const ImsSORepo = {
     return rows.map(r => Number(r.sale_id)).filter(n => Number.isFinite(n) && n > 0);
   },
 
-  async get(id: number, businessId?: string): Promise<ImsSO | null> {
-    await this.ensureTaxTreatmentColumn();
+  async get(id: number, businessId?: string, connection?: Pick<PoolConnection, 'execute'>): Promise<ImsSO | null> {
+    // A caller-owned connection may be transactional: do not acquire another
+    // pool slot or run lazy DDL (which would implicitly commit its transaction).
+    if (!connection) await this.ensureTaxTreatmentColumn();
+    const read = async <T>(sql: string, params: unknown[]): Promise<T[]> => {
+      if (!connection) return imsQuery<T>(sql, params);
+      const [result] = await connection.execute(sql, params);
+      return result as T[];
+    };
     const bizFilter = businessId ? ' AND so.business_id = ?' : '';
     const bizParam = businessId ? [businessId] : [];
     let rows: ImsSO[];
     let payments: ImsPayment[] = [];
     try {
-      rows = await imsQuery<ImsSO>(
+      rows = await read<ImsSO>(
         `SELECT so.*,
                 c.name  AS customer_name,
                 c.email AS customer_email,
@@ -3046,12 +3054,12 @@ export const ImsSORepo = {
          WHERE so.id = ?${bizFilter}`,
         [id, ...bizParam]
       );
-      payments = await imsQuery<ImsPayment>(
+      payments = await read<ImsPayment>(
         `SELECT * FROM ims_sales_order_payments WHERE so_id = ? ORDER BY payment_date ASC, id ASC`,
         [id]
       );
     } catch {
-      rows = await imsQuery<ImsSO>(
+      rows = await read<ImsSO>(
         `SELECT so.*,
                 c.name  AS customer_name,
                 c.email AS customer_email,
@@ -3065,8 +3073,8 @@ export const ImsSORepo = {
       );
     }
     if (!rows[0]) return null;
-    await ensureVariantAvgCost(); // ensure avg_cost column exists before reading it
-    const items = await imsQuery<ImsSOItem>(
+    if (!connection) await ensureVariantAvgCost(); // ensure avg_cost column exists before reading it
+    const items = await read<ImsSOItem>(
       `SELECT i.*,
               i.unit_cost AS captured_unit_cost,
               COALESCE(v.sku, i.code) AS sku,

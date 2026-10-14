@@ -26,6 +26,9 @@ export function searchHelpTopics(topics: HelpTopic[], value: string): HelpSearch
   const query = value.trim().toLowerCase();
   if (!query) return [];
   return topics.flatMap(topic => topic.sections
-    .filter(section => `${topic.title} ${topic.summary} ${section.heading} ${section.content}`.toLowerCase().includes(query))
+    .filter(section => {
+      const shortcutLabels = topic.navigation.sections?.filter(shortcut => shortcut.heading === section.heading).map(shortcut => shortcut.label).join(' ') ?? '';
+      return `${topic.title} ${topic.summary} ${topic.navigation.label} ${section.heading} ${section.content} ${shortcutLabels}`.toLowerCase().includes(query);
+    })
     .map(section => ({ topic, section, snippet: matchingSnippet(section.content, query) })));
 }

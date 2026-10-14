@@ -1,64 +1,59 @@
 ---
-{"id":"pos-end-of-day-xero","title":"End of Day and Xero","audiences":["pos","ims"],"capability":"pos","screen":"POS > Register > End of Day","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-reports-transactions","pos-petty-cash","pos-settings-terminals-offline-recovery","ims-xero-shopify"],"contexts":["eod","pos-eod","pos-reports","xero-pos-eod"],"contextSections":{"eod":"Step-by-step","pos-eod":"Step-by-step","pos-reports":"Till variance and cash activity","xero-pos-eod":"What Xero receives"},"order":60,"summary":"Count and close a register, explain variances, and understand the separate Xero posting result.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-end-of-day-xero","title":"POS End of Day and Xero","audiences":["pos","ims"],"capability":"pos","requiresCapabilities":["xero"],"screen":"POS > Register > End of Day accounting","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-end-of-day","pos-laybys","pos-petty-cash","ims-xero-shopify"],"contexts":["xero-pos-eod","pos-eod-accounting"],"contextSections":{"xero-pos-eod":"What Xero receives","pos-eod-accounting":"Step-by-step"},"order":60,"summary":"Understand optional POS End of Day invoices, clearing payments and layby accounting, and retry unfinished Xero posting without duplicating sales.","lastReviewed":"2026-10-14","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Review EOD accounting and retry Xero posting","subgroup":"Start & end of day","sections":[{"heading":"What Xero receives","label":"Understand EOD invoices and layby accounting"},{"heading":"Step-by-step","label":"Review or retry EOD accounting"}]}}
 ---
-# End of Day and Xero
+# POS End of Day and Xero
 
-Use End of Day to compare physical takings with recorded sales, close the register session, and start the configured Xero posting.
+This guide covers optional Xero posting after counted End of Day reconciliation. Use **End of Day and Register Close** for the cash count, variance review, saved reconciliation and register closure; those operations do not require Xero.
 
 ## Main operations
 
-- Count every payment method for the open register session.
-- Include actual layby deposits and instalments, less recorded cancellation refunds, in their own register session's payment-method takings. The unpaid balance is not money received.
-- Separate the cash opening float from cash sales.
-- Review and confirm any till variance before saving.
-- Close the register even when a separate Xero action needs repair.
-- Review Xero Sync History and retry only the unfinished accounting action.
-- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.
+- Complete and verify the operational reconciliation first.
+- Review Xero posting separately from register closure.
+- Check each payment method's invoice and clearing-payment result.
+- Treat layby cash flows separately from completed-sale revenue.
+- Ask an Admin to repair missing mappings or connection problems.
+- Retry only unfinished accounting work; do not recreate sales or take payments again.
 
 ## At a glance
 
 | Value | How Solvantis treats it |
 |---|---|
-| Expected | Actual payments on completed sales and active layby deposits linked to this register session, grouped by payment method |
-| Counted cash | All physical cash in the drawer, including the opening float |
-| Cash sales | Counted cash minus opening float |
-| Counted non-cash | The counted amount for that payment method |
-| Variance | Cash sales or counted non-cash minus the expected amount |
-| Petty cash | A separately recorded purchase paid from the open till |
-| Active layby | Its deposit contributes to expected takings; the full merchandise value is excluded from completed sales totals |
+| Counted EOD save | Can start configured Xero posting in the background |
+| Register closed | Operational closure, not proof that Xero posting completed |
+| Invoice posted | The sales invoice exists; a required clearing payment may still be unfinished |
+| Paid in Xero | The reported invoice/payment result is complete |
+| Layby cash flow | Separate liability and clearing-account treatment, not ordinary sales-invoice revenue |
+| Missing mapping | Posting is blocked until the required configuration is repaired |
 
 ## Before you begin
 
-- [ ] Confirm you are closing the correct branch and register.
-- [ ] Allow queued sales to sync so they can be linked to the register session.
-- [ ] Count the drawer and each non-cash settlement source independently.
-- [ ] Keep petty-cash receipts with the corresponding entries.
-- [ ] Add useful notes for any confirmed difference.
+- [ ] Verify counted reconciliation for the correct branch, register and session.
+- [ ] Confirm the business's Xero posting policy and connection.
+- [ ] Check branch revenue and payment-method clearing mappings with an Admin.
+- [ ] Keep petty-cash evidence and explanations for confirmed variances.
+- [ ] For laybys, confirm liability and clearing mappings and finish earlier accounting first.
 
-> **Warning:** End of Day cannot be saved offline. If saving fails because the connection is down, the register remains open; reconnect and complete the count again.
+> **Important:** A saved reconciliation, a closed register and a successful Xero post are three separate checks. Do not repeat the operational close just because accounting failed.
 
 ## Step-by-step
 
-1. Open **Register**, then select **End of Day**.
-2. Check the trading date and the expected amount for each payment method.
-3. For cash, enter the opening float and count the full drawer. The screen calculates cash sales as counted cash minus the float.
-4. Enter the counted total for each other payment method.
-5. Review the variance column. If a variance exists, recheck the count and add a note where useful.
-6. Select the save action. Confirm the variance warning if the difference is genuine.
-7. Print or retain the reconciliation summary as required by the business.
-8. Confirm the register is closed. The configured Xero sync starts in the background when at least one counted amount was saved.
+1. Complete **End of Day and Register Close** and verify the saved counts and register status.
+2. Review the Xero summary for the same session. Counted EOD saving can start the configured sync in the background; sales are not posted individually at checkout.
+3. Check every method's result. **Invoice posted** or **Invoice posted - payment pending** is not the same as a completed required clearing payment.
+4. If a mapping or connection blocks posting, ask an Admin to repair that configuration before retrying.
+5. Use **Sync to Xero** when unfinished work needs retrying. If the screen offers **Re-sync to Xero**, check the recorded result before using it rather than assuming another invoice is required.
+6. Check the final invoice/payment result and Xero Sync History. Leave an already closed register closed and do not recreate the day's sales.
 
-The Assistant's register-status check uses the open session assigned to the verified POS register. Its payment-method amounts are expected takings, with recorded petty cash deducted from Cash. Sales totals are tax-inclusive and GST is shown as the extracted amount. A saved-count indicator confirms that at least one counted payment method exists; it does not mean the register has been closed or Xero has posted successfully.
+The Assistant's register-status check can verify expected takings and saved-count status. That saved-count indicator is not evidence that Xero posting succeeded.
 
 ## Till variance and cash activity
 
 | Situation | Expected result | What to check |
 |---|---|---|
-| Counted cash equals float plus recorded cash sales | Zero cash variance | No correction is needed |
-| Counted cash is higher | Positive variance | Recount, check change and tender selection, then record a note |
-| Counted cash is lower | Negative variance | Recount, check refunds and petty cash, then record a note |
-| Petty cash was recorded | Cash left the drawer for a documented purchase | Confirm the amount, reason, GST treatment, expense category, and receipt |
-| Sales were queued without an open session | Expected totals can be incomplete until those sales sync | Reconnect, open the register when prompted, sync, and review before closing |
+| Confirmed till variance | Separate treatment using the configured variance mapping | The saved physical count and explanation |
+| Petty cash was recorded | Separate expense treatment rather than ordinary sales revenue | Amount, reason, GST treatment, expense category and receipt |
+| Cash differs from Expected | Operational reconciliation needs review before explaining accounting | Use End of Day and Register Close; do not alter counts just to match Xero |
+| Layby money was received or refunded | Liability and clearing treatment outside ordinary sales invoices | Recorded layby events and required mappings |
 
 ## What Xero receives
 
@@ -83,17 +78,15 @@ The invoice is tax-inclusive, so Xero extracts GST from the total instead of add
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
-| Counted cash appears too high | Opening float was not subtracted, petty cash was missed, or a sale used the wrong tender | Recount and compare the float, petty-cash entries, and transaction payments |
-| Expected totals omit recent sales | Sales are still queued or were uploaded without an open register session | Resolve the queue and review Reports before finalising the variance |
 | One payment method does not post to Xero | Its clearing mapping is missing or stale | Correct the mapping and retry that EOD posting |
 | Invoice exists but its payment does not | The clearing step failed after invoice creation | Retry; Solvantis reuses the recorded invoice rather than intentionally creating another |
 | EOD saved but Xero shows an error | Operational close succeeded before accounting finished | Leave the register closed and repair the accounting action separately |
 
 ## Worked examples
 
-### Cash count with float and petty cash
+### Separate register closure from posting
 
-The drawer opens with $200. Recorded cash sales are $640, and a $22 GST-inclusive cleaning purchase was recorded through **Petty Cash**. Staff count $818 in the drawer. Cash sales from the count are $818 minus $200, or $618; the separate $22 petty-cash record explains the difference from $640 before any unexplained till variance is considered.
+Staff save verified counts and confirm that the register is closed. A missing revenue mapping blocks Xero posting. An Admin repairs the mapping, then staff retry the unfinished posting. They do not reopen the register or enter the day's sales again.
 
 ### Card invoice awaiting payment
 
@@ -101,4 +94,4 @@ The counted card total is $1,100. Solvantis creates the tax-inclusive Authorised
 
 ## Related tasks
 
-See **Register, Device, and Login** for opening float, **Selling, Payments, and Manager Approval** for tender handling, and **Settings, Terminals, and Offline Recovery** for queued-sale recovery.
+See **End of Day and Register Close** for operational reconciliation, **Laybys at POS** for the layby lifecycle, and **Petty Cash at POS** for till expenses.

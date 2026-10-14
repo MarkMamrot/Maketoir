@@ -55,6 +55,11 @@
         "Business information and data",
         "Refresh source data"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Maintain business information and brand profile",
+        "subgroup": "Business & brand"
+      },
       "filename": "docs/help/foresight/business-intelligence.md",
       "sections": [
         {
@@ -160,6 +165,11 @@
         "Brand assets",
         "Choose the right asset type"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Prepare and manage brand assets",
+        "subgroup": "Business & brand"
+      },
       "filename": "docs/help/foresight/content-and-service.md",
       "sections": [
         {
@@ -244,12 +254,35 @@
       ],
       "order": 31,
       "summary": "Prepare product content and customer replies, then check every customer-facing detail before use.",
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-14",
       "owner": "commerce",
       "quickSections": [
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Prepare content and customer replies",
+        "subgroup": "Content & service",
+        "sections": [
+          {
+            "heading": "Step-by-step",
+            "label": "Generate online listings"
+          },
+          {
+            "heading": "Prepare reliable inputs",
+            "label": "Prepare listing templates and inputs"
+          },
+          {
+            "heading": "Review content before use",
+            "label": "Review generated content"
+          },
+          {
+            "heading": "Customer-service replies",
+            "label": "Review and send customer replies"
+          }
+        ]
+      },
       "filename": "docs/help/foresight/content-production-and-customer-service.md",
       "sections": [
         {
@@ -343,6 +376,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Record experiments, outcomes and learning",
+        "subgroup": "Planning & review"
+      },
       "filename": "docs/help/foresight/experiments-outcomes-and-learning.md",
       "sections": [
         {
@@ -431,6 +469,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Follow the planning workspace lifecycle",
+        "subgroup": "Planning & review"
+      },
       "filename": "docs/help/foresight/planning-workspace-lifecycle.md",
       "sections": [
         {
@@ -520,6 +563,11 @@
         "Refresh marketing information",
         "Evidence and recommendations"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Plan and review recommendations",
+        "subgroup": "Planning & review"
+      },
       "filename": "docs/help/foresight/planning.md",
       "sections": [
         {
@@ -606,6 +654,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Review recommendations, creative work and audits",
+        "subgroup": "Planning & review"
+      },
       "filename": "docs/help/foresight/recommendations-creative-review-and-audits.md",
       "sections": [
         {
@@ -702,6 +755,10 @@
         "Choose a workspace",
         "Dashboard"
       ],
+      "navigation": {
+        "category": "automations",
+        "label": "Choose an automation workflow"
+      },
       "filename": "docs/help/foresight/workspaces.md",
       "sections": [
         {
@@ -785,6 +842,10 @@
         "Main operations",
         "Choose the right contact area"
       ],
+      "navigation": {
+        "category": "contacts",
+        "label": "Manage contacts and customer records"
+      },
       "filename": "docs/help/ims/contacts/crm.md",
       "sections": [
         {
@@ -862,6 +923,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "contacts",
+        "label": "Configure loyalty and customer rewards"
+      },
       "filename": "docs/help/ims/contacts/loyalty-program-and-customer-rewards.md",
       "sections": [
         {
@@ -961,6 +1026,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "contacts",
+        "label": "Use CRM segments, tasks and pipeline"
+      },
       "filename": "docs/help/ims/contacts/segments-tasks-and-pipeline.md",
       "sections": [
         {
@@ -1028,6 +1097,8 @@
         "cash-banking": "Main operations"
       },
       "relatedTopics": [
+        "ims-cash-banking-report",
+        "pos-end-of-day",
         "pos-end-of-day-xero",
         "pos-petty-cash",
         "ims-xero-reconciliation",
@@ -1035,7 +1106,7 @@
       ],
       "order": 63,
       "summary": "Prepare cash deposits, record late or historical lodgements, and post each deposit to Xero without duplicating accounting.",
-      "lastReviewed": "2026-09-24",
+      "lastReviewed": "2026-10-14",
       "owner": "accounting",
       "quickSections": [
         "Main operations",
@@ -1043,12 +1114,16 @@
         "Step-by-step",
         "Troubleshooting"
       ],
+      "navigation": {
+        "category": "finances",
+        "label": "Record and reconcile cash banking"
+      },
       "filename": "docs/help/ims/finances/cash-banking.md",
       "sections": [
         {
           "id": "ims-cash-banking:1",
           "heading": "Cash Banking",
-          "content": "Cash Banking groups completed store cash counts into a bank deposit. It preserves what the store reported, what the depositor recounted, what the bank accepted, and how the deposit was handled in Xero.",
+          "content": "Cash Banking groups completed store cash counts into a bank deposit. It preserves what the store reported, what the depositor recounted, what the bank accepted, and how the deposit was handled in Xero.\n\nUse **Cash Banking Report** Help for filtering recorded deposits, comparing the three cash stages, exporting history and documenting a correction already made manually in Xero. The report does not replace this preparation, confirmation and posting workspace.",
           "presentation": "detail"
         },
         {
@@ -1101,20 +1176,33 @@
       "format": "overview",
       "contexts": [
         "dashboard",
+        "ims-help",
         "ims-support-tickets"
       ],
       "contextSections": {
         "dashboard": "Main operations",
+        "ims-help": "Using Help",
         "ims-support-tickets": "Contact Support"
       },
       "order": 1,
       "summary": "Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.",
-      "lastReviewed": "2026-10-08",
+      "lastReviewed": "2026-10-14",
       "owner": "operations",
       "quickSections": [
         "Main operations",
-        "Choose a workspace"
+        "Choose a workspace",
+        "Using Help"
       ],
+      "navigation": {
+        "category": "getting-started",
+        "label": "Find your workspace",
+        "sections": [
+          {
+            "heading": "Using Help",
+            "label": "Find guidance for a common task"
+          }
+        ]
+      },
       "filename": "docs/help/ims/ims-workspaces.md",
       "sections": [
         {
@@ -1126,7 +1214,7 @@
         {
           "id": "ims-workspaces:2",
           "heading": "Main operations",
-          "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.\n- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.\n- Open the top-bar **Settings** (gear) drawer for Connections and the existing IMS settings sections. Choose **Sync & Import** to import supported source data into IMS or refresh cached sales totals.\n- Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- On a narrow screen, the sidebar collapses automatically so the active workspace retains usable width. Use its arrow to expand it when needed.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.\n- Choose **Help > Contact Support** to submit a support ticket with optional images.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.\n\nIf the full-page **Something went wrong** screen appears, select **Reload page** to reopen the current address, including its workspace or record link. Unsaved form changes may be lost. Check the source record before repeating a sale, receipt, fulfilment, payment, or other action: a page error does not prove the action failed.",
+          "content": "- Use the Dashboard to spot work that needs attention.\n- Select **Reports** to investigate inventory and business results, or **Automations** for listing workflows, Business Profile, Brand Assets, and Customer Service.\n- Select **Intel & Automation** in the top bar for analytics, planning, and marketing work. Intel & Automation is not a separate option on the login menu.\n- Open the top-bar **Settings** (gear) drawer for Connections and the existing IMS settings sections. Choose **Sync & Import** to import supported source data into IMS or refresh cached sales totals.\n- Web Field Templates remain under Intel & Automation Settings because the listing generator and bulk listing editor use them.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- On a narrow screen, the sidebar collapses automatically so the active workspace retains usable width. Use its arrow to expand it when needed.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Open Help from the top bar for the current page, or expand a task category to find another workflow. On a narrow screen, select **Browse topics** to change topic.\n- Choose **Help > Contact Support** to submit a support ticket with optional images.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.\n\nIf the full-page **Something went wrong** screen appears, select **Reload page** to reopen the current address, including its workspace or record link. Unsaved form changes may be lost. Check the source record before repeating a sale, receipt, fulfilment, payment, or other action: a page error does not prove the action failed.",
           "presentation": "quick"
         },
         {
@@ -1137,24 +1225,30 @@
         },
         {
           "id": "ims-workspaces:4",
+          "heading": "Using Help",
+          "content": "Help opens guidance for the page you are using. On desktop, its window uses three quarters of the screen width; on tablets it uses nearly the full width, and on phones it fills the screen.\n\nExpand a familiar category such as **Products**, **Sales**, **Purchasing** or **Locations & Stock**, then select the job you need to do. Some workflow links go directly to a section inside a larger guide, such as **Manage brands** or **Bulk-add or edit products**. Detailed sections open automatically when you follow a section link.\n\nThe IMS library also includes **POS** procedures and business setup guidance. **Platform administration** appears only for SuperAdmins. Available guides follow your Help audience, access and supported business settings; reading a guide does not grant permission to perform its actions.\n\nUse **Search Help** to search available guides and their sections. Results show the task category, article and matching section. Selecting a result clears the search and opens that section. **In this topic** jumps within the current guide, while **Related Help** opens another available guide.\n\nChoose **Back to help for this page** after browsing away from the current page's guide. On phones, **Browse topics** opens the navigation; selecting a workflow closes it so you can read the guide.\n\n**Ask Solvantis** provides explanations and supported read-only checks. Open a Help reference in its answer to read the source guidance when available. **Contact Support** is separate from both the topic library and Ask Solvantis.",
+          "presentation": "quick"
+        },
+        {
+          "id": "ims-workspaces:5",
           "heading": "Contact Support",
           "content": "Open **Help > Contact Support**, enter a subject and description, then press **Submit ticket**. An internet connection is required. The ticket includes the screen where Help was opened.\n\nThe ticket records the signed-in staff member's email address. Solvantis sends a confirmation to that address after submission and a resolution email, including any resolution notes, when support marks the ticket Resolved or Closed. Email delivery does not determine whether the ticket was saved; use the **Ticket submitted** message to confirm submission.\n\nSupport email requires a configured sender from a verified sending domain; a testing-only sender cannot deliver normal staff updates. A delivery failure does not remove the saved ticket or its updates. Ask support to check delivery configuration rather than submitting the same ticket again.\n\nPaste an image directly into the **Description** box or press **Attach images** to choose files. Images appear as previews below the description; remove any unwanted image before submitting. Each ticket accepts up to five JPEG, PNG, WebP or GIF images, up to 5 MB each. Remove private customer details and credentials from screenshots before sending.\n\nSuper Admins review tickets and images in **Admin > Support Tickets** or the **Support Tickets** tab in IMS Team Communications. They can assign a ticket to a Super Admin, change its status, and enter resolution notes. The badge counts Open and In Progress tickets. The notification email address is configured in **Admin > Support Tickets**; images are viewed securely in the ticket rather than attached to the notification email.\n\nIf submission fails, the form keeps the description and selected images for another attempt. A successful submission displays **Ticket submitted**; there is no requester-facing ticket list.",
           "presentation": "detail"
         },
         {
-          "id": "ims-workspaces:5",
+          "id": "ims-workspaces:6",
           "heading": "How summaries work",
           "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. For stock questions, it can check matching products by active location, including stock on hand, committed, available, incoming, reorder settings, weighted-average cost, and recent stock movements. Broad results have row and date limits, so the answer will say when a live check may not be exhaustive. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nLive checks follow your tier and the capabilities enabled for the active business. Advisors can use supported read-only product, stock, order, contact, purchasing, and sales-report checks, but not integration diagnostics or Intel & Automation Marketing checks. Xero, Shopify, and Intel & Automation Marketing checks appear only to eligible users while that capability is enabled.\n\nYour recent conversation stays available while you navigate in the same browser session. Select **Clear conversation** in the Assistant header to remove it; a new browser session starts without the earlier conversation.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\nNotifications show a plain-language title and action summary. Open one to see labelled product, order, location, quantity, or accounting-period facts. An unresolved COGS posting notification directs staff to **Xero > Activity > COGS**; later periods can continue while the named month remains open for review. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.",
           "presentation": "detail"
         },
         {
-          "id": "ims-workspaces:6",
+          "id": "ims-workspaces:7",
           "heading": "Troubleshooting",
           "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| The full-page error screen appears | Whether your last action completed on its source record | Select **Reload page**, then verify the record before retrying an action; contact support if the error returns |\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |\n| A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |\n| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |\n| Ask Solvantis cannot complete an answer | Confirm the internet connection, then retry once | Use Help for the maintained procedure or contact support if the retry also fails |",
           "presentation": "detail"
         },
         {
-          "id": "ims-workspaces:7",
+          "id": "ims-workspaces:8",
           "heading": "Worked examples",
           "content": "### Trace unavailable stock\n\nOpen **Products > Stock Levels** to compare stock on hand, committed, incoming, and available. Follow committed demand to Sales Orders or Stock Allocation and incoming supply to Purchase Orders. This explains the quantity without changing it.\n\n### Follow up a customer\n\nOpen **Contacts > CRM**, find the customer, review the profile timeline, and create a task for the next action. Use the linked sale, order, or credit note when the underlying transaction needs attention.",
           "presentation": "detail"
@@ -1209,6 +1303,10 @@
         "Storefront workflow",
         "Store settings"
       ],
+      "navigation": {
+        "category": "integrations",
+        "label": "Set up and manage the Online Shop"
+      },
       "filename": "docs/help/ims/integrations/online-shop.md",
       "sections": [
         {
@@ -1302,6 +1400,10 @@
       "quickSections": [
         "Main operations"
       ],
+      "navigation": {
+        "category": "integrations",
+        "label": "Configure sales channels"
+      },
       "filename": "docs/help/ims/integrations/sales-channels.md",
       "sections": [
         {
@@ -1380,6 +1482,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "integrations",
+        "label": "Sync Shopify and repair product mappings"
+      },
       "filename": "docs/help/ims/integrations/shopify-sync-and-product-mapping.md",
       "sections": [
         {
@@ -1470,6 +1576,10 @@
         "Choose an integration",
         "Safe retry rule"
       ],
+      "navigation": {
+        "category": "integrations",
+        "label": "Understand accounting and commerce connections"
+      },
       "filename": "docs/help/ims/integrations/xero-and-shopify.md",
       "sections": [
         {
@@ -1545,6 +1655,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "finances",
+        "label": "Review Xero sync and reconciliation"
+      },
       "filename": "docs/help/ims/integrations/xero-sync-and-reconciliation.md",
       "sections": [
         {
@@ -1633,13 +1747,35 @@
       ],
       "order": 15,
       "summary": "Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.",
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-14",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
         "Choosing a workspace",
         "Shopify product links"
       ],
+      "navigation": {
+        "category": "products",
+        "label": "Choose a product workflow",
+        "sections": [
+          {
+            "heading": "Brands",
+            "label": "Manage brands"
+          },
+          {
+            "heading": "Gift cards",
+            "label": "Manage issued gift cards"
+          },
+          {
+            "heading": "Bulk edit",
+            "label": "Change branch stock settings"
+          },
+          {
+            "heading": "Bulk Add/Edit",
+            "label": "Bulk-add or edit products"
+          }
+        ]
+      },
       "filename": "docs/help/ims/products/catalogue-and-stock.md",
       "sections": [
         {
@@ -1657,7 +1793,7 @@
         {
           "id": "ims-catalogue-stock:3",
           "heading": "Choosing a workspace",
-          "content": "| Question | Best place to start |\n|---|---|\n| Is the SKU, barcode, price or variant wrong? | All Products |\n| Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |\n| Did a delivery arrive? | Purchase Orders and Receive |\n| Does the shelf count differ from the system? | Stocktakes |\n| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Add/Edit |\n\nDo not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change.",
+          "content": "| Question | Best place to start |\n|---|---|\n| Is the SKU, barcode, price or variant wrong? | All Products |\n| Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |\n| Did a delivery arrive? | Purchase Orders and Receive |\n| Does the shelf count differ from the system? | Stocktakes |\n| Are several products assigned to the wrong brand? | All Products or a carefully filtered Bulk Add/Edit; Brands maintains the brand list |\n\nDo not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change.",
           "presentation": "quick"
         },
         {
@@ -1669,7 +1805,7 @@
         {
           "id": "ims-catalogue-stock:5",
           "heading": "Brands",
-          "content": "Create a consistent brand name before assigning it to products. A brand can be used in filters and may also affect online or wholesale presentation, so check affected products before renaming it.\n\nUse one spelling for the same brand. For example, choose **Coastal Home** rather than mixing **Coastal Home**, **CoastalHome** and **Coastal Home AU**.",
+          "content": "Create a consistent brand name before assigning it to products. Brands maintains the available brand names and website details; assigning a brand to a product is a separate catalogue edit.\n\n1. Open **Products > Brands**.\n2. Enter the name in **New brand name...**, then select **Add**.\n3. To change a listed brand, select **Edit**, review the name and **Website URL**, then select **Save**. Use the close button to leave the edit without saving.\n4. To remove a listed brand, select **Del** and review the confirmation before proceeding.\n\nRenaming or deleting a brand-list entry does not rewrite the brand text on existing products. If products need a new spelling or a different brand, update their catalogue assignment separately in **All Products** or **Bulk Add/Edit**, then check the filtered results.\n\nUse one spelling for the same brand. For example, choose **Coastal Home** rather than mixing **Coastal Home**, **CoastalHome** and **Coastal Home AU**.",
           "presentation": "detail"
         },
         {
@@ -1681,7 +1817,7 @@
         {
           "id": "ims-catalogue-stock:7",
           "heading": "Bulk edit",
-          "content": "Bulk Edit is the location-based workspace for minimum quantity, reorder quantity, zone and bin changes. Select the intended location before editing and review variant rows before saving.",
+          "content": "**Products > Bulk Edit** opens **Bulk Edit Products**. Use it for branch replenishment settings and variant storage positions. It also exposes shared catalogue fields, so choosing a branch does not make every edit branch-local.\n\n### Understand what each field changes\n\n| Field | Where the change applies | Review before saving |\n|---|---|---|\n| Product Name, Brand and Supplier | The shared product catalogue, across branches | The product is correct, not just the selected branch |\n| Barcode on a single-variant product row | That variant's shared barcode | It identifies the intended variant |\n| Barcode in an expanded variant row | That exact variant's shared barcode | The SKU and size or colour match |\n| Min Qty and Reorder Qty on the product row | Every active variant of the product at the selected branch | All those variants should use the same entered settings |\n| Zone and Bin in an expanded variant row | That exact variant at the selected branch | The branch and physical storage position are correct |\n\nThe product-row **Min Qty** and **Reorder Qty** displays use the lowest value among the active variants at that branch. They do not prove every variant already has that value. Changing a product-row setting applies the entered value to all its active variants there.\n\n### Edit and save one branch at a time\n\n1. Choose the intended **Branch** before making edits.\n2. Use **Search name / SKU...**, **Brand** and **Supplier** to find the products. Quick filters include **All**, **New (7d)**, **No Min** and **No Reorder**.\n3. Review each product and expand it when you need to identify variants or edit their barcodes, zones or bins. **Zone** and **Bin** are available only when Zones and Bins are enabled.\n4. Edit only the settings you intend to change. An untouched **Min Qty** or **Reorder Qty** keeps each variant's existing value. Enter **0** to set a value to zero; clearing a numeric box also sets it to zero rather than leaving it unchanged.\n5. Check the highlighted edits and unsaved-change count. Review changes made on other pages or under earlier filters as well as the currently visible rows.\n6. Select **Save Changes**. Read the reported product, stock-setting and variant update counts.\n7. Reopen or refresh the affected products at the same branch and verify both replenishment settings and any variant changes. Save and verify this branch before moving to another.\n\n> **Important:** Filters and paging do not discard queued edits. Saving includes queued changes even when those products are no longer visible. Unsaved edits also remain when the branch selector changes, and branch settings are saved against the branch selected at save time. Finish one branch before switching.\n\n> **Important:** An edited replenishment setting applies to every active variant of the product at the selected branch. The untouched companion setting keeps its own value on each variant, even when those values differ. Change both fields only when both should be updated.\n\nBulk Edit does not adjust stock on hand. Use the matching receipt, transfer, return or stocktake for physical quantity changes.\n\nIf a save fails or its result is unclear, some earlier edits may already have saved. Reload and check affected fields before repeating the changes. The all-or-nothing save described under **Bulk Add/Edit** does not apply to this branch workspace.",
           "presentation": "detail"
         },
         {
@@ -1693,13 +1829,13 @@
         {
           "id": "ims-catalogue-stock:9",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |\n| Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |\n| A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |\n| A bulk workspace includes too many items | The selection is broader than intended | Stop before saving, refine the filters and review again |\n| A preset shows unexpected products | Its saved filters or Match ALL/ANY mode no longer fit the task | Review the Filter panel, then save the preset again under the same name |\n| Save is unavailable in Bulk Add/Edit | A changed product is missing Product Name, Product SKU, a variant or Variant SKU | Complete the required cells in every changed product |\n| Import Product Data finds no products | The source has no readable product rows, or the copied PDF text lost its table content | Paste clearer rows with headings, or upload the original PDF or image |\n| An imported cost or RRP is blank | The value was missing, ignored during Price-column confirmation, or shown in a currency that should not populate that field | Import again and confirm the generic Price column as Cost or RRP, or enter the value manually |\n| Bulk Add/Edit reports an identifier conflict | A Product SKU, variant SKU or barcode is already used | Correct the identified cell; no rows from that save were applied |",
+          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |\n| Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |\n| A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |\n| A bulk workspace includes too many items | The selection is broader than intended | Stop before saving, refine the filters and review again |\n| Bulk Edit saves products outside the current filter | Earlier edits remain queued | Check the unsaved-change count and all edited pages before saving |\n| A Bulk Edit replenishment value changed unexpectedly | A product-row edit applies across active variants, or its numeric box was cleared | Verify each active variant at the selected branch; edit only the intended fields and leave the other field untouched |\n| Bulk Edit reports a failed save | Some earlier changes may already have saved | Reload and verify the affected fields before repeating |\n| A preset shows unexpected products | Its saved filters or Match ALL/ANY mode no longer fit the task | Review the Filter panel, then save the preset again under the same name |\n| Save is unavailable in Bulk Add/Edit | A changed product is missing Product Name, Product SKU, a variant or Variant SKU | Complete the required cells in every changed product |\n| Import Product Data finds no products | The source has no readable product rows, or the copied PDF text lost its table content | Paste clearer rows with headings, or upload the original PDF or image |\n| An imported cost or RRP is blank | The value was missing, ignored during Price-column confirmation, or shown in a currency that should not populate that field | Import again and confirm the generic Price column as Cost or RRP, or enter the value manually |\n| Bulk Add/Edit reports an identifier conflict | A Product SKU, variant SKU or barcode is already used | Correct the identified cell; no rows from that save were applied |",
           "presentation": "detail"
         },
         {
           "id": "ims-catalogue-stock:10",
           "heading": "Worked examples",
-          "content": "### Update a winter price group\n\nA retailer needs to change 24 winter jackets to a tax-inclusive retail price of $220. They filter by the exact brand and product type, review all 24 products, apply the supported price change, then open three products to confirm the new price. The $220 price already contains $20 GST; GST is not added again at the register.\n\n### Investigate a stock question\n\nStock Levels shows 10 candles on hand and 3 committed, so 7 are available. The retailer checks the customer orders behind the committed quantity instead of increasing stock to 10 again.",
+          "content": "### Set replenishment and storage for one branch\n\nA Sydney store wants all three active sizes of a T-shirt to have **Min Qty > 2** and **Reorder Qty > 6**. Staff choose Sydney in **Bulk Edit**, find the exact product, and enter both values on its product row. They expand the product and set the medium variant to **Zone > Apparel** and **Bin > A3**.\n\nAfter **Save Changes**, they verify the two replenishment settings on all three variants in Sydney and the medium variant's storage position. Those branch settings do not change Melbourne stock settings, and no stock-on-hand quantity is adjusted. If they also change the product's brand, that catalogue change applies across branches.\n\n### Change only one replenishment setting\n\nAt Sydney, the small T-shirt has **Min Qty 5 / Reorder Qty 12** and the large has **Min Qty 5 / Reorder Qty 20**. Staff change only the product-row **Min Qty** to **8**, leaving Reorder Qty untouched.\n\nAfter saving, both active sizes have Min Qty 8, but their Reorder Qty values remain 12 and 20 respectively. Melbourne settings and on-hand quantities do not change. If staff instead enter Reorder Qty 0, it becomes zero across the active Sydney variants while each untouched Min Qty remains unchanged.\n\n### Update a winter price group\n\nA retailer needs to change 24 winter jackets to a tax-inclusive retail price of $220. They filter by the exact brand and product type, review all 24 products, apply the supported price change, then open three products to confirm the new price. The $220 price already contains $20 GST; GST is not added again at the register.\n\n### Investigate a stock question\n\nStock Levels shows 10 candles on hand and 3 committed, so 7 are available. The retailer checks the customer orders behind the committed quantity instead of increasing stock to 10 again.",
           "presentation": "detail"
         }
       ]
@@ -1738,6 +1874,10 @@
         "Cost terms in plain language",
         "Tax and currency"
       ],
+      "navigation": {
+        "category": "products",
+        "label": "Understand inventory costing and value"
+      },
       "filename": "docs/help/ims/products/inventory-costing.md",
       "sections": [
         {
@@ -1749,7 +1889,7 @@
         {
           "id": "ims-inventory-costing:2",
           "heading": "Main operations",
-          "content": "Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.\n\nAverage Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.\n\n| To answer... | Use |\n|---|---|\n| Which method is active? | **Settings > General > Inventory Costing** |\n| What is the current stock value at a location? | **Products > Stock Levels** |\n| What cost was attached to an earlier receipt, sale or return? | **Stock History** |\n| How does current catalogue selling price compare with cost? | **Reports > Product Margin** |\n| What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |\n| Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |",
+          "content": "Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.\n\nAverage Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.\n\n| To answer... | Use |\n|---|---|\n| Which method is active? | **Settings > General > Inventory Costing** |\n| What is the current stock value at a location? | **Products > Stock Levels** |\n| What cost was attached to an earlier receipt, sale or return? | **Stock History** |\n| How does current catalogue selling price compare with cost? | **Reports > Product Profitability Margin**, checking its current-price/current-cost estimate and GST limitation |\n| What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |\n| Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |",
           "presentation": "quick"
         },
         {
@@ -1835,6 +1975,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "products",
+        "label": "Build products from components"
+      },
       "filename": "docs/help/ims/products/product-builds.md",
       "sections": [
         {
@@ -1921,6 +2065,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "products",
+        "label": "Create products and variants"
+      },
       "filename": "docs/help/ims/products/product-setup-variants-and-non-stock-items.md",
       "sections": [
         {
@@ -2021,6 +2169,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "products",
+        "label": "Check stock levels and availability"
+      },
       "filename": "docs/help/ims/products/stock-levels-and-adjustments.md",
       "sections": [
         {
@@ -2117,6 +2269,10 @@
         "Main operations",
         "Purchase order status flow"
       ],
+      "navigation": {
+        "category": "purchasing",
+        "label": "Create and manage purchase orders"
+      },
       "filename": "docs/help/ims/purchasing/purchase-orders.md",
       "sections": [
         {
@@ -2218,6 +2374,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "purchasing",
+        "label": "Receive deliveries and resolve shortages"
+      },
       "filename": "docs/help/ims/purchasing/receiving-and-resolving-purchase-orders.md",
       "sections": [
         {
@@ -2313,6 +2473,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "purchasing",
+        "label": "Return stock and record supplier credits"
+      },
       "filename": "docs/help/ims/purchasing/supplier-returns-and-credit-notes.md",
       "sections": [
         {
@@ -2398,23 +2562,38 @@
         "order-planner"
       ],
       "contextSections": {
-        "order-planner": "Order planner"
+        "order-planner": "Build and review an order plan"
       },
       "relatedTopics": [
         "ims-purchase-orders",
         "ims-po-receiving-resolution",
         "ims-supplier-returns-credit-notes",
-        "ims-stock-levels-adjustments"
+        "ims-stock-levels-adjustments",
+        "ims-report-guide"
       ],
       "order": 11,
-      "summary": "Turn replenishment suggestions into reviewed purchase orders and choose the right supplier workflow when plans change.",
-      "lastReviewed": "2026-08-23",
+      "summary": "Review replenishment suggestions, distinguish saved plans from purchase orders, and choose the right supplier workflow.",
+      "lastReviewed": "2026-10-14",
       "owner": "inventory",
       "quickSections": [
         "Main operations",
         "Order planner",
         "Choose the next workflow"
       ],
+      "navigation": {
+        "category": "purchasing",
+        "label": "Plan replenishment and supplier work",
+        "sections": [
+          {
+            "heading": "Build and review an order plan",
+            "label": "Build and review Order Planner suggestions"
+          },
+          {
+            "heading": "Create a purchase order from reviewed lines",
+            "label": "Move a reviewed plan into a purchase order"
+          }
+        ]
+      },
       "filename": "docs/help/ims/purchasing/supplier-work.md",
       "sections": [
         {
@@ -2426,13 +2605,13 @@
         {
           "id": "ims-supplier-work:2",
           "heading": "Main operations",
-          "content": "| Situation | Open | Result |\n|---|---|---|\n| Decide what may need ordering | Order Planner | A suggestion for staff to review |\n| Place an order | Purchase Orders | A Draft, then confirmed incoming supply |\n| Record goods that arrived | Purchase Orders > Receive | Stock on hand increases by the received quantity |\n| Decide what happens to a short delivery | Purchase Orders > Resolve Outstanding | The remainder stays open, closes or moves to a Backordered PO |\n| Return goods or record a supplier allowance | Supplier Credit Notes | Stock may reduce and a supplier credit is recorded |",
+          "content": "| Situation | Open | Result |\n|---|---|---|\n| Decide what may need ordering | Order Planner | Recommendations and a saved planning snapshot, not a Purchase Order |\n| Place an order | Purchase Orders | A Draft, then confirmed incoming supply |\n| Record goods that arrived | Purchase Orders > Receive | Stock on hand increases by the received quantity |\n| Decide what happens to a short delivery | Purchase Orders > Resolve Outstanding | The remainder stays open, closes or moves to a Backordered PO |\n| Return goods or record a supplier allowance | Supplier Credit Notes | Stock may reduce and a supplier credit is recorded |",
           "presentation": "quick"
         },
         {
           "id": "ims-supplier-work:3",
           "heading": "Order planner",
-          "content": "Order Planner compares available demand and supply information to suggest replenishment. A suggestion is a starting point; staff still decide whether the quantity, supplier, location and timing make sense.\n\nAsk Assistant for a read-only reorder forecast when you need the highest nonzero suggestions for one supplier or brand. Choose a 7, 90, 180 or 365-day sales window and an order frequency. Assistant uses the same Order Planner calculation and returns at most 30 suggestions; it does not create or change a Purchase Order.\n\nSuggested quantity is average daily sales multiplied by order frequency plus supplier lead time, less available and incoming stock. The final reorder quantity is rounded to the product's pack size. Newer products use their shorter selling history after lead time rather than assuming the full sales window.\n\nBefore creating a PO, review:\n\n- [ ] Current on-hand and available stock.\n- [ ] Customer commitments and unusual demand.\n- [ ] Supply already incoming on other POs.\n- [ ] The receiving location.\n- [ ] Supplier and lead time.\n- [ ] The planning window and any seasonal event.\n\n> **Important:** Creating a PO from a suggestion does not make the suggestion correct. Review the resulting Draft before confirmation.\n\n> **Important:** Assistant forecasts are also suggestions. Seasonal events, unusual orders, stale sales-cache data, supplier minimums and unrecorded supply can make the calculated quantity unsuitable.",
+          "content": "Order Planner compares available demand and supply information to suggest replenishment. A suggestion is a starting point; staff still decide whether the quantity, supplier, location and timing make sense.\n\nAsk Assistant for a read-only reorder forecast when you need the highest nonzero suggestions for one supplier or brand. Choose a 7, 90, 180 or 365-day sales window and an order frequency. Assistant uses the same Order Planner calculation and returns at most 30 suggestions; it does not create or change a Purchase Order.\n\nSuggested quantity is average daily sales multiplied by the combined order frequency and supplier lead time, less available and incoming stock. A positive reorder quantity is rounded to the nearest pack multiple, with at least one pack. This can round down as well as up. Newer products with a positive selling history after lead time use that shorter history, up to the selected sales window.\n\nBefore creating a PO, review:\n\n- [ ] Current on-hand and available stock.\n- [ ] Customer commitments and unusual demand.\n- [ ] Supply already incoming on other POs.\n- [ ] The receiving location.\n- [ ] Supplier and lead time.\n- [ ] The planning window and any seasonal event.\n\n> **Important:** **Save Draft Order** saves a planning snapshot. It does not create an IMS Purchase Order, confirm incoming supply, change stock, or send an order to the supplier. Create and review the actual Purchase Order separately.\n\n> **Important:** Assistant forecasts are also suggestions. Seasonal events, unusual orders, stale sales-cache data, supplier minimums and unrecorded supply can make the calculated quantity unsuitable.",
           "presentation": "quick"
         },
         {
@@ -2443,20 +2622,32 @@
         },
         {
           "id": "ims-supplier-work:5",
+          "heading": "Build and review an order plan",
+          "content": "1. Open **Purchasing > Order Planner**.\n2. Choose **Group By > Supplier** or **Brand**, then type and choose the exact supplier or brand. A brand plan can contain several suppliers; check the **Supplier** on every line.\n3. Choose a **Sales Window** of **7**, **90**, **180** or **365** days. Use **Order Frequency (days)** for the period until the next planned order, not the historical sales period.\n4. Review **Supplier Lead Time (days)**. Enter **0** to use the supplier default, or a positive number to override it for this plan.\n5. Review **Sales Source Branches**. For selected branches, choose **Only selected branches** and use **Pick Branches For Sales** to select at least one location. Sales and supply are restricted to those locations. This does not choose the receiving location for a Purchase Order.\n6. Select **Build Order Plan**. Check **Sales Qty**, **Avg/Day**, **Available**, **Incoming**, **Suggested** and **Pack Size** before accepting a recommendation.\n7. Review any **Stock incomplete** warning. It names selected branches with missing stock data; Available and Incoming show dashes and Suggested shows **Withheld**, not a confirmed zero. Check quantities in **Stock Levels**. Either rebuild after the missing data is available, or select **Stock checked — allow manual quantity** after verification and enter your own Reorder Qty. Acknowledgement does not calculate an automatic suggestion or change stock.\n8. Edit **Reorder Qty** and **Cost** where needed. Check the quantity again after editing because pack rounding can change the number entered. Set **Reorder Qty** to **0** when you do not intend to order that line.\n9. Turn on **Show zero-qty rows** to review complete lines without a positive recommendation. Incomplete-stock lines remain visible without that option. Check the **Lines**, **Units**, **Estimated Cost** and **Suppliers In Order** summaries.\n10. Select **Save Draft Order** if you want to save the reviewed planning snapshot, and note the returned draft name.\n\n> **Important:** Selected-branch plans never substitute business-wide sales or stock. Every selected branch must have stock data for a line before it receives an automatic suggestion. A recorded zero is valid data; a missing value is unknown. Sales without a matching branch assignment are not assumed to belong to the selected branches.\n\nThe **Plan scope** label identifies the branches and sales window actually used. Changing controls requires another **Build Order Plan** to apply them; saving an existing plan keeps its original scope. Rebuilding replaces edited quantities, costs and stock acknowledgements, so record reviewed lines before rebuilding or leaving the planner. Clearing a Stock checked acknowledgement resets that line's manual quantity to zero.\n\nAll-branch plans use refreshed rolling totals. Selected-branch sales use recorded sales for the chosen locations and period, following Sales Detail's source rules. Recent changes can appear at different times until all-branch totals refresh. Recorded Sales Order quantities can include orders not yet fulfilled; check unusual orders and incoming supply before purchasing.\n\nThe saved planning snapshot is not a purchase-order draft and does not provide a current spreadsheet link or an automatic transfer into IMS Purchase Orders. Keep the reviewed supplier, variant, quantity and cost details available for the next step.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-supplier-work:6",
+          "heading": "Create a purchase order from reviewed lines",
+          "content": "1. Separate the positive reviewed lines by supplier. Do not place a mixed-supplier brand plan on one supplier's Purchase Order.\n2. Open **Purchasing > Purchase Orders**, then **New Purchase Order**.\n3. Choose the supplier and the actual receiving location. The planner's branch selection is not a receiving-location instruction.\n4. Add the exact variants and enter the reviewed quantities and tax-exclusive supplier costs. These details must be entered separately; saving the plan does not fill this Purchase Order.\n5. Save the Purchase Order as **Draft**, then review supplier, location, quantities, costs and any existing incoming supply.\n6. Confirm only when the order is ready to become incoming supply. Receive stock only when goods actually arrive.\n\nUse **Purchase Orders** Help for the full creation and confirmation procedure. Neither a saved plan nor an unconfirmed Purchase Order Draft increases stock on hand.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-supplier-work:7",
           "heading": "Costs and GST",
           "content": "Use supplier documents to record buying costs. Supplier costs are treated as tax-exclusive for stock value after any included GST is removed. Selling prices in Products and POS are tax-inclusive and should not be copied into a PO as though they were supplier costs.\n\nFor example, a candle sells for $44 including $4 GST, but the supplier charges $18 before GST. The PO cost is $18, not $44.",
           "presentation": "detail"
         },
         {
-          "id": "ims-supplier-work:6",
+          "id": "ims-supplier-work:8",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A suggestion looks too high | Demand window, commitments or incoming supply need review | Check each input and adjust the Draft rather than ordering blindly |\n| A backorder cannot be found | The source PO may already be resolved | Open the original PO and review its status and Activity History |\n| A supplier issue has both stock and money effects | The wrong workflow may be open | Start from the completed PO and choose Supplier Return / Credit |\n| A supplier credit is complete but Xero shows an error | Stock and accounting completed separately | Review the credit note's Xero status and retry the unfinished sync only |",
+          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A suggestion looks too high | Demand window, commitments or incoming supply need review | Check each input and edit Reorder Qty rather than ordering blindly |\n| A branch line says Stock incomplete or Suggested is Withheld | At least one selected branch has missing stock data for that variant | Check the named branches in Stock Levels; rebuild after data is available, or acknowledge a stock check before entering a manual quantity |\n| A manual quantity is unavailable | An incomplete-stock line has not been acknowledged | Verify stock first, then select Stock checked; do not treat a dash as zero |\n| Branch sales differ from another report | The branch, period, source rules or freshness differ | Compare the same branches and period in Sales Detail; verify source orders before purchasing |\n| Controls differ from the Plan scope label | The controls changed after the plan was built | Rebuild to apply them, or save the reviewed plan with its original scope |\n| Edited quantities disappeared | Build Order Plan recalculated the recommendations | Re-enter the reviewed quantities; record them before rebuilding again |\n| The saved draft is missing from Purchase Orders | Save Draft Order saved a planning snapshot, not a PO | Create a separate Purchase Order from the reviewed lines |\n| Saving a plan reports an error or no clear result | The save outcome needs checking | Keep the reviewed lines and any returned draft name; do not assume a PO was created |\n| A backorder cannot be found | The source PO may already be resolved | Open the original PO and review its status and Activity History |\n| A supplier issue has both stock and money effects | The wrong workflow may be open | Start from the completed PO and choose Supplier Return / Credit |\n| A supplier credit is complete but Xero shows an error | Stock and accounting completed separately | Review the credit note's Xero status and retry the unfinished sync only |",
           "presentation": "detail"
         },
         {
-          "id": "ims-supplier-work:7",
+          "id": "ims-supplier-work:9",
           "heading": "Worked examples",
-          "content": "### Review a summer replenishment suggestion\n\nOrder Planner suggests 30 sun hats for the Gold Coast store. Staff find 8 available, 10 already incoming and an expected weekend demand of 22. They reduce the Draft to a quantity supported by those facts, check the supplier and tax-exclusive cost, then confirm it.\n\n### Choose between a backorder and a credit\n\nA supplier delivers 18 of 24 towels. The remaining 6 are due next week, so staff receive 18 and leave 6 open. If the supplier instead cancels the 6, staff resolve the outstanding remainder. No supplier credit is needed because those 6 were never received or paid as returned goods.",
+          "content": "### Review a summer replenishment suggestion\n\nOrder Planner suggests 30 sun hats in packs of 6. Staff check branch sales, available stock and existing incoming supply, then decide that 24 is the appropriate quantity. They enter **Reorder Qty > 24** and **Cost > $18**, giving an estimated line value of **$432**.\n\n**Save Draft Order** records that plan only. Staff separately create a Purchase Order for the hat supplier and the Gold Coast receiving location, add the exact hat variant with 24 units at $18 before GST, and review the Purchase Order Draft before confirmation. Stock on hand changes later, when those hats are received.\n\n### Choose between a backorder and a credit\n\nA supplier delivers 18 of 24 towels. The remaining 6 are due next week, so staff receive 18 and leave 6 open. If the supplier instead cancels the 6, staff resolve the outstanding remainder. No supplier credit is needed because those 6 were never received or paid as returned goods.\n\n### Plan for one branch without mixing another branch's demand\n\nOver 90 days, Sydney sold 90 units and Melbourne sold 270. Staff select **Sydney only**, use 30 days of coverage and no extra lead time, and review a variant with at least 90 effective sales days. Its Sydney Available is 5 and Incoming is 0.\n\nThe planner uses Sydney's **90 Sales Qty**, or one unit per day, and suggests **25** before any pack rounding: 30 days of demand minus 5 available. It does not use the business-wide 360 sales against Sydney's five units.\n\n### Check an incomplete multi-branch line\n\nStaff select Sydney and Melbourne, but the variant has stock data only for Sydney. The line names Melbourne as incomplete and withholds the combined suggestion rather than treating Melbourne as zero or substituting business totals.\n\nStaff verify both branches in Stock Levels. If they decide to enter 12 units manually, they select **Stock checked — allow manual quantity**, enter 12 and review pack rounding. The saved snapshot records the acknowledgement and incomplete-data warning. Suggested remains Withheld until a rebuilt plan has complete branch data; no stock or Purchase Order is created by the acknowledgement.",
           "presentation": "detail"
         }
       ]
@@ -2493,6 +2684,10 @@
         "Step-by-step",
         "Troubleshooting"
       ],
+      "navigation": {
+        "category": "finances",
+        "label": "Review the accounting audit"
+      },
       "filename": "docs/help/ims/reports/bookkeeper-audit.md",
       "sections": [
         {
@@ -2540,6 +2735,106 @@
       ]
     },
     {
+      "id": "ims-cash-banking-report",
+      "title": "Cash Banking Report",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "Reports > Cash Banking",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-operational-reports",
+      "contexts": [
+        "report-cash-banking"
+      ],
+      "contextSections": {
+        "report-cash-banking": "Step-by-step"
+      },
+      "relatedTopics": [
+        "ims-cash-banking",
+        "pos-end-of-day",
+        "pos-end-of-day-xero",
+        "ims-report-guide"
+      ],
+      "order": 64,
+      "summary": "Review deposit recounts, bank acceptance, Xero posting outcomes and notes documenting manual accounting corrections.",
+      "lastReviewed": "2026-10-14",
+      "owner": "accounting",
+      "quickSections": [
+        "Main operations",
+        "At a glance"
+      ],
+      "navigation": {
+        "category": "reports",
+        "label": "Review cash deposits and correction notes",
+        "sections": [
+          {
+            "heading": "Step-by-step",
+            "label": "Review Cash Banking report outcomes"
+          },
+          {
+            "heading": "Record a manual correction note",
+            "label": "Document an existing manual Xero correction"
+          }
+        ]
+      },
+      "filename": "docs/help/ims/reports/cash-banking-report.md",
+      "sections": [
+        {
+          "id": "ims-cash-banking-report:1",
+          "heading": "Cash Banking Report",
+          "content": "Use **Reports > Cash Banking** to review deposit records and accounting outcomes. Use the separate **Finances > Cash Banking** workspace to prepare cash, confirm lodgement and post or retry accounting.\n\nThe report is available for Xero-enabled businesses with POS Manager-level access. Recording a correction note requires Admin or SuperAdmin access and an already posted deposit.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-cash-banking-report:2",
+          "heading": "Main operations",
+          "content": "- Select the relevant date interval and accounting outcome.\n- Compare store-reported cash, preparation recount and bank-accepted amounts separately.\n- Distinguish a planned preparation from a confirmed lodgement.\n- Check who prepared, confirmed and posted the deposit.\n- Review the transfer reference and any recorded correction note.\n- Use **Add note** only to document a correction already made manually in Xero.\n- Export the filtered deposit records, remembering that correction notes are not included in CSV.",
+          "presentation": "quick"
+        },
+        {
+          "id": "ims-cash-banking-report:3",
+          "heading": "At a glance",
+          "content": "| Column or state | Meaning |\n|---|---|\n| Lodgement | Actual lodgement date, or Awaiting before it is recorded |\n| Store reported | Cash reported by the linked End of Day records, not a new count |\n| Till variance | Differences recorded at the original register-count stage |\n| Prepared | Cash recounted while preparing the batch |\n| Preparation variance | Prepared amount minus store-reported amount |\n| Bank accepted | The final amount accepted at lodgement |\n| Bank variance | Bank-accepted amount minus prepared amount |\n| Planned | A preparation record awaiting confirmed lodgement |\n| Posted to Xero | Solvantis recorded the posting outcome |\n| Recorded in Xero manually | The deposit was recorded externally; Solvantis did not create a second posting |\n| Correction | Date/reference of a saved manual-correction note; hover to read the note |",
+          "presentation": "quick"
+        },
+        {
+          "id": "ims-cash-banking-report:4",
+          "heading": "Before you begin",
+          "content": "- [ ] Have the register summaries, cash preparation evidence and bank receipt available.\n- [ ] Use lodgement dates for bank-deposit questions, not the original trading dates.\n- [ ] Check the deposit's actual confirmation and accounting outcome.\n- [ ] Verify any manual correction in Xero before recording its note.\n\n> **Important:** A correction note documents an external action. It does not make that correction in Xero, repost the deposit or rewrite the original cash amounts.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-cash-banking-report:5",
+          "heading": "Step-by-step",
+          "content": "1. Open **Reports > Cash Banking**.\n2. Choose the start and end dates. The initial interval is about 90 days. Confirm start is not later than end.\n3. Select **All outcomes**, **Ready to post**, **Posting issue**, **Posted to Xero** or **Recorded in Xero manually**.\n4. Wait for the filtered rows to load without an error. The date filter uses lodgement date when present, otherwise the preparation record's creation date.\n5. Review **Branch**, **Destination**, **Store reported**, **Till variance**, **Prepared**, **Preparation variance**, **Bank accepted** and **Bank variance**.\n6. Check **Status**, **Prepared by**, **Confirmed by**, **Posted by** and **Xero transfer**. An Awaiting lodgement or Planned status is not proof that the bank accepted the cash. The Ready to post filter can include a preparation that still needs confirmation.\n7. Hover the **Xero transfer** cell for any available posting-error detail, and the **Correction** cell to read a saved note.\n8. Use **Export CSV** after the result loads successfully. It exports all loaded deposits; there is no pagination.\n\nThere is no branch search or branch selector in this report. Dates and outcome changes reload the result automatically. The report does not offer deposit creation, lodgement confirmation, posting or retry actions; those belong to **Finances > Cash Banking**.\n\nCSV includes deposit dates, branch, destination, bank reference, the three cash stages and their differences, confirmation/accounting outcome, deposit explanation, staff audit fields and transfer reference. It does not include the separate correction note, correction reference/date or posting-error detail shown through the table.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-cash-banking-report:6",
+          "heading": "Record a manual correction note",
+          "content": "This records an annotation only: it does not make that correction in Xero or change the deposit's original amounts.\n\n1. Verify that the accounting correction has already been made manually in Xero.\n2. Find the already posted deposit. **Add note** is available to Admins and SuperAdmins when no correction note is displayed.\n3. Enter a concise description of the correction.\n4. Enter the optional Xero reference, then the correction date in the requested **YYYY-MM-DD** format.\n5. Finish the prompts and check that the Correction cell shows the saved date/reference. Hover it to verify the description.\n\nIf the result is unclear, reload and inspect the existing Correction cell before repeating the entry. The table does not offer an edit button for an already displayed note.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-cash-banking-report:7",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| An older trading day is not found by its trading date | Filters use lodgement date, or creation date before lodgement | Search the date when the deposit was lodged or prepared |\n| Ready to post shows an Awaiting lodgement | The preparation still needs confirmation | Continue that deposit in Finances; do not create another |\n| Deposit amounts differ | The differences belong to separate count/recount/bank stages | Investigate the first stage where the difference arose |\n| Posting is partial or failed | An accounting action is unfinished | Review the error and use the existing deposit's Retry action in Finances |\n| Add note is unavailable | Access, posting status or an existing note does not meet the conditions | Check the role and posted deposit; inspect an existing note |\n| CSV has no correction note | CSV exports deposit details, not correction annotations | Review the table's saved note separately when assembling evidence |",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-cash-banking-report:8",
+          "heading": "Worked examples",
+          "content": "### Identify where a difference occurred\n\nStore-reported cash is **$1,000**. The preparation recount is **$995**, so Preparation variance is **-$5**. The bank accepts **$990**, so Bank variance is another **-$5**. Staff investigate those two stages separately from any original Till variance rather than attributing the whole difference to the cashier.\n\n### Document a correction without posting again\n\nAn Admin verifies that a bookkeeper already corrected a posted deposit in Xero. They use **Add note** to record the explanation, reference and correction date. The original Solvantis amounts and posting reference remain historical; the note does not create another transfer. Staff inspect the note in the report rather than expecting it in the deposit CSV.",
+          "presentation": "detail"
+        }
+      ]
+    },
+    {
       "id": "ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
       "audiences": [
@@ -2559,36 +2854,77 @@
         "report-product-margin",
         "report-pos-price-changes",
         "report-pos-registers",
-        "report-cash-banking",
         "report-stock-availability"
       ],
       "contextSections": {
-        "report-sales-detail": "Step-by-step",
-        "report-sales-by-branch": "Step-by-step",
-        "report-sales-summary": "Step-by-step",
-        "report-sales-search": "Step-by-step",
-        "report-inventory-valuation": "Step-by-step",
-        "report-product-margin": "Step-by-step",
-        "report-pos-price-changes": "Step-by-step",
-        "report-pos-registers": "Step-by-step",
-        "report-cash-banking": "Cash Banking workflow",
-        "report-stock-availability": "Step-by-step"
+        "report-sales-detail": "Sales Detail: compare products and branches",
+        "report-sales-by-branch": "Sales Detail: compare products and branches",
+        "report-sales-summary": "Sales Summary: compare grouped sales",
+        "report-sales-search": "Sales Search: review variant sales totals",
+        "report-inventory-valuation": "Inventory Valuation: review current stock value",
+        "report-product-margin": "Product Profitability: understand catalogue-based estimates",
+        "report-pos-price-changes": "POS price changes: review recorded unit-price overrides",
+        "report-pos-registers": "Daily POS Registers: review sessions and counted takings",
+        "report-stock-availability": "Stock Availability: review open-order supply and promises"
       },
       "relatedTopics": [
         "ims-operational-reports",
         "ims-cash-banking",
+        "ims-cash-banking-report",
         "ims-inventory-costing",
-        "ims-location-stock-operations"
+        "ims-location-stock-operations",
+        "ims-stock-allocation-backorders",
+        "ims-sales-orders-fulfilment",
+        "pos-end-of-day",
+        "pos-end-of-day-xero"
       ],
       "order": 61,
-      "summary": "Match a business question to the right report and compare dates, GST, cost, and stock consistently.",
-      "lastReviewed": "2026-09-24",
+      "summary": "Choose and filter sales, demand, valuation and register reports, distinguish catalogue-based profit estimates from recorded margins, and check export scope.",
+      "lastReviewed": "2026-10-14",
       "owner": "reporting",
       "quickSections": [
         "Main operations",
         "At a glance",
-        "Cash Banking workflow"
+        "Export scope by report"
       ],
+      "navigation": {
+        "category": "reports",
+        "label": "Filter reports and compare results",
+        "sections": [
+          {
+            "heading": "Sales Detail: compare products and branches",
+            "label": "Compare product sales across branches"
+          },
+          {
+            "heading": "Sales Summary: compare grouped sales",
+            "label": "Compare sales by location, brand or time"
+          },
+          {
+            "heading": "Sales Search: review variant sales totals",
+            "label": "Search variant sales and source quantities"
+          },
+          {
+            "heading": "Inventory Valuation: review current stock value",
+            "label": "Review current inventory value"
+          },
+          {
+            "heading": "Product Profitability: understand catalogue-based estimates",
+            "label": "Understand product profitability estimates"
+          },
+          {
+            "heading": "Stock Availability: review open-order supply and promises",
+            "label": "Review unsourced demand and customer promises"
+          },
+          {
+            "heading": "POS price changes: review recorded unit-price overrides",
+            "label": "Review POS unit-price changes"
+          },
+          {
+            "heading": "Daily POS Registers: review sessions and counted takings",
+            "label": "Review register sessions and till variances"
+          }
+        ]
+      },
       "filename": "docs/help/ims/reports/choosing-and-reading-reports.md",
       "sections": [
         {
@@ -2600,43 +2936,97 @@
         {
           "id": "ims-report-guide:2",
           "heading": "Main operations",
-          "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting.\n\nOpen **Finances > Cash Banking** or use the direct `#cash-banking` link. See **Cash Banking** Help for preparation, historical lodgements, and Xero accounting outcomes. Use the separate **Cash Banking report** to review prepared deposits and recorded corrections.",
+          "content": "- Write down the question before choosing the report.\n- Align date range, location, status, and GST treatment.\n- Use detail rows to explain summary totals.\n- Distinguish current stock cost from cost recorded on historical sales or movements.\n- Ask Assistant to compare sales by active location for a rolling period when a concise live summary is enough.\n- Review the on-screen result before exporting.\n- Wait for loading to finish and resolve any displayed error. Some reports retain rows from the last successful load; those are not proof that the new filters succeeded.\n\nFor Xero-enabled businesses, use **Cash Banking** Help for preparation and lodgement under Finances, and **Cash Banking Report** Help for reviewing deposits, posting outcomes and correction notes. These are different workspaces.",
           "presentation": "quick"
         },
         {
           "id": "ims-report-guide:3",
           "heading": "At a glance",
-          "content": "| Business question | Best starting report | Read next when needed |\n|---|---|---|\n| Which products sold and where? | Sales Detail | Sales Search for individual source lines |\n| How do locations compare? | Sales by Branch | Sales Detail with one branch selected |\n| What drives sales by brand, supplier, type, day, or hour? | Sales Summary | Sales Search for source activity |\n| Where is a known product sale? | Sales Search | POS Sales or the Sales Order |\n| What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |\n| What margin was recorded? | Product Margin or Sales Summary | Sale and movement history for cost coverage |\n| Can each sale be traced to captured COGS and stock location? | Sales & COGS Traceability | Detail evidence and Reconciliation |\n| Is a POS price change expected? | POS Price Changes | Product and sale source |\n| What happened in a register session? | POS Registers | POS Sales and End of Day records |\n| Does recorded banking match cash handling? | Cash Banking | Register and deposit references |\n| Can demand be supplied? | Stock Availability | Sales Orders, allocation, and Purchase Orders |",
+          "content": "| Business question | Best starting report | Read next when needed |\n|---|---|---|\n| Which products sold and where? | Sales Detail | Sales Search for variant totals split by source |\n| How do locations compare? | Sales Summary grouped by Location | Sales Detail for product-level branch columns |\n| What drives sales by brand, supplier, type, day, or hour? | Sales Summary | Sales Search for product/variant source quantities |\n| Which variants sold in a period? | Sales Search | POS Sales or the relevant Sales Order for individual transactions |\n| What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |\n| What margin was recorded? | Sales Summary or Sales & COGS Traceability | Sale and movement history for cost coverage |\n| How do current catalogue price and cost compare for sold products? | Product Profitability Margin | Check its estimate formula and GST limitation below |\n| Can each sale be traced to captured COGS and stock location? | Sales & COGS Traceability | Detail evidence and Reconciliation |\n| Is a recorded POS unit-price change expected? | POS Price Changed Transactions | Product and sale source |\n| What happened in a register session? | Daily POS Registers Report | POS Sales and End of Day records |\n| Does recorded banking match cash handling and Xero outcomes? | Cash Banking Report | Register and deposit references |\n| Which open customer orders need supply or promise review? | Stock Availability | Stock Allocation, Sales Orders and Purchase Orders |",
           "presentation": "quick"
         },
         {
           "id": "ims-report-guide:4",
-          "heading": "Cash Banking workflow",
-          "content": "1. Confirm each store has completed its POS End of Day cash count.\n2. Open **Cash Banking**, choose one branch and the relevant dates, then select eligible trading days.\n3. Recount the cash being prepared and enter that amount. Create one preparation draft for the selected days.\n4. After the bank accepts the lodgement, enter the actual lodgement date, bank reference, destination bank account, and final accepted amount.\n5. Post the confirmed deposit to Xero when posting is enabled, then match it to the bank-statement entry in Xero.\n\n**Bookkeeper shorthand:** EOD establishes cash held by the store; preparation groups and recounts that cash; lodgement records what the bank accepted; Xero posting moves the confirmed amount from cash clearing to the selected bank account.\n\nTill variance and banking variance are different. Till variance compares the register's expected cash with the store's EOD count. Preparation or bank acceptance variance compares later recounts and the accepted lodgement with the cash already in custody. Investigate each at the stage where it arose.\n\nRetrying a partial or failed Xero post completes only unfinished actions. Do not recreate the EOD sale or create a second deposit for the same trading days.",
-          "presentation": "quick"
-        },
-        {
-          "id": "ims-report-guide:5",
           "heading": "Before you begin",
           "content": "- [ ] Confirm the business date or period you intend to answer.\n- [ ] Decide which branches and transaction types belong in the comparison.\n- [ ] Note whether the external figure includes GST.\n- [ ] Use the same filters on both reports before comparing them.\n- [ ] Keep source records unchanged while investigating a reporting difference.\n\n> **Note:** A preset such as **90 Days** is a rolling window ending on the current reporting date. A custom range uses the entered start and end dates, including both boundary dates.",
           "presentation": "detail"
         },
         {
-          "id": "ims-report-guide:6",
+          "id": "ims-report-guide:5",
           "heading": "Step-by-step",
-          "content": "### Choose and run a report\n\n1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, storefront or channel, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.\n\n### Understand report dates\n\n| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Margin movement | Movement creation date used by that report | The dated sale movement included in the selected period |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.\n\n### Compare tax and cost correctly\n\n| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\n| Cost question | Use current inventory cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.\n\n### Ask Assistant for a sales comparison\n\nAssistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.",
+          "content": "### Choose and run a report\n\n1. State one question, such as “What did Sydney sell last month?”\n2. Use the chooser table to open the narrowest report that answers it.\n3. Select a preset or custom date range where the report offers one.\n4. Apply the same locations, storefront or channel, statuses, search terms, and groupings required by the question.\n5. Read column subtitles such as **Inc. GST**, **Ex. GST**, **Attached**, or **Current**.\n6. Trace at least one representative row to its source before explaining a difference.\n7. Export only when the filtered screen answers the intended question.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:6",
+          "heading": "Sales Detail: compare products and branches",
+          "content": "Use **Reports > Sales Detail** for product-level quantities and sales values, including branch columns. An older **Sales by Branch** link opens this same report; it is not a separate report to reconcile.\n\n1. Choose **All Branches** for a side-by-side comparison, or select one branch for a narrower question.\n2. Select the shared date preset or custom range. For a calendar-month question, use **Previous Month** rather than a rolling number of days.\n3. Leave **All channels** selected for the report's combined sources, or choose one exact Shopify store.\n4. Use the product/SKU search, **Brand** and **Supplier** filters as needed.\n5. Read the branch quantity and sales-value columns alongside the selected-results totals. Sales values include GST; current stock columns are not stock as at the end of the sales period.\n6. Page through the results when inspecting individual products. Use **Sales Search** for variant totals by source, or POS Sales and the relevant Sales Order to inspect individual transactions.\n7. Select **Export CSV** only after checking the export scope below.\n\n**Sales Detail export scope:** CSV contains the product rows on the currently displayed page, plus **TOTALS (ALL SELECTED)** for the full filtered result. With several pages of products, the exported detail rows therefore will not add up to that full-result total. Export each required page separately if you need those product rows; do not add the repeated full-result totals together.",
           "presentation": "detail"
         },
         {
           "id": "ims-report-guide:7",
-          "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Two sales totals differ | Different source coverage, dates, locations, statuses, or GST treatment | Align each choice and compare source rows |\n| Gross profit is blank | No covered sale value or incomplete cost coverage | Inspect attached cost and the source movements |\n| COGS coverage is below 100% | Some sold quantity has no complete attached cost | Review the affected sales and movement history |\n| Current valuation changed but old margin did not | Current Average Cost or remaining FIFO layers changed after the historical sale | Use current method valuation and historical attached cost for that sale |\n| Export differs from the screen you expected | Filters changed or export includes all selected pages or groups | Recheck active filters and totals before exporting |",
+          "heading": "Sales Summary: compare grouped sales",
+          "content": "Use **Reports > Sales Summary** for aggregated results rather than individual product or sale rows.\n\n1. Set the shared date preset or custom range.\n2. Choose a **Store** if you need one exact storefront; otherwise retain the combined-channel selection.\n3. Choose **First heading**. Options are **Store / Channel**, **Location**, **Supplier**, **Brand**, **Product Type**, **Day of Week** and **Hour of Day**.\n4. Add a different **Second heading** only when you need a second level of comparison. For example, **Location** followed by **Brand** compares brands within each location.\n5. Leave **All Locations** selected for a business comparison, or choose the relevant locations.\n6. Read **Sales Qty** and **Sales Amount Inc. GST**, then review **Attached COGS Ex. GST**, **GP Ex. GST**, **GP% Covered Sales** and **COGS Coverage** together.\n7. Use **TOTALS (ALL SELECTED)** for the full filtered result, not just the current page. **Current SOH** is current stock, not stock at the historical period end.\n8. Use **Export CSV** for all matching grouped rows across all pages with these filters and headings.\n\nWhen all locations are included and **Location** is a heading, **ALL** rows roll up the location detail. Do not add an ALL row to its individual location rows; that counts the same sales twice. Use the report's full-result totals.\n\n> **Important:** Gross profit and covered-sales margin use only sales whose full sold quantity has recorded movement cost. Coverage below 100% means the profit figure is incomplete, not that the missing sales had zero cost.",
           "presentation": "detail"
         },
         {
           "id": "ims-report-guide:8",
+          "heading": "Inventory Valuation: review current stock value",
+          "content": "Use **Reports > Inventory Valuation** to review current stock value across locations. It is not a historical stock-at-date report and does not offer a branch selector.\n\n1. Use **Product / SKU**, **Supplier**, **Brand** and **Type** filters to select the required stock.\n2. Check **Total Inventory Value** and **Unique SKUs Counted** against the filtered rows.\n3. Under **Average Cost**, compare on-hand quantity with the current shared cost and line value. Under **FIFO**, review the value of remaining receipt layers.\n4. If a FIFO quantity mismatch warning appears, investigate it with **Stock Levels**, **Stock History** and the source documents before relying on the valuation.\n5. Use **Export CSV** for all loaded rows matching the current filters.\n\nFor a quantity question at one branch, start in **Stock Levels**. Changing a sales date range elsewhere does not turn Inventory Valuation into a month-end valuation, and a later receipt may change current value without changing an earlier sale's attached cost.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:9",
+          "heading": "Sales Search: review variant sales totals",
+          "content": "Use **Reports > Sales Search** to find product variants with sales activity in a period. Each row is an aggregate for one variant, not an individual receipt, customer or order.\n\n1. Choose **All channels** or one exact Shopify store where available. Choose the channel before applying the other filters.\n2. Set the shared date preset or custom range. The initial period is **90 Days**.\n3. Type in **Search product name or SKU**. Partial words are supported, and every entered word must match either the product name or SKU. Check the displayed option and SKU to distinguish sizes and colours.\n4. Read **Units Sold** and **Revenue** alongside **POS**, **Online**, **Wholesale** and **History**. The four source columns show quantities, not revenue. Imported history has its own column even when its original sale was in-store or online.\n5. Use the summary beside the filters for the number of matching variants, units and revenue across the full result.\n6. Page through results as needed. When paging controls are present, page-size choices are **25**, **50**, **100** and **200**. Select **Product**, **SKU**, **Brand**, **Units Sold** or **Revenue** headings to sort the current page only.\n7. Use **Clear** to remove search text, or **Export CSV** to download the currently displayed, sorted page.\n\n**Scope and limitations:**\n\n- There is no branch selector or transaction drilldown in this screen. Use Sales Detail for branch comparisons and POS Sales, POS Reports or the relevant Sales Order for a particular transaction.\n- Eligible Sales Orders contribute their ordered quantities and line amounts even if fulfilment is incomplete. The live POS source includes completed ordinary sales, not POS return transactions. Do not use this report as proof of shipment or a net-refund/register reconciliation.\n- Revenue sums the source line amounts and is labelled **inc. GST** in CSV. Check the source order's tax treatment when reconciling an external figure rather than assuming the report has normalised every source.\n- Changing the channel can reload the default 90-day, unsearched result while earlier filter labels remain visible. Reapply the intended date range, search and page size after switching stores, and check the resulting totals before exporting.\n- CSV has current-page rows only, with no full-result totals row. Sorting a page by Revenue does not rank the entire filtered result by Revenue.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:10",
+          "heading": "Product Profitability: understand catalogue-based estimates",
+          "content": "Open **Reports > Product Profitability Margin**. The screen heading is **Product Profitability**; older references call it Product Margin.\n\nThis report estimates results using period sales quantity multiplied by current catalogue price and cost. It does not use the actual historical selling amount, sale discount or movement-attached cost.\n\n1. Use **Product / SKU**, **Supplier**, **Brand** and **Type** to select the intended products.\n2. Choose **7 Days**, **90 Days**, **180 Days** or **12 Months**. The default is **12 Months**, a 365-day quantity window. This screen does not offer a custom date picker, branch selector or storefront selector.\n3. Read **Qty Sold**, **Gross Rev**, **COGS**, **Gross Profit** and **Margin %** using the formula table below, not the definitions for historical cost-covered profit.\n4. Review the **Revenue**, **Gross Profit** and **Blended Margin** cards for the currently displayed page. The results count and page count describe the full filtered set, but the cards do not.\n5. Page through the results, with **100 per page**. Rows are ordered by the report's estimated gross profit, not by a user-selected column sort.\n6. Use **Export CSV** for the current page only. CSV includes the current **Unit Cost** and **Unit Price** used in the estimate.\n\n| Label | Current calculation |\n|---|---|\n| Gross Rev | Current catalogue selling price multiplied by Qty Sold |\n| COGS | Current catalogue unit cost multiplied by Qty Sold |\n| Gross Profit | Gross Rev minus COGS |\n| Margin % | Current price minus current cost, divided by current price; zero when price is not positive |\n| Blended Margin | Current-page total estimated profit divided by current-page total estimated revenue; zero when revenue is not positive |\n\n> **Important:** Catalogue selling prices include GST, while supplier costs are normally tax-exclusive. This report does not extract GST from selling price before subtracting cost. Its displayed profit and margin are therefore not a tax-exclusive accounting gross profit. Use **Sales Summary**, checking **COGS Coverage**, or **Sales & COGS Traceability** for recorded sale revenue and captured costs.\n\nEditing today's catalogue price or cost can change this estimate for the same past quantity window. It does not mean an earlier sale's recorded revenue or attached cost changed.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:11",
+          "heading": "Stock Availability: review open-order supply and promises",
+          "content": "Use **Reports > Stock Availability** for outstanding stock-item demand on confirmed, partially fulfilled and backordered non-online Sales Orders. It excludes Draft, cancelled, historical and online orders. It is not a general on-hand-stock report.\n\n1. Review the **Unsourced**, **Ready to fulfil**, **Protected incoming** and **Promise exceptions** cards.\n2. Find the relevant **SO**, **Customer**, **Product** and **Location** row. Product shows the SKU beneath the name.\n3. Read the outstanding demand split using the table below. Check the sales values separately from the incoming PO cost.\n4. Review **Promise** and **Risk**. Overdue means a remaining protected allocation has a saved promise date before today. At risk reflects a remaining allocation marked at risk. If both apply, the row shows **Overdue** first.\n5. Note the Sales Order number and open it separately under **Sales > Sales Orders**. Use **Stock Allocation** to review or protect eligible supply; use the Purchase Order to investigate receipt timing.\n6. Use **Refresh report** after the underlying order, allocation, receipt or fulfilment changes.\n\n| Quantity or value | What it means in this report |\n|---|---|\n| Unsourced | Outstanding demand without remaining protected allocation; it does not prove there is no stock on hand |\n| Sales value | Unsourced quantity at the discounted customer price, including tax |\n| Ready | Remaining protected allocation already received and assigned, capped at outstanding demand |\n| Ready value | Ready quantity at the discounted customer price, including tax |\n| Incoming | Protected allocation still awaiting receipt, not every incoming PO unit |\n| PO cost | Protected incoming supply's discounted PO cost, converted to AUD and excluding tax |\n| Promise | Earliest saved customer promise date among remaining protected allocations, not automatically the order's required date or supplier ETA |\n\nThe three quantity buckets **Unsourced**, **Ready** and **Incoming** make up the remaining demand for a row. Do not add their money columns as a sales total: Sales value and Ready value use customer selling amounts, while PO cost uses supplier cost.\n\n**Promise exceptions** counts distinct Sales Orders, not product rows. One order with several overdue lines counts once; overdue and at-risk counts can overlap. A dash in Risk does not prove that unsourced demand can meet the customer's required date.\n\nThis report has no search, branch/date filters, pagination or CSV export control. It is read-only: the SO number is a reference, not an allocation or fulfilment action. Use **Stock Levels** for general on-hand and available quantities, and **Stock Allocation and Customer Backorders** Help for the operational sourcing workflow.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:12",
+          "heading": "POS price changes: review recorded unit-price overrides",
+          "content": "Open **Reports > POS Price Changed Transactions** to review completed POS item lines whose saved unit price differs from their captured original price. This is not a list of every discount or every intermediate edit.\n\n1. Select the shared date preset or custom range. The initial period is **90 Days**; filtering uses the POS completion date.\n2. Wait for the result to load without an error, then review **Sale #**, **Item**, **Date**, **Time**, **Location**, **Cashier** and **SKU**.\n3. Compare **Original Price** with **Changed To**. These are unit selling prices, not a whole-sale total. The original price is the captured value for that item, not today's catalogue price.\n4. Use Sale # and the location to find the transaction in POS Sales or POS Reports. Review its quantity, other discounts and actual tender before explaining the total financial effect.\n5. Use **Export CSV** for all loaded rows in the chosen date range, ordered newest first.\n\nThere is no branch, cashier or product search filter, pagination or transaction-opening action in this report. Several changed items on one sale produce several rows, so the result count is changed item lines rather than distinct sales.\n\nOnly lines with a saved original price and a different saved unit price appear. A missing row does not prove that no discount occurred. The recorded cashier is not evidence of which manager approved a change, and the report does not include an approval reason. Prices display to cents; a very small saved precision difference can appear unchanged at that display precision.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:13",
+          "heading": "Daily POS Registers: review sessions and counted takings",
+          "content": "Open **Reports > Daily POS Registers Report** for register sessions assigned to one trading date across the business's locations. Sessions are selected by their session date, not necessarily the calendar date when they closed.\n\n1. Choose **Date**, then select **Run**. Run after changing the date, and confirm the loaded result before exporting; changing Date alone does not refresh the sessions.\n2. Review **Location**, **Register**, **Status**, **Opened**, **Opened By**, **Float**, **Closed** and **Closed By**.\n3. Read each **Payment Method**, **Expected**, **Counted** and **Variance** row. Cash Counted includes the opening float; cash variance subtracts that float before comparing with Expected.\n4. Treat a dash in Counted as no saved count, not a verified zero. **No reconciliation data** means no linked reconciliation rows were returned for that session; it does not prove no sales occurred.\n5. Use the session's **TOTAL** row once. Do not add it to its payment-method detail rows.\n6. Investigate source sales or complete missing counts through the actual POS register. This report does not open, close or reconcile the register.\n7. Select **Export CSV** after Run completes. It includes all loaded sessions, their payment-method rows and a TOTAL row for each reconciled session.\n\n> **Important:** TOTAL Counted includes the physical cash float, while TOTAL Expected is payment takings. TOTAL Variance sums the already float-adjusted method variances. It is not simply TOTAL Counted minus TOTAL Expected.\n\nThere is no branch selector, search or pagination in this report. An overnight session may appear on its original trading date even when closure happened the next day. **End of Day and Register Close** Help explains the operational count and closure process.\n\nWhen Xero is enabled, the screen and CSV add accounting information. An invoice link proves an invoice reference exists, not that every required clearing or variance action completed. A separate till-variance link or status records that accounting action. Use **POS End of Day and Xero** and Sync History to review posting rather than treating the register's Closed status as accounting success.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:14",
+          "heading": "Export scope by report",
+          "content": "| Report | What its CSV contains |\n|---|---|\n| Sales Detail | Current-page product rows plus TOTALS (ALL SELECTED) for the full result |\n| Sales Summary | All matching grouped pages |\n| Sales Search | Current-page rows in their displayed sort order; no full-result totals row |\n| Inventory Valuation | All loaded filtered rows |\n| Product Profitability | Current-page rows only; its summary cards are also page-only |\n| Stock Availability | No CSV export control in this report |\n| POS Price Changed Transactions | All loaded changed-item rows for the selected period |\n| Daily POS Registers Report | All loaded sessions and method detail, plus a TOTAL row for each reconciled session; optional accounting fields follow the business's settings |\n| Cash Banking Report, when Xero is enabled | All loaded deposits with preparation, lodgement and posting details; correction notes are not included |",
+          "presentation": "quick"
+        },
+        {
+          "id": "ims-report-guide:15",
+          "heading": "Reading dates, tax and cost",
+          "content": "### Understand report dates\n\n| Source shown in sales reports | Date used for the sales period | Practical meaning |\n|---|---|---|\n| Imported historical sale | Invoice date | The recorded business date of the imported sale |\n| POS sale | Completion date | When the POS transaction completed |\n| Sales Order sale | Order date | The order's recorded order date |\n| Product Profitability preset | Selected rolling sales-quantity window | Period quantity combined with current catalogue price and cost, not historical sale amounts |\n| POS Price Changed Transactions | POS completion date | Completed item lines with different captured original and final unit prices |\n| Daily POS Registers Report | Register session date | A session can close on a later calendar date without moving to that date's report |\n| Cash Banking Report, when Xero is enabled | Lodgement date, or creation date before lodgement | Not the original source trading dates or later posting date |\n\nDo not assume every report uses fulfilment date or accounting-posting date. Use the displayed source and date definition when comparing with Xero or another export.\n\n### Compare tax and cost correctly\n\n| Measure | Typical treatment | Use it for |\n|---|---|---|\n| Sales amount | Tax-inclusive where labelled **Inc. GST** | Customer-facing sales totals |\n| Cost of goods sold | Tax-exclusive where labelled **Ex. GST** | Margin calculations |\n| Gross profit | Tax-exclusive sale value less covered cost | Comparing profit on cost-covered sales |\n| Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |\n| Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |\n\nThese profit definitions apply to recorded cost-covered reporting. Product Profitability uses the catalogue-based estimate above and does not normalise its price and cost to a common GST basis.\n\n| Cost question | Use current inventory cost? | Use historical attached cost? |\n|---|---:|---:|\n| What is stock on hand worth now? | Yes | No |\n| What did this sale cost when recorded? | No | Yes |\n| Why did today's receipt change valuation? | Yes | Review the receipt that changed it |\n| Why is margin blank or only partly covered? | No | Check whether every sold quantity has recorded cost |\n\n> **Important:** A later receipt can change current Average Cost or add a FIFO layer without rewriting cost already attached to an earlier sale or stock movement.\n\n### Ask Assistant for a sales comparison\n\nAssistant can compare tax-inclusive sales quantity and value across active locations for a rolling period of up to 365 days. It uses the same imported-history, completed POS sale, and eligible Sales Order sources as **Sales Summary** and does not return customer records.\n\nAttached COGS and gross profit are reported only for sales whose full sold quantity has recorded movement cost. Always read **COGS coverage** with gross profit: coverage below 100% means the margin does not represent every sale in the period.",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:16",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Two sales totals differ | Different source coverage, dates, locations, statuses, or GST treatment | Align each choice and compare source rows |\n| Gross profit is blank | No covered sale value or incomplete cost coverage | Inspect attached cost and the source movements |\n| COGS coverage is below 100% | Some sold quantity has no complete attached cost | Review the affected sales and movement history |\n| Current valuation changed but an earlier attached cost did not | Current Average Cost or remaining FIFO layers changed after the historical sale | Use current method valuation and historical attached cost for that sale |\n| Export differs from the screen you expected | Filters changed or export includes all selected pages or groups | Recheck active filters and totals before exporting |\n| Sales Detail exported rows do not add up to its total | Detail export is the current page; the total covers all selected results | Export the required pages and use the full-result total only once |\n| Adding Sales Summary location rows doubles the result | ALL rollups were added to their location detail | Use TOTALS (ALL SELECTED), or sum only the detail rows |\n| Inventory Valuation cannot be set to last month or one branch | This report shows current value across locations | Use Stock Levels for branch quantities; do not label current valuation as historical |\n| Sales Search cannot show a particular receipt | Rows aggregate activity by variant | Inspect POS Sales, POS Reports or the relevant Sales Order |\n| Sales Search totals changed after switching stores | The channel reload can use the default date/search scope | Reapply the intended dates, search and page size before relying on the result |\n| Product Profitability differs from historical margin | It uses current price/cost and does not remove selling-price GST | Use recorded sales and attached costs in Sales Summary or Sales & COGS Traceability |\n| Product Profitability cards change between pages | Cards total only the currently displayed rows | Do not treat one page's cards as the business-wide result |\n| Stock Availability says Unsourced although stock exists | Demand lacks protected incoming/received allocation | Review Stock Allocation and Stock Levels; do not create stock to make the report balance |\n| Price-change result count exceeds the number of sales | Several changed items belong to the same sale | Count distinct Sale # values only when answering a sale-count question |\n| Daily register rows still describe the earlier date | Date changed without Run | Run the intended date before exporting |\n| Daily register Counted minus Expected differs from Variance | Counted includes cash float; variance already removes it | Use the method variances and the session TOTAL row without adding it twice |\n| An overnight session is missing from the closure date | The report uses session date | Run its original trading date and inspect Opened and Closed |",
+          "presentation": "detail"
+        },
+        {
+          "id": "ims-report-guide:17",
           "heading": "Worked examples",
-          "content": "### Compare a tax-inclusive sale with tax-exclusive margin\n\nA sale amount of $110 including GST has a tax-exclusive value of $100. If its attached tax-exclusive cost is $60, gross profit is $40. Comparing $110 directly with $60 would mix tax treatments and overstate gross profit.\n\n### Separate current and historical cost\n\nA jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.",
+          "content": "### Compare last month's branch sales\n\nA manager chooses **Previous Month**, **All channels**, **First heading > Location** and no second heading in **Sales Summary**. They compare Sydney and Melbourne, checking COGS Coverage before discussing profit. They use **TOTALS (ALL SELECTED)** once and do not add the **ALL** rollup to the branch rows.\n\nTo see which products explain Sydney's result, they open **Sales Detail**, select Sydney and the same period and channel scope. If the result spans three pages, one Sales Detail CSV contains only that page's products, even though its totals row covers all selected products.\n\n### Compare brands within locations\n\nA buyer selects **First heading > Location** and **Second heading > Brand** in **Sales Summary**, using the same period and storefront throughout. This shows the brand mix at each location. CSV includes all matching grouped pages, but ALL rollups still must not be added to their component location rows.\n\n### Value one brand's current stock\n\nStaff filter **Inventory Valuation** to **Coastal Home** and review the current method, counted SKUs and total value. They check any FIFO warning before exporting. The result covers current stock across locations, not Coastal Home's stock value at the end of the previous month.\n\n### Read Sales Search without mistaking totals for receipts\n\nA candle variant shows **POS > 10**, **Online > 3**, **Wholesale > 2** and **History > 5**, giving **20 Units Sold**. That is one variant total, not 20 receipt rows. Staff open the relevant sales records separately when they need a customer's receipt.\n\nIf the filtered result spans three pages, the summary beside the filters covers all three. An export from page one contains only that page's variants.\n\n### Distinguish a catalogue estimate from recorded profit\n\nA product's current selling price is **$110 including GST**, its current catalogue cost is **$60**, and Qty Sold is **10**. Product Profitability calculates **$1,100 Gross Rev**, **$600 COGS**, **$500 Gross Profit** and **45.5% Margin** from those catalogue values.\n\nThose are the screen's estimate calculations, not a tax-exclusive profit. If all ten actual sales were $110 including GST and each had $60 of captured tax-exclusive cost, their tax-exclusive revenue would be $1,000 and recorded gross profit $400. Staff use cost-covered sales reporting to establish those historical amounts rather than treating the estimate as accounting evidence.\n\n### Separate unsourced, ready and incoming demand\n\nAn order still owes **8** units: **4 Unsourced**, **2 Ready** and **2 Incoming**. At a $55 tax-inclusive customer price with a 10% discount, Sales value for the unsourced units is **$198**, and Ready value is **$99**. If the two protected incoming units each cost $20 before tax in AUD, PO cost is **$40**.\n\nThe quantity buckets add to 8, but $198, $99 and $40 are not one comparable sales total. Staff review sourcing and the customer promise in Stock Allocation, then receive and fulfil through the actual operational documents.\n\n### Review a changed unit price\n\nA completed sale has two item lines with recorded price changes. The report therefore shows two rows with the same Sale #. One line changed from **$110** to **$99**, both including GST: an $11 unit-price reduction. Staff inspect the source sale's quantity and any further discounts instead of treating $11 as the whole transaction's difference.\n\n### Read a register total without counting float as sales\n\nA session has a **$200 Float**, **$618 Expected Cash**, **$818 Counted Cash**, and **$1,100 Expected and Counted Card**. Cash variance is $818 minus $200 minus $618, or zero; card variance is also zero.\n\nThe session TOTAL shows **$1,718 Expected**, **$1,918 Counted** and **$0 Variance**. The $200 difference between the raw totals is opening float, not a $200 overage. Staff use the TOTAL row once rather than adding it to the two method rows.\n\n### Compare a tax-inclusive sale with tax-exclusive margin\n\nA sale amount of $110 including GST has a tax-exclusive value of $100. If its attached tax-exclusive cost is $60, gross profit is $40. Comparing $110 directly with $60 would mix tax treatments and overstate gross profit.\n\n### Separate current and historical cost\n\nA jacket sale records an attached cost of $50. A later receipt changes the value of remaining stock under the active method. Inventory Valuation uses current Average Cost or remaining FIFO layers; the earlier sale keeps its $50 historical cost for margin reporting.",
           "presentation": "detail"
         }
       ]
@@ -2665,19 +3055,23 @@
       ],
       "order": 60,
       "summary": "Choose the IMS report that matches your sales, stock, margin, register, or banking question.",
-      "lastReviewed": "2026-09-23",
+      "lastReviewed": "2026-10-14",
       "owner": "reporting",
       "quickSections": [
         "Main operations",
         "Report directory",
         "Reading results"
       ],
+      "navigation": {
+        "category": "reports",
+        "label": "Find the right report"
+      },
       "filename": "docs/help/ims/reports/operational-reports.md",
       "sections": [
         {
           "id": "ims-operational-reports:1",
           "heading": "IMS Reports",
-          "content": "Reports are read-only views of operational information. Choose a report by the question it answers, then align its date, location, and status filters before comparing totals.\n\nSales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify storefront. Sales Summary also offers **Store / Channel** as a grouping, allowing stores to be compared in one result. Leaving the filter at **All channels** retains POS, wholesale, imported history and every online channel covered by that report.",
+          "content": "Reports mainly review operational information. Choose a report by the question it answers, then align its date, location, and status filters before comparing totals.\n\nWhen Xero is enabled, Cash Banking Report also lets authorised Admins record a note about a correction already made externally; that note does not post accounting.\n\nSales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify storefront. Sales Summary also offers **Store / Channel** as a grouping, allowing stores to be compared in one result. Leaving the filter at **All channels** retains POS, wholesale, imported history and every online channel covered by that report.",
           "presentation": "detail"
         },
         {
@@ -2689,13 +3083,13 @@
         {
           "id": "ims-operational-reports:3",
           "heading": "Report directory",
-          "content": "| Question | Report |\n|---|---|\n| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |\n| Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |\n| What sold, by product and branch? | **Sales Detail** |\n| How do branches compare? | **Sales by Branch** |\n| How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |\n| Where is a particular sale or product line? | **Sales Search** |\n| What is current stock worth? | **Inventory Valuation** |\n| What margin did products produce? | **Product Margin** or **Sales Summary** |\n| Who changed a POS selling price? | **POS Price Changes** |\n| What happened in daily register sessions? | **POS Registers** |\n| How do cash deposits and banking compare? | **Cash Banking** |\n| What is on hand, committed, incoming, or available? | **Stock Availability** |",
+          "content": "| Question | Report |\n|---|---|\n| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |\n| Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |\n| What sold, by product and branch? | **Sales Detail** |\n| How do branches compare? | **Sales Summary** grouped by **Location**, or branch columns in **Sales Detail** |\n| How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |\n| Which variants sold and which source quantities contributed? | **Sales Search** |\n| Where is an individual sale or receipt? | **POS Sales**, POS Reports or the relevant Sales Order |\n| What is current stock worth? | **Inventory Valuation** |\n| What margin did recorded sales produce? | **Sales Summary** or **Sales & COGS Traceability**, checking cost coverage |\n| How do current catalogue price and cost compare for sold products? | **Product Profitability Margin**; a catalogue-based estimate, not historical accounting profit |\n| Which completed POS items have a recorded unit-price change? | **POS Price Changed Transactions** |\n| What happened in daily register sessions? | **Daily POS Registers Report** |\n| How do cash deposits and Xero outcomes compare? | **Cash Banking Report** |\n| Which open customer orders need sourcing or promise review? | **Stock Availability** |\n| What is on hand, committed, incoming, or available at a branch? | **Products > Stock Levels** |",
           "presentation": "quick"
         },
         {
           "id": "ims-operational-reports:4",
           "heading": "Reading results",
-          "content": "Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation answers a current-value question; historical margin answers what was recorded when the sale or stock movement happened.\n\n> **Tip:** When two totals differ, compare the same date meaning, date range, locations, statuses, transaction types, and GST treatment before looking for a data problem.",
+          "content": "Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation answers a current-value question; historical margin answers what was recorded when the sale or stock movement happened.\n\n> **Tip:** When two totals differ, compare the same date meaning, date range, locations, statuses, transaction types, and GST treatment before looking for a data problem.\n\n**Choosing and Reading IMS Reports** Help has specific sales, valuation, profitability, stock-demand, POS price-change and daily register procedures, with an export-scope table.\n\n**Cash Banking Report** Help covers deposit outcomes and correction notes for Xero-enabled businesses.\n\nSales Search aggregates by variant rather than showing individual transactions. Product Profitability estimates from current catalogue price and cost without removing selling-price GST; it is not recorded tax-exclusive gross profit. Stock Availability is a current open-order demand and protected-supply report, not a general stock balance.\n\nExport scope differs: Sales Detail exports the current page plus full-result totals, while Sales Summary exports all matching grouped pages. Sales Search and Product Profitability export current-page rows only. Inventory Valuation shows current stock across locations, without a historical date or branch selector. Stock Availability has no CSV export control.\n\nDaily POS Registers selects the register's session date and requires **Run** after a date change. Its Counted totals include float; use the already adjusted Variance rather than subtracting the raw totals. Price-change results count changed items, not distinct sales.",
           "presentation": "quick"
         },
         {
@@ -2707,7 +3101,7 @@
         {
           "id": "ims-operational-reports:6",
           "heading": "Worked examples",
-          "content": "### Check a branch sales total\n\nOpen **Sales Detail**, choose the required branch and date range, and note the tax-inclusive total. Use **Sales Search** to inspect individual lines when a transaction needs to be identified.\n\n### Explain current stock value\n\nOpen **Inventory Valuation**, select the location, and compare each quantity with its value under the active method. Under Average Cost, review the current shared cost; under FIFO, review the remaining location layers and recent movements.",
+          "content": "### Check a branch sales total\n\nOpen **Sales Detail**, choose the required branch and date range, and note the tax-inclusive total. Use **Sales Search** for variant/source quantity totals, or inspect POS Sales and the relevant Sales Order when an individual transaction needs to be identified.\n\n### Explain current stock value\n\nOpen **Inventory Valuation**, filter the required product, supplier, brand or type, and compare each quantity with its current value across locations. Under Average Cost, review the current shared cost; under FIFO, review remaining layers and any quantity mismatch warning. Use **Stock Levels** separately for a quantity check at one branch.",
           "presentation": "detail"
         }
       ]
@@ -2744,6 +3138,10 @@
         "At a glance",
         "Before you begin"
       ],
+      "navigation": {
+        "category": "reports",
+        "label": "Trace sales and recorded costs"
+      },
       "filename": "docs/help/ims/reports/sales-and-cogs-traceability.md",
       "sections": [
         {
@@ -2825,6 +3223,10 @@
         "Wholesale applications",
         "POS and online sales"
       ],
+      "navigation": {
+        "category": "sales",
+        "label": "Choose a customer-order workflow"
+      },
       "filename": "docs/help/ims/sales/customer-orders-and-credits.md",
       "sections": [
         {
@@ -2895,6 +3297,10 @@
         "At a glance",
         "Return costing"
       ],
+      "navigation": {
+        "category": "sales",
+        "label": "Handle returns, store credit and refunds"
+      },
       "filename": "docs/help/ims/sales/customer-returns-store-credit-and-refunds.md",
       "sections": [
         {
@@ -2978,6 +3384,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "sales",
+        "label": "Create and fulfil sales orders"
+      },
       "filename": "docs/help/ims/sales/sales-orders-and-fulfilment.md",
       "sections": [
         {
@@ -3065,6 +3475,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "sales",
+        "label": "Allocate stock and manage backorders"
+      },
       "filename": "docs/help/ims/sales/stock-allocation-and-customer-backorders.md",
       "sections": [
         {
@@ -3149,6 +3563,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "settings",
+        "label": "Manage account and AI credits"
+      },
       "filename": "docs/help/ims/settings/account-and-ai-credits.md",
       "sections": [
         {
@@ -3234,6 +3652,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "settings",
+        "label": "Choose AI models"
+      },
       "filename": "docs/help/ims/settings/ai-models.md",
       "sections": [
         {
@@ -3329,6 +3751,16 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "settings",
+        "label": "Configure business operations and POS registers",
+        "sections": [
+          {
+            "heading": "Step-by-step",
+            "label": "Complete the business onboarding checklist"
+          }
+        ]
+      },
       "filename": "docs/help/ims/settings/business-operations-and-pos.md",
       "sections": [
         {
@@ -3422,6 +3854,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "settings",
+        "label": "Configure shipping"
+      },
       "filename": "docs/help/ims/settings/shipping.md",
       "sections": [
         {
@@ -3500,6 +3936,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "locations-stock",
+        "label": "Send and receive branch transfers"
+      },
       "filename": "docs/help/ims/stock/branch-transfers.md",
       "sections": [
         {
@@ -3575,6 +4015,10 @@
         "Main operations",
         "Locations"
       ],
+      "navigation": {
+        "category": "locations-stock",
+        "label": "Manage locations and stock operations"
+      },
       "filename": "docs/help/ims/stock/location-operations.md",
       "sections": [
         {
@@ -3640,6 +4084,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "locations-stock",
+        "label": "Count stock and correct discrepancies"
+      },
       "filename": "docs/help/ims/stock/stocktakes-and-manual-adjustments.md",
       "sections": [
         {
@@ -3718,6 +4166,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Send and receive stock at POS",
+        "subgroup": "Store operations"
+      },
       "filename": "docs/help/pos/branch-transfers.md",
       "sections": [
         {
@@ -3807,6 +4260,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Find and manage customers at checkout",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/customers-at-pos.md",
       "sections": [
         {
@@ -3854,8 +4312,8 @@
       ]
     },
     {
-      "id": "pos-end-of-day-xero",
-      "title": "End of Day and Xero",
+      "id": "pos-end-of-day",
+      "title": "End of Day and Register Close",
       "audiences": [
         "pos",
         "ims"
@@ -3871,64 +4329,193 @@
         "pos-reports-transactions",
         "pos-petty-cash",
         "pos-settings-terminals-offline-recovery",
-        "ims-xero-shopify"
+        "pos-end-of-day-xero"
       ],
       "contexts": [
         "eod",
         "pos-eod",
-        "pos-reports",
-        "xero-pos-eod"
+        "pos-reports"
       ],
       "contextSections": {
         "eod": "Step-by-step",
         "pos-eod": "Step-by-step",
-        "pos-reports": "Till variance and cash activity",
-        "xero-pos-eod": "What Xero receives"
+        "pos-reports": "Till variance and cash activity"
       },
-      "order": 60,
-      "summary": "Count and close a register, explain variances, and understand the separate Xero posting result.",
-      "lastReviewed": "2026-08-31",
+      "order": 59,
+      "summary": "Count register takings, account for the opening float and petty cash, investigate variances, and verify register closure without requiring an accounting connection.",
+      "lastReviewed": "2026-10-14",
       "owner": "retail",
       "quickSections": [
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Close the register and reconcile takings",
+        "subgroup": "Start & end of day",
+        "sections": [
+          {
+            "heading": "Step-by-step",
+            "label": "Count takings and close the register"
+          },
+          {
+            "heading": "Till variance and cash activity",
+            "label": "Investigate a till variance"
+          }
+        ]
+      },
+      "filename": "docs/help/pos/end-of-day-register-close.md",
+      "sections": [
+        {
+          "id": "pos-end-of-day:1",
+          "heading": "End of Day and Register Close",
+          "content": "Use End of Day to compare physical takings with recorded payments, save the reconciliation and close the register session. Register counts and closure do not require an accounting connection.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:2",
+          "heading": "Main operations",
+          "content": "- Confirm the branch, register and session being closed.\n- Sync queued sales before relying on expected takings.\n- Count every payment method independently; enter zero when the verified amount is genuinely zero.\n- Count the full cash drawer, including the opening float.\n- Check petty cash and recorded refunds before explaining a difference.\n- Include layby deposits and instalments actually received in this session, not the unpaid merchandise balance.\n- Recount and explain genuine variances before saving.\n- Verify saved counts and register closure, then retain the reconciliation receipt.",
+          "presentation": "quick"
+        },
+        {
+          "id": "pos-end-of-day:3",
+          "heading": "At a glance",
+          "content": "| Value | How Solvantis treats it |\n|---|---|\n| Expected | Recorded payments and layby receipts for the session, grouped by method; recorded petty cash is deducted from Cash |\n| Opening Float | Cash present when the register opened, not a sale |\n| Counted cash | All physical cash in the drawer, including the opening float |\n| Cash Sales | Counted cash minus opening float; compare it with expected cash after petty cash |\n| Counted non-cash | The independently verified total for that payment method |\n| Variance | Cash Sales or counted non-cash minus Expected |\n| Petty cash | A separately recorded purchase paid from the open till |\n| Layby takings | Money actually received; the unpaid balance is not money in the till |",
+          "presentation": "quick"
+        },
+        {
+          "id": "pos-end-of-day:4",
+          "heading": "Before you begin",
+          "content": "- [ ] Check the correct branch, register and session date.\n- [ ] Resolve queued or failed sales and confirm they appear in Reports.\n- [ ] Check the opening float against the opening count.\n- [ ] Count the drawer and each non-cash settlement source independently.\n- [ ] Keep petty-cash receipts and useful explanations for differences.\n\n> **Warning:** End of Day needs an online connection. If saving fails or its result is unclear, reconnect and reload the register status and saved counts before repeating the action. Do not assume that a failed response proves nothing saved.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:5",
+          "heading": "Step-by-step",
+          "content": "1. Open **Register**, then select **End of Day**.\n2. Check the session date and **Expected ($)** amount for every payment method. Resolve missing transactions before accepting these totals.\n3. Review **Opening Float ($)** for Cash against the recorded opening count. Do not change the float merely to make a variance disappear.\n4. Enter the full physical drawer total in Cash's **Counted ($)** field. Alternatively, select **Count** beside Cash and enter the number of each note and coin; the denomination total fills Counted.\n5. Enter the independently verified **Counted ($)** total for every other payment method. Do not copy Expected just to balance the register.\n6. Review **Cash Sales**, **Variance** and **Notes**. Recount and inspect transactions, tender choices, refunds and petty cash when an amount differs.\n7. Select **Save EOD Reconciliation**. If a variance warning appears, confirm only after the difference has been checked and is genuine.\n8. Check the saved reconciliation and verify that the register session is closed. A saved-count indicator alone is not proof of closure.\n9. Select **Print EOD Receipt** when the summary is available, and retain it according to the business's process.\n\nSaving EOD reconciliation for an open assigned register also requests register closure. If counts saved but the session still appears open, reload and ask a manager to check the session rather than recreate sales or force the counts to match.\n\nThe Assistant's register-status check uses the open session assigned to the verified POS register. Its amounts are expected takings, with recorded petty cash deducted from Cash. A saved-count indicator means counted entries exist; it does not prove the register is closed.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:6",
+          "heading": "Till variance and cash activity",
+          "content": "| Situation | What it means | What to check |\n|---|---|---|\n| Counted cash minus float equals Expected cash | Zero cash variance | Retain the verified count |\n| Counted cash is higher | Positive variance | Recount, check change and tender choices, and add a useful note |\n| Counted cash is lower | Negative variance | Recount, check refunds, petty cash and tender choices |\n| Petty cash was recorded | Cash left the drawer for a documented purchase | Check amount, reason and receipt; do not deduct it again from Counted |\n| Expected omits recent sales | The queue or register-session linkage needs checking | Resolve the queue and review Reports before finalising |\n| Layby merchandise value exceeds money received | Part of the balance remains unpaid | Count only receipts taken in this session, not the full layby value |\n\nThe amount labelled **Cash Sales** is a reconciliation amount after subtracting float. Where cash paid a petty-cash expense, it can be lower than the original cash-sale payments without an unexplained till shortage.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:7",
+          "heading": "Optional accounting",
+          "content": "Register reconciliation and accounting posting are separate outcomes. Count and close the register even when the business has no accounting connection.\n\nWhen posting is enabled, review its status separately using the accounting guide available to your business. A failed posting does not reopen a closed register, and fixing accounting does not require recreating sales or taking payments again.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:8",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Counted cash appears too high | Float was not separated, or the wrong tender was used | Recount and compare float and transaction payments |\n| Expected cash is lower than cash-sale payments | Recorded petty cash has been deducted | Check the petty-cash entries; compare Counted minus Float with the displayed Expected |\n| Expected omits recent sales | Sales are queued or not linked to the session | Resolve the queue and review Reports before saving |\n| Save fails while offline | Counts and closure need an online request | Reconnect, reload saved counts and register status, then complete only what remains |\n| Counts appear saved but the register is open | Reconciliation and closure are separate checks | Ask a manager to review the same session; do not duplicate sales |\n| The register was opened on a previous day | The earlier session still needs closing | Use Close Register (Enter Counts) when prompted, reconcile that session, then open a new session with a new counted float |",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:9",
+          "heading": "Worked examples",
+          "content": "### Cash count with float and petty cash\n\nThe drawer opens with **$200**. Recorded cash-sale payments are **$640**, and a **$22** purchase was recorded through **Petty Cash**. Expected cash is therefore **$618**.\n\nStaff count **$818** in the drawer. **Cash Sales** is $818 minus the $200 float, or **$618**. Comparing that with Expected gives **$0 variance**. Staff do not subtract the petty-cash amount again from the physical count.\n\n### Investigate a genuine shortage\n\nExpected cash is **$618** after recorded petty cash. The float is **$200**, but the recounted drawer contains **$813**. Cash Sales is **$613**, giving a **-$5 variance**. Staff check transactions and refunds, add a note about the verified shortage and confirm the warning rather than entering $818 to make the report balance.\n\n### Count a layby instalment without counting the unpaid balance\n\nA customer pays a **$40** card instalment against a layby with **$120** still unpaid. Staff verify the $40 receipt in this session's card takings. They do not add the unpaid $120 to Counted or treat it as money already received.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-end-of-day:10",
+          "heading": "Related tasks",
+          "content": "See **Register, Device, and Login** for opening float, **POS Reports and Transactions** for source sales, **Petty Cash at POS** for till expenses, and **Settings, Terminals, and Offline Recovery** for queued-sale recovery.",
+          "presentation": "detail"
+        }
+      ]
+    },
+    {
+      "id": "pos-end-of-day-xero",
+      "title": "POS End of Day and Xero",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "requiresCapabilities": [
+        "xero"
+      ],
+      "screen": "POS > Register > End of Day accounting",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-end-of-day",
+        "pos-laybys",
+        "pos-petty-cash",
+        "ims-xero-shopify"
+      ],
+      "contexts": [
+        "xero-pos-eod",
+        "pos-eod-accounting"
+      ],
+      "contextSections": {
+        "xero-pos-eod": "What Xero receives",
+        "pos-eod-accounting": "Step-by-step"
+      },
+      "order": 60,
+      "summary": "Understand optional POS End of Day invoices, clearing payments and layby accounting, and retry unfinished Xero posting without duplicating sales.",
+      "lastReviewed": "2026-10-14",
+      "owner": "retail",
+      "quickSections": [
+        "Main operations",
+        "At a glance"
+      ],
+      "navigation": {
+        "category": "pos",
+        "label": "Review EOD accounting and retry Xero posting",
+        "subgroup": "Start & end of day",
+        "sections": [
+          {
+            "heading": "What Xero receives",
+            "label": "Understand EOD invoices and layby accounting"
+          },
+          {
+            "heading": "Step-by-step",
+            "label": "Review or retry EOD accounting"
+          }
+        ]
+      },
       "filename": "docs/help/pos/end-of-day-xero.md",
       "sections": [
         {
           "id": "pos-end-of-day-xero:1",
-          "heading": "End of Day and Xero",
-          "content": "Use End of Day to compare physical takings with recorded sales, close the register session, and start the configured Xero posting.",
+          "heading": "POS End of Day and Xero",
+          "content": "This guide covers optional Xero posting after counted End of Day reconciliation. Use **End of Day and Register Close** for the cash count, variance review, saved reconciliation and register closure; those operations do not require Xero.",
           "presentation": "detail"
         },
         {
           "id": "pos-end-of-day-xero:2",
           "heading": "Main operations",
-          "content": "- Count every payment method for the open register session.\n- Include actual layby deposits and instalments, less recorded cancellation refunds, in their own register session's payment-method takings. The unpaid balance is not money received.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action.\n- Ask the Assistant for the verified register's current expected takings and whether counts have been saved.",
+          "content": "- Complete and verify the operational reconciliation first.\n- Review Xero posting separately from register closure.\n- Check each payment method's invoice and clearing-payment result.\n- Treat layby cash flows separately from completed-sale revenue.\n- Ask an Admin to repair missing mappings or connection problems.\n- Retry only unfinished accounting work; do not recreate sales or take payments again.",
           "presentation": "quick"
         },
         {
           "id": "pos-end-of-day-xero:3",
           "heading": "At a glance",
-          "content": "| Value | How Solvantis treats it |\n|---|---|\n| Expected | Actual payments on completed sales and active layby deposits linked to this register session, grouped by payment method |\n| Counted cash | All physical cash in the drawer, including the opening float |\n| Cash sales | Counted cash minus opening float |\n| Counted non-cash | The counted amount for that payment method |\n| Variance | Cash sales or counted non-cash minus the expected amount |\n| Petty cash | A separately recorded purchase paid from the open till |\n| Active layby | Its deposit contributes to expected takings; the full merchandise value is excluded from completed sales totals |",
+          "content": "| Value | How Solvantis treats it |\n|---|---|\n| Counted EOD save | Can start configured Xero posting in the background |\n| Register closed | Operational closure, not proof that Xero posting completed |\n| Invoice posted | The sales invoice exists; a required clearing payment may still be unfinished |\n| Paid in Xero | The reported invoice/payment result is complete |\n| Layby cash flow | Separate liability and clearing-account treatment, not ordinary sales-invoice revenue |\n| Missing mapping | Posting is blocked until the required configuration is repaired |",
           "presentation": "quick"
         },
         {
           "id": "pos-end-of-day-xero:4",
           "heading": "Before you begin",
-          "content": "- [ ] Confirm you are closing the correct branch and register.\n- [ ] Allow queued sales to sync so they can be linked to the register session.\n- [ ] Count the drawer and each non-cash settlement source independently.\n- [ ] Keep petty-cash receipts with the corresponding entries.\n- [ ] Add useful notes for any confirmed difference.\n\n> **Warning:** End of Day cannot be saved offline. If saving fails because the connection is down, the register remains open; reconnect and complete the count again.",
+          "content": "- [ ] Verify counted reconciliation for the correct branch, register and session.\n- [ ] Confirm the business's Xero posting policy and connection.\n- [ ] Check branch revenue and payment-method clearing mappings with an Admin.\n- [ ] Keep petty-cash evidence and explanations for confirmed variances.\n- [ ] For laybys, confirm liability and clearing mappings and finish earlier accounting first.\n\n> **Important:** A saved reconciliation, a closed register and a successful Xero post are three separate checks. Do not repeat the operational close just because accounting failed.",
           "presentation": "detail"
         },
         {
           "id": "pos-end-of-day-xero:5",
           "heading": "Step-by-step",
-          "content": "1. Open **Register**, then select **End of Day**.\n2. Check the trading date and the expected amount for each payment method.\n3. For cash, enter the opening float and count the full drawer. The screen calculates cash sales as counted cash minus the float.\n4. Enter the counted total for each other payment method.\n5. Review the variance column. If a variance exists, recheck the count and add a note where useful.\n6. Select the save action. Confirm the variance warning if the difference is genuine.\n7. Print or retain the reconciliation summary as required by the business.\n8. Confirm the register is closed. The configured Xero sync starts in the background when at least one counted amount was saved.\n\nThe Assistant's register-status check uses the open session assigned to the verified POS register. Its payment-method amounts are expected takings, with recorded petty cash deducted from Cash. Sales totals are tax-inclusive and GST is shown as the extracted amount. A saved-count indicator confirms that at least one counted payment method exists; it does not mean the register has been closed or Xero has posted successfully.",
+          "content": "1. Complete **End of Day and Register Close** and verify the saved counts and register status.\n2. Review the Xero summary for the same session. Counted EOD saving can start the configured sync in the background; sales are not posted individually at checkout.\n3. Check every method's result. **Invoice posted** or **Invoice posted - payment pending** is not the same as a completed required clearing payment.\n4. If a mapping or connection blocks posting, ask an Admin to repair that configuration before retrying.\n5. Use **Sync to Xero** when unfinished work needs retrying. If the screen offers **Re-sync to Xero**, check the recorded result before using it rather than assuming another invoice is required.\n6. Check the final invoice/payment result and Xero Sync History. Leave an already closed register closed and do not recreate the day's sales.\n\nThe Assistant's register-status check can verify expected takings and saved-count status. That saved-count indicator is not evidence that Xero posting succeeded.",
           "presentation": "detail"
         },
         {
           "id": "pos-end-of-day-xero:6",
           "heading": "Till variance and cash activity",
-          "content": "| Situation | Expected result | What to check |\n|---|---|---|\n| Counted cash equals float plus recorded cash sales | Zero cash variance | No correction is needed |\n| Counted cash is higher | Positive variance | Recount, check change and tender selection, then record a note |\n| Counted cash is lower | Negative variance | Recount, check refunds and petty cash, then record a note |\n| Petty cash was recorded | Cash left the drawer for a documented purchase | Confirm the amount, reason, GST treatment, expense category, and receipt |\n| Sales were queued without an open session | Expected totals can be incomplete until those sales sync | Reconnect, open the register when prompted, sync, and review before closing |",
+          "content": "| Situation | Expected result | What to check |\n|---|---|---|\n| Confirmed till variance | Separate treatment using the configured variance mapping | The saved physical count and explanation |\n| Petty cash was recorded | Separate expense treatment rather than ordinary sales revenue | Amount, reason, GST treatment, expense category and receipt |\n| Cash differs from Expected | Operational reconciliation needs review before explaining accounting | Use End of Day and Register Close; do not alter counts just to match Xero |\n| Layby money was received or refunded | Liability and clearing treatment outside ordinary sales invoices | Recorded layby events and required mappings |",
           "presentation": "detail"
         },
         {
@@ -3940,19 +4527,19 @@
         {
           "id": "pos-end-of-day-xero:8",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Counted cash appears too high | Opening float was not subtracted, petty cash was missed, or a sale used the wrong tender | Recount and compare the float, petty-cash entries, and transaction payments |\n| Expected totals omit recent sales | Sales are still queued or were uploaded without an open register session | Resolve the queue and review Reports before finalising the variance |\n| One payment method does not post to Xero | Its clearing mapping is missing or stale | Correct the mapping and retry that EOD posting |\n| Invoice exists but its payment does not | The clearing step failed after invoice creation | Retry; Solvantis reuses the recorded invoice rather than intentionally creating another |\n| EOD saved but Xero shows an error | Operational close succeeded before accounting finished | Leave the register closed and repair the accounting action separately |",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| One payment method does not post to Xero | Its clearing mapping is missing or stale | Correct the mapping and retry that EOD posting |\n| Invoice exists but its payment does not | The clearing step failed after invoice creation | Retry; Solvantis reuses the recorded invoice rather than intentionally creating another |\n| EOD saved but Xero shows an error | Operational close succeeded before accounting finished | Leave the register closed and repair the accounting action separately |",
           "presentation": "detail"
         },
         {
           "id": "pos-end-of-day-xero:9",
           "heading": "Worked examples",
-          "content": "### Cash count with float and petty cash\n\nThe drawer opens with $200. Recorded cash sales are $640, and a $22 GST-inclusive cleaning purchase was recorded through **Petty Cash**. Staff count $818 in the drawer. Cash sales from the count are $818 minus $200, or $618; the separate $22 petty-cash record explains the difference from $640 before any unexplained till variance is considered.\n\n### Card invoice awaiting payment\n\nThe counted card total is $1,100. Solvantis creates the tax-inclusive Authorised sales invoice, but the clearing payment fails. The register remains closed. After an Admin repairs the card clearing mapping, staff retry the unfinished sync instead of entering the $1,100 again.",
+          "content": "### Separate register closure from posting\n\nStaff save verified counts and confirm that the register is closed. A missing revenue mapping blocks Xero posting. An Admin repairs the mapping, then staff retry the unfinished posting. They do not reopen the register or enter the day's sales again.\n\n### Card invoice awaiting payment\n\nThe counted card total is $1,100. Solvantis creates the tax-inclusive Authorised sales invoice, but the clearing payment fails. The register remains closed. After an Admin repairs the card clearing mapping, staff retry the unfinished sync instead of entering the $1,100 again.",
           "presentation": "detail"
         },
         {
           "id": "pos-end-of-day-xero:10",
           "heading": "Related tasks",
-          "content": "See **Register, Device, and Login** for opening float, **Selling, Payments, and Manager Approval** for tender handling, and **Settings, Terminals, and Offline Recovery** for queued-sale recovery.",
+          "content": "See **End of Day and Register Close** for operational reconciliation, **Laybys at POS** for the layby lifecycle, and **Petty Cash at POS** for till expenses.",
           "presentation": "detail"
         }
       ]
@@ -3988,6 +4575,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Sell and redeem gift cards",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/gift-cards.md",
       "sections": [
         {
@@ -4068,6 +4660,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Create, collect and cancel laybys",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/laybys.md",
       "sections": [
         {
@@ -4151,6 +4748,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Apply loyalty rewards",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/loyalty-rewards.md",
       "sections": [
         {
@@ -4210,6 +4812,7 @@
       "format": "task",
       "parentId": "pos-workspaces",
       "relatedTopics": [
+        "pos-end-of-day",
         "pos-end-of-day-xero",
         "pos-reports-transactions",
         "pos-settings-terminals-offline-recovery"
@@ -4228,6 +4831,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Record petty cash",
+        "subgroup": "Store operations"
+      },
       "filename": "docs/help/pos/petty-cash.md",
       "sections": [
         {
@@ -4286,20 +4894,26 @@
       "product": "pos",
       "format": "overview",
       "contexts": [
-        "pos-overview"
+        "pos-overview",
+        "pos-help"
       ],
       "contextSections": {
-        "pos-overview": "Main operations"
+        "pos-overview": "Main operations",
+        "pos-help": "Finding POS guidance"
       },
       "order": 1,
       "summary": "Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-10-14",
       "owner": "retail",
       "quickSections": [
         "Main operations",
         "POS reports",
         "Daily operating checklist"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Choose a POS workflow"
+      },
       "filename": "docs/help/pos/pos-workspaces.md",
       "sections": [
         {
@@ -4311,35 +4925,41 @@
         {
           "id": "pos-workspaces:2",
           "heading": "Main operations",
-          "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Set up a device, select its branch and register, or sign in | Register, Device, and Login |\n| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |\n| Find, create, reactivate, link, or remove a customer | Customers at POS |\n| Check points or apply an eligible customer reward | Loyalty Rewards at POS |\n| Sell, verify, redeem, or issue code-based value | Gift Cards at POS |\n| Spend customer-bound value or understand how new credit is issued | Store Credit at POS |\n| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |\n| Save a currently supported layby transaction | Laybys at POS |\n| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |\n| Send stock or receive an incoming transfer | POS Branch Transfers |\n| Review transactions, reprint receipts, start returns, or make permitted corrections | POS Reports and Transactions |\n| Record a purchase paid from the open till | Petty Cash at POS |\n| Message another branch or Warehouse | Team Communications at POS |\n| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |\n| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |\n\n> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout.",
+          "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Set up a device, select its branch and register, or sign in | Register, Device, and Login |\n| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |\n| Find, create, reactivate, link, or remove a customer | Customers at POS |\n| Check points or apply an eligible customer reward | Loyalty Rewards at POS |\n| Sell, verify, redeem, or issue code-based value | Gift Cards at POS |\n| Spend customer-bound value or understand how new credit is issued | Store Credit at POS |\n| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |\n| Save a currently supported layby transaction | Laybys at POS |\n| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |\n| Send stock or receive an incoming transfer | POS Branch Transfers |\n| Review transactions, reprint receipts, start returns, or make permitted corrections | POS Reports and Transactions |\n| Record a purchase paid from the open till | Petty Cash at POS |\n| Message another branch or Warehouse | Team Communications at POS |\n| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |\n| Count takings, investigate a variance, and close the register | End of Day and Register Close |\n| Review optional accounting results or retry an unfinished posting | POS End of Day and Xero |\n\n> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout.",
           "presentation": "quick"
         },
         {
           "id": "pos-workspaces:3",
+          "heading": "Finding POS guidance",
+          "content": "Open Help for guidance about your current POS screen. Expand **POS**, then choose **Start & end of day**, **Selling & customer value**, **Store operations** or **Devices & recovery** to find the procedure you need. **Troubleshooting & Glossary** contains shared recovery guidance and plain-language definitions.\n\nSearch Help when you know the action or symptom. A result opens the matching section, including detailed guidance that normally starts collapsed. On a phone, use **Browse topics**; selecting a workflow returns you to the guide. Use **Back to help for this page** to return after browsing another procedure.\n\nIMS staff can also browse these POS guides from the IMS Help library. POS Help itself remains focused on cashier and store workflows.\n\n**End of Day and Register Close** remains available without an accounting connection. The separate accounting guide is shown only when that integration is enabled.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-workspaces:4",
           "heading": "POS reports",
           "content": "Open **POS Reports and Transactions** for the complete procedure covering daily totals, transaction detail, receipt reprints, linked returns, payment-split correction, and manager-protected changes.",
           "presentation": "quick"
         },
         {
-          "id": "pos-workspaces:4",
+          "id": "pos-workspaces:5",
           "heading": "Daily operating checklist",
           "content": "- [ ] Confirm the device shows the correct branch and register before signing in.\n- [ ] Open the register and count the opening float before the first sale.\n- [ ] Watch the online, queued, and failed-sale indicators during trade.\n- [ ] Record petty cash while the register is open and keep its receipt.\n- [ ] Complete End of Day with physical counts before leaving the register closed.",
           "presentation": "quick"
         },
         {
-          "id": "pos-workspaces:5",
+          "id": "pos-workspaces:6",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Products or actions differ from expectation | The device is assigned to another branch or register | Check the branch and register shown at sign-in before continuing. |\n| A completed sale is not in Reports yet | It is still queued on this device | Reconnect, use **Sync**, and confirm the queue clears before entering the sale again. |\n| An action asks for a manager PIN | The current workflow is protected | Ask an authorised manager to enter the location manager PIN. Do not share PINs. |\n| Stock or customer credit looks doubled after a return | The return may have been entered more than once | Stop and review the original sale and linked credit note before making another correction. |",
           "presentation": "detail"
         },
         {
-          "id": "pos-workspaces:6",
+          "id": "pos-workspaces:7",
           "heading": "Worked examples",
           "content": "### Choose the correct recovery path\n\nA cashier can still see products but the header says **Offline** and shows two queued sales. They continue only with supported ordinary sales, keep the device open, reconnect, select **Sync**, and confirm both transactions appear in Reports. They do not recreate either sale.",
           "presentation": "detail"
         },
         {
-          "id": "pos-workspaces:7",
+          "id": "pos-workspaces:8",
           "heading": "Related tasks",
           "content": "Choose a topic in the POS list for its complete procedure, decision table, troubleshooting, and worked examples.",
           "presentation": "detail"
@@ -4361,7 +4981,7 @@
       "relatedTopics": [
         "pos-selling-payments-manager-approval",
         "pos-settings-terminals-offline-recovery",
-        "pos-end-of-day-xero"
+        "pos-end-of-day"
       ],
       "contexts": [
         "pos-register"
@@ -4377,6 +4997,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Set up a register and start the day",
+        "subgroup": "Start & end of day"
+      },
       "filename": "docs/help/pos/register-device-and-login.md",
       "sections": [
         {
@@ -4430,7 +5055,7 @@
         {
           "id": "pos-register-device-login:9",
           "heading": "Related tasks",
-          "content": "See **Selling, Payments, and Manager Approval** for checkout and **End of Day and Xero** for closing the session.",
+          "content": "See **Selling, Payments, and Manager Approval** for checkout and **End of Day and Register Close** for closing the session.",
           "presentation": "detail"
         }
       ]
@@ -4450,7 +5075,7 @@
       "relatedTopics": [
         "pos-returns-exchanges-customer-credit",
         "pos-selling-payments-manager-approval",
-        "pos-end-of-day-xero"
+        "pos-end-of-day"
       ],
       "contexts": [
         "reports"
@@ -4466,6 +5091,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Find transactions and reprint receipts",
+        "subgroup": "Store operations"
+      },
       "filename": "docs/help/pos/reports-and-transactions.md",
       "sections": [
         {
@@ -4529,7 +5159,7 @@
         "pos-selling-payments-manager-approval",
         "pos-gift-cards",
         "pos-store-credit",
-        "pos-end-of-day-xero",
+        "pos-end-of-day",
         "ims-customer-orders"
       ],
       "contexts": [
@@ -4546,6 +5176,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Process returns, exchanges and customer credit",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/returns-exchanges-and-customer-credit.md",
       "sections": [
         {
@@ -4599,7 +5234,7 @@
         {
           "id": "pos-returns-exchanges-customer-credit:9",
           "heading": "Related tasks",
-          "content": "See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Xero** for how return payments affect the counted day.",
+          "content": "See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Register Close** for checking the counted day.",
           "presentation": "detail"
         }
       ]
@@ -4624,7 +5259,7 @@
         "pos-store-credit",
         "pos-returns-exchanges-customer-credit",
         "pos-settings-terminals-offline-recovery",
-        "pos-end-of-day-xero"
+        "pos-end-of-day"
       ],
       "contexts": [
         "pos",
@@ -4642,6 +5277,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Make sales, take payments and park carts",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/selling-payments-and-manager-approval.md",
       "sections": [
         {
@@ -4725,7 +5365,7 @@
         "pos-gift-cards",
         "pos-store-credit",
         "pos-petty-cash",
-        "pos-end-of-day-xero"
+        "pos-end-of-day"
       ],
       "contexts": [
         "pos-settings",
@@ -4745,6 +5385,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Configure terminals and recover offline sales",
+        "subgroup": "Devices & recovery"
+      },
       "filename": "docs/help/pos/settings-terminals-and-offline-recovery.md",
       "sections": [
         {
@@ -4804,7 +5449,7 @@
         {
           "id": "pos-settings-terminals-offline-recovery:10",
           "heading": "Related tasks",
-          "content": "See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Xero** for reconciliation.",
+          "content": "See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Register Close** for reconciliation.",
           "presentation": "detail"
         }
       ]
@@ -4841,6 +5486,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Spend customer store credit",
+        "subgroup": "Selling & customer value"
+      },
       "filename": "docs/help/pos/store-credit.md",
       "sections": [
         {
@@ -4902,7 +5552,7 @@
       "relatedTopics": [
         "pos-register-device-login",
         "pos-team-communications",
-        "pos-end-of-day-xero",
+        "pos-end-of-day",
         "pos-branch-transfers",
         "ims-business-operations-pos-settings"
       ],
@@ -4924,6 +5574,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Complete daily tasks and store follow-up",
+        "subgroup": "Store operations"
+      },
       "filename": "docs/help/pos/store-daybook.md",
       "sections": [
         {
@@ -4983,7 +5638,7 @@
         {
           "id": "pos-store-daybook:10",
           "heading": "Related tasks",
-          "content": "See **Register, Device, and Login** for POS identity and location, **End of Day and Xero** for till reconciliation, and **POS Branch Transfers** when the work requires an inventory transfer rather than a Store Need.",
+          "content": "See **Register, Device, and Login** for POS identity and location, **End of Day and Register Close** for till reconciliation, and **POS Branch Transfers** when the work requires an inventory transfer rather than a Store Need.",
           "presentation": "detail"
         }
       ]
@@ -5018,6 +5673,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "pos",
+        "label": "Message branches and Warehouse",
+        "subgroup": "Store operations"
+      },
       "filename": "docs/help/pos/team-communications.md",
       "sections": [
         {
@@ -5096,6 +5756,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "settings",
+        "label": "Maintain business identity and brand appearance"
+      },
       "filename": "docs/help/setup/business-brand-and-appearance.md",
       "sections": [
         {
@@ -5178,6 +5842,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "platform",
+        "label": "Manage businesses and AI plans"
+      },
+      "requiredTier": "SuperAdmin",
       "filename": "docs/help/setup/businesses-and-ai-plans.md",
       "sections": [
         {
@@ -5236,6 +5905,7 @@
       "format": "overview",
       "contexts": [
         "setup",
+        "setup-help",
         "connections",
         "pos",
         "shopify",
@@ -5247,6 +5917,7 @@
       ],
       "contextSections": {
         "setup": "Choose a Setup area",
+        "setup-help": "Finding setup guidance",
         "connections": "Connection readiness",
         "pos": "POS setup",
         "shopify": "Connect Shopify",
@@ -5265,13 +5936,17 @@
       ],
       "order": 1,
       "summary": "Choose the right Setup area and understand when a connection is ready for real work.",
-      "lastReviewed": "2026-10-03",
+      "lastReviewed": "2026-10-14",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
         "Choose a Setup area",
         "Connection readiness"
       ],
+      "navigation": {
+        "category": "integrations",
+        "label": "Connect external services"
+      },
       "filename": "docs/help/setup/connections.md",
       "sections": [
         {
@@ -5294,42 +5969,48 @@
         },
         {
           "id": "setup-connections:4",
+          "heading": "Finding setup guidance",
+          "content": "In Help, expand **Integrations** for connections and readiness checks, or **Settings & Setup** for business identity and team access. These guides are also available from the IMS Help library alongside everyday operational and POS procedures. Search results can take you directly to the relevant section.\n\nSuperAdmins have a separate **Platform administration** category for business administration, feature rollouts, runtime issues and scheduled jobs. That category and its guides are not available to other users.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-connections:5",
           "heading": "Connection readiness",
           "content": "| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Import product, stock, sales, and purchasing information into IMS | The intended account can be reached | Ownership, import scope, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.\n\nIf Meta monitoring reports that its access token has expired, reconnect the intended Meta account through Connections before retrying monitoring. Repeated expiry reports use the same actionable message; Solvantis does not renew or replace the account's authorisation automatically.",
           "presentation": "quick"
         },
         {
-          "id": "setup-connections:5",
+          "id": "setup-connections:6",
           "heading": "Configure Klaviyo customer and sales sync",
           "content": "1. Enter and save the Klaviyo private API key, then select **Test Connection**.\n2. Turn on **Enable customer and commerce sync**.\n3. Turn on **Sync customer profiles** before selecting any commerce event source.\n4. Select each Solvantis sales source that should send identified commerce events.\n5. For Shopify, first confirm that the store is not already sending the same events directly to Klaviyo, then acknowledge the duplicate-event risk.\n6. Select **Save**.\n\nThe master switch stops all customer and commerce event processing for the business. Each source switch independently controls events from that source. All switches start off. Turning the integration off does not delete Klaviyo profiles or previously delivered events.\n\nSolvantis matches eligible customer contacts using its stable contact identity plus normalized email and phone details. It does not subscribe or unsubscribe people, and it does not treat promotional email or SMS preferences as Klaviyo consent. Identity conflicts stop the affected event for review rather than linking profiles by guesswork.",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:6",
+          "id": "setup-connections:7",
           "heading": "Connect Shopify",
           "content": "Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use **Legacy token** only for an existing admin-created custom app that still supplies a permanent Admin API access token.\n\n1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.\n2. Install that app on the intended store.\n3. Open **IMS > Integrations > Sales Channels** and choose **Add Sales Channel > Shopify**.\n4. Choose **Dev Dashboard**, then enter the permanent `myshopify.com` store domain, Client ID, and Client secret shown in the app's Settings area.\n5. Save the channel, choose **Test connection**, then activate the store when readiness succeeds.\n6. Choose **Configure** on that store and use **Orders & Inventory** to register or verify its required webhooks.\n\nSolvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.\n\n> **Important:** The Client ID and Client secret are not Admin API access tokens. Enter them only in Dev Dashboard mode. Do not paste a manually generated short-lived token into Legacy token mode.",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:7",
+          "id": "setup-connections:8",
           "heading": "POS setup",
           "content": "POS Settings controls the payment-method names shown on the POS payment screen.\n\n1. Review the current list.\n2. Add, rename, or remove a method.\n3. Select **Save Methods**.\n4. Open POS and confirm the expected choices before taking a sale.\n\n| Change | Effect | External change |\n| --- | --- | --- |\n| Save payment methods | Updates payment choices shown in POS | No external service is changed |",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:8",
+          "id": "setup-connections:9",
           "heading": "Safe connection sequence",
           "content": "1. Select the intended business.\n2. Start the connection or enter details only in its protected fields.\n3. Confirm the external organisation, store, account, or property.\n4. Save and use the available status or test action.\n5. Complete downstream mappings and settings in the owning product area.\n6. Run one controlled sync or test and review its result.",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:9",
+          "id": "setup-connections:10",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Connected to the wrong account | The wrong organisation or account was selected during sign-in | Disconnect and reconnect the intended account |\n| Connected but a workflow is unavailable | Required mapping, permission, or product setup is incomplete | Open Integration Readiness and complete the shown dependency |\n| Access expired | The external service no longer accepts the saved authorisation | Reconnect through the normal connection flow |\n| A test fails twice | Account access or setup still needs attention | Stop retries and read the specific status or error |",
           "presentation": "detail"
         },
         {
-          "id": "setup-connections:10",
+          "id": "setup-connections:11",
           "heading": "Worked examples",
           "content": "### Prepare Xero for POS accounting\n\nConnect the intended Xero organisation, confirm its name, then open IMS Xero Setup to complete the required revenue and payment mappings. Run one controlled end-of-day sync and review the Xero result before relying on automation.\n\n### Add a POS payment method\n\nOpen POS Settings, add \"Afterpay\", save the list, and open POS to confirm it appears. This changes the available POS label; it does not create or configure an Afterpay account.",
           "presentation": "detail"
@@ -5367,6 +6048,11 @@
         "At a glance",
         "Step-by-step"
       ],
+      "navigation": {
+        "category": "platform",
+        "label": "Manage scheduled jobs"
+      },
+      "requiredTier": "SuperAdmin",
       "filename": "docs/help/setup/cron-jobs.md",
       "sections": [
         {
@@ -5454,6 +6140,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "platform",
+        "label": "Control feature rollouts"
+      },
+      "requiredTier": "SuperAdmin",
       "filename": "docs/help/setup/feature-rollouts.md",
       "sections": [
         {
@@ -5536,6 +6227,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "integrations",
+        "label": "Check connections and recover failed syncs"
+      },
       "filename": "docs/help/setup/integration-readiness-and-troubleshooting.md",
       "sections": [
         {
@@ -5625,6 +6320,11 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "platform",
+        "label": "Review runtime issues"
+      },
+      "requiredTier": "SuperAdmin",
       "filename": "docs/help/setup/runtime-issues.md",
       "sections": [
         {
@@ -5713,6 +6413,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "settings",
+        "label": "Manage team access and security"
+      },
       "filename": "docs/help/setup/team-access-and-security.md",
       "sections": [
         {
@@ -5810,6 +6514,10 @@
         "Stock and fulfilment",
         "Orders, returns, and customer value"
       ],
+      "navigation": {
+        "category": "reference",
+        "label": "Understand common terms"
+      },
       "filename": "docs/help/shared/plain-language-glossary.md",
       "sections": [
         {
@@ -5877,6 +6585,10 @@
         "Safe retry rules",
         "Find the symptom"
       ],
+      "navigation": {
+        "category": "reference",
+        "label": "Find a symptom and recover safely"
+      },
       "filename": "docs/help/shared/troubleshooting-by-symptom.md",
       "sections": [
         {
@@ -5950,6 +6662,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "wholesale",
+        "label": "Apply for access and get started"
+      },
       "filename": "docs/help/wholesale/getting-started-and-account-approval.md",
       "sections": [
         {
@@ -6041,6 +6757,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "wholesale",
+        "label": "Place orders and use saved lists"
+      },
       "filename": "docs/help/wholesale/ordering-saved-lists-and-stock-rules.md",
       "sections": [
         {
@@ -6143,6 +6863,10 @@
         "Home",
         "Support"
       ],
+      "navigation": {
+        "category": "wholesale",
+        "label": "Choose a wholesale workflow"
+      },
       "filename": "docs/help/wholesale/portal.md",
       "sections": [
         {
@@ -6230,6 +6954,10 @@
         "Main operations",
         "At a glance"
       ],
+      "navigation": {
+        "category": "wholesale",
+        "label": "Manage your team and locations"
+      },
       "filename": "docs/help/wholesale/team-locations-and-permissions.md",
       "sections": [
         {

@@ -293,7 +293,7 @@
     {
       "id": "public-capability:ims-supplier-work",
       "title": "Purchasing Planning and Supplier Work",
-      "summary": "Turn replenishment suggestions into reviewed purchase orders and choose the right supplier workflow when plans change.",
+      "summary": "Review replenishment suggestions, distinguish saved plans from purchase orders, and choose the right supplier workflow.",
       "capabilities": [
         "ims",
         "orders"
@@ -313,9 +313,21 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-cash-banking-report",
+      "title": "Cash Banking Report",
+      "summary": "Review deposit recounts, bank acceptance, Xero posting outcomes and notes documenting manual accounting corrections.",
+      "capabilities": [
+        "ims",
+        "integrations",
+        "xero"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-report-guide",
       "title": "Choosing and Reading IMS Reports",
-      "summary": "Match a business question to the right report and compare dates, GST, cost, and stock consistently.",
+      "summary": "Choose and filter sales, demand, valuation and register reports, distinguish catalogue-based profit estimates from recorded margins, and check export scope.",
       "capabilities": [
         "ims",
         "navigation"
@@ -487,11 +499,22 @@
       "availability": "confirmed"
     },
     {
-      "id": "public-capability:pos-end-of-day-xero",
-      "title": "End of Day and Xero",
-      "summary": "Count and close a register, explain variances, and understand the separate Xero posting result.",
+      "id": "public-capability:pos-end-of-day",
+      "title": "End of Day and Register Close",
+      "summary": "Count register takings, account for the opening float and petty cash, investigate variances, and verify register closure without requiring an accounting connection.",
       "capabilities": [
         "pos"
+      ],
+      "product": "pos",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:pos-end-of-day-xero",
+      "title": "POS End of Day and Xero",
+      "summary": "Understand optional POS End of Day invoices, clearing payments and layby accounting, and retry unfinished Xero posting without duplicating sales.",
+      "capabilities": [
+        "pos",
+        "xero"
       ],
       "product": "pos",
       "availability": "confirmed"

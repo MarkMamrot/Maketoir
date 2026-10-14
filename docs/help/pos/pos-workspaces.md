@@ -1,5 +1,5 @@
 ---
-{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["pos-overview"],"contextSections":{"pos-overview":"Main operations"},"order":1,"summary":"Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","POS reports","Daily operating checklist"]}
+{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["pos-overview","pos-help"],"contextSections":{"pos-overview":"Main operations","pos-help":"Finding POS guidance"},"order":1,"summary":"Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.","lastReviewed":"2026-10-14","owner":"retail","quickSections":["Main operations","POS reports","Daily operating checklist"],"navigation":{"category":"pos","label":"Choose a POS workflow"}}
 ---
 # Point of Sale
 
@@ -23,9 +23,20 @@ Use this overview to choose the POS guide for the job in front of you.
 | Record a purchase paid from the open till | Petty Cash at POS |
 | Message another branch or Warehouse | Team Communications at POS |
 | Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |
-| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |
+| Count takings, investigate a variance, and close the register | End of Day and Register Close |
+| Review optional accounting results or retry an unfinished posting | POS End of Day and Xero |
 
 > **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout.
+
+## Finding POS guidance
+
+Open Help for guidance about your current POS screen. Expand **POS**, then choose **Start & end of day**, **Selling & customer value**, **Store operations** or **Devices & recovery** to find the procedure you need. **Troubleshooting & Glossary** contains shared recovery guidance and plain-language definitions.
+
+Search Help when you know the action or symptom. A result opens the matching section, including detailed guidance that normally starts collapsed. On a phone, use **Browse topics**; selecting a workflow returns you to the guide. Use **Back to help for this page** to return after browsing another procedure.
+
+IMS staff can also browse these POS guides from the IMS Help library. POS Help itself remains focused on cashier and store workflows.
+
+**End of Day and Register Close** remains available without an accounting connection. The separate accounting guide is shown only when that integration is enabled.
 
 ## POS reports
 

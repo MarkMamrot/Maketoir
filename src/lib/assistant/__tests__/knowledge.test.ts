@@ -3,6 +3,45 @@ import { describe, expect, it } from 'vitest';
 import { buildAssistantRetrievalContext, retrieveAssistantKnowledge } from '../knowledge';
 
 describe('assistant knowledge retrieval', () => {
+  it.each([true, false])('explains selected-branch planning and checked manual quantities with accounting enabled=%s', xero => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Order Planner selected branches stock incomplete suggestion withheld Stock checked manual quantity',
+      audience: 'ims', currentView: 'order-planner', availableCapabilities: { xero },
+    });
+    expect(results.some(result => result.heading === 'Build and review an order plan'
+      && result.content.includes('Selected-branch plans never substitute business-wide sales or stock'))).toBe(true);
+    expect(results.some(result => result.content.includes('Stock checked'))).toBe(true);
+    expect(results.some(result => result.content.includes('branch selection does not filter'))).toBe(false);
+  });
+
+  it.each([true, false])('explains independent Bulk Edit replenishment changes with accounting enabled=%s', xero => {
+    const results = retrieveAssistantKnowledge({
+      query: 'If I change only Min Qty in Bulk Edit, will Reorder Qty stay unchanged?',
+      audience: 'ims',
+      currentView: 'bulk-edit',
+      availableCapabilities: { xero },
+    });
+    expect(results.some(result => result.topicId === 'ims-catalogue-stock' && result.heading === 'Bulk edit'
+      && result.content.includes('untouched companion setting keeps its own value on each variant'))).toBe(true);
+    expect(results.some(result => result.content.includes('can reset the other to zero'))).toBe(false);
+  });
+
+  it.each([true, false])('gates Cash Banking Report retrieval with accounting enabled=%s', xero => {
+    const results = retrieveAssistantKnowledge({
+      query: 'How do I record a manual correction note for a posted cash deposit?',
+      audience: 'ims',
+      currentView: 'report-cash-banking',
+      availableCapabilities: { xero },
+    });
+    expect(results.some(result => result.topicId === 'ims-cash-banking-report')).toBe(xero);
+    if (xero) {
+      expect(results.some(result => result.topicId === 'ims-cash-banking-report'
+        && result.content.includes('does not make that correction in Xero'))).toBe(true);
+    } else {
+      expect(results.every(result => !/\bxero\b/i.test(JSON.stringify(result)))).toBe(true);
+    }
+  });
+
   it('filters by verified audience before ranking', () => {
     const results = retrieveAssistantKnowledge({
       query: 'partial customer fulfilment outstanding balance',
@@ -80,9 +119,22 @@ describe('assistant knowledge retrieval', () => {
       audience: 'ims',
       currentView: 'eod',
     });
-    const timing = results.find(result => result.title === 'End of Day and Xero');
+    const timing = results.find(result => result.title === 'POS End of Day and Xero');
     expect(timing?.content).toContain('not posted one by one at checkout');
     expect(timing?.content).toContain('configured EOD process');
+  });
+
+  it.each(['pos', 'ims'] as const)('retrieves actionable register closure guidance for %s without accounting', audience => {
+    const results = retrieveAssistantKnowledge({
+      query: 'How do I save EOD reconciliation and print the receipt?',
+      audience,
+      currentView: 'eod',
+      availableCapabilities: { xero: false },
+    });
+    const closure = results.find(result => result.topicId === 'pos-end-of-day' && result.content.includes('Save EOD Reconciliation'));
+    expect(closure?.content).toContain('Print EOD Receipt');
+    expect(results.every(result => !/\bxero\b/i.test(JSON.stringify(result)))).toBe(true);
+    expect(results.some(result => result.topicId === 'pos-end-of-day-xero')).toBe(false);
   });
 
   it('excludes every Xero-bearing chunk when tenant accounting is disabled', () => {

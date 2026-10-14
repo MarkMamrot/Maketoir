@@ -1,9 +1,11 @@
 ---
-{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-bookkeeper-audit","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-09-23","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"]}
+{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-bookkeeper-audit","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-10-14","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"],"navigation":{"category":"reports","label":"Find the right report"}}
 ---
 # IMS Reports
 
-Reports are read-only views of operational information. Choose a report by the question it answers, then align its date, location, and status filters before comparing totals.
+Reports mainly review operational information. Choose a report by the question it answers, then align its date, location, and status filters before comparing totals.
+
+When Xero is enabled, Cash Banking Report also lets authorised Admins record a note about a correction already made externally; that note does not post accounting.
 
 Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify storefront. Sales Summary also offers **Store / Channel** as a grouping, allowing stores to be compared in one result. Leaving the filter at **All channels** retains POS, wholesale, imported history and every online channel covered by that report.
 
@@ -21,21 +23,34 @@ Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify
 | What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |
 | Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |
 | What sold, by product and branch? | **Sales Detail** |
-| How do branches compare? | **Sales by Branch** |
+| How do branches compare? | **Sales Summary** grouped by **Location**, or branch columns in **Sales Detail** |
 | How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |
-| Where is a particular sale or product line? | **Sales Search** |
+| Which variants sold and which source quantities contributed? | **Sales Search** |
+| Where is an individual sale or receipt? | **POS Sales**, POS Reports or the relevant Sales Order |
 | What is current stock worth? | **Inventory Valuation** |
-| What margin did products produce? | **Product Margin** or **Sales Summary** |
-| Who changed a POS selling price? | **POS Price Changes** |
-| What happened in daily register sessions? | **POS Registers** |
-| How do cash deposits and banking compare? | **Cash Banking** |
-| What is on hand, committed, incoming, or available? | **Stock Availability** |
+| What margin did recorded sales produce? | **Sales Summary** or **Sales & COGS Traceability**, checking cost coverage |
+| How do current catalogue price and cost compare for sold products? | **Product Profitability Margin**; a catalogue-based estimate, not historical accounting profit |
+| Which completed POS items have a recorded unit-price change? | **POS Price Changed Transactions** |
+| What happened in daily register sessions? | **Daily POS Registers Report** |
+| How do cash deposits and Xero outcomes compare? | **Cash Banking Report** |
+| Which open customer orders need sourcing or promise review? | **Stock Availability** |
+| What is on hand, committed, incoming, or available at a branch? | **Products > Stock Levels** |
 
 ## Reading results
 
 Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation answers a current-value question; historical margin answers what was recorded when the sale or stock movement happened.
 
 > **Tip:** When two totals differ, compare the same date meaning, date range, locations, statuses, transaction types, and GST treatment before looking for a data problem.
+
+**Choosing and Reading IMS Reports** Help has specific sales, valuation, profitability, stock-demand, POS price-change and daily register procedures, with an export-scope table.
+
+**Cash Banking Report** Help covers deposit outcomes and correction notes for Xero-enabled businesses.
+
+Sales Search aggregates by variant rather than showing individual transactions. Product Profitability estimates from current catalogue price and cost without removing selling-price GST; it is not recorded tax-exclusive gross profit. Stock Availability is a current open-order demand and protected-supply report, not a general stock balance.
+
+Export scope differs: Sales Detail exports the current page plus full-result totals, while Sales Summary exports all matching grouped pages. Sales Search and Product Profitability export current-page rows only. Inventory Valuation shows current stock across locations, without a historical date or branch selector. Stock Availability has no CSV export control.
+
+Daily POS Registers selects the register's session date and requires **Run** after a date change. Its Counted totals include float; use the already adjusted Variance rather than subtracting the raw totals. Price-change results count changed items, not distinct sales.
 
 ## Troubleshooting
 
@@ -50,8 +65,8 @@ Sales reports commonly show selling amounts including GST. Margin and cost of go
 
 ### Check a branch sales total
 
-Open **Sales Detail**, choose the required branch and date range, and note the tax-inclusive total. Use **Sales Search** to inspect individual lines when a transaction needs to be identified.
+Open **Sales Detail**, choose the required branch and date range, and note the tax-inclusive total. Use **Sales Search** for variant/source quantity totals, or inspect POS Sales and the relevant Sales Order when an individual transaction needs to be identified.
 
 ### Explain current stock value
 
-Open **Inventory Valuation**, select the location, and compare each quantity with its value under the active method. Under Average Cost, review the current shared cost; under FIFO, review the remaining location layers and recent movements.
+Open **Inventory Valuation**, filter the required product, supplier, brand or type, and compare each quantity with its current value across locations. Under Average Cost, review the current shared cost; under FIFO, review remaining layers and any quantity mismatch warning. Use **Stock Levels** separately for a quantity check at one branch.

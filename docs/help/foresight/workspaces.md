@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-workspaces","title":"IMS Automations","audiences":["ims"],"capability":"navigation","screen":"IMS Automations","product":"ims","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right IMS Automations workspace and understand what each area can change.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","Choose a workspace","Dashboard"]}
+{"id":"foresight-workspaces","title":"IMS Automations","audiences":["ims"],"capability":"navigation","screen":"IMS Automations","product":"ims","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right IMS Automations workspace and understand what each area can change.","lastReviewed":"2026-10-13","owner":"foresight","quickSections":["Main operations","Choose a workspace","Dashboard"],"navigation":{"category":"automations","label":"Choose an automation workflow"}}
 ---
 # IMS Automations
 

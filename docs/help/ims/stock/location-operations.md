@@ -1,5 +1,5 @@
 ---
-{"id":"ims-location-stock-operations","title":"Locations, Transfers, and Stocktakes","audiences":["ims"],"capability":"inventory","screen":"Locations and Stock","product":"ims","format":"overview","parentId":"ims-stock","relatedTopics":["ims-branch-transfers","ims-stocktakes-adjustments"],"contexts":["locations"],"contextSections":{"locations":"Locations"},"order":50,"summary":"Choose the right location workflow for branch setup, transfers, physical counts, and quantity corrections.","lastReviewed":"2026-08-27","owner":"inventory","quickSections":["Main operations","Locations"]}
+{"id":"ims-location-stock-operations","title":"Locations, Transfers, and Stocktakes","audiences":["ims"],"capability":"inventory","screen":"Locations and Stock","product":"ims","format":"overview","parentId":"ims-stock","relatedTopics":["ims-branch-transfers","ims-stocktakes-adjustments"],"contexts":["locations"],"contextSections":{"locations":"Locations"},"order":50,"summary":"Choose the right location workflow for branch setup, transfers, physical counts, and quantity corrections.","lastReviewed":"2026-08-27","owner":"inventory","quickSections":["Main operations","Locations"],"navigation":{"category":"locations-stock","label":"Manage locations and stock operations"}}
 ---
 # Locations, Transfers, and Stocktakes
 

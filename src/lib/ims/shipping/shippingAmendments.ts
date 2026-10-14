@@ -285,7 +285,7 @@ async function getShipment(connection: PoolConnection, businessId: string, shipm
   return rows[0];
 }
 async function buildDetail(connection: PoolConnection, businessId: string, row: ShipmentRow): Promise<ShippingEditableDetail> {
-  const order = await ImsSORepo.get(Number(row.so_id), businessId);
+  const order = await ImsSORepo.get(Number(row.so_id), businessId, connection);
   if (!order) throw new ShippingAmendmentError('Sales order not found.', 404);
   const [parcels] = await connection.execute<RowDataPacket[]>(
     'SELECT * FROM ims_shipping_parcels WHERE business_id = ? AND shipment_id = ? ORDER BY parcel_number', [businessId, row.id],

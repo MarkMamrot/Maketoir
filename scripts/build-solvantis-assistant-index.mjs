@@ -10,6 +10,10 @@ const helpOutputPath = path.join(outputDirectory, 'solvantis-help-index.json');
 const prospectOutputPath = path.join(outputDirectory, 'solvantis-prospect-index.json');
 const validAudiences = new Set(['ims', 'pos', 'wholesale']);
 const validOperationCapabilities = new Set(['xero', 'shopify', 'native_shop']);
+const validHelpCategories = new Set([
+  'getting-started', 'products', 'sales', 'purchasing', 'contacts', 'locations-stock',
+  'finances', 'reports', 'integrations', 'automations', 'settings', 'pos', 'wholesale', 'reference', 'platform',
+]);
 const prospectAudience = 'prospect';
 const prospectProduct = 'prospect';
 const validProspectAvailability = new Set(['confirmed', 'qualified']);
@@ -119,6 +123,24 @@ function parseDocument(filename, source, options = {}) {
     if (metadata.relatedTopics != null && (!Array.isArray(metadata.relatedTopics)
       || metadata.relatedTopics.some(value => !String(value).trim()))) {
       throw new Error(`${filename}: invalid relatedTopics`);
+    }
+    const navigation = metadata.navigation;
+    if (!navigation || !validHelpCategories.has(navigation.category)
+      || typeof navigation.label !== 'string' || !navigation.label.trim()
+      || (navigation.subgroup != null && (typeof navigation.subgroup !== 'string' || !navigation.subgroup.trim()))) {
+      throw new Error(`${filename}: invalid Help navigation`);
+    }
+    if (navigation.sections != null && (!Array.isArray(navigation.sections)
+      || navigation.sections.some(section => typeof section?.heading !== 'string' || !section.heading.trim()
+        || typeof section?.label !== 'string' || !section.label.trim())
+      || new Set(navigation.sections.map(section => section.heading)).size !== navigation.sections.length)) {
+      throw new Error(`${filename}: invalid Help navigation sections`);
+    }
+    if (metadata.requiredTier != null && metadata.requiredTier !== 'SuperAdmin') {
+      throw new Error(`${filename}: invalid requiredTier`);
+    }
+    if (navigation.category === 'platform' && metadata.requiredTier !== 'SuperAdmin') {
+      throw new Error(`${filename}: platform Help must require SuperAdmin`);
     }
     if (!Array.isArray(metadata.quickSections) || metadata.quickSections.length < 1 || metadata.quickSections.length > 4
       || metadata.quickSections.some(value => !String(value).trim())
@@ -289,6 +311,11 @@ const documentsById = new Map(documents.map(document => [document.id, document])
 const topicsById = new Map(helpTopics.map(topic => [topic.id, topic]));
 for (const topic of helpTopics) {
   const sectionHeadings = new Set(topic.sections.map(section => section.heading.toLowerCase()));
+  for (const shortcut of topic.navigation.sections ?? []) {
+    if (!topic.sections.some(section => section.heading === shortcut.heading)) {
+      throw new Error(`${topic.filename}: navigation targets missing section ${shortcut.heading}`);
+    }
+  }
   for (const [context, heading] of Object.entries(topic.contextSections ?? {})) {
     if (!topic.contexts.includes(context)) throw new Error(`${topic.filename}: contextSections contains unknown context ${context}`);
     if (!sectionHeadings.has(String(heading).toLowerCase())) {

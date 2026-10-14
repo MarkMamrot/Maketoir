@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders","ims-shipping-settings"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Choose list fields"},"order":31,"summary":"Create sales orders, edit eligible shipment details before dispatch, move outstanding quantities, fulfil actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-10-13","owner":"sales","quickSections":["Main operations","At a glance"]}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders","ims-shipping-settings"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Choose list fields"},"order":31,"summary":"Create sales orders, edit eligible shipment details before dispatch, move outstanding quantities, fulfil actual quantities, and resolve an unshipped remainder.","lastReviewed":"2026-10-13","owner":"sales","quickSections":["Main operations","At a glance"],"navigation":{"category":"sales","label":"Create and fulfil sales orders"}}
 ---
 
 # Sales Orders and Fulfilment
@@ -22,6 +22,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 - Add, remove, move, or **Undo batch** without deleting saved dimensions or cancelling existing postage.
 - Identify batch orders by their saved recipient or order-specific Shopify name. New shipments use that recipient name for the carrier, not the generic Online Customer contact.
 - In **Edit shipment details**, review the order-specific recipient name filled in for a generic saved recipient. Save the amendment to apply it to purchased postage, then generate fresh labels and discard older copies. Opening the editor alone does not change the carrier shipment or existing labels.
+- Reopen saved shipping preparation to review the current Sales Order alongside its saved parcel details. Loading or reviewing preparation does not buy postage, change stock, or amend the delivery address.
 - Edit an eligible shipment's parcel details, delivery address and service before dispatch. Details stay visible; refresh prices from the bottom of the editor and follow any fresh-label reminder after saving.
 - Close the workspace or editor with its top-right close control or bottom **Close**/**Cancel** button. Confirm before discarding unsaved preparation or edits.
 - Close dispatched shipments into a carrier manifest and print the lodgement summary.

@@ -1,5 +1,5 @@
 ---
-{"id":"setup-cron-jobs","title":"Cron Jobs","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Cron Jobs","product":"setup","format":"task","parentId":"setup-connections","contexts":["cron-jobs"],"contextSections":{"cron-jobs":"Step-by-step"},"relatedTopics":["setup-runtime-issues","setup-team-access-security","foresight-planning"],"order":7,"summary":"Review and switch platform-wide scheduled jobs without changing individual business settings.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance","Step-by-step"]}
+{"id":"setup-cron-jobs","title":"Cron Jobs","audiences":["ims"],"capability":"integrations","screen":"SuperAdmin > Cron Jobs","product":"setup","format":"task","parentId":"setup-connections","contexts":["cron-jobs"],"contextSections":{"cron-jobs":"Step-by-step"},"relatedTopics":["setup-runtime-issues","setup-team-access-security","foresight-planning"],"order":7,"summary":"Review and switch platform-wide scheduled jobs without changing individual business settings.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance","Step-by-step"],"navigation":{"category":"platform","label":"Manage scheduled jobs"},"requiredTier":"SuperAdmin"}
 ---
 # Cron Jobs
 

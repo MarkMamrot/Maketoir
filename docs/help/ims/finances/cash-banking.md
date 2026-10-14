@@ -1,9 +1,11 @@
 ---
-{"id":"ims-cash-banking","title":"Cash Banking","audiences":["ims"],"capability":"integrations","requiresCapabilities":["xero"],"screen":"Finances > Cash Banking","product":"ims","format":"task","parentId":"ims-finances","contexts":["cash-banking"],"contextSections":{"cash-banking":"Main operations"},"relatedTopics":["pos-end-of-day-xero","pos-petty-cash","ims-xero-reconciliation","ims-report-guide"],"order":63,"summary":"Prepare cash deposits, record late or historical lodgements, and post each deposit to Xero without duplicating accounting.","lastReviewed":"2026-09-24","owner":"accounting","quickSections":["Main operations","At a glance","Step-by-step","Troubleshooting"]}
+{"id":"ims-cash-banking","title":"Cash Banking","audiences":["ims"],"capability":"integrations","requiresCapabilities":["xero"],"screen":"Finances > Cash Banking","product":"ims","format":"task","parentId":"ims-finances","contexts":["cash-banking"],"contextSections":{"cash-banking":"Main operations"},"relatedTopics":["ims-cash-banking-report","pos-end-of-day","pos-end-of-day-xero","pos-petty-cash","ims-xero-reconciliation","ims-report-guide"],"order":63,"summary":"Prepare cash deposits, record late or historical lodgements, and post each deposit to Xero without duplicating accounting.","lastReviewed":"2026-10-14","owner":"accounting","quickSections":["Main operations","At a glance","Step-by-step","Troubleshooting"],"navigation":{"category":"finances","label":"Record and reconcile cash banking"}}
 ---
 # Cash Banking
 
 Cash Banking groups completed store cash counts into a bank deposit. It preserves what the store reported, what the depositor recounted, what the bank accepted, and how the deposit was handled in Xero.
+
+Use **Cash Banking Report** Help for filtering recorded deposits, comparing the three cash stages, exporting history and documenting a correction already made manually in Xero. The report does not replace this preparation, confirmation and posting workspace.
 
 ## Main operations
 

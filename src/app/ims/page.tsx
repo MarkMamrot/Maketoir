@@ -23869,6 +23869,7 @@ export default function ImsPage() {
         onOpenChange={open => { setHelpOpen(open); if (!open) setHelpContextOverride(null); }}
         audience="ims"
         product="ims"
+        userTier={user?.tier}
         currentContext={helpContextOverride ?? (settingsOpen ? `settings-${settingsSection}` : view)}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"

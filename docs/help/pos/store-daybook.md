@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-team-communications","pos-end-of-day","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Complete daily tasks and store follow-up","subgroup":"Store operations"}}
 ---
 # Store Daybook
 
@@ -212,4 +212,4 @@ Staff find one item while the system shows three, so Daybook displays a variance
 
 ## Related tasks
 
-See **Register, Device, and Login** for POS identity and location, **End of Day and Xero** for till reconciliation, and **POS Branch Transfers** when the work requires an inventory transfer rather than a Store Need.
+See **Register, Device, and Login** for POS identity and location, **End of Day and Register Close** for till reconciliation, and **POS Branch Transfers** when the work requires an inventory transfer rather than a Store Need.

@@ -1,5 +1,5 @@
 ---
-{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Configure Klaviyo customer and sales sync"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-10-03","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"]}
+{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","setup-help","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","setup-help":"Finding setup guidance","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Configure Klaviyo customer and sales sync"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"],"navigation":{"category":"integrations","label":"Connect external services"}}
 ---
 # Connections and Setup
 
@@ -26,6 +26,12 @@ Use Setup to maintain business information, team access, POS payment options, an
 | Connect or configure a Shopify store | IMS > Integrations > Sales Channels | One exact store with its own credentials, settings, and status |
 
 > **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.
+
+## Finding setup guidance
+
+In Help, expand **Integrations** for connections and readiness checks, or **Settings & Setup** for business identity and team access. These guides are also available from the IMS Help library alongside everyday operational and POS procedures. Search results can take you directly to the relevant section.
+
+SuperAdmins have a separate **Platform administration** category for business administration, feature rollouts, runtime issues and scheduled jobs. That category and its guides are not available to other users.
 
 ## Connection readiness
 

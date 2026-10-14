@@ -1,5 +1,5 @@
 ---
-{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit","bulk-add-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit","bulk-add-edit":"Bulk Add/Edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-09-16","owner":"inventory","quickSections":["Main operations","Choosing a workspace","Shopify product links"]}
+{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit","bulk-add-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit","bulk-add-edit":"Bulk Add/Edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-10-14","owner":"inventory","quickSections":["Main operations","Choosing a workspace","Shopify product links"],"navigation":{"category":"products","label":"Choose a product workflow","sections":[{"heading":"Brands","label":"Manage brands"},{"heading":"Gift cards","label":"Manage issued gift cards"},{"heading":"Bulk edit","label":"Change branch stock settings"},{"heading":"Bulk Add/Edit","label":"Bulk-add or edit products"}]}}
 ---
 # Catalogue and Stock
 
@@ -28,7 +28,7 @@ Use this page to choose the right Products workspace. Product details describe w
 | Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |
 | Did a delivery arrive? | Purchase Orders and Receive |
 | Does the shelf count differ from the system? | Stocktakes |
-| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Add/Edit |
+| Are several products assigned to the wrong brand? | All Products or a carefully filtered Bulk Add/Edit; Brands maintains the brand list |
 
 Do not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change.
 
@@ -43,7 +43,14 @@ When linking, Solvantis restores variant links only where an exact SKU or barcod
 
 ## Brands
 
-Create a consistent brand name before assigning it to products. A brand can be used in filters and may also affect online or wholesale presentation, so check affected products before renaming it.
+Create a consistent brand name before assigning it to products. Brands maintains the available brand names and website details; assigning a brand to a product is a separate catalogue edit.
+
+1. Open **Products > Brands**.
+2. Enter the name in **New brand name...**, then select **Add**.
+3. To change a listed brand, select **Edit**, review the name and **Website URL**, then select **Save**. Use the close button to leave the edit without saving.
+4. To remove a listed brand, select **Del** and review the confirmation before proceeding.
+
+Renaming or deleting a brand-list entry does not rewrite the brand text on existing products. If products need a new spelling or a different brand, update their catalogue assignment separately in **All Products** or **Bulk Add/Edit**, then check the filtered results.
 
 Use one spelling for the same brand. For example, choose **Coastal Home** rather than mixing **Coastal Home**, **CoastalHome** and **Coastal Home AU**.
 
@@ -65,7 +72,37 @@ Use **Deactivate** only when the card must no longer be accepted. Deactivation r
 
 ## Bulk edit
 
-Bulk Edit is the location-based workspace for minimum quantity, reorder quantity, zone and bin changes. Select the intended location before editing and review variant rows before saving.
+**Products > Bulk Edit** opens **Bulk Edit Products**. Use it for branch replenishment settings and variant storage positions. It also exposes shared catalogue fields, so choosing a branch does not make every edit branch-local.
+
+### Understand what each field changes
+
+| Field | Where the change applies | Review before saving |
+|---|---|---|
+| Product Name, Brand and Supplier | The shared product catalogue, across branches | The product is correct, not just the selected branch |
+| Barcode on a single-variant product row | That variant's shared barcode | It identifies the intended variant |
+| Barcode in an expanded variant row | That exact variant's shared barcode | The SKU and size or colour match |
+| Min Qty and Reorder Qty on the product row | Every active variant of the product at the selected branch | All those variants should use the same entered settings |
+| Zone and Bin in an expanded variant row | That exact variant at the selected branch | The branch and physical storage position are correct |
+
+The product-row **Min Qty** and **Reorder Qty** displays use the lowest value among the active variants at that branch. They do not prove every variant already has that value. Changing a product-row setting applies the entered value to all its active variants there.
+
+### Edit and save one branch at a time
+
+1. Choose the intended **Branch** before making edits.
+2. Use **Search name / SKU...**, **Brand** and **Supplier** to find the products. Quick filters include **All**, **New (7d)**, **No Min** and **No Reorder**.
+3. Review each product and expand it when you need to identify variants or edit their barcodes, zones or bins. **Zone** and **Bin** are available only when Zones and Bins are enabled.
+4. Edit only the settings you intend to change. An untouched **Min Qty** or **Reorder Qty** keeps each variant's existing value. Enter **0** to set a value to zero; clearing a numeric box also sets it to zero rather than leaving it unchanged.
+5. Check the highlighted edits and unsaved-change count. Review changes made on other pages or under earlier filters as well as the currently visible rows.
+6. Select **Save Changes**. Read the reported product, stock-setting and variant update counts.
+7. Reopen or refresh the affected products at the same branch and verify both replenishment settings and any variant changes. Save and verify this branch before moving to another.
+
+> **Important:** Filters and paging do not discard queued edits. Saving includes queued changes even when those products are no longer visible. Unsaved edits also remain when the branch selector changes, and branch settings are saved against the branch selected at save time. Finish one branch before switching.
+
+> **Important:** An edited replenishment setting applies to every active variant of the product at the selected branch. The untouched companion setting keeps its own value on each variant, even when those values differ. Change both fields only when both should be updated.
+
+Bulk Edit does not adjust stock on hand. Use the matching receipt, transfer, return or stocktake for physical quantity changes.
+
+If a save fails or its result is unclear, some earlier edits may already have saved. Reload and check affected fields before repeating the changes. The all-or-nothing save described under **Bulk Add/Edit** does not apply to this branch workspace.
 
 ## Bulk Add/Edit
 
@@ -116,6 +153,9 @@ Stop and narrow the selection if unrelated products appear. Use the individual p
 | Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |
 | A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |
 | A bulk workspace includes too many items | The selection is broader than intended | Stop before saving, refine the filters and review again |
+| Bulk Edit saves products outside the current filter | Earlier edits remain queued | Check the unsaved-change count and all edited pages before saving |
+| A Bulk Edit replenishment value changed unexpectedly | A product-row edit applies across active variants, or its numeric box was cleared | Verify each active variant at the selected branch; edit only the intended fields and leave the other field untouched |
+| Bulk Edit reports a failed save | Some earlier changes may already have saved | Reload and verify the affected fields before repeating |
 | A preset shows unexpected products | Its saved filters or Match ALL/ANY mode no longer fit the task | Review the Filter panel, then save the preset again under the same name |
 | Save is unavailable in Bulk Add/Edit | A changed product is missing Product Name, Product SKU, a variant or Variant SKU | Complete the required cells in every changed product |
 | Import Product Data finds no products | The source has no readable product rows, or the copied PDF text lost its table content | Paste clearer rows with headings, or upload the original PDF or image |
@@ -123,6 +163,18 @@ Stop and narrow the selection if unrelated products appear. Use the individual p
 | Bulk Add/Edit reports an identifier conflict | A Product SKU, variant SKU or barcode is already used | Correct the identified cell; no rows from that save were applied |
 
 ## Worked examples
+
+### Set replenishment and storage for one branch
+
+A Sydney store wants all three active sizes of a T-shirt to have **Min Qty > 2** and **Reorder Qty > 6**. Staff choose Sydney in **Bulk Edit**, find the exact product, and enter both values on its product row. They expand the product and set the medium variant to **Zone > Apparel** and **Bin > A3**.
+
+After **Save Changes**, they verify the two replenishment settings on all three variants in Sydney and the medium variant's storage position. Those branch settings do not change Melbourne stock settings, and no stock-on-hand quantity is adjusted. If they also change the product's brand, that catalogue change applies across branches.
+
+### Change only one replenishment setting
+
+At Sydney, the small T-shirt has **Min Qty 5 / Reorder Qty 12** and the large has **Min Qty 5 / Reorder Qty 20**. Staff change only the product-row **Min Qty** to **8**, leaving Reorder Qty untouched.
+
+After saving, both active sizes have Min Qty 8, but their Reorder Qty values remain 12 and 20 respectively. Melbourne settings and on-hand quantities do not change. If staff instead enter Reorder Qty 0, it becomes zero across the active Sydney variants while each untouched Min Qty remains unchanged.
 
 ### Update a winter price group
 

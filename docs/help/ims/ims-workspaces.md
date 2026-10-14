@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-08","owner":"operations","quickSections":["Main operations","Choose a workspace"]}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard","ims-help","ims-support-tickets"],"contextSections":{"dashboard":"Main operations","ims-help":"Using Help","ims-support-tickets":"Contact Support"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, finances, reports, automations, brand assets, and integrations.","lastReviewed":"2026-10-14","owner":"operations","quickSections":["Main operations","Choose a workspace","Using Help"],"navigation":{"category":"getting-started","label":"Find your workspace","sections":[{"heading":"Using Help","label":"Find guidance for a common task"}]}}
 ---
 # IMS Workspaces
 
@@ -18,7 +18,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Follow a source link when reviewing a summary instead of recreating the transaction.
 - Use Team Chat to communicate with POS locations as the configured default warehouse.
 - Open Notifications in the top bar to review stock, order, and integration actions that need attention.
-- Open Help from the top bar. On a narrow screen, select **Browse topics** to change topic; selecting a topic closes the browser and returns to the guide.
+- Open Help from the top bar for the current page, or expand a task category to find another workflow. On a narrow screen, select **Browse topics** to change topic.
 - Choose **Help > Contact Support** to submit a support ticket with optional images.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
 
@@ -43,6 +43,20 @@ If the full-page **Something went wrong** screen appears, select **Reload page**
 | Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |
 | Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
 | Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
+
+## Using Help
+
+Help opens guidance for the page you are using. On desktop, its window uses three quarters of the screen width; on tablets it uses nearly the full width, and on phones it fills the screen.
+
+Expand a familiar category such as **Products**, **Sales**, **Purchasing** or **Locations & Stock**, then select the job you need to do. Some workflow links go directly to a section inside a larger guide, such as **Manage brands** or **Bulk-add or edit products**. Detailed sections open automatically when you follow a section link.
+
+The IMS library also includes **POS** procedures and business setup guidance. **Platform administration** appears only for SuperAdmins. Available guides follow your Help audience, access and supported business settings; reading a guide does not grant permission to perform its actions.
+
+Use **Search Help** to search available guides and their sections. Results show the task category, article and matching section. Selecting a result clears the search and opens that section. **In this topic** jumps within the current guide, while **Related Help** opens another available guide.
+
+Choose **Back to help for this page** after browsing away from the current page's guide. On phones, **Browse topics** opens the navigation; selecting a workflow closes it so you can read the guide.
+
+**Ask Solvantis** provides explanations and supported read-only checks. Open a Help reference in its answer to read the source guidance when available. **Contact Support** is separate from both the topic library and Ask Solvantis.
 
 ## Contact Support
 

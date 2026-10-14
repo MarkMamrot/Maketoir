@@ -145,6 +145,34 @@ function carrier() {
       item_contents: [], item_summary: {}, label: {}, postage_details: {}, tracking_details: { article_id: 'article-12' } }] });
 }
 describe('shipping amendments', () => {
+  it('reuses the borrowed connection for order reads when concurrent details fill the pool', async () => {
+    const pool = mocks.pool();
+    const connection = await pool.getConnection();
+    let borrowed = 0;
+    let acquisitions = 0;
+    pool.getConnection = vi.fn(async () => {
+      if (borrowed >= 5) throw new Error('Nested acquisition exhausted the tenant pool');
+      borrowed++;
+      acquisitions++;
+      return connection;
+    });
+    connection.release.mockImplementation(() => { borrowed--; });
+    mocks.order.mockImplementation(async (_id, _businessId, suppliedConnection) => {
+      if (!suppliedConnection) await pool.getConnection();
+      expect(suppliedConnection).toBe(connection);
+      expect(borrowed).toBeGreaterThan(0);
+      return { ...clone(state.order), items: clone(state.items) };
+    });
+
+    const details = await Promise.all(
+      Array.from({ length: 5 }, () => getShippingEditableDetail('tenant-1', 1)),
+    );
+
+    expect(details).toHaveLength(5);
+    expect(acquisitions).toBe(5);
+    expect(borrowed).toBe(0);
+  });
+
   it('suggests the real recipient in the editor without rewriting a purchased shipment or labels', async () => {
     carrier();
     state.shipment.recipient_json = { ...recipient, name: 'Online Customer' };
@@ -161,9 +189,11 @@ describe('shipping amendments', () => {
   });
   it('uses the saved recipient in amendment results even when the shared contact remains generic', async () => {
     state.order.customer_name = 'Online Customer';
+    const connection = await mocks.pool().getConnection();
     const result = await amendShippingShipment('tenant-1', 1, input());
     expect(result.shipment.order.customer_name).toBe('Buyer');
     expect(state.order.customer_name).toBe('Online Customer');
+    expect(mocks.order.mock.calls.every(call => call[2] === connection)).toBe(true);
   });
   it('saves unbatched measurements without pricing or changing the Sales Order address', async () => {
     const beforeOrder = clone(state.order);

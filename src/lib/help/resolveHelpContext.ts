@@ -29,6 +29,12 @@ function withoutXeroContent(topic: HelpTopic): HelpTopic | null {
   const contextSections = topic.contextSections
     ? Object.fromEntries(Object.entries(topic.contextSections).filter(([context, heading]) => !/\bxero\b/i.test(`${context} ${heading}`)))
     : undefined;
+  const sections = topic.sections
+    .map(section => ({
+      ...section,
+      content: section.content.split('\n').filter(line => !/\bxero\b/i.test(line)).join('\n').trim(),
+    }))
+    .filter(section => section.content.length > 0 && !/\bxero\b/i.test(`${section.heading} ${section.content}`));
   return {
     ...topic,
     summary: /\bxero\b/i.test(topic.summary) ? topic.summary.replace(/\bXero\b/gi, 'accounting') : topic.summary,
@@ -36,33 +42,45 @@ function withoutXeroContent(topic: HelpTopic): HelpTopic | null {
     contexts: topic.contexts.filter(context => !/\bxero\b/i.test(context)),
     contextSections,
     relatedTopics: topic.relatedTopics?.filter(topicId => !xeroTopicIds.has(topicId)),
-    sections: topic.sections
-      .map(section => ({
-        ...section,
-        content: section.content.split('\n').filter(line => !/\bxero\b/i.test(line)).join('\n').trim(),
-      }))
-      .filter(section => section.content.length > 0 && !/\bxero\b/i.test(`${section.heading} ${section.content}`)),
+    navigation: {
+      ...topic.navigation,
+      sections: topic.navigation.sections?.filter(shortcut => sections.some(section => section.heading === shortcut.heading)),
+    },
+    sections,
   };
 }
 
-function isTopicAvailable(topic: HelpTopic, availableCapabilities?: AvailableOperationCapabilities): boolean {
-  return !topic.requiresCapabilities?.some(capability => availableCapabilities?.[capability] === false);
+function isTopicAvailable(topic: HelpTopic, availableCapabilities?: AvailableOperationCapabilities, userTier?: string): boolean {
+  return (!topic.requiredTier || topic.requiredTier === userTier)
+    && !topic.requiresCapabilities?.some(capability => availableCapabilities?.[capability] === false);
 }
 
 export function listHelpTopics(
   audience: AssistantAudience,
   product?: HelpProduct,
   availability?: boolean | AvailableOperationCapabilities,
+  userTier?: string,
 ): HelpTopic[] {
   const availableCapabilities = typeof availability === 'boolean' ? { xero: availability } : availability;
   const xeroAccountingEnabled = availableCapabilities?.xero;
   return topics
     .filter(topic => topic.audiences.includes(audience)
       && (!product || topic.product === product || topic.product === 'shared')
-      && isTopicAvailable(topic, availableCapabilities))
+      && isTopicAvailable(topic, availableCapabilities, userTier))
     .map(topic => xeroAccountingEnabled === false ? withoutXeroContent(topic) : topic)
     .filter((topic): topic is HelpTopic => topic !== null)
     .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0) || left.title.localeCompare(right.title));
+}
+
+export function listHelpLibraryTopics(
+  audience: AssistantAudience,
+  product: HelpProduct,
+  availability?: boolean | AvailableOperationCapabilities,
+  userTier?: string,
+): HelpTopic[] {
+  if (audience !== 'ims' || product !== 'ims') return listHelpTopics(audience, product, availability, userTier);
+  return listHelpTopics(audience, undefined, availability, userTier)
+    .filter(topic => topic.product === 'ims' || topic.product === 'pos' || topic.product === 'setup' || topic.product === 'shared');
 }
 
 export function resolveHelpContext(input: {
@@ -71,10 +89,11 @@ export function resolveHelpContext(input: {
   context?: string | null;
   xeroAccountingEnabled?: boolean;
   availableCapabilities?: AvailableOperationCapabilities;
+  userTier?: string;
 }): ResolvedHelpContext | null {
   const context = normalize(input.context);
   const availability = input.availableCapabilities ?? (input.xeroAccountingEnabled === undefined ? undefined : { xero: input.xeroAccountingEnabled });
-  const available = listHelpTopics(input.audience, input.product, availability).filter(topic => topic.product === input.product);
+  const available = listHelpTopics(input.audience, input.product, availability, input.userTier).filter(topic => topic.product === input.product);
   const exactTopic = context
     ? available
       .filter(topic => topic.contexts.some(alias => normalize(alias) === context))
@@ -91,10 +110,6 @@ export function resolveHelpContext(input: {
   return { topic, sectionId: section?.id ?? null, exact: !!exactTopic };
 }
 
-export function getHelpTopic(topicId: string, audience: AssistantAudience, availability?: boolean | AvailableOperationCapabilities): HelpTopic | null {
-  const topic = topics.find(candidate => candidate.id === topicId && candidate.audiences.includes(audience));
-  const availableCapabilities = typeof availability === 'boolean' ? { xero: availability } : availability;
-  if (!topic || !isTopicAvailable(topic, availableCapabilities)) return null;
-  const xeroAccountingEnabled = availableCapabilities?.xero;
-  return xeroAccountingEnabled === false ? withoutXeroContent(topic) : topic;
+export function getHelpTopic(topicId: string, audience: AssistantAudience, availability?: boolean | AvailableOperationCapabilities, userTier?: string): HelpTopic | null {
+  return listHelpTopics(audience, undefined, availability, userTier).find(topic => topic.id === topicId) ?? null;
 }

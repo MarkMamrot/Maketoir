@@ -1,5 +1,5 @@
 ---
-{"id":"setup-feature-rollouts","title":"Feature Rollouts","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Feature Rollouts","product":"setup","format":"task","parentId":"setup-connections","contexts":["feature-rollouts"],"contextSections":{"feature-rollouts":"Step-by-step"},"relatedTopics":["foresight-workspaces","setup-team-access-security"],"order":5,"summary":"Control which businesses can see features that are being introduced progressively.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance"]}
+{"id":"setup-feature-rollouts","title":"Feature Rollouts","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Feature Rollouts","product":"setup","format":"task","parentId":"setup-connections","contexts":["feature-rollouts"],"contextSections":{"feature-rollouts":"Step-by-step"},"relatedTopics":["foresight-workspaces","setup-team-access-security"],"order":5,"summary":"Control which businesses can see features that are being introduced progressively.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Control feature rollouts"},"requiredTier":"SuperAdmin"}
 ---
 # Feature Rollouts
 

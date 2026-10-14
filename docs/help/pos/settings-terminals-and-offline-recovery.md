@@ -1,5 +1,5 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day-xero"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Settings and recovery decisions","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Settings and recovery decisions","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.","lastReviewed":"2026-10-07","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Configure terminals and recover offline sales","subgroup":"Devices & recovery"}}
 ---
 # Settings, Terminals, and Offline Recovery
 
@@ -146,4 +146,4 @@ The shop takes three ordinary manual-card sales while offline. When the connecti
 
 ## Related tasks
 
-See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Xero** for reconciliation.
+See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Register Close** for reconciliation.

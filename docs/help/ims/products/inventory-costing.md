@@ -1,5 +1,5 @@
 ---
-{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Settings > General > Inventory Costing","product":"ims","format":"reference","parentId":"ims-products","contexts":["settings-general","inventory-costing","average-cost","stock-value"],"contextSections":{"settings-general":"Choose or change the costing method"},"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","Cost terms in plain language","Tax and currency"]}
+{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Settings > General > Inventory Costing","product":"ims","format":"reference","parentId":"ims-products","contexts":["settings-general","inventory-costing","average-cost","stock-value"],"contextSections":{"settings-general":"Choose or change the costing method"},"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","Cost terms in plain language","Tax and currency"],"navigation":{"category":"products","label":"Understand inventory costing and value"}}
 ---
 # Inventory Costing and Stock Value
 
@@ -16,7 +16,7 @@ Average Cost (weighted average cost, or WAC) and FIFO determine stock valuation.
 | Which method is active? | **Settings > General > Inventory Costing** |
 | What is the current stock value at a location? | **Products > Stock Levels** |
 | What cost was attached to an earlier receipt, sale or return? | **Stock History** |
-| How does current catalogue selling price compare with cost? | **Reports > Product Margin** |
+| How does current catalogue selling price compare with cost? | **Reports > Product Profitability Margin**, checking its current-price/current-cost estimate and GST limitation |
 | What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |
 | Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |
 

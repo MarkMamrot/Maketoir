@@ -2376,6 +2376,7 @@ function SetupPageContent() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpContext, setHelpContext] = useState<string | null>(null);
+  const [userTier, setUserTier] = useState<string | undefined>();
 
   // Business selector state
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -2388,6 +2389,7 @@ function SetupPageContent() {
         const res = await fetch('/api/user/businesses');
         const data = await res.json();
         if (data.success && data.businesses.length > 0) {
+          setUserTier(data.userTier);
           setBusinesses(data.businesses);
           setSelectedBusiness(data.businesses.find((business: Business & { active?: boolean }) => business.active)
             ?? data.businesses.find((business: Business) => business.databaseId === data.activeBusinessId)
@@ -2516,6 +2518,7 @@ function SetupPageContent() {
         onOpenChange={next => { setHelpOpen(next); if (!next) setHelpContext(null); }}
         audience="ims"
         product="setup"
+        userTier={userTier}
         currentContext={helpContext ?? activeTab}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"

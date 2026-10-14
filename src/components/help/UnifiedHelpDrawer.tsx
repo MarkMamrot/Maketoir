@@ -1,20 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { ReactElement } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, HelpCircle, LifeBuoy, MessageCircle, Paperclip, Search, X } from 'lucide-react';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
-import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
-import { groupHelpTopics, helpSectionForProduct, initialHelpSection } from '@/lib/help/helpNavigation';
+import { listHelpLibraryTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
+import { groupHelpTopics, helpTopicBreadcrumb, helpTopicPath } from '@/lib/help/helpNavigation';
+import type { HelpNavigationGroup } from '@/lib/help/helpNavigation';
 import { searchHelpTopics } from '@/lib/help/searchHelpTopics';
 import type { AvailableOperationCapabilities, HelpProduct, HelpTopic } from '@/lib/help/types';
 import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 import { HelpMarkdown } from './HelpMarkdown';
 import styles from './UnifiedHelpDrawer.module.css';
-
-function topicGroupId(label: string): string {
-  return `help-topic-group-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-}
 
 export function UnifiedHelpDrawer({
   open,
@@ -31,6 +29,7 @@ export function UnifiedHelpDrawer({
   xeroAccountingEnabled,
   availableCapabilities,
   modeRequest,
+  userTier,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,26 +45,35 @@ export function UnifiedHelpDrawer({
   xeroAccountingEnabled?: boolean;
   availableCapabilities?: AvailableOperationCapabilities;
   modeRequest?: { key: number; mode: 'help' | 'ask' };
+  userTier?: string;
 }) {
+  const drawerId = useId();
   const contextual = useMemo(
-    () => resolveHelpContext({ audience, product, context: currentContext, xeroAccountingEnabled, availableCapabilities }),
-    [audience, product, currentContext, xeroAccountingEnabled, availableCapabilities],
+    () => resolveHelpContext({ audience, product, context: currentContext, xeroAccountingEnabled, availableCapabilities, userTier }),
+    [audience, product, currentContext, xeroAccountingEnabled, availableCapabilities, userTier],
   );
+  const [contextCategoryId, contextSubgroupId] = helpTopicPath(contextual?.topic);
   const topics = useMemo(
-    () => listHelpTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled),
-    [audience, product, availableCapabilities, xeroAccountingEnabled],
+    () => listHelpLibraryTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled, userTier),
+    [audience, product, availableCapabilities, xeroAccountingEnabled, userTier],
   );
   const [mode, setMode] = useState<'help' | 'ask' | 'support'>('help');
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(initialHelpSection(contextual?.topic)),
+    () => new Set(helpTopicPath(contextual?.topic)),
   );
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     () => new Set(contextual?.sectionId ? [contextual.sectionId] : []),
   );
   const [topicBrowserOpen, setTopicBrowserOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(contextual?.sectionId ?? null);
+  const [scrollRequest, setScrollRequest] = useState(0);
+  const [navigationNotice, setNavigationNotice] = useState('');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLElement>(null);
+  const topicNavRef = useRef<HTMLElement>(null);
+  const sectionRefs = useRef(new Map<string, HTMLElement>());
   const closeDrawer = useCallback(() => {
     setMode('help');
     onOpenChange(false);
@@ -74,11 +82,14 @@ export function UnifiedHelpDrawer({
   useEffect(() => {
     if (!open) return;
     setSelectedId(contextual?.topic.id ?? null);
-    setExpandedGroups(new Set(initialHelpSection(contextual?.topic)));
+    setSelectedSectionId(contextual?.sectionId ?? null);
+    setExpandedGroups(new Set([contextCategoryId, contextSubgroupId].filter((id): id is string => id !== undefined)));
     setExpandedSections(new Set(contextual?.sectionId ? [contextual.sectionId] : []));
     setTopicBrowserOpen(false);
+    setQuery('');
+    setNavigationNotice('');
     closeButtonRef.current?.focus();
-  }, [open, contextual?.topic.id, contextual?.sectionId]);
+  }, [open, contextual?.topic.id, contextual?.sectionId, contextCategoryId, contextSubgroupId]);
 
   useEffect(() => {
     if (modeRequest) setMode(modeRequest.mode);
@@ -97,19 +108,38 @@ export function UnifiedHelpDrawer({
   const normalizedQuery = query.trim().toLowerCase();
   const searchResults = useMemo(() => searchHelpTopics(topics, normalizedQuery), [topics, normalizedQuery]);
   const topicGroups = normalizedQuery ? [] : groupHelpTopics(topics);
+  const [selectedCategoryId, selectedSubgroupId] = helpTopicPath(selected);
+  const scrollSectionId = selected?.sections.some(section => section.id === selectedSectionId) ? selectedSectionId : null;
+
+  useEffect(() => {
+    if (!open || mode !== 'help') return;
+    setExpandedGroups(current => new Set([...current, ...[selectedCategoryId, selectedSubgroupId].filter((id): id is string => id !== undefined)]));
+    const frame = requestAnimationFrame(() => {
+      if (scrollSectionId) {
+        sectionRefs.current.get(scrollSectionId)?.scrollIntoView({ block: 'start' });
+      } else if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+      }
+      topicNavRef.current?.querySelector('[aria-current]')?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, mode, selected?.id, selectedCategoryId, selectedSubgroupId, scrollSectionId, scrollRequest]);
 
   const focusSection = (sectionId: string) => {
+    setSelectedSectionId(sectionId);
     setExpandedSections(current => new Set(current).add(sectionId));
-    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })));
+    setScrollRequest(current => current + 1);
   };
 
   const selectTopic = (topic: HelpTopic, sectionId?: string) => {
     setSelectedId(topic.id);
-    setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
+    setSelectedSectionId(sectionId ?? null);
+    setExpandedGroups(current => new Set([...current, ...helpTopicPath(topic)]));
     setExpandedSections(new Set(sectionId ? [sectionId] : []));
     setTopicBrowserOpen(false);
     setQuery('');
-    if (sectionId) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })));
+    setNavigationNotice('');
+    setScrollRequest(current => current + 1);
   };
 
   const toggleSection = (sectionId: string) => {
@@ -134,6 +164,44 @@ export function UnifiedHelpDrawer({
     ?.map(topicId => topics.find(topic => topic.id === topicId))
     .filter((topic): topic is HelpTopic => Boolean(topic)) ?? [];
 
+  const renderGroup = (group: HelpNavigationGroup): ReactElement => {
+    const expanded = expandedGroups.has(group.id);
+    const groupId = `${drawerId}-group-${group.id}`;
+    return (
+      <li className={styles.topicGroup} key={group.id}>
+        <button
+          type="button"
+          className={`${styles.groupToggle} sv-button-flat`}
+          aria-expanded={expanded}
+          aria-controls={groupId}
+          onClick={() => toggleGroup(group.id)}
+        >
+          <ChevronRight size={14} aria-hidden="true" />
+          <span>{group.label}</span>
+        </button>
+        <ul id={groupId} className={styles.groupTopics} hidden={!expanded}>
+          {group.children.map(child => {
+            if (!('topic' in child)) return renderGroup(child);
+            const active = child.topic.id === selected?.id
+              && (child.sectionId ? child.sectionId === selectedSectionId
+                : !child.topic.navigation.sections?.some(shortcut => selected?.sections.find(section => section.heading === shortcut.heading)?.id === selectedSectionId));
+            return (
+              <li key={child.id}>
+                <button
+                  className={`sv-button-flat ${active ? styles.selectedTopic : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => selectTopic(child.topic, child.sectionId)}
+                >
+                  <span>{child.label}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </li>
+    );
+  };
+
   return (
     <>
       {showFloatingTrigger && !open && (
@@ -146,11 +214,11 @@ export function UnifiedHelpDrawer({
           <MessageCircle size={21} />
         </button>
       )}
-      <aside className={styles.drawer} role="dialog" aria-modal="false" aria-labelledby="unified-help-title" aria-hidden={!open} style={open ? undefined : { display: 'none' }}>
+      <aside className={`${styles.drawer} ${styles.helpDrawer}`} role="dialog" aria-modal="false" aria-labelledby={`${drawerId}-title`} aria-hidden={!open} style={open ? undefined : { display: 'none' }}>
           <header className={styles.header}>
             <div className={styles.brandMark}><HelpCircle size={19} /></div>
             <div className={styles.headingText}>
-              <h2 id="unified-help-title">Solvantis Help</h2>
+              <h2 id={`${drawerId}-title`}>Solvantis Help</h2>
               <span>{contextual?.exact ? `Help for ${contextual.topic.title}` : 'Product guidance and live assistance'}</span>
             </div>
             <button ref={closeButtonRef} className={`${styles.iconButton} sv-button-flat`} onClick={closeDrawer} aria-label="Close Help" title="Close Help">
@@ -184,19 +252,19 @@ export function UnifiedHelpDrawer({
                 disabledLabel={assistantDisabledLabel}
                 onCitationOpen={citation => {
                   const topic = topics.find(candidate => candidate.id === citation.topicId);
-                  if (!topic) return;
-                  setSelectedId(topic.id);
-                  setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
-                  setExpandedSections(new Set(citation.sectionId ? [citation.sectionId] : []));
+                  if (!topic || (citation.sectionId && !topic.sections.some(section => section.id === citation.sectionId))) {
+                    setNavigationNotice('This Help reference is not available for your current access or business settings.');
+                    return;
+                  }
+                  selectTopic(topic, citation.sectionId);
                   setMode('help');
-                  if (citation.sectionId) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(citation.sectionId!)?.scrollIntoView({ block: 'start' })));
                 }}
                 embedded
               />
             </div>
           ) : mode === 'help' ? (
             <div className={styles.helpLayout}>
-              <nav className={styles.topicNav} aria-label="Help topics">
+              <nav ref={topicNavRef} className={styles.topicNav} aria-label="Help topics">
                 <label className={styles.searchBox}>
                   <Search size={15} />
                   <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Help" aria-label="Search Help" />
@@ -205,46 +273,26 @@ export function UnifiedHelpDrawer({
                   type="button"
                   className={`${styles.topicBrowserToggle} sv-button-flat`}
                   aria-expanded={topicBrowserOpen || Boolean(normalizedQuery)}
-                  aria-controls="help-topic-list"
+                  aria-controls={`${drawerId}-topic-list`}
                   onClick={() => setTopicBrowserOpen(current => !current)}
                 >
                   <span><small>Browse topics</small><strong>{selected?.title ?? 'Choose a topic'}</strong></span>
                   <ChevronDown size={16} aria-hidden="true" />
                 </button>
-                <div id="help-topic-list" className={`${styles.topicList} ${topicBrowserOpen || normalizedQuery ? styles.topicListOpen : ''}`}>
+                <ul id={`${drawerId}-topic-list`} className={`${styles.topicList} ${topicBrowserOpen || normalizedQuery ? styles.topicListOpen : ''}`}>
                   {normalizedQuery && searchResults.map(({ topic, section, snippet }) => (
-                    <button key={`${topic.id}:${section.id}`} className={`${styles.searchResult} sv-button-flat`} onClick={() => selectTopic(topic, section.id)}>
-                      <span><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span>
-                    </button>
-                  ))}
-                  {topicGroups.map(group => (
-                    <div className={styles.topicGroup} key={group.id}>
-                      <button
-                        type="button"
-                        className={`${styles.groupToggle} sv-button-flat`}
-                        aria-expanded={expandedGroups.has(group.id)}
-                        aria-controls={topicGroupId(group.label)}
-                        onClick={() => toggleGroup(group.id)}
-                      >
-                        <span>{group.label}</span>
-                        <ChevronDown size={14} aria-hidden="true" />
+                    <li key={`${topic.id}:${section.id}`}>
+                      <button className={`${styles.searchResult} sv-button-flat`} aria-label={`${helpTopicBreadcrumb(topic)} > ${topic.title} > ${section.heading}`} onClick={() => selectTopic(topic, section.id)}>
+                        <span><small>{helpTopicBreadcrumb(topic)}</small><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span>
                       </button>
-                      {expandedGroups.has(group.id) && (
-                        <div id={topicGroupId(group.label)} className={styles.groupTopics}>
-                          {group.topics.map(topic => (
-                            <button key={topic.id} className={`sv-button-flat ${topic.id === selected?.id ? styles.selectedTopic : ''}`} onClick={() => selectTopic(topic)}>
-                              <span>{topic.title}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    </li>
                   ))}
-                  {normalizedQuery && searchResults.length === 0 && <p className={styles.noResults}>No matching topics.</p>}
-                </div>
+                  {topicGroups.map(renderGroup)}
+                  {normalizedQuery && searchResults.length === 0 && <li className={styles.noResults}>No matching topics.</li>}
+                </ul>
               </nav>
 
-              <article className={styles.content}>
+              <article ref={contentRef} className={styles.content}>
                 {selected ? (
                   <>
                     <div className={styles.breadcrumbs}>{selected.screen.split(' > ').map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}</div>
@@ -259,24 +307,24 @@ export function UnifiedHelpDrawer({
                     </nav>
                     <div className={styles.sections}>
                       {selected.sections.filter(section => section.presentation === 'quick').map(section => (
-                        <section key={section.id} id={section.id} className={section.heading === 'Main operations' ? styles.mainOperations : ''}>
+                        <section key={section.id} id={`${drawerId}-${section.id}`} ref={node => { if (node) sectionRefs.current.set(section.id, node); else sectionRefs.current.delete(section.id); }} className={section.heading === 'Main operations' ? styles.mainOperations : ''}>
                           <h2>{section.heading}</h2>
                           <HelpMarkdown>{section.content}</HelpMarkdown>
                         </section>
                       ))}
                     </div>
                     {selected.sections.some(section => section.presentation === 'detail') && (
-                      <section className={styles.moreHelp} aria-labelledby="more-help-heading">
+                      <section className={styles.moreHelp} aria-labelledby={`${drawerId}-more-help-heading`}>
                         <div className={styles.moreHelpHeading}>
-                          <div><h2 id="more-help-heading">More help</h2><p>Detailed answers, troubleshooting and examples.</p></div>
+                          <div><h2 id={`${drawerId}-more-help-heading`}>More help</h2><p>Detailed answers, troubleshooting and examples.</p></div>
                           <div><button className="sv-button-flat" onClick={() => setExpandedSections(new Set(selected.sections.filter(section => section.presentation === 'detail').map(section => section.id)))}>Expand all</button><button className="sv-button-flat" onClick={() => setExpandedSections(new Set())}>Collapse all</button></div>
                         </div>
                         <div className={styles.detailSections}>
                           {selected.sections.filter(section => section.presentation === 'detail').map(section => {
                             const expanded = expandedSections.has(section.id);
-                            return <section key={section.id} id={section.id} className={styles.detailSection}>
-                              <h2><button className="sv-button-flat" type="button" aria-expanded={expanded} aria-controls={`${section.id}-content`} onClick={() => toggleSection(section.id)}><span>{section.heading}</span><ChevronDown size={17} /></button></h2>
-                              {expanded && <div id={`${section.id}-content`} className={styles.detailContent}><HelpMarkdown>{section.content}</HelpMarkdown></div>}
+                            return <section key={section.id} id={`${drawerId}-${section.id}`} ref={node => { if (node) sectionRefs.current.set(section.id, node); else sectionRefs.current.delete(section.id); }} className={styles.detailSection}>
+                              <h2><button className="sv-button-flat" type="button" aria-expanded={expanded} aria-controls={`${drawerId}-${section.id}-content`} onClick={() => toggleSection(section.id)}><span>{section.heading}</span><ChevronDown size={17} /></button></h2>
+                              {expanded && <div id={`${drawerId}-${section.id}-content`} className={styles.detailContent}><HelpMarkdown>{section.content}</HelpMarkdown></div>}
                             </section>;
                           })}
                         </div>
@@ -295,6 +343,7 @@ export function UnifiedHelpDrawer({
               </article>
             </div>
           ) : null}
+          {navigationNotice && <p className={styles.navigationNotice} role="status">{navigationNotice}</p>}
       </aside>
     </>
   );

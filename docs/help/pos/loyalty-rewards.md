@@ -1,5 +1,5 @@
 ---
-{"id":"pos-loyalty-rewards","title":"Loyalty Rewards at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Customer > Loyalty","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-customers","pos-selling-payments-manager-approval","pos-store-credit"],"contexts":["pos-loyalty"],"contextSections":{"pos-loyalty":"Step-by-step"},"order":14,"summary":"Check a linked customer's loyalty balance and apply an eligible reward to an ordinary online sale.","lastReviewed":"2026-10-06","owner":"retail","quickSections":["Main operations","At a glance"]}
+{"id":"pos-loyalty-rewards","title":"Loyalty Rewards at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Customer > Loyalty","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-customers","pos-selling-payments-manager-approval","pos-store-credit"],"contexts":["pos-loyalty"],"contextSections":{"pos-loyalty":"Step-by-step"},"order":14,"summary":"Check a linked customer's loyalty balance and apply an eligible reward to an ordinary online sale.","lastReviewed":"2026-10-06","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Apply loyalty rewards","subgroup":"Selling & customer value"}}
 ---
 # Loyalty Rewards at POS
 
