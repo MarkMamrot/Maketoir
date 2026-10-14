@@ -60,7 +60,7 @@ describe('ImsSORepo.get COGS fields', () => {
   it('reads the complete order on a caller-owned connection without pool queries or lazy DDL', async () => {
     const implementation = mockImsQuery.getMockImplementation()!;
     const connection = {
-      execute: vi.fn(async (sql: string, params: unknown[]) => [await implementation(sql, params), []]),
+      execute: vi.fn().mockImplementation(async (sql: string, params: unknown[]) => [await implementation(sql, params), []]),
     };
 
     const order = await ImsSORepo.get(42, 'biz-1', connection);
@@ -80,7 +80,7 @@ describe('ImsSORepo.get COGS fields', () => {
   it('keeps the legacy payments fallback on the caller-owned connection', async () => {
     const implementation = mockImsQuery.getMockImplementation()!;
     const connection = {
-      execute: vi.fn(async (sql: string, params: unknown[]) => {
+      execute: vi.fn().mockImplementation(async (sql: string, params: unknown[]) => {
         if (sql.startsWith('SELECT * FROM ims_sales_order_payments')) throw new Error('Legacy payment table unavailable');
         return [await implementation(sql, params), []];
       }),

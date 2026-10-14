@@ -3021,7 +3021,7 @@ export const ImsSORepo = {
     // A caller-owned connection may be transactional: do not acquire another
     // pool slot or run lazy DDL (which would implicitly commit its transaction).
     if (!connection) await this.ensureTaxTreatmentColumn();
-    const read = async <T>(sql: string, params: unknown[]): Promise<T[]> => {
+    const read = async <T>(sql: string, params: (string | number)[]): Promise<T[]> => {
       if (!connection) return imsQuery<T>(sql, params);
       const [result] = await connection.execute(sql, params);
       return result as T[];
