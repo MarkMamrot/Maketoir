@@ -10,6 +10,10 @@ type PosRegisterSession = {
   opened_at: string | null;
   opened_by: string | null;
   opening_float: string | null;
+  latest_correction?: {
+    id: number; session_status: string; email_sent_at: string | null;
+    previous_float: string | null; opening_float: string; reason: string; actor_name: string; created_at: string;
+  } | null;
   closed_at: string | null;
   closed_by: string | null;
   reconciliations: {
@@ -31,16 +35,89 @@ type PosRegisterSession = {
 interface PosRegistersReportViewProps {
   onBack: () => void;
   xeroAccountingEnabled: boolean;
+  canEditFloat?: boolean;
   XeroStatusBadge: React.ComponentType<{ status: string | null }>;
 }
 
-export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStatusBadge }: PosRegistersReportViewProps) {
+export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditFloat = false, XeroStatusBadge }: PosRegistersReportViewProps) {
   const defaultDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
 
   const [date, setDate] = React.useState(defaultDate);
   const [sessions, setSessions] = React.useState<PosRegisterSession[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [fetched, setFetched] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [editing, setEditing] = React.useState<PosRegisterSession | null>(null);
+  const [float, setFloat] = React.useState('');
+  const [reason, setReason] = React.useState('');
+  const [acknowledged, setAcknowledged] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [modalError, setModalError] = React.useState('');
+  const [notice, setNotice] = React.useState('');
+  const [recipients, setRecipients] = React.useState<string[]>([]);
+  const [savedCorrection, setSavedCorrection] = React.useState<number | null>(null);
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const editButtonRef = React.useRef<HTMLButtonElement | null>(null);
+
+  React.useEffect(() => {
+    if (!editing) return;
+    dialogRef.current?.showModal();
+    let active = true;
+    fetch('/api/ims/settings/accounts').then(async response => {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Accounts recipients could not be loaded.');
+      if (active) setRecipients(result.recipients);
+    }).catch(error => { if (active) setModalError(error instanceof Error ? error.message : 'Accounts recipients could not be loaded.'); });
+    return () => { active = false; };
+  }, [editing]);
+
+  function closeEditor() {
+    if (busy) return;
+    dialogRef.current?.close();
+    setEditing(null);
+    editButtonRef.current?.focus();
+  }
+
+  function edit(session: PosRegisterSession, button: HTMLButtonElement) {
+    editButtonRef.current = button;
+    setFloat(session.opening_float ?? '');
+    setReason(''); setAcknowledged(false); setModalError(''); setNotice(''); setRecipients([]);
+    setSavedCorrection(null); setEditing(session);
+  }
+
+  async function saveFloat() {
+    if (!editing) return;
+    setBusy(true); setModalError('');
+    try {
+      const response = await fetch('/api/ims/reports/pos-registers/float', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: editing.id, status: editing.status, previousFloat: editing.opening_float,
+          openingFloat: float, reason, acknowledgeAccounting: acknowledged }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Float correction failed.');
+      setSavedCorrection(result.correctionId);
+      setNotice('Opening float corrected. No accounting sync was triggered.');
+      await run();
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : 'Float correction failed.');
+    } finally { setBusy(false); }
+  }
+
+  async function emailBookkeeper(correctionId: number) {
+    setBusy(true); setModalError('');
+    try {
+      const response = await fetch('/api/ims/reports/pos-registers/float', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correctionId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Bookkeeper email failed.');
+      setNotice(result.alreadySent ? 'This correction has already been emailed.' : 'Correction emailed to the bookkeeper/accounts recipients.');
+      await run();
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : 'Bookkeeper email failed.');
+    } finally { setBusy(false); }
+  }
 
   React.useEffect(() => {
     fetch('/api/ims/settings')
@@ -55,10 +132,15 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStat
   async function run() {
     setLoading(true);
     setFetched(false);
+    setError('');
     try {
       const res = await fetch(`/api/ims/reports/pos-registers?date=${date}`);
       const j = await res.json();
+      if (!res.ok) throw new Error(j.error || 'Register report could not be loaded.');
       setSessions(j.sessions ?? []);
+    } catch (error) {
+      setSessions([]);
+      setError(error instanceof Error ? error.message : 'Register report could not be loaded.');
     } finally {
       setLoading(false);
       setFetched(true);
@@ -188,7 +270,7 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStat
     borderBottom: '1px solid var(--sv-border)',
     verticalAlign: 'middle',
   };
-  const columnWidths = [150, 140, 100, 170, 130, 100, 170, 130, 150, 120, 120, 120, ...(xeroAccountingEnabled ? [100] : [])];
+  const columnWidths = [150, 140, 100, 170, 130, 170, 170, 130, 150, 120, 120, 120, ...(xeroAccountingEnabled ? [100] : [])];
   const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
   const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
@@ -227,7 +309,8 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStat
         )}
       </div>
 
-      {fetched && sessions.length === 0 && (
+      {error && <p role="alert" style={{ color: 'var(--sv-red)' }}>{error}</p>}
+      {fetched && !error && sessions.length === 0 && (
         <div style={{ color: 'var(--sv-text-muted)', fontSize: 14, padding: '40px 0', textAlign: 'center' }}>
           No register sessions found for {date}.
         </div>
@@ -282,7 +365,15 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStat
                       </td>
                       <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.opened_at)}</td>
                       <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.opened_by ?? '—'}</td>
-                      <td style={tdStyle} rowSpan={reconRows}>{fmt$(s.opening_float != null ? parseFloat(s.opening_float) : null)}</td>
+                      <td style={tdStyle} rowSpan={reconRows}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {fmt$(s.opening_float != null ? parseFloat(s.opening_float) : null)}
+                          {canEditFloat && <button type="button" aria-label={`Edit opening float for ${s.location_name} ${s.register_name}`} onClick={event => edit(s, event.currentTarget)}>Edit</button>}
+                        </div>
+                        {s.latest_correction && <small title={`${s.latest_correction.actor_name}: ${s.latest_correction.reason}`}>
+                          Corrected{ s.latest_correction.session_status === 'closed' ? (s.latest_correction.email_sent_at ? ' - accounts emailed' : ' - accounts not emailed') : ''}
+                        </small>}
+                      </td>
                       <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.closed_at)}</td>
                       <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.closed_by ?? '—'}</td>
 
@@ -330,6 +421,38 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStat
             </tbody>
         </ReportScrollTable>
       )}
+      {editing && <dialog ref={dialogRef} aria-labelledby="float-dialog-title" onCancel={event => { event.preventDefault(); closeEditor(); }}
+        onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeEditor(); } }}
+        style={{ width: 480, maxWidth: 'calc(100vw - 48px)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', boxSizing: 'border-box', border: '1px solid var(--sv-border)', borderRadius: 12, padding: 24, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}>
+        <h2 id="float-dialog-title" style={{ marginTop: 0 }}>Edit opening float</h2>
+        <p>{editing.location_name} / {editing.register_name} - {editing.status}</p>
+        <p>Recorded float: {fmt$(editing.opening_float == null ? null : Number(editing.opening_float))}</p>
+        {editing.status === 'closed' && <div role="note" style={{ padding: 12, border: '1px solid var(--sv-amber)', borderRadius: 6 }}>
+          <strong>Manual accounting correction required</strong>
+          <p>Cash variance will be recalculated in Solvantis. Counted cash and sales stay unchanged. Any affected sync to Xero or other accounting software must be edited manually by the bookkeeper. Saving does not sync or resend accounting documents.</p>
+          {!savedCorrection && <label><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /> I understand the bookkeeper must correct affected accounting entries manually.</label>}
+        </div>}
+        {!savedCorrection && <form onSubmit={event => { event.preventDefault(); void saveFloat(); }}>
+          <label style={{ display: 'block', marginTop: 16 }}>Opening float ($)
+            <input autoFocus type="number" min="0" max="9999999999.99" step="0.01" required value={float} disabled={busy} onChange={event => setFloat(event.target.value)} style={{ display: 'block', padding: 8, marginTop: 4 }} />
+          </label>
+          <label style={{ display: 'block', marginTop: 12 }}>Reason for correction
+            <textarea required maxLength={1000} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4 }} />
+          </label>
+          <p>The original opening denomination breakdown will be cleared because it no longer matches the corrected float.</p>
+          <button type="submit" disabled={busy || (editing.status === 'closed' && !acknowledged)}>{busy ? 'Saving...' : 'Save opening float'}</button>
+        </form>}
+        {editing.latest_correction && <p>Last correction: {fmt$(editing.latest_correction.previous_float == null ? null : Number(editing.latest_correction.previous_float))} to {fmt$(Number(editing.latest_correction.opening_float))}, by {editing.latest_correction.actor_name}. Reason: {editing.latest_correction.reason}</p>}
+        {editing.status === 'closed' && <div style={{ marginTop: 16 }}>
+          <p>{recipients.length ? `Bookkeeping/accounts recipients: ${recipients.join(', ')}` : 'No accounts recipients loaded. Configure Bookkeeping / Accounts email in General Settings.'}</p>
+          {(savedCorrection || editing.latest_correction?.session_status === 'closed') && <button type="button" disabled={busy || !recipients.length}
+            onClick={() => emailBookkeeper(savedCorrection ?? editing.latest_correction!.id)}>Email bookkeeper about {savedCorrection ? 'this' : 'last'} correction</button>}
+          {!savedCorrection && !editing.latest_correction && <p>Save the correction first to email its details.</p>}
+        </div>}
+        {notice && <p role="status">{notice}</p>}
+        {modalError && <p role="alert" style={{ color: 'var(--sv-red)' }}>{modalError}</p>}
+        <button type="button" disabled={busy} onClick={closeEditor} style={{ marginTop: 16 }}>Close</button>
+      </dialog>}
     </div>
   );
 }

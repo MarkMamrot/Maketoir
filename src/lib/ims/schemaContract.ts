@@ -116,6 +116,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_users',
   'pos_registers',
   'pos_register_sessions',
+  'pos_register_float_corrections',
   'pos_sales',
   'pos_training_sales',
   'pos_daybook_staff_identities',

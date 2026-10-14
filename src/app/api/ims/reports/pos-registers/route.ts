@@ -3,16 +3,30 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
+  try {
+    return await runImsForBusiness(session.businessId, () => loadReport(req, session.businessId));
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId: session.businessId, source: 'pos_register_float', operation: 'load_report',
+      title: 'Daily POS register report could not be loaded', error,
+    });
+    return NextResponse.json({ error: 'Daily POS register report could not be loaded.' }, { status: 500 });
+  }
+}
+
+async function loadReport(req: Request, businessId: string) {
   const { searchParams } = new URL(req.url);
-  const timeZone = await getBusinessTimeZone(session.businessId);
+  const timeZone = await getBusinessTimeZone(businessId);
   const defaultDate = new Date().toLocaleDateString('sv-SE', { timeZone });
   const date = searchParams.get('date') ?? defaultDate;
-  const biz = session.businessId as string;
+  const biz = businessId;
 
   const sessions = await imsQuery<{
     id: number; register_name: string; location_name: string; location_id: number;
@@ -75,6 +89,21 @@ export async function GET(req: Request) {
     reconBySession.get(k)!.push(r);
   }
 
+  const corrections = sessions.length ? await imsQuery<{
+    id: number; register_session_id: number; session_status: string; email_sent_at: string | null;
+    previous_float: string | null; opening_float: string; reason: string; actor_name: string; created_at: string;
+  }>(
+    `SELECT c.id, c.register_session_id, c.session_status, c.email_sent_at,
+            c.previous_float, c.opening_float, c.reason, c.actor_name, c.created_at
+       FROM pos_register_float_corrections c
+       JOIN (SELECT register_session_id, MAX(id) AS id FROM pos_register_float_corrections
+              WHERE business_id = ? AND register_session_id IN (${sessions.map(() => '?').join(',')})
+              GROUP BY register_session_id) latest ON latest.id = c.id
+      WHERE c.business_id = ?`,
+    [biz, ...sessions.map(s => s.id), biz],
+  ) : [];
+  const correctionBySession = new Map(corrections.map(c => [c.register_session_id, c]));
+
   const result = sessions.map(s => {
     const recons = (reconBySession.get(s.id) ?? []).map(r => {
       const exp = parseFloat(r.expected_amount ?? '0') || 0;
@@ -99,6 +128,7 @@ export async function GET(req: Request) {
     const totalVariance = recons.reduce((sum, r) => sum + (r.variance ?? 0), 0);
     return {
       ...s,
+      latest_correction: correctionBySession.get(s.id) ?? null,
       reconciliations: recons,
       total_expected: totalExpected,
       total_counted:  totalCounted,

@@ -69,6 +69,7 @@ import { ReportScrollTable } from './views/reports/ReportScrollTable';
 import { CogsPostingLedger } from './views/reports/CogsPostingLedger';
 import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
+import { AccountsEmailSettings } from './views/settings/AccountsEmailSettings';
 import { StockAvailabilityManagementView } from './views/reports/StockAvailabilityManagementView';
 import { BookkeeperAuditView } from './views/reports/BookkeeperAuditView';
 import { BulkAddEditProductsView } from './views/products/BulkAddEditProductsView';
@@ -23028,11 +23029,12 @@ export default function ImsPage() {
     [],
   );
   const xeroAccountingEnabled = pageCapabilities.xeroAccountingEnabled;
+  const canEditRegisterFloat = user?.tier === 'Admin' || user?.tier === 'SuperAdmin';
   const StablePosRegistersReportView = useMemo(
     () => function PosRegistersReportViewWrapper(props: { onBack: () => void }) {
-      return <PosRegistersReportViewComponent {...props} xeroAccountingEnabled={xeroAccountingEnabled} XeroStatusBadge={XeroStatusBadge} />;
+      return <PosRegistersReportViewComponent {...props} canEditFloat={canEditRegisterFloat} xeroAccountingEnabled={xeroAccountingEnabled} XeroStatusBadge={XeroStatusBadge} />;
     },
-    [xeroAccountingEnabled],
+    [xeroAccountingEnabled, canEditRegisterFloat],
   );
 
   useEffect(() => {
@@ -23585,6 +23587,7 @@ export default function ImsPage() {
       <TeamCommunicationsDrawer open={teamCommsOpen} onOpenChange={setTeamCommsOpen} userTier={user?.tier} />
       <SettingsModal
         isOpen={settingsOpen}
+        canManageAccounts={canEditRegisterFloat}
         onClose={() => setSettingsOpen(false)}
         onHelp={context => { setHelpContextOverride(context); setHelpModeRequest({ key: Date.now(), mode: 'help' }); setHelpOpen(true); }}
         defaultSection={settingsSection}
@@ -26839,6 +26842,7 @@ function SetupImportCard({ section }: { section: SetupSection }) {
 
 interface SettingsModalProps {
   isOpen: boolean;
+  canManageAccounts: boolean;
   onClose: () => void;
   onHelp: (context: string) => void;
   defaultSection: SettingsSection;
@@ -27397,7 +27401,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
-function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, businessName, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSection, businessId, businessName, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, capabilities, loaded, loadError, saveSettings, saveOnlineChannels, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
@@ -28186,6 +28190,8 @@ function SettingsModal({ isOpen, onClose, onHelp, defaultSection, businessId, bu
           {/* ── GENERAL SECTION ── */}
           <div style={{ display: active === 'general' ? undefined : 'none' }}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h2>
+
+            {active === 'general' && canManageAccounts && <AccountsEmailSettings onHelp={() => onHelp('settings-accounts-email')} />}
 
             {/* Business Operations */}
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>

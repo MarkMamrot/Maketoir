@@ -91,6 +91,7 @@ const PRODUCT_BUILD_TABLES = [
   'ims_product_build_reversals',
 ];
 const MISC_TENANT_TABLES = [
+  'pos_register_float_corrections',
   'ims_shopify_inventory_queue',
   'ims_po_files',
   'ims_payment_methods',

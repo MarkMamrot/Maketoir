@@ -2498,6 +2498,29 @@ CREATE TABLE IF NOT EXISTS pos_register_sessions (
   INDEX idx_prs_status (register_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Register Float Corrections ────────────────────────────────
+CREATE TABLE IF NOT EXISTS pos_register_float_corrections (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  register_session_id INT NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  previous_float DECIMAL(12,2) NULL,
+  opening_float DECIMAL(12,2) NOT NULL,
+  session_status VARCHAR(20) NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  actor_id INT NOT NULL,
+  actor_name VARCHAR(255) NOT NULL,
+  register_name VARCHAR(255) NOT NULL,
+  location_name VARCHAR(255) NOT NULL,
+  session_date DATE NOT NULL,
+  cash_snapshot JSON NOT NULL,
+  email_sent_at DATETIME NULL,
+  email_recipients JSON NULL,
+  provider_message_id VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_float_session (register_session_id, id),
+  INDEX idx_float_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── POS Sales ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sales (
   id                INT AUTO_INCREMENT PRIMARY KEY,

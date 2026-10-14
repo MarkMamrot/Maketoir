@@ -52,6 +52,8 @@ Export scope differs: Sales Detail exports the current page plus full-result tot
 
 Daily POS Registers selects the register's session date and requires **Run** after a date change. Its Counted totals include float; use the already adjusted Variance rather than subtracting the raw totals. Price-change results count changed items, not distinct sales.
 
+Administrators can correct a session's opening float beside **Float**. Cash variance recalculates without changing counted cash or sales. Closed-session corrections require acknowledgement that affected accounting syncs must be corrected manually by the bookkeeper; a separate email button sends the saved correction to the accounts recipients configured in General Settings.
+
 ## Troubleshooting
 
 | Symptom | First check | Next step |

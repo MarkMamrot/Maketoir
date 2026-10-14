@@ -205,6 +205,18 @@ Open **Reports > Daily POS Registers Report** for register sessions assigned to 
 6. Investigate source sales or complete missing counts through the actual POS register. This report does not open, close or reconcile the register.
 7. Select **Export CSV** after Run completes. It includes all loaded sessions, their payment-method rows and a TOTAL row for each reconciled session.
 
+### Correct an opening float
+
+Administrators and SuperAdmins can select **Edit** beside **Float** for either an open or a closed session. Enter the verified opening amount and a reason, then select **Save opening float**. This corrects that session, not the register's default float. The original opening denomination breakdown is cleared because it no longer represents the corrected amount.
+
+Cash reconciliation uses the corrected float, so its variance and the session total variance are recalculated. The counted drawer amount, expected takings, non-cash counts and sales remain unchanged. Do not change float merely to hide a real cash shortage.
+
+For a closed session, acknowledge the warning before saving: any affected entries already synced to Xero or another accounting system must be edited manually by the bookkeeper. The correction does not trigger an accounting sync, replace posted documents or reset posting status. Accounting till-variance information can therefore show the original posted amount alongside the corrected Solvantis variance.
+
+After saving a closed-session correction, select **Email bookkeeper about this correction**. Solvantis sends the register, branch, session date, old and new float, correction reason and cash variance details to the configured accounts recipients. Configure these under **Settings > General > Bookkeeping / Accounts email**; these are the same recipients used for accounting reconciliation emails. Email is a separate action, not automatic on save.
+
+If emailing fails, the float remains saved. Reopen **Edit** and use **Email bookkeeper about last correction** to retry the latest closed-session notice without changing the float again. An already-sent notice is not sent a second time.
+
 > **Important:** TOTAL Counted includes the physical cash float, while TOTAL Expected is payment takings. TOTAL Variance sums the already float-adjusted method variances. It is not simply TOTAL Counted minus TOTAL Expected.
 
 There is no branch selector, search or pagination in this report. An overnight session may appear on its original trading date even when closure happened the next day. **End of Day and Register Close** Help explains the operational count and closure process.

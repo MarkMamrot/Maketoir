@@ -1,5 +1,5 @@
 ---
-{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","ims-inventory-costing","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds","pos-laybys"],"contexts":["dashboard","locations","location-daybooks","pos-sales","settings-pos"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers","settings-pos":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities and inventory costing, manage POS registers and configure branch layby cancellation fees.","lastReviewed":"2026-10-07","owner":"setup","quickSections":["Main operations","At a glance"],"navigation":{"category":"settings","label":"Configure business operations and POS registers","sections":[{"heading":"Step-by-step","label":"Complete the business onboarding checklist"}]}}
+{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","ims-inventory-costing","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook","ims-product-builds","pos-laybys","ims-report-guide"],"contexts":["dashboard","locations","location-daybooks","pos-sales","settings-pos","settings-accounts-email"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers","settings-pos":"Manage POS registers","settings-accounts-email":"Bookkeeping and accounts email"},"order":90,"summary":"Complete onboarding, choose operational capabilities and inventory costing, manage POS registers, configure accounts email recipients and branch layby cancellation fees.","lastReviewed":"2026-10-14","owner":"setup","quickSections":["Main operations","At a glance"],"navigation":{"category":"settings","label":"Configure business operations and POS registers","sections":[{"heading":"Step-by-step","label":"Complete the business onboarding checklist"},{"heading":"Bookkeeping and accounts email","label":"Configure bookkeeping email recipients"}]}}
 ---
 # Business Operations and POS Settings
 
@@ -15,6 +15,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 - Add, rename, activate, or set the default float for POS registers without changing location details.
 - Set the business-wide POS product-view fallback used by locations without their own override.
 - Configure each branch's layby cancellation percentage under **Settings > Point of Sale > Orders**; the default is 0%.
+- Set bookkeeping recipients under **Settings > General > Bookkeeping / Accounts email** for closed-register float correction notices.
 
 ## At a glance
 
@@ -47,6 +48,14 @@ Once the full checklist is finished, onboarding is complete for the whole busine
 6. Continue with sales orders, purchase orders, opening stock, and the POS readiness review.
 
 Each action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step.
+
+## Bookkeeping and accounts email
+
+Administrators and SuperAdmins can open **Settings > General > Bookkeeping / Accounts email**, enter up to 20 email addresses separated by commas and select **Save accounts email**. This has its own save button. A saved confirmation appears only after the recipients have been stored.
+
+These are the same accounts recipients used by accounting reconciliation emails. Changing them here updates that shared list without changing the scheduled digest frequency or time. Turn scheduled digests off in reconciliation settings before removing all recipients.
+
+For a closed-register opening-float correction, select **Email bookkeeper** in the register report after saving. The notice explains the old and new float, the reason, and the cash-variance change. It asks the bookkeeper to manually review affected external accounting entries; neither saving the float nor sending the notice performs an accounting sync.
 
 ## Configure Business Operations
 
