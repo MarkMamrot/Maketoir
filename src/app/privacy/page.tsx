@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Privacy | Solvantis',
-  description: 'How Solvantis handles website enquiries, sales conversations, and account security information.',
+  description: 'How Solvantis handles personal information, website enquiries, sales conversations, and account security information.',
 };
 
 export default function PrivacyPage() {
@@ -14,6 +14,7 @@ export default function PrivacyPage() {
         <p className="mt-10 text-xs font-bold uppercase text-blue-700">Privacy</p>
         <h1 className="mt-2 text-4xl font-black text-slate-950">Privacy and account information</h1>
         <p className="mt-5 text-base leading-relaxed text-slate-600">This notice explains how Solvantis handles information submitted through the public website, sales forms and Sales Assistant, and limited information used to protect authenticated accounts.</p>
+        <p className="mt-3 leading-relaxed text-slate-600">For details about information processed through the Amazon Australia sales-channel integration, see our <Link href="/amazon-data-handling" className="font-semibold text-blue-700 hover:underline">Amazon data handling notice</Link>.</p>
 
         <div className="mt-10 space-y-9 border-t border-slate-200 pt-9">
           <section>
