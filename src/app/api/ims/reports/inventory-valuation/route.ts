@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { valuationDate, ValuationDateError } from '@/lib/ims/inventoryValuation';
+import { loadHistoricalValuation } from '@/lib/ims/inventoryValuation.server';
 
 export async function GET(req: Request) {
   const session = await getImsSession();
@@ -22,6 +25,17 @@ export async function GET(req: Request) {
   const where = 'WHERE ' + conds.join(' AND ');
 
   try {
+    const timeZone = await getBusinessTimeZone(session.businessId);
+    const date = valuationDate(searchParams.get('asAt'), timeZone);
+    const metadata = {
+      as_at: date.asAt, business_today: date.today, time_zone: timeZone, historical: date.historical,
+    };
+    if (date.historical) {
+      const result = await loadHistoricalValuation(session.businessId, date.cutoff, {
+        brand, supplierId, productType, productId,
+      });
+      return NextResponse.json({ success: true, ...result, ...metadata });
+    }
     const costingRows = await imsQuery<{ active_method: 'average_cost' | 'fifo'; active_epoch_id: number | null }>(
       `SELECT active_method, active_epoch_id
          FROM ims_inventory_cost_state
@@ -150,6 +164,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
+      ...metadata,
       data,
       costing_method: costingMethod,
       cost_epoch_id: costEpochId,
@@ -162,17 +177,19 @@ export async function GET(req: Request) {
         mismatches,
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    if (e instanceof ValuationDateError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 400 });
+    }
     await reportRuntimeIssue({
       businessId: session.businessId,
       source: 'ims_inventory_valuation',
       operation: 'load_report',
       title: 'Inventory valuation report failed',
       error: e,
-      context: { brand, supplierId, productType, productId },
-    }).catch(() => {});
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+      context: { brand, supplierId, productType, productId, asAt: searchParams.get('asAt') },
+    });
+    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : 'Inventory valuation failed.' }, { status: 500 });
   }
 }
-
 

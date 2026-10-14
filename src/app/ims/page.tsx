@@ -62,7 +62,9 @@ import { LocationDaybooksView } from './views/locations/LocationDaybooksView';
 import { StockAvailabilityWorkbenchView } from './views/orders/StockAvailabilityWorkbenchView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
+import { ProductProfitabilityView } from './views/reports/ProductProfitabilityView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
+import { InventoryValuationView as InventoryValuationViewComponent } from './views/reports/InventoryValuationView';
 import { ReportScrollTable } from './views/reports/ReportScrollTable';
 import { CogsPostingLedger } from './views/reports/CogsPostingLedger';
 import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
@@ -18828,7 +18830,7 @@ const REPORT_CATALOG = [
   {
     id: 'report-product-margin' as ImsView,
     title: 'Product Profitability Margin',
-    description: 'Best and worst-selling items over the last 12 months sorted by gross profit and margin.',
+    description: 'Recorded product profit excluding GST, using captured costs, with explicit incomplete-evidence warnings.',
     icon: '📈',
   },
   {
@@ -18979,132 +18981,7 @@ function SalesSummaryView({ onBack }: { onBack: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function InventoryValuationView({ onBack }: { onBack: () => void }) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
-  const [costingMethod, setCostingMethod] = useState<'average_cost' | 'fifo'>('average_cost');
-  const [reconciliation, setReconciliation] = useState<{ status: 'balanced' | 'mismatch'; mismatched_sku_count: number } | null>(null);
-
-  const load = useCallback(async (f: MultiFilter) => {
-    setLoading(true); setError('');
-    try {
-      const params = new URLSearchParams(multiFilterParams(f));
-      const res = await fetch(`/api/ims/reports/inventory-valuation?${params}`);
-      const d = await res.json();
-      if (d.success) {
-        setRows(d.data);
-        setCostingMethod(d.costing_method === 'fifo' ? 'fifo' : 'average_cost');
-        setReconciliation(d.reconciliation ?? null);
-      } else setError(d.error);
-    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(EMPTY_MULTI); }, [load]);
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); load(f); };
-
-  const downloadCsv = () => {
-    const headers = ['SKU', 'Product Name', 'Brand', 'Supplier', costingMethod === 'fifo' ? 'FIFO Unit Cost' : 'Average Unit Cost', 'SOH', 'Total Value'];
-    const lines = [headers.join(',')];
-    for (const r of rows) {
-      lines.push([
-        r.sku,
-        `"${(r.name || '').replace(/"/g, '""')}"`,
-        `"${(r.brand || '').replace(/"/g, '""')}"`,
-        `"${(r.supplier_name || '').replace(/"/g, '""')}"`,
-        r.cost,
-        r.soh,
-        r.total_value
-      ].join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `inventory-valuation-${today()}.csv`; a.click();
-  };
-
-  const cellStyle: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 };
-  const numCell: React.CSSProperties = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
-  const columnWidths = [140, 300, 170, 130, 110, 150];
-  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
-  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
-  
-  const grandTotal = rows.reduce((s, r) => s + (r.total_value || 0), 0);
-
-  return (
-    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13 }}>← Back to Reports</button>
-          <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--sv-text-strong)', margin: 0 }}>Inventory Valuation</h2>
-          <div style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginTop: 4 }}>
-            {costingMethod === 'fifo' ? 'Value of remaining FIFO cost layers.' : 'Stock on hand valued at current weighted-average cost.'}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
-        </div>
-      </div>
-
-      {/* Filter */}
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-        <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
-        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
-        {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)' }}>Clear filters</button>}
-      </div>
-      
-      {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 16 }}>{error}</div>}
-      {costingMethod === 'fifo' && reconciliation?.status === 'mismatch' && (
-        <div style={{ color: 'var(--sv-coral)', marginBottom: 16 }}>
-          FIFO layer quantities do not match stock on hand for {reconciliation.mismatched_sku_count.toLocaleString()} SKU{reconciliation.mismatched_sku_count === 1 ? '' : 's'}. Resolve the discrepancy before relying on this valuation.
-        </div>
-      )}
-      
-      <div style={{ background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Total Inventory Value</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(grandTotal)}</div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Unique SKUs Counted</div>
-          <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--sv-text-main)' }}>{rows.length.toLocaleString()}</div>
-        </div>
-      </div>
-
-      <ReportScrollTable
-        ariaLabel="Inventory valuation table. Use arrow keys to scroll."
-        bodyClassName="inventory-valuation-table-scroll"
-        tableWidth={tableWidth}
-        renderColGroup={renderColGroup}
-        borderRadius={8}
-        frozenColumnWidths={[140, 300]}
-        headerRows={
-            <tr>
-              <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SKU</th>
-              <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Product Name</th>
-              <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Brand</th>
-              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{costingMethod === 'fifo' ? 'FIFO Unit Cost' : 'Average Unit Cost'}</th>
-              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SOH</th>
-              <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Total Value</th>
-            </tr>
-        }
-      >
-          <tbody>
-            {loading ? <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</td></tr> : null}
-            {!loading && rows.map((r, i) => (
-              <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
-                <td style={{ ...cellStyle, fontFamily: 'monospace' }}>{r.sku}</td>
-                <td style={{ ...cellStyle, fontWeight: 500 }}>{r.name}</td>
-                <td style={cellStyle}>{r.brand || '—'}</td>
-                <td style={numCell}>{fmtCurrency(r.cost)}</td>
-                <td style={numCell}>{r.soh.toLocaleString()}</td>
-                <td style={{ ...numCell, fontWeight: 600 }}>{fmtCurrency(r.total_value)}</td>
-              </tr>
-            ))}
-          </tbody>
-      </ReportScrollTable>
-    </div>
-  );
+  return <InventoryValuationViewComponent onBack={onBack} fmtCurrency={fmtCurrency} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19112,185 +18989,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ProductMarginView({ onBack }: { onBack: () => void }) {
-  const [rows, setRows]       = useState<any[]>([]);
-  const [total, setTotal]     = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
-  const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
-  const [window_, setWindow_] = useState(365);
-  const [page, setPage]       = useState(1);
-  const PAGE_SIZE = 100;
-
-  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
-
-  const load = useCallback(async (f: MultiFilter, win: number, pg: number) => {
-    setLoading(true); setError('');
-    try {
-      const params = new URLSearchParams({ window: String(win), page: String(pg), pageSize: String(PAGE_SIZE), ...multiFilterParams(f) });
-      const res = await fetch(`/api/ims/reports/product-margin?${params}`);
-      const d = await res.json();
-      if (d.success) { setRows(d.data); setTotal(d.total ?? 0); } else setError(d.error);
-    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(EMPTY_MULTI, 365, 1); }, [load]);
-  const handleFilterChange = (f: MultiFilter) => { setFilters(f); setPage(1); load(f, window_, 1); };
-  const changeWindow = (win: number) => { setWindow_(win); setPage(1); load(filters, win, 1); };
-  const goPage = (pg: number) => { setPage(pg); load(filters, window_, pg); };
-
-  const winLabel = WINDOW_OPTS.find(o => o.value === window_)?.label ?? '12 Months';
-
-  const downloadCsv = () => {
-    const headers = ['SKU', 'Product Name', 'Brand', 'Unit Cost', 'Unit Price', `Qty Sold (${winLabel})`, 'Gross Rev', 'COGS', 'Gross Profit', 'Margin %'];
-    const lines = [headers.join(',')];
-    for (const r of rows) {
-      lines.push([
-        r.sku,
-        `"${(r.name || '').replace(/"/g, '""')}"`,
-        `"${(r.brand || '').replace(/"/g, '""')}"`,
-        r.cost, r.price, r.qty, r.rev, r.cogs, r.profit, r.margin.toFixed(2),
-      ].join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `product-margin-${today()}.csv`; a.click();
-  };
-
-  const pageRange = (): (number | '...')[] => {
-    const r: (number | '...')[] = [];
-    if (totalPages <= 7) { for (let i = 1; i <= totalPages; i++) r.push(i); }
-    else {
-      r.push(1);
-      if (page > 3) r.push('...');
-      for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) r.push(i);
-      if (page < totalPages - 2) r.push('...');
-      r.push(totalPages);
-    }
-    return r;
-  };
-
-  const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 };
-  const numCell: React.CSSProperties   = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
-  const hCell: React.CSSProperties     = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' as any, letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
-  const numHCell: React.CSSProperties  = { ...hCell, textAlign: 'right' };
-  const columnWidths = [140, 300, 170, 110, 140, 130, 150, 110];
-  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
-  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
-
-  const totalProfit = rows.reduce((s, r) => s + (r.profit || 0), 0);
-  const totalRev    = rows.reduce((s, r) => s + (r.rev    || 0), 0);
-  const blendedMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
-
-  return (
-    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
-
-      {/* ── Header row ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)', flexShrink: 0 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Reports
-        </button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Product Profitability</h1>
-        <button onClick={downloadCsv} disabled={rows.length === 0} style={btnStyle('ghost', 'sm')}>⬇ Export CSV</button>
-      </div>
-
-      {/* ── Filter + Window bar ── */}
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-        <ReportMultiFilter filters={filters} onChange={handleFilterChange} />
-        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-          {WINDOW_OPTS.map(o => (
-            <button key={o.value} onClick={() => changeWindow(o.value)} style={{
-              height: 36, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)',
-              background: window_ === o.value ? 'var(--sv-action)' : 'var(--sv-bg-0)',
-              color: window_ === o.value ? '#fff' : 'var(--sv-text-main)',
-              fontSize: 12, fontWeight: window_ === o.value ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>{o.label}</button>
-          ))}
-        </div>
-        {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Loading…</span>}
-        {!loading && total > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{total.toLocaleString()} results</span>}
-        {hasMultiFilter(filters) && <button onClick={() => handleFilterChange(EMPTY_MULTI)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Clear filters</button>}
-      </div>
-
-      {error && <div style={{ color: 'var(--sv-coral)', marginBottom: 12, fontSize: 13 }}>{error}</div>}
-
-      {/* ── Summary cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12, marginBottom: 12 }}>
-        {[
-          { label: `${winLabel} Revenue`,     value: fmtCurrency(totalRev),           color: 'var(--sv-text-strong)' },
-          { label: `${winLabel} Gross Profit`, value: fmtCurrency(totalProfit),        color: 'var(--sv-mint)' },
-          { label: 'Blended Margin',           value: `${blendedMargin.toFixed(1)}%`,  color: 'var(--sv-text-strong)' },
-        ].map(c => (
-          <div key={c.label} style={{ background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', padding: '14px 18px' }}>
-            <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: c.color }}>{c.value}</div>
-          </div>
-        ))}
-      </div>
-
-      <ReportScrollTable
-        ariaLabel="Product profitability table. Use arrow keys to scroll."
-        bodyClassName="product-margin-table-scroll"
-        tableWidth={tableWidth}
-        renderColGroup={renderColGroup}
-        frozenColumnWidths={[140, 300]}
-        headerRows={
-            <tr>
-              <th style={{ ...hCell, textAlign: 'left' }}>SKU</th>
-              <th style={{ ...hCell, textAlign: 'left', minWidth: 200 }}>Product Name</th>
-              <th style={{ ...hCell, textAlign: 'left' }}>Brand</th>
-              <th style={numHCell}>Qty Sold</th>
-              <th style={numHCell}>Gross Rev</th>
-              <th style={numHCell}>COGS</th>
-              <th style={{ ...numHCell, color: 'var(--sv-mint)' }}>Gross Profit</th>
-              <th style={numHCell}>Margin %</th>
-            </tr>
-        }
-      >
-          <tbody>
-            {loading && (
-              <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
-            )}
-            {!loading && rows.map((r, i) => (
-              <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
-                <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.sku || '—'}</td>
-                <td style={{ ...cellStyle, fontWeight: 500 }}>{r.name}</td>
-                <td style={cellStyle}>{r.brand || '—'}</td>
-                <td style={numCell}>{r.qty.toLocaleString()}</td>
-                <td style={numCell}>{fmtCurrency(r.rev)}</td>
-                <td style={numCell}>{fmtCurrency(r.cogs)}</td>
-                <td style={{ ...numCell, fontWeight: 600, color: 'var(--sv-mint)' }}>{fmtCurrency(r.profit)}</td>
-                <td style={{ ...numCell, fontWeight: 600 }}>{r.margin.toFixed(1)}%</td>
-              </tr>
-            ))}
-          </tbody>
-      </ReportScrollTable>
-
-      {/* ── Pagination ── */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button onClick={() => goPage(page - 1)} disabled={page <= 1 || loading}
-              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>←</button>
-            {pageRange().map((p, i) =>
-              p === '...'
-                ? <span key={`e${i}`} style={{ fontSize: 13, color: 'var(--sv-text-dim)', padding: '0 4px' }}>…</span>
-                : <button key={p} onClick={() => goPage(p as number)} disabled={loading}
-                    style={{ height: 30, minWidth: 30, borderRadius: 6, border: '1px solid var(--sv-etch)', background: p === page ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: p === page ? '#fff' : 'var(--sv-text-main)', fontWeight: p === page ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{p}</button>
-            )}
-            <button onClick={() => goPage(page + 1)} disabled={page >= totalPages || loading}
-              style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, fontSize: 13, color: 'var(--sv-text-main)' }}>→</button>
-          </div>
-          <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>
-            Page {page} of {totalPages} · {total.toLocaleString()} results · 100 per page
-          </span>
-        </div>
-      )}
-    </div>
-  );
+  return <ProductProfitabilityView onBack={onBack} fmtCurrency={fmtCurrency} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

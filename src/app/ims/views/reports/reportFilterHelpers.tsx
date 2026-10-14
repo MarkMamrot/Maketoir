@@ -333,7 +333,11 @@ export function ReportMultiFilter({
 const todaySB = () => new Date().toLocaleDateString('sv-SE');
 const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString('sv-SE'); };
 
-export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange: (r: SBDateRange) => void }) {
+export function SBDatePicker({ value, onChange, asAt }: {
+  value: SBDateRange;
+  onChange: (r: SBDateRange) => void;
+  asAt?: { today: string };
+}) {
   const [open, setOpen] = React.useState(false);
   const [tab,  setTab]  = React.useState<'presets' | 'custom'>('presets');
   const [cfrom, setCfrom] = React.useState('');
@@ -345,6 +349,10 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  React.useEffect(() => {
+    if (asAt && open && value.kind === 'range') setCfrom(value.to);
+  }, [asAt?.today, open, value]);
 
   const previousPresets: { label: string; make: () => SBDateRange }[] = [
     { label: 'Previous Week',    make: () => previousCalendarPeriod('week') },
@@ -365,11 +373,17 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
 
   const apply = (r: SBDateRange) => { onChange(r); setOpen(false); };
   const applyCustom = () => {
+    if (asAt) {
+      if (!cfrom || cfrom > asAt.today) return;
+      apply({ kind: 'range', from: cfrom, to: cfrom, label: cfrom === asAt.today ? 'Today' : cfrom });
+      return;
+    }
     if (!cfrom || !cto) return;
     const [f, t] = cfrom <= cto ? [cfrom, cto] : [cto, cfrom];
     const diff = Math.round((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1;
     apply({ kind: 'range', from: f, to: t, label: diff === 1 ? f : `${f} → ${t}` });
   };
+  const customDisabled = !cfrom || (asAt ? cfrom > asAt.today : !cto);
 
   const dropdownAlign = (() => {
     if (typeof window === 'undefined' || !ref.current) return { right: 0 };
@@ -377,7 +391,7 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
     const content = ref.current.closest('main')?.getBoundingClientRect();
     const leftEdge = Math.max(12, content?.left ?? 12);
     const rightEdge = Math.min(window.innerWidth - 12, content?.right ?? window.innerWidth - 12);
-    const width = Math.min(tab === 'presets' ? 430 : 248, rightEdge - leftEdge);
+    const width = Math.min(!asAt && tab === 'presets' ? 430 : 248, rightEdge - leftEdge);
     const left = Math.max(leftEdge, Math.min(rect.right - width, rightEdge - width));
     return { width, left: left - rect.left };
   })();
@@ -386,6 +400,8 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(v => !v)}
+        disabled={asAt != null && !asAt.today}
+        aria-label={asAt ? 'As at date' : undefined}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 7, border: `1px solid ${open ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: open ? 'var(--sv-action)' : 'var(--sv-bg-0)', color: open ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -394,22 +410,33 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
       </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: '100%', marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden', ...dropdownAlign }}>
+        <div style={{ position: 'absolute', top: '100%', marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: !asAt && tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden', ...dropdownAlign }}>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--sv-etch)' }}>
             {(['presets', 'custom'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, background: tab === t ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: tab === t ? '#fff' : 'var(--sv-text-dim)' }}>
-                {t === 'presets' ? 'Presets' : 'Custom Range'}
+                {t === 'presets' ? 'Presets' : asAt ? 'Custom Date' : 'Custom Range'}
               </button>
             ))}
           </div>
 
           {tab === 'presets' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', padding: 6 }}>
-              {[
+            <div style={{ display: 'grid', gridTemplateColumns: asAt ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', padding: 6 }}>
+              {(asAt ? [{
+                heading: 'As at date',
+                presets: [
+                  { label: 'Today', make: () => ({ kind: 'range' as const, from: asAt.today, to: asAt.today, label: 'Today' }) },
+                  { label: 'Yesterday', make: () => {
+                    const day = new Date(`${asAt.today}T00:00:00Z`);
+                    day.setUTCDate(day.getUTCDate() - 1);
+                    const yesterday = day.toISOString().slice(0, 10);
+                    return { kind: 'range' as const, from: yesterday, to: yesterday, label: yesterday };
+                  } },
+                ],
+              }] : [
                 { heading: 'Previous Period', presets: previousPresets },
                 { heading: 'Current & Rolling', presets: rollingPresets },
-              ].map((group, groupIndex) => (
-                <div key={group.heading} style={{ padding: '4px 6px 6px', borderRight: groupIndex === 0 ? '1px solid var(--sv-etch)' : 'none' }}>
+              ]).map((group, groupIndex) => (
+                <div key={group.heading} style={{ padding: '4px 6px 6px', borderRight: !asAt && groupIndex === 0 ? '1px solid var(--sv-etch)' : 'none' }}>
                   <p style={{ margin: '0 8px 5px', fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0 }}>{group.heading}</p>
                   {group.presets.map(p => {
                     const active = value.label === p.label || value.label === p.make().label;
@@ -424,17 +451,17 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
             </div>
           ) : (
             <div style={{ padding: '12px 14px' }}>
-              {(['From', 'To'] as const).map((lbl, idx) => {
+              {(asAt ? ['As at date'] : ['From', 'To']).map((lbl, idx) => {
                 const val = idx === 0 ? cfrom : cto;
                 const set = idx === 0 ? setCfrom : setCto;
                 return (
                   <div key={lbl} style={{ marginBottom: 10 }}>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: .5 }}>{lbl}</label>
-                    <input type="date" value={val} onChange={e => set(e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, boxSizing: 'border-box' as const }} />
+                    <input aria-label={lbl} type="date" value={val} max={asAt?.today} onChange={e => set(e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, boxSizing: 'border-box' as const }} />
                   </div>
                 );
               })}
-              <button onClick={applyCustom} disabled={!cfrom || !cto} style={{ width: '100%', padding: '7px 0', border: 'none', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: (!cfrom || !cto) ? 'not-allowed' : 'pointer', opacity: (!cfrom || !cto) ? .5 : 1 }}>Apply</button>
+              <button onClick={applyCustom} disabled={customDisabled} style={{ width: '100%', padding: '7px 0', border: 'none', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: customDisabled ? 'not-allowed' : 'pointer', opacity: customDisabled ? .5 : 1 }}>Apply</button>
             </div>
           )}
         </div>

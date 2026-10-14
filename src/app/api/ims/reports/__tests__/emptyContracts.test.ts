@@ -15,7 +15,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getSession }));
-vi.mock('@/lib/db/BusinessRegistry', () => ({ getImsDbNameStrict: mocks.getImsDbName }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({
+  getImsDbNameStrict: mocks.getImsDbName,
+  runImsForBusiness: async (_businessId: string, callback: () => Promise<unknown>) => callback(),
+}));
+vi.mock('server-only', () => ({}));
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mocks.getPool, imsQuery: mocks.imsQuery }));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.mainQuery, execute: mocks.mainExecute }));
 vi.mock('@/lib/sessionUtils', () => ({ requirePosManagerTier: mocks.requireManager }));
@@ -110,6 +114,10 @@ describe('empty tenant report contracts', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       success: true,
+      as_at: expect.any(String),
+      business_today: expect.any(String),
+      time_zone: 'Australia/Sydney',
+      historical: false,
       data: [],
       costing_method: 'average_cost',
       cost_epoch_id: null,
@@ -199,7 +207,6 @@ describe('empty tenant report contracts', () => {
   });
 
   it('returns an empty Product Margin report', async () => {
-    mocks.imsQuery.mockResolvedValueOnce([{ total: 0 }]).mockResolvedValueOnce([]);
     const response = await getProductMargin(request('/api/ims/reports/product-margin'));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(expect.objectContaining({ success: true, data: [], total: 0 }));

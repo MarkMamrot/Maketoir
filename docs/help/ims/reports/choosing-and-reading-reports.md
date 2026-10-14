@@ -1,5 +1,5 @@
 ---
-{"id":"ims-report-guide","title":"Choosing and Reading IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-sales-detail","report-sales-by-branch","report-sales-summary","report-sales-search","report-inventory-valuation","report-product-margin","report-pos-price-changes","report-pos-registers","report-stock-availability"],"contextSections":{"report-sales-detail":"Sales Detail: compare products and branches","report-sales-by-branch":"Sales Detail: compare products and branches","report-sales-summary":"Sales Summary: compare grouped sales","report-sales-search":"Sales Search: review variant sales totals","report-inventory-valuation":"Inventory Valuation: review current stock value","report-product-margin":"Product Profitability: understand catalogue-based estimates","report-pos-price-changes":"POS price changes: review recorded unit-price overrides","report-pos-registers":"Daily POS Registers: review sessions and counted takings","report-stock-availability":"Stock Availability: review open-order supply and promises"},"relatedTopics":["ims-operational-reports","ims-cash-banking","ims-cash-banking-report","ims-inventory-costing","ims-location-stock-operations","ims-stock-allocation-backorders","ims-sales-orders-fulfilment","pos-end-of-day","pos-end-of-day-xero"],"order":61,"summary":"Choose and filter sales, demand, valuation and register reports, distinguish catalogue-based profit estimates from recorded margins, and check export scope.","lastReviewed":"2026-10-14","owner":"reporting","quickSections":["Main operations","At a glance","Export scope by report"],"navigation":{"category":"reports","label":"Filter reports and compare results","sections":[{"heading":"Sales Detail: compare products and branches","label":"Compare product sales across branches"},{"heading":"Sales Summary: compare grouped sales","label":"Compare sales by location, brand or time"},{"heading":"Sales Search: review variant sales totals","label":"Search variant sales and source quantities"},{"heading":"Inventory Valuation: review current stock value","label":"Review current inventory value"},{"heading":"Product Profitability: understand catalogue-based estimates","label":"Understand product profitability estimates"},{"heading":"Stock Availability: review open-order supply and promises","label":"Review unsourced demand and customer promises"},{"heading":"POS price changes: review recorded unit-price overrides","label":"Review POS unit-price changes"},{"heading":"Daily POS Registers: review sessions and counted takings","label":"Review register sessions and till variances"}]}}
+{"id":"ims-report-guide","title":"Choosing and Reading IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"task","parentId":"ims-operational-reports","contexts":["report-sales-detail","report-sales-by-branch","report-sales-summary","report-sales-search","report-inventory-valuation","report-product-margin","report-pos-price-changes","report-pos-registers","report-stock-availability"],"contextSections":{"report-sales-detail":"Sales Detail: compare products and branches","report-sales-by-branch":"Sales Detail: compare products and branches","report-sales-summary":"Sales Summary: compare grouped sales","report-sales-search":"Sales Search: review variant sales totals","report-inventory-valuation":"Inventory Valuation: review stock value at a date","report-product-margin":"Product Profitability: review recorded profit and evidence","report-pos-price-changes":"POS price changes: review recorded unit-price overrides","report-pos-registers":"Daily POS Registers: review sessions and counted takings","report-stock-availability":"Stock Availability: review open-order supply and promises"},"relatedTopics":["ims-operational-reports","ims-cash-banking","ims-cash-banking-report","ims-inventory-costing","ims-location-stock-operations","ims-stock-allocation-backorders","ims-sales-orders-fulfilment","pos-end-of-day","pos-end-of-day-xero"],"order":61,"summary":"Choose and filter sales, demand, valuation and register reports, review recorded product profitability and incomplete evidence, and check export scope.","lastReviewed":"2026-10-14","owner":"reporting","quickSections":["Main operations","At a glance","Export scope by report"],"navigation":{"category":"reports","label":"Filter reports and compare results","sections":[{"heading":"Sales Detail: compare products and branches","label":"Compare product sales across branches"},{"heading":"Sales Summary: compare grouped sales","label":"Compare sales by location, brand or time"},{"heading":"Sales Search: review variant sales totals","label":"Search variant sales and source quantities"},{"heading":"Inventory Valuation: review stock value at a date","label":"Review current or past-date inventory value"},{"heading":"Product Profitability: review recorded profit and evidence","label":"Review recorded product profit and evidence"},{"heading":"Stock Availability: review open-order supply and promises","label":"Review unsourced demand and customer promises"},{"heading":"POS price changes: review recorded unit-price overrides","label":"Review POS unit-price changes"},{"heading":"Daily POS Registers: review sessions and counted takings","label":"Review register sessions and till variances"}]}}
 ---
 # Choosing and Reading IMS Reports
 
@@ -25,9 +25,9 @@ For Xero-enabled businesses, use **Cash Banking** Help for preparation and lodge
 | How do locations compare? | Sales Summary grouped by Location | Sales Detail for product-level branch columns |
 | What drives sales by brand, supplier, type, day, or hour? | Sales Summary | Sales Search for product/variant source quantities |
 | Which variants sold in a period? | Sales Search | POS Sales or the relevant Sales Order for individual transactions |
-| What is stock worth now? | Inventory Valuation | Stock Levels and receipt history |
+| What is stock worth now or at a past date? | Inventory Valuation | Stock Levels and receipt history |
 | What margin was recorded? | Sales Summary or Sales & COGS Traceability | Sale and movement history for cost coverage |
-| How do current catalogue price and cost compare for sold products? | Product Profitability Margin | Check its estimate formula and GST limitation below |
+| What was each product's recorded profit in a period? | Product Profitability Margin | Check captured-cost and revenue evidence; incomplete totals are unavailable |
 | Can each sale be traced to captured COGS and stock location? | Sales & COGS Traceability | Detail evidence and Reconciliation |
 | Is a recorded POS unit-price change expected? | POS Price Changed Transactions | Product and sale source |
 | What happened in a register session? | Daily POS Registers Report | POS Sales and End of Day records |
@@ -87,23 +87,27 @@ When all locations are included and **Location** is a heading, **ALL** rows roll
 
 > **Important:** Gross profit and covered-sales margin use only sales whose full sold quantity has recorded movement cost. Coverage below 100% means the profit figure is incomplete, not that the missing sales had zero cost.
 
-## Inventory Valuation: review current stock value
+## Inventory Valuation: review stock value at a date
 
-Use **Reports > Inventory Valuation** to review current stock value across locations. It is not a historical stock-at-date report and does not offer a branch selector.
+Use **Reports > Inventory Valuation** to review stock value across all locations. **As at date** defaults to **Today** in the business timezone. There is no branch selector.
 
-1. Use **Product / SKU**, **Supplier**, **Brand** and **Type** filters to select the required stock.
-2. Check **Total Inventory Value** and **Unique SKUs Counted** against the filtered rows.
-3. Under **Average Cost**, compare on-hand quantity with the current shared cost and line value. Under **FIFO**, review the value of remaining receipt layers.
-4. If a FIFO quantity mismatch warning appears, investigate it with **Stock Levels**, **Stock History** and the source documents before relying on the valuation.
-5. Use **Export CSV** for all loaded rows matching the current filters.
+1. Leave **As at date** on **Today** for the existing live valuation: current stock and current Average Cost or remaining FIFO layers. No historical reconstruction runs for today.
+2. Select **Yesterday** or **Custom Date** for stock at the end of a past day in the business timezone. Future dates cannot be selected.
+3. Use **Product / SKU**, **Supplier**, **Brand** and **Type** filters to select the required stock. Clearing catalogue filters keeps the selected date.
+4. Check **Total Inventory Value** and **Unique SKUs Counted** against the loaded rows. Past-date results include products since deactivated where stock existed then, even if today's stock is zero.
+5. Read the cost basis below each historical unit cost. **Historical cost** uses available recorded costing history. **Today's cost (estimate)** means reliable historical cost was unavailable and the row uses today's cost instead. **Cost unavailable** means no valid cost was found; its quantity remains visible but no monetary value is included.
+6. Review inferred-opening, incomplete-history, negative-stock and FIFO mismatch warnings with **Stock History** and source documents before relying on the total.
+7. Use **Export CSV** after loading succeeds. It includes all loaded filtered rows, the report date, timezone, cost basis and inferred-opening indication. The filename uses the loaded date.
 
-For a quantity question at one branch, start in **Stock Levels**. Changing a sales date range elsewhere does not turn Inventory Valuation into a month-end valuation, and a later receipt may change current value without changing an earlier sale's attached cost.
+Past quantities use opening stock and recorded physical movements through the selected day. On-order approvals and reservations do not count as physical stock. Where no dated opening stock is available, opening quantities are inferred from the available stock and movement records and marked with an asterisk. Unrecorded stock overwrites, permanently deleted records and missing historical costs cannot be recovered by the report. Do not treat an inferred or fallback result as an exact historical accounting snapshot.
+
+Catalogue names and product filters use current information, not historical descriptions. For a quantity question at one branch, start in **Stock Levels**. A later receipt may change today's valuation without changing an earlier sale's attached cost.
 
 ## Sales Search: review variant sales totals
 
 Use **Reports > Sales Search** to find product variants with sales activity in a period. Each row is an aggregate for one variant, not an individual receipt, customer or order.
 
-1. Choose **All channels** or one exact Shopify store where available. Choose the channel before applying the other filters.
+1. Choose **All channels** or one exact Shopify store where available. You can change stores after applying filters; the dates, search text and page size are preserved, and results return to page one.
 2. Set the shared date preset or custom range. The initial period is **90 Days**.
 3. Type in **Search product name or SKU**. Partial words are supported, and every entered word must match either the product name or SKU. Check the displayed option and SKU to distinguish sizes and colours.
 4. Read **Units Sold** and **Revenue** alongside **POS**, **Online**, **Wholesale** and **History**. The four source columns show quantities, not revenue. Imported history has its own column even when its original sale was in-store or online.
@@ -116,33 +120,37 @@ Use **Reports > Sales Search** to find product variants with sales activity in a
 - There is no branch selector or transaction drilldown in this screen. Use Sales Detail for branch comparisons and POS Sales, POS Reports or the relevant Sales Order for a particular transaction.
 - Eligible Sales Orders contribute their ordered quantities and line amounts even if fulfilment is incomplete. The live POS source includes completed ordinary sales, not POS return transactions. Do not use this report as proof of shipment or a net-refund/register reconciliation.
 - Revenue sums the source line amounts and is labelled **inc. GST** in CSV. Check the source order's tax treatment when reconciling an external figure rather than assuming the report has normalised every source.
-- Changing the channel can reload the default 90-day, unsearched result while earlier filter labels remain visible. Reapply the intended date range, search and page size after switching stores, and check the resulting totals before exporting.
+- Changing the channel applies the visible date range, search and page size to the new store and returns to page one. Sorting remains a current-page operation. Wait for the new results before exporting; failed loads show an error rather than retaining an exportable earlier-store result.
 - CSV has current-page rows only, with no full-result totals row. Sorting a page by Revenue does not rank the entire filtered result by Revenue.
 
-## Product Profitability: understand catalogue-based estimates
+## Product Profitability: review recorded profit and evidence
 
 Open **Reports > Product Profitability Margin**. The screen heading is **Product Profitability**; older references call it Product Margin.
 
-This report estimates results using period sales quantity multiplied by current catalogue price and cost. It does not use the actual historical selling amount, sale discount or movement-attached cost.
+This report groups recorded sales and returns by product variant. Revenue is net of recorded line and document discounts, converted to AUD using the recorded exchange rate and shown excluding GST according to the source tax treatment. COGS comes from captured stock-movement costs, not today's catalogue unit cost.
 
 1. Use **Product / SKU**, **Supplier**, **Brand** and **Type** to select the intended products.
-2. Choose **7 Days**, **90 Days**, **180 Days** or **12 Months**. The default is **12 Months**, a 365-day quantity window. This screen does not offer a custom date picker, branch selector or storefront selector.
-3. Read **Qty Sold**, **Gross Rev**, **COGS**, **Gross Profit** and **Margin %** using the formula table below, not the definitions for historical cost-covered profit.
-4. Review the **Revenue**, **Gross Profit** and **Blended Margin** cards for the currently displayed page. The results count and page count describe the full filtered set, but the cards do not.
-5. Page through the results, with **100 per page**. Rows are ordered by the report's estimated gross profit, not by a user-selected column sort.
-6. Use **Export CSV** for the current page only. CSV includes the current **Unit Cost** and **Unit Price** used in the estimate.
+2. Choose a shared date preset, previous calendar period or custom range. The initial range is **12 Months**. There is no branch or storefront selector in this report.
+3. Read **Net Qty**, **Net Rev ex GST**, **Captured COGS**, **Gross Profit ex GST**, **Margin %** and **Evidence**. Returns reduce quantities and revenue; an eligible credit reversal restores them.
+4. Review the **Net Revenue**, **Captured COGS**, **Gross Profit** and **Blended Margin** cards for **all matching products**, not only the displayed page. Check the exact date bounds and any incomplete-evidence warning.
+5. Page through the results, with **100 per page**. Complete profits are ordered highest first; incomplete profits follow. Product name and classification are current catalogue metadata, including inactive products with recorded activity.
+6. Use **Export CSV** for the current page only. CSV includes historical net revenue, captured COGS, profit, margin and evidence counts. Unknown amounts are blank; catalogue unit price and unit cost are not substituted.
 
 | Label | Current calculation |
 |---|---|
-| Gross Rev | Current catalogue selling price multiplied by Qty Sold |
-| COGS | Current catalogue unit cost multiplied by Qty Sold |
-| Gross Profit | Gross Rev minus COGS |
-| Margin % | Current price minus current cost, divided by current price; zero when price is not positive |
-| Blended Margin | Current-page total estimated profit divided by current-page total estimated revenue; zero when revenue is not positive |
+| Net Rev ex GST | Recorded product-line revenue after discounts and source tax/currency conversion |
+| Captured COGS | Historical movement costs, including supported return cost reversals; unavailable when cost evidence is incomplete |
+| Gross Profit ex GST | Net revenue less captured COGS; unavailable if either is incomplete |
+| Margin % | Gross profit divided by net revenue; unavailable with incomplete evidence or zero net revenue |
+| Blended Margin | Full filtered-result gross profit divided by full filtered-result net revenue, subject to the same completeness rules |
 
-> **Important:** Catalogue selling prices include GST, while supplier costs are normally tax-exclusive. This report does not extract GST from selling price before subtracting cost. Its displayed profit and margin are therefore not a tax-exclusive accounting gross profit. Use **Sales Summary**, checking **COGS Coverage**, or **Sales & COGS Traceability** for recorded sale revenue and captured costs.
+> **Important:** Missing evidence is not zero. If any contributing record lacks complete captured cost, that product's COGS, profit and margin are unavailable. Missing tax/currency evidence also withholds net revenue. Affected full-result cards are unavailable rather than silently excluding those records or estimating from today's catalogue.
 
-Editing today's catalogue price or cost can change this estimate for the same past quantity window. It does not mean an earlier sale's recorded revenue or attached cost changed.
+The period follows sale/order dates and credit completion/reversal dates, not shipment or accounting-posting dates. Eligible unfulfilled Sales Orders can have recorded revenue but incomplete COGS. Imported history remains visible by quantity but lacks reliable captured tax/currency/cost evidence, so its financial margin is unavailable. Live sources exclude mirrored imported records, staff-preview orders and draft/cancelled orders.
+
+Product-level totals exclude records without a product identity, including document freight and rounding adjustments; the screen reports their count. Use **Sales & COGS Traceability** to inspect source lines, missing costs and non-product adjustments. A range exceeding the source-record limit must be narrowed; no figures are silently truncated.
+
+Changing today's catalogue price or cost does not rewrite historical amounts. Current product names and classification can change labels or which products match a filter.
 
 ## Stock Availability: review open-order supply and promises
 
@@ -211,7 +219,7 @@ When Xero is enabled, the screen and CSV add accounting information. An invoice 
 | Sales Summary | All matching grouped pages |
 | Sales Search | Current-page rows in their displayed sort order; no full-result totals row |
 | Inventory Valuation | All loaded filtered rows |
-| Product Profitability | Current-page rows only; its summary cards are also page-only |
+| Product Profitability | Current-page rows only, with blank unknown amounts and evidence counts; summary cards cover the full filtered result |
 | Stock Availability | No CSV export control in this report |
 | POS Price Changed Transactions | All loaded changed-item rows for the selected period |
 | Daily POS Registers Report | All loaded sessions and method detail, plus a TOTAL row for each reconciled session; optional accounting fields follow the business's settings |
@@ -226,7 +234,7 @@ When Xero is enabled, the screen and CSV add accounting information. An invoice 
 | Imported historical sale | Invoice date | The recorded business date of the imported sale |
 | POS sale | Completion date | When the POS transaction completed |
 | Sales Order sale | Order date | The order's recorded order date |
-| Product Profitability preset | Selected rolling sales-quantity window | Period quantity combined with current catalogue price and cost, not historical sale amounts |
+| Product Profitability | Sale/order dates and credit completion/reversal dates | Recorded product revenue and captured cost; not a shipment-period COGS reconciliation |
 | POS Price Changed Transactions | POS completion date | Completed item lines with different captured original and final unit prices |
 | Daily POS Registers Report | Register session date | A session can close on a later calendar date without moving to that date's report |
 | Cash Banking Report, when Xero is enabled | Lodgement date, or creation date before lodgement | Not the original source trading dates or later posting date |
@@ -243,7 +251,7 @@ Do not assume every report uses fulfilment date or accounting-posting date. Use 
 | Current inventory cost | Current Average Cost or remaining FIFO layers | Today's inventory valuation |
 | Historical attached cost | Unit cost recorded on the completed movement | Historical margin and cost of goods sold |
 
-These profit definitions apply to recorded cost-covered reporting. Product Profitability uses the catalogue-based estimate above and does not normalise its price and cost to a common GST basis.
+Product Profitability uses recorded tax-exclusive revenue and historical captured cost. Unlike cost-covered subtotal reporting, it withholds an affected product or full-result total when any contributing record lacks the required evidence.
 
 | Cost question | Use current inventory cost? | Use historical attached cost? |
 |---|---:|---:|
@@ -271,11 +279,13 @@ Attached COGS and gross profit are reported only for sales whose full sold quant
 | Export differs from the screen you expected | Filters changed or export includes all selected pages or groups | Recheck active filters and totals before exporting |
 | Sales Detail exported rows do not add up to its total | Detail export is the current page; the total covers all selected results | Export the required pages and use the full-result total only once |
 | Adding Sales Summary location rows doubles the result | ALL rollups were added to their location detail | Use TOTALS (ALL SELECTED), or sum only the detail rows |
-| Inventory Valuation cannot be set to last month or one branch | This report shows current value across locations | Use Stock Levels for branch quantities; do not label current valuation as historical |
+| Inventory Valuation is needed for last month | As at date defaults to Today | Select the last day of the month and review cost-basis and opening-stock warnings |
+| Inventory Valuation shows today's-cost estimates or inferred stock | Historical cost or dated opening evidence is incomplete | Check Stock History and source documents; do not describe the estimate as an exact accounting snapshot |
+| Inventory Valuation is needed for one branch | Valuation aggregates all locations | Use Stock Levels for branch quantities; this report has no branch selector |
 | Sales Search cannot show a particular receipt | Rows aggregate activity by variant | Inspect POS Sales, POS Reports or the relevant Sales Order |
-| Sales Search totals changed after switching stores | The channel reload can use the default date/search scope | Reapply the intended dates, search and page size before relying on the result |
-| Product Profitability differs from historical margin | It uses current price/cost and does not remove selling-price GST | Use recorded sales and attached costs in Sales Summary or Sales & COGS Traceability |
-| Product Profitability cards change between pages | Cards total only the currently displayed rows | Do not treat one page's cards as the business-wide result |
+| Sales Search totals changed after switching stores | A different channel is selected; existing filters are preserved and results return to page one | Check the selected store and wait for loading; Clear removes search text only |
+| Product Profitability shows Unavailable | Captured cost, tax or currency evidence is incomplete | Inspect Evidence and Sales & COGS Traceability; do not substitute current catalogue cost |
+| Product Profitability differs from another margin report | Date basis, returns, product-only scope or completeness rules differ | Align source/date scope; full-result cards cover all matching products, not just the current page |
 | Stock Availability says Unsourced although stock exists | Demand lacks protected incoming/received allocation | Review Stock Allocation and Stock Levels; do not create stock to make the report balance |
 | Price-change result count exceeds the number of sales | Several changed items belong to the same sale | Count distinct Sale # values only when answering a sale-count question |
 | Daily register rows still describe the earlier date | Date changed without Run | Run the intended date before exporting |
@@ -296,7 +306,15 @@ A buyer selects **First heading > Location** and **Second heading > Brand** in *
 
 ### Value one brand's current stock
 
-Staff filter **Inventory Valuation** to **Coastal Home** and review the current method, counted SKUs and total value. They check any FIFO warning before exporting. The result covers current stock across locations, not Coastal Home's stock value at the end of the previous month.
+Staff leave **As at date** on **Today**, filter **Inventory Valuation** to **Coastal Home** and review the current method, counted SKUs and total value. They check any FIFO warning before exporting. The result is the same live valuation as before, across all locations.
+
+### Value stock at month end
+
+Ten units at $20 are followed by a receipt of five units at $26. Under Average Cost the 15 units are worth $330 at $22 each. If three units are sold before month end, the remaining 12 are worth $264. Staff select the month's last day; a later receipt does not change that recorded historical result.
+
+Under FIFO, the same receipts followed by a sale of 12 consume the ten $20 units and two $26 units. Three units worth $78 remain. A return recorded after the selected day is not included at that earlier date.
+
+If another product has six historical units but no reliable historical cost, and today's unit cost is $18, the report shows $108 labelled **Today's cost (estimate)**. An inferred opening-stock warning is a separate quantity limitation.
 
 ### Read Sales Search without mistaking totals for receipts
 
@@ -304,11 +322,13 @@ A candle variant shows **POS > 10**, **Online > 3**, **Wholesale > 2** and **His
 
 If the filtered result spans three pages, the summary beside the filters covers all three. An export from page one contains only that page's variants.
 
-### Distinguish a catalogue estimate from recorded profit
+### Calculate recorded product profit without GST or catalogue assumptions
 
-A product's current selling price is **$110 including GST**, its current catalogue cost is **$60**, and Qty Sold is **10**. Product Profitability calculates **$1,100 Gross Rev**, **$600 COGS**, **$500 Gross Profit** and **45.5% Margin** from those catalogue values.
+Ten recorded sales at **$110 including GST** each have captured tax-exclusive costs of **$60**. With complete evidence and no discounts or returns, Product Profitability shows **10 Net Qty**, **$1,000 Net Revenue**, **$600 Captured COGS**, **$400 Gross Profit** and **40% Margin**.
 
-Those are the screen's estimate calculations, not a tax-exclusive profit. If all ten actual sales were $110 including GST and each had $60 of captured tax-exclusive cost, their tax-exclusive revenue would be $1,000 and recorded gross profit $400. Staff use cost-covered sales reporting to establish those historical amounts rather than treating the estimate as accounting evidence.
+Changing today's catalogue price to $132 or catalogue cost to $70 does not change those historical amounts. A recorded $110 total discount would reduce tax-exclusive revenue to $900 and profit to $300.
+
+If one contributing sale lacks captured cost, the product's COGS, profit and margin show **Unavailable**. If an imported history record also lacks reliable tax/currency evidence, net revenue is unavailable too. The record stays visible; the report does not quietly calculate a complete-looking profit from the remaining sales.
 
 ### Separate unsourced, ready and incoming demand
 

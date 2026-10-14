@@ -14,7 +14,7 @@ export const fields = {
 export type Field = keyof typeof fields;
 export const metrics: Field[] = ['qty', 'sales', 'discount', 'netSales', 'cogs', 'knownCogs', 'gp', 'gpPercent', 'tax', 'documentNetSales', 'documentTax'];
 export type ReportRow = Record<Field, string | number | null> & {
-  id: string; sourceHref: string | null;
+  id: string; sourceHref: string | null; variantId?: string | null;
   costedRecords?: number; missingCosts?: number; missingRevenue?: number;
   knownSales?: number; knownDiscount?: number; knownNetSales?: number; knownGp?: number; coveredGpRecords?: number;
 };

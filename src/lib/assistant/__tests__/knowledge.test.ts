@@ -3,6 +3,26 @@ import { describe, expect, it } from 'vitest';
 import { buildAssistantRetrievalContext, retrieveAssistantKnowledge } from '../knowledge';
 
 describe('assistant knowledge retrieval', () => {
+  it.each([true, false])('explains historical profitability and missing evidence with accounting enabled=%s', xero => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Product Profitability captured COGS historical recorded profit Unavailable incomplete evidence',
+      audience: 'ims', currentView: 'report-product-margin', availableCapabilities: { xero },
+    });
+    expect(results.some(result => result.heading === 'Product Profitability: review recorded profit and evidence'
+      && result.content.includes('Missing evidence is not zero'))).toBe(true);
+    expect(results.some(result => result.content.includes('does not extract GST from selling price'))).toBe(false);
+  });
+
+  it('explains preserved filters when changing Sales Search stores', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Sales Search switching Shopify stores preserve date search page size page one',
+      audience: 'ims', currentView: 'report-sales-search',
+    });
+    expect(results.some(result => result.heading === 'Sales Search: review variant sales totals'
+      && result.content.includes('dates, search text and page size are preserved'))).toBe(true);
+    expect(results.some(result => result.content.includes('earlier filter labels remain visible'))).toBe(false);
+  });
+
   it.each([true, false])('explains selected-branch planning and checked manual quantities with accounting enabled=%s', xero => {
     const results = retrieveAssistantKnowledge({
       query: 'Order Planner selected branches stock incomplete suggestion withheld Stock checked manual quantity',

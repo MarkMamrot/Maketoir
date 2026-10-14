@@ -16,7 +16,7 @@ Average Cost (weighted average cost, or WAC) and FIFO determine stock valuation.
 | Which method is active? | **Settings > General > Inventory Costing** |
 | What is the current stock value at a location? | **Products > Stock Levels** |
 | What cost was attached to an earlier receipt, sale or return? | **Stock History** |
-| How does current catalogue selling price compare with cost? | **Reports > Product Profitability Margin**, checking its current-price/current-cost estimate and GST limitation |
+| What was each product's recorded profit in a period? | **Reports > Product Profitability Margin**, checking captured historical costs and incomplete-evidence warnings rather than today's catalogue cost |
 | What margin did recorded sales and returns produce? | **Reports > Sales & COGS Traceability**, checking incomplete evidence first |
 | Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |
 
@@ -74,6 +74,10 @@ A new receipt changes current valuation under Average Cost or adds a new layer u
 
 This distinction matters when investigating margin. A jacket sold last month keeps its captured cost even if a later delivery changes the cost of remaining stock.
 
+**Reports > Inventory Valuation** defaults to **Today** and retains the existing live-stock valuation. Only a past **As at date** reconstructs end-of-day stock and its available historical costs. Where reliable historical costs are unavailable, the report uses today's costs and labels those rows as estimates. Missing current costs remain visible as **Cost unavailable** and do not add a monetary amount to the total.
+
+Past-date quantities can include inferred opening stock where no dated opening record exists. Read those warnings and any FIFO reconciliation warning before treating the report as a month-end value. The report is tax-exclusive AUD, covers all locations, and does not change saved sale costs, stock records or the business costing method.
+
 ## Choose or change the costing method
 
 Switching from FIFO to Average Cost derives each variant's shared cost from the remaining FIFO quantities and values across locations. The switch applies as one operation; it does not partially change the active method or rewrite historical movement costs. A variant with no remaining stock receives a zero current average cost.
@@ -95,7 +99,7 @@ The change is prospective. Switching to FIFO creates opening layers for positive
 |---|---|---|
 | Current cost changed after a receipt | The receipt updated Average Cost or added a FIFO layer | Check tax, currency, discount, freight and landed costs on the receipt |
 | Two stores show the same Average Cost | This is expected under Average Cost | Compare each store's quantity and value separately |
-| A past sale differs from today's stock cost | The sale kept its completion-time cost | Use Stock History for the movement and Inventory Valuation for current value |
+| A past sale differs from today's stock cost | The sale kept its completion-time cost | Use Stock History for the movement; select a past As at date in Inventory Valuation for historical stock, checking estimate warnings |
 | The method switch is blocked | Negative stock, missing costs, or FIFO layers do not reconcile | Correct the named rows through their operational workflows, then review again |
 | FIFO valuation looks wrong | A quantity, receipt layer, or later movement may need investigation | Compare Inventory Valuation, Stock Levels, Stock History, and source documents |
 

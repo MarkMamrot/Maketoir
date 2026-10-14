@@ -27,9 +27,9 @@ Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify
 | How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |
 | Which variants sold and which source quantities contributed? | **Sales Search** |
 | Where is an individual sale or receipt? | **POS Sales**, POS Reports or the relevant Sales Order |
-| What is current stock worth? | **Inventory Valuation** |
+| What is stock worth now or at a past date? | **Inventory Valuation** |
 | What margin did recorded sales produce? | **Sales Summary** or **Sales & COGS Traceability**, checking cost coverage |
-| How do current catalogue price and cost compare for sold products? | **Product Profitability Margin**; a catalogue-based estimate, not historical accounting profit |
+| What was each product's recorded profit in a period? | **Product Profitability Margin**; recorded net revenue and captured costs with explicit incomplete-evidence warnings |
 | Which completed POS items have a recorded unit-price change? | **POS Price Changed Transactions** |
 | What happened in daily register sessions? | **Daily POS Registers Report** |
 | How do cash deposits and Xero outcomes compare? | **Cash Banking Report** |
@@ -38,7 +38,7 @@ Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify
 
 ## Reading results
 
-Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation answers a current-value question; historical margin answers what was recorded when the sale or stock movement happened.
+Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation defaults to today's unchanged live valuation; selecting a past **As at date** reconstructs end-of-day stock using recorded history. Historical margin answers what was recorded when the sale or stock movement happened.
 
 > **Tip:** When two totals differ, compare the same date meaning, date range, locations, statuses, transaction types, and GST treatment before looking for a data problem.
 
@@ -46,9 +46,9 @@ Sales reports commonly show selling amounts including GST. Margin and cost of go
 
 **Cash Banking Report** Help covers deposit outcomes and correction notes for Xero-enabled businesses.
 
-Sales Search aggregates by variant rather than showing individual transactions. Product Profitability estimates from current catalogue price and cost without removing selling-price GST; it is not recorded tax-exclusive gross profit. Stock Availability is a current open-order demand and protected-supply report, not a general stock balance.
+Sales Search aggregates by variant rather than showing individual transactions; changing stores preserves dates, search and page size and returns to page one. Product Profitability uses recorded AUD tax-exclusive revenue after discounts and captured historical costs, including supported returns. Missing cost, tax or currency evidence withholds affected product and full-result totals rather than estimating. Stock Availability is a current open-order demand and protected-supply report, not a general stock balance.
 
-Export scope differs: Sales Detail exports the current page plus full-result totals, while Sales Summary exports all matching grouped pages. Sales Search and Product Profitability export current-page rows only. Inventory Valuation shows current stock across locations, without a historical date or branch selector. Stock Availability has no CSV export control.
+Export scope differs: Sales Detail exports the current page plus full-result totals, while Sales Summary exports all matching grouped pages. Sales Search and Product Profitability export current-page rows only. Inventory Valuation exports all loaded filtered rows with the selected date, timezone and cost basis, across all locations; it has no branch selector. Stock Availability has no CSV export control.
 
 Daily POS Registers selects the register's session date and requires **Run** after a date change. Its Counted totals include float; use the already adjusted Variance rather than subtracting the raw totals. Price-change results count changed items, not distinct sales.
 
@@ -70,3 +70,5 @@ Open **Sales Detail**, choose the required branch and date range, and note the t
 ### Explain current stock value
 
 Open **Inventory Valuation**, filter the required product, supplier, brand or type, and compare each quantity with its current value across locations. Under Average Cost, review the current shared cost; under FIFO, review remaining layers and any quantity mismatch warning. Use **Stock Levels** separately for a quantity check at one branch.
+
+Leave **As at date** on **Today** for that live result. Choose a past date for end-of-day stock, including products since deactivated. Historical costs are used where reliable; otherwise **Today's cost (estimate)** identifies the fallback. Check inferred-opening and incomplete-history warnings before relying on a backdated total.

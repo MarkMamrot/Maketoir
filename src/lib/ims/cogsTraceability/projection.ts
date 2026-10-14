@@ -93,7 +93,7 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
   }
   const inRange = (date: string) => date >= input.from && date < input.toExclusive;
   const baseRow = (line: typeof lines[number], id: string) => Object.assign(emptyRow(id), {
-    source: line.source, orderRef: line.orderRef, invoiceNo: line.invoiceNo, saleDate: line.saleDate,
+    source: line.source, variantId: line.variantId, orderRef: line.orderRef, invoiceNo: line.invoiceNo, saleDate: line.saleDate,
     customer: line.customer, channel: line.channel, channelInstance: line.channelInstance, cashier: line.cashier,
     brand: line.brand, sku: line.sku, description: line.description, warehouse: line.warehouse,
     posLocation: line.source === 'pos' || line.channel === 'POS' ? line.warehouse : null,

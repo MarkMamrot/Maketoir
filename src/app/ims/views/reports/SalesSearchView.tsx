@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SBDatePicker, SBDateRange } from './reportFilterHelpers';
 import { ReportScrollTable } from './ReportScrollTable';
 
@@ -46,32 +46,39 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const load = useCallback(async (
-    pg: number, ft: string, dr: SBDateRange, ps: number,
-  ) => {
+  useEffect(() => {
+    let current = true;
     setLoading(true);
     setError('');
-    try {
-      const params = new URLSearchParams({ page: String(pg), pageSize: String(ps) });
-      if (ft) params.set('q', ft);
-      if (channelFilter) params.set('channelInstanceId', channelFilter);
-      if (dr.kind === 'window') {
-        params.set('days', String(dr.window));
-      } else {
-        params.set('from', dr.from);
-        params.set('to', dr.to);
-      }
-      const data = await apiFetch(`/api/ims/reports/sales-search?${params}`);
-      setRows(data.rows ?? []);
-      setTotal(data.total ?? 0);
-      setTotalQty(Number(data.totalQty ?? 0));
-      setTotalRev(Number(data.totalRevenue ?? 0));
-    } catch (e: any) {
-      setError(e.message ?? 'Failed to load report');
-    } finally {
-      setLoading(false);
+    setRows([]);
+    setTotal(0);
+    setTotalQty(0);
+    setTotalRev(0);
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (filterText) params.set('q', filterText);
+    if (channelFilter) params.set('channelInstanceId', channelFilter);
+    if (dateRange.kind === 'window') {
+      params.set('days', String(dateRange.window));
+    } else {
+      params.set('from', dateRange.from);
+      params.set('to', dateRange.to);
     }
-  }, [apiFetch, channelFilter]);
+    void (async () => {
+      try {
+        const data = await apiFetch(`/api/ims/reports/sales-search?${params}`);
+        if (!current) return;
+        setRows(data.rows ?? []);
+        setTotal(data.total ?? 0);
+        setTotalQty(Number(data.totalQty ?? 0));
+        setTotalRev(Number(data.totalRevenue ?? 0));
+      } catch (error) {
+        if (current) setError(error instanceof Error ? error.message : 'Failed to load report');
+      } finally {
+        if (current) setLoading(false);
+      }
+    })();
+    return () => { current = false; };
+  }, [apiFetch, page, filterText, dateRange, pageSize, channelFilter]);
 
   useEffect(() => {
     fetch('/api/ims/channels').then(response => response.json()).then(data => {
@@ -79,11 +86,9 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
     }).catch(() => setShopifyChannels([]));
   }, []);
 
-  useEffect(() => { load(1, '', { kind: 'window', window: 90, label: '90 Days' }, 50); }, [load]);
-
-  const handleDateChange = (dr: SBDateRange) => { setDateRange(dr); setPage(1); load(1, filterText, dr, pageSize); };
-  const goPage = (pg: number) => { setPage(pg); load(pg, filterText, dateRange, pageSize); };
-  const changePageSize = (ps: number) => { setPageSize(ps); setPage(1); load(1, filterText, dateRange, ps); };
+  const handleDateChange = (dr: SBDateRange) => { setDateRange(dr); setPage(1); };
+  const goPage = (pg: number) => { setPage(pg); };
+  const changePageSize = (ps: number) => { setPageSize(ps); setPage(1); };
 
   const toggleSort = (col: string) => {
     if (sortCol === col) setSortAsc(a => !a);
@@ -170,7 +175,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
         <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Search</h1>
         <button
           onClick={downloadCsv}
-          disabled={displayRows.length === 0}
+          disabled={loading || !!error || displayRows.length === 0}
           style={{ height: 34, padding: '0 12px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: displayRows.length === 0 ? 'not-allowed' : 'pointer', opacity: displayRows.length === 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 5 }}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -182,11 +187,11 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
         <input
           placeholder="Search product name or SKU…"
           value={filterText}
-          onChange={e => { const v = e.target.value; setFilterText(v); setPage(1); load(1, v, dateRange, pageSize); }}
+          onChange={e => { setFilterText(e.target.value); setPage(1); }}
           style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: filterText ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 12, flex: '1 1 200px', minWidth: 160 }}
         />
         <SBDatePicker value={dateRange} onChange={handleDateChange} />
-        <select value={channelFilter} onChange={event => { setChannelFilter(event.target.value); setPage(1); }} style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: channelFilter ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 170 }}>
+        <select aria-label="Store / channel" value={channelFilter} onChange={event => { setChannelFilter(event.target.value); setPage(1); }} style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: channelFilter ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12, minWidth: 170 }}>
           <option value="">All channels</option>
           {shopifyChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName}</option>)}
         </select>
@@ -198,7 +203,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading&hellip;</span>}
         {filterText && (
           <button
-            onClick={() => { setFilterText(''); setPage(1); load(1, '', dateRange, pageSize); }}
+            onClick={() => { setFilterText(''); setPage(1); }}
             style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}
           >
             Clear
@@ -291,7 +296,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-dim)' }}>
               <span>Page {page} of {totalPages} &middot; {total.toLocaleString()} variants</span>
               <select
-                value={pageSize} onChange={e => changePageSize(Number(e.target.value))}
+                aria-label="Rows per page" value={pageSize} onChange={e => changePageSize(Number(e.target.value))}
                 style={{ height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12, cursor: 'pointer' }}
               >
                 {[25, 50, 100, 200].map(n => <option key={n} value={n}>{n} / page</option>)}
