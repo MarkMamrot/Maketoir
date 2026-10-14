@@ -26,6 +26,7 @@ describe('SalesChannelRow', () => {
     render(<SalesChannelRow instance={instance} capabilityCount={9} canManage testing={false} activationChanging={false} onConfigure={vi.fn()} />);
 
     expect(screen.getByText('Monsterthreads Shopify')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Monsterthreads Shopify' }).querySelector('svg.lucide-globe')).toBeTruthy();
     expect(screen.getByText('monsterthreads.myshopify.com')).toBeTruthy();
     expect(screen.getByText('Active')).toBeTruthy();
     expect(screen.getByText('9 supported features')).toBeTruthy();

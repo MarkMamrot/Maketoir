@@ -8,6 +8,7 @@ import BuiltInSalesChannels from './BuiltInSalesChannels';
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
 import SalesChannelRow from './SalesChannelRow';
 import ShopifyChannelDetailView from './ShopifyChannelDetailView';
+import rowStyles from './SalesChannelRow.module.css';
 
 interface ChannelCapabilities {
   catalogue: boolean;
@@ -822,7 +823,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {canManage && (
-            <button type="button" onClick={() => { setAddChannelProvider('choose'); setAddChannelDialogOpen(true); }} style={{ minHeight: 36, padding: '0 12px', border: 0, borderRadius: 6, background: '#111827', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>
+            <button type="button" onClick={() => { setAddChannelProvider('choose'); setAddChannelDialogOpen(true); }} style={{ minHeight: 36, padding: '0 12px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>
               <Plus size={15} aria-hidden="true" /> Add Sales Channel
             </button>
           )}
@@ -869,8 +870,8 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
           <div style={{ color: 'var(--sv-text-strong)', fontWeight: 700 }}>No online storefronts connected</div>
         </div>
       ) : (
-        <div style={{ borderTop: '1px solid var(--sv-border)' }}>
-          {instances.map(instance => {
+        <div className={rowStyles.list}>
+          {instances.map((instance, index) => {
             const status = statusDetails(instance);
             const StatusIcon = status.icon;
             const capabilities = CAPABILITY_LABELS.filter(([key]) => instance.capabilities[key]);
@@ -879,6 +880,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
                 <SalesChannelRow
                   key={instance.channelInstanceId}
                   instance={instance}
+                  striped={index % 2 === 1}
                   capabilityCount={capabilities.length}
                   canManage={canManage}
                   testing={testingId === instance.channelInstanceId}
@@ -896,6 +898,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
                 <SalesChannelRow
                   key={instance.channelInstanceId}
                   instance={instance}
+                  striped={index % 2 === 1}
                   capabilityCount={capabilities.length}
                   canManage={canManage}
                   testing={testingId === instance.channelInstanceId}
@@ -913,6 +916,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
                 <SalesChannelRow
                   key={instance.channelInstanceId}
                   instance={instance}
+                  striped={index % 2 === 1}
                   capabilityCount={capabilities.length}
                   canManage={canManage}
                   testing={false}

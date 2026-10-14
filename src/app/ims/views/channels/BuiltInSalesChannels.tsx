@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, CheckCircle2, Clock3, Monitor, PauseCircle, Pencil, Store } from 'lucide-react';
+import { AlertCircle, Building2, CheckCircle2, Clock3, PauseCircle, Pencil, Store } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import styles from './SalesChannelRow.module.css';
@@ -73,15 +73,15 @@ export default function BuiltInSalesChannels({
   if (!overview) return <p className={styles.provider} role="status">Loading POS and B2B channels...</p>;
 
   return (
-    <div style={{ borderTop: '1px solid var(--sv-border)' }}>
+    <div className={styles.list}>
       {(['pos', 'wholesale'] as const).map(section => {
         const isPos = section === 'pos';
         const enabled = isPos ? overview.posEnabled : overview.wholesaleEnabled;
         const needsSetup = isPos && enabled && overview.posLocationCount === 0;
-        const Icon = isPos ? Monitor : Store;
+        const Icon = isPos ? Store : Building2;
         const StatusIcon = !enabled ? PauseCircle : needsSetup ? Clock3 : CheckCircle2;
         return (
-          <section key={section} className={styles.row} aria-label={isPos ? 'Point of Sale' : 'B2B Wholesale Portal'}>
+          <section key={section} className={`${styles.row}${isPos ? '' : ` ${styles.striped}`}`} aria-label={isPos ? 'Point of Sale' : 'B2B Wholesale Portal'}>
             <div className={styles.identity}>
               <div className={styles.icon}><Icon size={18} aria-hidden="true" /></div>
               <div>

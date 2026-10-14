@@ -1,9 +1,11 @@
 ---
-{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-sales-channels","ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-09-27","owner":"integrations","quickSections":["Main operations","Choose an integration","Safe retry rule"],"navigation":{"category":"integrations","label":"Understand accounting and commerce connections"}}
+{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Sales > Sales Channels / Finances > Xero Integration","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-sales-channels","ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations","Choose an integration","Safe retry rule"],"navigation":{"category":"integrations","label":"Understand accounting and commerce connections"}}
 ---
 # Xero and Shopify
 
 Xero handles supported accounting work. Shopify exchanges supported catalogue, customer, order, inventory, fulfilment, and payout information. Each integration has its own connection, mappings, statuses, and retry path.
+
+Open storefronts through **Sales > Sales Channels**, the native shop through **Sales > Online Shop**, and accounting through **Finances > Xero Integration**. There is no separate Integrations sidebar menu. Shared connections remain available from top-bar **Settings > Connections**.
 
 ## Main operations
 

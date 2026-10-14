@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, CheckCircle2, Clock3, Ellipsis, PauseCircle, Pencil, Power, Store, TestTube2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock3, Ellipsis, Globe, PauseCircle, Pencil, Power, TestTube2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import styles from './SalesChannelRow.module.css';
@@ -38,6 +38,7 @@ export default function SalesChannelRow({
   canManage,
   testing,
   activationChanging,
+  striped = false,
   onConfigure,
   onTest,
   onChangeActivation,
@@ -47,6 +48,7 @@ export default function SalesChannelRow({
   canManage: boolean;
   testing: boolean;
   activationChanging: boolean;
+  striped?: boolean;
   onConfigure: () => void;
   onTest?: () => void;
   onChangeActivation?: () => void;
@@ -76,9 +78,9 @@ export default function SalesChannelRow({
   }, [menuOpen]);
 
   return (
-    <section className={styles.row} aria-label={instance.displayName}>
+    <section className={`${styles.row}${striped ? ` ${styles.striped}` : ''}`} aria-label={instance.displayName}>
       <div className={styles.identity}>
-        <div className={styles.icon}><Store size={18} aria-hidden="true" /></div>
+        <div className={styles.icon}><Globe size={18} aria-hidden="true" /></div>
         <div>
           <div className={styles.name}>{instance.displayName}</div>
           <div className={styles.provider}>{instance.providerDisplayName}</div>

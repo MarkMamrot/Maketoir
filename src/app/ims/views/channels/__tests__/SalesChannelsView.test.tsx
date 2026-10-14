@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SalesChannelsView from '../SalesChannelsView';
+import styles from '../SalesChannelRow.module.css';
 
 const capabilities = {
   catalogue: true,
@@ -55,6 +56,7 @@ describe('SalesChannelsView', () => {
     render(<SalesChannelsView canManage />);
 
     await screen.findByText('Retail Shopify');
+    expect(screen.getByRole('button', { name: 'Add Sales Channel' }).style.background).toBe('var(--sv-action)');
     await screen.findByRole('region', { name: 'Point of Sale' });
     expect(screen.getByRole('region', { name: 'B2B Wholesale Portal' })).toBeTruthy();
     expect(screen.getAllByText('9 supported features')).toHaveLength(3);
@@ -75,5 +77,15 @@ describe('SalesChannelsView', () => {
     await screen.findByRole('region', { name: 'Point of Sale' });
     await user.click(screen.getByRole('button', { name: 'Refresh sales channels' }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/ims/settings')).toHaveLength(2));
+  });
+  it('alternates backgrounds continuously across built-in and online channels', async () => {
+    render(<SalesChannelsView canManage />);
+    const pos = await screen.findByRole('region', { name: 'Point of Sale' });
+    await screen.findByRole('region', { name: 'Retail Shopify' });
+    expect(pos.classList.contains(styles.striped)).toBe(false);
+    expect(screen.getByRole('region', { name: 'B2B Wholesale Portal' }).classList.contains(styles.striped)).toBe(true);
+    expect(screen.getByRole('region', { name: 'Retail Shopify' }).classList.contains(styles.striped)).toBe(false);
+    expect(screen.getByRole('region', { name: 'Amazon AU' }).classList.contains(styles.striped)).toBe(true);
+    expect(screen.getByRole('region', { name: 'Online Store' }).classList.contains(styles.striped)).toBe(false);
   });
 });

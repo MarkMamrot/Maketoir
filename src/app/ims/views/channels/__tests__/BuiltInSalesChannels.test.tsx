@@ -33,6 +33,7 @@ describe('BuiltInSalesChannels', () => {
     render(<BuiltInSalesChannels canManage refreshKey={0} onConfigure={onConfigure} onManageLocations={onManageLocations} />);
 
     const pos = await screen.findByRole('region', { name: 'Point of Sale' });
+    expect(pos.querySelector('svg.lucide-store')).toBeTruthy();
     expect(screen.getAllByRole('region', { name: 'Point of Sale' })).toHaveLength(1);
     expect(within(pos).getByText('2 active POS locations')).toBeTruthy();
     expect(within(pos).getByText('Enabled')).toBeTruthy();
@@ -42,6 +43,7 @@ describe('BuiltInSalesChannels', () => {
     expect(onManageLocations).toHaveBeenCalledOnce();
 
     const wholesale = screen.getByRole('region', { name: 'B2B Wholesale Portal' });
+    expect(wholesale.querySelector('svg.lucide-building-2')).toBeTruthy();
     await user.click(within(wholesale).getByRole('button', { name: 'Configure' }));
     expect(onConfigure).toHaveBeenLastCalledWith('wholesale');
     const preview = within(wholesale).getByRole('link', { name: 'Preview portal' });

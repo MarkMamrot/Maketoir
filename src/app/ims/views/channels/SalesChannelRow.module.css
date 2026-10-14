@@ -1,10 +1,20 @@
+.list {
+  container-type: inline-size;
+  border-top: 1px solid var(--sv-border);
+}
+
 .row {
   display: grid;
-  grid-template-columns: minmax(250px, 1.4fr) minmax(220px, 1fr) minmax(150px, .7fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, .7fr) 240px;
   gap: 24px;
   align-items: center;
-  padding: 18px 4px;
+  padding: 18px 12px;
   border-bottom: 1px solid var(--sv-border);
+  background: var(--sv-bg-1);
+}
+
+.striped {
+  background: var(--sv-bg-subtle);
 }
 
 .identity {
@@ -62,6 +72,7 @@
 
 .sync {
   margin-top: 7px;
+  overflow-wrap: anywhere;
 }
 
 .syncLabel {
@@ -70,6 +81,7 @@
 }
 
 .capabilities {
+  min-width: 0;
   color: var(--sv-text);
   font-weight: 650;
 }
@@ -176,9 +188,9 @@
   line-height: 1.45;
 }
 
-@media (max-width: 820px) {
+@container (max-width: 820px) {
   .row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 150px;
     gap: 14px 18px;
   }
 
@@ -194,11 +206,11 @@
   }
 }
 
-@media (max-width: 560px) {
+@container (max-width: 560px) {
   .row {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
-    padding: 16px 0;
+    padding: 16px 12px;
   }
 
   .statusCell,

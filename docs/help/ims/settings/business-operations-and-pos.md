@@ -132,7 +132,7 @@ This is the business-wide fallback for all branches. A location can choose its o
 | A brand is missing during product import | The brand has not been created | Open Brands, add it, then retry the product workflow |
 | Onboarding content does not fit at high browser zoom | The visible wizard area is shorter at higher zoom levels | Scroll the middle setup panel; the Back and continue buttons remain available below it |
 | A location has no register choices in POS | No active register exists for that location | Open Settings > Point of Sale > Registers and add or reactivate one |
-| Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Integrations > Online Shop |
+| Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Sales > Online Shop |
 | Accounting integration controls are not available | Accounting software is disabled in Business Operations | Enable Accounting software, choose the supported platform, and save before opening its connection or posting setup |
 
 ## Worked examples

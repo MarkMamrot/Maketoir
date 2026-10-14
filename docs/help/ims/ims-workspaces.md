@@ -42,7 +42,9 @@ If the full-page **Something went wrong** screen appears, select **Reload page**
 | Configure connections | Top-bar **Settings** > **Connections** | Shared account and provider connections |
 | Import upstream data or refresh sales totals | Top-bar **Settings** > **Sync & Import** | Cin7 import and sales-cache refresh; IMS remains the reporting source |
 | Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
-| Manage sales channels | **Integrations** | Shopify, connected marketplaces, and the native Online Shop |
+| Manage sales channels | **Sales > Sales Channels** | Point of Sale, B2B Wholesale Portal, Shopify, connected marketplaces, and the native Online Shop |
+
+Sales Channels and Online Shop are under **Sales**. There is no separate Integrations sidebar menu; accounting remains under **Finances > Xero Integration**, and shared connections remain in top-bar **Settings > Connections**.
 
 ## Using Help
 

@@ -25,7 +25,7 @@ The credit-note viewer separates the credit summary, credited products and total
 | POS return or exchange | The original sale in POS | POS creates and completes an internal credit note | The linked credit note for returned lines | The register's selected store-credit or refund outcome | Do not restock the POS sale and the credit note separately |
 | Native online return | The native Sales Order **Return / Credit** action | A linked credit note with **Original payment refund** | The linked credit note after payment settlement succeeds | Original store credit is restored first; any remainder goes back through Stripe | Do not issue a separate manual store credit, card refund, or stock adjustment |
 | Shopify return | Shopify's refund workflow | An externally settled Shopify credit note appears in IMS | The imported credit note when Shopify marks the line for restock | Shopify returns the customer value | Do not refund or restock the same line again in IMS |
-| Amazon seller-fulfilled return | **Integrations > Sales Channels > Sync returns**, then **Customer Credit Notes** | One unambiguous RMA and released refund create an Amazon Draft | Completing the reviewed draft, only for lines where staff select **Restock** | Amazon has already handled the customer refund | Do not issue store credit, send another refund, or select Restock without receiving sellable goods |
+| Amazon seller-fulfilled return | **Sales > Sales Channels > Sync returns**, then **Customer Credit Notes** | One unambiguous RMA and released refund create an Amazon Draft | Completing the reviewed draft, only for lines where staff select **Restock** | Amazon has already handled the customer refund | Do not issue store credit, send another refund, or select Restock without receiving sellable goods |
 
 ## Before you begin
 
@@ -72,7 +72,7 @@ The credit-note viewer separates the credit summary, credited products and total
 
 ### Review an Amazon refund draft
 
-1. In **Integrations > Sales Channels**, find the exact Amazon seller account and choose **Sync returns**. A return report may remain pending until a later synchronization.
+1. In **Sales > Sales Channels**, find the exact Amazon seller account and choose **Sync returns**. A return report may remain pending until a later synchronization.
 2. Open **Sales > Customer Credit Notes**, filter **Source** to **Amazon**, and open the Draft linked to the Amazon refund.
 3. Compare the order, RMA, quantities, and refunded total with Seller Central. Solvantis creates a draft only when one unmatched RMA and one released refund match the order.
 4. Leave **Restock** cleared for goods not received, damaged, or unsellable. Select it only for mapped sellable goods physically received at the shown location.

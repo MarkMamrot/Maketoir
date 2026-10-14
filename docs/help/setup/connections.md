@@ -20,10 +20,10 @@ Use Setup to maintain business information, team access, POS payment options, an
 | Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |
 | Invite a colleague or choose a role | Team | An invitation for User or Admin access |
 | Add or rename POS payment options | POS Settings | Payment methods shown at checkout |
-| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |
+| Use the native Solvantis Online Store | IMS Settings, then Sales > Online Shop | Native store selected and ready for storefront setup |
 | Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |
 | Connect Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
-| Connect or configure a Shopify store | IMS > Integrations > Sales Channels | One exact store with its own credentials, settings, and status |
+| Connect or configure a Shopify store | IMS > Sales > Sales Channels | One exact store with its own credentials, settings, and status |
 
 > **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.
 
@@ -68,7 +68,7 @@ Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use *
 
 1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.
 2. Install that app on the intended store.
-3. Open **IMS > Integrations > Sales Channels** and choose **Add Sales Channel > Shopify**.
+3. Open **IMS > Sales > Sales Channels** and choose **Add Sales Channel > Shopify**.
 4. Choose **Dev Dashboard**, then enter the permanent `myshopify.com` store domain, Client ID, and Client secret shown in the app's Settings area.
 5. Save the channel, choose **Test connection**, then activate the store when readiness succeeds.
 6. Choose **Configure** on that store and use **Orders & Inventory** to register or verify its required webhooks.

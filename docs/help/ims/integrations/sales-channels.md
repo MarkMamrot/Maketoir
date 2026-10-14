@@ -1,9 +1,11 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Integrations > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify","ims-business-operations-pos-settings"],"order":91,"summary":"Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"integrations","label":"Configure sales channels"}}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Sales > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify","ims-business-operations-pos-settings"],"order":91,"summary":"Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"sales","label":"Configure sales channels"}}
 ---
 # Sales Channels
 
 Sales Channels brings together Point of Sale, the B2B Wholesale Portal and each online storefront. Point of Sale appears once for the business, with its active POS location count. A business can connect multiple Amazon Seller Central accounts, while each Shopify store and the Solvantis Online Store also appears as its own channel.
+
+Open **Sales > Sales Channels** from the sidebar. The storefront icon identifies physical POS, the office-building icon identifies B2B wholesale, and the globe identifies online channels. **Add Sales Channel** uses the aqua-teal action colour.
 
 ## Main operations
 
@@ -42,7 +44,9 @@ The **Point of Sale** and **B2B Wholesale Portal** rows use existing Business Op
 
 These built-in rows are navigation summaries, not new online integrations. They do not change stock, pricing, order attribution, accounting or product publishing. They do not have external connection tests or synchronization timestamps. Staff without administrator access can use the location and preview links but do not receive a Configure action.
 
-Open **Integrations > Sales Channels**. Each compact row identifies the storefront, provider, operating state, account identity, last successful synchronization time, and number of supported features. A current safe error appears beneath the affected channel when it needs attention.
+Open **Sales > Sales Channels**. Each compact row identifies the storefront, provider, operating state, account identity, last successful synchronization time, and number of supported features. A current safe error appears beneath the affected channel when it needs attention.
+
+Rows use aligned identity, status, summary and action columns with alternating backgrounds to help track each channel across the list. On smaller screens, the same information stacks within each channel row.
 
 Administrators choose **Configure** to open the provider details where connection settings and channel workflows belong. Use the three-dot menu for the quick **Test connection** and **Activate** or **Deactivate** commands. Other IMS users choose **View details** and can review the same information without changing it.
 
@@ -103,7 +107,7 @@ Exact-instance Shopify credentials control connection testing, channel product p
 
 Inventory writes set Shopify's absolute available quantity rather than adding or subtracting a delta. Products with **Tracks inventory** off do not receive quantity updates. Price and variant updates use only the selected or mapped storefront identity and do not publish, activate, draft, or otherwise change product publication state.
 
-Under **Integrations > Sales Channels**, choose **Configure** for the intended store. Open **Orders** to change order settings or import orders, and open **Connection** to check or register webhooks. **Register webhooks via API** creates or repairs that store's supported order, fulfilment, refund, return-observation, and Shopify Payments payout subscriptions using its exact callback URL. Client-credential connections use the saved app secret for delivery verification. For a legacy Admin API token connection, enter the **API secret key** of the same Shopify app that issued that token as the webhook signing secret. Do not use the Admin API access token or the separate signing secret for webhooks created manually under Shopify's Notifications settings. The secret is encrypted and is not displayed later.
+Under **Sales > Sales Channels**, choose **Configure** for the intended store. Open **Orders** to change order settings or import orders, and open **Connection** to check or register webhooks. **Register webhooks via API** creates or repairs that store's supported order, fulfilment, refund, return-observation, and Shopify Payments payout subscriptions using its exact callback URL. Client-credential connections use the saved app secret for delivery verification. For a legacy Admin API token connection, enter the **API secret key** of the same Shopify app that issued that token as the webhook signing secret. Do not use the Admin API access token or the separate signing secret for webhooks created manually under Shopify's Notifications settings. The secret is encrypted and is not displayed later.
 
 The same storefront choice owns its order start date, online-orders location, order-sync switch, and automatic daily Xero batch switch. When only one active Shopify store exists it is selected automatically; when more than one exists, choose the store before changing settings or running an action. Each store creates separate daily Xero batches, gateway mappings and payout records.
 

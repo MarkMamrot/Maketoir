@@ -153,6 +153,8 @@ const NAV = [
     { id: 'credit-notes',     label: 'Customer Credit Notes' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
+    { id: 'sales-channels',   label: 'Sales Channels' },
+    { id: 'online-shop',      label: 'Online Shop' },
   ]},
   { id: '__purchasing',    label: 'Purchasing',       section: 'purchasing', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
@@ -206,10 +208,6 @@ const NAV = [
     { id: 'report-bookkeeper-audit', label: 'Accounting Audit' },
     { id: 'cash-banking',            label: 'Cash Banking' },
     { id: 'xero',                    label: 'Xero Integration' },
-  ]},
-  { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
-    { id: 'sales-channels', label: 'Sales Channels' },
-    { id: 'online-shop',    label: 'Online Shop' },
   ]},
 ] as const;
 
@@ -674,7 +672,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string; features?: BusinessFeatureFlags }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, __finances: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __reports: false, __automation: false, __finances: false });
   const [nestedOpen, setNestedOpen] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
@@ -753,7 +751,6 @@ function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; on
     __reports:          'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     __automation:      'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z',
     __finances:         'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
-    __integrations:     'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     'sales-channels':   'M3 7h18M5 7l1-4h12l1 4M5 7v13h14V7M9 20v-6h6v6',
     xero:               'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
     settings:           'M12 15a3 3 0 100-6 3 3 0 000 6z',
@@ -23169,7 +23166,7 @@ export default function ImsPage() {
               onClick={() => { setViewSafe('xero'); }}
               style={{ background: 'none', border: '1px solid rgba(251,191,36,.4)', borderRadius: 4, cursor: 'pointer', padding: '2px 10px', fontSize: 11, color: '#fbbf24' }}
             >
-              View in Integrations →
+              View in Finances →
             </button>
             <button onClick={() => setXeroQueuedCount(0)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
@@ -27847,7 +27844,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
           <div style={{ padding: 32, maxWidth: 980 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Access</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Xero configuration lives in Integrations -&gt; Xero. This panel controls advisor permissions and quick links.
+              Xero configuration lives in Finances -&gt; Xero Integration. This panel controls advisor permissions and quick links.
             </p>
 
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
@@ -27915,7 +27912,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
           <div style={{ padding: 32, maxWidth: 820 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Integrations -&gt; Shopify.
+              Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Sales -&gt; Sales Channels -&gt; the selected Shopify store.
             </p>
 
             <div style={{ marginBottom: 8 }}>
