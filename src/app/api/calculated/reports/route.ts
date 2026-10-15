@@ -18,6 +18,7 @@ import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { CalcReportsRepository, YearlyRevenueRepository } from '@/lib/db/CalcReportsRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 
 // -- helpers -------------------------------------------------------------------
 
@@ -358,6 +359,7 @@ type OnlinePerformance = { conversionRate: number | null; totalSessions: number;
 
 async function calcOnlinePerformance(databaseId: string): Promise<OnlinePerformance> {
   const result: OnlinePerformance = { conversionRate: null, totalSessions: 0, totalConversions: 0 };
+  if (!await isOptionalIntegrationEnabled(databaseId, 'google')) return result;
   try {
     const ga4PropertyId = await ConfigRepository.get(databaseId, 'GA4PropertyId');
     if (ga4PropertyId) {

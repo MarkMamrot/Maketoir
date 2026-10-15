@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveHelpContext } from '../resolveHelpContext';
 import type { HelpProduct } from '../types';
+import { IMS_SETTINGS_MENU, type SettingsItem } from '@/lib/navigation/imsSettingsNavigation';
 
 const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProduct; ids: string[] }> = [
   {
@@ -36,6 +37,28 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
 ];
 
 describe('canonical Help context coverage', () => {
+  it('maps every settings leaf to current contextual guidance', () => {
+    const check = (items: readonly SettingsItem[], superAdmin = false) => {
+      for (const item of items) {
+        const privileged = superAdmin || Boolean(item.superAdminOnly);
+        if (item.children) check(item.children, privileged);
+        else expect(resolveHelpContext({ audience: 'ims', product: 'ims', context: `settings-${item.id}`, userTier: privileged ? 'SuperAdmin' : 'Admin' }), item.id)
+          .toEqual(expect.objectContaining({ exact: true }));
+      }
+    };
+    check(IMS_SETTINGS_MENU);
+  });
+  it('opens targeted Amazon cleanup Help only for SuperAdmins', () => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'setup', context: 'amazon-pii-disposal', userTier: 'SuperAdmin' });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'setup-security-compliance' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Amazon identifying-field cleanup');
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'amazon-pii-disposal', userTier: 'Admin' })?.exact).toBe(false);
+  });
+  it('opens channel delivery settings for ordinary IMS users at the owning shipping section', () => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'ims', context: 'settings-delivery-tracking', userTier: 'Admin' });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'ims-shipping-settings' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Delivery tracking by online channel');
+  });
   it('maps security policies only for SuperAdmins', () => {
     expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'security-compliance', userTier: 'SuperAdmin' }))
       .toMatchObject({ exact: true, topic: { id: 'setup-security-compliance' } });

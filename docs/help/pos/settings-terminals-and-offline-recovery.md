@@ -1,5 +1,5 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Recover queued sales","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage POS settings, pair Zeller, print saved ordinary receipts without waiting for upload, and recover queued or rejected sales safely.","lastReviewed":"2026-10-14","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Configure terminals and recover offline sales","subgroup":"Devices & recovery"}}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-petty-cash","pos-end-of-day"],"contexts":["pos-settings","pos-offline","pos-support-tickets"],"contextSections":{"pos-settings":"Step-by-step","pos-offline":"Recover queued sales","pos-support-tickets":"Contact Support"},"order":50,"summary":"Manage POS settings and device sounds, prepare and pair Zeller, print saved ordinary receipts without waiting for upload, and recover queued or rejected sales safely.","lastReviewed":"2026-10-15","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Configure terminals and recover offline sales","subgroup":"Devices & recovery"}}
 ---
 # Settings, Terminals, and Offline Recovery
 
@@ -11,6 +11,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 - Choose the current location's default product view, whether this device groups the catalogue by product or shows every variant, and where its cart appears.
 - Choose whether the current location can sell against recorded incoming branch-transfer stock.
 - Turn Training Mode on or off for the current POS device.
+- Mute Solvantis chat and scan-error sounds on this device without hiding visual alerts.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
 - Use the paired terminal for supported card-present refunds as well as payments; a declined or cancelled refund does not complete the POS refund.
 - Continue supported ordinary sales from the device's persisted product catalogue while offline.
@@ -71,6 +72,14 @@ Support tickets require an internet connection. If submission fails, the descrip
 
 The **In Stock** button beside search remains available during selling as a temporary filter. While selected, it limits both the product grid and typed search suggestions to products currently available to sell at that location. It does not replace the saved location override or IMS business default.
 
+### Control POS sounds
+
+Open **POS Settings > Misc** and turn on **Mute POS sounds on this device** when the computer also plays shop music. This takes effect immediately and is remembered by this browser; it does not require saving the location settings. Chat unread badges, scan-error messages, and other visual warnings remain available. Terminal sounds are controlled separately on the Zeller terminal.
+
+With sounds enabled, **Test POS sound** plays a short alert and can help enable browser audio permission. Ordinary clicks and keyboard input do not open an audio stream. Solvantis reuses its alert audio during the signed-in device session and suspends it between alerts.
+
+POS is a browser application, so it cannot choose native operating-system alert sounds or guarantee that a Bluetooth speaker will mix sounds without interrupting music. Device mute is the reliable way to stop Solvantis-generated tones. If sound interruptions continue while muted, compare wired or built-in speakers and check the computer's sound settings.
+
 ### Practise with Training Mode
 
 1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.
@@ -90,6 +99,10 @@ Training Mode does not create a live sale or affect inventory, Reports, End of D
 4. Select the terminal and complete pairing. Pairing persists across sessions.
 5. Leave **Terminal active this session** on when configured card methods should route to Zeller.
 6. At payment, wait for terminal approval. Use **manual entry instead** only when the business has separately completed or authorised the payment.
+
+POS prepares the configured terminal connection in the background and keeps it loaded while an ordinary receipt is displayed. A recent successful readiness check can be used for the next payment; an expired check or a changed connection must be checked again. **Checking terminal readiness** means payment has not yet been sent; **Waiting for terminal** means staff must wait for the terminal outcome. Do not retry a charge whose outcome is unconfirmed.
+
+To report a delay, note the location, approximate time, whether the wait happened before the amount appeared on the terminal or after card/PIN entry, and whether Spotify actually paused or only lost sound. Browser timing diagnostics help distinguish preparation, terminal prompt signalling, and browser stalls; total result time includes the customer's interaction and is not by itself evidence of a slow payment start.
 
 ## Recover queued sales
 

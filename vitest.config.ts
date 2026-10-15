@@ -8,6 +8,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    maxWorkers: 4,
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
   resolve: {

@@ -16,7 +16,7 @@ import {
   getAuthRateLimit,
   recordAuthFailure,
 } from '@/lib/auth/authRateLimit';
-import { completeAdminLogin } from '@/lib/auth/adminLoginCompletion';
+import { completeAdminLogin, PasswordRenewalRequiredError } from '@/lib/auth/adminLoginCompletion';
 import { resolveLoginMembership } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -106,6 +106,9 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ success: true, nextRoute: completed.nextRoute });
   } catch (error) {
+    if (error instanceof PasswordRenewalRequiredError) {
+      return NextResponse.json({ success: false, error: error.message, code: 'password_renewal_required', nextRoute: '/forgot-password' }, { status: 403 });
+    }
     await reportRuntimeIssue({
       businessId,
       source: 'auth.mfa',

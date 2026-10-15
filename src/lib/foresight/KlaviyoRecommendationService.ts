@@ -2,6 +2,7 @@ import type { KlaviyoFlowRecord } from '@/services/KlaviyoService';
 import { MarketingDataRepository, type MarketingDataRow } from '@/lib/db/MarketingDataRepository';
 import { ForesightIngestionRepository } from './repositories/ForesightIngestionRepository';
 import { ForesightRepository } from './repositories/ForesightRepository';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import {
   evaluateKlaviyoLifecycleRules,
   KLAVIYO_LIFECYCLE_FORMULA_VERSION,
@@ -48,6 +49,16 @@ function normalizeFlow(row: MarketingDataRow): KlaviyoFlowRecord {
 
 export const KlaviyoRecommendationService = {
   async evaluateLifecycle(businessId: string, throughDate: string) {
+    if (!await isOptionalIntegrationEnabled(businessId, 'klaviyo')) {
+      return {
+        evaluatedThrough: throughDate,
+        skipped: true,
+        skipReason: 'integration_disabled',
+        recommendationCount: 0,
+        expiredCount: 0,
+        recommendations: [],
+      };
+    }
     const snapshot = await ForesightIngestionRepository.getLatestSyncTabOutcome(
       businessId,
       'klaviyo',

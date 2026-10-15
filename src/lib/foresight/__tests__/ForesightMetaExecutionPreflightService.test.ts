@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/ims/integrationAvailability', () => ({ isOptionalIntegrationEnabled: vi.fn().mockResolvedValue(true) }));
 
 const { mockGetRecommendation, mockGetConnection, mockDecrypt, mockRead, mockConstructor, mockNotificationEmail } = vi.hoisted(() => ({
   mockGetRecommendation: vi.fn(), mockGetConnection: vi.fn(), mockDecrypt: vi.fn(),

@@ -108,7 +108,8 @@ export async function POST(req: Request) {
     }
     const userId = existing?.id ?? await UsersRepository.create({
         email,
-        password: setPasswordByEmail ? randomBytes(48).toString('base64url') : password,
+        password: setPasswordByEmail ? `Aa1!${randomBytes(48).toString('base64url')}` : password,
+        requirePasswordSetup: Boolean(setPasswordByEmail),
         username: username ?? undefined,
         name: name ?? undefined,
         company: company ?? undefined,

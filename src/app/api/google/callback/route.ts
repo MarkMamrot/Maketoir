@@ -5,6 +5,7 @@ import { encrypt } from '@/lib/encryption';
 import { verifyGoogleMarketingOAuthState } from '@/lib/googleMarketingOAuth';
 import { getAdminSession } from '@/lib/sessionUtils';
 import { exchangeGoogleMarketingCode } from '@/services/GoogleMarketingOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 function appUrl(): string {
   const raw = process.env.APP_URL ?? 'solvantis.com.au';
@@ -12,26 +13,28 @@ function appUrl(): string {
 }
 
 export async function GET(request: Request) {
-  const returnUrl = `${appUrl()}/setup`;
+  const returnUrl = `${appUrl()}/ims`;
+  const settingsAnchor = '#settings-connection-google';
   const { searchParams } = new URL(request.url);
   const state = verifyGoogleMarketingOAuthState(searchParams.get('state') ?? '');
   const session = getAdminSession();
   const nonce = cookies().get('google_marketing_oauth_nonce')?.value;
   const invalid = !session || !state || state.userId !== session.userId || state.businessId !== session.businessId || state.nonce !== nonce;
   if (invalid) {
-    const redirect = NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent('Google authorisation session expired or was invalid. Try connecting again.')}`);
+    const redirect = NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent('Google authorisation session expired or was invalid. Try connecting again.')}${settingsAnchor}`);
     redirect.cookies.delete('google_marketing_oauth_nonce');
     return redirect;
   }
   const error = searchParams.get('error');
-  if (error) return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent(error === 'access_denied' ? 'Google access was denied.' : `Google returned: ${error}`)}`);
+  if (error) return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent(error === 'access_denied' ? 'Google access was denied.' : `Google returned: ${error}`)}${settingsAnchor}`);
   const code = searchParams.get('code');
-  if (!code) return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent('Google did not return an authorisation code.')}`);
+  if (!code) return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent('Google did not return an authorisation code.')}${settingsAnchor}`);
 
   try {
+    await assertOptionalIntegrationEnabled(state.businessId, 'google');
     const tokens = await exchangeGoogleMarketingCode(code, `${appUrl()}/api/google/callback`);
     await ConnectionsRepository.upsert(state.businessId, { google_ads_refresh_token: encrypt(tokens.refreshToken) });
-    const redirect = NextResponse.redirect(`${returnUrl}?googleSelect=1`);
+    const redirect = NextResponse.redirect(`${returnUrl}?googleSelect=1${settingsAnchor}`);
     redirect.cookies.delete('google_marketing_oauth_nonce');
     redirect.cookies.set('google_marketing_pending', encrypt(tokens.refreshToken), {
       httpOnly: true,
@@ -42,6 +45,11 @@ export async function GET(request: Request) {
     });
     return redirect;
   } catch (error) {
-    return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent(error instanceof Error ? error.message : 'Google OAuth exchange failed.')}`);
+    const message = isIntegrationDisabledError(error)
+      ? 'Google integration is disabled. Enable it before connecting.'
+      : error instanceof Error ? error.message : 'Google OAuth exchange failed.';
+    const redirect = NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent(message)}${settingsAnchor}`);
+    redirect.cookies.delete('google_marketing_oauth_nonce');
+    return redirect;
   }
 }

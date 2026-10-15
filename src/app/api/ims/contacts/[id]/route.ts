@@ -6,6 +6,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { validateContactChannels } from '@/lib/ims/contactDataQuality';
 import { normalizeWholesaleBrands } from '@/lib/wholesale/wholesaleAccess';
 import { EarlyPaymentDiscountRulesRepository } from '@/lib/ims/earlyPaymentDiscountRules';
+import { isAmazonPiiWriteConflict } from '@/lib/securityCompliance/amazonPiiDisposal';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -61,6 +62,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, shopifySync });
   } catch (e: any) {
+    if (isAmazonPiiWriteConflict(e)) return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

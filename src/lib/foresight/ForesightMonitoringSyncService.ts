@@ -3,6 +3,10 @@ import { decrypt } from '@/lib/encryption';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { MetaAdsReadService } from '@/services/MetaAdsReadService';
+import {
+  getOptionalIntegrationAvailability,
+  type IntegrationAvailabilityMap,
+} from '@/lib/ims/integrationAvailability';
 import { normalizeGoogleCreativeObservations, normalizeMetaCreativeObservations } from './creative/creativeObservations';
 import {
   aggregateGoogleAdsDaily,
@@ -62,10 +66,27 @@ export const ForesightMonitoringSyncService = {
     }
 
     const startDate = addDays(throughDate, -13);
-    const connection = await ConnectionsRepository.get(businessId);
+    let connection: Awaited<ReturnType<typeof ConnectionsRepository.get>>;
+    let availability: IntegrationAvailabilityMap;
+    try {
+      [connection, availability] = await Promise.all([
+        ConnectionsRepository.get(businessId),
+        getOptionalIntegrationAvailability(businessId),
+      ]);
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'ForesightMonitoringSyncService',
+        operation: 'check_provider_availability',
+        title: 'Paid media monitoring availability could not be checked',
+        error,
+        context: { throughDate },
+      }).catch(() => null);
+      throw error;
+    }
     const requestedSources: Array<'google_ads' | 'meta_ads' | 'commerce'> = ['commerce'];
-    if (connection?.google_ads_customer_id && connection.google_ads_refresh_token) requestedSources.unshift('google_ads');
-    if (connection?.meta_ad_account_id && connection.meta_access_token) requestedSources.splice(requestedSources.length - 1, 0, 'meta_ads');
+    if (availability.google.enabled && connection?.google_ads_customer_id && connection.google_ads_refresh_token) requestedSources.unshift('google_ads');
+    if (availability.meta.enabled && connection?.meta_ad_account_id && connection.meta_access_token) requestedSources.splice(requestedSources.length - 1, 0, 'meta_ads');
     const runId = await ForesightIngestionRepository.startSyncRun(businessId, requestedSources, startDate, throughDate, null);
     const results: SourceResult[] = [];
 

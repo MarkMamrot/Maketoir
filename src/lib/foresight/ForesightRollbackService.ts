@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { normalizeCampaignSetting } from './ForesightExecutionPreflightService';
 import { ForesightRollbackPreflightService } from './ForesightRollbackPreflightService';
@@ -151,6 +152,7 @@ export function createForesightRollbackService(dependencies: RollbackDependencie
       proposalHash: string;
       confirmationFingerprint: string;
     }): Promise<ForesightRollbackResult> {
+      await assertOptionalIntegrationEnabled(input.businessId, 'google');
       const key = idempotencyKey(input);
       const existing = await dependencies.findExecution(input.businessId, key);
       if (existing && existing.state !== 'in_progress') {

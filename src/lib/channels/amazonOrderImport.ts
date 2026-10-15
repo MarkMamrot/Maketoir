@@ -1,4 +1,5 @@
 import { normalizeAmazonOrder } from '@/lib/channels/amazonOrderNormalization';
+import { isAmazonOrderPiiCleared } from '@/lib/securityCompliance/amazonPiiSuppression';
 import type { AmazonOrder, AmazonOrderItem } from '@/lib/channels/amazonSpApi';
 import { getOrCreateOnlineCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
@@ -89,6 +90,7 @@ export async function importAmazonOrder(input: {
   );
   const existing = existingRows[0];
   if (existing) {
+    if (await isAmazonOrderPiiCleared(input.businessId, existing.id)) normalized.address = {};
     await imsExecute(
       `UPDATE ims_sales_orders
           SET financial_status = 'paid', payment_gateway = ?,

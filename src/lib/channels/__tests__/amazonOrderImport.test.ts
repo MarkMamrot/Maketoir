@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), execute: vi.fn(), changeStatus: vi.fn(), customer: vi.fn(), fallback: vi.fn(),
-  fulfil: vi.fn(),
+  fulfil: vi.fn(), cleared: vi.fn(),
   begin: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), connectionExecute: vi.fn(),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -14,6 +14,7 @@ vi.mock('@/services/IMSMySQLService', () => ({
   }) }),
 }));
 vi.mock('@/lib/ims/ImsRepository', () => ({ ImsSORepo: { changeStatus: mocks.changeStatus } }));
+vi.mock('@/lib/securityCompliance/amazonPiiSuppression', () => ({ isAmazonOrderPiiCleared: mocks.cleared }));
 vi.mock('@/lib/ims/orderResolution/customerFulfilment', () => ({ fulfilSalesOrderPartial: mocks.fulfil }));
 vi.mock('@/lib/ims/shopifyOrderCustomer', () => ({ getOrCreateOnlineCustomerId: mocks.customer }));
 vi.mock('@/lib/shopifyFallbackVariant', () => ({ getOrCreateOnlineFallbackVariantId: mocks.fallback }));
@@ -33,6 +34,7 @@ const items = [{
 describe('importAmazonOrder', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.cleared.mockResolvedValue(false);
     mocks.execute.mockResolvedValue({ affectedRows: 1 });
     mocks.changeStatus.mockResolvedValue(undefined);
     mocks.fulfil.mockResolvedValue({ status: 'partially_fulfilled' });
@@ -60,6 +62,19 @@ describe('importAmazonOrder', () => {
     })).resolves.toEqual({ outcome: 'skipped', salesOrderId: null });
     expect(mocks.customer).not.toHaveBeenCalled();
     expect(mocks.changeStatus).not.toHaveBeenCalled();
+  });
+
+  it('updates operational status without reimporting cleared identifying fields', async () => {
+    mocks.query.mockResolvedValueOnce([{ id: 44, status: 'fulfilled' }]);
+    mocks.cleared.mockResolvedValue(true);
+    await importAmazonOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-1', locationId: 7,
+      order: { ...order, ShippingAddress: { Name: 'Jane', AddressLine1: 'Private Street', PostalCode: '2000' } }, items,
+    });
+    expect(mocks.cleared).toHaveBeenCalledWith('business-1', 44);
+    const values = mocks.execute.mock.calls[0][1];
+    expect(values.slice(1, 8)).toEqual([null, null, null, null, null, null, null]);
+    expect(JSON.stringify(values)).not.toContain('Private');
   });
 
   it('creates a tax-inclusive paid order and uses the non-stock fallback for an unmapped SKU', async () => {

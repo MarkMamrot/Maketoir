@@ -13,7 +13,7 @@ Use Layby mode for a new layby and **More > Laybys** for its later payments, col
 - Final payment defaults to collection; clear **Collect when fully paid** to keep goods reserved for later collection.
 - Use **Collect** only when the balance is fully paid.
 - Cancel uncollected goods with the exact refund due and release their reservation.
-- Set the branch cancellation percentage in **IMS > Settings > Point of Sale > Orders**. New laybys retain the rate agreed when opened; the default is 0%.
+- Set the branch cancellation percentage in **IMS > Settings > Point of Sale > Layby cancellation fees**. New laybys retain the rate agreed when opened; the default is 0%.
 - Retry a saved deposit or action after a lost response without charging or refunding again.
 
 ## At a glance

@@ -36,6 +36,7 @@ import {
 } from '@/lib/ims/builds/buildFromSalePolicy';
 import { INVENTORY_COST_METHOD_SETTING_KEY } from '@/lib/ims/costing/inventoryCostSwitch';
 import { ADVISOR_XERO_SYNC_SETTING } from '@/lib/xero/advisorSyncAccess';
+import { DELIVERY_TRACKING_CHANNELS_KEY } from '@/lib/ims/shipping/deliveryTrackingSettingsRepository';
 
 const DEPRECATED_SHOPIFY_SETTING_KEYS = new Set([
   'shopify_order_sync_enabled',
@@ -50,7 +51,7 @@ const DEPRECATED_SHOPIFY_SETTING_KEYS = new Set([
   'shopify_xero_auto_sync_enabled',
 ]);
 
-/** GET /api/ims/settings — returns all settings for the business as { key: value } */
+/** GET /api/ims/settings — returns general settings, excluding workflow-owned delivery preferences. */
 export async function GET() {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -73,7 +74,9 @@ export async function GET() {
       getOnlineChannelCapabilities(businessId),
     ]);
     const settings: Record<string, string> = {};
-    for (const row of rows) settings[row.key] = row.value ?? '';
+    for (const row of rows) {
+      if (row.key.trim().toLowerCase() !== DELIVERY_TRACKING_CHANNELS_KEY) settings[row.key] = row.value ?? '';
+    }
     settings.business_timezone ||= DEFAULT_BUSINESS_TIME_ZONE;
     settings[LOYALTY_SETTING_KEYS.enabled] ??= DEFAULT_LOYALTY_SETTINGS.enabled ? '1' : '0';
     settings[LOYALTY_SETTING_KEYS.earnRate] ??= String(DEFAULT_LOYALTY_SETTINGS.earnRate);
@@ -133,6 +136,13 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : onlineChannels ? {} : body);
+
+    if (Object.keys(pairs).some(key => key.trim().toLowerCase() === DELIVERY_TRACKING_CHANNELS_KEY)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Use the delivery tracking switches in Settings > Shipping. Reload General Settings before saving older drafts.',
+      }, { status: 400 });
+    }
 
     if (pairs[ADVISOR_XERO_SYNC_SETTING] !== undefined) {
       if (!['Admin', 'SuperAdmin'].includes(session.tier)) {

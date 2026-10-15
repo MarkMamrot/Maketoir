@@ -30,7 +30,7 @@ Use Product Builds to convert stocked components into finished products at one l
 
 ## Before you begin
 
-- [ ] Enable **Use Builds** under **Settings > General > Inventory**.
+- [ ] Enable **Use Builds** under **Settings > Business & Team > Business operations > Inventory**.
 - [ ] Edit each finished product that will be assembled and enable **Use Builds** on that product.
 - [ ] Create and save the finished product and every component as active tracked-stock variants.
 - [ ] Check that all components are held at the location where the build will occur.

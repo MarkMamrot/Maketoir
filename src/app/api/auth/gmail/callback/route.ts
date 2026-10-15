@@ -10,6 +10,7 @@ import { encrypt, decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getAdminSession } from '@/lib/sessionUtils';
 import { verifyGmailOAuthState } from '@/lib/customer-service/gmailOAuthState';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 const raw = process.env.APP_URL ?? 'solvantis.com.au';
 const APP_URL = /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`;
@@ -19,13 +20,14 @@ export async function GET(req: Request) {
   const code       = searchParams.get('code');
   const stateValue = searchParams.get('state') ?? '';
   const error      = searchParams.get('error');
-  const returnUrl  = `${APP_URL}/setup`;
+  const returnUrl  = `${APP_URL}/ims`;
+  const settingsAnchor = '#settings-connection-gmail';
 
   const session = getAdminSession();
   const state = verifyGmailOAuthState(stateValue);
   const nonce = cookies().get('gmail_oauth_nonce')?.value;
   if (!session || !state || state.userId !== session.userId || state.businessId !== session.businessId || state.nonce !== nonce) {
-    const redirect = NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('Gmail authorisation session expired or was invalid. Try connecting again.')}`);
+    const redirect = NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('Gmail authorisation session expired or was invalid. Try connecting again.')}${settingsAnchor}`);
     redirect.cookies.delete('gmail_oauth_nonce');
     return redirect;
   }
@@ -33,10 +35,20 @@ export async function GET(req: Request) {
 
   if (error) {
     const msg = error === 'access_denied' ? 'Gmail access was denied.' : `Google returned: ${error}`;
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(msg)}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(msg)}${settingsAnchor}`);
   }
   if (!code) {
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No authorisation code returned from Google.')}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No authorisation code returned from Google.')}${settingsAnchor}`);
+  }
+  try {
+    await assertOptionalIntegrationEnabled(businessId, 'gmail');
+  } catch (error) {
+    const message = isIntegrationDisabledError(error)
+      ? 'Gmail is disabled. Enable it before connecting.'
+      : 'Gmail integration availability is not ready.';
+    const redirect = NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(message)}${settingsAnchor}`);
+    redirect.cookies.delete('gmail_oauth_nonce');
+    return redirect;
   }
 
   // Load the business's own OAuth credentials.
@@ -47,7 +59,7 @@ export async function GET(req: Request) {
   try { clientSecret = encSecret ? decrypt(encSecret) : ''; } catch { clientSecret = encSecret; }
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('OAuth credentials not found for this business. Save your Client ID and Secret first.')}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('OAuth credentials not found for this business. Save your Client ID and Secret first.')}${settingsAnchor}`);
   }
 
   const redirectUri = `${APP_URL}/api/auth/gmail/callback`;
@@ -79,11 +91,11 @@ export async function GET(req: Request) {
     );
 
     const redirect = NextResponse.redirect(
-      `${returnUrl}?gmailSuccess=1&gmailEmail=${encodeURIComponent(email)}&businessId=${encodeURIComponent(businessId)}`,
+      `${returnUrl}?gmailSuccess=1&gmailEmail=${encodeURIComponent(email)}&businessId=${encodeURIComponent(businessId)}${settingsAnchor}`,
     );
     redirect.cookies.delete('gmail_oauth_nonce');
     return redirect;
   } catch (e: any) {
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(e.message ?? 'OAuth exchange failed')}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(e.message ?? 'OAuth exchange failed')}${settingsAnchor}`);
   }
 }

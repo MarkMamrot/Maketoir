@@ -150,7 +150,7 @@ describe('resolveHelpContext', () => {
 
   it('allows the separate platform branch and exact contexts only for SuperAdmins', () => {
     const library = listHelpLibraryTopics('ims', 'ims', undefined, 'SuperAdmin');
-    expect(library.filter(topic => topic.navigation.category === 'platform')).toHaveLength(5);
+    expect(library.filter(topic => topic.navigation.category === 'platform')).toHaveLength(6);
     expect(getHelpTopic('setup-cron-jobs', 'ims', undefined, 'SuperAdmin')?.id).toBe('setup-cron-jobs');
     expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'cron-jobs', userTier: 'SuperAdmin' })?.exact).toBe(true);
   });

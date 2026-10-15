@@ -1,0 +1,74 @@
+[
+  {
+    "name": "trg_amazon_pii_order_update",
+    "table": "ims_sales_orders",
+    "event": "UPDATE",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d WHERE d.business_id = OLD.business_id AND d.so_id = OLD.id LOCK IN SHARE MODE) AND (NOT (NEW.business_id <=> OLD.business_id) OR NOT (NEW.customer_id <=> OLD.customer_id) OR NOT (NEW.sales_channel <=> OLD.sales_channel) OR NOT (NEW.channel_instance_id <=> OLD.channel_instance_id) OR NOT (NEW.external_order_id <=> OLD.external_order_id) OR NULLIF(TRIM(NEW.delivery_address), '') IS NOT NULL OR NULLIF(TRIM(NEW.delivery_address2), '') IS NOT NULL OR NULLIF(TRIM(NEW.delivery_suburb), '') IS NOT NULL OR NULLIF(TRIM(NEW.delivery_city), '') IS NOT NULL OR NULLIF(TRIM(NEW.delivery_state), '') IS NOT NULL OR NULLIF(TRIM(NEW.delivery_postcode), '') IS NOT NULL OR NULLIF(TRIM(NEW.delivery_country), '') IS NOT NULL) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Amazon buyer fields were cleared and cannot be restored'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_order_insert",
+    "table": "ims_sales_orders",
+    "event": "INSERT",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d WHERE d.business_id = NEW.business_id AND d.channel_instance_id = NEW.channel_instance_id AND d.external_order_id = NEW.external_order_id LOCK IN SHARE MODE) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A cleared Amazon order cannot be recreated'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_order_delete",
+    "table": "ims_sales_orders",
+    "event": "DELETE",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d WHERE d.business_id = OLD.business_id AND d.so_id = OLD.id LOCK IN SHARE MODE) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Retain the cleared Amazon order and suppression reference'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_contact_update",
+    "table": "ims_contacts",
+    "event": "UPDATE",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d WHERE d.business_id = OLD.business_id AND d.protected_contact_id = OLD.id LOCK IN SHARE MODE) AND (NOT (NEW.business_id <=> OLD.business_id) OR NOT (NEW.id <=> OLD.id) OR NEW.name NOT IN ('Amazon Customer', 'Online Customer') OR NULLIF(TRIM(NEW.first_name), '') IS NOT NULL OR NULLIF(TRIM(NEW.last_name), '') IS NOT NULL OR NULLIF(TRIM(NEW.company), '') IS NOT NULL OR NULLIF(TRIM(NEW.email), '') IS NOT NULL OR NULLIF(TRIM(NEW.phone), '') IS NOT NULL OR NULLIF(TRIM(NEW.mobile), '') IS NOT NULL OR NULLIF(TRIM(NEW.address), '') IS NOT NULL OR NULLIF(TRIM(NEW.address2), '') IS NOT NULL OR NULLIF(TRIM(NEW.suburb), '') IS NOT NULL OR NULLIF(TRIM(NEW.city), '') IS NOT NULL OR NULLIF(TRIM(NEW.state), '') IS NOT NULL OR NULLIF(TRIM(NEW.postcode), '') IS NOT NULL OR NOT (NEW.country <=> OLD.country) OR NEW.date_of_birth IS NOT NULL) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Amazon customer identity was cleared and cannot be restored'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_shipment_insert",
+    "table": "ims_shipping_shipments",
+    "event": "INSERT",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d WHERE d.business_id = NEW.business_id AND d.so_id = NEW.so_id LOCK IN SHARE MODE) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A cleared Amazon order cannot create new recipient copies'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_shipment_update",
+    "table": "ims_shipping_shipments",
+    "event": "UPDATE",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d WHERE d.business_id = OLD.business_id AND d.so_id = OLD.so_id LOCK IN SHARE MODE) AND (NOT (NEW.business_id <=> OLD.business_id) OR NOT (NEW.so_id <=> OLD.so_id) OR NOT (NEW.recipient_json <=> OLD.recipient_json)) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Amazon shipment recipient fields were cleared and cannot be restored'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_amendment_insert",
+    "table": "ims_shipping_amendments",
+    "event": "INSERT",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d JOIN ims_shipping_shipments s ON s.so_id = d.so_id AND s.business_id = d.business_id WHERE s.business_id = NEW.business_id AND s.id = NEW.shipment_id LOCK IN SHARE MODE) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A cleared Amazon shipment cannot create new amendment copies'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_amendment_update",
+    "table": "ims_shipping_amendments",
+    "event": "UPDATE",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d JOIN ims_shipping_shipments s ON s.so_id = d.so_id AND s.business_id = d.business_id WHERE s.business_id = OLD.business_id AND s.id = OLD.shipment_id LOCK IN SHARE MODE) AND (NOT (NEW.shipment_id <=> OLD.shipment_id) OR NOT (NEW.business_id <=> OLD.business_id) OR NOT (NEW.previous_json <=> OLD.previous_json) OR NOT (NEW.desired_json <=> OLD.desired_json) OR NOT (NEW.result_json <=> OLD.result_json)) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Amazon amendment buyer fields were cleared and cannot be restored'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_label_insert",
+    "table": "ims_shipping_labels",
+    "event": "INSERT",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d JOIN ims_shipping_shipments s ON s.so_id = d.so_id AND s.business_id = d.business_id WHERE s.business_id = NEW.business_id AND s.id = NEW.shipment_id LOCK IN SHARE MODE) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Labels containing cleared Amazon buyer details cannot be regenerated'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_label_update",
+    "table": "ims_shipping_labels",
+    "event": "UPDATE",
+    "body": "BEGIN IF EXISTS (SELECT 1 FROM ims_amazon_pii_disposals d JOIN ims_shipping_shipments s ON s.so_id = d.so_id AND s.business_id = d.business_id WHERE s.business_id = OLD.business_id AND s.id = OLD.shipment_id LOCK IN SHARE MODE) AND (NEW.label_url IS NOT NULL OR NOT (NEW.business_id <=> OLD.business_id) OR NOT (NEW.shipment_id <=> OLD.shipment_id)) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Old Amazon label access was disabled and cannot be restored'; END IF; END"
+  },
+  {
+    "name": "trg_amazon_pii_receipt_update",
+    "table": "ims_amazon_pii_disposals",
+    "event": "UPDATE",
+    "body": "BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Amazon identifying-field cleanup evidence is immutable'; END"
+  },
+  {
+    "name": "trg_amazon_pii_receipt_delete",
+    "table": "ims_amazon_pii_disposals",
+    "event": "DELETE",
+    "body": "BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Amazon identifying-field suppression evidence must be retained'; END"
+  }
+]

@@ -5,6 +5,7 @@ import { encrypt } from '@/lib/encryption';
 import { verifyMetaOAuthState } from '@/lib/metaOAuth';
 import { getAdminSession } from '@/lib/sessionUtils';
 import { exchangeMetaCode, listMetaAdAccounts } from '@/services/MetaOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 function appUrl(): string {
   const raw = process.env.APP_URL ?? 'solvantis.com.au';
@@ -12,7 +13,7 @@ function appUrl(): string {
 }
 
 function setupRedirect(message: string, success = false): NextResponse {
-  return NextResponse.redirect(`${appUrl()}/setup?${success ? 'metaSuccess' : 'metaError'}=${encodeURIComponent(message)}`);
+  return NextResponse.redirect(`${appUrl()}/ims?${success ? 'metaSuccess' : 'metaError'}=${encodeURIComponent(message)}#settings-connection-meta`);
 }
 
 export async function GET(request: Request) {
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
   if (!code) return setupRedirect('Meta did not return an authorisation code.');
 
   try {
+    await assertOptionalIntegrationEnabled(session.businessId, 'meta');
     const token = await exchangeMetaCode(code, `${appUrl()}/api/meta/callback`);
     const accounts = await listMetaAdAccounts(token);
     if (accounts.length === 0) throw new Error('No accessible Meta ad accounts were found for this login.');
@@ -47,14 +49,17 @@ export async function GET(request: Request) {
       redirect.cookies.delete('meta_oauth_nonce');
       return redirect;
     }
-    const redirect = NextResponse.redirect(`${appUrl()}/setup?metaSelect=1`);
+    const redirect = NextResponse.redirect(`${appUrl()}/ims?metaSelect=1#settings-connection-meta`);
     redirect.cookies.set('meta_oauth_pending', encrypt(token), {
       httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/api/meta', maxAge: 10 * 60,
     });
     redirect.cookies.delete('meta_oauth_nonce');
     return redirect;
   } catch (error) {
-    const redirect = setupRedirect(error instanceof Error ? error.message : 'Meta connection failed.');
+    const message = isIntegrationDisabledError(error)
+      ? 'Meta Ads is disabled. Enable it before connecting.'
+      : error instanceof Error ? error.message : 'Meta connection failed.';
+    const redirect = setupRedirect(message);
     redirect.cookies.delete('meta_oauth_nonce');
     return redirect;
   }

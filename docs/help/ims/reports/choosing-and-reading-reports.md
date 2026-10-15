@@ -213,7 +213,7 @@ Cash reconciliation uses the corrected float, so its variance and the session to
 
 For a closed session, acknowledge the warning before saving: any affected entries already synced to Xero or another accounting system must be edited manually by the bookkeeper. The correction does not trigger an accounting sync, replace posted documents or reset posting status. Accounting till-variance information can therefore show the original posted amount alongside the corrected Solvantis variance.
 
-After saving a closed-session correction, select **Email bookkeeper about this correction**. Solvantis sends the register, branch, session date, old and new float, correction reason and cash variance details to the configured accounts recipients. Configure these under **Settings > General > Bookkeeping / Accounts email**; these are the same recipients used for accounting reconciliation emails. Email is a separate action, not automatic on save.
+After saving a closed-session correction, select **Email bookkeeper about this correction**. Solvantis sends the register, branch, session date, old and new float, correction reason and cash variance details to the configured accounts recipients. Configure these under **Settings > Business & Team > Bookkeeping email**; these are the same recipients used for accounting reconciliation emails. Email is a separate action, not automatic on save.
 
 If emailing fails, the float remains saved. Reopen **Edit** and use **Email bookkeeper about last correction** to retry the latest closed-session notice without changing the float again. An already-sent notice is not sent a second time.
 

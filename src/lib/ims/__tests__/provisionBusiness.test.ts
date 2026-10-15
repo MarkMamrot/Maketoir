@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import amazonPiiGuards from '../../../../scripts/amazon-pii-guards.json';
 
 const mocks = vi.hoisted(() => ({
   createConnection: vi.fn(),
@@ -97,13 +98,16 @@ describe('new business IMS provisioning ownership', () => {
       if (sql.includes('information_schema.STATISTICS')) return [
         Object.entries(IMS_SCHEMA_REQUIRED_INDEXES).flatMap(([TABLE_NAME, names]) => names.map(INDEX_NAME => ({ TABLE_NAME, INDEX_NAME }))), []];
       if (sql.includes('information_schema.TRIGGERS')) return [
-        ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid', 'trg_ims_stock_movement_bizid'].map(TRIGGER_NAME => ({ TRIGGER_NAME })), []];
+        ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid', 'trg_ims_stock_movement_bizid', ...amazonPiiGuards.map(guard => guard.name)].map(TRIGGER_NAME => ({ TRIGGER_NAME })), []];
       return [[], []];
     });
     const result = await provisionBusinessIms({ businessId: 'test-new-tenant', businessName: 'Future Retail' });
     expect(result.created).toBe(true);
-    for (const table of ['ims_amazon_delivery_evidence', 'ims_amazon_delivery_poll_state']) {
+    for (const table of ['ims_amazon_delivery_evidence', 'ims_amazon_delivery_poll_state', 'ims_amazon_pii_disposals']) {
       expect(mocks.serverConnection.query.mock.calls.filter(([sql]) => sql.startsWith(`CREATE TABLE IF NOT EXISTS ${table} (`))).toHaveLength(1);
+    }
+    for (const guard of amazonPiiGuards) {
+      expect(mocks.serverConnection.query.mock.calls.some(([sql]) => sql.startsWith(`CREATE TRIGGER \`${guard.name}\``))).toBe(true);
     }
     expect(mocks.serverConnection.query.mock.calls.some(([sql]) => sql.includes('information_schema.STATISTICS'))).toBe(true);
     expect(mocks.mainExecute).toHaveBeenCalledWith(expect.stringContaining('UPDATE businesses SET ims_db_name'), [result.imsDbName, 'test-new-tenant']);

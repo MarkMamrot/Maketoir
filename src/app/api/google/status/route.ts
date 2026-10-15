@@ -5,6 +5,7 @@ import { requireAdminSession } from '@/lib/sessionUtils';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
 import { googleMarketingOAuthConfigurationStatus } from '@/services/GoogleMarketingOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
+  try {
+    await assertOptionalIntegrationEnabled(user.businessId, 'google');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ success: false, error: 'Google integration availability is not ready.' }, { status: 503 });
+  }
   const body = await request.json().catch(() => ({})) as { service?: unknown };
   const service = String(body.service ?? '');
   const connection = await ConnectionsRepository.get(user.businessId);

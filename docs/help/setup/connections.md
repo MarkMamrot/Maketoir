@@ -8,7 +8,7 @@ Use Setup to maintain business information, team access, POS payment options, an
 ## Main operations
 
 - Confirm the selected business before saving anything.
-- Connect the intended external account and check its displayed identity.
+- Enable the service in **IMS Settings > Integrations**, save availability, then connect the intended external account and check its displayed identity.
 - Test access, then complete the product-specific mappings or settings.
 - Add only the POS payment methods the business accepts.
 - Reconnect expired access before repeating dependent work.
@@ -21,8 +21,8 @@ Use Setup to maintain business information, team access, POS payment options, an
 | Invite a colleague or choose a role | Team | An invitation for User or Admin access |
 | Add or rename POS payment options | POS Settings | Payment methods shown at checkout |
 | Use the native Solvantis Online Store | IMS Settings, then Sales > Online Shop | Native store selected and ready for storefront setup |
-| Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |
-| Connect Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
+| Choose Gemini models for different AI functions | IMS Settings > AI & Account > AI models | Saved choices for future document, matching, analysis, and customer service requests |
+| Connect Xero, Cin7, Meta, Google, Klaviyo, or Gmail | IMS Settings > Integrations > the provider | Saved availability, connection and displayed status |
 | Connect or configure a Shopify store | IMS > Sales > Sales Channels | One exact store with its own credentials, settings, and status |
 
 > **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.
@@ -34,6 +34,10 @@ In Help, expand **Integrations** for connections and readiness checks, or **Sett
 SuperAdmins have a separate **Platform administration** category for business administration, feature rollouts, runtime issues and scheduled jobs. That category and its guides are not available to other users.
 
 ## Connection readiness
+
+Setup Connections links to individual IMS integration pages. Enablement is saved before connection details are requested. Opening a page does not automatically run an external connection test.
+
+Turning an integration off pauses new dependent sync and automation but retains configuration and history. Disconnecting authorisation is separate. Saved secrets stay blank in the editor; leave them blank to retain the existing value.
 
 | Connection | Purpose | Connected means | Still check before real work |
 | --- | --- | --- | --- |
@@ -51,7 +55,7 @@ If Meta monitoring reports that its access token has expired, reconnect the inte
 
 ## Configure Klaviyo customer and sales sync
 
-1. Enter and save the Klaviyo private API key, then select **Test Connection**.
+1. Enable Klaviyo and save availability, then enter and save the private API key and select **Test Connection**.
 2. Turn on **Enable customer and commerce sync**.
 3. Turn on **Sync customer profiles** before selecting any commerce event source.
 4. Select each Solvantis sales source that should send identified commerce events.

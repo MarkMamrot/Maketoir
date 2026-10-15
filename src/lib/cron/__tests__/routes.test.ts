@@ -8,6 +8,18 @@ vi.mock('@/services/MySQLService', () => ({ query: mocks.query, execute: mocks.e
 vi.mock('@/services/GoogleSheetsService', () => ({ GoogleSheetsService: vi.fn() }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn(), imsExecute: vi.fn(), getIMSPool: vi.fn() }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: vi.fn(), enterImsForBusiness: vi.fn() }));
+vi.mock('@/lib/foresight/ForesightDigestService', () => ({
+  ForesightDigestService: { generateDaily: vi.fn(), generateWeekly: vi.fn() },
+}));
+vi.mock('@/lib/foresight/ForesightOutcomeService', () => ({
+  ForesightOutcomeService: { evaluateDuePaidMedia: vi.fn(), evaluateDueCampaigns: vi.fn() },
+}));
+vi.mock('@/lib/foresight/ForesightMonitoringSyncService', () => ({
+  ForesightMonitoringSyncService: { syncActiveWindow: vi.fn() },
+}));
+vi.mock('@/lib/foresight/ForesightExperimentEvidenceCollectionService', () => ({
+  ForesightExperimentEvidenceCollectionService: { collectDue: vi.fn() },
+}));
 
 const routeLoaders: Record<string, () => Promise<any>> = {
   'database-backup': () => import('../../../app/api/admin/backup/route'),

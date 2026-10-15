@@ -1,6 +1,7 @@
 'use client';
 import { createContext, Fragment, useContext, useEffect, useState, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { SHOPIFY_INVENTORY_CONFIRMATION } from '@/lib/ims/shopifyOpeningStock';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function statusBadge(s: 'success' | 'error' | 'partial' | string) {
@@ -76,6 +77,7 @@ export function ShopifyProductsTab() {
   const [importingCatalogue, setImportingCatalogue] = useState(false);
   const [populateUnknownBrands, setPopulateUnknownBrands] = useState(false);
   const [populateUnknownSuppliers, setPopulateUnknownSuppliers] = useState(false);
+  const [autoCreateProductSkus, setAutoCreateProductSkus] = useState(true);
   const [importProgress, setImportProgress] = useState<{
     batches: number; fetched: number; createdProducts: number; updatedProducts: number;
     createdVariants: number; updatedVariants: number; images: number;
@@ -90,7 +92,34 @@ export function ShopifyProductsTab() {
   } | null>(null);
   const [openingStockResult, setOpeningStockResult] = useState<string | null>(null);
   const [openingStockError, setOpeningStockError] = useState<string | null>(null);
+  const [stockLocations, setStockLocations] = useState<{
+    shopifyLocations: Array<{ id: number; name: string }>;
+    solvantisLocations: Array<{ id: number; name: string }>;
+  } | null>(null);
+  const [stockMappings, setStockMappings] = useState<Record<string, string>>({});
+  const [stockConfirmation, setStockConfirmation] = useState('');
+  const [skippedStockLevels, setSkippedStockLevels] = useState(0);
   const shopifySelection = useShopifyInstanceOptions();
+  useEffect(() => {
+    setStockLocations(null); setStockMappings({}); setOpeningStockPreview(null);
+    setStockConfirmation(''); setOpeningStockError(null); setOpeningStockResult(null);
+  }, [shopifySelection.channelInstanceId]);
+
+  const loadStockLocations = async () => {
+    setOpeningStockBusy('preview'); setOpeningStockError(null); setOpeningStockPreview(null);
+    setStockConfirmation(''); setStockLocations(null); setStockMappings({});
+    try {
+      const response = await fetch('/api/ims/shopify/opening-stock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'locations', channelInstanceId: shopifySelection.channelInstanceId }),
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok || !data.success) throw new Error(data.error ?? 'Locations could not be loaded.');
+      setStockLocations(data);
+    } catch (error) {
+      setOpeningStockError(error instanceof Error ? error.message : 'Locations could not be loaded.');
+    } finally { setOpeningStockBusy(null); }
+  };
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -140,6 +169,7 @@ export function ShopifyProductsTab() {
   };
 
   const runCatalogueImport = async () => {
+    if (!window.confirm('Onboarding only: normally create products in Solvantis, then sync to Shopify. Importing refreshes linked catalogue details from Shopify but does not change stock. Continue?')) return;
     setImportingCatalogue(true); setOpResult(null); setOpError(null);
     let pageInfo: string | null = null;
     const totals = {
@@ -161,6 +191,7 @@ export function ShopifyProductsTab() {
             limit: 25,
             populate_unknown_brands: populateUnknownBrands,
             populate_unknown_suppliers: populateUnknownSuppliers,
+            auto_create_product_skus: autoCreateProductSkus,
           }),
         });
         const data = await readApiResponse(response);
@@ -198,17 +229,22 @@ export function ShopifyProductsTab() {
 
   const previewOpeningStock = async () => {
     setOpeningStockBusy('preview'); setOpeningStockPreview(null); setOpeningStockResult(null); setOpeningStockError(null);
+    setStockConfirmation(''); setSkippedStockLevels(0);
+    const mappings = Object.entries(stockMappings).filter(([, target]) => target).map(([source, target]) => ({
+      shopifyLocationId: Number(source), solvantisLocationId: Number(target),
+    }));
     const runId = crypto.randomUUID();
     const batches: Array<{ offset: number; variantIds: string[]; snapshot: string }> = [];
     const lines: Array<{ locationName: string; quantity: number; currentQuantity: number; adjustment: number; wasNegative: boolean }> = [];
     let offset = 0;
     let totalVariants = 0;
+    let skippedLevels = 0;
     try {
       let hasMore = true;
       while (hasMore) {
         const response = await fetch('/api/ims/shopify/opening-stock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'preview', offset, channelInstanceId: shopifySelection.channelInstanceId }),
+          body: JSON.stringify({ mode: 'preview', offset, mappings, channelInstanceId: shopifySelection.channelInstanceId }),
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock preview failed.');
@@ -219,6 +255,8 @@ export function ShopifyProductsTab() {
         })));
         lines.push(...(data.lines ?? []));
         totalVariants = Number(data.total_variants ?? 0);
+        skippedLevels += Number(data.skipped_levels ?? 0);
+        setSkippedStockLevels(skippedLevels);
         setOpeningStockPreview({ runId, batches: [...batches], totalVariants, lines: [...lines] });
         hasMore = Boolean(data.has_more);
         offset = Number(data.next_offset ?? offset);
@@ -226,19 +264,21 @@ export function ShopifyProductsTab() {
       }
     } catch (e: any) {
       setOpeningStockError(e.message);
+      setOpeningStockPreview(null);
     } finally {
       setOpeningStockBusy(null);
     }
   };
 
   const applyOpeningStock = async () => {
+    if (stockConfirmation !== SHOPIFY_INVENTORY_CONFIRMATION) return;
     if (!openingStockPreview?.batches.length) return;
     if (openingStockPreview.batches.some(batch => !batch.snapshot)) {
       setOpeningStockError('This preview was created before the opening-stock update. Refresh the page and preview again.');
       return;
     }
     const changed = openingStockPreview.lines.filter(line => Math.abs(line.adjustment) > 0.0001).length;
-    if (!window.confirm(`Apply Shopify opening stock to Warehouse and Kotara? This will set ${changed} location/variant balances and create completed stocktakes.`)) return;
+    if (!window.confirm(`Replace ${changed} mapped Solvantis location/variant stock balances with the previewed Shopify quantities? Completed stocktakes will be created. Unmapped locations stay untouched.`)) return;
     setOpeningStockBusy('apply'); setOpeningStockResult(null); setOpeningStockError(null);
     const runId = openingStockPreview.runId;
     let appliedVariants = 0;
@@ -247,7 +287,8 @@ export function ShopifyProductsTab() {
       for (const batch of openingStockPreview.batches) {
         const response = await fetch('/api/ims/shopify/opening-stock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'apply', run_id: runId, snapshot: batch.snapshot, channelInstanceId: shopifySelection.channelInstanceId }),
+          body: JSON.stringify({ mode: 'apply', run_id: runId, snapshot: batch.snapshot,
+            confirmation: stockConfirmation, channelInstanceId: shopifySelection.channelInstanceId }),
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock apply failed.');
@@ -257,7 +298,7 @@ export function ShopifyProductsTab() {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
-      setOpeningStockResult(`Opening stock applied for ${appliedVariants} variants across Warehouse and Kotara. Stocktakes: ${stocktakeIds.join(', ')}.`);
+      setOpeningStockResult(`Opening stock applied for ${appliedVariants} variants at the mapped locations. Stocktakes: ${stocktakeIds.join(', ')}.`);
       setOpeningStockPreview(null);
     } catch (e: any) {
       setOpeningStockError(`${e.message} Completed batches are safe; preview again before retrying.`);
@@ -355,27 +396,50 @@ export function ShopifyProductsTab() {
     </div>
   );
 
-  return (
-    <div>
+  const inventoryImportPanel = (
       <div style={{ padding: 18, marginBottom: 16, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 420px' }}>
-            <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Import Shopify Opening Stock</h3>
+            <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Download Inventory from Shopify (Onboarding)</h3>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
-              Maps Shopify Warehouse to Solvantis Warehouse and Shopify Kotara to Solvantis Kotara. Quantities are set from Shopify available stock through completed stocktakes; negatives become zero.
+              Solvantis is the stock source of truth. Stock normally flows from Solvantis to Shopify; Shopify sales and returns use the normal order workflow.
+              This onboarding tool replaces stock-on-hand at explicitly mapped locations with Shopify available quantities through completed stocktakes.
+              Pause trading and stock changes while previewing and applying. Unmapped locations and missing inventory levels remain untouched; negative quantities become zero.
             </p>
           </div>
           <button
-            onClick={previewOpeningStock}
+            onClick={loadStockLocations}
             disabled={openingStockBusy !== null || importingCatalogue || syncing}
             style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: openingStockBusy ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: openingStockBusy ? 0.7 : 1 }}
           >
-            {openingStockBusy === 'preview' ? 'Building preview…' : 'Preview Opening Stock'}
+            {openingStockBusy === 'preview' ? 'Loading…' : 'Load Shopify and Solvantis Locations'}
           </button>
         </div>
+        {stockLocations && <div style={{ marginTop: 12 }}>
+          {stockLocations.shopifyLocations.map(location => <label key={location.id} style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+            <span>Shopify: {location.name}</span>
+            <select aria-label={`Solvantis location for ${location.name}`} value={stockMappings[String(location.id)] ?? ''}
+              disabled={openingStockBusy !== null || importingCatalogue || syncing}
+              onChange={event => {
+                setStockMappings(previous => ({ ...previous, [String(location.id)]: event.target.value }));
+                setOpeningStockPreview(null); setStockConfirmation(''); setOpeningStockResult(null);
+              }}>
+              <option value="">Do not import this location</option>
+              {stockLocations.solvantisLocations.map(target => <option key={target.id} value={target.id}
+                disabled={Object.entries(stockMappings).some(([source, selectedTarget]) => source !== String(location.id) && selectedTarget === String(target.id))}>
+                {target.name}
+              </option>)}
+            </select>
+          </label>)}
+          {!stockLocations.shopifyLocations.length && <p>No active Shopify locations were found.</p>}
+          <button type="button" onClick={previewOpeningStock}
+            disabled={openingStockBusy !== null || importingCatalogue || syncing || !Object.values(stockMappings).some(Boolean)}>
+            Preview Inventory Download
+          </button>
+        </div>}
         {openingStockPreview && (() => {
           const pendingVariants = openingStockPreview.batches.reduce((sum, batch) => sum + batch.variantIds.length, 0);
-          const summaries = ['Warehouse', 'Kotara'].map(locationName => {
+          const summaries = [...new Set(openingStockPreview.lines.map(line => line.locationName))].map(locationName => {
             const locationLines = openingStockPreview.lines.filter(line => line.locationName === locationName);
             return {
               locationName,
@@ -398,28 +462,37 @@ export function ShopifyProductsTab() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
                   {openingStockBusy === 'preview'
-                    ? `${openingStockPreview.lines.length / 2} of ${openingStockPreview.totalVariants} variants scanned`
+                    ? `Scanning ${openingStockPreview.totalVariants} linked variants`
                     : pendingVariants > 0
                       ? `${pendingVariants} of ${openingStockPreview.totalVariants} linked variants require updates`
                       : `All ${openingStockPreview.totalVariants} linked variants already match Shopify`}
                 </span>
                 {openingStockBusy !== 'preview' && pendingVariants > 0 && (
+                  <>
+                  <label>Type <strong>{SHOPIFY_INVENTORY_CONFIRMATION}</strong> to replace stock
+                    <input aria-label="Inventory safety phrase" value={stockConfirmation} disabled={openingStockBusy !== null}
+                      onChange={event => setStockConfirmation(event.target.value)} />
+                  </label>
                   <button
                     onClick={applyOpeningStock}
-                    disabled={openingStockBusy !== null}
+                    disabled={openingStockBusy !== null || importingCatalogue || syncing || stockConfirmation !== SHOPIFY_INVENTORY_CONFIRMATION}
                     style={{ marginLeft: 'auto', padding: '8px 16px', background: '#b91c1c', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
                   >
-                    {openingStockBusy === 'apply' ? 'Applying…' : 'Apply Opening Stock'}
+                    {openingStockBusy === 'apply' ? 'Applying…' : 'Replace Solvantis Stock'}
                   </button>
+                  </>
                 )}
               </div>
             </div>
           );
         })()}
+        {skippedStockLevels > 0 && <p role="status">{skippedStockLevels} missing or untracked Shopify inventory levels were skipped, not set to zero.</p>}
         {openingStockResult && <div style={{ marginTop: 12, color: '#34d399', fontSize: 12 }}>{openingStockResult}</div>}
         {openingStockError && <div style={{ marginTop: 12, color: '#f87171', fontSize: 12 }}>{openingStockError}</div>}
       </div>
-
+  );
+  return (
+    <div>
       {/* Controls row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -434,6 +507,7 @@ export function ShopifyProductsTab() {
         />
         {!shopifySelection.locked && <select
           value={shopifySelection.channelInstanceId}
+          disabled={syncing || importingCatalogue || openingStockBusy !== null}
           onChange={event => shopifySelection.setChannelInstanceId(event.target.value)}
           aria-label="Shopify storefront for price synchronization"
           style={{ height: 34, padding: '0 10px', fontSize: 13, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)' }}
@@ -442,13 +516,13 @@ export function ShopifyProductsTab() {
           {shopifySelection.instances.map(instance => <option key={instance.channelInstanceId} value={instance.channelInstanceId}>{instance.displayName}</option>)}
         </select>}
         <button
-          onClick={runSyncPrices} disabled={syncing || importingCatalogue || !shopifySelection.channelInstanceId}
+          onClick={runSyncPrices} disabled={syncing || importingCatalogue || openingStockBusy !== null || !shopifySelection.channelInstanceId}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '💲 Sync Prices'}
         </button>
         <button
-          onClick={runResync} disabled={syncing || importingCatalogue || !shopifySelection.channelInstanceId}
+          onClick={runResync} disabled={syncing || importingCatalogue || openingStockBusy !== null || !shopifySelection.channelInstanceId}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '🔄 Full Resync'}
@@ -550,6 +624,7 @@ export function ShopifyProductsTab() {
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
               Creates missing products and variants, refreshes linked catalogue details, and collects Shopify image URLs. Stock quantities are not changed.
             </p>
+            <p style={{ color: '#fbbf24', fontSize: 12 }}>Designed for onboarding. Normally create items in Solvantis and then sync them to Shopify, not the other way around.</p>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'var(--sv-text-main)' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
                 <input
@@ -569,16 +644,23 @@ export function ShopifyProductsTab() {
                 />
                 Create and assign missing suppliers from Shopify vendor
               </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                <input type="checkbox" checked={autoCreateProductSkus} disabled={importingCatalogue}
+                  onChange={event => setAutoCreateProductSkus(event.target.checked)} />
+                Auto-create missing Product SKUs
+              </label>
             </div>
+            <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>When enabled, derives the Product SKU from matching variant option suffixes (Erin/L or Erin-L becomes Erin); otherwise uses the bulk creator format. Existing Product SKUs are preserved.</p>
           </div>
           <button
             onClick={runCatalogueImport}
-            disabled={importingCatalogue || syncing}
+            disabled={importingCatalogue || syncing || openingStockBusy !== null}
             style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 8, cursor: importingCatalogue ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: importingCatalogue ? 0.7 : 1 }}
           >
             {importingCatalogue ? 'Importing…' : 'Import from Shopify'}
           </button>
         </div>
+        {inventoryImportPanel}
         {importProgress && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
             <strong>{importingCatalogue ? 'Import in progress' : 'Last import'}</strong>

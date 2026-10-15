@@ -171,7 +171,7 @@
     {
       "id": "public-capability:ims-shopify-sync",
       "title": "Shopify Sync and Product Mapping",
-      "summary": "Configure one Shopify store, monitor synchronization, and maintain its product linkage safely.",
+      "summary": "Configure one Shopify store, safely onboard its catalogue and mapped opening stock, and maintain synchronization.",
       "capabilities": [
         "ims",
         "integrations",
@@ -413,6 +413,17 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-settings-advanced",
+      "title": "Advanced Settings Tools",
+      "summary": "Locate SuperAdmin repair, reset, API and cache tools without mixing them with everyday configuration.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-settings-ai-models",
       "title": "AI Model Settings",
       "summary": "Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.",
@@ -435,9 +446,20 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-settings-navigation",
+      "title": "Finding and Saving Settings",
+      "summary": "Navigate the grouped settings menu, save or cancel drafts, and enable integrations before entering connection details.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-shipping-settings",
       "title": "Shipping Settings",
-      "summary": "Connect Australia Post eParcel, define package presets, prepare parcels, manage working batches, and understand carrier restrictions before dispatch.",
+      "summary": "Connect Australia Post eParcel, select online channel types for delivery tracking, define package presets, and manage shipping preparation and batches.",
       "capabilities": [
         "ims",
         "orders"
@@ -612,7 +634,7 @@
     {
       "id": "public-capability:pos-settings-terminals-offline-recovery",
       "title": "Settings, Terminals, and Offline Recovery",
-      "summary": "Manage POS settings, pair Zeller, print saved ordinary receipts without waiting for upload, and recover queued or rejected sales safely.",
+      "summary": "Manage POS settings and device sounds, prepare and pair Zeller, print saved ordinary receipts without waiting for upload, and recover queued or rejected sales safely.",
       "capabilities": [
         "pos"
       ],

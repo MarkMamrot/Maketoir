@@ -18,6 +18,7 @@ export interface AdminSession {
   role: string;
   tier: UserTier;
   userId: number;
+  passwordExpiresAt?: string;
 }
 
 export interface PosSession {
@@ -200,4 +201,3 @@ export function requireWriteAccess():
   }
   return { user };
 }
-

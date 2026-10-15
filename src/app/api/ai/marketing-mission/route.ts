@@ -14,6 +14,7 @@ import { SalesRepository } from '@/lib/db/SalesRepository';
 import { CalcReportsRepository } from '@/lib/db/CalcReportsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { getOptionalIntegrationAvailability, type OptionalIntegrationProvider } from '@/lib/ims/integrationAvailability';
 
 // ── System prompt for CMO mode ─────────────────────────────────────────────────
 const CMO_SYSTEM_PROMPT = `You are an elite Chief Marketing Officer (CMO) and high-level marketing strategist for a retail/e-commerce business. Your current task is strictly foundational and philosophical. You are collaborative, visionary, and grounded in proven marketing science (such as balancing long-term brand building with short-term sales activation). 
@@ -459,6 +460,24 @@ export async function POST(req: Request) {
     const denied = assertBusinessAccess(user, databaseId);
     if (denied) return denied;
 
+    const requestedSources = Array.isArray(dataSources) ? dataSources as string[] : [];
+    const sourceProvider: Record<string, OptionalIntegrationProvider> = {
+      googleAds: 'google',
+      analytics: 'google',
+      metaAds: 'meta',
+      klaviyo: 'klaviyo',
+    };
+    const requestedProviders = [...new Set(requestedSources
+      .map(source => sourceProvider[source])
+      .filter((provider): provider is OptionalIntegrationProvider => Boolean(provider)))];
+    const providerAvailability = requestedProviders.length
+      ? await getOptionalIntegrationAvailability(databaseId)
+      : null;
+    const blockedSources = new Set(requestedSources.filter(source => {
+      const provider = sourceProvider[source];
+      return provider && providerAvailability && !providerAvailability[provider].enabled;
+    }));
+
     const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
 
@@ -476,10 +495,14 @@ export async function POST(req: Request) {
       ]);
       if (conn) {
         modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
-        if (conn.ga4_property_id)        ga4PropertyId = conn.ga4_property_id;
-        if (conn.meta_ad_account_id)     metaAccountId = conn.meta_ad_account_id;
-        if (conn.meta_access_token)      { try { metaToken     = decrypt(conn.meta_access_token); } catch { metaToken     = conn.meta_access_token; } }
-        if (conn.klaviyo_api_key)        { try { klaviyoApiKey = decrypt(conn.klaviyo_api_key);   } catch { klaviyoApiKey = conn.klaviyo_api_key;   } }
+        if (providerAvailability?.google?.enabled && conn.ga4_property_id) ga4PropertyId = conn.ga4_property_id;
+        if (providerAvailability?.meta?.enabled && conn.meta_ad_account_id) metaAccountId = conn.meta_ad_account_id;
+        if (providerAvailability?.meta?.enabled && conn.meta_access_token) {
+          try { metaToken = decrypt(conn.meta_access_token); } catch { metaToken = conn.meta_access_token; }
+        }
+        if (providerAvailability?.klaviyo?.enabled && conn.klaviyo_api_key) {
+          try { klaviyoApiKey = decrypt(conn.klaviyo_api_key); } catch { klaviyoApiKey = conn.klaviyo_api_key; }
+        }
       }
       inventorySystemId = resolvedInvId;
     } catch { /* use defaults */ }
@@ -491,7 +514,7 @@ export async function POST(req: Request) {
       : [];
     const trimmedHistory = trimChatHistory(chatHistory);
 
-    const enabledSources = Array.isArray(dataSources) ? dataSources as string[] : [];
+    const enabledSources = requestedSources.filter(source => !blockedSources.has(source));
     const csvSourceIds = Object.keys(MM_CSV_META).filter(s => enabledSources.includes(s));
 
     // Always include businessInfo + brandProfile; calculatedReports when 'reports' is enabled
@@ -500,7 +523,10 @@ export async function POST(req: Request) {
       gatherBrandProfile(databaseId),
       enabledSources.includes('reports') ? gatherCalculatedReports(inventorySystemId) : Promise.resolve(''),
     ]);
-    const textSections = [businessInfo, brandProfile, calculatedReports].filter(Boolean);
+    const blockedSourceNotices = [...blockedSources].map(source =>
+      `=== ${source} DATA ===\nOmitted because the ${sourceProvider[source]} integration is disabled.`,
+    );
+    const textSections = [businessInfo, brandProfile, calculatedReports, ...blockedSourceNotices].filter(Boolean);
 
     // Fetch raw CSV rows in parallel
     const csvFetchers: Record<string, () => Promise<string[][]>> = {
@@ -655,5 +681,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
-
 

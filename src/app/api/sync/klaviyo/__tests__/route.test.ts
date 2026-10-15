@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockTestConnection } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockTestConnection, mockAvailability } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockTestConnection: vi.fn(),
+  mockAvailability: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -14,6 +15,13 @@ vi.mock('@/services/KlaviyoService', () => ({
     revision = '2024-10-15';
     testConnection = mockTestConnection;
   },
+}));
+vi.mock('@/lib/ims/integrationAvailability', () => ({
+  assertOptionalIntegrationEnabled: mockAvailability,
+  isIntegrationDisabledError: () => false,
+}));
+vi.mock('@/lib/db/ConnectionsRepository', () => ({
+  ConnectionsRepository: { get: vi.fn().mockResolvedValue({}) },
 }));
 
 import { POST } from '../route';
@@ -30,6 +38,7 @@ describe('POST /api/sync/klaviyo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequireAdminSession.mockReturnValue({ user: { businessId: 'business-1' } });
+    mockAvailability.mockResolvedValue(undefined);
     mockTestConnection.mockResolvedValue(1);
   });
 

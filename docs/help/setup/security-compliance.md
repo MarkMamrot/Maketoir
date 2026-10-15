@@ -1,5 +1,5 @@
 ---
-{"id":"setup-security-compliance","title":"Security and Compliance Policies","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Security & Compliance","product":"setup","format":"task","parentId":"setup-connections","contexts":["security-compliance","amazon-pii-inventory","amazon-delivery-evidence"],"contextSections":{"security-compliance":"Step-by-step","amazon-pii-inventory":"Amazon PII inventory and dry run","amazon-delivery-evidence":"Amazon delivery evidence"},"relatedTopics":["setup-runtime-issues","setup-team-access-security","setup-cron-jobs"],"order":8,"summary":"Read internal policies, save responsible people, inventory Amazon PII, and review or manually verify original buyer-delivery evidence.","lastReviewed":"2026-10-15","owner":"security","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Read security policies and assign responsibilities"},"requiredTier":"SuperAdmin"}
+{"id":"setup-security-compliance","title":"Security and Compliance Policies","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Security & Compliance","product":"setup","format":"task","parentId":"setup-connections","contexts":["security-compliance","amazon-pii-inventory","amazon-delivery-evidence","amazon-pii-disposal"],"contextSections":{"security-compliance":"Step-by-step","amazon-pii-inventory":"Amazon PII inventory and dry run","amazon-delivery-evidence":"Amazon delivery evidence","amazon-pii-disposal":"Amazon identifying-field cleanup"},"relatedTopics":["setup-runtime-issues","setup-team-access-security","setup-cron-jobs"],"order":8,"summary":"Read policies, save responsibilities, review Amazon delivery evidence, and preview or approve targeted identifying-field cleanup.","lastReviewed":"2026-10-15","owner":"security","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Read security policies and assign responsibilities"},"requiredTier":"SuperAdmin"}
 ---
 # Security and Compliance Policies
 
@@ -13,6 +13,7 @@ Security & Compliance is an organization-wide SuperAdmin workspace. It contains 
 - Select a policy to read its summary, responsible people, review cadence, and detailed version.
 - Choose **Run read-only inventory** to review potential Amazon buyer details and retained copies for the active business.
 - Load an Amazon order under **Amazon delivery evidence** to review carrier checks or record independently verified original buyer delivery.
+- Use **Amazon identifying-field cleanup > Preview cleanup** before approving permanent removal of an eligible order's identifying fields.
 - Use **Help** for the workspace instructions.
 
 ## At a glance
@@ -48,7 +49,30 @@ The initial defaults can name the same person for multiple roles. Assign a disti
 
 The draft policy calls for removing Amazon buyer PII within 30 days after delivery and using **Amazon Customer** as a generic label. A necessary non-PII order reference may remain for reconciliation; it must not preserve a hidden lookup to deleted buyer details.
 
-Changing a display name alone is not disposal: delivery details, shipment copies, documents, and other retained identifying information also need to be removed. This workspace documents the target procedure; it does not run anonymization or deletion.
+Changing a display name alone is not disposal: delivery details, shipment copies, documents, and other retained identifying information also need to be removed. The workspace offers a manual, targeted identifying-field cleanup, not scheduled deletion or certification that every retained copy is removed.
+
+## Amazon identifying-field cleanup
+
+1. Select the intended business in the Admin header.
+2. Enter the local Amazon sales order ID and choose **Preview cleanup**. This reads counts and eligibility without changing customer data or contacting Amazon or a carrier.
+3. Review the exact deadline, fields, affected-record counts and blockers. Buyer values are not displayed in this preview.
+4. Resolve missing delivery evidence, outstanding parcels, incomplete operational work, shared identifying customers or shared label PDFs before proceeding. An expired deadline does not waive these checks; investigate blocked overdue records promptly.
+5. For an eligible order, type the displayed **CLEAR AMAZON PII** confirmation including its local order ID, then choose **Approve identifying-field cleanup**.
+6. Check the completion message. Identifying fields are cleared, but separate review of retained copies is still required.
+
+The deadline is exactly 30 days after the earliest active verified original buyer delivery. This is a maximum retention deadline, not a required waiting period: earlier approved cleanup is allowed once delivery and operational checks are satisfied. Future-dated delivery evidence blocks approval until corrected. An order must have resolved fulfilment and delivery evidence for its original prepared parcels; a verified whole-order delivery entry can cover those parcels. Later delivery or polling does not reset the deadline. A preview expires after 15 minutes and is rejected if the order, customer or reviewed snapshots change, or the active business changes.
+
+Cleanup targets delivery addresses; an exclusive customer's name, email, phone, address and other explicit identifying fields; and known buyer fields inside shipment recipients, amendment snapshots and linked channel payloads. Existing generic shared customers remain untouched and are protected against later addition of identifying details. An exclusive identifying customer becomes **Amazon Customer** without changing its ID or financial ownership. Shared, externally mapped or financially active identifying customers require manual resolution.
+
+Product descriptions, free-text notes, purchase-order text, refund references, amounts, quantities, tax, stock and customer-credit balances are not automatically removed or changed. Presence of text alone does not identify buyer PII. Known buyer fields are removed without replacing entire operational payloads.
+
+Old in-app shipping label access is disabled because the PDF may contain a buyer's address. This does not delete a PDF already downloaded or held by a carrier. A label PDF shared with another order blocks cleanup until the shared copy is resolved.
+
+Approval records the signed-in approver, delivery deadline, time and safe counts without saving the old identifying values. Repeating the same approval is safe; changing an approval or reusing it for a different cleanup is rejected. Missing platform readiness disables cleanup rather than offering an unsafe fallback.
+
+After approval, Amazon order synchronization continues to update operational status but cannot restore the cleared address. Protected customer and shipment fields cannot be repopulated through ordinary writes, and old recipient copies or labels cannot be regenerated. These protections depend on the retained cleanup record and installed write controls; they do not certify arbitrary external imports or restored databases.
+
+**Retained-copy boundary:** Notes, documents, exports, logs, caches, carrier-held copies and backups remain separate review areas. Backup deletion and restoration automation are not part of this workflow. Provider expiry has not been verified here. A successful identifying-field cleanup must not be described as complete removal of all Amazon PII or proof of the full retention policy.
 
 ## Amazon PII inventory and dry run
 
@@ -73,13 +97,13 @@ No candidate is approved for automatic disposal. Zero results do not prove that 
 
 ### Automatic carrier tracking
 
-The **Amazon delivery evidence** scheduled job runs hourly when its master switch is On. It starts **Off** until the evidence storage and carrier tracking access have been verified. An existing Australia Post shipping account may still need permission to use tracking.
+The **Online channel delivery tracking** scheduled job runs hourly when its master switch is On and Amazon delivery tracking is On for the active business in **IMS Settings > Sales & Customers > Shipping**. The master starts **Off** until the evidence storage and carrier tracking access have been verified. Business channel-type defaults are Amazon On, Shopify Off and Solvantis Online Store Off. An existing Australia Post shipping account may still need permission to use tracking.
 
 Automatic verification supports Australia Post eParcel article IDs on original Amazon parcels prepared and marked dispatched in Solvantis. It does not infer delivery from a consignment summary, a label, a shipping status, a return, or a missing tracking response. Unsupported carriers, external shipments without prepared parcel records, missing article IDs, ambiguous dates and unrecognized delivery events need manual verification.
 
 The job checks bounded batches, spaces carrier requests, retries pending articles and reports operational errors in Runtime Issues. Once a parcel has active verified evidence, it does not need repeated polling. Only a matched original article with a recognized delivery event and explicit timezone can provide automatic evidence. Raw carrier responses, event locations and recipient details are not saved as evidence.
 
-Business-wide **Pause scheduled automation** and the master job switch stop future polls. Disabling an Amazon channel does not erase delivery evidence or remove tracking of already dispatched parcels when the delivery job remains enabled. Pausing or late polling does not extend a recorded review deadline: the actual delivery timestamp, not the check time, is used.
+Business-wide **Pause scheduled automation**, the master job switch and the business's Amazon delivery tracking switch stop future polls, not work already in progress. Disabling an Amazon store connection does not erase delivery evidence or remove tracking of already dispatched parcels while its channel-type switch and the delivery job remain enabled. Pausing or late polling does not extend a recorded review deadline: the actual delivery timestamp, not the check time, is used. The inventory, manual evidence workflow and 30-day PII review rules remain Amazon-only even when another online channel type is enabled for carrier tracking.
 
 ### Manual verification and corrections
 

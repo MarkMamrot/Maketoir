@@ -25,8 +25,19 @@ function request(targets: string[]): any {
 describe('POST /api/ims/data-reset', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetImsSession.mockResolvedValue({ businessId: 'biz-1' });
+    mockGetImsSession.mockResolvedValue({ businessId: 'biz-1', tier: 'SuperAdmin' });
     mockImsExecute.mockResolvedValue({ affectedRows: 0 });
+  });
+
+  it('requires SuperAdmin before reading or deleting records', async () => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin' });
+
+    const response = await POST(request(['stocktakes']));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: 'SuperAdmin access required.' });
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockImsExecute).not.toHaveBeenCalled();
   });
 
   it('blocks PO reset before deleting anything when posted POs exist', async () => {

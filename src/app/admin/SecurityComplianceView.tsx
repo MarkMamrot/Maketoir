@@ -9,6 +9,9 @@ import {
 import styles from './SecurityComplianceView.module.css';
 import AmazonPiiInventoryView from './AmazonPiiInventoryView';
 import AmazonDeliveryEvidenceView from './AmazonDeliveryEvidenceView';
+import AmazonPiiDisposalView from './AmazonPiiDisposalView';
+import SecurityPolicyEvidenceView from './SecurityPolicyEvidenceView';
+import type { PolicyEvidenceState } from '@/lib/securityCompliance/policyEvidence';
 
 async function readState(response: Response): Promise<PolicyAssignmentState> {
   const body: unknown = await response.json();
@@ -41,6 +44,7 @@ export default function SecurityComplianceView() {
   const [notice, setNotice] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpContext, setHelpContext] = useState('security-compliance');
+  const [evidence, setEvidence] = useState<PolicyEvidenceState | null>(null);
   const loadRequest = useRef<AbortController | null>(null);
 
   async function load() {
@@ -104,12 +108,13 @@ export default function SecurityComplianceView() {
     </header>
 
     <div className={styles.warning}>
-      <strong>Draft policies - controls are not certified</strong>
-      <p>These documents define the practices to adopt. Saving responsible names does not approve a policy, grant access, configure reminders, or implement password expiry, KMS, audit retention, or PII deletion.</p>
+      <strong>Documented policies - controls are not certified</strong>
+      <p>Saving responsible names does not adopt a policy or grant access. Adoption and reviews require explicit evidence records. Recorded attestations do not certify KMS, external systems or every technical control; reminders are not configured automatically.</p>
     </div>
 
     <AmazonPiiInventoryView onHelp={() => { setHelpContext('amazon-pii-inventory'); setHelpOpen(true); }} />
     <AmazonDeliveryEvidenceView onHelp={() => { setHelpContext('amazon-delivery-evidence'); setHelpOpen(true); }} />
+    <AmazonPiiDisposalView onHelp={() => { setHelpContext('amazon-pii-disposal'); setHelpOpen(true); }} />
 
     <form className={styles.card} onSubmit={event => void save(event)}>
       <h2>Responsibilities</h2>
@@ -146,6 +151,9 @@ export default function SecurityComplianceView() {
       {dirty && <p>Reloading saved values discards unsaved edits.</p>}
     </form>
 
+    <SecurityPolicyEvidenceView revision={saved && !needsReload ? saved.revision : null} blocked={Boolean(dirty) || needsReload || loading || saving}
+      onState={setEvidence} onHelp={() => { setHelpContext('security-review-evidence'); setHelpOpen(true); }} />
+
     <nav aria-label="Security policies" className={styles.policyNav}>
       {SECURITY_POLICIES.map(item => <button key={item.id} type="button" aria-pressed={policy.id === item.id}
         onClick={() => setSelectedId(item.id)}>{item.title}</button>)}
@@ -153,7 +161,7 @@ export default function SecurityComplianceView() {
 
     <article className={styles.card} aria-labelledby="selected-policy-title">
       <h2 id="selected-policy-title">{policy.title}</h2>
-      <p>Version {policy.version} | Draft - not yet adopted | Review: {policy.reviewCadence}</p>
+      <p>Version {policy.version} | {evidence?.policies.find(item => item.id === policy.id)?.adoptedAt ? 'Adoption recorded for this version' : 'Draft - not yet adopted'} | Review: {policy.reviewCadence}</p>
       <h3>Quick summary</h3>
       <ul>{policy.summary.map(item => <li key={item}>{item}</li>)}</ul>
       <h3>Responsible people</h3>

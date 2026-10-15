@@ -4,7 +4,8 @@ import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { ImsShopifyRepo, ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
-import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations } from '@/lib/ims/shopifyOpeningStock';
+import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations,
+  SHOPIFY_INVENTORY_CONFIRMATION, ShopifyOpeningStockValidationError, type OpeningStockMapping } from '@/lib/ims/shopifyOpeningStock';
 import { signOpeningStockSnapshot, verifyOpeningStockSnapshot } from '@/lib/ims/shopifyOpeningStockSnapshot';
 import { applyStocktake, transitionStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
@@ -28,7 +29,7 @@ function validRunId(value: unknown): string | null {
   return /^[a-zA-Z0-9-]{8,64}$/.test(runId) ? runId : null;
 }
 
-async function loadPreviewContext(businessId: string, channelInstanceId: string) {
+async function loadLocationContext(businessId: string, channelInstanceId: string) {
   const { credentials } = await getShopifyOperationContext({ businessId, channelInstanceId });
   const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
   const [shopifyLocations, solvantisLocations] = await Promise.all([
@@ -38,20 +39,30 @@ async function loadPreviewContext(businessId: string, channelInstanceId: string)
       [businessId],
     ),
   ]);
-  const locations = resolveOpeningStockLocations(shopifyLocations, solvantisLocations.map(location => ({
+  return { shopify, shopifyLocations, solvantisLocations: solvantisLocations.map(location => ({
     id: location.id,
     name: location.name,
     active: location.is_active,
-  })));
+  })) };
+}
 
-  let variantsSql = `SELECT v.variant_id, v.shopify_inventory_item_id, v.sku, p.name AS product_name
+async function loadPreviewContext(businessId: string, channelInstanceId: string, mappings: OpeningStockMapping[]) {
+  const context = await loadLocationContext(businessId, channelInstanceId);
+  const locations = resolveOpeningStockLocations(context.shopifyLocations, context.solvantisLocations, mappings);
+  const variantsSql = `SELECT v.variant_id, mapping.external_inventory_id AS shopify_inventory_item_id, v.sku, p.name AS product_name
        FROM ims_product_variants v
-       JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = v.business_id
-      WHERE v.business_id = ? AND v.is_active = 1
-        AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`;
-  variantsSql += ' ORDER BY v.variant_id';
-  const variants = await imsQuery<LinkedVariant>(variantsSql, [businessId]);
-  return { shopify, locations, variants };
+       JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND BINARY p.business_id = BINARY v.business_id
+       JOIN ims_sales_channel_product_mappings mapping ON BINARY mapping.variant_id = BINARY v.variant_id
+         AND BINARY mapping.business_id = BINARY v.business_id
+      WHERE v.business_id = ? AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+        AND v.is_active = 1 AND p.is_active = 1 AND COALESCE(p.is_stock_item, 1) = 1
+        AND mapping.external_inventory_id IS NOT NULL AND mapping.external_inventory_id <> ''
+      ORDER BY v.variant_id`;
+  const variants = await imsQuery<LinkedVariant>(variantsSql, [businessId, channelInstanceId]);
+  if (new Set(variants.map(variant => variant.shopify_inventory_item_id)).size !== variants.length) {
+    throw new Error('Multiple Solvantis variants share a Shopify inventory item. Repair product mappings first.');
+  }
+  return { shopify: context.shopify, locations, variants };
 }
 
 async function loadLines(
@@ -81,17 +92,28 @@ export async function POST(req: Request) {
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = String(session.businessId);
   const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
+  let channelInstanceId = '';
 
   try {
     const body = await req.json().catch(() => ({}));
-    const channelInstanceId = String(body?.channelInstanceId ?? '').trim();
+    channelInstanceId = String(body?.channelInstanceId ?? '').trim();
     if (!channelInstanceId) return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
-    const mode = body?.mode === 'apply' ? 'apply' : 'preview';
+    const mode = body?.mode;
+    if (!['locations', 'preview', 'apply'].includes(mode)) return NextResponse.json({ error: 'Select a valid inventory import action.' }, { status: 400 });
+    if (mode === 'locations') {
+      const context = await loadLocationContext(businessId, channelInstanceId);
+      return NextResponse.json({ success: true,
+        shopifyLocations: context.shopifyLocations.filter(location => location.active),
+        solvantisLocations: context.solvantisLocations.filter(location => Number(location.active) !== 0),
+      });
+    }
 
     if (mode === 'preview') {
-      const offset = Math.max(0, Math.floor(Number(body?.offset ?? 0)));
-      const context = await loadPreviewContext(businessId, channelInstanceId);
-      const batch = context.variants.slice(offset, offset + PREVIEW_BATCH_SIZE);
+      const offset = Number(body?.offset ?? 0);
+      if (!Number.isSafeInteger(offset) || offset < 0) return NextResponse.json({ error: 'Invalid preview offset.' }, { status: 400 });
+      const context = await loadPreviewContext(businessId, channelInstanceId, body?.mappings);
+      const batchSize = Math.min(PREVIEW_BATCH_SIZE, Math.floor(250 / context.locations.length));
+      const batch = context.variants.slice(offset, offset + batchSize);
       const lines = await loadLines(context.shopify, context.locations, batch);
       const locationIds = context.locations.map(location => location.solvantisLocationId);
       const currentRows = batch.length ? await imsQuery<{ variant_id: string; location_id: number; qty_on_hand: number }>(
@@ -120,14 +142,16 @@ export async function POST(req: Request) {
             solvantisLocationId: line.solvantisLocationId,
             quantity: line.quantity,
             wasNegative: line.wasNegative,
+            inventoryItemId: line.inventoryItemId,
           }));
         const applyOffset = offset + batch.findIndex(variant => variant.variant_id === applyVariants[0].variant_id);
         applyBatches.push({
           offset: applyOffset,
           variant_ids: [...applyVariantIds],
           snapshot: signOpeningStockSnapshot({
-            version: 1,
+            version: 2,
             businessId,
+            channelInstanceId,
             offset: applyOffset,
             expiresAt: Date.now() + SNAPSHOT_TTL_MS,
             lines: snapshotLines,
@@ -143,25 +167,36 @@ export async function POST(req: Request) {
         apply_batches: applyBatches,
         lines: previewLines,
         locations: context.locations,
+        skipped_levels: batch.length * context.locations.length - lines.length,
         has_more: offset + batch.length < context.variants.length,
         next_offset: offset + batch.length,
       });
     }
 
+    if (body?.confirmation !== SHOPIFY_INVENTORY_CONFIRMATION) {
+      return NextResponse.json({ error: `Type ${SHOPIFY_INVENTORY_CONFIRMATION} to apply onboarding inventory.` }, { status: 400 });
+    }
+    await getShopifyOperationContext({ businessId, channelInstanceId });
     const runId = validRunId(body?.run_id);
     if (!runId) return NextResponse.json({ error: 'A valid run_id is required.' }, { status: 400 });
-    const snapshot = verifyOpeningStockSnapshot(body?.snapshot, businessId);
+    let snapshot;
+    try { snapshot = verifyOpeningStockSnapshot(body?.snapshot, businessId, channelInstanceId); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid preview.' }, { status: 400 }); }
     const offset = snapshot.offset;
     const lines = snapshot.lines;
     const variantIds = [...new Set(lines.map(line => line.variantId))];
-    const variants = await imsQuery<{ variant_id: string }>(
-      `SELECT variant_id FROM ims_product_variants
-        WHERE business_id = ? AND is_active = 1
-          AND shopify_inventory_item_id IS NOT NULL AND shopify_inventory_item_id <> ''
-          AND variant_id IN (${variantIds.map(() => '?').join(',')})`,
-      [businessId, ...variantIds],
+    const variants = await imsQuery<{ variant_id: string; external_inventory_id: string }>(
+      `SELECT v.variant_id, mapping.external_inventory_id FROM ims_product_variants v
+        JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND BINARY p.business_id = BINARY v.business_id
+        JOIN ims_sales_channel_product_mappings mapping ON BINARY mapping.variant_id = BINARY v.variant_id
+          AND BINARY mapping.business_id = BINARY v.business_id
+        WHERE v.business_id = ? AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
+          AND v.is_active = 1 AND p.is_active = 1 AND COALESCE(p.is_stock_item, 1) = 1
+          AND v.variant_id IN (${variantIds.map(() => '?').join(',')})`,
+      [businessId, channelInstanceId, ...variantIds],
     );
-    if (variants.length !== variantIds.length) {
+    if (variants.length !== variantIds.length || lines.some(line =>
+      !variants.some(variant => variant.variant_id === line.variantId && String(variant.external_inventory_id) === line.inventoryItemId))) {
       throw new Error('One or more variants are no longer linked to Shopify. Preview again before applying.');
     }
     const locationIds = [...new Set(lines.map(line => line.solvantisLocationId))];
@@ -172,9 +207,9 @@ export async function POST(req: Request) {
     );
     const validLocations = new Map(locations
       .filter(location => Number(location.is_active) !== 0)
-      .map(location => [location.name.trim().toLowerCase(), Number(location.id)]));
+      .map(location => [Number(location.id), location.name]));
     for (const line of lines) {
-      if (validLocations.get(line.locationName.toLowerCase()) !== line.solvantisLocationId) {
+      if (validLocations.get(line.solvantisLocationId) !== line.locationName) {
         throw new Error('An opening stock location changed after preview. Preview again before applying.');
       }
     }
@@ -184,7 +219,7 @@ export async function POST(req: Request) {
       name: line.locationName,
       solvantisLocationId: line.solvantisLocationId,
     }])).values()]) {
-      const reference = `SHOPIFY-OPEN-${runId}-${offset}-${location.name}`.slice(0, 100);
+      const reference = `SHOPIFY-OPEN-${runId}-${offset}-${location.solvantisLocationId}`.slice(0, 100);
       const existing = await imsQuery<{ id: number; status: string }>(
         `SELECT id, status FROM ims_stocktakes
           WHERE business_id = ? AND location_id = ? AND reference = ?
@@ -247,20 +282,22 @@ export async function POST(req: Request) {
       stocktakes.push({ id: stocktakeId, location: location.name, applied: result.applied, variances: result.variances, replayed: result.replayed });
     }
 
-    refreshVariantCache(variantIds).catch(error => console.error('Failed to refresh Shopify opening stock cache:', error));
+    await refreshVariantCache(variantIds);
     await ImsShopifyRepo.logAction('reconcile', 'success', `Applied Shopify opening stock batch ${offset}`, businessId, {
       runId, offset, variants: variantIds.length, stocktakes,
     }, channelInstanceId);
     return NextResponse.json({ success: true, mode, stocktakes, variants: variantIds.length });
-  } catch (error: any) {
+  } catch (error) {
+    if (error instanceof ShopifyOpeningStockValidationError) return NextResponse.json({ error: error.message }, { status: 400 });
     await reportRuntimeIssue({
       businessId,
       source: 'shopify',
       operation: 'import_opening_stock',
       title: 'Shopify opening stock import failed',
       error,
-      context: { safeMessage: String(error?.message ?? 'Unknown error') },
+      context: { channelInstanceId },
+      reference: { type: 'sales_channel_instance', id: channelInstanceId || 'unselected' },
     }).catch(() => {});
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Shopify inventory import failed.' }, { status: 500 });
   }
 }

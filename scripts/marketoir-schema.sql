@@ -504,6 +504,7 @@ CREATE TABLE IF NOT EXISTS users (
   mfa_totp_secret VARCHAR(255) NULL,
   mfa_enabled     TINYINT(1) NOT NULL DEFAULT 0,
   mfa_enabled_at  DATETIME(3) NULL,
+  password_changed_at DATETIME(3) NULL,
   mfa_last_totp_step BIGINT NULL,
   registered_at DATETIME,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -583,6 +584,15 @@ CREATE TABLE IF NOT EXISTS user_auth_events (
   INDEX idx_user_auth_events_retention (created_at),
   CONSTRAINT fk_user_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_user_auth_events_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_password_history (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_password_history_user (user_id, id),
+  CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS super_admin_business_context_events (

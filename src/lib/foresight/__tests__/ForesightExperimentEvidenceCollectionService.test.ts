@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { listDue, createResult, getConnections, fetchMeta, fetchGoogle, reportIssue, decrypt } = vi.hoisted(() => ({
+const { listDue, createResult, getConnections, getAvailability, fetchMeta, fetchGoogle, reportIssue, decrypt } = vi.hoisted(() => ({
   listDue: vi.fn(), createResult: vi.fn(), getConnections: vi.fn(), fetchMeta: vi.fn(), fetchGoogle: vi.fn(), reportIssue: vi.fn(), decrypt: vi.fn(),
+  getAvailability: vi.fn(),
 }));
 vi.mock('@/lib/foresight/repositories/ForesightCampaignExperimentResultRepository', () => ({
   ForesightCampaignExperimentResultRepository: { listDueWithoutResult: listDue, create: createResult },
@@ -11,6 +12,9 @@ vi.mock('@/lib/foresight/ForesightMonitoringSyncService', () => ({ fetchMetaDail
 vi.mock('@/services/GoogleAdsService', () => ({ GoogleAdsService: class { getDailyPerformance = fetchGoogle; } }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: reportIssue }));
 vi.mock('@/lib/encryption', () => ({ decrypt }));
+vi.mock('@/lib/ims/integrationAvailability', () => ({
+  getOptionalIntegrationAvailability: getAvailability,
+}));
 
 import {
   buildGoogleAdsExperimentObservations,
@@ -47,6 +51,10 @@ describe('ForesightExperimentEvidenceCollectionService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listDue.mockResolvedValue([due]);
+    getAvailability.mockResolvedValue({
+      google: { enabled: true }, meta: { enabled: true }, cin7: { enabled: false },
+      klaviyo: { enabled: false }, gmail: { enabled: false },
+    });
     getConnections.mockResolvedValue({ meta_ad_account_id: 'act_123', meta_access_token: 'encrypted', google_ads_customer_id: '999', google_ads_refresh_token: 'google-encrypted' });
     decrypt.mockReturnValue('decrypted');
     fetchMeta.mockResolvedValue(metaRows);
@@ -88,6 +96,20 @@ describe('ForesightExperimentEvidenceCollectionService', () => {
       observations: expect.objectContaining({ control: expect.objectContaining({ conversions: 50 }) }),
     }));
     expect(result).toEqual({ dueCount: 1, measuredCount: 1, inconclusiveCount: 0, deferredCount: 0 });
+  });
+
+  it('defers due platform evidence while that integration is off', async () => {
+    getAvailability.mockResolvedValue({
+      google: { enabled: false }, meta: { enabled: false }, cin7: { enabled: false },
+      klaviyo: { enabled: false }, gmail: { enabled: false },
+    });
+
+    const result = await ForesightExperimentEvidenceCollectionService.collectDue('business-1', '2026-08-17');
+
+    expect(fetchMeta).not.toHaveBeenCalled();
+    expect(fetchGoogle).not.toHaveBeenCalled();
+    expect(createResult).not.toHaveBeenCalled();
+    expect(result.deferredCount).toBe(1);
   });
 
   it('locks unsupported channel evidence as an explicit inconclusive conclusion', async () => {

@@ -16,7 +16,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Record weight and package dimensions for variants that may be shipped.
 - Record product-level customs details before preparing the item for international shipping.
 - Mark a product as an online candidate, preview its destination for every configured storefront, and override an individual channel assignment when needed.
-- Choose which optional product and variant fields appear under **Settings > Products**.
+- Choose which optional product and variant fields appear under **Settings > Inventory & Locations > Product fields**.
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
 - Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.
 - Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
@@ -53,7 +53,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 	The Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.
 2. Select **New Product** when no matching product exists.
 3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.
-4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.
+4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Inventory & Locations > Product fields**.
 5. Add a description and set Active to **Yes** when the item should be available. Use the description toolbar for headings, font, size, emphasis, colour, alignment, lists, quotes and links. Use **HTML source** only when direct markup editing is needed.
 6. In **Customs & compliance**, enter a plain description of the goods, the HS tariff code and the two-letter country of origin. Turn on **Dangerous or restricted goods** when the item needs carrier restriction checks or special handling. Flagged items cannot use the standard international shipping workflow.
 7. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.
@@ -63,7 +63,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 11. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost, weight in kilograms, and length, width and height in millimetres where relevant. **B2B Pack** is the number of individual units in one wholesale selling pack for that variant; leave it blank when the variant is sold individually.
 12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 13. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
-14. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Products** only when those extra fields are needed.
+14. If **Add stock with new products** is enabled, enter opening quantity for each variant and location. Leave it at zero when no opening stock is being added. Enable **Minimum and reorder quantities** under **Settings > Inventory & Locations > Product fields** only when those extra fields are needed.
 15. For a saved product, use **Online candidate** to make its catalogue content available to channel-rule evaluation. Under **Channel destinations**, review the saved product's effective Include or Exclude result, matched rule, override and observed provider state for every configured storefront. An administrator can choose **Include** or **Exclude** for one storefront, or **Automatic** to return the product to that storefront's ordered rules.
 16. Choose **Save All**, then refresh **Channel destinations** to evaluate the saved catalogue values. Check the uploaded photos, representative variants and any completed opening-stock stocktakes. Solvantis creates a stocktake only where the entered opening quantity differs from stock already on hand.
 
@@ -75,7 +75,7 @@ If support confirms that a stored photo is missing, repeated Sync cannot restore
 
 When **Use Builds** is enabled for the business, tracked products show their own **Use Builds** switch. Leave it off for ordinary purchased products. Turn it on only for finished products assembled from other stocked products; this reveals the Build Recipe editor without changing existing stock. Component search checks the existing catalogue by product name, variant, SKU, or barcode.
 
-Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.
+Under **Settings > Inventory & Locations > Product fields**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.
 
 Opening quantity changes are set through a completed stocktake, so Stock History retains each actual adjustment. A new product left at the default zero does not create a zero-value stocktake. Minimum and reorder quantities can still be saved without changing stock. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.
 
@@ -116,7 +116,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | Field | Product or variant? | Practical rule |
 |---|---|---|
 | Name, brand, description | Product | Shared customer-facing identity |
-| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |
+| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Inventory & Locations > Product fields |
 | Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |
 | Product SKU | Product | Groups the variants under one product |
 | Size, colour, style | Variant | Describes the exact choice |

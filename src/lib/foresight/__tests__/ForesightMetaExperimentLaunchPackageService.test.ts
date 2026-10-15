@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/ims/integrationAvailability', () => ({ assertOptionalIntegrationEnabled: vi.fn().mockResolvedValue(undefined) }));
 const { buildPackage, getConfirmation, createConfirmation } = vi.hoisted(() => ({ buildPackage: vi.fn(), getConfirmation: vi.fn(), createConfirmation: vi.fn() }));
 vi.mock('../metaExperimentLaunchPackage', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../metaExperimentLaunchPackage')>();

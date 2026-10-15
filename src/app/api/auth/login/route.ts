@@ -27,6 +27,7 @@ import { BusinessApplicationsRepository } from '@/lib/db/BusinessApplicationsRep
 import { setPendingApplicantCookie } from '@/lib/auth/pendingApplicantCookies';
 import { query } from '@/services/MySQLService';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
+import { getPasswordValidation, passwordExpiresAt, passwordRequiresRenewal } from '@/lib/auth/passwordPolicy';
 
 async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: string): Promise<boolean> {
   let hostname = '';
@@ -51,12 +52,6 @@ async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: s
   return rows.length === 1 && Number(rows[0].is_sandbox) === 1 && Number(rows[0].automation_paused) === 1;
 }
 
-function getClientIp(req: Request): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || req.headers.get('x-real-ip')?.trim()
-    || 'unknown';
-}
-
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -75,7 +70,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Email, password, and destination are required.' }, { status: 400 });
     }
 
-    const rateLimitSubject = createAuthRateLimitSubject(String(email), getClientIp(req));
+    const rateLimitSubject = createAuthRateLimitSubject(String(email));
     const rateLimit = await getAuthRateLimit('password-login', rateLimitSubject);
     if (rateLimit.locked) {
       return NextResponse.json(
@@ -89,6 +84,16 @@ export async function POST(req: Request) {
     if (!user || !valid) {
       await recordAuthFailure({ action: 'password-login', subjectHash: rateLimitSubject });
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
+    }
+    if (passwordRequiresRenewal(user.password_changed_at)
+      || !getPasswordValidation(password, user.username ?? user.email).isValid) {
+      clearAdminSessionCookie();
+      clearMfaTrustCookie();
+      return NextResponse.json({
+        success: false, code: 'password_renewal_required',
+        error: 'Your password must be renewed before signing in. Use Forgot password to set a compliant password.',
+        nextRoute: '/forgot-password',
+      }, { status: 403 });
     }
 
     const membership = await resolveLoginMembership(user);
@@ -127,6 +132,7 @@ export async function POST(req: Request) {
       role:              user.role ?? 'user',
       tier:              effectiveTier,
       userId:            user.id,
+      passwordExpiresAt: passwordExpiresAt(user.password_changed_at)!,
     };
 
     clearAdminSessionCookie();

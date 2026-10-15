@@ -30,7 +30,7 @@ describe('manual Amazon delivery evidence workspace', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Delivery evidence help' }));
     expect(help).toHaveBeenCalledOnce();
-    expect(screen.getByText(/hourly job starts Off/)).toBeTruthy();
+    expect(screen.getByText(/hourly Online channel delivery tracking job starts Off/).textContent).toContain('30-day PII rules remain Amazon-only');
   });
   it('requires independent verification and saves minimum fields only', async () => {
     fetchMock.mockResolvedValueOnce(response({ success: true, report: report() }));

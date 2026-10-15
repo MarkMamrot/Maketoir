@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { MetaAdsReadService, type MetaBudgetSettings } from '@/services/MetaAdsReadService';
 import { ForesightMetaRollbackPreflightService } from './ForesightMetaRollbackPreflightService';
 import {
@@ -96,6 +97,7 @@ export function createForesightMetaRollbackService(dependencies: Dependencies = 
 
   return {
     async rollback(input: { businessId: string; recommendationId: number; originalExecutionId: number; actorId: number; proposalHash: string; confirmationFingerprint: string }) {
+      await assertOptionalIntegrationEnabled(input.businessId, 'meta');
       const key = idempotencyKey(input);
       const existing = await dependencies.findExecution(input.businessId, key);
       if (existing && existing.state !== 'in_progress') return { execution: existing, idempotentReplay: true, mutationSubmitted: false };

@@ -10,6 +10,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { assertBusinessAccess, requireAdminSession } from '@/lib/sessionUtils';
 import { signGmailOAuthState } from '@/lib/customer-service/gmailOAuthState';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
@@ -25,13 +26,22 @@ export async function GET(req: Request) {
   // Ensure appUrl has https:// — APP_URL may be stored without the scheme.
   const raw = process.env.APP_URL ?? 'solvantis.com.au';
   const appUrl = /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`;
-  const returnUrl = `${appUrl}/setup`;
+  const returnUrl = `${appUrl}/ims`;
+  const settingsAnchor = '#settings-connection-gmail';
 
   if (!businessId) {
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('Missing businessId.')}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('Missing businessId.')}${settingsAnchor}`);
   }
   const denied = assertBusinessAccess(user, businessId);
   if (denied) return denied;
+  try {
+    await assertOptionalIntegrationEnabled(businessId, 'gmail');
+  } catch (error) {
+    const message = isIntegrationDisabledError(error)
+      ? 'Gmail is disabled. Enable it before connecting.'
+      : 'Gmail integration availability is not ready.';
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent(message)}${settingsAnchor}`);
+  }
 
   // Load the business's own Google OAuth credentials.
   const conn = await ConnectionsRepository.get(businessId).catch(() => null);
@@ -41,10 +51,10 @@ export async function GET(req: Request) {
   try { clientSecret = encSecret ? decrypt(encSecret) : ''; } catch { clientSecret = encSecret; }
 
   if (!clientId) {
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No Google Client ID saved for this business. Enter your Client ID and Secret in the Gmail card first, then Save, then Connect.')}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No Google Client ID saved for this business. Enter your Client ID and Secret in the Gmail card first, then Save, then Connect.')}${settingsAnchor}`);
   }
   if (!clientSecret) {
-    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No Google Client Secret saved for this business. Enter your Client Secret in the Gmail card first, then Save, then Connect.')}`);
+    return NextResponse.redirect(`${returnUrl}?gmailError=${encodeURIComponent('No Google Client Secret saved for this business. Enter your Client Secret in the Gmail card first, then Save, then Connect.')}${settingsAnchor}`);
   }
 
   const redirectUri = `${appUrl}/api/auth/gmail/callback`;

@@ -5,6 +5,25 @@ vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: session }));
 import { POST } from '../route';
 beforeEach(() => { vi.clearAllMocks(); session.mockResolvedValue({ businessId: 'test-business' }); });
 describe('terminal runtime issues', () => {
+  it.each(['pos_terminal_readiness', 'pos_terminal_delay', 'pos_audio_playback'])('records %s under the authenticated POS business', async operation => {
+    const response = await POST(new Request('https://solvantis.com.au/api/runtime-issues/client', {
+      method: 'POST', body: JSON.stringify({ operation, message: 'Device diagnostic', businessId: 'test-business',
+        metrics: { readinessWaitMs: 2_000, readinessCached: false, firstTerminalEventMs: null, secret: 'must not persist' } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'test-business', operation,
+      context: expect.objectContaining({ terminal_timing: { readinessWaitMs: 2_000, readinessCached: false, firstTerminalEventMs: null } }),
+    }));
+    expect(JSON.stringify(report.mock.calls)).not.toContain('must not persist');
+  });
+  it('rejects invalid diagnostics rather than persisting untrusted values', async () => {
+    const response = await POST(new Request('https://solvantis.com.au/api/runtime-issues/client', {
+      method: 'POST', body: JSON.stringify({ operation: 'pos_terminal_delay', message: 'Slow', metrics: { readinessWaitMs: -5 } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(report).not.toHaveBeenCalled();
+  });
   it.each(['pos_sale_local_storage', 'pos_sale_sync', 'pos_catalogue_refresh'])('records %s with the original sale reference', async operation => {
     const response = await POST(new Request('https://solvantis.com.au/api/runtime-issues/client', {
       method: 'POST', body: JSON.stringify({ operation, message: 'Device recovery required', businessId: 'test-business', localId: 'paid-sale' }),

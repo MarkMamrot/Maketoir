@@ -15,6 +15,9 @@ import { getImsSession } from '@/lib/auth/imsSession';
 export async function POST(req: NextRequest) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  if (session.tier !== 'SuperAdmin') {
+    return NextResponse.json({ error: 'SuperAdmin access required.' }, { status: 403 });
+  }
 
   const businessId: string = session.businessId;
   if (!businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });

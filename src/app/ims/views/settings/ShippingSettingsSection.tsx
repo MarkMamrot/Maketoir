@@ -1,8 +1,10 @@
 'use client';
 
 import { Package, Pencil, Plus, Save, TestTube2, Truck, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AUSPOST_PACKAGING_CATALOGUE } from '@/lib/ims/shipping/ausPostPackagingCatalogue';
+import { DeliveryTrackingSettingsSection } from './DeliveryTrackingSettingsSection';
+import { useSettingsDirty } from './SettingsShell';
 
 type Account = {
   id: number; provider: string; displayName: string;
@@ -21,7 +23,7 @@ const blankPreset = { name: '', packageType: 'box', lengthMm: '', widthMm: '', h
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', boxSizing: 'border-box' };
 const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' };
 
-export function ShippingSettingsSection() {
+export function ShippingSettingsSection({ businessId, onDeliveryHelp }: { businessId: string; onDeliveryHelp?: () => void }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -31,6 +33,21 @@ export function ShippingSettingsSection() {
   const [message, setMessage] = useState('');
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [selectedCatalogueIds, setSelectedCatalogueIds] = useState<Set<string>>(new Set());
+  const [accountDirty, setAccountDirty] = useState(false);
+  const [presetDirty, setPresetDirty] = useState(false);
+  const accountDirtyRef = useRef(accountDirty);
+  accountDirtyRef.current = accountDirty;
+  const accountBaseline = useRef(account);
+  const presetBaseline = useRef(preset);
+  useSettingsDirty(accountDirty || presetDirty || selectedCatalogueIds.size > 0);
+  const selectAccount = (next: typeof account) => {
+    if (accountDirty && !window.confirm('Discard unsaved carrier account changes?')) return;
+    accountBaseline.current = next; setAccount(next); setAccountDirty(false);
+  };
+  const selectPreset = (next: typeof preset) => {
+    if (presetDirty && !window.confirm('Discard unsaved package preset changes?')) return;
+    presetBaseline.current = next; setPreset(next); setPresetDirty(false);
+  };
 
   const load = useCallback(async (preferredAccountId?: number) => {
     const [settingsResponse, locationsResponse] = await Promise.all([
@@ -45,9 +62,12 @@ export function ShippingSettingsSection() {
     setPresets(settingsResult.data.presets ?? []);
     setLocations(locationsResult.success ? locationsResult.data ?? [] : []);
     setAccount((current: any) => {
+      if (accountDirtyRef.current) return current;
       const selected = loadedAccounts.find(item => item.id === (preferredAccountId ?? current.id))
         ?? loadedAccounts[0];
-      return selected ? { ...selected, apiKey: '', password: '', dispatchLocationId: selected.dispatchLocationId ?? '' } : current;
+      const next = selected ? { ...selected, apiKey: '', password: '', dispatchLocationId: selected.dispatchLocationId ?? '' } : current;
+      accountBaseline.current = next;
+      return next;
     });
   }, []);
 
@@ -62,8 +82,9 @@ export function ShippingSettingsSection() {
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to save shipping settings.');
+      if (resource === 'account') { accountDirtyRef.current = false; setAccountDirty(false); }
       await load(resource === 'account' ? Number(result.id) : undefined);
-      if (resource === 'preset') setPreset(blankPreset);
+      if (resource === 'preset') { presetBaseline.current = blankPreset; setPreset(blankPreset); setPresetDirty(false); }
       setMessage(resource === 'account' ? 'Carrier account saved.' : 'Package preset saved.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save shipping settings.'); }
     finally { setBusy(''); }
@@ -119,13 +140,15 @@ export function ShippingSettingsSection() {
       <p style={{ margin: '0 0 24px', color: 'var(--sv-text-dim)', fontSize: 13 }}>Connect carrier accounts and define the packages used when shipping Sales Orders.</p>
       {message && <div role="status" style={{ marginBottom: 16, padding: '9px 12px', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 12 }}>{message}</div>}
 
-      <section style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 18, marginBottom: 30 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}><h3 style={{ margin: 0, fontSize: 15 }}>Carrier accounts</h3><button type="button" onClick={() => setAccount(blankAccount)} style={secondaryButtonStyle}><Plus size={14} />New account</button></div>
+      <DeliveryTrackingSettingsSection key={businessId} businessId={businessId} onHelp={onDeliveryHelp} />
+
+      <section onChangeCapture={() => setAccountDirty(true)} style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 18, marginBottom: 30 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}><h3 style={{ margin: 0, fontSize: 15 }}>Carrier accounts</h3><button type="button" onClick={() => selectAccount(blankAccount)} style={secondaryButtonStyle}><Plus size={14} />New account</button></div>
         {accounts.map(item => <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(240px,100%),1fr))', gap: 16, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--sv-etch)' }}>
           <div><strong style={{ fontSize: 13 }}>{item.displayName}</strong><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.provider === 'auspost_eparcel' ? 'Australia Post eParcel' : 'MyPost Business'} · {item.accountNumber || 'No account number'}</div></div>
           <ConnectionStatus account={item} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button title="Edit carrier account" onClick={() => setAccount({ ...item, apiKey: '', password: '', dispatchLocationId: item.dispatchLocationId ?? '' })} style={secondaryButtonStyle}><Pencil size={14} />Edit</button>
+            <button title="Edit carrier account" onClick={() => selectAccount({ ...item, apiKey: '', password: '', dispatchLocationId: item.dispatchLocationId ?? '' })} style={secondaryButtonStyle}><Pencil size={14} />Edit</button>
             {item.provider === 'auspost_eparcel' && <button title="Test connection" disabled={busy === `test-${item.id}`} onClick={() => testAccount(item.id)} style={secondaryButtonStyle}><TestTube2 size={14} />{busy === `test-${item.id}` ? 'Testing...' : 'Test connection'}</button>}
             {item.isActive && <button title="Deactivate carrier account" disabled={busy === `delete-account-${item.id}`} onClick={() => deactivate('account', item.id)} style={iconButtonStyle}><X size={15} /></button>}
           </div>
@@ -141,14 +164,15 @@ export function ShippingSettingsSection() {
         </div>
         {account.provider === 'mypost_business' && <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>MyPost Business requires approved ecommerce-partner API access and cannot be enabled yet.</p>}
         <button onClick={() => save('account', { ...account, isActive: account.provider !== 'mypost_business' })} disabled={Boolean(busy)} style={actionButtonStyle}><Save size={15} />{account.id ? 'Update account' : 'Add account'}</button>
+        <button type="button" disabled={Boolean(busy)} onClick={() => { setAccount(accountBaseline.current); setAccountDirty(false); }} style={secondaryButtonStyle}>Cancel account changes</button>
       </section>
 
-      <section style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 18 }}>
+      <section onChangeCapture={() => setPresetDirty(true)} style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Package size={17} /><h3 style={{ margin: 0, fontSize: 15 }}>Package presets</h3></div><button type="button" onClick={() => setCatalogueOpen(true)} style={secondaryButtonStyle}><Plus size={14} />Australia Post presets</button></div>
         {presets.map(item => <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 1fr auto', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--sv-etch)' }}>
           <div><strong style={{ fontSize: 13 }}>{item.name}</strong><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.packageType}</div></div>
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.lengthMm} × {item.widthMm} × {item.heightMm} mm · {item.tareWeightKg} kg tare</div>
-          <div style={{ display: 'flex', gap: 6 }}><button title="Edit package preset" onClick={() => setPreset({ ...item, maxWeightKg: item.maxWeightKg ?? '' })} style={iconButtonStyle}><Save size={15} /></button>{item.isActive && <button title="Deactivate package preset" onClick={() => deactivate('preset', item.id)} style={iconButtonStyle}><X size={15} /></button>}</div>
+          <div style={{ display: 'flex', gap: 6 }}><button title="Edit package preset" onClick={() => selectPreset({ ...item, maxWeightKg: item.maxWeightKg ?? '' })} style={iconButtonStyle}><Save size={15} /></button>{item.isActive && <button title="Deactivate package preset" onClick={() => deactivate('preset', item.id)} style={iconButtonStyle}><X size={15} /></button>}</div>
         </div>)}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginTop: 16 }}>
           <Field label="Name"><input value={preset.name} onChange={event => setPreset({ ...preset, name: event.target.value })} style={inputStyle} /></Field>
@@ -157,6 +181,7 @@ export function ShippingSettingsSection() {
         </div>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, fontSize: 12 }}><input type="checkbox" checked={preset.allowRotation} onChange={event => setPreset({ ...preset, allowRotation: event.target.checked })} /> Products may be rotated to fit</label>
         <button onClick={() => save('preset', { ...preset, lengthMm: Number(preset.lengthMm), widthMm: Number(preset.widthMm), heightMm: Number(preset.heightMm), tareWeightKg: Number(preset.tareWeightKg), maxWeightKg: preset.maxWeightKg === '' ? null : Number(preset.maxWeightKg), sortPriority: Number(preset.sortPriority) })} disabled={Boolean(busy)} style={actionButtonStyle}><Plus size={15} />{preset.id ? 'Update preset' : 'Add preset'}</button>
+        <button type="button" disabled={Boolean(busy)} onClick={() => { setPreset(presetBaseline.current); setPresetDirty(false); }} style={secondaryButtonStyle}>Cancel preset changes</button>
       </section>
       {catalogueOpen && <AusPostCatalogueDialog existingNames={new Set(presets.map(item => item.name.toLowerCase()))} selectedIds={selectedCatalogueIds} onSelectedIdsChange={setSelectedCatalogueIds} busy={busy === 'import-catalogue'} onAdd={importCataloguePresets} onClose={() => setCatalogueOpen(false)} />}
     </div>

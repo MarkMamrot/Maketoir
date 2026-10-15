@@ -1,6 +1,7 @@
 import { query, execute } from '@/services/MySQLService';
 import bcrypt from 'bcryptjs';
 import type { UserTier } from '@/lib/tierUtils';
+import { getPasswordValidation, PasswordPolicyValidationError } from '@/lib/auth/passwordPolicy';
 
 export interface UserRow {
   id:            number;
@@ -10,6 +11,7 @@ export interface UserRow {
   email:         string;
   phone:         string | null;
   password_hash: string;
+  password_changed_at?: Date | string | null;
   business_id:   string | null;
   role:          'admin' | 'user';
   tier:          UserTier;
@@ -49,14 +51,18 @@ export const UsersRepository = {
     businessId?: string;
     role?: 'admin' | 'user';
     tier?: UserTier;
+    requirePasswordSetup?: boolean;
   }): Promise<number> {
+    const validation = getPasswordValidation(data.password, data.requirePasswordSetup ? undefined : data.username ?? data.email);
+    if (!validation.isValid) throw new PasswordPolicyValidationError(validation.message);
     const hash = await bcrypt.hash(data.password, 12);
     const result = await execute(
-      `INSERT INTO users (email, password_hash, username, name, company, phone, business_id, role, tier, registered_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO users (email, password_hash, username, name, company, phone, business_id, role, tier, registered_at, password_changed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
       [data.email.toLowerCase(), hash,
        data.username ?? null, data.name ?? null, data.company ?? null, data.phone ?? null,
-       data.businessId ?? null, data.role ?? 'admin', data.tier ?? 'StandardUser'],
+       data.businessId ?? null, data.role ?? 'admin', data.tier ?? 'StandardUser',
+       data.requirePasswordSetup ? null : new Date()],
     );
     return result.insertId;
   },

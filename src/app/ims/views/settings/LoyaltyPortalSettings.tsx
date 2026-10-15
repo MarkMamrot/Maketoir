@@ -1,6 +1,7 @@
 'use client';
 
 import { Copy, ExternalLink, Eye, Save } from 'lucide-react';
+import { useSettingsDirty } from './SettingsShell';
 import { useEffect, useState } from 'react';
 
 const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 10px', boxSizing: 'border-box', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 14 };
@@ -19,31 +20,41 @@ export function LoyaltyPortalSettings() {
   const [policyApproved, setPolicyApproved] = useState(false);
   const [preview, setPreview] = useState<{ termsMarkdown: string; privacyMarkdown: string } | null>(null);
   const [previewTab, setPreviewTab] = useState<'terms' | 'privacy'>('terms');
+  const [baseline, setBaseline] = useState(empty);
+  const [loadFailed, setLoadFailed] = useState(false);
+  useSettingsDirty(JSON.stringify(draft) !== JSON.stringify(baseline));
   const portalUrl = draft.slug && typeof window !== 'undefined' ? `${window.location.origin}/rewards/${draft.slug}` : '';
-  useEffect(() => { void fetch('/api/ims/loyalty/portal-profile').then(async response => {
+  useEffect(() => { let current = true; void fetch('/api/ims/loyalty/portal-profile').then(async response => {
     const body = await response.json();
-    if (response.ok && body.profile) setDraft({ ...empty, ...body.profile, logoUrl: body.profile.logoUrl || '', merchant: { ...empty.merchant, ...(body.profile.merchant || {}) } });
-    else if (!response.ok) setMessage({ error: true, text: body.error || 'Portal settings could not be loaded.' });
-  }).finally(() => setLoading(false)); }, []);
+    if (!response.ok) throw new Error(body.error || 'Portal settings could not be loaded.');
+    if (current && body.profile) { const saved = { ...empty, ...body.profile, logoUrl: body.profile.logoUrl || '', merchant: { ...empty.merchant, ...(body.profile.merchant || {}) } }; setDraft(saved); setBaseline(saved); }
+  }).catch(error => { if (current) { setLoadFailed(true); setMessage({ error: true, text: error instanceof Error ? error.message : 'Portal settings could not be loaded.' }); } }).finally(() => { if (current) setLoading(false); }); return () => { current = false; }; }, []);
   const change = (key: keyof typeof empty, value: string | boolean) => { setDraft(previous => ({ ...previous, [key]: value })); setPolicyApproved(false); setPreview(null); };
   const changeMerchant = (key: keyof typeof empty.merchant, value: string) => { setDraft(previous => ({ ...previous, merchant: { ...previous.merchant, [key]: value } })); setPolicyApproved(false); setPreview(null); };
   const previewPolicies = async () => {
     setSaving(true); setMessage(null);
-    const response = await fetch('/api/ims/loyalty/portal-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: draft.merchant }) });
-    const body = await response.json().catch(() => ({}));
-    if (response.ok) { setPreview(body.preview); setPreviewTab('terms'); }
-    else setMessage({ error: true, text: body.error || 'Policy preview could not be generated.' });
-    setSaving(false);
+    try {
+      const response = await fetch('/api/ims/loyalty/portal-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: draft.merchant }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Policy preview could not be generated.');
+      setPreview(body.preview); setPreviewTab('terms');
+    } catch (error) { setMessage({ error: true, text: error instanceof Error ? error.message : 'Policy preview could not be generated.' }); }
+    finally { setSaving(false); }
   };
   const save = async () => {
     setSaving(true); setMessage(null);
-    const response = await fetch('/api/ims/loyalty/portal-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, policyApproved }) });
-    const body = await response.json().catch(() => ({}));
-    if (response.ok) { setDraft({ ...empty, ...body.profile, logoUrl: body.profile.logoUrl || '', merchant: { ...empty.merchant, ...(body.profile.merchant || {}) } }); setMessage({ error: false, text: draft.isActive ? 'Portal and policy version published.' : 'Loyalty portal settings saved.' }); }
-    else setMessage({ error: true, text: body.error || 'Portal settings could not be saved.' });
-    setSaving(false);
+    try {
+      const response = await fetch('/api/ims/loyalty/portal-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, policyApproved }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Portal settings could not be saved.');
+      const saved = { ...empty, ...body.profile, logoUrl: body.profile.logoUrl || '', merchant: { ...empty.merchant, ...(body.profile.merchant || {}) } };
+      setDraft(saved); setBaseline(saved); setPolicyApproved(false);
+      setMessage({ error: false, text: draft.isActive ? 'Portal and policy version published.' : 'Loyalty portal settings saved.' });
+    } catch (error) { setMessage({ error: true, text: error instanceof Error ? error.message : 'Portal settings could not be saved.' }); }
+    finally { setSaving(false); }
   };
   if (loading) return <section style={{ marginTop: 16, padding: 20, border: '1px solid var(--sv-etch)', borderRadius: 8 }}>Loading portal settings...</section>;
+  if (loadFailed) return <p role="alert">{message?.text}</p>;
   return <section style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, marginBottom: 18 }}><div><div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Customer rewards portal</div><div style={{ marginTop: 3, fontSize: 12, color: 'var(--sv-text-dim)' }}>Email sign-in, enrolment, balances, and Shopify discount conversion.</div></div><label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}><input type="checkbox" checked={draft.isActive} onChange={event => change('isActive', event.target.checked)} />{draft.isActive ? 'Published' : 'Off'}</label></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
@@ -77,7 +88,7 @@ export function LoyaltyPortalSettings() {
       {draft.isActive && <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 16, color: 'var(--sv-text-main)', fontSize: 12, lineHeight: 1.5 }}><input type="checkbox" checked={policyApproved} onChange={event => setPolicyApproved(event.target.checked)} style={{ marginTop: 2 }} /><span>I have reviewed these policies for this business and approve publishing them as terms version <strong>{draft.termsVersion || '—'}</strong>.</span></label>}
     </div>
     {portalUrl && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 12, color: 'var(--sv-text-dim)', overflowWrap: 'anywhere' }}><span>{portalUrl}</span><button type="button" title="Copy portal URL" onClick={() => navigator.clipboard.writeText(portalUrl)} style={{ border: 0, background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}><Copy size={15} /></button>{draft.isActive && <a href={portalUrl} target="_blank" title="Open portal" style={{ color: 'var(--sv-action)' }}><ExternalLink size={15} /></a>}</div>}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20 }}><button type="button" onClick={save} disabled={saving || (draft.isActive && !policyApproved)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving || (draft.isActive && !policyApproved) ? .55 : 1 }}><Save size={15} />{saving ? 'Saving...' : draft.isActive ? 'Publish portal and policies' : 'Save portal'}</button>{message && <span style={{ fontSize: 12, color: message.error ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{message.text}</span>}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20 }}><button type="button" data-primary onClick={save} disabled={saving || (draft.isActive && !policyApproved)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving || (draft.isActive && !policyApproved) ? .55 : 1 }}><Save size={15} />{saving ? 'Saving...' : draft.isActive ? 'Publish portal and policies' : 'Save portal'}</button><button type="button" disabled={saving} onClick={() => { setDraft(baseline); setPolicyApproved(false); setPreview(null); setMessage(null); }}>Cancel</button>{message && <span style={{ fontSize: 12, color: message.error ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{message.text}</span>}</div>
     {preview && <div onClick={event => { if (event.target === event.currentTarget) setPreview(null); }} style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(0,0,0,.65)' }}><div style={{ width: 'min(820px,100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 16, borderBottom: '1px solid var(--sv-etch)' }}><strong>Policy preview</strong><button type="button" onClick={() => setPreview(null)} style={{ border: 0, background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 18 }}>×</button></div><div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--sv-etch)' }}>{(['terms', 'privacy'] as const).map(tab => <button type="button" key={tab} onClick={() => setPreviewTab(tab)} style={{ padding: '6px 10px', border: 0, borderRadius: 4, background: previewTab === tab ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: previewTab === tab ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer' }}>{tab === 'terms' ? 'Loyalty terms' : 'Privacy policy'}</button>)}</div><pre style={{ margin: 0, padding: 20, overflow: 'auto', whiteSpace: 'pre-wrap', color: 'var(--sv-text-main)', font: '13px/1.65 system-ui,sans-serif' }}>{previewTab === 'terms' ? preview.termsMarkdown : preview.privacyMarkdown}</pre></div></div>}
   </section>;
 }

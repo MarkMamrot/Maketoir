@@ -4,6 +4,7 @@ import { Gift, Plus, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type { LoyaltyReward } from '@/lib/loyalty/types';
+import { useSettingsDirty } from './SettingsShell';
 
 type RewardDraft = Omit<LoyaltyReward, 'businessId'>;
 
@@ -19,12 +20,18 @@ export function LoyaltyRewardsSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
+  const [baseline, setBaseline] = useState<RewardDraft[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useSettingsDirty(JSON.stringify(rewards) !== JSON.stringify(baseline));
 
   useEffect(() => {
     void fetch('/api/ims/loyalty/rewards').then(async response => {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Rewards could not be loaded.');
+      if (!Array.isArray(body.rewards)) throw new Error('Rewards were not returned. Reopen this page before making changes.');
       setRewards(body.rewards);
+      setBaseline(body.rewards);
+      setLoaded(true);
     }).catch(error => setMessage({ error: true, text: error instanceof Error ? error.message : 'Rewards could not be loaded.' })).finally(() => setLoading(false));
   }, []);
 
@@ -40,6 +47,7 @@ export function LoyaltyRewardsSettings() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || 'Rewards could not be saved.');
       setRewards(body.rewards);
+      setBaseline(body.rewards);
       setMessage({ error: false, text: 'Reward settings saved.' });
     } catch (error) {
       setMessage({ error: true, text: error instanceof Error ? error.message : 'Rewards could not be saved.' });
@@ -49,7 +57,7 @@ export function LoyaltyRewardsSettings() {
   return <section style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
       <div><div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}><Gift size={16} />Rewards</div><div style={{ marginTop: 3, fontSize: 12, color: 'var(--sv-text-dim)' }}>Fixed-dollar rewards available at POS and for Shopify discount conversion.</div></div>
-      <button type="button" onClick={() => setRewards(previous => [...previous, blankReward(previous.length)])} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer', fontWeight: 600 }}><Plus size={15} />Add reward</button>
+      <button type="button" disabled={!loaded || saving} onClick={() => setRewards(previous => [...previous, blankReward(previous.length)])} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer', fontWeight: 600 }}><Plus size={15} />Add reward</button>
     </div>
     {loading ? <div style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading rewards...</div> : rewards.length === 0 ? <div style={{ padding: '18px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>No rewards configured.</div> : <div style={{ display: 'grid', gap: 10 }}>
       {rewards.map((reward, index) => <div key={reward.id || `new-${index}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, alignItems: 'end', padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)' }}>
@@ -61,6 +69,6 @@ export function LoyaltyRewardsSettings() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 34, fontSize: 12, fontWeight: 600, color: 'var(--sv-text-main)' }}><input type="checkbox" checked={reward.isActive} onChange={event => change(index, 'isActive', event.target.checked)} />Active</label>
       </div>)}
     </div>}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}><button type="button" onClick={save} disabled={saving || loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving || loading ? 0.65 : 1 }}><Save size={15} />{saving ? 'Saving...' : 'Save rewards'}</button>{message && <span style={{ fontSize: 12, color: message.error ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{message.text}</span>}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}><button type="button" data-primary onClick={save} disabled={saving || !loaded} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving || loading ? 0.65 : 1 }}><Save size={15} />{saving ? 'Saving...' : 'Save rewards'}</button><button type="button" disabled={saving} onClick={() => { setRewards(baseline); setMessage(null); }}>Cancel</button>{message && <span style={{ fontSize: 12, color: message.error ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{message.text}</span>}</div>
   </section>;
 }

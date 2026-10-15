@@ -47,7 +47,7 @@ export async function recordAuthEvent(input: {
 }): Promise<void> {
   const metadata = getAuthRequestMetadata(input.request);
   try {
-    await execute('DELETE FROM user_auth_events WHERE created_at < DATE_SUB(NOW(3), INTERVAL 90 DAY)');
+    await execute('DELETE FROM user_auth_events WHERE created_at < DATE_SUB(NOW(3), INTERVAL 12 MONTH)');
     await execute(
       `INSERT INTO user_auth_events
         (business_id, user_id, event_type, actor_user_id, ip_address, city, region, country, user_agent)
@@ -73,6 +73,6 @@ export async function recordAuthEvent(input: {
       error,
       context: { userId: input.userId, eventType: input.eventType },
       reference: { type: 'user', id: input.userId },
-    }).catch(() => {});
+    });
   }
 }

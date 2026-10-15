@@ -1,5 +1,5 @@
 ---
-{"id":"pos-team-communications","title":"Team Communications at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Team Chat","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-store-daybook","pos-selling-payments-manager-approval"],"contexts":["pos-team-chat"],"contextSections":{"pos-team-chat":"Step-by-step"},"order":36,"summary":"Read and send branch or Warehouse messages from POS, including supported screenshot attachments.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Message branches and Warehouse","subgroup":"Store operations"}}
+{"id":"pos-team-communications","title":"Team Communications at POS","audiences":["pos","ims"],"capability":"pos","screen":"POS > Team Chat","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-store-daybook","pos-selling-payments-manager-approval"],"contexts":["pos-team-chat"],"contextSections":{"pos-team-chat":"Step-by-step"},"order":36,"summary":"Read and send branch or Warehouse messages from POS, including supported screenshot attachments.","lastReviewed":"2026-10-15","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Message branches and Warehouse","subgroup":"Store operations"}}
 ---
 # Team Communications at POS
 
@@ -9,7 +9,7 @@ Use Team Communications for operational messages between the active POS location
 
 - Open Team Chat from the circled **T** in the Team Communications tray.
 - Read unread messages for the active location.
-- Hear a short alert when a new message arrives from another location, including while the POS tab is in the background. Audio becomes available after clicking or typing in POS; browser or device mute settings still apply. Opening history and replayed messages do not sound an alert.
+- Hear a short alert when a new message arrives from another location, including while the POS tab is in the background when the browser permits it. Click or type in POS first; use **POS Settings > Misc > Test POS sound** if browser audio needs enabling. **Mute POS sounds on this device** silences alerts but keeps unread badges. Opening history and replayed messages do not sound an alert.
 - Send a message to the shared team conversation.
 - Select an available branch or Warehouse avatar for a direct message.
 - Paste or attach supported screenshots and images.
@@ -56,7 +56,7 @@ Successfully saved new attachments remain available when returning to the conver
 |---|---|---|
 | Intended branch is not available | The destination is not enabled for the current communication list | Confirm the correct POS location and use the approved alternative channel |
 | Attachment is rejected | It is unsupported, too large, or exceeds the three-file limit | Use JPG, PNG, WebP or PDF; reduce size or attachment count |
-| New messages have no sound | Audio is muted or browser audio has not been enabled by interaction | Click or type in POS, check the tab and device sound settings, and continue checking unread badges |
+| New messages have no sound | POS device mute, browser/device sound settings, or audio permission | Check **POS Settings > Misc > Mute POS sounds on this device**, use **Test POS sound** if enabled, and continue checking unread badges |
 | Message does not appear | The connection failed before it was accepted | Reconnect and check the conversation before sending again |
 | Unread count remains | More messages have not been viewed | Open the conversation showing the unread badge and review it |
 | The tray is minimized and messages are missed | Notifications still accumulate while minimized | Check the badge on the minimized icon and expand the tray |

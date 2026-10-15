@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type Shopify from 'shopify-api-node';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import {
@@ -19,6 +20,8 @@ import {
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
+import { createMissingShopifyProductSku } from '@/lib/ims/shopifyProductSku';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const DEFAULT_BATCH_SIZE = 25;
 const MAX_BATCH_SIZE = 50;
@@ -28,7 +31,7 @@ function text(value: unknown): string | null {
   return result || null;
 }
 
-function weightKg(variant: any): number | null {
+function weightKg(variant: Shopify.IProductVariant): number | null {
   const weight = Number(variant.weight);
   if (!Number.isFinite(weight) || weight <= 0) return null;
   if (variant.weight_unit === 'g') return weight / 1000;
@@ -37,7 +40,7 @@ function weightKg(variant: any): number | null {
   return weight;
 }
 
-function variantPrices(variant: any): { priceRrp: number | null; salePrice: number | null } {
+function variantPrices(variant: Shopify.IProductVariant): { priceRrp: number | null; salePrice: number | null } {
   const price = Number(variant.price);
   const compareAt = Number(variant.compare_at_price);
   const validPrice = Number.isFinite(price) ? price : null;
@@ -50,6 +53,7 @@ function variantPrices(variant: any): { priceRrp: number | null; salePrice: numb
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = String(session.businessId);
   const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
   let channelInstanceId: string | null = null;
@@ -62,6 +66,7 @@ export async function POST(req: Request) {
     const pageInfo = text(body?.page_info);
     const populateUnknownBrands = body?.populate_unknown_brands === true;
     const populateUnknownSuppliers = body?.populate_unknown_suppliers === true;
+    const autoCreateProductSkus = body?.auto_create_product_skus === true;
     const { credentials } = await getShopifyOperationContext({ businessId, channelInstanceId });
 
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
@@ -74,6 +79,7 @@ export async function POST(req: Request) {
       `SELECT * FROM ims_product_variants WHERE business_id = ?`,
       [businessId],
     );
+    const usedProductSkus = new Set(products.map(product => text(product.base_sku)?.toLowerCase()).filter((sku): sku is string => Boolean(sku)));
     const brandNames = new Set(
       populateUnknownBrands
         ? (await ImsBrandsRepo.list(businessId)).map(brand => brand.name.trim().toLowerCase())
@@ -99,7 +105,8 @@ export async function POST(req: Request) {
     const warnings: string[] = [];
     const identifierAdjustments: string[] = [];
 
-    for (const shopifyProduct of page.products) {
+    const shopifyProducts: Shopify.IProduct[] = page.products;
+    for (const shopifyProduct of shopifyProducts) {
       const plan = planShopifyProductImport(
         shopifyProduct,
         products.map(product => ({ productId: product.product_id, shopifyProductId: product.shopify_product_id })),
@@ -126,7 +133,6 @@ export async function POST(req: Request) {
       let supplierContactId = vendorKey ? suppliersByName.get(vendorKey) ?? null : null;
       if (populateUnknownSuppliers && vendor && vendorKey && supplierContactId === null) {
         supplierContactId = await ImsContactsRepo.create({
-          business_id: businessId,
           type: 'supplier',
           name: vendor,
           company: vendor,
@@ -137,9 +143,16 @@ export async function POST(req: Request) {
       }
 
       let productId: string;
+      const existingProduct = plan.action === 'use_existing' ? products.find(product => product.product_id === plan.productId) : undefined;
+      const baseSku = autoCreateProductSkus && !text(existingProduct?.base_sku)
+        ? createMissingShopifyProductSku(vendor, (shopifyProduct.variants ?? []).map(variant => ({
+          sku: variant.sku, option1_value: variant.option1, option2_value: variant.option2, option3_value: variant.option3,
+        })), usedProductSkus).sku
+        : null;
       if (plan.action === 'create') {
         productId = await ImsProductsRepo.create({
           product_id: '',
+          base_sku: baseSku ?? undefined,
           name: text(shopifyProduct.title) ?? `Shopify product ${shopifyProduct.id}`,
           description: text(shopifyProduct.body_html) ?? undefined,
           product_type: text(shopifyProduct.product_type) ?? undefined,
@@ -152,14 +165,15 @@ export async function POST(req: Request) {
           supplier_contact_id: supplierContactId ?? undefined,
           shopify_product_id: String(shopifyProduct.id),
         }, businessId);
-        products.push({ id: 0, product_id: productId, business_id: businessId, name: shopifyProduct.title, is_active: 1, shopify_product_id: String(shopifyProduct.id) } as ImsProduct);
+        products.push({ id: 0, product_id: productId, business_id: businessId, name: shopifyProduct.title, base_sku: baseSku, is_active: 1, shopify_product_id: String(shopifyProduct.id) } as ImsProduct);
         createdProducts++;
       } else {
         productId = plan.productId;
         await imsExecute(
           `UPDATE ims_products
               SET name = ?, description = ?, product_type = ?, brand = ?, tags = ?, website_title = ?,
-                is_online = ?, shopify_product_id = ?, supplier_contact_id = COALESCE(?, supplier_contact_id)
+                is_online = ?, shopify_product_id = ?, supplier_contact_id = COALESCE(supplier_contact_id, ?),
+                base_sku = CASE WHEN base_sku IS NULL OR TRIM(base_sku) = '' THEN ? ELSE base_sku END
             WHERE product_id = ? AND business_id = ?`,
           [
             text(shopifyProduct.title) ?? `Shopify product ${shopifyProduct.id}`,
@@ -171,17 +185,21 @@ export async function POST(req: Request) {
             shopifyProduct.status === 'active' ? 1 : 0,
             String(shopifyProduct.id),
             supplierContactId,
+            baseSku,
             productId,
             businessId,
           ],
         );
         const localProduct = products.find(product => product.product_id === productId);
-        if (localProduct) localProduct.shopify_product_id = String(shopifyProduct.id);
+        if (localProduct) {
+          localProduct.shopify_product_id = String(shopifyProduct.id);
+          if (baseSku) localProduct.base_sku = baseSku;
+        }
         updatedProducts++;
       }
 
       const optionNames = new Map<number, string>(
-        (shopifyProduct.options ?? []).map((option: any) => [Number(option.position), text(option.name) ?? `Option ${option.position}`]),
+        (shopifyProduct.options ?? []).map(option => [Number(option.position), text(option.name) ?? `Option ${option.position}`]),
       );
       for (const shopifyVariant of shopifyProduct.variants ?? []) {
         const variantPlan = planShopifyVariantImport(
@@ -237,7 +255,17 @@ export async function POST(req: Request) {
           variantId = await ImsVariantsRepo.create({
             variant_id: '',
             product_id: productId,
-            ...values,
+            sku: values.sku ?? undefined,
+            barcode: values.barcode ?? undefined,
+            option1_name: values.option1_name ?? undefined,
+            option1_value: values.option1_value ?? undefined,
+            option2_name: values.option2_name ?? undefined,
+            option2_value: values.option2_value ?? undefined,
+            option3_name: values.option3_name ?? undefined,
+            option3_value: values.option3_value ?? undefined,
+            price_rrp: values.price_rrp ?? undefined,
+            price_rrp_sale: values.price_rrp_sale ?? undefined,
+            weight_kg: values.weight_kg ?? undefined,
             shopify_variant_id: String(shopifyVariant.id),
             shopify_inventory_item_id: text(shopifyVariant.inventory_item_id) ?? undefined,
             is_active: 1,
@@ -269,9 +297,9 @@ export async function POST(req: Request) {
       }
 
       const images = (shopifyProduct.images ?? [])
-        .filter((image: any) => text(image.src))
+        .filter(image => text(image.src))
         .slice(0, 10)
-        .map((image: any) => ({ src: String(image.src), alt: text(image.alt) ?? undefined }));
+        .map(image => ({ src: String(image.src), alt: text(image.alt) ?? undefined }));
       await ImsImagesRepo.upsertFromShopify(productId, images);
       imagesCollected += images.length;
     }
@@ -301,8 +329,12 @@ export async function POST(req: Request) {
       next_page_info: page.nextPageInfo,
       has_more: page.hasMore,
     });
-  } catch (error: any) {
-    await ImsShopifyRepo.logAction('reconcile', 'error', `Shopify product import failed: ${error.message}`, businessId, undefined, channelInstanceId).catch(() => {});
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Shopify product import failed.';
+    await reportRuntimeIssue({ businessId, source: 'shopify', operation: 'import_products',
+      title: 'Shopify product import failed', error, context: { channelInstanceId },
+      reference: { type: 'sales_channel_instance', id: channelInstanceId ?? 'unselected' } });
+    await ImsShopifyRepo.logAction('reconcile', 'error', `Shopify product import failed: ${message}`, businessId, undefined, channelInstanceId).catch(() => {});
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

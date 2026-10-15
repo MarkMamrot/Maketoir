@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/ims/integrationAvailability', () => ({ assertOptionalIntegrationEnabled: vi.fn().mockResolvedValue(undefined) }));
 import { createForesightMetaExperimentExecutionService } from '../ForesightMetaExperimentExecutionService';
 import { buildMetaExperimentExecutionPreflight, metaExperimentExecutionFingerprint } from '../metaExperimentExecutionPreflight';
 import type { ForesightCampaignExperimentDocument } from '../planning/campaignExperimentDocument';

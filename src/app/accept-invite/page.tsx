@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getPasswordValidation } from '@/lib/auth/passwordPolicy';
 
 function AcceptInviteForm() {
   const router = useRouter();
@@ -33,7 +34,8 @@ function AcceptInviteForm() {
     e.preventDefault();
     setError('');
     if (form.password !== form.confirm) { setError('Passwords do not match.'); return; }
-    if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    const validation = getPasswordValidation(form.password, invite?.email);
+    if (!validation.isValid) { setError(validation.message); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/auth/accept-invite', {
@@ -84,8 +86,9 @@ function AcceptInviteForm() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 uppercase">Password *</label>
-                <input type="password" value={form.password} onChange={set('password')} required minLength={8}
+                <input type="password" value={form.password} onChange={set('password')} required minLength={12}
                   className="w-full p-2 border border-gray-300 rounded mt-1" />
+                <p className="text-xs text-gray-500 mt-1">Use at least 12 characters, uppercase, lowercase, a number and a special character.</p>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 uppercase">Confirm Password *</label>

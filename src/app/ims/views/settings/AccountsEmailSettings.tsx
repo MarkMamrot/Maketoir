@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSettingsDirty } from './SettingsShell';
 
 export function AccountsEmailSettings({ onHelp }: { onHelp?: () => void }) {
   const [recipients, setRecipients] = React.useState('');
@@ -7,12 +8,14 @@ export function AccountsEmailSettings({ onHelp }: { onHelp?: () => void }) {
   const [error, setError] = React.useState('');
   const [saved, setSaved] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
+  const [baseline, setBaseline] = React.useState('');
+  useSettingsDirty(loaded && recipients !== baseline);
   React.useEffect(() => {
     let active = true;
     fetch('/api/ims/settings/accounts').then(async response => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Accounts email settings could not be loaded.');
-      if (active) { setRecipients(result.recipients.join(', ')); setLoaded(true); }
+      if (active) { setRecipients(result.recipients.join(', ')); setBaseline(result.recipients.join(', ')); setLoaded(true); }
     }).catch(error => { if (active) setError(error instanceof Error ? error.message : 'Accounts email settings could not be loaded.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -25,7 +28,7 @@ export function AccountsEmailSettings({ onHelp }: { onHelp?: () => void }) {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Accounts email settings could not be saved.');
-      setRecipients(result.recipients.join(', ')); setSaved(true);
+      setRecipients(result.recipients.join(', ')); setBaseline(result.recipients.join(', ')); setSaved(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Accounts email settings could not be saved.');
     } finally { setSaving(false); }
@@ -36,7 +39,8 @@ export function AccountsEmailSettings({ onHelp }: { onHelp?: () => void }) {
     <label htmlFor="accounts-email">Email addresses (comma separated)</label>
     <input id="accounts-email" value={recipients} disabled={!loaded || saving} onChange={event => { setRecipients(event.target.value); setSaved(false); }}
       style={{ width: '100%', boxSizing: 'border-box', margin: '8px 0', padding: 8, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-border)', borderRadius: 6 }} />
-    <button type="button" onClick={save} disabled={!loaded || saving}>{loading ? 'Loading...' : saving ? 'Saving...' : 'Save accounts email'}</button>
+    <button type="button" data-primary onClick={save} disabled={!loaded || saving || recipients === baseline}>{loading ? 'Loading...' : saving ? 'Saving...' : 'Save accounts email'}</button>
+    <button type="button" disabled={saving} onClick={() => { setRecipients(baseline); setSaved(false); setError(''); }}>Cancel</button>
     {onHelp && <button type="button" onClick={onHelp} style={{ marginLeft: 8 }}>Help</button>}
     {saved && <p role="status">Accounts recipients saved.</p>}
     {error && <p role="alert" style={{ color: 'var(--sv-red)' }}>{error}</p>}

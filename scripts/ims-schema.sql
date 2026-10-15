@@ -1711,6 +1711,26 @@ CREATE TABLE IF NOT EXISTS ims_amazon_delivery_evidence (
   INDEX idx_amazon_delivery_parcel (business_id, parcel_id, kind)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ims_amazon_pii_disposals (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  so_id                    INT NOT NULL,
+  channel_instance_id      CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  external_order_id        VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  protected_contact_id       INT NULL,
+  earliest_delivered_at    DATETIME(3) NOT NULL,
+  deadline_at              DATETIME(3) NOT NULL,
+  actor_user_id            INT NOT NULL,
+  operation_key            CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  request_hash             CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  counts_json              JSON NOT NULL,
+  cleared_at               DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_amazon_pii_order (business_id, so_id),
+  UNIQUE KEY uq_amazon_pii_external (business_id, channel_instance_id, external_order_id),
+  UNIQUE KEY uq_amazon_pii_operation (business_id, operation_key),
+  INDEX idx_amazon_pii_contact (business_id, protected_contact_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS ims_amazon_delivery_poll_state (
   business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   parcel_id                BIGINT NOT NULL,

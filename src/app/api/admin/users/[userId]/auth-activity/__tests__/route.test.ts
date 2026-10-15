@@ -76,7 +76,7 @@ describe('/api/admin/users/[userId]/auth-activity', () => {
 
     expect(response.status).toBe(200);
     expect(body.events).toHaveLength(1);
-    expect(mocks.query.mock.calls[1][0]).toContain('INTERVAL 90 DAY');
+    expect(mocks.query.mock.calls[1][0]).toContain('INTERVAL 12 MONTH');
     expect(mocks.query.mock.calls[1][1]).toEqual([42, 'biz-1']);
   });
 });

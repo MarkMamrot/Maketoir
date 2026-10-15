@@ -1,11 +1,10 @@
 'use client';
 
-import { Award, Clock3, Save } from 'lucide-react';
+import { Award, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { DEFAULT_LOYALTY_SETTINGS, LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
-import { LoyaltyPortalSettings } from './LoyaltyPortalSettings';
-import { LoyaltyRewardsSettings } from './LoyaltyRewardsSettings';
+import { useSettingsDirty } from './SettingsShell';
 
 interface LoyaltySettingsSectionProps {
   settings: Record<string, string>;
@@ -55,15 +54,18 @@ export function LoyaltySettingsSection({ settings, refetchSettings }: LoyaltySet
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [baseline, setBaseline] = useState(draft);
+  useSettingsDirty(JSON.stringify(draft) !== JSON.stringify(baseline));
 
   useEffect(() => {
-    setDraft({
+    const saved = {
       enabled: settings[LOYALTY_SETTING_KEYS.enabled] === '1',
       earnRate: settings[LOYALTY_SETTING_KEYS.earnRate] || String(DEFAULT_LOYALTY_SETTINGS.earnRate),
       programName: settings[LOYALTY_SETTING_KEYS.programName] || DEFAULT_LOYALTY_SETTINGS.programName,
       pointsLabel: settings[LOYALTY_SETTING_KEYS.pointsLabel] || DEFAULT_LOYALTY_SETTINGS.pointsLabel,
       startedAt: settings[LOYALTY_SETTING_KEYS.startedAt] || '',
-    });
+    };
+    setDraft(saved); setBaseline(saved);
   }, [settings]);
 
   const setEnabled = (enabled: boolean) => {
@@ -165,6 +167,7 @@ export function LoyaltySettingsSection({ settings, refetchSettings }: LoyaltySet
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
           <button
             type="button"
+            data-primary
             onClick={save}
             disabled={saving}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', border: 'none', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.65 : 1 }}
@@ -172,26 +175,10 @@ export function LoyaltySettingsSection({ settings, refetchSettings }: LoyaltySet
             <Save size={15} aria-hidden="true" />
             {saving ? 'Saving...' : 'Save settings'}
           </button>
+          <button type="button" disabled={saving} onClick={() => { setDraft(baseline); setMessage(null); }}>Cancel</button>
           {message && <span style={{ fontSize: 12, color: message.tone === 'success' ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{message.text}</span>}
         </div>
       </section>
-      <LoyaltyRewardsSettings />
-
-      <section style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}><Clock3 size={16} />Advanced loyalty rules</div>
-        <div style={{ marginBottom: 16, fontSize: 12, color: 'var(--sv-text-dim)' }}>These controls are planned but are not applied by the loyalty ledger yet.</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 12, opacity: 0.52 }}>
-          {[
-            ['Points expiry', 'No expiry'],
-            ['VIP tiers', 'Not configured'],
-            ['Birthday reward', 'Off'],
-            ['Referral bonus', 'Off'],
-            ['Promotional multipliers', 'Off'],
-            ['Annual earning cap', 'No cap'],
-          ].map(([label, value]) => <div key={label}><label style={labelStyle}>{label} · Coming later</label><input aria-label={`${label} coming later`} disabled value={value} style={{ ...inputStyle, cursor: 'not-allowed' }} /></div>)}
-        </div>
-      </section>
-      <LoyaltyPortalSettings />
     </div>
   );
 }

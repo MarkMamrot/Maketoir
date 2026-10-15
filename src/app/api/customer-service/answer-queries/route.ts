@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
@@ -14,6 +13,9 @@ import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
+import { getAdminSession } from '@/lib/sessionUtils';
+import { getOptionalIntegrationAvailability } from '@/lib/ims/integrationAvailability';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -38,9 +40,7 @@ type CandidateThread = {
 };
 
 function requireSession() {
-  const session = cookies().get('marketoir_session');
-  if (!session?.value) return null;
-  try { return JSON.parse(session.value); } catch { return null; }
+  return getAdminSession();
 }
 
 async function getAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
@@ -332,10 +332,26 @@ export async function POST(req: Request) {
   const body = await req.json();
   const databaseId: string = body.databaseId || '';
   const days: number = Math.max(1, Math.min(90, Number(body.days || 7)));
-  const dataSources: string[] = Array.isArray(body.dataSources) ? body.dataSources : [];
+  let dataSources: string[] = Array.isArray(body.dataSources) ? body.dataSources : [];
   const guidelines: string = typeof body.guidelines === 'string' ? body.guidelines.trim() : '';
 
   if (!databaseId) return NextResponse.json({ error: 'databaseId is required.' }, { status: 400 });
+  if (databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+  try {
+    const availability = await getOptionalIntegrationAvailability(databaseId);
+    if (!availability.gmail.enabled) {
+      return NextResponse.json({ error: 'Gmail integration is disabled.', code: 'integration_disabled' }, { status: 423 });
+    }
+    dataSources = dataSources.filter(source =>
+      (!['googleAds', 'analytics', 'googleAdsApi'].includes(source) || availability.google.enabled)
+      && (!['metaAds', 'metaApi'].includes(source) || availability.meta.enabled)
+      && (source !== 'cin7Api' || availability.cin7.enabled),
+    );
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: databaseId, source: 'customer-service.answer-queries',
+      operation: 'load_integration_availability', title: 'Customer service integration availability could not be loaded', error }).catch(() => null);
+    return NextResponse.json({ error: 'Integration availability is not ready.' }, { status: 503 });
+  }
 
   const sheets = new GoogleSheetsService();
   let refreshToken = '';

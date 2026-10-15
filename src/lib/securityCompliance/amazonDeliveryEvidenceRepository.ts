@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { SALES_CHANNEL_PROVIDERS } from '@/lib/channels/types';
 import {
   DeliveryEvidenceConflictError, DeliveryEvidenceValidationError, deliveryReviewDeadline, positiveDeliveryId,
   verifiedDeliveryTimestamp, validateDeliveryEvidenceReport, type AmazonDeliveryEvidenceReport, type ManualDeliveryRequest,
@@ -117,10 +118,12 @@ async function appendEvidence(input: EvidenceWrite): Promise<number> {
     try {
       await assertEvidenceStorage(connection);
       await connection.beginTransaction();
+      const channels = input.source === 'manual' ? ['amazon'] : SALES_CHANNEL_PROVIDERS;
       const [order] = await rows<OrderRow>(connection,
         `SELECT id, DATE_FORMAT(order_date, '%Y-%m-%d') AS orderDate FROM ims_sales_orders
-          WHERE business_id = ? AND id = ? AND sales_channel = 'amazon' FOR UPDATE`, [input.businessId, input.salesOrderId]);
-      if (!order) throw new DeliveryEvidenceNotFoundError('Amazon order not found in the active business.');
+          WHERE business_id = ? AND id = ? AND sales_channel IN (${channels.map(() => '?').join(', ')}) FOR UPDATE`,
+        [input.businessId, input.salesOrderId, ...channels]);
+      if (!order) throw new DeliveryEvidenceNotFoundError(`${input.source === 'manual' ? 'Amazon' : 'Online-channel'} order not found in the active business.`);
       const [existing] = await rows<EvidenceRow>(connection,
         `SELECT id, request_hash FROM ims_amazon_delivery_evidence WHERE business_id = ? AND operation_key = ? FOR UPDATE`,
         [input.businessId, input.operationKey]);
@@ -134,7 +137,7 @@ async function appendEvidence(input: EvidenceWrite): Promise<number> {
         verifiedDeliveryTimestamp(input.deliveredAt);
         // Order dates have no timezone. Allow a calendar-day offset, but reject grossly earlier evidence.
         if (order.orderDate && Date.parse(input.deliveredAt) < Date.parse(`${order.orderDate}T00:00:00Z`) - 86_400_000) {
-          throw new DeliveryEvidenceValidationError('Delivery evidence predates the Amazon order.');
+          throw new DeliveryEvidenceValidationError('Delivery evidence predates the order.');
         }
         if (input.parcelId !== null) {
           const [parcel] = await rows<ParcelRow>(connection,

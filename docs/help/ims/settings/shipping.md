@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping"],"contextSections":{"settings-shipping":"Main operations"},"order":53,"summary":"Connect Australia Post eParcel, define package presets, prepare parcels, manage working batches, and understand carrier restrictions before dispatch.","lastReviewed":"2026-10-13","owner":"sales","quickSections":["Main operations","At a glance"],"navigation":{"category":"settings","label":"Configure shipping"}}
+{"id":"ims-shipping-settings","title":"Shipping Settings","audiences":["ims"],"capability":"orders","screen":"IMS Settings > Sales & Customers > Shipping","product":"ims","format":"task","parentId":"ims-business-operations-pos","relatedTopics":["ims-sales-orders-fulfilment","ims-product-setup-variants"],"contexts":["settings-shipping","settings-delivery-tracking"],"contextSections":{"settings-shipping":"Main operations","settings-delivery-tracking":"Delivery tracking by online channel"},"order":53,"summary":"Connect Australia Post eParcel, select online channel types for delivery tracking, define package presets, and manage shipping preparation and batches.","lastReviewed":"2026-10-15","owner":"sales","quickSections":["Main operations","At a glance"],"navigation":{"category":"settings","label":"Configure shipping"}}
 ---
 # Shipping Settings
 
@@ -8,6 +8,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 ## Main operations
 
 - Add or update an Australia Post eParcel account.
+- Choose which online channel types may collect parcel delivery information for this business. Amazon defaults On; Shopify and Solvantis Online Store default Off.
 - Test saved credentials against the Australia Post production Shipping API.
 - Keep MyPost Business unavailable until approved partner access is supported.
 - Add package presets with internal dimensions, tare weight and an optional maximum weight.
@@ -22,6 +23,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 | Setting | Purpose | Practical rule |
 |---|---|---|
 | Dispatch location | Supplies the sender address used for carrier prices and shipments | Keep its street, suburb or city, state and postcode complete |
+| Delivery information by online channel | Permits future delivery checks for selected types in this business | Save the switches; the platform-wide delivery tracking job must also be On |
 | Package dimensions | Determines whether a product can fit | Enter internal length, width and height in millimetres |
 | Tare weight | Adds the empty package weight | Enter kilograms |
 | Maximum weight | Prevents an overweight suggestion | Leave blank only when the package has no configured limit |
@@ -34,9 +36,25 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 
 > **Important:** Carrier credentials are not shown again after saving. Each field shows one masking dot per stored character. Leave those dots unchanged to keep the saved value, or type a replacement.
 
+## Delivery tracking by online channel
+
+1. Select the intended business and open **Settings > Sales & Customers > Shipping**.
+2. Under **Delivery information by online channel**, review Amazon, Shopify and Solvantis Online Store. Each switch applies to every store of that type in this business, not to other businesses.
+3. Choose On or Off, then select **Save delivery tracking**. Unsaved changes do not affect polling. Advisor accounts can view but cannot change these settings.
+4. Use **Reload saved settings** to read the saved values again, replacing unsaved edits. If loading or saving fails, do not assume defaults or success; resolve the displayed failure and review Runtime Issues.
+5. A SuperAdmin must separately verify carrier tracking access and enable **Online channel delivery tracking** in **Admin > Cron Jobs**. That master job starts Off. Saving a business switch does not enable the master job, run an immediate check, create a channel connection, or enable order sync.
+
+The job runs hourly at 43 minutes past the hour. It considers up to 20 eligible parcels per business in a bounded run, using saved Australia Post eParcel article IDs on original parcels prepared and marked dispatched in Solvantis. Pending parcels normally become eligible again after six hours; failures retry after one hour and operational failures are reported in Runtime Issues. Once a parcel has verified delivery evidence, repeated polling stops for that parcel. A shipping connection test does not establish tracking permission.
+
+Unsupported carriers, external shipments without prepared parcel records, missing article IDs, ambiguous dates and unknown delivery events cannot establish automatic delivery. Delivery is never inferred from a label, fulfilment status, return, or absence of a tracking result. Only a matching article with a recognized delivery event and explicit timezone supplies a verified timestamp; raw carrier responses and recipient details are not saved as evidence.
+
+Turning a channel type Off, pausing business automation or switching the master job Off stops future checks, not work already in progress. Existing evidence remains. Disabling a store connection alone does not prevent checks for previously dispatched parcels if that channel type and the master job remain On.
+
+Amazon's 30-day PII review rules and **Admin > Security & Compliance** workflows remain Amazon-only. Enabling Shopify or Solvantis Online Store tracking does not apply those rules to their customers. Turning Amazon tracking Off does not suspend its retention obligations or restart any existing review deadline. Tracking does not change stock, customer details, fulfilment or financial records, and it does not anonymize or delete data.
+
 ## Step-by-step
 
-1. Open **Settings > Shipping**.
+1. Open **Settings > Sales & Customers > Shipping**.
 2. Choose **Australia Post eParcel** and enter a recognisable account name.
 3. Enter the production account number, API key, API password, and dispatch location. Solvantis uses Australia Post's production Shipping API address automatically.
 4. Select **Add account** or **Update account**.
@@ -47,7 +65,7 @@ Use Shipping Settings to connect an Australia Post eParcel account and optionall
 9. Enter a maximum weight where the package or carrier service has one. Keep product rotation enabled only when products may safely be turned to fit.
 10. Save the preset. It becomes available when preparing selected Sales Orders.
 
-Alternatively, in Shipping Workspace's **Orders ready to ship** tab, enter a parcel's length, width and height in centimetres, select **Save as preset**, enter a unique name, and select **Save preset**. The new custom package appears immediately in the preset dropdowns and can be maintained in **Settings > Shipping**. This shortcut saves dimensions only: it starts with no empty-package weight or maximum-weight limit, and product rotation enabled. Review those settings before relying on packing suggestions. Saving a preset does not save the order's preparation or buy postage; use **Save dimensions** separately for the actual parcel details.
+Alternatively, in Shipping Workspace's **Orders ready to ship** tab, enter a parcel's length, width and height in centimetres, select **Save as preset**, enter a unique name, and select **Save preset**. The new custom package appears immediately in the preset dropdowns and can be maintained in **Settings > Sales & Customers > Shipping**. This shortcut saves dimensions only: it starts with no empty-package weight or maximum-weight limit, and product rotation enabled. Review those settings before relying on packing suggestions. Saving a preset does not save the order's preparation or buy postage; use **Save dimensions** separately for the actual parcel details.
 
 > **Note:** Saving dimensions, making a batch and saving a postage service do not purchase postage or reduce stock. The confirmed **Submit to Australia Post & create labels** action creates billable carrier shipments. **Mark dispatched** reduces stock when labelled parcels physically leave.
 

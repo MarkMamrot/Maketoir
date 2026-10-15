@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useSettingsDirty } from './SettingsShell';
 
 type Rule = {
   id: number;
@@ -31,6 +32,8 @@ export function EarlyPaymentDiscountSettingsSection() {
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState({ name: '', discountPercent: '', discountDays: '10', isActive: true });
+  const [dirty, setDirty] = useState(false);
+  useSettingsDirty(dirty);
 
   const load = async () => {
     setLoading(true);
@@ -50,6 +53,7 @@ export function EarlyPaymentDiscountSettingsSection() {
   const reset = () => {
     setEditingId(null);
     setDraft({ name: '', discountPercent: '', discountDays: '10', isActive: true });
+    setDirty(false);
   };
 
   const edit = (rule: Rule) => {
@@ -99,7 +103,7 @@ export function EarlyPaymentDiscountSettingsSection() {
   };
 
   return (
-    <section style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', maxWidth: 760, marginBottom: 20 }}>
+    <section onChangeCapture={() => setDirty(true)} style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', maxWidth: 760, marginBottom: 20 }}>
       <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase' }}>Early-payment discounts</h3>
       <p style={{ margin: '0 0 16px', fontSize: 12, lineHeight: 1.5, color: 'var(--sv-text-dim)' }}>
         Rules discount merchandise only. Freight is excluded, and the discounted balance must be fully paid by the inclusive cutoff date.

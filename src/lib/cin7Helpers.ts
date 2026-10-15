@@ -5,6 +5,7 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 
 export interface Cin7Credentials {
   accountId: string;
@@ -17,6 +18,7 @@ export interface Cin7Credentials {
  * Throws with a user-friendly message if credentials are missing.
  */
 export async function getCin7Credentials(businessId: string): Promise<Cin7Credentials> {
+  await assertOptionalIntegrationEnabled(businessId, 'cin7');
   const row = await ConnectionsRepository.get(businessId);
   const accountId = row?.cin7_account_id ?? '';
   const encKey    = row?.cin7_api_key    ?? '';

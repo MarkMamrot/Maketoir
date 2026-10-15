@@ -30,6 +30,12 @@ import { KlaviyoRecommendationService } from '@/lib/foresight/KlaviyoRecommendat
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 import { ForesightDigestService } from '@/lib/foresight/ForesightDigestService';
 import { Ga4RecommendationService } from '@/lib/foresight/Ga4RecommendationService';
+import {
+  assertOptionalIntegrationEnabled,
+  isIntegrationDisabledError,
+  type OptionalIntegrationProvider,
+} from '@/lib/ims/integrationAvailability';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 /** Extract a readable message from any error shape (Google Ads API returns e.errors[0].message). */
 function errorMessage(e: any): string {
@@ -231,6 +237,39 @@ export async function POST(req: Request) {
   const _u = JSON.parse(session.value);
   if (databaseId !== _u.businessId) {
     return new Response(JSON.stringify({ error: 'Not authorised.' }), { status: 403 });
+  }
+  const providerForSource: Record<string, OptionalIntegrationProvider> = {
+    'google-ads': 'google',
+    ga4: 'google',
+    meta: 'meta',
+    klaviyo: 'klaviyo',
+  };
+  for (const source of [...new Set(sources)]) {
+    const provider = providerForSource[source];
+    if (!provider) continue;
+    try {
+      await assertOptionalIntegrationEnabled(databaseId, provider);
+    } catch (error) {
+      if (isIntegrationDisabledError(error)) {
+        return new Response(JSON.stringify({
+          error: error.message,
+          code: error.code,
+          provider,
+        }), { status: error.status, headers: { 'Content-Type': 'application/json' } });
+      }
+      await reportRuntimeIssue({
+        businessId: databaseId,
+        source: 'marketing.sync',
+        operation: 'check_integration_availability',
+        title: 'Marketing sync availability could not be checked',
+        error,
+        context: { provider },
+      }).catch(() => null);
+      return new Response(JSON.stringify({ error: 'Integration availability is not ready.' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   const encoder = new TextEncoder();

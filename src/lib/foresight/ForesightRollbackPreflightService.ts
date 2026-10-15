@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { normalizeCampaignSetting } from './ForesightExecutionPreflightService';
 import type { GoogleCampaignSetting } from './executionPreflight';
@@ -85,6 +86,9 @@ export const ForesightRollbackPreflightService = {
     originalExecutionId: number,
     proposalHash: string,
   ): Promise<RollbackPreflightResult> {
+    if (!await isOptionalIntegrationEnabled(businessId, 'google')) {
+      return blocked(originalExecutionId, 'integration_disabled', 'Google Ads is disabled. Enable it before running a rollback preflight.');
+    }
     const [execution, recommendation, compensation] = await Promise.all([
       ForesightExecutionRepository.getExecution(businessId, originalExecutionId),
       ForesightRepository.getRecommendation(businessId, recommendationId),

@@ -22,6 +22,7 @@ const connection = await mysql.createConnection({
 });
 
 const userColumns = [
+  ['password_changed_at', 'DATETIME(3) NULL'],
   ['mfa_totp_secret', 'VARCHAR(255) NULL'],
   ['mfa_enabled', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['mfa_enabled_at', 'DATETIME(3) NULL'],
@@ -29,6 +30,14 @@ const userColumns = [
 ];
 
 const tableDefinitions = {
+  user_password_history: `CREATE TABLE IF NOT EXISTS user_password_history (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    INDEX idx_password_history_user (user_id, id),
+    CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   mfa_recovery_codes: `CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -80,6 +89,7 @@ const tableDefinitions = {
 };
 
 const requiredIndexes = [
+  ['user_password_history', 'idx_password_history_user'],
   ['mfa_recovery_codes', 'uq_mfa_recovery_user_hash'],
   ['mfa_recovery_codes', 'idx_mfa_recovery_user_available'],
   ['mfa_preauth_sessions', 'uq_mfa_preauth_token_hash'],

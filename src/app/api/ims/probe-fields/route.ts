@@ -5,6 +5,7 @@ import { getCin7Credentials, cin7FetchAllPages } from '@/lib/cin7Helpers';
 export async function GET() {
   const session = await getImsSession();
   if (!session) return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier !== 'SuperAdmin') return Response.json({ error: 'SuperAdmin access required.' }, { status: 403 });
 
   const businessId: string = session.businessId;
   let creds: Awaited<ReturnType<typeof getCin7Credentials>>;

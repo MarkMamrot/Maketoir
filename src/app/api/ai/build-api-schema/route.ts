@@ -6,7 +6,7 @@ import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
-import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { requireSuperAdminTier, assertBusinessAccess } from '@/lib/sessionUtils';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 
 const API_LABELS: Record<string, string> = {
@@ -358,7 +358,7 @@ async function persistApiSpec(
 }
 
 export async function POST(req: Request) {
-  const { user, response: authResponse } = requireAdminSession();
+  const { user, response: authResponse } = requireSuperAdminTier();
   if (authResponse) return authResponse;
 
   const { api, databaseId, channelInstanceId } = await req.json();

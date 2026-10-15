@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockLatestTab, mockGetTab, mockCreate, mockExpire } = vi.hoisted(() => ({
-  mockLatestTab: vi.fn(), mockGetTab: vi.fn(), mockCreate: vi.fn(), mockExpire: vi.fn(),
+const { mockLatestTab, mockGetTab, mockCreate, mockExpire, mockEnabled } = vi.hoisted(() => ({
+  mockLatestTab: vi.fn(), mockGetTab: vi.fn(), mockCreate: vi.fn(), mockExpire: vi.fn(), mockEnabled: vi.fn(),
 }));
 vi.mock('../repositories/ForesightIngestionRepository', () => ({
   ForesightIngestionRepository: { getLatestSyncTabOutcome: mockLatestTab },
@@ -14,6 +14,9 @@ vi.mock('../repositories/ForesightIngestionRepository', () => ({
 vi.mock('@/lib/db/MarketingDataRepository', () => ({ MarketingDataRepository: { getTab: mockGetTab } }));
 vi.mock('../repositories/ForesightRepository', () => ({
   ForesightRepository: { createRecommendation: mockCreate, expireSupersededShadowRecommendations: mockExpire },
+}));
+vi.mock('@/lib/ims/integrationAvailability', () => ({
+  isOptionalIntegrationEnabled: mockEnabled,
 }));
 
 import { Ga4RecommendationService } from '../Ga4RecommendationService';
@@ -35,6 +38,19 @@ describe('Ga4RecommendationService', () => {
     })));
     mockCreate.mockResolvedValue(44);
     mockExpire.mockResolvedValue(0);
+    mockEnabled.mockResolvedValue(true);
+  });
+
+  it('does not process or expire GA4 recommendations while Google is disabled', async () => {
+    mockEnabled.mockResolvedValue(false);
+
+    const result = await Ga4RecommendationService.evaluateChannels('business-1', '2026-07-29');
+
+    expect(result).toMatchObject({ skipped: true, skipReason: 'integration_disabled', recommendationCount: 0 });
+    expect(mockLatestTab).not.toHaveBeenCalled();
+    expect(mockGetTab).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockExpire).not.toHaveBeenCalled();
   });
 
   it('persists tenant-scoped GA4 funnel findings from a covering snapshot', async () => {

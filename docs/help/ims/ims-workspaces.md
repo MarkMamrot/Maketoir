@@ -44,7 +44,7 @@ If the full-page **Something went wrong** screen appears, select **Reload page**
 | Maintain online listing templates | **Intel & Automation** > **Settings** > **Web Field Templates** | Description, title, and tag templates used by listing workflows |
 | Manage sales channels | **Sales > Sales Channels** | Point of Sale, B2B Wholesale Portal, Shopify, connected marketplaces, and the native Online Shop |
 
-Sales Channels and Online Shop are under **Sales**. There is no separate Integrations sidebar menu; accounting remains under **Finances > Xero Integration**, and shared connections remain in top-bar **Settings > Connections**.
+Sales Channels and Online Shop are under **Sales**. There is no separate Integrations sidebar menu; accounting remains under **Finances > Xero Integration**, and shared connections remain in top-bar **Settings > Integrations**.
 
 ## Using Help
 
@@ -88,7 +88,7 @@ Select the Team Chat icon at the bottom right to open the all-locations group co
 
 Paste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.
 
-Team Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.
+Team Chat sends as the active business's **Default Warehouse Location** from **Settings > Inventory & Locations > Location defaults**. POS staff can reply by selecting that Warehouse location in Team Communications.
 
 Notifications show a plain-language title and action summary. Open one to see labelled product, order, location, quantity, or accounting-period facts. An unresolved COGS posting notification directs staff to **Xero > Activity > COGS**; later periods can continue while the named month remains open for review. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.
 
@@ -104,7 +104,7 @@ Notifications show a plain-language title and action summary. Open one to see la
 | A total needs explaining | The detailed report or source links | Trace representative transactions |
 | Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |
 | A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |
-| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |
+| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > Inventory & Locations > Location defaults**, then reopen Team Chat |
 | Ask Solvantis cannot complete an answer | Confirm the internet connection, then retry once | Use Help for the maintained procedure or contact support if the retry also fails |
 
 ## Worked examples

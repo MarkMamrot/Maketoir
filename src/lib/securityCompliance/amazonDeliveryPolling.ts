@@ -4,6 +4,8 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { AusPostEparcelClient } from '@/lib/ims/shipping/carriers/auspostEparcel/client';
 import { AusPostTrackingError, type AusPostArticleTracking } from '@/lib/ims/shipping/carriers/auspostEparcel/tracking';
 import { ShippingSettingsRepository } from '@/lib/ims/shipping/shippingSettingsRepository';
+import { enabledDeliveryTrackingChannels } from '@/lib/ims/shipping/deliveryTrackingSettings';
+import { getDeliveryTrackingChannels } from '@/lib/ims/shipping/deliveryTrackingSettingsRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool, imsQuery } from '@/services/IMSMySQLService';
 import { ACTIVE_DELIVERY_EVIDENCE_SQL, saveCarrierDeliveryEvidence } from './amazonDeliveryEvidenceRepository';
@@ -13,25 +15,28 @@ interface PollParcel {
 }
 export interface DeliveryPollTotals { attempted: number; delivered: number; pending: number; failed: number; deferred: number }
 
-export async function pollAmazonDeliveryEvidence(
+export async function pollOnlineChannelDeliveryEvidence(
   businessId: string, requestTimes = new Map<string, number>(), deadline = Date.now() + 240_000,
 ): Promise<DeliveryPollTotals> {
   return runImsForBusiness(businessId, async () => {
     const totals: DeliveryPollTotals = { attempted: 0, delivered: 0, pending: 0, failed: 0, deferred: 0 };
+    const channels = enabledDeliveryTrackingChannels(await getDeliveryTrackingChannels(businessId));
+    if (!channels.length) return totals;
+    // Keep the original table identities so existing evidence and polling leases survive the broader channel scope.
     const candidates = await imsQuery<PollParcel>(
       `SELECT p.id, s.so_id, s.id AS shipment_id, s.carrier_account_id, p.article_id
         FROM ims_shipping_parcels p
         JOIN ims_shipping_shipments s ON s.id = p.shipment_id AND s.business_id = p.business_id
         JOIN ims_sales_orders o ON o.id = s.so_id AND o.business_id = s.business_id
         LEFT JOIN ims_amazon_delivery_poll_state state ON state.parcel_id = p.id AND state.business_id = p.business_id
-        WHERE p.business_id = ? AND o.sales_channel = 'amazon' AND s.provider = 'auspost_eparcel'
+        WHERE p.business_id = ? AND o.sales_channel IN (${channels.map(() => '?').join(', ')}) AND s.provider = 'auspost_eparcel'
           AND s.ims_fulfilled_at IS NOT NULL AND s.voided_at IS NULL AND s.carrier_account_id IS NOT NULL
           AND p.article_id REGEXP '^[A-Za-z0-9]{1,100}$'
           AND (state.next_check_at IS NULL OR state.next_check_at <= UTC_TIMESTAMP(3))
           AND (state.locked_until IS NULL OR state.locked_until <= UTC_TIMESTAMP(3))
           AND NOT EXISTS (SELECT 1 FROM ims_amazon_delivery_evidence d
             WHERE d.business_id = p.business_id AND d.so_id = o.id AND d.parcel_id = p.id AND ${ACTIVE_DELIVERY_EVIDENCE_SQL})
-        ORDER BY COALESCE(state.next_check_at, '2000-01-01'), p.id LIMIT 20`, [businessId]);
+        ORDER BY COALESCE(state.next_check_at, '2000-01-01'), p.id LIMIT 20`, [businessId, ...channels]);
     const groups = new Map<number, PollParcel[]>();
     for (const candidate of candidates) {
       const accountId = Number(candidate.carrier_account_id);
@@ -81,7 +86,7 @@ export async function pollAmazonDeliveryEvidence(
           totals.failed++;
         }
         await reportRuntimeIssue({
-          businessId, source: 'amazon.delivery-tracking', operation: 'track_articles', title: 'Amazon carrier delivery tracking failed',
+          businessId, source: 'shipping.delivery-tracking', operation: 'track_articles', title: 'Online-channel carrier delivery tracking failed',
           error, context: { carrierAccountId: accountId, parcelIds: claimed.map(parcel => Number(parcel.id)), errorCode: code },
         });
         continue;
@@ -106,8 +111,8 @@ export async function pollAmazonDeliveryEvidence(
           await finishPoll(businessId, parcel.id, token, 'error', code);
           totals.failed++;
           await reportRuntimeIssue({
-            businessId, source: 'amazon.delivery-tracking', operation: 'verify_parcel_delivery',
-            title: 'Amazon parcel delivery evidence needs attention', error,
+            businessId, source: 'shipping.delivery-tracking', operation: 'verify_parcel_delivery',
+            title: 'Online-channel parcel delivery evidence needs attention', error,
             context: { salesOrderId: Number(parcel.so_id), parcelId: Number(parcel.id), errorCode: code },
             reference: { type: 'sales_order', id: Number(parcel.so_id) },
           });

@@ -1,18 +1,18 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
-import { SHOPIFY_OPENING_STOCK_LOCATION_NAMES } from './shopifyOpeningStock';
-
 export interface OpeningStockSnapshotLine {
   variantId: string;
   locationName: string;
   solvantisLocationId: number;
   quantity: number;
   wasNegative: boolean;
+  inventoryItemId: string;
 }
 
 export interface OpeningStockSnapshot {
-  version: 1;
+  version: 2;
   businessId: string;
+  channelInstanceId: string;
   offset: number;
   expiresAt: number;
   lines: OpeningStockSnapshotLine[];
@@ -31,24 +31,20 @@ function signature(payload: string): Buffer {
 function validSnapshot(value: unknown): value is OpeningStockSnapshot {
   if (!value || typeof value !== 'object') return false;
   const snapshot = value as OpeningStockSnapshot;
-  if (!Array.isArray(snapshot.lines) || snapshot.lines.length < 2 || snapshot.lines.length > 20) return false;
-  const locationNames = new Set<string>(SHOPIFY_OPENING_STOCK_LOCATION_NAMES);
+  if (!Array.isArray(snapshot.lines) || snapshot.lines.length < 1 || snapshot.lines.length > 200) return false;
   const variantIds = new Set(snapshot.lines.map(line => line?.variantId));
-  const lineKeys = new Set(snapshot.lines.map(line => `${line?.variantId}:${line?.locationName}`));
-  const everyVariantHasBothLocations = [...variantIds].every(variantId =>
-    SHOPIFY_OPENING_STOCK_LOCATION_NAMES.every(locationName => lineKeys.has(`${variantId}:${locationName}`)),
-  );
-  return snapshot.version === 1
+  const lineKeys = new Set(snapshot.lines.map(line => `${line?.variantId}:${line?.solvantisLocationId}`));
+  return snapshot.version === 2
     && typeof snapshot.businessId === 'string' && snapshot.businessId.length > 0
+    && typeof snapshot.channelInstanceId === 'string' && snapshot.channelInstanceId.length > 0
     && Number.isInteger(snapshot.offset) && snapshot.offset >= 0
     && Number.isFinite(snapshot.expiresAt)
     && variantIds.size >= 1 && variantIds.size <= 10
     && lineKeys.size === snapshot.lines.length
-    && snapshot.lines.length === variantIds.size * SHOPIFY_OPENING_STOCK_LOCATION_NAMES.length
-    && everyVariantHasBothLocations
     && snapshot.lines.every(line =>
       line && typeof line.variantId === 'string' && line.variantId.length > 0
-      && locationNames.has(line.locationName)
+      && typeof line.locationName === 'string' && line.locationName.length > 0
+      && typeof line.inventoryItemId === 'string' && line.inventoryItemId.length > 0
       && Number.isInteger(line.solvantisLocationId) && line.solvantisLocationId > 0
       && Number.isFinite(line.quantity) && line.quantity >= 0
       && typeof line.wasNegative === 'boolean'
@@ -64,6 +60,7 @@ export function signOpeningStockSnapshot(snapshot: OpeningStockSnapshot): string
 export function verifyOpeningStockSnapshot(
   token: unknown,
   businessId: string,
+  channelInstanceId: string,
   now = Date.now(),
 ): OpeningStockSnapshot {
   const [payload, encodedSignature, ...rest] = String(token ?? '').split('.');
@@ -78,8 +75,8 @@ export function verifyOpeningStockSnapshot(
 
   let snapshot: unknown;
   try { snapshot = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { throw new Error('Opening stock preview is invalid. Preview again.'); }
-  if (!validSnapshot(snapshot) || snapshot.businessId !== businessId) {
-    throw new Error('Opening stock preview does not belong to this business. Preview again.');
+  if (!validSnapshot(snapshot) || snapshot.businessId !== businessId || snapshot.channelInstanceId !== channelInstanceId) {
+    throw new Error('Opening stock preview does not belong to this business and Shopify storefront. Preview again.');
   }
   if (snapshot.expiresAt < now) throw new Error('Opening stock preview has expired. Preview again.');
   return snapshot;

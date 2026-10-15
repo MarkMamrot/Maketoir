@@ -93,6 +93,7 @@ const PRODUCT_BUILD_TABLES = [
   'ims_product_build_reversals',
 ];
 const MISC_TENANT_TABLES = [
+  'ims_amazon_pii_disposals',
   'ims_amazon_delivery_evidence',
   'ims_amazon_delivery_poll_state',
   'pos_register_float_corrections',
@@ -103,6 +104,7 @@ const MISC_TENANT_TABLES = [
 ];
 
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
+const amazonPiiGuards = JSON.parse(await fs.readFile(path.join(__dirname, 'amazon-pii-guards.json'), 'utf8'));
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
   const match = canonicalImsSchema.match(expression);
@@ -1342,6 +1344,19 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 // Column definitions: [table, column, definition]
 const COLUMNS = [
   ['ims_amazon_delivery_evidence', 'id', 'BIGINT AUTO_INCREMENT PRIMARY KEY'],
+  ['ims_amazon_pii_disposals', 'id', 'BIGINT AUTO_INCREMENT PRIMARY KEY'],
+  ['ims_amazon_pii_disposals', 'business_id', 'VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_pii_disposals', 'so_id', 'INT NOT NULL'],
+  ['ims_amazon_pii_disposals', 'channel_instance_id', 'CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_pii_disposals', 'external_order_id', 'VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_pii_disposals', 'protected_contact_id', 'INT NULL'],
+  ['ims_amazon_pii_disposals', 'earliest_delivered_at', 'DATETIME(3) NOT NULL'],
+  ['ims_amazon_pii_disposals', 'deadline_at', 'DATETIME(3) NOT NULL'],
+  ['ims_amazon_pii_disposals', 'actor_user_id', 'INT NOT NULL'],
+  ['ims_amazon_pii_disposals', 'operation_key', 'CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_pii_disposals', 'request_hash', 'CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_pii_disposals', 'counts_json', 'JSON NOT NULL'],
+  ['ims_amazon_pii_disposals', 'cleared_at', 'DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)'],
   ['ims_amazon_delivery_evidence', 'business_id', 'VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
   ['ims_amazon_delivery_evidence', 'so_id', 'INT NOT NULL'],
   ['ims_amazon_delivery_evidence', 'parcel_id', 'BIGINT NULL'],
@@ -1700,6 +1715,10 @@ if (
 
 const INDEXES = [
   ['ims_amazon_delivery_evidence', 'uq_amazon_delivery_operation', 'UNIQUE KEY uq_amazon_delivery_operation (business_id, operation_key)'],
+  ['ims_amazon_pii_disposals', 'uq_amazon_pii_order', 'UNIQUE KEY uq_amazon_pii_order (business_id, so_id)'],
+  ['ims_amazon_pii_disposals', 'uq_amazon_pii_external', 'UNIQUE KEY uq_amazon_pii_external (business_id, channel_instance_id, external_order_id)'],
+  ['ims_amazon_pii_disposals', 'uq_amazon_pii_operation', 'UNIQUE KEY uq_amazon_pii_operation (business_id, operation_key)'],
+  ['ims_amazon_pii_disposals', 'idx_amazon_pii_contact', 'INDEX idx_amazon_pii_contact (business_id, protected_contact_id)'],
   ['ims_amazon_delivery_evidence', 'uq_amazon_delivery_void', 'UNIQUE KEY uq_amazon_delivery_void (business_id, voids_evidence_id)'],
   ['ims_amazon_delivery_evidence', 'idx_amazon_delivery_order', 'INDEX idx_amazon_delivery_order (business_id, so_id, kind, delivered_at)'],
   ['ims_amazon_delivery_evidence', 'idx_amazon_delivery_parcel', 'INDEX idx_amazon_delivery_parcel (business_id, parcel_id, kind)'],
@@ -2102,6 +2121,21 @@ async function repairStockMovementOwnership(schema) {
   console.log(`  ${schema}.ims_stock_movements: backfilled ${backfill.affectedRows} business owners${suffix}`);
 }
 
+async function installAmazonPiiGuards(schema) {
+  const [installed] = await conn.query(
+    'SELECT TRIGGER_NAME, ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = ?', [schema]);
+  const normalized = value => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
+  for (const guard of amazonPiiGuards) {
+    const existing = installed.find(row => row.TRIGGER_NAME === guard.name);
+    if (existing && normalized(existing.ACTION_STATEMENT) === normalized(guard.body)) continue;
+    const [receipts] = await conn.query(`SELECT id FROM \`${schema}\`.ims_amazon_pii_disposals LIMIT 1`);
+    if (receipts.length) throw new Error('Changing privacy guards for already-cleared records requires an offline maintenance window.');
+    await conn.query(`DROP TRIGGER IF EXISTS \`${schema}\`.\`${guard.name}\``);
+    await conn.query(`CREATE TRIGGER \`${schema}\`.\`${guard.name}\` BEFORE ${guard.event}
+      ON \`${schema}\`.\`${guard.table}\` FOR EACH ROW ${guard.body}`);
+  }
+}
+
 async function migrateSchema(schema, businessId) {
   const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
   for (const ddl of tableDdls) {
@@ -2184,6 +2218,7 @@ async function migrateSchema(schema, businessId) {
     if (requestedTable === 'ims_purchase_order_items') await repairPurchaseOrderOwnership(schema, businessId);
     if (requestedTable === 'ims_stock_movements') await repairStockMovementOwnership(schema);
     if (requestedTable === 'ims_shipping_shipments') await ensureNullableColumn(schema, requestedTable, 'carrier_account_id', 'BIGINT NULL');
+    if (requestedTable === 'ims_amazon_pii_disposals') await installAmazonPiiGuards(schema);
     console.log(`  ${schema}.${requestedTable}: ${added} columns and ${indexesAdded} indexes added`);
     return;
   }
@@ -2434,6 +2469,7 @@ async function migrateSchema(schema, businessId) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }
 
+  await installAmazonPiiGuards(schema);
   console.log(`✓ ${schema}: added ${added} columns, skipped ${skipped}, added ${indexesAdded} indexes, skipped ${indexesSkipped}`);
 }
 

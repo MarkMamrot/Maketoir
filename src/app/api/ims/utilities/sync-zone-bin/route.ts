@@ -41,7 +41,9 @@ export interface SyncZoneBinDiff {
 
 /** GET — analyse differences for a given location. */
 export async function GET(req: Request) {
-  if (!await getImsSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  if (session.tier !== 'SuperAdmin') return NextResponse.json({ success: false, error: 'SuperAdmin access required.' }, { status: 403 });
   const { searchParams } = new URL(req.url);
   const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
   if (!locationId) return NextResponse.json({ success: false, error: 'location_id required' }, { status: 400 });
@@ -131,7 +133,9 @@ export async function GET(req: Request) {
 
 /** POST — apply the resolved diffs. */
 export async function POST(req: Request) {
-  if (!await getImsSession()) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  if (session.tier !== 'SuperAdmin') return NextResponse.json({ success: false, error: 'SuperAdmin access required.' }, { status: 403 });
 
   try {
     const body: { diffs: SyncZoneBinDiff[]; location_id: number } = await req.json();

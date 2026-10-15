@@ -19,10 +19,11 @@ function manual() {
 let tenant: string | null;
 let existing: Map<string, { id: number; request_hash: string }>;
 let foundOrder: boolean, foundParcel: boolean, duplicateArticle: boolean, missingStorage: boolean, activeTarget: boolean;
+let orderChannel: string;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  tenant = null; existing = new Map(); foundOrder = true; foundParcel = true; duplicateArticle = false; missingStorage = false; activeTarget = true;
+  tenant = null; existing = new Map(); foundOrder = true; foundParcel = true; duplicateArticle = false; missingStorage = false; activeTarget = true; orderChannel = 'amazon';
   mocks.run.mockImplementation(async (businessId: string, callback: () => Promise<unknown>) => {
     tenant = businessId;
     try { return await callback(); } finally { tenant = null; }
@@ -36,7 +37,10 @@ beforeEach(() => {
     expect(tenant).toBe('tenant-a');
     if (sql.includes('information_schema.COLUMNS')) return [missingStorage ? [] : DELIVERY_EVIDENCE_COLUMNS.map(COLUMN_NAME => ({ COLUMN_NAME }))];
     expect(params).toContain('tenant-a');
-    if (sql.includes('FROM ims_sales_orders')) return [foundOrder ? [{ id: 42, orderDate: '2025-09-01', earliest: null }] : []];
+    if (sql.includes('FROM ims_sales_orders')) {
+      const allowed = sql.includes("o.sales_channel = 'amazon'") ? orderChannel === 'amazon' : params.slice(2).includes(orderChannel);
+      return [foundOrder && allowed ? [{ id: 42, orderDate: '2025-09-01', earliest: null }] : []];
+    }
     if (sql.includes('SELECT id, request_hash')) return [existing.has(String(params[1])) ? [existing.get(String(params[1]))] : []];
     if (sql.includes('BINARY p.article_id')) return [duplicateArticle ? [{ id: 9 }, { id: 10 }] : [{ id: 9 }]];
     if (sql.includes('SELECT p.id')) return [foundParcel ? [{ id: 9, article_id: 'ARTICLE1', provider: 'auspost_eparcel',
@@ -110,5 +114,22 @@ describe('tenant-scoped immutable delivery evidence', () => {
     missingStorage = true;
     await expect(getAmazonDeliveryEvidence('tenant-a', 42)).rejects.toThrow('storage is not ready');
     expect(mocks.execute.mock.calls.some(([sql]) => /^(CREATE|ALTER|INSERT)/.test(sql))).toBe(false);
+  });
+  it.each(['shopify', 'native_shop'])('stores %s carrier evidence without exposing Amazon review or manual workflows', async provider => {
+    orderChannel = provider;
+    expect(await saveCarrierDeliveryEvidence({
+      businessId: 'tenant-a', salesOrderId: 42, parcelId: 9, articleId: 'ARTICLE1', deliveredAt: '2025-09-01T00:00:00Z',
+    })).toBe(7);
+    await expect(getAmazonDeliveryEvidence('tenant-a', 42)).rejects.toThrow('Amazon order not found');
+    await expect(saveManualDeliveryEvidence('tenant-a', 99, manual())).rejects.toThrow('Amazon order not found');
+    expect(mocks.execute.mock.calls.filter(([sql]) => sql.startsWith('INSERT'))).toHaveLength(1);
+    expect(mocks.execute.mock.calls.some(([sql]) => /^(UPDATE|DELETE)/.test(sql))).toBe(false);
+  });
+  it('rejects carrier evidence for an order outside supported online channel types', async () => {
+    orderChannel = 'retail';
+    await expect(saveCarrierDeliveryEvidence({
+      businessId: 'tenant-a', salesOrderId: 42, parcelId: 9, articleId: 'ARTICLE1', deliveredAt: '2025-09-01T00:00:00Z',
+    })).rejects.toThrow('Online-channel order not found');
+    expect(mocks.execute.mock.calls.some(([sql]) => sql.startsWith('INSERT'))).toBe(false);
   });
 });

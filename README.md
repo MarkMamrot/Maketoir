@@ -2,6 +2,59 @@
 
 Business management platform for Australian retail, covering POS, inventory, purchase and sales orders, Shopify, Cin7, Xero, reporting, and marketing operations.
 
+## Development and Validation
+
+Use npm and the existing installed dependencies. Reinstall only when the dependency manifests or
+lockfiles change, or dependencies are missing. No Bun migration is required.
+
+### Fast edit loop
+
+- Start or reuse `npm run dev`; UI validation should use the existing development server.
+- Run selected tests together: `npm test -- <test-file> <another-test-file>`.
+- Run tests importing selected sources: `npm run test:related -- <source-file>`.
+- For a clean, isolated worktree, `npm run test:changed` selects tests affected by uncommitted
+  changes. In a shared/dirty worktree, prefer explicit files to avoid testing unrelated work.
+- During repeated edits, use `npm run test:watch -- <test-file>` and stop it when finished.
+- Dependency detection cannot infer raw file reads or dynamic imports. Select the owning
+  contract, Help, schema or integration tests explicitly for those changes. No matching tests
+  is not proof of correctness.
+
+Vitest uses at most four workers to limit contention and memory pressure. Override deliberately
+with `npm test -- --maxWorkers=<count>` if measurements justify it. Do not run a full suite and a
+production build concurrently in the same worktree.
+
+### Completed batches
+
+- Run the full `npm test` once after a completed shared-library change, not after each edit.
+- Before pushing application code, run one `npm run build`. It validates/compiles the Help and
+  Assistant indexes before building Next.js.
+- `npm run validate` runs the full tests followed by the production build, stopping on failure.
+  Use it when both checks are due; do not repeat checks already passed for the same final inputs.
+- Run broader owning integration checks for payments, stock, tenant isolation and schema changes.
+  Live operational tests require their existing explicit approval/gating.
+- Documentation-only changes need only their owning validators/tests. For canonical Help changes,
+  run `npm run assistant:index` and the relevant Help/Assistant tests.
+
+The normal build reuses `.next` and its compilation cache. Development outputs use separate
+`.next-dev-<port>` directories. Do not set a fresh `NEXT_DIST_DIR` for each task or delete caches
+as routine validation. Concurrent isolated worktrees have their own outputs.
+
+### Type safety and CI
+
+`npm run typecheck` runs incremental TypeScript validation using `tsconfig.typecheck.json`. It
+includes application sources/tests and the normal production route types, but not accumulated
+preview output directories or independent script/Shopify extension projects. The root Next.js
+configuration remains unchanged.
+
+The application currently has pre-existing type errors. This command returns failure for them;
+it is not yet a required CI gate. Changed code must not introduce new diagnostics. A successful
+Next.js build is not a type/lint pass because the existing Next configuration skips those checks.
+The Shopify extension keeps its own type-check in CI.
+
+CI retains full unit tests, MySQL provisioning/FIFO integration tests, and the production build.
+It caches npm downloads and `.next/cache`, and cancels superseded CI runs on the same ref. Railway
+auto-deployment is independent of CI: local pre-push checks remain important.
+
 ## Order Shortfall Status
 
 Customer sales orders now support incremental partial fulfilment:

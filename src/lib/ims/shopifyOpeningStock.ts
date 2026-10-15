@@ -1,4 +1,11 @@
-export const SHOPIFY_OPENING_STOCK_LOCATION_NAMES = ['Warehouse', 'Kotara'] as const;
+export const SHOPIFY_INVENTORY_CONFIRMATION = 'REPLACE SOLVANTIS STOCK';
+
+export class ShopifyOpeningStockValidationError extends Error {}
+
+export interface OpeningStockMapping {
+  shopifyLocationId: number;
+  solvantisLocationId: number;
+}
 
 export interface OpeningStockLocation {
   id: number;
@@ -38,28 +45,31 @@ export function changedOpeningStockVariantIds(
     .map(line => line.variantId));
 }
 
-function locationKey(value: unknown): string {
-  return String(value ?? '').trim().toLowerCase();
-}
-
 export function resolveOpeningStockLocations(
   shopifyLocations: OpeningStockLocation[],
   solvantisLocations: OpeningStockLocation[],
+  mappings: OpeningStockMapping[],
 ): Array<{ name: string; shopifyLocationId: number; solvantisLocationId: number }> {
-  return SHOPIFY_OPENING_STOCK_LOCATION_NAMES.map(name => {
-    const key = locationKey(name);
-    const shopifyMatches = shopifyLocations.filter(location => locationKey(location.name) === key && location.active !== false);
-    const solvantisMatches = solvantisLocations.filter(location => locationKey(location.name) === key && Number(location.active ?? 1) !== 0);
-    if (shopifyMatches.length !== 1) {
-      throw new Error(`Expected exactly one active Shopify location named ${name}; found ${shopifyMatches.length}.`);
+  if (!Array.isArray(mappings) || !mappings.length || mappings.length > 20) {
+    throw new ShopifyOpeningStockValidationError('Select between 1 and 20 location mappings.');
+  }
+  const sources = new Set<number>();
+  const targets = new Set<number>();
+  return mappings.map(mapping => {
+    if (!mapping || !Number.isSafeInteger(mapping.shopifyLocationId) || !Number.isSafeInteger(mapping.solvantisLocationId)
+      || mapping.shopifyLocationId <= 0 || mapping.solvantisLocationId <= 0
+      || sources.has(mapping.shopifyLocationId) || targets.has(mapping.solvantisLocationId)) {
+      throw new ShopifyOpeningStockValidationError('Each active Shopify and Solvantis location can be mapped only once.');
     }
-    if (solvantisMatches.length !== 1) {
-      throw new Error(`Expected exactly one active Solvantis location named ${name}; found ${solvantisMatches.length}.`);
-    }
+    const source = shopifyLocations.find(location => Number(location.id) === mapping.shopifyLocationId && Number(location.active ?? 1) !== 0);
+    const target = solvantisLocations.find(location => Number(location.id) === mapping.solvantisLocationId && Number(location.active ?? 1) !== 0);
+    if (!source || !target) throw new ShopifyOpeningStockValidationError('A selected location is missing or inactive. Reload locations.');
+    sources.add(mapping.shopifyLocationId);
+    targets.add(mapping.solvantisLocationId);
     return {
-      name,
-      shopifyLocationId: Number(shopifyMatches[0].id),
-      solvantisLocationId: Number(solvantisMatches[0].id),
+      name: target.name,
+      shopifyLocationId: mapping.shopifyLocationId,
+      solvantisLocationId: mapping.solvantisLocationId,
     };
   });
 }
@@ -69,20 +79,23 @@ export function planOpeningStockLines(
   levels: ShopifyInventoryLevel[],
   locations: Array<{ name: string; shopifyLocationId: number; solvantisLocationId: number }>,
 ): OpeningStockLine[] {
-  const levelByKey = new Map(levels.map(level => [
-    `${level.inventoryItemId}:${level.locationId}`,
-    Number(level.available ?? 0),
-  ]));
+  const levelByKey = new Map<string, number>();
+  for (const level of levels) {
+    if (level.available === null || !Number.isFinite(level.available)) continue;
+    const key = `${level.inventoryItemId}:${level.locationId}`;
+    if (levelByKey.has(key)) throw new Error('Shopify returned duplicate inventory levels. Preview again.');
+    levelByKey.set(key, level.available);
+  }
 
-  return locations.flatMap(location => variants.map(variant => {
-    const available = levelByKey.get(`${variant.inventoryItemId}:${location.shopifyLocationId}`) ?? 0;
-    const finiteAvailable = Number.isFinite(available) ? available : 0;
-    return {
+  return locations.flatMap(location => variants.flatMap(variant => {
+    const available = levelByKey.get(`${variant.inventoryItemId}:${location.shopifyLocationId}`);
+    if (available === undefined) return [];
+    return [{
       ...variant,
       locationName: location.name,
       solvantisLocationId: location.solvantisLocationId,
-      quantity: Math.max(0, finiteAvailable),
-      wasNegative: finiteAvailable < 0,
-    };
+      quantity: Math.max(0, available),
+      wasNegative: available < 0,
+    }];
   }));
 }

@@ -102,7 +102,8 @@ export async function POST(req: Request) {
       } else {
         ownerUserId = await UsersRepository.create({
           email: ownerEmail,
-          password: ownerPasswordMode === 'email' ? randomBytes(48).toString('base64url') : ownerPassword!,
+          password: ownerPasswordMode === 'email' ? `Aa1!${randomBytes(48).toString('base64url')}` : ownerPassword!,
+          requirePasswordSetup: ownerPasswordMode === 'email',
           name: ownerName ?? undefined,
           businessId,
           role: 'admin',

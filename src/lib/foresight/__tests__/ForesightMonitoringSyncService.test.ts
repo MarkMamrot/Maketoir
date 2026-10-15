@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   hasActive: vi.fn(),
+  getAvailability: vi.fn(),
   getConnection: vi.fn(),
   getDailyPerformance: vi.fn(),
   getAds: vi.fn(),
@@ -32,6 +33,9 @@ vi.mock('@/services/GoogleAdsService', () => ({
 }));
 vi.mock('@/services/MetaAdsReadService', () => ({ MetaAdsReadService: class {} }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
+vi.mock('@/lib/ims/integrationAvailability', () => ({
+  getOptionalIntegrationAvailability: mocks.getAvailability,
+}));
 vi.mock('../repositories/ForesightCreativeRepository', () => ({
   ForesightCreativeRepository: { ingest: mocks.ingestCreatives },
 }));
@@ -77,6 +81,10 @@ describe('ForesightMonitoringSyncService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getAvailability.mockResolvedValue({
+      google: { enabled: true }, meta: { enabled: true }, cin7: { enabled: false },
+      klaviyo: { enabled: false }, gmail: { enabled: false },
+    });
     mocks.startRun.mockResolvedValue(91);
     mocks.recordTab.mockResolvedValue(undefined);
     mocks.appendDaily.mockResolvedValue(undefined);
@@ -124,5 +132,29 @@ describe('ForesightMonitoringSyncService', () => {
     expect(mocks.ingestCreatives).toHaveBeenCalledWith(91, 'business-1', []);
     expect(mocks.completeRun).toHaveBeenCalledWith(91, 'business-1', 'succeeded', 3, 0, null);
     expect(result).toMatchObject({ skipped: false, runId: 91, state: 'succeeded' });
+  });
+
+  it('skips disabled paid media sources but continues authoritative commerce monitoring', async () => {
+    mocks.hasActive.mockResolvedValue(true);
+    mocks.getConnection.mockResolvedValue({
+      google_ads_customer_id: '111-222-3333',
+      google_ads_refresh_token: 'encrypted-token',
+      meta_ad_account_id: 'act_123',
+      meta_access_token: 'encrypted-meta',
+    });
+    mocks.getAvailability.mockResolvedValue({
+      google: { enabled: false }, meta: { enabled: false }, cin7: { enabled: false },
+      klaviyo: { enabled: false }, gmail: { enabled: false },
+    });
+
+    const result = await ForesightMonitoringSyncService.syncActiveWindow('business-1', '2026-08-01');
+
+    expect(mocks.startRun).toHaveBeenCalledWith(
+      'business-1', ['commerce'], '2026-07-19', '2026-08-01', null,
+    );
+    expect(mocks.getDailyPerformance).not.toHaveBeenCalled();
+    expect(mocks.appendDaily).not.toHaveBeenCalled();
+    expect(mocks.getCommerce).toHaveBeenCalled();
+    expect(result).toMatchObject({ skipped: false, runId: 91 });
   });
 });

@@ -1,4 +1,5 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { buildMetaExperimentExecutionPreflight } from './metaExperimentExecutionPreflight';
@@ -14,6 +15,7 @@ async function businessDate(businessId: string, now: Date): Promise<string> {
 
 export const ForesightMetaExperimentExecutionPreflightService = {
   async preflight(businessId: string, threadId: number, now = new Date()) {
+    await assertOptionalIntegrationEnabled(businessId, 'meta');
     const [experiment, review, confirmation, connection] = await Promise.all([
       ForesightCampaignExperimentRepository.latest(businessId, threadId),
       ForesightCampaignExperimentRepository.latestReview(businessId, threadId),

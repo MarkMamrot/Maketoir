@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
+import { clearAdminSessionCookie, clearMfaTrustCookie } from '@/lib/auth/adminAuthCookies';
+import { getPasswordValidation, PasswordPolicyValidationError } from '@/lib/auth/passwordPolicy';
 
 interface ResetTokenRow extends RowDataPacket {
   id: number;
@@ -12,6 +14,12 @@ interface ResetTokenRow extends RowDataPacket {
   business_id: string | null;
   expires_at: Date | string;
   used_at: Date | string | null;
+}
+
+interface PasswordOwnerRow extends RowDataPacket {
+  password_hash: string;
+  username: string | null;
+  email: string;
 }
 
 /**
@@ -24,13 +32,12 @@ export async function POST(req: Request) {
   try {
     const { token, password } = await req.json();
 
-    if (!token || !password) {
+    if (typeof token !== 'string' || !token || typeof password !== 'string' || !password) {
       return NextResponse.json({ success: false, error: 'Token and password are required.' }, { status: 400 });
     }
 
-    if (password.length < 8) {
-      return NextResponse.json({ success: false, error: 'Password must be at least 8 characters.' }, { status: 400 });
-    }
+    const validation = getPasswordValidation(password);
+    if (!validation.isValid) return NextResponse.json({ success: false, error: validation.message }, { status: 400 });
 
     const hash = await bcrypt.hash(password, 12);
     const tokenHash = createHash('sha256').update(String(token)).digest('hex');
@@ -61,9 +68,27 @@ export async function POST(req: Request) {
       resetUserId = row.user_id;
       resetBusinessId = row.business_id;
 
+      const [owners] = await connection.execute<PasswordOwnerRow[]>(
+        'SELECT password_hash, username, email FROM users WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [row.user_id],
+      );
+      const owner = owners[0];
+      if (!owner) throw new Error('Password reset user no longer exists.');
+      const ownerValidation = getPasswordValidation(password, owner.username ?? owner.email);
+      if (!ownerValidation.isValid) throw new PasswordPolicyValidationError(ownerValidation.message);
+      const [history] = await connection.execute<Array<RowDataPacket & { password_hash: string }>>(
+        'SELECT password_hash FROM user_password_history WHERE user_id = ? ORDER BY id DESC LIMIT 9',
+        [row.user_id],
+      );
+      for (const previous of [owner, ...history]) {
+        if (await bcrypt.compare(password, previous.password_hash)) {
+          throw new PasswordPolicyValidationError('Choose a password different from your last 10 passwords.');
+        }
+      }
+      await connection.execute('INSERT INTO user_password_history (user_id, password_hash) VALUES (?, ?)', [row.user_id, owner.password_hash]);
       const [userResult] = await connection.execute<ResultSetHeader>(
         `UPDATE users
-        SET password_hash = ?
+        SET password_hash = ?, password_changed_at = NOW(3)
           WHERE id = ? AND deleted_at IS NULL`,
         [hash, row.user_id],
       );
@@ -82,6 +107,11 @@ export async function POST(req: Request) {
         'UPDATE password_reset_tokens SET used_at = NOW(3) WHERE id = ? AND used_at IS NULL',
         [row.id],
       );
+      await connection.execute(
+        `DELETE FROM user_password_history WHERE user_id = ? AND id NOT IN
+          (SELECT id FROM (SELECT id FROM user_password_history WHERE user_id = ? ORDER BY id DESC LIMIT 9) retained)`,
+        [row.user_id, row.user_id],
+      );
       await connection.commit();
     } catch (error) {
       await connection.rollback();
@@ -90,6 +120,8 @@ export async function POST(req: Request) {
       connection.release();
     }
 
+    clearAdminSessionCookie();
+    clearMfaTrustCookie();
     if (resetUserId != null) {
       await recordAuthEvent({
         userId: resetUserId,
@@ -101,6 +133,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof PasswordPolicyValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
     await reportRuntimeIssue({
       source: 'auth.password-reset',
       operation: 'reset_password_and_revoke_mfa',

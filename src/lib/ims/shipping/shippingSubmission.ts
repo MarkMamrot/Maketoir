@@ -1,4 +1,5 @@
 import { getIMSPool, imsExecute, imsQuery } from "@/services/IMSMySQLService";
+import { assertShippingPiiNotCleared } from "@/lib/securityCompliance/amazonPiiSuppression";
 import type { ResultSetHeader } from "mysql2/promise";
 import {
   AusPostApiError,
@@ -87,6 +88,8 @@ export async function submitShippingDraftsAndCreateLabels(input: {
   if (shipmentIds.length > 50)
     throw new Error("Submit no more than 50 shipments at once.");
 
+  await assertShippingPiiNotCleared(input.businessId, shipmentIds);
+
   const settled = await mapWithConcurrency(shipmentIds, 4, async (shipmentId) =>
     submitOneShipment(input.businessId, shipmentId),
   );
@@ -101,6 +104,7 @@ export async function submitShippingDraftsAndCreateLabels(input: {
   const labels = shipments.length
     ? await ensureBatchLabels(input.businessId, shipments, input.includeAusPostBranding !== false)
     : new Map<number, { requestId: string; status: string; url?: string }>();
+  await assertShippingPiiNotCleared(input.businessId, shipmentIds);
   const results = await Promise.all(
     shipments.map(async (shipment): Promise<ShippingSubmissionResult> => {
       const label = labels.get(shipment.id);

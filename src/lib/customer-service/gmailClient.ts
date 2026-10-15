@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -179,6 +180,7 @@ export function isGmailInsufficientScopeError(error: unknown): boolean {
 }
 
 export async function getGmailAccess(businessId: string): Promise<{ accessToken: string; mailboxEmail: string }> {
+  await assertOptionalIntegrationEnabled(businessId, 'gmail');
   const connection = await ConnectionsRepository.get(businessId);
   if (!connection?.gmail_refresh_token) throw new Error('Gmail is not connected');
 

@@ -1,6 +1,8 @@
 ﻿'use client';
 import { compareProductVariants } from '@/lib/pos/productVariantOrder';
 import { isIncomingChatMessage, useChatNotificationSound } from '@/lib/pos/useChatNotificationSound';
+import { getPosSoundsMuted, setPosSoundsMuted, playPosSound } from '@/lib/pos/posSounds';
+import { isSlowTerminalStart, reportPosDeviceIssue, startTerminalTiming } from '@/lib/pos/posDeviceDiagnostics';
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
@@ -17,6 +19,7 @@ import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { resolveEodOpeningFloat } from '@/lib/pos/eodOpeningFloat';
 import { PosStoreDaybook } from './components/daybook/PosStoreDaybook';
 import { LaybyWorkspace } from './components/LaybyWorkspace';
+import { PosDeviceRuntime, useZellerReadiness } from './components/PosDeviceRuntime';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   mergeProductsDelta,
@@ -41,23 +44,7 @@ function fmt(n: number) { return n.toFixed(2); }
 
 /** Error beep — short descending two-tone burst (same pattern as Receive Transfer). */
 function playErrorBeep() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    // First tone: sharp high note
-    const osc1 = ctx.createOscillator(); const g1 = ctx.createGain();
-    osc1.connect(g1); g1.connect(ctx.destination);
-    osc1.type = 'square'; osc1.frequency.value = 880;
-    g1.gain.setValueAtTime(0.25, ctx.currentTime);
-    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-    osc1.start(ctx.currentTime); osc1.stop(ctx.currentTime + 0.18);
-    // Second tone: lower note
-    const osc2 = ctx.createOscillator(); const g2 = ctx.createGain();
-    osc2.connect(g2); g2.connect(ctx.destination);
-    osc2.type = 'square'; osc2.frequency.value = 440;
-    g2.gain.setValueAtTime(0.25, ctx.currentTime + 0.2);
-    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-    osc2.start(ctx.currentTime + 0.2); osc2.stop(ctx.currentTime + 0.45);
-  } catch { /* AudioContext unavailable — silent fail */ }
+  playPosSound('error');
 }
 /** Australian cash rounding — round to nearest 5 cents using integer arithmetic to avoid FP drift */
 function roundCash(amount: number): number {
@@ -842,6 +829,7 @@ function computeThemeVars(s: PosLocationSettings): Record<string, string> {
 // Small helper rendered inside PosSettingsModal — calls useTerminal() for terminal pairing
 function ZellerPairButton() {
   const terminal = Zeller.useTerminal();
+  const readiness = useZellerReadiness();
   const [pairing,  setPairing]  = useState(false);
   const [testing,  setTesting]  = useState(false);
   const [msg,      setMsg]      = useState<string | null>(null);
@@ -850,6 +838,8 @@ function ZellerPairButton() {
   async function handlePair() {
     setPairing(true); setMsg(null); setTestResult(null);
     try {
+      await readiness.waitForIdle();
+      readiness.invalidate();
       const result = await terminal.setup();
       if (result instanceof Error) { setMsg(`Pairing failed: ${(result as any).type ?? result.message}`); return; }
       setMsg('✓ Terminal paired successfully!');
@@ -861,7 +851,7 @@ function ZellerPairButton() {
   async function handleTest() {
     setTesting(true); setMsg(null); setTestResult(null);
     try {
-      const result = await (terminal as any).initialise?.();
+      const result = (await readiness.prepare(true)).error ?? true;
       if (!result || result === true) {
         setTestResult({ ok: true, type: 'OK', detail: 'Terminal is paired and reachable.' });
         return;
@@ -992,6 +982,7 @@ function PosSettingsModal({
   const [defaultProductSearch, setDefaultProductSearch] = useState('');
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
+  const [soundsMuted, setSoundsMuted] = useState(getPosSoundsMuted);
 
   function buildSettings(): PosLocationSettings {
     return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale, allowIncomingTransferSales, laybyCancellationFeePercent: initialSettings.laybyCancellationFeePercent, defaultProductView };
@@ -1159,6 +1150,21 @@ function PosSettingsModal({
                   <button type="button" onClick={() => onProductViewModeChange('variants')} aria-pressed={productViewMode === 'variants'} style={{ minHeight: 34, border: 0, borderRadius: 5, background: productViewMode === 'variants' ? 'var(--sv-action)' : 'transparent', color: productViewMode === 'variants' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Variants</button>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 7, lineHeight: 1.45 }}>Products groups the catalogue and asks for a variant before adding it. Barcode scans always add the exact scanned variant.</div>
+              </div>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={soundsMuted} onChange={event => {
+                    const value = event.target.checked;
+                    setSoundsMuted(value);
+                    try { setPosSoundsMuted(value); }
+                    catch { setSaveError('Sound preference could not be saved. It applies only to this open page; check it again after reloading.'); }
+                  }} style={{ width: 18, height: 18, accentColor: 'var(--sv-action)' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Mute POS sounds on this device</div>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 3, lineHeight: 1.45 }}>Applies immediately to chat and scan-error alerts. Visual alerts stay on. Use this when this computer also plays shop music; Zeller terminal sounds are separate.</div>
+                  </div>
+                </label>
+                <button type="button" disabled={soundsMuted} onClick={() => playPosSound('chat')} style={{ ...smallBtn, marginTop: 8, opacity: soundsMuted ? 0.5 : 1 }}>Test POS sound</button>
               </div>
               <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
@@ -1594,6 +1600,10 @@ function MainPos({
   // Card terminal session-level toggle (staff can override admin config for this session)
   const [activeRegister, setActiveRegister] = useState<any>(null);
   const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
+  const terminalReadiness = useZellerReadiness();
+  useEffect(() => {
+    if (zellerTerminalEnabled && !trainingMode) void terminalReadiness.prepare();
+  }, [zellerTerminalEnabled, trainingMode, terminalReadiness]);
   const [btAccess, setBtAccess] = useState<'disabled' | 'manager' | 'all'>('all');
   const [daybookPreferences, setDaybookPreferences] = useState({ showInMainMenu: false, hourlyReminder: false });
   const [daybookIncomplete, setDaybookIncomplete] = useState(0);
@@ -5202,8 +5212,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   extraContent?:      React.ReactNode;
 }) {
   const terminal = Zeller.useTerminal();
+  const readiness = useZellerReadiness();
+  const diagnosticBusinessId = loadDeviceConfig()?.business_id;
   const [zellerPending, setZellerPending] = useState(false);
   const [zellerError,   setZellerError]   = useState<string | null>(null);
+  const [terminalStage, setTerminalStage] = useState<'readiness' | 'payment'>('readiness');
   const terminalInFlight = useRef(false);
   const [terminalOutcomeUnknown, setTerminalOutcomeUnknown] = useState(false);
   const capturedPaymentIds = useRef(new Set<string>());
@@ -5215,6 +5228,16 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   const absTotal  = Math.abs(total);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [activeMethod, setActiveMethod] = useState(() => methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash');
+  useEffect(() => {
+    let cancelled = false;
+    if (zellerEnabled && !manualOverride && !terminalInFlight.current && !completionInFlight.current
+      && cardTerminalMethods?.some(method => method.toLowerCase() === activeMethod.toLowerCase())) {
+      void readiness.prepare().then(check => {
+        if (!cancelled) setZellerError(check.error ? 'Terminal is not ready yet. Check pairing, power and internet before taking payment.' : null);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [zellerEnabled, manualOverride, activeMethod, cardTerminalMethods, readiness]);
   const [amount, setAmount] = useState(() => {
     const m = methods.find(m => /card/i.test(m)) ?? methods[0] ?? 'Cash';
     return String(total >= 0 && /cash/i.test(m) ? roundCash(absTotal) : absTotal);
@@ -5394,11 +5417,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   }
 
   function reportTerminalFailure() {
-    void fetch('/api/runtime-issues/client', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
-      body: JSON.stringify({ name: 'PosTerminalError', operation: isRefund ? 'pos_terminal_refund' : 'pos_terminal_purchase',
-        message: `Terminal ${isRefund ? 'refund' : 'payment'} failed before an approved response was confirmed.`, pathname: window.location.pathname }),
-    }).catch(() => {});
+    reportPosDeviceIssue(isRefund ? 'pos_terminal_refund' : 'pos_terminal_purchase',
+      `Terminal ${isRefund ? 'refund' : 'payment'} failed before an approved response was confirmed.`, diagnosticBusinessId);
   }
 
   async function handleZellerTransaction() {
@@ -5418,12 +5438,15 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       terminalInFlight.current = false;
       return;
     }
+    const timing = startTerminalTiming(undefined, diagnosticBusinessId);
     try {
       // Pre-flight: verify the SDK is authenticated + paired + terminal reachable.
       // initialise() is non-interactive and returns the *specific* failure reason.
-      const init = await (terminal as any).initialise?.();
-      if (init instanceof Error) {
-        const t = (init as any).type ?? init.message;
+      setTerminalStage('readiness');
+      const check = await readiness.consume();
+      timing.readiness(check);
+      if (check.error) {
+        const t = 'type' in check.error && typeof check.error.type === 'string' ? check.error.type : check.error.message;
         setZellerError(
           t === 'Setup Required'
             ? 'Terminal not paired. Open Settings → Terminal → Pair Terminal.'
@@ -5435,14 +5458,25 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       }
 
       sentToTerminal = true;
-      const result = await executeZellerTransaction(terminal, {
+      setTerminalStage('payment');
+      timing.sent();
+      const transaction = executeZellerTransaction(terminal, {
         amount: amountCents,
         isRefund,
         reference: ref,
         sessionUuid: (globalThis.crypto?.randomUUID?.() ?? ref),
       });
+      try {
+        transaction.onEvent?.((event: { event: string }) => {
+          if (event.event === 'AWAITING_PAYMENT_METHOD') timing.terminalEvent();
+        });
+      } catch {
+        reportPosDeviceIssue('pos_terminal_delay', 'Terminal prompt timing was unavailable. Waiting for the actual payment result.', diagnosticBusinessId);
+      }
+      const result = await transaction;
+      timing.finish();
       if (result instanceof Error) {
-        const t = (result as any).type ?? result.message;
+        const t = String(result.type ?? result.message);
         if (!/cancel|declin/i.test(String(t))) { setTerminalOutcomeUnknown(true); reportTerminalFailure(); }
         setZellerError(`${isRefund ? 'Refund' : 'Payment'} ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
@@ -5473,6 +5507,11 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       reportTerminalFailure();
       setZellerError(`Terminal error: ${e?.type ?? e?.message ?? 'Unknown error'}`);
     } finally {
+      const metrics = timing.finish();
+      console.info('[POS] Terminal timing', metrics);
+      if (isSlowTerminalStart(metrics)) reportPosDeviceIssue('pos_terminal_delay',
+        'A Zeller payment start or the POS browser was slow. Result wait includes customer interaction.', diagnosticBusinessId, metrics);
+      readiness.invalidate();
       terminalInFlight.current = false;
       setZellerPending(false);
     }
@@ -5550,7 +5589,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
               disabled={zellerPending || terminalOutcomeUnknown || capturedPaymentIds.current.size > 0 || remaining <= 0}
               style={{ width: '100%', padding: '.85rem', background: zellerPending ? 'var(--sv-etch)' : 'var(--sv-action)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: '1.1rem', cursor: zellerPending ? 'default' : 'pointer', marginBottom: '.4rem' }}
             >
-              {zellerPending ? '⏳ Waiting for terminal…' : `💳 ${isRefund ? 'Refund' : 'Pay'} $${fmt(isLayby ? Math.max(0, Math.min(Number(amount) || 0, remaining)) : remaining)} via Terminal`}
+              {zellerPending ? (terminalStage === 'readiness' ? '⏳ Checking terminal readiness…' : '⏳ Waiting for terminal…') : `💳 ${isRefund ? 'Refund' : 'Pay'} $${fmt(isLayby ? Math.max(0, Math.min(Number(amount) || 0, remaining)) : remaining)} via Terminal`}
             </button>
             <button
               onClick={() => setManualOverride(true)}
@@ -7136,15 +7175,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
   }, [bt.id]);
 
   const playError = () => {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator(); const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'square'; osc.frequency.value = 200;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-      osc.start(); osc.stop(ctx.currentTime + 0.45);
-    } catch {}
+    playPosSound('transfer-error');
   };
 
   const handleScan = (value: string) => {
@@ -8863,17 +8894,6 @@ export default function PosPage() {
     );
   }
 
-  if (screen === 'receipt' && completedSale) {
-    return (
-      <ReceiptScreen
-        sale={completedSale}
-        printSettings={printSettings}
-        changeDue={completedSale.change_due ?? pendingChangeDue ?? 0}
-        onClose={() => { setCompletedSale(null); setPendingChangeDue(null); setReceiptCloseToken(t => t + 1); setScreen('pos'); }}
-      />
-    );
-  }
-
   // Central sync function — used by the 5-min background interval, the 15-min
   // freshness check, the post-session-restore mount refresh, and the manual
   // "Sync" button (forceFull=true). Uses incremental `since=` fetches driven
@@ -9015,8 +9035,15 @@ export default function PosPage() {
     />
   );
   return (
-    <Zeller.Provider vendorName="Marketoir" vendorApplicationName="Monsterthreads POS" vendorApplicationVersion="1.0.0" vendorDeviceType="POS">
-      {mainPosContent}
-    </Zeller.Provider>
+    <PosDeviceRuntime key={`${deviceConfig.business_id}:${deviceConfig.location_id}:${deviceConfig.register_id ?? 'none'}`} businessId={deviceConfig.business_id}>
+      {screen === 'receipt' && completedSale ? (
+        <ReceiptScreen
+          sale={completedSale}
+          printSettings={printSettings}
+          changeDue={completedSale.change_due ?? pendingChangeDue ?? 0}
+          onClose={() => { setCompletedSale(null); setPendingChangeDue(null); setReceiptCloseToken(t => t + 1); setScreen('pos'); }}
+        />
+      ) : mainPosContent}
+    </PosDeviceRuntime>
   );
 }

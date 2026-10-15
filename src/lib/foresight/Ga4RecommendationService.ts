@@ -1,6 +1,7 @@
 import { MarketingDataRepository, type MarketingDataRow } from '@/lib/db/MarketingDataRepository';
 import { ForesightIngestionRepository, mysqlDateOnly } from './repositories/ForesightIngestionRepository';
 import { ForesightRepository } from './repositories/ForesightRepository';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import {
   evaluateGa4ChannelRules,
   GA4_CHANNEL_FORMULA_VERSION,
@@ -46,6 +47,16 @@ function normalize(row: MarketingDataRow): Ga4ChannelObservation {
 
 export const Ga4RecommendationService = {
   async evaluateChannels(businessId: string, throughDate: string) {
+    if (!await isOptionalIntegrationEnabled(businessId, 'google')) {
+      return {
+        evaluatedThrough: throughDate,
+        skipped: true,
+        skipReason: 'integration_disabled',
+        recommendationCount: 0,
+        expiredCount: 0,
+        recommendations: [],
+      };
+    }
     const previousStart = addDays(throughDate, -13);
     const snapshot = await ForesightIngestionRepository.getLatestSyncTabOutcome(businessId, 'ga4', 'GA4_Channels');
     if (

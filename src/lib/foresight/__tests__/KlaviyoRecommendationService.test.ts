@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockLatestTab, mockGetTab, mockCreateRecommendation, mockExpire } = vi.hoisted(() => ({
+const { mockLatestTab, mockGetTab, mockCreateRecommendation, mockExpire, mockEnabled } = vi.hoisted(() => ({
   mockLatestTab: vi.fn(),
   mockGetTab: vi.fn(),
   mockCreateRecommendation: vi.fn(),
   mockExpire: vi.fn(),
+  mockEnabled: vi.fn(),
 }));
 
 vi.mock('../repositories/ForesightIngestionRepository', () => ({
@@ -18,6 +19,9 @@ vi.mock('../repositories/ForesightRepository', () => ({
     createRecommendation: mockCreateRecommendation,
     expireSupersededShadowRecommendations: mockExpire,
   },
+}));
+vi.mock('@/lib/ims/integrationAvailability', () => ({
+  isOptionalIntegrationEnabled: mockEnabled,
 }));
 
 import { KlaviyoRecommendationService } from '../KlaviyoRecommendationService';
@@ -33,6 +37,19 @@ describe('KlaviyoRecommendationService', () => {
     }]);
     mockCreateRecommendation.mockResolvedValue(42);
     mockExpire.mockResolvedValue(1);
+    mockEnabled.mockResolvedValue(true);
+  });
+
+  it('does not create or expire Klaviyo recommendations while the provider is disabled', async () => {
+    mockEnabled.mockResolvedValue(false);
+
+    const result = await KlaviyoRecommendationService.evaluateLifecycle('business-1', '2026-07-29');
+
+    expect(result).toMatchObject({ skipped: true, skipReason: 'integration_disabled', recommendationCount: 0 });
+    expect(mockLatestTab).not.toHaveBeenCalled();
+    expect(mockGetTab).not.toHaveBeenCalled();
+    expect(mockCreateRecommendation).not.toHaveBeenCalled();
+    expect(mockExpire).not.toHaveBeenCalled();
   });
 
   it('persists a consolidated lifecycle shadow finding from a successful snapshot', async () => {

@@ -4,6 +4,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt, encrypt } from '@/lib/encryption';
 import { requireAdminTier } from '@/lib/sessionUtils';
 import { listMetaAdAccounts } from '@/services/MetaOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 function pendingToken(): string {
   const stored = cookies().get('meta_oauth_pending')?.value ?? '';
@@ -11,8 +12,16 @@ function pendingToken(): string {
 }
 
 export async function GET() {
-  const { response } = requireAdminTier();
+  const { user, response } = requireAdminTier();
   if (response) return response;
+  try {
+    await assertOptionalIntegrationEnabled(user.businessId, 'meta');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ error: 'Meta integration availability is not ready.' }, { status: 503 });
+  }
   const token = pendingToken();
   if (!token) return NextResponse.json({ error: 'Meta account selection expired. Connect again.' }, { status: 410 });
   try {
@@ -25,6 +34,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const { user, response } = requireAdminTier();
   if (response) return response;
+  try {
+    await assertOptionalIntegrationEnabled(user.businessId, 'meta');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ error: 'Meta integration availability is not ready.' }, { status: 503 });
+  }
   const token = pendingToken();
   if (!token) return NextResponse.json({ error: 'Meta account selection expired. Connect again.' }, { status: 410 });
   const body = await request.json().catch(() => ({})) as { accountId?: unknown };

@@ -8,6 +8,7 @@ function dependencies(overrides: Partial<KlaviyoWorkerDependencies> = {}): Klavi
     getSettings: vi.fn(async () => ({ enabled: true, profilesEnabled: true, reportingEnabled: false,
       sources: { pos: true, nativeShop: false, wholesale: false, shopify: false }, shopifyDuplicateRiskAcknowledged: false })),
     getConnection: vi.fn(async () => ({ klaviyo_api_key: 'encrypted-key' } as any)),
+    isIntegrationEnabled: vi.fn(async () => true),
     decryptKey: vi.fn(() => 'private-key'),
     createClient: vi.fn(() => client),
     recoverStale: vi.fn(async () => 1),
@@ -25,6 +26,18 @@ function dependencies(overrides: Partial<KlaviyoWorkerDependencies> = {}): Klavi
 }
 
 describe('Klaviyo outbox worker', () => {
+  it('does not inspect or mutate queued work while the provider is disabled', async () => {
+    const deps = dependencies({ isIntegrationEnabled: vi.fn(async () => false) });
+
+    await expect(processKlaviyoOutbox({ businessId: 'business-1' }, deps)).resolves.toEqual({
+      processed: 0, sent: 0, skipped: 0, failed: 0, recovered: 0,
+    });
+    expect(deps.getSettings).not.toHaveBeenCalled();
+    expect(deps.getConnection).not.toHaveBeenCalled();
+    expect(deps.recoverStale).not.toHaveBeenCalled();
+    expect(deps.listPending).not.toHaveBeenCalled();
+  });
+
   it('reconciles the current profile and sends a claimed event once', async () => {
     const deps = dependencies();
 

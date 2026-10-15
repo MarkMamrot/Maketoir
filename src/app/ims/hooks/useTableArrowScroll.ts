@@ -19,6 +19,8 @@ export function useTableArrowScroll(
 
       const scroller = scrollRef.current;
       if (!scroller) return;
+      const settings = document.querySelector('[data-settings-overlay]');
+      if (settings && !settings.contains(scroller)) return;
 
       if (isHorizontal && captureHorizontalFromControls) event.stopPropagation();
 
@@ -26,7 +28,11 @@ export function useTableArrowScroll(
         event.preventDefault();
         const top = event.key === 'ArrowUp' ? -240 : 240;
         if (verticalTarget === 'element') scroller.scrollBy({ top, behavior: 'auto' });
-        else window.scrollBy({ top, behavior: 'auto' });
+        else {
+          const settingsPage = scroller.closest<HTMLElement>('[data-settings-scroll]');
+          if (settingsPage) settingsPage.scrollBy({ top, behavior: 'auto' });
+          else window.scrollBy({ top, behavior: 'auto' });
+        }
         return;
       }
 

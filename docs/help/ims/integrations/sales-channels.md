@@ -40,7 +40,7 @@ Open **Sales > Sales Channels** from the sidebar. The storefront icon identifies
 
 ## Review channel instances
 
-The **Point of Sale** and **B2B Wholesale Portal** rows use existing Business Operations settings. Administrators choose **Configure** to open **Settings > Point of Sale** or **Settings > Wholesale Portal**. POS shows **Setup pending** when enabled without active POS locations. Its count includes active locations marked for POS or with a POS location code; inactive and non-POS locations are excluded. **Manage locations** opens the existing Locations workspace. **Preview portal** opens the enabled wholesale portal's staff preview in a new tab.
+The **Point of Sale** and **B2B Wholesale Portal** rows use existing Business Operations settings. Administrators choose **Configure** to open **Settings > Point of Sale** or **Settings > Sales & Customers > Wholesale portal**. POS shows **Setup pending** when enabled without active POS locations. Its count includes active locations marked for POS or with a POS location code; inactive and non-POS locations are excluded. **Manage locations** opens the existing Locations workspace. **Preview portal** opens the enabled wholesale portal's staff preview in a new tab.
 
 These built-in rows are navigation summaries, not new online integrations. They do not change stock, pricing, order attribution, accounting or product publishing. They do not have external connection tests or synchronization timestamps. Staff without administrator access can use the location and preview links but do not receive a Configure action.
 

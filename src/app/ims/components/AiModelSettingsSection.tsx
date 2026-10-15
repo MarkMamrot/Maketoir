@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSettingsDirty } from '../views/settings/SettingsShell';
 import {
   BUSINESS_AI_MODEL_KEYS,
   DEFAULT_BUSINESS_AI_MODELS,
@@ -36,6 +37,8 @@ export default function AiModelSettingsSection() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [baseline, setBaseline] = useState<BusinessAiModelPreferences>(DEFAULT_BUSINESS_AI_MODELS);
+  useSettingsDirty(JSON.stringify(preferences) !== JSON.stringify(baseline));
 
   useEffect(() => {
     let active = true;
@@ -54,7 +57,8 @@ export default function AiModelSettingsSection() {
       if (!active) return;
       setModels(availableModels);
       const fallback = availableModels[0]?.id || '';
-      setPreferences(Object.fromEntries(BUSINESS_AI_MODEL_KEYS.map(key => [key, availableModels.some((model: ModelOption) => model.id === savedPreferences[key]) ? savedPreferences[key] : fallback])) as BusinessAiModelPreferences);
+      const saved = Object.fromEntries(BUSINESS_AI_MODEL_KEYS.map(key => [key, availableModels.some((model: ModelOption) => model.id === savedPreferences[key]) ? savedPreferences[key] : fallback])) as BusinessAiModelPreferences;
+      setPreferences(saved); setBaseline(saved);
     }).catch(cause => {
       if (active) setError(cause instanceof Error ? cause.message : 'AI model settings could not be loaded.');
     }).finally(() => {
@@ -76,6 +80,7 @@ export default function AiModelSettingsSection() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'AI model settings could not be saved.');
       setPreferences(data.models);
+      setBaseline(data.models);
       setMessage('AI model settings saved.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'AI model settings could not be saved.');
@@ -119,9 +124,10 @@ export default function AiModelSettingsSection() {
       </p>
       {error && <p role="alert" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-red)' }}>{error}</p>}
       {message && <p role="status" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-mint)' }}>{message}</p>}
-      <button type="button" onClick={save} disabled={loading || saving || models.length === 0} style={{ padding: '8px 18px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 13, fontWeight: 650, cursor: loading || saving ? 'not-allowed' : 'pointer', opacity: loading || saving ? .6 : 1 }}>
+      <button type="button" data-primary onClick={save} disabled={loading || saving || models.length === 0} style={{ padding: '8px 18px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 13, fontWeight: 650, cursor: loading || saving ? 'not-allowed' : 'pointer', opacity: loading || saving ? .6 : 1 }}>
         {loading ? 'Loading...' : saving ? 'Saving...' : 'Save AI Models'}
       </button>
+      <button type="button" disabled={saving} onClick={() => { setPreferences(baseline); setMessage(''); }}>Cancel</button>
     </div>
   );
 }

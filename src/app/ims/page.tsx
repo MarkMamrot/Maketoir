@@ -47,6 +47,13 @@ import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { TeamCommunicationsDrawer } from '@/components/help/TeamCommunicationsDrawer';
 import { ConnectionsTab, SalesCacheTab } from '../setup/page';
 import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
+import { resolveSettingsSection, settingsOwnedUpdates, settingsPath, visibleSettingsMenu, type SettingsSection } from '@/lib/navigation/imsSettingsNavigation';
+import { SettingsShell, useSettingsDirty } from './views/settings/SettingsShell';
+import { LoyaltyRewardsSettings } from './views/settings/LoyaltyRewardsSettings';
+import { LoyaltyPortalSettings } from './views/settings/LoyaltyPortalSettings';
+import { IntegrationSettingsSection } from './views/settings/IntegrationSettingsSection';
+import { AdvancedIntegrationTools } from './views/settings/AdvancedIntegrationTools';
+import type { ConnectionProvider } from '../setup/page';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -16317,7 +16324,7 @@ function ImsTable({ cols, rows, render, background = 'var(--sv-bg-2)', headerBac
   } : {};
   return (
     <div style={{ width: '100%', minWidth: 0, background, border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
-      <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: headerBackground, borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+      <div ref={headerScrollRef} style={{ position: 'sticky', top: 'var(--settings-page-header-height, 0px)', zIndex: 20, overflow: 'hidden', background: headerBackground, borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
         <table style={{ width: tableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           {renderColGroup()}
         <thead>
@@ -19772,13 +19779,21 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
   const [newName, setNewName] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ id: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  useSettingsDirty(Boolean(newName?.trim()) || Boolean(editForm && editForm.name !== methods.find(method => method.id === editForm.id)?.name));
+  const request = async (url: string, init?: RequestInit) => {
+    const response = await fetch(url, init);
+    const body = await response.json();
+    if (!response.ok || !body.success) throw new Error(body.error || 'Payment methods could not be updated.');
+    return body;
+  };
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/ims/payment-methods?type=${type}`).then(r => r.json());
-      if (res.success) setMethods(res.data);
-    } catch {}
+      const res = await request(`/api/ims/payment-methods?type=${type}`);
+      setMethods(res.data);
+    } catch (error) { setError(error instanceof Error ? error.message : 'Payment methods could not be loaded.'); }
     setLoading(false);
   };
   useEffect(() => { load(); }, [type]);
@@ -19787,9 +19802,9 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
     if (!newName?.trim()) return;
     setSaving(true);
     try {
-      await fetch('/api/ims/payment-methods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), type }) });
+      await request('/api/ims/payment-methods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), type }) });
       setNewName(null); await load();
-    } catch {}
+    } catch (error) { setError(error instanceof Error ? error.message : 'Payment method could not be created.'); }
     setSaving(false);
   };
 
@@ -19797,22 +19812,23 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
     if (!editForm) return;
     setSaving(true);
     try {
-      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editForm.id, name: editForm.name }) });
+      await request('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editForm.id, name: editForm.name }) });
       setEditForm(null); await load();
-    } catch {}
+    } catch (error) { setError(error instanceof Error ? error.message : 'Payment method could not be saved.'); }
     setSaving(false);
   };
 
   const handleToggleActive = async (m: any) => {
     try {
-      await fetch('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, is_active: !m.is_active }) });
+      await request('/api/ims/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, is_active: !m.is_active }) });
       await load();
-    } catch {}
+    } catch (error) { setError(error instanceof Error ? error.message : 'Payment method could not be updated.'); }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this payment method?')) return;
-    try { await fetch(`/api/ims/payment-methods?id=${id}`, { method: 'DELETE' }); await load(); } catch {}
+    try { await request(`/api/ims/payment-methods?id=${id}`, { method: 'DELETE' }); await load(); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Payment method could not be deleted.'); }
   };
 
   const inputSt = { padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13 };
@@ -19824,7 +19840,7 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
         {newName === null && <button onClick={() => setNewName('')} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 5, background: 'var(--sv-mint,#0c9)', color: '#fff', border: 'none', cursor: 'pointer' }}>+ Add</button>}
       </div>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Payment options available when recording a {type === 'po' ? 'purchase' : 'sales'} order payment. Map each to a Xero bank account under Settings → Xero → Payment Methods.
+        Payment options available when recording a {type === 'po' ? 'purchase' : 'sales'} order payment. Map each to a Xero bank account in Finances → Xero Integration → Payment Methods.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : (
         <>
@@ -19857,6 +19873,7 @@ function PaymentMethodsManageSection({ type }: { type: 'po' | 'so' }) {
                         </td>
                       </>
                     )}
+                    {error && <p role="alert">{error}</p>}
                   </tr>
                 ))}
               </tbody>
@@ -22478,12 +22495,10 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'payment-discounts' | 'shipping' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale' | 'connections';
-
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
   if (v === 'sales-orders')    return 'sales-orders';
-  if (v === 'credit-notes' || v === 'supplier-credit-notes' || v === 'stocktakes') return 'inventory-documents';
+  if (v === 'credit-notes' || v === 'supplier-credit-notes' || v === 'stocktakes') return 'general';
   if (v === 'xero')            return 'xero';
   if (v === 'pos-sales' || v === 'cash-banking') return 'pos';
   if (v === 'online-sales')    return 'shopify';
@@ -22516,6 +22531,11 @@ function UsersListView() {
   const [authEvents, setAuthEvents] = React.useState<any[]>([]);
   const [authEventsLoading, setAuthEventsLoading] = React.useState(false);
   const [resetSending, setResetSending] = React.useState(false);
+  useSettingsDirty(Boolean(editingUser && (
+    editForm.tier !== editingUser.tier || editForm.name !== (editingUser.name ?? '') ||
+    editForm.username !== (editingUser.username ?? '') || editForm.pos_pin || editForm.clearPin
+  )) || Boolean(showCreate && (createForm.email || createForm.password || createForm.name || createForm.username ||
+    createForm.tier !== 'StandardUser' || createForm.passwordMode !== 'email')));
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -22703,11 +22723,11 @@ function UsersListView() {
               <button disabled={resetSending} onClick={sendPasswordReset} style={{ flexShrink: 0, padding: '8px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: resetSending ? 'default' : 'pointer', opacity: resetSending ? .6 : 1, fontSize: 12, fontWeight: 700 }}>{resetSending ? 'Sending…' : 'Send reset email'}</button>
             </div>
 
-            <h4 style={{ margin: '20px 0 10px', fontSize: 13, color: 'var(--sv-text-strong)' }}>Authentication activity · last 90 days</h4>
+            <h4 style={{ margin: '20px 0 10px', fontSize: 13, color: 'var(--sv-text-strong)' }}>Authentication activity · last 12 months (latest 250 entries)</h4>
             {authEventsLoading ? (
               <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</p>
             ) : authEvents.length === 0 ? (
-              <p style={{ padding: '16px 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>No recorded activity in the last 90 days.</p>
+              <p style={{ padding: '16px 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>No recorded activity in the last 12 months.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', minWidth: 650, borderCollapse: 'collapse', fontSize: 11 }}>
@@ -22925,7 +22945,7 @@ export default function ImsPage() {
         return 'sales-channels' as ImsView;
       }
       if (h.startsWith('settings-')) {
-        const section = h.replace(/^settings-/, '') as SettingsSection;
+        const section = resolveSettingsSection(h);
         setSettingsSection(section);
         setSettingsOpen(true);
         return 'dashboard' as ImsView;
@@ -22992,11 +23012,12 @@ export default function ImsPage() {
   useEffect(() => {
     if (!hasRestoredInitialHash) return;
     const current = window.location.hash.replace(/^#/, '');
+    if (settingsOpen && current.startsWith('settings-')) return;
     const currentView = current.split(/[/?]/)[0];
     if (currentView !== view) {
       window.history.pushState(window.history.state, '', `#${view}`);
     }
-  }, [hasRestoredInitialHash, view]);
+  }, [hasRestoredInitialHash, settingsOpen, view]);
 
   useEffect(() => {
     if (!authChecked || !settingsLoaded || !isImsAutomationView(view)) return;
@@ -23583,7 +23604,10 @@ export default function ImsPage() {
       />
       <TeamCommunicationsDrawer open={teamCommsOpen} onOpenChange={setTeamCommsOpen} userTier={user?.tier} />
       <SettingsModal
+        key={user?.businessId ?? ''}
         isOpen={settingsOpen}
+        userTier={user?.tier ?? ''}
+        onSectionChange={setSettingsSection}
         canManageAccounts={canEditRegisterFloat}
         onClose={() => setSettingsOpen(false)}
         onHelp={context => { setHelpContextOverride(context); setHelpModeRequest({ key: Date.now(), mode: 'help' }); setHelpOpen(true); }}
@@ -26839,6 +26863,8 @@ function SetupImportCard({ section }: { section: SetupSection }) {
 
 interface SettingsModalProps {
   isOpen: boolean;
+  userTier: string;
+  onSectionChange: (section: SettingsSection) => void;
   canManageAccounts: boolean;
   onClose: () => void;
   onHelp: (context: string) => void;
@@ -27134,36 +27160,42 @@ function SyncZoneBinUtility() {
 
 // ─── Locations Settings Section ──────────────────────────────────────────────
 
-function LocationsSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
+function LocationsSettingsSection({ settings, saveSettings, policiesOnly = false }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void>; policiesOnly?: boolean }) {
   const [locs, setLocs]     = useState<Array<{ id: number; name: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const [buildOverrides, setBuildOverrides] = useState<Record<string, string>>({});
   const [buildDirty, setBuildDirty] = useState<Set<string>>(new Set());
+  const [defaultLocation, setDefaultLocation] = useState(settings.default_warehouse_location_id ?? '');
+  const [error, setError] = useState('');
+  useSettingsDirty(buildDirty.size > 0 || defaultLocation !== (settings.default_warehouse_location_id ?? ''));
 
   useEffect(() => {
+    if (buildDirty.size) return;
     setBuildOverrides(Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('build_from_sale_location:'))));
     setBuildDirty(new Set());
+    setDefaultLocation(settings.default_warehouse_location_id ?? '');
   }, [settings]);
 
   useEffect(() => {
     fetch('/api/ims/locations')
-      .then(r => r.json())
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Locations could not be loaded.'); return body; })
       .then(d => {
         if (d.success && Array.isArray(d.data)) {
           setLocs(d.data.filter((l: any) => l.is_active).map((l: any) => ({ id: l.id, name: l.name })).sort((a: any, b: any) => a.name.localeCompare(b.name)));
         }
       })
-      .catch(() => {});
+      .catch(error => setError(error instanceof Error ? error.message : 'Locations could not be loaded.'));
   }, []);
 
   const current = settings['default_warehouse_location_id'] ?? '';
 
   const handle = async (val: string) => {
     setSaving(true); setSaved(false);
-    await saveSettings({ default_warehouse_location_id: val });
-    setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setError('');
+    try { await saveSettings({ default_warehouse_location_id: val }); setSaved(true); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Default location could not be saved.'); }
+    finally { setSaving(false); }
   };
 
   const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: .5 };
@@ -27176,7 +27208,7 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
       </p>
 
       {/* Default Warehouse */}
-      {settings.builds_enabled === 'yes' && <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
+      {!policiesOnly && <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
         <label style={{ ...labelStyle, fontSize: 13, textTransform: 'none' as const, letterSpacing: 0, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
           Default Warehouse Location
         </label>
@@ -27191,16 +27223,18 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
         {locs.length === 0 ? (
           <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Loading locations…</p>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
             <select
-              value={current}
-              onChange={e => handle(e.target.value)}
+              value={defaultLocation}
+              onChange={e => { setDefaultLocation(e.target.value); setSaved(false); }}
               disabled={saving}
-              style={{ padding: '8px 12px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: current ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 240, cursor: 'pointer' }}
+              style={{ padding: '8px 12px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: current ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, minWidth: 'min(240px, 100%)', cursor: 'pointer' }}
             >
               <option value="">— No default set —</option>
               {locs.map(l => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
             </select>
+            <button type="button" data-primary disabled={saving || defaultLocation === current} onClick={() => handle(defaultLocation)}>Save default</button>
+            <button type="button" disabled={saving} onClick={() => setDefaultLocation(current)}>Cancel</button>
             {saving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
             {saved  && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>✓ Saved</span>}
           </div>
@@ -27212,17 +27246,18 @@ function LocationsSettingsSection({ settings, saveSettings }: { settings: Record
         )}
       </div>}
 
-      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
+      {policiesOnly && <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 5 }}>Build from sale by location</div>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.55 }}>Override the business policy for individual locations. Staff must still review and confirm every build.</p>
         {locs.map(location => {
           const key = `build_from_sale_location:${location.id}`;
           const value = buildOverrides[key] ?? 'inherit';
           const effective = value === 'enabled' || (value === 'inherit' && settings.build_from_sale_enabled === 'yes');
-          return <div key={location.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 160px 110px', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)' }}><span style={{ fontSize: 12, fontWeight: 600 }}>{location.name}</span><select value={value} disabled={!locs.length || saving} onChange={event => { const next = event.target.value; setBuildOverrides(previous => ({ ...previous, [key]: next })); setBuildDirty(previous => new Set(previous).add(key)); }} style={{ padding: '7px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="inherit">Use business default</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select><span style={{ color: effective ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700 }}>Effective: {effective ? 'Enabled' : 'Disabled'}</span></div>;
+          return <div key={location.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)' }}><span style={{ fontSize: 12, fontWeight: 600 }}>{location.name}</span><select value={value} disabled={!locs.length || saving} onChange={event => { const next = event.target.value; setBuildOverrides(previous => ({ ...previous, [key]: next })); setBuildDirty(previous => new Set(previous).add(key)); }} style={{ padding: '7px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="inherit">Use business default</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select><span style={{ color: effective ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700 }}>Effective: {effective ? 'Enabled' : 'Disabled'}</span></div>;
         })}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button type="button" disabled={!buildDirty.size || saving || !locs.length} onClick={async () => { setSaving(true); setSaved(false); try { await saveSettings(Object.fromEntries([...buildDirty].map(key => [key, buildOverrides[key] ?? 'inherit']))); setBuildDirty(new Set()); setSaved(true); setTimeout(() => setSaved(false), 2000); } finally { setSaving(false); } }} style={{ ...btnStyle('action', 'sm'), opacity: !buildDirty.size ? .55 : 1 }}>{saving ? 'Saving…' : 'Save location policies'}</button></div>
-      </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button type="button" data-primary disabled={!buildDirty.size || saving || !locs.length} onClick={async () => { setSaving(true); setSaved(false); setError(''); try { await saveSettings(Object.fromEntries([...buildDirty].map(key => [key, buildOverrides[key] ?? 'inherit']))); setBuildDirty(new Set()); setSaved(true); } catch (error) { setError(error instanceof Error ? error.message : 'Location policies could not be saved.'); } finally { setSaving(false); } }} style={{ ...btnStyle('action', 'sm'), opacity: !buildDirty.size ? .55 : 1 }}>{saving ? 'Saving…' : 'Save location policies'}</button><button type="button" disabled={saving} onClick={() => { setBuildOverrides(Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('build_from_sale_location:')))); setBuildDirty(new Set()); }}>Cancel</button></div>
+      </div>}
+      {error && <p role="alert">{error}</p>}
     </div>
   );
 }
@@ -27244,11 +27279,15 @@ const WHOLESALE_SETTINGS_DEFAULTS: Record<string, string> = {
   wholesale_hide_products_without_stock: 'no',
 };
 
-function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
+function WholesaleSettingsSection({ settings, saveSettings, section = 'wholesale' }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void>; section?: SettingsSection }) {
   const [draft, setDraft]   = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState('');
+  const ownedKeys = section === 'wholesale-branding' ? ['wholesale_portal_title'] : section === 'wholesale-notifications' ? ['wholesale_notification_email'] : section === 'wholesale-preview' ? ['wholesale_staff_preview_mode'] : Object.keys(WHOLESALE_SETTINGS_DEFAULTS).filter(key => !['wholesale_portal_title', 'wholesale_notification_email', 'wholesale_staff_preview_mode'].includes(key));
+  const baseline = { ...WHOLESALE_SETTINGS_DEFAULTS, ...settings };
+  const dirty = Object.keys(settingsOwnedUpdates(draft, baseline, ownedKeys)).length > 0;
+  useSettingsDirty(dirty);
 
   useEffect(() => {
     setDraft({ ...WHOLESALE_SETTINGS_DEFAULTS, ...settings });
@@ -27262,7 +27301,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
     try {
       // Only send the keys this section owns — draft also carries the full
       // settings blob (spread in above) so the whole business config isn't re-validated.
-      const payload = Object.fromEntries(Object.keys(WHOLESALE_SETTINGS_DEFAULTS).map(key => [key, draft[key] ?? '']));
+      const payload = settingsOwnedUpdates(draft, baseline, ownedKeys);
       await saveSettings(payload);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -27285,7 +27324,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
         The portal is accessible at <code style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--sv-bg-0)', padding: '2px 6px', borderRadius: 4 }}>/wholesale/</code>.
       </p>
 
-      <div style={card}>
+      <div style={{ ...card, display: section === 'wholesale' ? undefined : 'none' }}>
         <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Product Browsing</h3>
 
         <div style={{ marginBottom: 14 }}>
@@ -27346,14 +27385,14 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
         </div>
       </div>
 
-      <div style={card}>
+      <div style={{ ...card, display: section === 'wholesale-preview' ? undefined : 'none' }}>
         <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Staff Preview</h3>
         <label style={lbl}>Preview Capability</label>
         <select value={draft.wholesale_staff_preview_mode ?? 'read_only'} onChange={sd('wholesale_staff_preview_mode')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}><option value="read_only">Read-only</option><option value="ims_draft_test">Test checkout to IMS Draft</option></select>
         <p style={{ margin: '7px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.55 }}>Test checkout creates clearly marked, silent Draft Sales Orders for inspection. Test orders cannot be confirmed and must be deleted manually in IMS.</p>
       </div>
 
-      <div style={card}>
+      <div style={{ ...card, display: section === 'wholesale-notifications' ? undefined : 'none' }}>
         <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Notifications</h3>
         <div>
           <label style={lbl}>Notification Email</label>
@@ -27370,7 +27409,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
         </div>
       </div>
 
-      <div style={card}>
+      <div style={{ ...card, display: section === 'wholesale-branding' ? undefined : 'none' }}>
         <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Portal Branding</h3>
         <div>
           <label style={lbl}>Portal Title (shown in header)</label>
@@ -27386,11 +27425,12 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8 }}>
         <button
-          onClick={handleSave} disabled={saving}
+          data-primary onClick={handleSave} disabled={saving || !dirty}
           style={{ padding: '9px 22px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
         >
           {saving ? 'Saving…' : 'Save Settings'}
         </button>
+        <button type="button" disabled={saving} onClick={() => { setDraft(baseline); setSaved(false); setError(''); }}>Cancel</button>
         {saved && <span style={{ fontSize: 13, color: '#34d399' }}>✓ Saved</span>}
         {error && <span style={{ fontSize: 13, color: '#f87171' }}>{error}</span>}
       </div>
@@ -27398,41 +27438,30 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
-function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSection, businessId, businessName, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, onClose, onHelp, defaultSection, businessId, businessName, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, capabilities, loaded, loadError, saveSettings, saveOnlineChannels, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
+  const menu = useMemo(() => visibleSettingsMenu({ superAdmin: userTier === 'SuperAdmin', buildsEnabled: settings.builds_enabled === 'yes' }), [userTier, settings.builds_enabled]);
   useEffect(() => {
-    if (isOpen) {
-      setActive(defaultSection);
-      refetchSettings();
-    }
-  }, [defaultSection, isOpen, refetchSettings]);
+    if (isOpen) refetchSettings();
+  }, [isOpen, refetchSettings]);
   useEffect(() => {
-    if (loaded && !capabilities.xeroAccountingEnabled && active === 'xero') setActive('general');
-  }, [active, capabilities.xeroAccountingEnabled, loaded]);
-
-  // Match keyboard behavior with the modal close/back action.
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
+    if (isOpen) setActive(settingsPath(defaultSection, menu).length ? defaultSection : 'general');
+  }, [defaultSection, isOpen, menu]);
 
   const [poDraft, setPoDraft] = useState<Record<string, string>>({});
   const [soDraft, setSoDraft] = useState<Record<string, string>>({});
   const [poSaving, setPoSaving] = useState(false);
   const [soSaving, setSoSaving] = useState(false);
-  useEffect(() => { setPoDraft({ po_email_subject: 'Purchase Order {{order_number}}', po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards', po_terms: '', freight_treatment: 'expense', ...settings }); }, [settings]);
+  const [documentDirty, setDocumentDirty] = useState(false);
+  const [documentError, setDocumentError] = useState('');
+  const poBaseline = useRef<Record<string, string>>({});
+  const soBaseline = useRef<Record<string, string>>({});
+  useEffect(() => { const saved = { po_email_subject: 'Purchase Order {{order_number}}', po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards', po_terms: '', freight_treatment: 'expense', ...settings }; poBaseline.current = saved; if (!documentDirty) setPoDraft(saved); }, [settings]);
   useEffect(() => {
     const legacySubject = 'Tax Invoice {{order_number}}';
     const legacyBody = 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards';
-    setSoDraft({
+    const saved = {
       so_terms: '',
       sales_document_show_logo: '1',
       ...settings,
@@ -27442,14 +27471,16 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
       so_email_body: !settings.so_email_body || settings.so_email_body === legacyBody
         ? 'Dear {{contact_name}},\n\nPlease find attached {{document_type}} {{order_number}} totalling {{total}}.\n\nKind regards'
         : settings.so_email_body,
-    });
+    };
+    soBaseline.current = saved;
+    if (!documentDirty) setSoDraft(saved);
   }, [settings]);
   const [profileOpen, setProfileOpen]       = useState(false);
   const [taxOpen, setTaxOpen]               = useState(false);
   const [ordersOpen, setOrdersOpen]         = useState(false);
-  const [registersOpen, setRegistersOpen]   = useState(false);
+  const registersOpen = active === 'pos';
   const [registersFor, setRegistersFor]     = useState<{ id: number; name: string } | null>(null);
-  const [posDisplayOpen, setPosDisplayOpen]  = useState(false);
+  const posDisplayOpen = active === 'pos-display';
   const [setupOpen, setSetupOpen]           = useState(false);
   const [bfFrom, setBfFrom]                 = useState('');
   const [bfTo,   setBfTo]                   = useState('');
@@ -27468,6 +27499,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
   const [xeroAdvisorSyncError, setXeroAdvisorSyncError] = useState('');
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
+    if (taxDirtyKeys.size) return;
     setTaxDraft({
       ...TAX_SETTING_DEFAULTS,
       use_multiple_locations:   'yes',
@@ -27502,13 +27534,16 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
     setTaxSaveError('');
     setTaxSaved(false);
     try {
-      if (onlineChannelsDirty) await saveOnlineChannels(onlineChannelDraft);
+      if (onlineChannelsDirty && active === 'sales-channels') {
+        await saveOnlineChannels(onlineChannelDraft);
+        setOnlineChannelsDirty(false);
+      }
       const updates = Object.fromEntries([...taxDirtyKeys].map(key => [key, taxDraft[key] ?? '']));
-      await saveSettings({ ...updates, ...buildTaxSettingsUpdate(taxDraft) });
+      if (Object.keys(updates).length) await saveSettings(updates);
+      setTaxDirtyKeys(new Set());
       setTaxSaved(true);
     } catch (error) {
       setTaxSaveError(error instanceof Error ? error.message : 'Settings could not be saved.');
-      refetchSettings();
     } finally {
       setTaxSaving(false);
     }
@@ -27560,27 +27595,58 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
   const [profileDraft, setProfileDraft]     = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving]   = useState(false);
   const [paymentTypes, setPaymentTypes]     = useState<string[]>([]);
+  const [savedPaymentTypes, setSavedPaymentTypes] = useState<string[]>([]);
+  const [paymentTypesLoaded, setPaymentTypesLoaded] = useState(false);
   const [newPaymentType, setNewPaymentType] = useState('');
   const [ptSaving, setPtSaving]             = useState(false);
   const [defaultFloat, setDefaultFloat]     = useState(200);
   const [defaultFloatInput, setDefaultFloatInput] = useState('200');
   const [defaultFloatSaving, setDefaultFloatSaving] = useState(false);
+  const [floatLoaded, setFloatLoaded] = useState(false);
   const [posDisplayView, setPosDisplayView]  = useState('all');
   const [posDisplaySaving, setPosDisplaySaving] = useState(false);
+  const [savedPosDisplayView, setSavedPosDisplayView] = useState('all');
+  const [posDisplayLoaded, setPosDisplayLoaded] = useState(false);
   const [posDisplayBrandInput, setPosDisplayBrandInput] = useState('');
   const [posDisplayVariants, setPosDisplayVariants] = useState<{ variant_id: string; name: string; sku: string | null }[]>([]);
+  const savedPosDisplayVariants = useRef<typeof posDisplayVariants>([]);
+  const resetPosDisplay = () => {
+    setPosDisplayView(savedPosDisplayView);
+    setPosDisplayBrandInput(savedPosDisplayView.startsWith('brand:') ? savedPosDisplayView.slice(6) : '');
+    setPosDisplayVariants(savedPosDisplayVariants.current);
+    setPosPickerSearch(''); setPosPickerResults([]); setPosPickerOpen(false);
+  };
   const [posPickerSearch, setPosPickerSearch] = useState('');
   const [posPickerResults, setPosPickerResults] = useState<{ value: string; label: string; meta?: string }[]>([]);
   const [posPickerOpen, setPosPickerOpen]    = useState(false);
 
-  const [posConfigOpen, setPosConfigOpen]   = useState(false);
-  const [onlinePickOpen, setOnlinePickOpen] = useState(false);
+  const posConfigOpen = active === 'pos-receipts' || active === 'pos-access';
+  const onlinePickOpen = active === 'online-pick';
   const [pickLocations, setPickLocations]   = useState<{ id: number; name: string; code?: string; city?: string; state?: string; is_active?: number; has_online?: number }[]>([]);
-  const [cardTermOpen, setCardTermOpen]     = useState(false);
+  const cardTermOpen = active === 'pos-terminals';
   const [cardTermRegs, setCardTermRegs]     = useState<any[]>([]);
   const [cardTermLoading, setCardTermLoading] = useState(false);
   const [savingTerminalId, setSavingTerminalId] = useState<number | null>(null);
   const [logoSaving, setLogoSaving]         = useState(false);
+  const [dirtyTerminals, setDirtyTerminals] = useState<Set<number>>(new Set());
+  const [terminalVersion, setTerminalVersion] = useState(0);
+  useEffect(() => {
+    if (!isOpen || active !== 'pos-terminals') return;
+    let current = true;
+    setCardTermLoading(true); setDocumentError('');
+    fetch('/api/pos/registers?all=true').then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Card terminals could not be loaded.');
+      if (!current) return;
+      setCardTermRegs((data.registers ?? []).map((register: any) => ({
+        ...register, _enabled: !!register.card_terminal_provider, _provider: register.card_terminal_provider ?? 'zeller',
+        _siteId: register.zeller_site_id ?? '', _terminalId: register.zeller_terminal_id ?? '', _apiKey: '',
+        _methods: (() => { try { return JSON.parse(register.card_terminal_methods || '[]'); } catch { return []; } })(),
+      })));
+    }).catch(error => { if (current) setDocumentError(error instanceof Error ? error.message : 'Card terminals could not be loaded.'); })
+      .finally(() => { if (current) setCardTermLoading(false); });
+    return () => { current = false; };
+  }, [active, isOpen, terminalVersion]);
 
   useEffect(() => {
     setProfileDraft({
@@ -27600,42 +27666,60 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
       profileDraft.business_country,
     ].map(value => value?.trim()).filter(Boolean).join(', ');
     setProfileSaving(true);
+    setDocumentError('');
     try {
-      await saveSettings({ ...profileDraft, business_address: businessAddress });
+      const keys = ['business_name', 'business_phone', 'business_abn', 'business_country', 'business_address_line1', 'business_address_line2', 'business_suburb', 'business_state', 'business_postcode', 'logo_base64'];
+      await saveSettings({ ...settingsOwnedUpdates(profileDraft, settings, keys), business_address: businessAddress });
+    } catch (error) {
+      setDocumentError(error instanceof Error ? error.message : 'Business profile could not be saved.');
     } finally {
       setProfileSaving(false);
     }
   };
   useEffect(() => {
     if (!isOpen) return;
-    fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setPickLocations(d.data ?? []); }).catch(() => {});
-    fetch('/api/pos/settings/payment-methods').then(r => r.json()).then(d => { if (Array.isArray(d.methods)) setPaymentTypes(d.methods); }).catch(() => {});
-    fetch('/api/pos/settings/float').then(r => r.json()).then(d => { if (typeof d.amount === 'number') { setDefaultFloat(d.amount); setDefaultFloatInput(String(d.amount)); } }).catch(() => {});
-    fetch('/api/pos/settings/products').then(r => r.json()).then(d => {
-      if (d.defaultView) {
+    let current = true;
+    const load = async (url: string) => { const response = await fetch(url); const body = await response.json(); if (!response.ok || body.success === false) throw new Error(body.error || 'Settings could not be loaded.'); return body; };
+    const failure = (error: unknown) => { if (current) setDocumentError(error instanceof Error ? error.message : 'POS settings could not be loaded.'); };
+    load('/api/ims/locations').then(d => { if (current) setPickLocations(d.data ?? []); }).catch(failure);
+    load('/api/pos/settings/payment-methods').then(d => { if (current && Array.isArray(d.methods)) { setPaymentTypes(d.methods); setSavedPaymentTypes(d.methods); setPaymentTypesLoaded(true); } }).catch(failure);
+    load('/api/pos/settings/float').then(d => { if (current && typeof d.amount === 'number') { setDefaultFloat(d.amount); setDefaultFloatInput(String(d.amount)); setFloatLoaded(true); } }).catch(failure);
+    load('/api/pos/settings/products').then(d => {
+      if (current && d.defaultView) {
         setPosDisplayView(d.defaultView);
+        setSavedPosDisplayView(d.defaultView); setPosDisplayLoaded(true);
         if (d.defaultView.startsWith('brand:')) setPosDisplayBrandInput(d.defaultView.slice(6));
         if (d.defaultView.startsWith('variants:') && Array.isArray(d.selectedVariants)) setPosDisplayVariants(d.selectedVariants);
+        savedPosDisplayVariants.current = Array.isArray(d.selectedVariants) ? d.selectedVariants : [];
       }
-    }).catch(() => {});
+    }).catch(failure);
+    return () => { current = false; };
   }, [isOpen]);
 
   const savePaymentTypes = async (methods: string[]) => {
     setPtSaving(true);
+    setDocumentError('');
     try {
-      await fetch('/api/pos/settings/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ methods }) });
+      const response = await fetch('/api/pos/settings/payment-methods', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ methods }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Payment types could not be saved.');
       setPaymentTypes(methods);
-    } finally { setPtSaving(false); }
+      setSavedPaymentTypes(methods);
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : 'Payment types could not be saved.'); }
+    finally { setPtSaving(false); }
   };
 
   const saveDefaultFloat = async () => {
-    const amount = parseFloat(defaultFloatInput);
-    if (isNaN(amount) || amount < 0) return;
+    const amount = Number(defaultFloatInput);
+    if (!defaultFloatInput.trim() || !Number.isFinite(amount) || amount < 0) { setDocumentError('Enter a non-negative opening float.'); return; }
     setDefaultFloatSaving(true);
     try {
-      await fetch('/api/pos/settings/float', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) });
+      const response = await fetch('/api/pos/settings/float', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Opening float could not be saved.');
       setDefaultFloat(amount);
-    } finally { setDefaultFloatSaving(false); }
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : 'Opening float could not be saved.'); }
+    finally { setDefaultFloatSaving(false); }
   };
 
   const savePosDisplayView = async (view: string) => {
@@ -27644,11 +27728,13 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
       const res = await fetch('/api/pos/settings/products', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultView: view }) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Failed to save POS display settings: ${err.error ?? res.statusText}`);
-        return;
+        throw new Error(`Failed to save POS display settings: ${err.error ?? res.statusText}`);
       }
       setPosDisplayView(view);
-    } finally { setPosDisplaySaving(false); }
+      setSavedPosDisplayView(view);
+      savedPosDisplayVariants.current = posDisplayVariants;
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : 'POS display could not be saved.'); }
+    finally { setPosDisplaySaving(false); }
   };
 
   const spinIcon = <svg style={{ animation: 'spin 1s linear infinite' }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>;
@@ -27670,11 +27756,6 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
       </button>
     );
   };
-  const CollHeader = ({ label, open, toggle }: { label: string; open: boolean; toggle: () => void }) => (
-    <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', cursor: 'pointer', userSelect: 'none', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: open ? '8px 8px 0 0' : 8, fontWeight: 600, fontSize: 14, color: 'var(--sv-text-strong)' }}>
-      <span>{label}</span><span style={{ fontSize: 16 }}>{open ? '▲' : '▼'}</span>
-    </div>
-  );
   const OperationToggle = ({ setting, label, description, defaultValue = 'no' }: { setting: string; label: string; description: string; defaultValue?: 'yes' | 'no' }) => {
     const enabled = (taxDraft[setting] ?? defaultValue) === 'yes';
     return (
@@ -27692,50 +27773,28 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
 
   if (!isOpen) return null;
 
-  const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
-    { id: 'general',          label: 'General',          icon: '⚙' },
-    { id: 'connections',      label: 'Connections',      icon: '🔗' },
-    { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
-    { id: 'locations',        label: 'Locations',        icon: '🏗' },
-    { id: 'products',         label: 'Products',         icon: '▦' },
-    { id: 'users',           label: 'Users',           icon: '👥' },
-    { id: 'ai-models',       label: 'AI Models',       icon: <BrainCircuit size={15} /> },
-    { id: 'ai-account',      label: 'Account & AI Credits', icon: <WalletCards size={15} /> },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
-    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
-    { id: 'payment-discounts', label: 'Payment Discounts', icon: '%' },
-    { id: 'shipping',        label: 'Shipping',        icon: <Truck size={15} /> },
-    { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
-    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
-    { id: 'loyalty',         label: 'Loyalty',         icon: '★' },
-    { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
-    { id: 'xero',            label: 'Xero',            icon: '🔗' },
-    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
-    { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
-  ];
+  const navigateSettings = (section: SettingsSection) => {
+    setTaxDirtyKeys(new Set()); setTaxDraft({ ...TAX_SETTING_DEFAULTS, ...settings }); setOnlineChannelsDirty(false);
+    setProfileDraft({ ...settings, business_address_line1: settings.business_address_line1 || settings.business_address || '' });
+    setDocumentDirty(false); setDocumentError('');
+    setPoDraft(poBaseline.current); setSoDraft(soBaseline.current);
+    setPaymentTypes(savedPaymentTypes); setNewPaymentType(''); setDefaultFloatInput(String(defaultFloat)); resetPosDisplay();
+    setDirtyTerminals(new Set());
+    setActive(section); onSectionChange(section);
+    window.history.pushState(window.history.state, '', `#settings-${section}`);
+  };
+  const integrationProps = {
+    businessId, businessName, onNavigate: navigateSettings, onHelp, xeroEnabled: capabilities.xeroAccountingEnabled,
+    saveXeroEnabled: async (enabled: boolean) => { await saveSettings({ connect_accounting_software: enabled ? 'yes' : 'no', accounting_software: 'xero' }); },
+  };
+  const connectionProvider: ConnectionProvider | undefined = active === 'xero' ? 'xero' : active === 'connection-cin7' ? 'cin7' : active === 'connection-google' ? 'google' : active === 'connection-meta' ? 'meta' : active === 'connection-klaviyo' ? 'klaviyo' : active === 'connection-gmail' ? 'gmail' : undefined;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 200, display: 'flex' }}>
-      {/* Left nav */}
-      <div style={{ width: 210, background: 'var(--sv-bg-0)', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px' }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong)' }}>Settings</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
-        </div>
-        <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
-        {NAV_ITEMS_DRAWER.filter(item => item.id !== 'xero' || capabilities.xeroAccountingEnabled).map(item => {
-          const isActive = active === item.id;
-          return (
-            <button key={item.id} onClick={() => setActive(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', background: isActive ? 'rgba(99,179,117,.12)' : 'transparent', border: 'none', cursor: 'pointer', color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: isActive ? 600 : 400, fontSize: 13, textAlign: 'left', borderLeft: isActive ? '3px solid var(--sv-action)' : '3px solid transparent', transition: 'background .12s' }}>
-              <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Right content */}
-      <div style={{ flex: 1, background: 'var(--sv-bg-1)', overflow: 'auto', minWidth: 0 }}>
+    <SettingsShell active={active} items={menu} businessName={businessName}
+      dirty={documentDirty || dirtyTerminals.size > 0 || (paymentTypesLoaded && JSON.stringify(paymentTypes) !== JSON.stringify(savedPaymentTypes)) || (floatLoaded && defaultFloatInput !== String(defaultFloat)) || (posDisplayLoaded && posDisplayView !== savedPosDisplayView) || taxDirtyKeys.size > 0 || onlineChannelsDirty || Object.keys(settingsOwnedUpdates(profileDraft, { ...settings, business_address_line1: settings.business_address_line1 || settings.business_address || '' }, ['business_name', 'business_phone', 'business_abn', 'business_country', 'business_address_line1', 'business_address_line2', 'business_suburb', 'business_state', 'business_postcode', 'logo_base64', 'pos_receipt_footer', 'gift_receipt_message', 'pos_bt_access'])).length > 0}
+      onNavigate={navigateSettings} onClose={onClose} onHelp={() => onHelp(`settings-${active}`)}>
+      {loadError && <p role="alert">{loadError}</p>}
+      {documentError && !['purchase-orders', 'purchase-pdf', 'sales-orders', 'sales-pdf', 'online-pick', 'pos-receipts', 'pos-access', 'pos-terminals'].includes(active) && <p role="alert">{documentError}</p>}
         {/* ── Users ── */}
         {active === 'users' && (
           <div style={{ padding: 32 }}>
@@ -27746,12 +27805,8 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
 
         {active === 'ai-models' && <AiModelSettingsSection />}
         {active === 'ai-account' && <AccountAiCreditsSection />}
-        {active === 'connections' && (
-          <div style={{ padding: 32, overflowY: 'auto', maxHeight: '100%' }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Connections</h2>
-            <ConnectionsTab business={{ name: businessName, userId: '', databaseId: businessId }} onHelp={onHelp} />
-          </div>
-        )}
+        {(active === 'connections' || connectionProvider) && <IntegrationSettingsSection {...integrationProps} provider={connectionProvider} />}
+        {active === 'api-tools' && userTier === 'SuperAdmin' && <AdvancedIntegrationTools businessId={businessId} />}
 
         {active === 'payment-discounts' && (
           <div style={{ padding: 32 }}>
@@ -27777,6 +27832,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button type="button" onClick={saveTaxSettings} disabled={!loaded || taxSaving || (taxDirtyKeys.size === 0 && !onlineChannelsDirty)} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              <button type="button" disabled={taxSaving} onClick={() => { setTaxDraft({ ...TAX_SETTING_DEFAULTS, ...settings }); setTaxDirtyKeys(new Set()); setTaxSaveError(''); setTaxSaved(false); }}>Cancel</button>
               {taxSaved && <span style={{ fontSize: 13, color: 'var(--sv-mint)' }}>Saved</span>}
               {taxSaveError && <span style={{ fontSize: 13, color: 'var(--sv-red)' }}>{taxSaveError}</span>}
             </div>
@@ -27784,16 +27840,16 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
         )}
 
         {/* ── Purchase Orders ── */}
-        {active === 'purchase-orders' && (
-          <div style={{ padding: 32 }}>
+        {(active === 'purchase-orders' || active === 'purchase-pdf') && (
+          <div style={{ padding: 32 }} onChangeCapture={() => setDocumentDirty(true)}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Purchase Order Settings</h2>
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            <div style={{ display: active === 'purchase-orders' ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Email Templates</h3>
               <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Used when emailing a PO to a supplier. Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code></p>
               <div style={{ marginBottom: 12 }}><label style={labelStyle}>Subject</label><input style={inputStyle} value={poDraft['po_email_subject'] || ''} onChange={e => setPoDraft(p => ({ ...p, po_email_subject: e.target.value }))} placeholder="Purchase Order {{order_number}}" /></div>
               <div><label style={labelStyle}>Body</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={poDraft['po_email_body'] || ''} onChange={e => setPoDraft(p => ({ ...p, po_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached...'} /></div>
             </div>
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            <div style={{ display: active === 'purchase-pdf' ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>PDF Settings</h3>
               <div style={{ marginBottom: 16 }}><label style={labelStyle}>Terms &amp; Conditions (printed on PDF)</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={poDraft['po_terms'] || ''} onChange={e => setPoDraft(p => ({ ...p, po_terms: e.target.value }))} placeholder="e.g. Payment due 30 days from order date." /></div>
               <div>
@@ -27801,28 +27857,38 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                 <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
                   {(['expense', 'capitalise'] as const).map(opt => {
                     const isOpt = (poDraft['freight_treatment'] || 'expense') === opt;
-                    return <button key={opt} type="button" onClick={() => setPoDraft(p => ({ ...p, freight_treatment: opt }))} style={{ padding: '7px 18px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-mint)' : 'var(--sv-bg-1)', color: isOpt ? '#0a0f1a' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'expense' ? 'Expense (P&L immediately)' : 'Capitalise into avg. cost'}</button>;
+                    return <button key={opt} type="button" onClick={() => { setPoDraft(p => ({ ...p, freight_treatment: opt })); setDocumentDirty(true); }} aria-pressed={isOpt} style={{ padding: '7px 18px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-mint)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'expense' ? 'Expense (P&L immediately)' : 'Capitalise into avg. cost'}</button>;
                   })}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 5 }}>{(poDraft['freight_treatment'] || 'expense') === 'expense' ? 'Freight posts to Freight Paid account. Set under Xero → Chart of Accounts.' : 'Freight spreads into product avg. costs and posts to Inventory Asset in Xero automatically.'}</div>
               </div>
             </div>
-            <button onClick={async () => { setPoSaving(true); await saveSettings(poDraft); setPoSaving(false); }} disabled={poSaving} style={btnStyle('action', 'sm')}>{poSaving ? 'Saving…' : 'Save'}</button>
-            <PaymentMethodsManageSection type="po" />
+            <button data-primary onClick={async () => {
+              setPoSaving(true); setDocumentError('');
+              try {
+                const keys = active === 'purchase-orders' ? ['po_email_subject', 'po_email_body'] : ['po_terms', 'freight_treatment'];
+                await saveSettings(Object.fromEntries(keys.map(key => [key, poDraft[key] ?? ''])));
+                setDocumentDirty(false);
+              } catch (error) { setDocumentError(error instanceof Error ? error.message : 'Purchase settings could not be saved.'); }
+              finally { setPoSaving(false); }
+            }} disabled={!loaded || poSaving || !documentDirty} style={btnStyle('action', 'sm')}>{poSaving ? 'Saving…' : 'Save'}</button>
+            <button type="button" disabled={poSaving} onClick={() => { setPoDraft(poBaseline.current); setDocumentDirty(false); setDocumentError(''); }}>Cancel</button>
+            {documentError && <p role="alert">{documentError}</p>}
           </div>
         )}
+        {active === 'purchase-payments' && <PaymentMethodsManageSection type="po" />}
 
         {/* ── Sales Orders ── */}
-        {active === 'sales-orders' && (
-          <div style={{ padding: 32 }}>
+        {(active === 'sales-orders' || active === 'sales-pdf') && (
+          <div style={{ padding: 32 }} onChangeCapture={() => setDocumentDirty(true)}>
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sales Order Settings</h2>
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            <div style={{ display: active === 'sales-orders' ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Email Templates</h3>
               <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Used when emailing a Pro Forma or Tax Invoice to a customer. Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{document_type}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code></p>
               <div style={{ marginBottom: 12 }}><label style={labelStyle}>Subject</label><input style={inputStyle} value={soDraft['so_email_subject'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_subject: e.target.value }))} placeholder="{{document_type}} {{order_number}}" /></div>
               <div><label style={labelStyle}>Body</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_email_body'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Tax Invoice...'} /></div>
             </div>
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            <div style={{ display: active === 'sales-pdf' ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>PDF Settings</h3>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}><input type="checkbox" checked={(soDraft['sales_document_show_logo'] || '1') === '1'} onChange={e => setSoDraft(p => ({ ...p, sales_document_show_logo: e.target.checked ? '1' : '0' }))} />Show the business logo on customer documents</label>
               <div style={{ marginBottom: 14 }}><label style={labelStyle}>Invoice Note</label><textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' as const }} maxLength={1000} value={soDraft['sales_document_note'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_note: e.target.value }))} placeholder="Thank you for your business." /></div>
@@ -27834,20 +27900,33 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
               <div style={{ marginBottom: 14 }}><label style={labelStyle}>Payment Reference / Instructions</label><textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' as const }} maxLength={500} value={soDraft['sales_document_payment_instructions'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_payment_instructions: e.target.value }))} placeholder="Use the Sales Order reference with your payment." /></div>
               <div><label style={labelStyle}>Terms &amp; Conditions</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
             </div>
-            <button onClick={async () => { setSoSaving(true); await saveSettings(soDraft); setSoSaving(false); }} disabled={soSaving} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
-            <PaymentMethodsManageSection type="so" />
+            <button data-primary onClick={async () => {
+              setSoSaving(true); setDocumentError('');
+              try {
+                const keys = active === 'sales-orders' ? ['so_email_subject', 'so_email_body'] : ['so_terms', 'sales_document_show_logo', 'sales_document_note', 'sales_document_bank_account_name', 'sales_document_bank_bsb', 'sales_document_bank_account_number', 'sales_document_payment_instructions'];
+                await saveSettings(Object.fromEntries(keys.map(key => [key, soDraft[key] ?? ''])));
+                setDocumentDirty(false);
+              } catch (error) { setDocumentError(error instanceof Error ? error.message : 'Sales settings could not be saved.'); }
+              finally { setSoSaving(false); }
+            }} disabled={!loaded || soSaving || !documentDirty} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
+            <button type="button" disabled={soSaving} onClick={() => { setSoDraft(soBaseline.current); setDocumentDirty(false); setDocumentError(''); }}>Cancel</button>
+            {documentError && <p role="alert">{documentError}</p>}
           </div>
         )}
+        {active === 'sales-payments' && <PaymentMethodsManageSection type="so" />}
 
         {/* ── Xero ── */}
-        {active === 'xero' && capabilities.xeroAccountingEnabled && (
+        {active === 'advisor-access' && (
           <div style={{ padding: 32, maxWidth: 980 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Access</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Xero configuration lives in Finances -&gt; Xero Integration. This panel controls advisor permissions and quick links.
+              Inventory sync and Xero permissions are granted separately. Xero-specific permissions apply only while accounting is enabled.
             </p>
+            <label style={labelStyle}>Allow Advisors to sync latest products and stock
+              <select value={taxDraft.advisor_sync_enabled ?? 'false'} onChange={event => updateTaxDraft('advisor_sync_enabled', event.target.value)} style={inputStyle}><option value="false">Disabled</option><option value="true">Enabled</option></select>
+            </label>
 
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+            <div style={{ display: capabilities.xeroAccountingEnabled ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
               <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
                 Advisor Access
                 <HintBadge text="Advisor mapping, payout review, and Xero sync permissions are granted separately." />
@@ -27855,9 +27934,9 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
                   type="checkbox"
-                  checked={xeroAdvisorEnabled}
-                  disabled={xeroAdvisorSaving}
-                  onChange={e => saveXeroAdvisorAccess(e.target.checked)}
+                  checked={(taxDraft.advisor_xero_mapping_enabled ?? '').match(/^(true|1)$/) !== null}
+                  disabled={taxSaving}
+                  onChange={e => updateTaxDraft('advisor_xero_mapping_enabled', e.target.checked ? 'true' : 'false')}
                   style={{ width: 16, height: 16, cursor: 'inherit' }}
                 />
                 <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
@@ -27870,9 +27949,9 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
                   type="checkbox"
-                  checked={xeroAdvisorPayoutsEnabled}
-                  disabled={xeroAdvisorSaving}
-                  onChange={e => saveXeroAdvisorPayoutAccess(e.target.checked)}
+                  checked={(taxDraft.advisor_xero_payouts_enabled ?? '').match(/^(true|1)$/) !== null}
+                  disabled={taxSaving}
+                  onChange={e => updateTaxDraft('advisor_xero_payouts_enabled', e.target.checked ? 'true' : 'false')}
                   style={{ width: 16, height: 16, cursor: 'inherit' }}
                 />
                 <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
@@ -27882,11 +27961,14 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                 </span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
-                <input type="checkbox" checked={xeroAdvisorSyncEnabled} disabled={xeroAdvisorSaving} onChange={event => void saveXeroAdvisorSyncAccess(event.target.checked)} style={{ width: 16, height: 16, cursor: 'inherit' }} />
+                <input type="checkbox" checked={taxDraft.advisor_xero_sync_enabled === 'true'} disabled={taxSaving} onChange={event => updateTaxDraft('advisor_xero_sync_enabled', event.target.checked ? 'true' : 'false')} style={{ width: 16, height: 16, cursor: 'inherit' }} />
                 <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>Allow Advisors to trigger Xero syncs</span>
               </label>
               {xeroAdvisorSyncError && <p role="alert" style={{ fontSize: 12, color: '#ef4444', marginBottom: 0 }}>{xeroAdvisorSyncError}</p>}
             </div>
+            <button type="button" data-primary onClick={saveTaxSettings} disabled={!loaded || taxSaving || !taxDirtyKeys.size}>{taxSaving ? 'Saving...' : 'Save permissions'}</button>
+            <button type="button" onClick={() => { setTaxDraft({ ...settings }); setTaxDirtyKeys(new Set()); }}>Cancel</button>
+            {taxSaveError && <p role="alert">{taxSaveError}</p>}
 
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
               <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Quick Links</h3>
@@ -27908,25 +27990,25 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
         )}
 
         {/* ── Shopify ── */}
-        {active === 'shopify' && (
+        {active === 'online-pick' && (
           <div style={{ padding: 32, maxWidth: 820 }}>
-            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shopify Settings</h2>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online picking priority</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
               Configure fulfillment routing here. Day-to-day imports, reconciliation, and inventory sync controls stay in Sales -&gt; Sales Channels -&gt; the selected Shopify store.
             </p>
 
             <div style={{ marginBottom: 8 }}>
-              <CollHeader label="🌐 Online Pick Locations" open={onlinePickOpen} toggle={() => setOnlinePickOpen(o => !o)} />
               {onlinePickOpen && (() => {
                 let priority: number[] = [];
-                try { const arr = JSON.parse(settings['online_pick_priority'] ?? '[]'); if (Array.isArray(arr)) priority = arr.map(Number).filter(Boolean); } catch {}
+                try { const arr = JSON.parse(profileDraft['online_pick_priority'] ?? '[]'); if (Array.isArray(arr)) priority = arr.map(Number).filter(Boolean); } catch {}
                 const setPriority = (loc: number, val: string) => {
                   const rank = parseInt(val, 10);
                   let next = priority.filter(id => id !== loc);
                   if (Number.isFinite(rank) && rank > 0) {
                     next.splice(Math.min(rank - 1, next.length), 0, loc);
                   }
-                  saveSettings({ online_pick_priority: JSON.stringify(next) });
+                  setProfileDraft(previous => ({ ...previous, online_pick_priority: JSON.stringify(next) }));
+                  setDocumentDirty(true);
                 };
                 const rankOf = (loc: number) => { const i = priority.indexOf(loc); return i === -1 ? '' : String(i + 1); };
                 const sorted = [...pickLocations].sort((a, b) => {
@@ -27973,11 +28055,19 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                 );
               })()}
             </div>
+            <button type="button" data-primary disabled={!loaded || profileSaving || !documentDirty} onClick={async () => {
+              setProfileSaving(true); setDocumentError('');
+              try { await saveSettings({ online_pick_priority: profileDraft.online_pick_priority ?? '[]' }); setDocumentDirty(false); }
+              catch (error) { setDocumentError(error instanceof Error ? error.message : 'Picking priority could not be saved.'); }
+              finally { setProfileSaving(false); }
+            }}>{profileSaving ? 'Saving...' : 'Save priority'}</button>
+            <button type="button" disabled={profileSaving} onClick={() => { setProfileDraft(settings); setDocumentDirty(false); }}>Cancel</button>
+            {documentError && <p role="alert">{documentError}</p>}
           </div>
         )}
 
         {/* ── Utilities ── */}
-        {active === 'utilities' && (
+        {active === 'utilities' && userTier === 'SuperAdmin' && (
           <div style={{ padding: 32, maxWidth: 820 }}>
             <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Utilities</h2>
             <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.65 }}>
@@ -27991,6 +28081,14 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
         )}
+        {active === 'builds' && <div><OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="Offer staff a reviewed build when finished stock is short. Every build requires confirmation." /><button type="button" data-primary onClick={saveTaxSettings} disabled={!loaded || taxSaving || !taxDirtyKeys.size}>Save business policy</button><button type="button" onClick={() => { setTaxDraft({ ...settings }); setTaxDirtyKeys(new Set()); }}>Cancel</button>{taxSaveError && <p role="alert">{taxSaveError}</p>}<LocationsSettingsSection settings={settings} saveSettings={saveSettings} policiesOnly /></div>}
+        {active === 'inventory-costing' && <InventoryCostingSettings />}
+        {active === 'accounts-email' && (canManageAccounts ? <AccountsEmailSettings onHelp={() => onHelp('settings-accounts-email')} /> : <p>Only administrators can manage accounts recipients.</p>)}
+        {active === 'pos-layby' && <LaybyFeeSettings locations={pickLocations} />}
+        {active === 'sales-cache' && userTier === 'SuperAdmin' && <SalesCacheTab />}
+        {active === 'initial-import' && <div><SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: 'Run last. Sets opening stock and incoming quantities from Cin7. Overwrites existing balances; use only during initial setup.', endpoint: '/api/ims/import/stock-snapshot' }} /><StockCostImportCard /><StockMinsImportCard /></div>}
+        {active === 'data-reset' && userTier === 'SuperAdmin' && <DataResetCard />}
+        {active === 'shopify' && <div><p>Online stores have their own credentials, readiness and sync policies. Choose the exact store in Sales Channels.</p><a href="#sales-channels" onClick={onClose}>Open Sales Channels</a><p><a href="#online-shop" onClick={onClose}>Open native store setup</a></p></div>}
 
         {/* ── Business Profile ── */}
         {active === 'business-profile' && (
@@ -28063,13 +28161,10 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
           </div>
         )}
 
-        {/* ── General / POS / Sync ── legacy accordion body ── */}
-        <div style={{ padding: 20, overflowY: 'auto', display: (active === 'general' || active === 'pos' || active === 'sync') ? undefined : 'none' }}>
+        {/* Settings sharing the business capability draft. */}
+        <div style={{ padding: 0, display: (['general', 'tax', 'currencies', 'sales-channels', 'pos', 'pos-payments', 'pos-display', 'pos-receipts', 'pos-access', 'pos-terminals', 'sync'].includes(active)) ? undefined : 'none' }}>
           {/* ── SYNC SECTION ── */}
-          <div style={{ display: active === 'sync' ? undefined : 'none' }}>
-          <div style={{ marginBottom: 16, padding: 16, background: 'var(--sv-bg-2)', borderRadius: 9, border: '1px solid var(--sv-etch)' }}>
-            <SalesCacheTab />
-          </div>
+          {active === 'sync' && <IntegrationSettingsSection {...integrationProps} provider="cin7"><div>
           {/* ── Cin7 Sync ── */}
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Cin7 Sync</div>
 
@@ -28161,58 +28256,33 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
             </div>
           )}
 
-          {/* ── One-time Setup ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="⚙️ One-time Setup" open={setupOpen} toggle={() => setSetupOpen(o => !o)} />
-            {setupOpen && (
-              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
-                <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 14, marginTop: 0 }}>
-                  These imports are for initial setup only — not covered by the regular Cin7 sync above.
-                </p>
-                <SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: '⚠ Run last. Sets opening stock on hand and incoming quantities from Cin7. Overwrites existing stock balances — use once during initial setup only.', endpoint: '/api/ims/import/stock-snapshot' }} />
-
-                {/* ── Stock Cost CSV Import ── */}
-                <StockCostImportCard />
-
-                {/* ── Stock Min / Reorder Qty CSV Import ── */}
-                <StockMinsImportCard />
-
-                {/* ── Start Over / Data Reset ── */}
-                <DataResetCard />
-              </div>
-            )}
-          </div>
-          </div>{/* ─ end sync ─ */}
+          </div></IntegrationSettingsSection>}
 
           {/* ── GENERAL SECTION ── */}
-          <div style={{ display: active === 'general' ? undefined : 'none' }}>
-            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>General Settings</h2>
-
-            {active === 'general' && canManageAccounts && <AccountsEmailSettings onHelp={() => onHelp('settings-accounts-email')} />}
+          <div style={{ display: ['general', 'tax', 'currencies', 'sales-channels'].includes(active) ? undefined : 'none' }}>
 
             {/* Business Operations */}
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            <div style={{ display: active !== 'tax' ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Business Operations</h3>
               <p style={{ margin: '0 0 18px', color: 'var(--sv-text-dim)', fontSize: 12.5, lineHeight: 1.55 }}>Enable only the workflows this business uses. Changes take effect after Save Settings.</p>
 
-              <section style={{ marginBottom: 22 }}>
+              <section style={{ display: active === 'general' ? undefined : 'none', marginBottom: 22 }}>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Locations and catalogue</h4>
                 <OperationToggle setting="use_multiple_locations" defaultValue="yes" label="Multiple locations" description="Use separate shops, warehouses, stock balances, and branch transfers." />
                 <OperationToggle setting="use_zones_bins" label="Zones and bins" description="Track the physical shelf or storage position of stock inside each location." />
               </section>
 
-              <section style={{ marginBottom: 22 }}>
+              <section style={{ display: active === 'currencies' ? undefined : 'none', marginBottom: 22 }}>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Purchasing</h4>
                 <OperationToggle setting="use_foreign_currencies" defaultValue="yes" label="Foreign currencies" description="Show currency and exchange-rate fields on purchase orders and products." />
               </section>
 
-              <section style={{ marginBottom: 22 }}>
+              <section style={{ display: active === 'general' ? undefined : 'none', marginBottom: 22 }}>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Inventory</h4>
                 <OperationToggle setting="builds_enabled" label="Use Builds" description="Enable product recipes, build history, reversals, and optional build-from-sale workflows." />
-                {taxDraft.builds_enabled === 'yes' && <OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="When finished stock is short and recipe components are available, offer staff a reviewed Build & Sell, Build & Confirm, or Build & Fulfil action. Online marketplaces continue advertising actual finished stock only." />}
               </section>
 
-              <section>
+              <section style={{ display: active === 'sales-channels' ? undefined : 'none' }}>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Sales channels and integrations</h4>
                 <OperationToggle setting="business_requires_pos" defaultValue="yes" label="Business requires POS" description="Enable Point of Sale and Location Daybooks for businesses selling directly to the public in stores or staffed locations." />
                 <OperationToggle setting="sells_wholesale" defaultValue="yes" label="Wholesale sales" description="Enable the Wholesale Portal and customer-specific brand access." />
@@ -28224,23 +28294,12 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                   <input type="checkbox" disabled={!loaded || taxSaving} checked={onlineChannelDraft.nativeShopEnabled} onChange={e => { setOnlineChannelDraft(current => ({ ...current, nativeShopEnabled: e.target.checked })); setOnlineChannelsDirty(true); setTaxSaved(false); }} style={{ marginTop: 2 }} />
                   <span><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 13 }}>Solvantis Online Store</strong><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Show native store setup. Public sales remain off until the storefront is activated.</span></span>
                 </label>
-                <OperationToggle setting="connect_accounting_software" label="Accounting software" description="Enable accounting connection and mapping prompts." />
-                {taxDraft.connect_accounting_software === 'yes' && (
-                  <div style={{ padding: '10px 0 0 18px' }}>
-                    <label style={labelStyle}>Accounting platform</label>
-                    <select value={taxDraft.accounting_software ?? 'xero'} onChange={e => updateTaxDraft('accounting_software', e.target.value)} style={{ ...inputStyle, width: 280 }}>
-                      <option value="xero">Xero</option>
-                      <option disabled>QuickBooks - coming soon</option>
-                    </select>
-                  </div>
-                )}
+                <p><a href="#sales-channels" onClick={event => { if (taxDirtyKeys.size || onlineChannelsDirty) { event.preventDefault(); setTaxSaveError('Save or cancel your channel changes before opening Sales Channels.'); } else onClose(); }}>Open Sales Channels to configure a store</a></p>
               </section>
             </div>
 
-            <InventoryCostingSettings />
-
             {/* Tax Settings */}
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+            <div style={{ display: active === 'tax' ? undefined : 'none', padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Tax Settings</h3>
               <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)' }}>Configure the rates and labels used on Solvantis orders and invoices. These settings remain active when Xero is off; Xero uses separate tax types.</p>
 
@@ -28276,54 +28335,37 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button type="button" disabled={!loaded || taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              <button data-primary type="button" disabled={!loaded || taxSaving || (!taxDirtyKeys.size && !onlineChannelsDirty)} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              <button type="button" disabled={taxSaving} onClick={() => { setTaxDraft({ ...TAX_SETTING_DEFAULTS, ...settings }); setTaxDirtyKeys(new Set()); setOnlineChannelDraft({ shopifyEnabled: capabilities.shopifyEnabled, nativeShopEnabled: capabilities.nativeShopEnabled }); setOnlineChannelsDirty(false); setTaxSaved(false); setTaxSaveError(''); }}>Cancel</button>
               {taxSaved && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>Saved</span>}
               {(loadError || taxSaveError) && <span role="alert" style={{ fontSize: 12, color: 'var(--sv-red)' }}>{loadError || taxSaveError}</span>}
             </div>
           </div>{/* ─ end general ─ */}
 
           {/* ── POS SECTION ── */}
-          <div style={{ display: active === 'pos' ? undefined : 'none' }}>
-
-          <h2 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Point of Sale Settings</h2>
+          <div style={{ display: active.startsWith('pos') ? undefined : 'none' }}>
 
           {/* ── Registers ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="Registers" open={registersOpen} toggle={() => setRegistersOpen(open => !open)} />
+          <div style={{ display: registersOpen ? undefined : 'none', marginBottom: 8 }}>
             {registersOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                 <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12.5, lineHeight: 1.55 }}>Add, rename, activate, or set the default float for each location&apos;s registers. Location details are read-only here.</p>
-                <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
-                  <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--sv-bg-2)' }}>
-                        {['Location', 'Code', 'Area', ''].map(heading => <th key={heading} style={{ padding: '9px 12px', textAlign: 'left', color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{heading}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pickLocations.map(location => (
-                        <tr key={location.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                          <td style={{ padding: '9px 12px', color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>{location.name}</td>
-                          <td style={{ padding: '9px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{location.code || '—'}</td>
-                          <td style={{ padding: '9px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{[location.city, location.state].filter(Boolean).join(', ') || '—'}</td>
-                          <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                            <button type="button" onClick={() => setRegistersFor(current => current?.id === location.id ? null : { id: location.id, name: location.name })} style={btnStyle('ghost', 'xs')}>{registersFor?.id === location.id ? 'Hide registers' : 'Manage registers'}</button>
-                          </td>
-                        </tr>
-                      ))}
-                      {pickLocations.length === 0 && <tr><td colSpan={4} style={{ padding: 14, color: 'var(--sv-text-dim)', fontSize: 13 }}>No locations are available. Add a location before creating registers.</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
+                <ImsTable cols={['Location', 'Code', 'Area', 'Registers']} rows={pickLocations}
+                  columnWidths={[210, 90, 130, 160]} frozenColumnIndex={0} scrollClassName="settings-registers-scroll"
+                  headerBackground="var(--sv-bg-2)" render={location => [
+                    <strong key="name">{location.name}</strong>,
+                    location.code || '—',
+                    [location.city, location.state].filter(Boolean).join(', ') || '—',
+                    <button key="manage" type="button" onClick={() => setRegistersFor(current => current?.id === location.id ? null : { id: location.id, name: location.name })} style={btnStyle('ghost', 'xs')}>{registersFor?.id === location.id ? 'Hide registers' : 'Manage registers'}</button>,
+                  ]} />
                 {registersFor && <LocationRegistersPanel locationId={registersFor.id} locationName={registersFor.name} onClose={() => setRegistersFor(null)} />}
               </div>
             )}
           </div>
 
           {/* ── Orders / Payment Types ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🧾 Orders" open={ordersOpen} toggle={() => setOrdersOpen(o => !o)} />
-            {ordersOpen && (
+          <div style={{ display: active === 'pos-payments' ? undefined : 'none', marginBottom: 8 }}>
+            {active === 'pos-payments' && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
                   Payment Types
@@ -28333,15 +28375,17 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                   {paymentTypes.map(pt => (
                     <div key={pt} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', fontSize: 13 }}>
                       <span>{pt}</span>
-                      <button type="button" onClick={() => savePaymentTypes(paymentTypes.filter(t => t !== pt))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px' }} title="Remove">×</button>
+                      <button type="button" disabled={!paymentTypesLoaded || ptSaving} onClick={() => setPaymentTypes(paymentTypes.filter(t => t !== pt))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 16, lineHeight: 1, padding: '0 2px' }} title="Remove">×</button>
                     </div>
                   ))}
                   {paymentTypes.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No payment types configured.</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
-                  <button type="button" disabled={!newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { savePaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>{ptSaving ? 'Saving…' : 'Add'}</button>
+                  <input disabled={!paymentTypesLoaded || ptSaving} style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { setPaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
+                  <button type="button" disabled={!paymentTypesLoaded || !newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { setPaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>Add to draft</button>
                 </div>
+                <button type="button" data-primary disabled={!paymentTypesLoaded || ptSaving || JSON.stringify(paymentTypes) === JSON.stringify(savedPaymentTypes)} onClick={() => savePaymentTypes(paymentTypes)}>{ptSaving ? 'Saving...' : 'Save payment types'}</button>
+                <button type="button" disabled={ptSaving} onClick={() => { setPaymentTypes(savedPaymentTypes); setNewPaymentType(''); }}>Cancel payment changes</button>
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
                     Default Cash Float
@@ -28349,19 +28393,18 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                   </label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 14, color: 'var(--sv-text-dim)' }}>$</span>
-                    <input type="number" min="0" step="0.01" style={{ ...inputStyle, width: 120 }} value={defaultFloatInput} onChange={e => setDefaultFloatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveDefaultFloat(); }} />
-                    <button type="button" disabled={defaultFloatSaving} onClick={saveDefaultFloat} style={btnStyle('action', 'sm')}>{defaultFloatSaving ? 'Saving…' : 'Save'}</button>
+                    <input disabled={!floatLoaded || defaultFloatSaving} type="number" min="0" step="0.01" style={{ ...inputStyle, width: 120 }} value={defaultFloatInput} onChange={e => setDefaultFloatInput(e.target.value)} />
+                    <button type="button" data-primary disabled={!floatLoaded || defaultFloatSaving || defaultFloatInput === String(defaultFloat)} onClick={saveDefaultFloat} style={btnStyle('action', 'sm')}>{defaultFloatSaving ? 'Saving…' : 'Save float'}</button>
+                    <button type="button" disabled={defaultFloatSaving} onClick={() => setDefaultFloatInput(String(defaultFloat))}>Cancel float change</button>
                     {defaultFloat > 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Current: ${defaultFloat.toFixed(2)}</span>}
                   </div>
                 </div>
-                <LaybyFeeSettings locations={pickLocations} />
               </div>
             )}
           </div>
 
           {/* ── POS Display ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🖥️ POS Display" open={posDisplayOpen} toggle={() => setPosDisplayOpen(o => !o)} />
+          <div style={{ display: posDisplayOpen ? undefined : 'none', marginBottom: 8 }}>
             {posDisplayOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 12 }}>
@@ -28507,32 +28550,32 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                 <button
                   type="button"
                   disabled={
-                    posDisplaySaving ||
+                    !posDisplayLoaded || posDisplaySaving ||
                     (posDisplayView.startsWith('brand:') && !posDisplayBrandInput.trim()) ||
                     (posDisplayView.startsWith('variants:') && posDisplayVariants.length === 0)
                   }
                   onClick={() => savePosDisplayView(posDisplayView)}
                   style={btnStyle('action', 'sm')}
                 >{posDisplaySaving ? 'Saving…' : 'Save'}</button>
+                <button type="button" disabled={posDisplaySaving} onClick={resetPosDisplay}>Cancel</button>
               </div>
             )}
           </div>
 
           {/* ── POS Config ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="🛒 POS Config" open={posConfigOpen} toggle={() => setPosConfigOpen(o => !o)} />
+          <div style={{ display: posConfigOpen ? undefined : 'none', marginBottom: 8 }}>
             {posConfigOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
 
                 {/* Branch Transfer Access */}
-                <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ display: active === 'pos-access' ? undefined : 'none', marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
                     Branch Transfer Access in POS
                     <HintBadge text="Controls who can send a branch transfer from POS. Manager mode asks for the location manager PIN." />
                   </label>
                   <select
-                    value={settings['pos_bt_access'] ?? 'all'}
-                    onChange={async e => { await saveSettings({ pos_bt_access: e.target.value }); }}
+                    value={profileDraft['pos_bt_access'] ?? 'all'}
+                    onChange={e => setProfileDraft(previous => ({ ...previous, pos_bt_access: e.target.value }))}
                     style={{ ...inputStyle, maxWidth: 280 }}
                   >
                     <option value="disabled">Disabled — not accessible from POS</option>
@@ -28541,22 +28584,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                   </select>
                 </div>
 
-                {/* Advisor Sync Access */}
-                <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
-                    Advisor Sync Access
-                    <HintBadge text="Allow Advisor users to trigger latest products and stock sync from IMS." />
-                  </label>
-                  <select
-                    value={settings['advisor_sync_enabled'] ?? 'false'}
-                    onChange={async e => { await saveSettings({ advisor_sync_enabled: e.target.value }); }}
-                    style={{ ...inputStyle, maxWidth: 280 }}
-                  >
-                    <option value="false">Disabled — Advisors cannot trigger syncs</option>
-                    <option value="true">Enabled — Advisors can sync latest products &amp; stock</option>
-                  </select>
-                </div>
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ display: active === 'pos-receipts' ? undefined : 'none', marginBottom: 16 }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center' }}>
                     POS Receipt Footer Text
                     <HintBadge text="Printed at the bottom of standard POS receipts." />
@@ -28568,7 +28596,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                     placeholder="Thank you for shopping with us!" 
                   />
                 </div>
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ display: active === 'pos-receipts' ? undefined : 'none', marginBottom: 16 }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center' }}>
                     Gift Receipt Message
                     <HintBadge text="Shown on gift receipts instead of the standard footer." />
@@ -28581,18 +28609,18 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                   />
                 </div>
                 {/* ── Receipt Logo ── */}
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ display: active === 'pos-receipts' ? undefined : 'none', marginBottom: 16 }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center' }}>
                     Receipt Logo
                     <HintBadge text="Shown at the top of printed receipts. PNG/JPG works best. Display target is about 180x80px." />
                   </label>
-                  {settings['pos_receipt_logo'] && (
+                  {profileDraft['pos_receipt_logo'] && (
                     <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <img src={settings['pos_receipt_logo']} alt="Receipt logo preview" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', border: '1px solid var(--sv-etch)', borderRadius: 4, background: '#fff', padding: 4 }} />
+                      <img src={profileDraft['pos_receipt_logo']} alt="Receipt logo preview" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', border: '1px solid var(--sv-etch)', borderRadius: 4, background: '#fff', padding: 4 }} />
                       <button
                         type="button"
                         disabled={logoSaving}
-                        onClick={async () => { setLogoSaving(true); await saveSettings({ pos_receipt_logo: '' }); setLogoSaving(false); }}
+                        onClick={() => { setProfileDraft(previous => ({ ...previous, pos_receipt_logo: '' })); setDocumentDirty(true); }}
                         style={btnStyle('ghost', 'sm')}
                       >{logoSaving ? 'Removing…' : 'Remove logo'}</button>
                     </div>
@@ -28617,8 +28645,8 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                             canvas.height = Math.round(img.height * scale);
                             canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
                             const dataUrl = canvas.toDataURL('image/png');
-                            setLogoSaving(true);
-                            saveSettings({ pos_receipt_logo: dataUrl }).finally(() => setLogoSaving(false));
+                            setProfileDraft(previous => ({ ...previous, pos_receipt_logo: dataUrl }));
+                            setDocumentDirty(true);
                           };
                           img.src = src;
                         };
@@ -28630,44 +28658,33 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
-                  <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Header/Footer'}</button>
+                  <button type="button" disabled={profileSaving} onClick={() => { setProfileDraft(settings); setDocumentDirty(false); }} style={btnStyle('ghost', 'sm')}>Cancel</button>
+                  <button data-primary type="button" disabled={profileSaving || !loaded} onClick={async () => {
+                    setProfileSaving(true); setDocumentError('');
+                    try { await saveSettings(settingsOwnedUpdates(profileDraft, settings, active === 'pos-access' ? ['pos_bt_access'] : ['pos_receipt_footer', 'gift_receipt_message', 'pos_receipt_logo'])); setDocumentDirty(false); }
+                    catch (error) { setDocumentError(error instanceof Error ? error.message : 'POS settings could not be saved.'); }
+                    finally { setProfileSaving(false); }
+                  }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Settings'}</button>
                 </div>
+                {documentError && <p role="alert">{documentError}</p>}
               </div>
             )}
           </div>
 
           {/* ── Card Terminals ── */}
-          <div style={{ marginBottom: 8 }}>
-            <CollHeader label="💳 Card Terminals" open={cardTermOpen} toggle={async () => {
-              if (!cardTermOpen && cardTermRegs.length === 0) {
-                setCardTermLoading(true);
-                try {
-                  const res = await fetch('/api/pos/registers?all=true');
-                  const data = await res.json();
-                  setCardTermRegs((data.registers ?? []).map((r: any) => ({
-                    ...r,
-                    _enabled:    !!r.card_terminal_provider,
-                    _provider:   r.card_terminal_provider ?? 'zeller',
-                    _siteId:     r.zeller_site_id         ?? '',
-                    _terminalId: r.zeller_terminal_id     ?? '',
-                    _apiKey:     '',
-                    _methods:    (() => { try { return JSON.parse(r.card_terminal_methods || '[]'); } catch { return []; } })(),
-                  })));
-                } catch { /* silent */ }
-                setCardTermLoading(false);
-              }
-              setCardTermOpen(o => !o);
-            }} />
+          <div style={{ display: cardTermOpen ? undefined : 'none', marginBottom: 8 }}>
             {cardTermOpen && (
               <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                {documentError && <p role="alert">{documentError}</p>}
                 {cardTermLoading && <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading registers…</div>}
                 {!cardTermLoading && cardTermRegs.length === 0 && (
                   <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>No registers found. Create registers in Locations → Registers first.</div>
                 )}
                 {cardTermRegs.map((reg, idx) => {
-                  const updateReg = (patch: Record<string, any>) =>
+                  const updateReg = (patch: Record<string, any>) => {
+                    setDirtyTerminals(previous => new Set(previous).add(reg.id));
                     setCardTermRegs(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+                  };
                   return (
                     <div key={reg.id} style={{ marginBottom: 16, padding: 14, border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)' }}>
                       <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--sv-text-strong)' }}>
@@ -28676,12 +28693,12 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
 
                       {/* Enable/Disable toggle */}
                       <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
-                        <div
+                        <button type="button" role="switch" aria-checked={reg._enabled} aria-label={`Card terminal for ${reg.name}`}
                           onClick={() => updateReg({ _enabled: !reg._enabled })}
                           style={{ width: 42, height: 24, borderRadius: 99, background: reg._enabled ? 'var(--sv-mint)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', transition: 'background .2s', flexShrink: 0 }}
                         >
                           <div style={{ position: 'absolute', top: 3, left: reg._enabled ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
-                        </div>
+                        </button>
                         <span style={{ fontSize: 13, fontWeight: 600, color: reg._enabled ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)' }}>
                           {reg._enabled ? 'Card terminal enabled' : 'Card terminal disabled'}
                         </span>
@@ -28752,15 +28769,17 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
                             });
                             const data = await res.json();
                             if (!res.ok) throw new Error(data.error);
-                            updateReg({ _apiKey: '', zeller_api_key: reg._apiKey ? '****' : reg.zeller_api_key });
-                          } catch (e: any) { alert('Save failed: ' + e.message); }
+                            setCardTermRegs(previous => previous.map(item => item.id === reg.id ? { ...item, _apiKey: '', zeller_api_key: reg._apiKey ? '****' : reg.zeller_api_key } : item));
+                            setDirtyTerminals(previous => { const next = new Set(previous); next.delete(reg.id); return next; });
+                          } catch (e: any) { setDocumentError('Save failed: ' + e.message); }
                           finally { setSavingTerminalId(null); }
                         }}
                         style={btnStyle('action', 'sm')}
-                      >{savingTerminalId === reg.id ? 'Saving…' : 'Save'}</button>
+                      >{savingTerminalId === reg.id ? 'Saving…' : 'Save terminal'}</button>
                     </div>
                   );
                 })}
+                <button type="button" disabled={savingTerminalId !== null} onClick={() => { setDirtyTerminals(new Set()); setTerminalVersion(value => value + 1); }}>Cancel terminal changes</button>
               </div>
             )}
           </div>
@@ -28769,14 +28788,15 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
         </div>{/* ─ end legacy body ─ */}
 
         {/* ── Wholesale Portal ── */}
-        {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
+        {active.startsWith('wholesale') && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} section={active} />}
 
         {/* ── Loyalty ── */}
         {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />}
-        {active === 'shipping' && <ShippingSettingsSection />}
+        {active === 'loyalty-rewards' && <LoyaltyRewardsSettings />}
+        {active === 'loyalty-portal' && <LoyaltyPortalSettings />}
+        {active === 'shipping' && <ShippingSettingsSection key={businessId} businessId={businessId} onDeliveryHelp={() => onHelp('settings-delivery-tracking')} />}
 
-      </div>{/* ─ end right content ─ */}
-    </div>
+    </SettingsShell>
   );
 }
 
@@ -28788,7 +28808,7 @@ function SettingsModal({ isOpen, canManageAccounts, onClose, onHelp, defaultSect
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: SettingsSection }) {
-  const [active, setActive] = useState<SettingsSection>(defaultSection);
+  const [active, setActive] = useState<SettingsSection | 'inventory-documents'>(defaultSection);
   useEffect(() => { if (isOpen) setActive(defaultSection); }, [defaultSection, isOpen]);
 
   if (!isOpen) return null;

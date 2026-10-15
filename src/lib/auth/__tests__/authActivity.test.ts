@@ -49,7 +49,7 @@ describe('authentication activity', () => {
       request,
     });
 
-    expect(mocks.execute.mock.calls[0][0]).toContain('INTERVAL 90 DAY');
+    expect(mocks.execute.mock.calls[0][0]).toContain('INTERVAL 12 MONTH');
     expect(mocks.execute.mock.calls[1][1]).toEqual([
       'biz-1', 42, 'login_success', null, '2001:db8::1', null, null, null, null,
     ]);

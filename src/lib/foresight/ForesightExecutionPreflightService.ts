@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import {
   executionPreflightFingerprint,
@@ -67,6 +68,9 @@ export const ForesightExecutionPreflightService = {
     recommendationId: number,
     proposalHash: string,
   ): Promise<ExecutionPreflightResult> {
+    if (!await isOptionalIntegrationEnabled(businessId, 'google')) {
+      return blocked('integration_disabled', 'Google Ads is disabled. Enable it before running a live preflight.');
+    }
     const recommendation = await ForesightRepository.getRecommendation(businessId, recommendationId);
     if (!recommendation) return blocked('recommendation_not_found', 'The recommendation was not found.');
     if (recommendation.state !== 'approved') {

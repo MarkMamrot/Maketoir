@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminTier } from '@/lib/sessionUtils';
 import { signGoogleMarketingOAuthState } from '@/lib/googleMarketingOAuth';
 import { buildGoogleMarketingAuthorizeUrl, googleMarketingOAuthConfigurationStatus } from '@/services/GoogleMarketingOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 function appUrl(): string {
   const raw = process.env.APP_URL ?? 'solvantis.com.au';
@@ -12,9 +13,17 @@ function appUrl(): string {
 export async function GET() {
   const { user, response } = requireAdminTier();
   if (response) return response;
-  const returnUrl = `${appUrl()}/setup`;
+  try {
+    await assertOptionalIntegrationEnabled(user.businessId, 'google');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ error: 'Google integration availability is not ready.' }, { status: 503 });
+  }
+  const returnUrl = `${appUrl()}/ims`;
   if (!googleMarketingOAuthConfigurationStatus().configured) {
-    return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent('Google OAuth is not configured for this deployment.')}`);
+    return NextResponse.redirect(`${returnUrl}?googleError=${encodeURIComponent('Google OAuth is not configured for this deployment.')}#settings-connection-google`);
   }
   const nonce = randomBytes(24).toString('base64url');
   const redirectUri = `${appUrl()}/api/google/callback`;

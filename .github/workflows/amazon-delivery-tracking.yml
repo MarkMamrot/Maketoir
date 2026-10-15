@@ -1,4 +1,4 @@
-name: Amazon Delivery Evidence
+name: Online Channel Delivery Tracking
 
 on:
   schedule:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - name: Collect original buyer delivery evidence
+      - name: Collect delivery evidence for enabled online channel types
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

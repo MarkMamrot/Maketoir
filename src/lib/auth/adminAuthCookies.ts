@@ -8,6 +8,11 @@ export const MFA_TRUST_COOKIE = 'marketoir_mfa_trust';
 const secure = process.env.NODE_ENV === 'production';
 
 export function setAdminSessionCookie(session: AdminSession, maxAgeSeconds = ADMIN_SESSION_MAX_AGE_SECONDS): void {
+  if (session.passwordExpiresAt) {
+    const remaining = Math.floor((Date.parse(session.passwordExpiresAt) - Date.now()) / 1000);
+    if (!Number.isSafeInteger(remaining) || remaining <= 0) throw new Error('A renewed password is required before issuing a session.');
+    maxAgeSeconds = Math.min(maxAgeSeconds, remaining);
+  }
   cookies().set(ADMIN_SESSION_COOKIE, signAdminSession(session, {
     maxAgeSeconds,
   }), {

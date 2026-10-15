@@ -53,14 +53,34 @@ Railway (auto-deploy on push to `main`, no test gate other than CI below).
   are not runtime issues. Never rely on `console.error` as the only record of a live operational failure.
 
 ## Testing
-- Vitest is configured (`npm test` / `npm run test:watch`) but only has light coverage under
-  `src/lib/**/__tests__/*.test.ts`. CI (`.github/workflows/ci.yml`) now runs `npm test` and
-  `npm run build` on every push/PR to `main` — this is the only regression gate; Railway deploy
-  itself does not run tests.
+- Follow the [local validation workflow](../README.md#development-and-validation).
+  Keep npm; install dependencies only when manifests/lockfiles change or dependencies are missing.
+- During edits, combine relevant test files in one `npm test -- <test-files>` run, or use
+  `npm run test:related -- <source-files>` / scoped `npm run test:watch -- <test-files>`.
+  Related/changed detection does not cover raw file reads or dynamic dependencies: explicitly
+  include the owning contract, Help and integration tests when relevant.
+- Run final checks once per completed code batch, not after every edit. For `src/lib/**` changes,
+  run the full `npm test` once before completion. Before pushing application code, run one full
+  production build. `npm run validate` runs the full suite then the build sequentially; do not
+  repeat either if it already passed for the final relevant inputs.
+- Use the existing development server for UI validation. Reuse the default `.next` production
+  output/cache, separate from `.next-dev-<port>`; do not create task-specific build directories or
+  clear caches routinely. Do not run multiple production builds or full tests and a build
+  concurrently in the same worktree. After fixes, rerun affected checks; rerun final checks when
+  their relevant inputs changed.
+- `npm run typecheck` uses a source-scoped incremental configuration, excluding old preview
+  outputs and unrelated script/extension projects. It currently exposes pre-existing type debt
+  and is not a CI gate. Check changed code for new diagnostics and report failures explicitly;
+  do not treat a successful build as type/lint validation (Next currently skips both).
+- Documentation-only edits need only their owning validators/tests; canonical Help changes must
+  run `npm run assistant:index` and relevant Help/Assistant tests, not an unrelated Next build.
+- Retain broader regression/integration checks for money, stock, tenant isolation, schema and
+  integration changes. CI (`.github/workflows/ci.yml`) retains full tests, MySQL integration tests
+  and the production build on push/PR to `main`; Railway deploy itself does not run tests and is
+  not gated on CI completion.
 - When you extract or write a new pure function in `src/lib/**`, add a matching `*.test.ts`
   file in a sibling `__tests__/` folder (see `src/lib/ims/__tests__/stockHistoryTimeline.test.ts`
   for the pattern).
-- Run `npm test` locally after changing anything in `src/lib/**` before considering the change done.
 
 ## Report/date-filter conventions
 - Any IMS report that filters by date should use the shared date-range picker from [src/app/ims/views/reports/reportFilterHelpers.tsx](src/app/ims/views/reports/reportFilterHelpers.tsx) and follow the same `SBDateRange` shape used by Sales by Branch.

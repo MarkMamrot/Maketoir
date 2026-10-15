@@ -9,6 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
+import amazonPiiGuards from '../../../scripts/amazon-pii-guards.json';
 import { execute, getPool, query } from '@/services/MySQLService';
 import { invalidateImsDbCache } from '@/lib/db/BusinessRegistry';
 import {
@@ -136,6 +137,17 @@ async function installBusinessIdTriggers(conn: mysql.Connection): Promise<void> 
     await conn.query(`DROP TRIGGER IF EXISTS \`${t.name}\``);
     await conn.query(`CREATE TRIGGER \`${t.name}\` BEFORE INSERT ON \`${t.table}\` FOR EACH ROW ${t.body}`);
   }
+  const [installed] = await conn.query<mysql.RowDataPacket[]>(
+    'SELECT TRIGGER_NAME, ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE()');
+  const normalized = (value: unknown) => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
+  for (const guard of amazonPiiGuards) {
+    const existing = installed.find(row => row.TRIGGER_NAME === guard.name);
+    if (existing && normalized(existing.ACTION_STATEMENT) === normalized(guard.body)) continue;
+    const [receipts] = await conn.query<mysql.RowDataPacket[]>('SELECT id FROM ims_amazon_pii_disposals LIMIT 1');
+    if (receipts.length) throw new Error('Changing privacy guards for already-cleared records requires an offline maintenance window.');
+    await conn.query(`DROP TRIGGER IF EXISTS \`${guard.name}\``);
+    await conn.query(`CREATE TRIGGER \`${guard.name}\` BEFORE ${guard.event} ON \`${guard.table}\` FOR EACH ROW ${guard.body}`);
+  }
 }
 
 /**
@@ -242,7 +254,7 @@ export async function validateImsSchema(dbName: string): Promise<void> {
       [db],
     );
     const triggers = new Set(triggerRows.map(row => String(row.TRIGGER_NAME)));
-    const missingTriggers = ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid']
+    const missingTriggers = ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid', ...amazonPiiGuards.map(guard => guard.name)]
       .filter(trigger => !triggers.has(trigger));
 
     const gaps = [

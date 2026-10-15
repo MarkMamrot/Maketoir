@@ -20,7 +20,6 @@
  *  6. Update CSAutoReplyLastRunAt + log.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
@@ -32,6 +31,9 @@ import { SalesRepository } from '@/lib/db/SalesRepository';
 import { decrypt } from '@/lib/encryption';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { query } from '@/services/MySQLService';
+import { getAdminSession } from '@/lib/sessionUtils';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -54,9 +56,7 @@ const C = {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function requireSession() {
-  const s = cookies().get('marketoir_session');
-  if (!s?.value) return null;
-  try { return JSON.parse(s.value); } catch { return null; }
+  return getAdminSession();
 }
 
 async function getAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
@@ -270,6 +270,9 @@ async function sendForwardNotification(accessToken: string, opts: {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 async function runAutoReply(databaseId: string, force = false): Promise<{ processed: number; drafted: number; sent: number; forwarded: number; skipped: string }> {
+  if (!await isOptionalIntegrationEnabled(databaseId, 'gmail')) {
+    return { processed: 0, drafted: 0, sent: 0, forwarded: 0, skipped: 'Gmail integration disabled' };
+  }
   const sheets = new GoogleSheetsService();
   const config = await readConfig(sheets, databaseId);
 
@@ -448,11 +451,15 @@ export async function POST(req: Request) {
           const r = await runAutoReply(biz.business_id, false);
           results.push({ businessId: biz.business_id, name: biz.name, result: r });
         } catch (e: any) {
+          await reportRuntimeIssue({ businessId: biz.business_id, source: 'customer-service.auto-reply',
+            operation: 'scheduled_reply', title: 'Gmail automatic reply failed', error: e }).catch(() => null);
           results.push({ businessId: biz.business_id, name: biz.name, error: e.message });
         }
       }
       return NextResponse.json({ success: true, businesses: results });
     } catch (e: any) {
+      await reportRuntimeIssue({ businessId: session.businessId, source: 'customer-service.auto-reply',
+        operation: 'manual_reply', title: 'Gmail automatic reply failed', error: e }).catch(() => null);
       return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }
   }

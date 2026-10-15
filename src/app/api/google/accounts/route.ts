@@ -5,6 +5,7 @@ import { decrypt } from '@/lib/encryption';
 import { normalizeGoogleCustomerId, normalizeGooglePropertyId } from '@/lib/googleMarketingOAuth';
 import { requireAdminTier } from '@/lib/sessionUtils';
 import { listGoogleAdsAccounts, listGoogleAnalyticsProperties, refreshGoogleMarketingAccessToken } from '@/services/GoogleMarketingOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 function pendingToken(): string {
   const stored = cookies().get('google_marketing_pending')?.value ?? '';
@@ -27,9 +28,22 @@ async function options(refreshToken: string) {
   };
 }
 
+async function gate(businessId: string) {
+  try {
+    await assertOptionalIntegrationEnabled(businessId, 'google');
+    return null;
+  } catch (error) {
+    return isIntegrationDisabledError(error)
+      ? NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
+      : NextResponse.json({ error: 'Google integration availability is not ready.' }, { status: 503 });
+  }
+}
+
 export async function GET() {
-  const { response } = requireAdminTier();
+  const { user, response } = requireAdminTier();
   if (response) return response;
+  const disabled = await gate(user.businessId);
+  if (disabled) return disabled;
   const refreshToken = pendingToken();
   if (!refreshToken) return NextResponse.json({ error: 'Google account selection expired. Connect again.' }, { status: 410 });
   try {
@@ -42,6 +56,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const { user, response } = requireAdminTier();
   if (response) return response;
+  const disabled = await gate(user.businessId);
+  if (disabled) return disabled;
   const refreshToken = pendingToken();
   if (!refreshToken) return NextResponse.json({ error: 'Google account selection expired. Connect again.' }, { status: 410 });
   const body = await request.json().catch(() => ({})) as { customerId?: unknown; propertyId?: unknown };

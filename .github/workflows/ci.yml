@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -73,6 +77,14 @@ jobs:
           MYSQL_USER: root
           MYSQL_PASSWORD: test-password
           MYSQL_DATABASE: mysql
+
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'docs/help/**', 'scripts/build-solvantis-assistant-index.mjs', 'next.config.mjs', 'tsconfig*.json') }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-
 
       - name: Build Next.js
         run: npm run build

@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { getPasswordValidation } from '@/lib/auth/passwordPolicy';
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -21,6 +22,8 @@ function ResetPasswordForm() {
       setError('Passwords do not match.');
       return;
     }
+    const validation = getPasswordValidation(password);
+    if (!validation.isValid) { setError(validation.message); return; }
     setLoading(true);
     setError('');
     try {
@@ -72,16 +75,17 @@ function ResetPasswordForm() {
               <label className="text-xs font-bold text-gray-600 uppercase">New Password</label>
               <input
                 type="password" value={password} onChange={e => setPassword(e.target.value)}
-                required minLength={8}
+                required minLength={12}
                 className="w-full p-2 border border-gray-300 rounded mt-1"
-                placeholder="Min. 8 characters"
+                placeholder="Min. 12 characters"
               />
+              <p className="text-xs text-gray-500 mt-1">Use uppercase, lowercase, a number and a special character. The last 10 passwords cannot be reused.</p>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-600 uppercase">Confirm Password</label>
               <input
                 type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-                required minLength={8}
+                required minLength={12}
                 className="w-full p-2 border border-gray-300 rounded mt-1"
               />
             </div>

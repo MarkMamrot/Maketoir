@@ -1,5 +1,5 @@
 ---
-{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Settings > General > Inventory Costing","product":"ims","format":"reference","parentId":"ims-products","contexts":["settings-general","inventory-costing","average-cost","stock-value"],"contextSections":{"settings-general":"Choose or change the costing method"},"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","Cost terms in plain language","Tax and currency"],"navigation":{"category":"products","label":"Understand inventory costing and value"}}
+{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Settings > Inventory & Locations > Inventory costing","product":"ims","format":"reference","parentId":"ims-products","contexts":["settings-general","inventory-costing","average-cost","stock-value"],"contextSections":{"settings-general":"Choose or change the costing method"},"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand Average Cost and FIFO, current stock value, historical movement cost, and controlled method changes.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","Cost terms in plain language","Tax and currency"],"navigation":{"category":"products","label":"Understand inventory costing and value"}}
 ---
 # Inventory Costing and Stock Value
 
@@ -7,13 +7,13 @@ Solvantis supports Average Cost and first in, first out (FIFO) inventory costing
 
 ## Main operations
 
-Check the active method under **Settings > General > Inventory Costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.
+Check the active method under **Settings > Inventory & Locations > Inventory costing**. Only an Administrator can change it. Review and resolve every blocker before switching, then enter a reason and the displayed confirmation phrase.
 
 Average Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.
 
 | To answer... | Use |
 |---|---|
-| Which method is active? | **Settings > General > Inventory Costing** |
+| Which method is active? | **Settings > Inventory & Locations > Inventory costing** |
 | What is the current stock value at a location? | **Products > Stock Levels** |
 | What cost was attached to an earlier receipt, sale or return? | **Stock History** |
 | What was each product's recorded profit in a period? | **Reports > Product Profitability Margin**, checking captured historical costs and incomplete-evidence warnings rather than today's catalogue cost |
@@ -82,7 +82,7 @@ Past-date quantities can include inferred opening stock where no dated opening r
 
 Switching from FIFO to Average Cost derives each variant's shared cost from the remaining FIFO quantities and values across locations. The switch applies as one operation; it does not partially change the active method or rewrite historical movement costs. A variant with no remaining stock receives a zero current average cost.
 
-1. Open **Settings > General > Inventory Costing** as an Administrator.
+1. Open **Settings > Inventory & Locations > Inventory costing** as an Administrator.
 2. Review the current method, on-hand quantity, opening value, warnings, and blockers.
 3. Resolve negative stock or missing positive costs before enabling FIFO. Resolve any stock-to-layer mismatch before leaving FIFO.
 4. Enter the business reason for the change.

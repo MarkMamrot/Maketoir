@@ -42,7 +42,7 @@ With sync access disabled, Advisors cannot trigger these posting or retry action
 
 ## Before you begin
 
-- Enable **Accounting software** and choose **Xero** in **Settings > General > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.
+- Enable **Accounting software** and choose **Xero** in **Settings > Business & Team > Business operations > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.
 - [ ] Confirm Xero is connected and authorized.
 - [ ] Identify the exact IMS source and whether its operational action already succeeded.
 - [ ] Read the safe error shown in Sync History.

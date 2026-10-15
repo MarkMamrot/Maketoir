@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { MetaAdsReadService } from '@/services/MetaAdsReadService';
 import type { MetaBudgetChangePreview } from './metaExecutionPreflight';
 import {
@@ -31,6 +32,9 @@ export const ForesightMetaRollbackPreflightService = {
     originalExecutionId: number,
     proposalHash: string,
   ): Promise<MetaRollbackPreflightResult> {
+    if (!await isOptionalIntegrationEnabled(businessId, 'meta')) {
+      return blocked(originalExecutionId, 'integration_disabled', 'Meta is disabled. Enable it before running a rollback preflight.');
+    }
     const [execution, recommendation, compensation] = await Promise.all([
       ForesightExecutionRepository.getExecution(businessId, originalExecutionId),
       ForesightRepository.getRecommendation(businessId, recommendationId),

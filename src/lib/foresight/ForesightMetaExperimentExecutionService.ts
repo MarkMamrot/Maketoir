@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { decrypt } from '@/lib/encryption';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { MetaAdsReadService, type MetaCampaignOption, type MetaSplitTestSnapshot } from '@/services/MetaAdsReadService';
@@ -116,6 +117,7 @@ export function createForesightMetaExperimentExecutionService(dependencies: Depe
 
   return {
     async execute(input: { businessId: string; threadId: number; experimentVersionId: number; actorId: number; executionFingerprint: string }) {
+      await assertOptionalIntegrationEnabled(input.businessId, 'meta');
       const existing = await dependencies.getExecution(input.businessId, input.experimentVersionId);
       if (existing) {
         const execution = existing.state === 'in_progress'
@@ -170,6 +172,7 @@ export function createForesightMetaExperimentExecutionService(dependencies: Depe
     },
 
     async rollback(input: { businessId: string; threadId: number; experimentVersionId: number; actorId: number }) {
+      await assertOptionalIntegrationEnabled(input.businessId, 'meta');
       const original = await dependencies.getExecution(input.businessId, input.experimentVersionId);
       if (!original || original.thread_id !== input.threadId || !['succeeded', 'failed'].includes(original.state) || !original.meta_study_id) {
         throw new Error('Only the exact Meta experiment execution with a recorded study can be rolled back.');

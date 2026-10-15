@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useSettingsDirty } from './SettingsShell';
 
 type CostMethod = 'average_cost' | 'fifo';
 
@@ -39,6 +40,7 @@ export function InventoryCostingSettings() {
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  useSettingsDirty(Boolean(reason || confirmation));
 
   const loadPreview = useCallback(async (targetMethod: CostMethod = 'fifo') => {
     setLoading(true);

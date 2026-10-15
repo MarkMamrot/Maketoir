@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
+import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const CIN7_BASE = 'https://api.cin7.com/api/v1';
 const IMAGE_FETCH_TIMEOUT_MS = 15_000;
@@ -46,18 +48,18 @@ async function fetchWithRetry(url: string, opts: RequestInit): Promise<Response>
 }
 
 export async function POST(req: Request) {
+  const { user, response } = requireAdminSession();
+  if (response) return response;
   try {
-    const session = cookies().get('marketoir_session');
-    if (!session?.value) {
-      return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-    }
-
     const body = await req.json();
     const { databaseId, productId, styleCode, title, cin7Description, images } = body;
 
     if (!databaseId || !productId) {
       return NextResponse.json({ error: 'Missing databaseId or productId' }, { status: 400 });
     }
+    const denied = assertBusinessAccess(user, databaseId);
+    if (denied) return denied;
+    await assertOptionalIntegrationEnabled(user.businessId, 'cin7');
 
     const sheets = new GoogleSheetsService();
 
@@ -196,6 +198,11 @@ export async function POST(req: Request) {
       message: `Pushed to Cin7.${tagSheetMsg}${imageSheetMsg}`,
     });
   } catch (e: any) {
+    if (isIntegrationDisabledError(e)) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
+    }
+    await reportRuntimeIssue({ businessId: user.businessId, source: 'website.push-to-cin7',
+      operation: 'push_product', title: 'Cin7 product publication failed', error: e }).catch(() => null);
     console.error('[push-to-cin7]', e);
     return NextResponse.json({ error: e.message ?? 'Internal server error' }, { status: 500 });
   }

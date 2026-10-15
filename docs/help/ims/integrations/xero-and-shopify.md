@@ -5,7 +5,7 @@
 
 Xero handles supported accounting work. Shopify exchanges supported catalogue, customer, order, inventory, fulfilment, and payout information. Each integration has its own connection, mappings, statuses, and retry path.
 
-Open storefronts through **Sales > Sales Channels**, the native shop through **Sales > Online Shop**, and accounting through **Finances > Xero Integration**. There is no separate Integrations sidebar menu. Shared connections remain available from top-bar **Settings > Connections**.
+Open storefronts through **Sales > Sales Channels**, the native shop through **Sales > Online Shop**, and accounting through **Finances > Xero Integration**. There is no separate Integrations sidebar menu. Shared connections remain available from top-bar **Settings > Integrations**.
 
 ## Main operations
 

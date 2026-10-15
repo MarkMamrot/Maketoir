@@ -17,6 +17,7 @@ import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { ChatsRepository } from '@/lib/db/ChatsRepository';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
+import { getOptionalIntegrationAvailability, type OptionalIntegrationProvider } from '@/lib/ims/integrationAvailability';
 
 // ── System context ─────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an expert business consultant, marketing strategist, and data analyst working with a retail/e-commerce business. You have been given access to real data from the business's connected systems — including their product catalogue, sales history, brand profile, advertising performance, and website data. Your role is to help the business owner make informed, data-driven decisions across marketing, inventory management, pricing strategy, customer engagement, and business growth. Be specific and actionable. Cite relevant data when making recommendations. If data for a topic is not available, say so clearly rather than guessing.`;
@@ -480,6 +481,23 @@ export async function POST(req: Request) {
   const denied = assertBusinessAccess(user, databaseId);
   if (denied) return denied;
 
+  const sourcesArray = (Array.isArray(dataSources) ? dataSources : []) as DataSourceId[];
+  const sourceProvider: Partial<Record<DataSourceId, OptionalIntegrationProvider>> = {
+    googleAds: 'google',
+    analytics: 'google',
+    metaAds: 'meta',
+  };
+  const requestedProviders = [...new Set(sourcesArray
+    .map(source => sourceProvider[source])
+    .filter((provider): provider is OptionalIntegrationProvider => Boolean(provider)))];
+  const providerAvailability = requestedProviders.length
+    ? await getOptionalIntegrationAvailability(databaseId)
+    : null;
+  const blockedSources = new Set(sourcesArray.filter(source => {
+    const provider = sourceProvider[source];
+    return provider && providerAvailability && !providerAvailability[provider].enabled;
+  }));
+
   const chatHistory: ChatHistoryItem[] = Array.isArray(history)
     ? history
         .filter((h: any) => (h?.role === 'user' || h?.role === 'assistant') && typeof h?.content === 'string' && h.content.trim())
@@ -504,9 +522,11 @@ export async function POST(req: Request) {
     if (conn) {
       const c = conn as any;
       modelId = resolveBusinessAiModel(c, 'businessIntelligence');
-      if (c.ga4_property_id)    ga4PropertyId = c.ga4_property_id;
-      if (c.meta_ad_account_id) metaAccountId = c.meta_ad_account_id;
-      if (c.meta_access_token)  { try { metaToken = decrypt(c.meta_access_token); } catch { metaToken = c.meta_access_token; } }
+      if (providerAvailability?.google?.enabled && c.ga4_property_id) ga4PropertyId = c.ga4_property_id;
+      if (providerAvailability?.meta?.enabled && c.meta_ad_account_id) metaAccountId = c.meta_ad_account_id;
+      if (providerAvailability?.meta?.enabled && c.meta_access_token) {
+        try { metaToken = decrypt(c.meta_access_token); } catch { metaToken = c.meta_access_token; }
+      }
     }
     const invId = getConfig('InventorySystem') || getConfig('Inventory System') || await resolveInventorySystemId(databaseId).catch(() => databaseId);
     if (invId) inventorySystemId = invId;
@@ -516,9 +536,8 @@ export async function POST(req: Request) {
   // Global specs sheet (shared across all businesses — API instructions and schemas live there)
   const globalSpecsId = await getGlobalSpecsSheetId(sheets);
 
-  const sourcesArray  = (Array.isArray(dataSources) ? dataSources : []) as DataSourceId[];
   const textSourceIds = sourcesArray.filter(s => TEXT_SOURCES.has(s));
-  const csvSourceIds  = sourcesArray.filter(s => !TEXT_SOURCES.has(s) && !(s in JSON_API_SPECS)) as Exclude<DataSourceId, 'businessInfo' | 'brandProfile' | 'calculatedReports' | 'googleAdsApi' | 'metaApi'>[];
+  const csvSourceIds  = sourcesArray.filter(s => !blockedSources.has(s) && !TEXT_SOURCES.has(s) && !(s in JSON_API_SPECS)) as Exclude<DataSourceId, 'businessInfo' | 'brandProfile' | 'calculatedReports' | 'googleAdsApi' | 'metaApi'>[];
   const apiSpecSourceIds = sourcesArray.filter(s => s in JSON_API_SPECS);
 
   const textGatherers: Record<string, () => Promise<string>> = {
@@ -543,7 +562,10 @@ export async function POST(req: Request) {
     Promise.all(csvSourceIds.map(s => csvFetchers[s]?.() ?? Promise.resolve([] as string[][]))),
   ]);
 
-  const allTextSections = [...(textSections as string[])];
+  const blockedSourceNotices = [...blockedSources].map(source =>
+    `=== ${source} DATA ===\nOmitted because the ${sourceProvider[source]} integration is disabled.`,
+  );
+  const allTextSections = [...(textSections as string[]), ...blockedSourceNotices];
   if (rememberPreviousChats && businessFolderId) {
     allTextSections.push(await fetchPreviousChatSummaryContext(sheets, databaseId));
   }

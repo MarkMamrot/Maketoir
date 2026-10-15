@@ -3,6 +3,10 @@ import { decrypt } from '@/lib/encryption';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { fetchMetaDaily } from './ForesightMonitoringSyncService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
+import {
+  getOptionalIntegrationAvailability,
+  type IntegrationAvailabilityMap,
+} from '@/lib/ims/integrationAvailability';
 import type { ExperimentObservationPackage, ExperimentVariantObservation } from './experimentResults';
 import type { ForesightCampaignExperimentDocument } from './planning/campaignExperimentDocument';
 import {
@@ -153,10 +157,12 @@ export const ForesightExperimentEvidenceCollectionService = {
   async collectDue(businessId: string, throughDate: string) {
     let dueExperiments: DueCampaignExperimentRow[];
     let connection: Awaited<ReturnType<typeof ConnectionsRepository.get>>;
+    let availability: IntegrationAvailabilityMap;
     try {
-      [dueExperiments, connection] = await Promise.all([
+      [dueExperiments, connection, availability] = await Promise.all([
         ForesightCampaignExperimentResultRepository.listDueWithoutResult(businessId, throughDate),
         ConnectionsRepository.get(businessId),
+        getOptionalIntegrationAvailability(businessId),
       ]);
     } catch (error) {
       await reportRuntimeIssue({
@@ -183,6 +189,10 @@ export const ForesightExperimentEvidenceCollectionService = {
             'Klaviyo does not expose the exact variant sufficient statistics required by the governed experiment contract.',
           );
         } else if (due.channel === 'google_ads') {
+          if (!availability.google.enabled) {
+            deferredCount += 1;
+            continue;
+          }
           if (!connection?.google_ads_customer_id || !connection.google_ads_refresh_token) {
             deferredCount += 1;
             await reportRuntimeIssue({ businessId, source: 'ForesightExperimentEvidenceCollectionService', operation: 'collect_due_experiment',
@@ -195,6 +205,9 @@ export const ForesightExperimentEvidenceCollectionService = {
           const rows = await new GoogleAdsService(connection.google_ads_customer_id, decrypt(connection.google_ads_refresh_token))
             .getDailyPerformance(due.launched_on, due.scheduled_end_on);
           observations = buildGoogleAdsExperimentObservations(due, rows);
+        } else if (!availability.meta.enabled) {
+          deferredCount += 1;
+          continue;
         } else if (!supportsAutomatedMeta(due.experiment_json)) {
           observations = unsupportedObservations(
             due,

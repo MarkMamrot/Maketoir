@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -58,6 +59,14 @@ export async function POST(req: Request) {
   if (!databaseId || databaseId !== user.businessId) return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
   if (!Array.isArray(drafts) || drafts.length === 0) {
     return NextResponse.json({ error: 'drafts array is required.' }, { status: 400 });
+  }
+  try {
+    await assertOptionalIntegrationEnabled(databaseId, 'gmail');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ error: 'Gmail integration availability is not ready.' }, { status: 503 });
   }
 
   let refreshToken = '';

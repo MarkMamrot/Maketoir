@@ -3,6 +3,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { requireAdminSession } from '@/lib/sessionUtils';
 import { metaOAuthConfigurationStatus, readMetaAdAccount } from '@/services/MetaOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,14 @@ export async function GET() {
 export async function POST() {
   const { user, response } = requireAdminSession();
   if (response) return response;
+  try {
+    await assertOptionalIntegrationEnabled(user.businessId, 'meta');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ success: false, error: 'Meta integration availability is not ready.' }, { status: 503 });
+  }
   const connection = await ConnectionsRepository.get(user.businessId);
   if (!connection?.meta_ad_account_id || !connection.meta_access_token) {
     return NextResponse.json({ success: false, error: 'Meta Ads is not connected.' }, { status: 409 });

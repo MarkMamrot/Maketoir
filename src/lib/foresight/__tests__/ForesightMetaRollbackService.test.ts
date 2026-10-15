@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/ims/integrationAvailability', () => ({ assertOptionalIntegrationEnabled: vi.fn().mockResolvedValue(undefined) }));
 import { createForesightMetaRollbackService } from '../ForesightMetaRollbackService';
 import { metaRollbackPreflightFingerprint, type MetaRollbackPreflightResult } from '../metaRollbackPreflight';
 import type { ForesightExecutionRow } from '../repositories/ForesightExecutionRepository';

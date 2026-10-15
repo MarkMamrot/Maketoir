@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { MetaAdsReadService, type MetaBudgetSettings } from '@/services/MetaAdsReadService';
 import {
   metaExecutionPreflightFingerprint,
@@ -185,6 +186,7 @@ export function createForesightMetaExecutionService(dependencies: MetaExecutionD
       proposalHash: string;
       confirmationFingerprint: string;
     }): Promise<ForesightMetaExecutionResult> {
+      await assertOptionalIntegrationEnabled(input.businessId, 'meta');
       const key = idempotencyKey(input);
       const existing = await dependencies.findExecution(input.businessId, key);
       if (existing && existing.state !== 'in_progress') {

@@ -14,18 +14,18 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 - Review the business-wide inventory costing method and use the controlled switch workflow when accounting policy changes.
 - Add, rename, activate, or set the default float for POS registers without changing location details.
 - Set the business-wide POS product-view fallback used by locations without their own override.
-- Configure each branch's layby cancellation percentage under **Settings > Point of Sale > Orders**; the default is 0%.
-- Set bookkeeping recipients under **Settings > General > Bookkeeping / Accounts email** for closed-register float correction notices.
+- Configure each branch's layby cancellation percentage under **Settings > Point of Sale > Layby cancellation fees**; the default is 0%.
+- Set bookkeeping recipients under **Settings > Business & Team > Bookkeeping email** for closed-register float correction notices.
 
 ## At a glance
 
 | Need | Open | Result |
 |---|---|---|
 | Complete the guided checklist | IMS onboarding | Core records and settings prepared in dependency order |
-| Choose operational capabilities | Settings > General | Relevant IMS workflows enabled |
-| Review or change inventory costing | Settings > General > Inventory Costing | Current method reviewed; an authorised prospective change recorded |
+| Choose operational capabilities | Settings > Business & Team > Business operations | Relevant IMS workflows enabled |
+| Review or change inventory costing | Settings > Inventory & Locations > Inventory costing | Current method reviewed; an authorised prospective change recorded |
 | Manage tills by location | Settings > Point of Sale > Registers | Active registers available for POS device setup |
-| Set the POS catalogue fallback | Settings > Point of Sale > POS Display | Default view for locations that do not override it in POS Settings |
+| Set the POS catalogue fallback | Settings > Point of Sale > Product display | Default view for locations that do not override it in POS Settings |
 
 ## Before you begin
 
@@ -51,7 +51,7 @@ Each action step opens its owning IMS workspace. Return to the onboarding checkl
 
 ## Bookkeeping and accounts email
 
-Administrators and SuperAdmins can open **Settings > General > Bookkeeping / Accounts email**, enter up to 20 email addresses separated by commas and select **Save accounts email**. This has its own save button. A saved confirmation appears only after the recipients have been stored.
+Administrators and SuperAdmins can open **Settings > Business & Team > Bookkeeping email**, enter up to 20 email addresses separated by commas and select **Save accounts email**. This has its own save button. A saved confirmation appears only after the recipients have been stored.
 
 These are the same accounts recipients used by accounting reconciliation emails. Changing them here updates that shared list without changing the scheduled digest frequency or time. Turn scheduled digests off in reconciliation settings before removing all recipients.
 
@@ -59,14 +59,17 @@ For a closed-register opening-float correction, select **Email bookkeeper** in t
 
 ## Configure Business Operations
 
-Open **Settings > General**. Business Operations is grouped by purpose:
+Open **Settings > Business & Team > Business operations**. Related configuration has its own page:
 
 | Group | Settings | Effect |
 |---|---|---|
-| Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |
-| Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
-| Inventory | Use Builds, Offer build from sale | Enables product recipes and build history; optionally allows staff-confirmed build offers when finished stock is short and recipe components are available |
-| Sales channels and integrations | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |
+| Business & Team > Business operations | Multiple locations, Zones and bins | Controls location-aware workflows |
+| Inventory & Locations > Product fields | Product categories | Controls catalogue organisation |
+| Purchasing > Foreign currencies | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
+| Business & Team > Business operations | Use Builds | Enables product recipes and build history |
+| Inventory & Locations > Build policies | Offer build from sale | Allows staff-confirmed build offers when finished stock is short and recipe components are available |
+| Sales & Customers > Sales channels | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store | Enables the relevant POS, Daybook, portal and store workspaces |
+| Integrations > Xero | Accounting software | Enables accounting connections and mapping workflows |
 
 Use each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.
 
@@ -76,7 +79,7 @@ These settings control available workflows; they do not move stock, create order
 
 **Use Builds** is off by default. When it is off, Builds navigation, product recipe controls, and build-from-sale settings are hidden. Existing recipes and history are retained. After enabling it, each tracked finished product must also enable **Use Builds** in its edit form before its recipe controls and build operations become available.
 
-**Offer build from sale** is a separate option shown only while **Use Builds** is enabled. It is off by default. Under **Settings > Locations**, each location can use the business default or explicitly enable or disable the offer. The effective policy is shown beside each location. The setting never builds silently, does not advertise component capacity to online marketplaces, and requires an online connection at POS.
+**Offer build from sale** is a separate option shown only while **Use Builds** is enabled. It is off by default. Under **Settings > Inventory & Locations > Build policies**, each location can use the business default or explicitly enable or disable the offer. The effective policy is shown beside each location. The setting never builds silently, does not advertise component capacity to online marketplaces, and requires an online connection at POS.
 
 ### Configure tax settings
 
@@ -103,10 +106,10 @@ Disabling a channel hides its integration workspace and stops new connection or 
 
 ### Branch layby cancellation fees
 
-Under **Settings > Point of Sale > Orders**, choose the branch in **Layby cancellation fee**, enter a percentage from 0 to 100 and save. The fee is a percentage of the tax-inclusive merchandise total, capped at payments received. New laybys snapshot the branch rate, so changing it does not rewrite terms on existing laybys. Staff may override a cancellation fee at POS with a reason when it differs from the agreed amount. Use **POS > More > Laybys** for instalments, collection, cancellation and refund records.
+Under **Settings > Point of Sale > Layby cancellation fees**, choose the branch, enter a percentage from 0 to 100 and save. The fee is a percentage of the tax-inclusive merchandise total, capped at payments received. New laybys snapshot the branch rate, so changing it does not rewrite terms on existing laybys. Staff may override a cancellation fee at POS with a reason when it differs from the agreed amount. Use **POS > More > Laybys** for instalments, collection, cancellation and refund records.
 
 1. Open **Settings > Point of Sale**.
-2. Expand **Registers**.
+2. Select **Registers**.
 3. Find the location in the read-only location table and select **Manage registers**.
 4. Add a register with a name and default float, or rename, change the float, deactivate, or reactivate an existing register.
 5. Configure any payment terminal separately under **Card Terminals**.
@@ -118,7 +121,7 @@ Location names, codes, addresses, and operational flags cannot be edited from th
 ## Set the business default product view
 
 1. Open **Settings > Point of Sale**.
-2. Expand **POS Display**.
+2. Select **Product display**.
 3. Choose **All Products**, **In Stock Only**, **By Brand**, or **Specific Products**.
 4. Select the required brand or product variants, then save the default view.
 

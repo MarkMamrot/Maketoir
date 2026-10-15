@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { switchBusinessContext } from '@/components/BusinessContextSwitcher';
+import { useSettingsDirty } from '../ims/views/settings/SettingsShell';
 import {
   DEFAULT_KLAVIYO_INTEGRATION_SETTINGS,
   type KlaviyoIntegrationSettings,
@@ -963,16 +964,15 @@ const KLAVIYO_SOURCE_OPTIONS = [
   { key: 'shopify', label: 'Shopify orders' },
 ] as const;
 
-export function ConnectionsTab({ business, onHelp }: { business: Business | null; onHelp: (context: string) => void }) {
+export type ConnectionProvider = 'cin7' | 'google' | 'meta' | 'klaviyo' | 'gmail' | 'xero';
+export function ConnectionsTab({ business, onHelp, provider, advanced = false }: { business: Business | null; onHelp: (context: string) => void; provider?: ConnectionProvider; advanced?: boolean }) {
+  const [dirty, setDirty] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [loadComplete, setLoadComplete] = useState(false);
+  const [loadVersion, setLoadVersion] = useState(0);
+  const [credentialPresence, setCredentialPresence] = useState<Record<string, boolean>>({});
+  useSettingsDirty(dirty);
   // Per-business credential state
-  const [shopifyEnabled, setShopifyEnabled] = useState(false);
-  const [shopId, setShopId] = useState('');
-  const [shopifyAuthMode, setShopifyAuthMode] = useState<'legacy_token' | 'client_credentials'>('legacy_token');
-  const [accessToken, setAccessToken] = useState('');
-  const [shopifyClientId, setShopifyClientId] = useState('');
-  const [shopifyClientSecret, setShopifyClientSecret] = useState('');
-  const [shopifyClientSecretConfigured, setShopifyClientSecretConfigured] = useState(false);
-  const [spreadsheetId, setSpreadsheetId] = useState('');
   const [gaPropertyId, setGaPropertyId] = useState('');
   const [googleAdsCustomerId, setGoogleAdsCustomerId] = useState('');
   const [googleStatus, setGoogleStatus] = useState<{
@@ -1004,7 +1004,6 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const [metaAccounts, setMetaAccounts] = useState<Array<{ accountId: string; name: string; currency: string | null; accountStatus: number | null }>>([]);
   const [cin7AccountId, setCin7AccountId] = useState('');
   const [cin7ApiKey, setCin7ApiKey] = useState('');
-  const [geminiModel, setGeminiModel] = useState('gemini-3.1-pro-preview');
   const [gmailAddress, setGmailAddress] = useState('');
   const [gmailRefreshToken, setGmailRefreshToken] = useState('');
   const [gmailClientId, setGmailClientId] = useState('');
@@ -1033,7 +1032,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     const error = params.get('metaError');
     const select = params.get('metaSelect');
     if (!success && !error && !select) return;
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`);
     if (error) {
       setMetaResult({ success: false, error });
       return;
@@ -1058,7 +1057,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     const error = params.get('googleError');
     const select = params.get('googleSelect');
     if (!error && !select) return;
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`);
     if (error) {
       setGoogleMessage(error);
       return;
@@ -1088,29 +1087,16 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     const err     = params.get('gmailError');
     if (!success && !err) return;
     // Clean the URL so the params don't persist on reload.
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`);
     if (err) {
       setGmailResult({ success: false, error: decodeURIComponent(err) });
       return;
     }
-    const email = decodeURIComponent(params.get('gmailEmail') ?? '');
-    const token = decodeURIComponent(params.get('gmailToken') ?? '');
-    if (email) setGmailAddress(email);
-    if (token) setGmailRefreshToken(token);
-    setGmailResult({ success: true, email, fromOAuth: true });
-    // Auto-save — a short delay lets React re-render the updated state first.
-    if (email && token) {
-      setTimeout(() => saveCard('gmail'), 200);
-    }
+    setGmailResult({ success: true, message: 'Gmail authorisation saved. Verify the connection before using it.' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Available Gemini models — loaded once on mount
-  const [availableModels, setAvailableModels] = useState<{ id: string; name: string }[]>([]);
-
   // Sync result states
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncResult, setSyncResult] = useState<any>(null);
   const [gaLoading, setGaLoading] = useState(false);
   const [gaResult, setGaResult] = useState<any>(null);
   const [adsLoading, setAdsLoading] = useState(false);
@@ -1130,178 +1116,110 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const [apiActLoading, setApiActLoading] = useState<Record<string, string>>({});
   const [apiActMsgs, setApiActMsgs] = useState<Record<string, string>>();
 
-  // Load saved credentials + ping whenever the selected business changes
+  // Load the selected provider without testing external access.
   useEffect(() => {
-    if (!business?.databaseId) return;
+    if (!business?.databaseId || !provider) return;
 
     // Reset all results when switching business
-    setSyncResult(null); setGaResult(null); setAdsResult(null);
+    setGaResult(null); setAdsResult(null);
       setMetaResult(null); setCin7Result(null); setGmailResult(null); setKlaviyoResult(null);
-      setXeroStatus(null); setGoogleStatus(null); setGoogleMessage('');
-      setShopifyEnabled(false);
+      setXeroStatus(null); setGoogleStatus(null); setMetaStatus(null); setGoogleMessage('');
       setKlaviyoSettings(DEFAULT_KLAVIYO_INTEGRATION_SETTINGS);
       setKlaviyoTenantReady(null);
+      setCardMsgs({});
 
     const databaseId = business.databaseId;
 
-    async function loadAndPing() {
+    let current = true;
+    setLoadComplete(false); setLoadError(''); setDirty(false);
+    async function loadSelectedProvider() {
       // 1. Load saved credentials for this business
       let creds: Record<string, string> = {};
       try {
         const res = await fetch(`/api/user/business-connections?databaseId=${encodeURIComponent(databaseId)}`);
         const data = await res.json();
-        if (data.success) {
-          creds = data.connections;
-          setShopifyEnabled(data.onlineChannels?.shopifyEnabled === true);
-        }
-      } catch {}
+        if (!res.ok || !data.success) throw new Error(data.error || 'Connection settings could not be loaded.');
+        if (!current) return;
+        creds = data.connections;
+        setCredentialPresence(Object.fromEntries(Object.entries(creds).map(([key, value]) => [key, Boolean(value)])));
+      } catch (error) {
+        if (current) setLoadError(error instanceof Error ? error.message : 'Connection settings could not be loaded.');
+        return;
+      }
 
-      const sid  = creds.ShopifyShopId       || '';
-      const shopMode = creds.ShopifyAuthMode === 'client_credentials' ? 'client_credentials' : 'legacy_token';
-      const sat  = creds.ShopifyAccessToken  || '';
-      const shopClientId = creds.ShopifyClientId || '';
-      const shopClientSecretConfigured = creds.ShopifyClientSecretConfigured === 'true';
       const gaId = creds.GA4PropertyId       || '';
       const gads = creds.GoogleAdsCustomerId  || '';
       const maa  = creds.MetaAdAccountId     || '';
       const c7id = creds.Cin7AccountId       || '';
-      const c7k  = creds.Cin7ApiKey          || '';
-      const mdl  = creds.GeminiModel         || 'gemini-3.1-pro-preview';
       const gmAddr = creds.GmailAddress      || '';
-      const gmTok  = creds.GmailRefreshToken || '';
       const gmCid  = creds.GmailClientId     || '';
-      const gmCSec = creds.GmailClientSecret || '';
-      const klKey  = creds.KlaviyoApiKey     || '';
-
-      setShopId(sid);
-      setShopifyAuthMode(shopMode);
-      setAccessToken(sat);
-      setShopifyClientId(shopClientId);
-      setShopifyClientSecret('');
-      setShopifyClientSecretConfigured(shopClientSecretConfigured);
-      setSpreadsheetId(databaseId); // database IS the target spreadsheet
       setGaPropertyId(gaId);
       setGoogleAdsCustomerId(gads);
       setMetaAdAccountId(maa);
       setCin7AccountId(c7id);
-      setCin7ApiKey(c7k);
-      setGeminiModel(mdl);
+      setCin7ApiKey('');
       setGmailAddress(gmAddr);
-      setGmailRefreshToken(gmTok);
+      setGmailRefreshToken('');
       setGmailClientId(gmCid);
-      setGmailClientSecret(gmCSec);
-      setKlaviyoApiKey(klKey);
+      setGmailClientSecret('');
+      setKlaviyoApiKey('');
 
-      // 2. Auto-ping all connections with the loaded credentials
-      const ping = async (url: string, setter: (v: any) => void) => {
-        try {
-          const r = await fetch(url);
-          setter(await r.json());
-        } catch {
-          setter({ success: false, error: 'Network error' });
-        }
-      };
-      const pingGoogle = async (service: 'ads' | 'analytics', setter: (v: any) => void) => {
-        try {
-          const response = await fetch('/api/google/status', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service }),
-          });
-          setter(await response.json());
-        } catch {
-          setter({ success: false, error: 'Network error' });
-        }
-      };
-      const pingKlaviyo = async (apiKey: string) => {
-        try {
-          const response = await fetch('/api/sync/klaviyo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ apiKey }),
-          });
-          setKlaviyoResult(await response.json());
-        } catch {
-          setKlaviyoResult({ success: false, error: 'Network error' });
-        }
-      };
-
-      try {
+      if (provider === 'google') try {
         const googleResponse = await fetch('/api/google/status', { cache: 'no-store' });
         const status = await googleResponse.json();
         if (!googleResponse.ok) throw new Error(status.error || 'Unable to load Google connection status.');
+        if (!current) return;
         setGoogleStatus(status);
-        if (status.adsConnected) pingGoogle('ads', setAdsResult);
-        if (status.analyticsConnected) pingGoogle('analytics', setGaResult);
       } catch (error) {
-        setGoogleMessage(error instanceof Error ? error.message : 'Unable to load Google connection status.');
+        if (current) setLoadError(error instanceof Error ? error.message : 'Unable to load Google connection status.');
       }
-      try {
+      if (provider === 'meta') try {
         const statusResponse = await fetch('/api/meta/status', { cache: 'no-store' });
         const status = await statusResponse.json();
         if (!statusResponse.ok) throw new Error(status.error || `Meta status returned HTTP ${statusResponse.status}.`);
+        if (!current) return;
         setMetaStatus(status);
         if (status.connectionError) setMetaResult({ success: false, error: status.connectionError });
-        if (status.connected) {
-          const testResponse = await fetch('/api/meta/status', { method: 'POST' });
-          const testResult = await testResponse.json();
-          setMetaResult(testResponse.ok
-            ? testResult
-            : { success: false, error: testResult.error || 'The stored Meta authorisation is no longer valid. Reconnect Meta Ads.' });
-        }
       } catch (error) {
-        setMetaStatus(null);
-        setMetaResult({ success: false, error: error instanceof Error ? error.message : 'Unable to load Meta connection status.' });
+        if (current) setLoadError(error instanceof Error ? error.message : 'Unable to load Meta connection status.');
       }
-      ping(`/api/sync/cin7?accountId=${encodeURIComponent(c7id)}&apiKey=${encodeURIComponent(c7k)}`, setCin7Result);
-      if (gmTok) {
-        ping(`/api/sync/gmail?refreshToken=${encodeURIComponent(gmTok)}`, setGmailResult);
-      }
-      if (klKey) {
-        pingKlaviyo(klKey);
-      }
+      if (provider === 'klaviyo') {
       setKlaviyoSettingsLoading(true);
       try {
         const response = await fetch(`/api/klaviyo/settings?databaseId=${encodeURIComponent(databaseId)}`, { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Unable to load Klaviyo settings.');
+        if (!current) return;
         setKlaviyoSettings(data.settings);
         setKlaviyoTenantReady(data.tenantReady === true);
       } catch (error) {
-        setKlaviyoTenantReady(null);
-        setCardMsgs(previous => ({ ...previous, klaviyo: `❌ ${error instanceof Error ? error.message : 'Unable to load settings.'}` }));
+        if (current) setLoadError(error instanceof Error ? error.message : 'Unable to load Klaviyo settings.');
       } finally {
-        setKlaviyoSettingsLoading(false);
+        if (current) setKlaviyoSettingsLoading(false);
       }
-      if (sid && (shopMode === 'client_credentials' ? shopClientId && shopClientSecretConfigured : sat)) {
-        try {
-          const response = await fetch('/api/shopify/connection', { method: 'POST' });
-          setSyncResult(await response.json());
-        } catch {
-          setSyncResult({ success: false, error: 'Network error' });
-        }
       }
 
       // Xero status check
+      if (provider === 'xero') {
       setXeroLoading(true);
       try {
         const xeroRes = await fetch(`/api/xero/status?databaseId=${encodeURIComponent(databaseId)}`);
         const xeroData = await xeroRes.json();
+        if (!xeroRes.ok) throw new Error(xeroData.error || 'Xero status could not be loaded.');
+        if (!current) return;
         setXeroStatus(xeroData);
-      } catch {
-        setXeroStatus({ accountingEnabled: false, connected: false, tenantName: null, tenantId: null, tokenExpiry: null, envConfigured: false });
+      } catch (error) {
+        if (current) setLoadError(error instanceof Error ? error.message : 'Xero status could not be loaded.');
       } finally {
-        setXeroLoading(false);
+        if (current) setXeroLoading(false);
       }
+      }
+      if (current) setLoadComplete(true);
     }
 
-    loadAndPing();
-  }, [business?.databaseId]);
-
-  useEffect(() => {
-    fetch('/api/ai/gemini-models')
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.models)) { setAvailableModels(d.models); if (d.models.length) setGeminiModel(current => d.models.some((model: any) => model.id === current) ? current : d.models[0].id); } })
-      .catch(() => {});
-  }, []);
+    loadSelectedProvider();
+    return () => { current = false; };
+  }, [business?.databaseId, provider, loadVersion]);
 
   const saveCard = async (cardId: string) => {
     if (!business?.databaseId) return;
@@ -1309,30 +1227,28 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     setCardMsgs(prev => ({ ...prev, [cardId]: '' }));
     try {
       const valuesByCard: Record<string, Record<string, string>> = {
-        shopify: {
-          ShopifyShopId: shopId,
-          ShopifyAuthMode: shopifyAuthMode,
-          ShopifyAccessToken: accessToken,
-          ShopifyClientId: shopifyClientId,
-          ShopifyClientSecret: shopifyClientSecret,
-        },
         cin7: { Cin7AccountId: cin7AccountId, Cin7ApiKey: cin7ApiKey },
         klaviyo: { KlaviyoApiKey: klaviyoApiKey },
         gmail: { GmailAddress: gmailAddress, GmailRefreshToken: gmailRefreshToken, GmailClientId: gmailClientId, GmailClientSecret: gmailClientSecret },
-        ai: { GeminiModel: geminiModel },
       };
       const res = await fetch('/api/user/business-connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           databaseId: business.databaseId,
-          connections: valuesByCard[cardId] ?? {},
+          connections: Object.fromEntries(Object.entries(valuesByCard[cardId] ?? {}).filter(([key, value]) =>
+            !['Cin7ApiKey', 'KlaviyoApiKey', 'GmailClientSecret', 'GmailRefreshToken'].includes(key) || Boolean(value))),
         }),
       });
       const data = await res.json();
-      setCardMsgs(prev => ({ ...prev, [cardId]: data.success ? '✅ Saved' : `❌ ${data.error}` }));
-    } catch {
-      setCardMsgs(prev => ({ ...prev, [cardId]: '❌ Save failed' }));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Connection settings could not be saved.');
+      setCardMsgs(prev => ({ ...prev, [cardId]: 'Saved' }));
+      setCredentialPresence(previous => ({ ...previous, ...Object.fromEntries(Object.entries(valuesByCard[cardId] ?? {}).filter(([, value]) => Boolean(value)).map(([key]) => [key, true])) }));
+      if (cardId === 'cin7') setCin7ApiKey('');
+      if (cardId === 'gmail') { setGmailRefreshToken(''); setGmailClientSecret(''); }
+      setDirty(false);
+    } catch (error) {
+      setCardMsgs(prev => ({ ...prev, [cardId]: error instanceof Error ? error.message : 'Save failed.' }));
     }
     setSavingCard(null);
   };
@@ -1348,20 +1264,12 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
         body: JSON.stringify({ databaseId: business.databaseId }),
       });
       const data = await res.json();
-      if (data.success) {
-        setXeroStatus({ connected: false, tenantName: null, tenantId: null, tokenExpiry: null, envConfigured: xeroStatus?.envConfigured ?? false });
-      }
-    } catch {}
+      if (!res.ok || !data.success) throw new Error(data.error || 'Xero could not be disconnected.');
+      setXeroStatus({ accountingEnabled: true, connected: false, tenantName: null, tenantId: null, tokenExpiry: null, envConfigured: xeroStatus?.envConfigured ?? false });
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Xero could not be disconnected.');
+    }
     setXeroDisconnecting(false);
-  };
-
-  const testShopifySync = async () => {
-    setSyncLoading(true); setSyncResult(null);
-    try {
-      const res = await fetch('/api/shopify/connection', { method: 'POST' });
-      setSyncResult(await res.json());
-    } catch (err: any) { setSyncResult({ success: false, error: err.message }); }
-    setSyncLoading(false);
   };
 
   const testGaSync = async () => {
@@ -1408,6 +1316,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
         propertyId: body.propertyId || current?.propertyId || null,
       }));
       setGoogleMessage('Google Ads and Analytics connection saved.');
+      setDirty(false);
     } catch (error) {
       setGoogleMessage(error instanceof Error ? error.message : 'Unable to save Google selections.');
     } finally {
@@ -1453,6 +1362,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       setMetaAccounts([]);
       setMetaStatus(current => ({ configured: current?.configured ?? true, connected: true, accountId: body.account.accountId }));
       setMetaResult({ success: true, message: `Connected to ${body.account.name}.` });
+      setDirty(false);
     } catch (error) {
       setMetaResult({ success: false, error: error instanceof Error ? error.message : 'Unable to select Meta ad account.' });
     } finally {
@@ -1480,7 +1390,10 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const testCin7Sync = async () => {
     setCin7Loading(true); setCin7Result(null);
     try {
-      const res = await fetch(`/api/sync/cin7?accountId=${encodeURIComponent(cin7AccountId)}&apiKey=${encodeURIComponent(cin7ApiKey)}`);
+      const res = await fetch('/api/sync/cin7', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: cin7AccountId, ...(cin7ApiKey ? { apiKey: cin7ApiKey } : {}) }),
+      });
       setCin7Result(await res.json());
     } catch (err: any) { setCin7Result({ success: false, error: err.message }); }
     setCin7Loading(false);
@@ -1489,7 +1402,10 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const testGmailSync = async () => {
     setGmailLoading(true); setGmailResult(null);
     try {
-      const res = await fetch(`/api/sync/gmail?refreshToken=${encodeURIComponent(gmailRefreshToken)}`);
+      const res = await fetch('/api/sync/gmail', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gmailRefreshToken ? { refreshToken: gmailRefreshToken } : {}),
+      });
       setGmailResult(await res.json());
     } catch (err: any) { setGmailResult({ success: false, error: err.message }); }
     setGmailLoading(false);
@@ -1501,7 +1417,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       const res = await fetch('/api/sync/klaviyo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: klaviyoApiKey }),
+        body: JSON.stringify(klaviyoApiKey ? { apiKey: klaviyoApiKey } : {}),
       });
       setKlaviyoResult(await res.json());
     } catch (err: any) { setKlaviyoResult({ success: false, error: err.message }); }
@@ -1512,14 +1428,17 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     if (!business?.databaseId) return;
     setSavingCard('klaviyo');
     setCardMsgs(previous => ({ ...previous, klaviyo: '' }));
+    let credentialsSaved = false;
     try {
       const connectionResponse = await fetch('/api/user/business-connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: business.databaseId, connections: { KlaviyoApiKey: klaviyoApiKey } }),
+        body: JSON.stringify({ databaseId: business.databaseId, connections: klaviyoApiKey ? { KlaviyoApiKey: klaviyoApiKey } : {} }),
       });
       const connectionData = await connectionResponse.json();
-      if (!connectionResponse.ok) throw new Error(connectionData.error || 'Unable to save the Klaviyo connection.');
+      if (!connectionResponse.ok || !connectionData.success) throw new Error(connectionData.error || 'Unable to save the Klaviyo connection.');
+      credentialsSaved = true;
+      if (klaviyoApiKey) setCredentialPresence(previous => ({ ...previous, KlaviyoApiKey: true }));
 
       const settingsResponse = await fetch('/api/klaviyo/settings', {
         method: 'PUT',
@@ -1529,9 +1448,11 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       const settingsData = await settingsResponse.json();
       if (!settingsResponse.ok) throw new Error(settingsData.error || 'Unable to save Klaviyo settings.');
       setKlaviyoSettings(settingsData.settings);
+      setKlaviyoApiKey('');
+      setDirty(false);
       setCardMsgs(previous => ({ ...previous, klaviyo: '✅ Saved' }));
     } catch (error) {
-      setCardMsgs(previous => ({ ...previous, klaviyo: `❌ ${error instanceof Error ? error.message : 'Save failed'}` }));
+      setCardMsgs(previous => ({ ...previous, klaviyo: `${credentialsSaved ? 'Connection credentials saved, but sync policy was not saved. ' : ''}${error instanceof Error ? error.message : 'Save failed'}` }));
     } finally {
       setSavingCard(null);
     }
@@ -1572,79 +1493,19 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   if (!business) {
     return <div className="text-center py-16 text-gray-400">No business selected.</div>;
   }
+  if (!provider) return <div><p>External integrations now have individual enable-first setup pages.</p><a href="/ims#settings-connections">Open integration settings</a><p><a href="/ims#settings-ai-models">Configure AI models</a></p></div>;
+  if (loadError) return <div role="alert"><p>{loadError}</p><button type="button" onClick={() => setLoadVersion(value => value + 1)}>Retry loading</button></div>;
+  if (!loadComplete) return <p role="status">Loading connection settings...</p>;
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-6">
-      <p className="text-sm text-gray-500">Credentials for <span className="font-semibold text-gray-700">{business.name}</span> — loaded from their database sheet.</p>
-
-      {shopifyEnabled && (
-      <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold">Shopify</h2>
-            <ConnectionStatus result={syncResult} />
-          </div>
-          <button onClick={() => onHelp('shopify')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
-        </div>
-        <div className="w-full">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Store domain</label>
-          <input className="w-full p-2 border rounded text-sm" value={shopId} onChange={e => setShopId(e.target.value)} placeholder="mystore.myshopify.com" />
-        </div>
-        <div className="w-full">
-          <span className="block text-xs font-semibold text-gray-600 mb-1">Authentication</span>
-          <div className="grid grid-cols-2 rounded border border-gray-200 p-1" role="group" aria-label="Shopify authentication mode">
-            <button type="button" onClick={() => setShopifyAuthMode('client_credentials')} className={`px-3 py-2 text-xs font-semibold rounded ${shopifyAuthMode === 'client_credentials' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Dev Dashboard</button>
-            <button type="button" onClick={() => setShopifyAuthMode('legacy_token')} className={`px-3 py-2 text-xs font-semibold rounded ${shopifyAuthMode === 'legacy_token' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Legacy token</button>
-          </div>
-        </div>
-        {shopifyAuthMode === 'legacy_token' ? (
-          <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Admin API access token</label>
-            <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="shpat_..." />
-          </div>
-        ) : (
-          <>
-            <div className="w-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Client ID</label>
-              <input className="w-full p-2 border rounded text-sm font-mono" value={shopifyClientId} onChange={e => setShopifyClientId(e.target.value)} autoComplete="off" />
-            </div>
-            <div className="w-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Client secret</label>
-              <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={shopifyClientSecret} onChange={e => setShopifyClientSecret(e.target.value)} placeholder={shopifyClientSecretConfigured ? 'Saved; leave blank to keep current secret' : 'Enter client secret'} autoComplete="new-password" />
-              <p className="mt-1 text-xs text-gray-500">Solvantis renews the Shopify access token automatically. Save before testing.</p>
-            </div>
-          </>
-        )}
-        <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
-          <button onClick={testShopifySync} disabled={syncLoading} className="px-4 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition">
-            {syncLoading ? 'Syncing...' : 'Test Connection'}
-          </button>
-          <div className="flex items-center gap-2">
-            {cardMsgs['shopify'] && <span className="text-xs font-medium">{cardMsgs['shopify']}</span>}
-            <button onClick={() => saveCard('shopify')} disabled={savingCard === 'shopify'} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition">
-              {savingCard === 'shopify' ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-        <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
-          <div className="flex items-center gap-2">
-            <button onClick={() => buildInstructions('shopify')} disabled={!!apiActLoading['shopify']} className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition">
-              {apiActLoading['shopify'] === 'instructions' ? '⏳ Building...' : '📚 Build API Instructions'}
-            </button>
-            <button onClick={() => buildSchema('shopify')} disabled={!!apiActLoading['shopify_schema']} className="px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition">
-              {apiActLoading['shopify_schema'] === 'schema' ? '⏳ Generating...' : '🔍 Generate Schema'}
-            </button>
-          </div>
-          {apiActMsgs?.['shopify'] && <p className="text-xs text-gray-600">{apiActMsgs['shopify']}</p>}
-          {apiActMsgs?.['shopify_schema'] && <p className="text-xs text-gray-600">{apiActMsgs['shopify_schema']}</p>}
-        </div>
-        {syncResult && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto">{JSON.stringify(syncResult, null, 2)}</pre>}
-      </div>
-      )}
+    <div className="w-full max-w-2xl space-y-6" onChangeCapture={() => setDirty(true)}>
+      <p className="text-sm text-gray-500">Connection setup for <span className="font-semibold text-gray-700">{business.name}</span>. Leave a saved secret blank to retain it. Connection tests and authorisation are separate actions.</p>
+      {dirty && <button type="button" onClick={() => { setDirty(false); setLoadVersion(value => value + 1); }}>Cancel changes</button>}
 
       {/* 3. Others */}
-      <div className="grid grid-cols-2 gap-4 w-full">
-        <div className="col-span-2 bg-white text-black p-6 shadow-sm border border-gray-200 flex flex-col gap-5">
+      <div className="grid grid-cols-1 gap-4 w-full">
+        {provider === 'google' && (
+        <div className="bg-white text-black p-6 shadow-sm border border-gray-200 flex flex-col gap-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold">Google Ads &amp; Analytics</h2>
@@ -1709,7 +1570,9 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
           {googleStatus?.configured && googleStatus.developerTokenPresent === false && <div className="text-xs text-amber-700">GOOGLE_ADS_DEVELOPER_TOKEN is required to discover and read Ads accounts; Analytics can still connect.</div>}
         </div>
 
+        )}
         {/* Meta */}
+        {provider === 'meta' && (
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
@@ -1775,7 +1638,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
               ].filter(Boolean).join(' and ') || 'the Meta OAuth variables'}. Confirm they are service variables in the production environment, then redeploy.
             </p>
           )}
-          <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
+          {advanced && <div className="w-full flex flex-col gap-1 pt-2 border-t border-dashed border-gray-200">
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={() => buildInstructions('meta')} disabled={!!apiActLoading['meta']} className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition">
                 {apiActLoading['meta'] === 'instructions' ? '⏳' : '📚'} Build
@@ -1786,11 +1649,13 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
             </div>
             {apiActMsgs?.['meta'] && <p className="text-xs text-gray-600">{apiActMsgs['meta']}</p>}
             {apiActMsgs?.['meta_schema'] && <p className="text-xs text-gray-600">{apiActMsgs['meta_schema']}</p>}
-          </div>
-          {metaResult && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(metaResult, null, 2)}</pre>}
+          </div>}
+          {metaResult && (advanced ? <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(metaResult, null, 2)}</pre> : <p role={metaResult.success ? 'status' : 'alert'}>{metaResult.message || metaResult.error || (metaResult.success ? 'Connection verified.' : 'Connection could not be verified.')}</p>)}
         </div>
+        )}
 
         {/* Cin7 Omni */}
+        {provider === 'cin7' && (
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
@@ -1805,7 +1670,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
           </div>
           <div className="w-full">
             <label className="block text-xs font-semibold text-gray-600 mb-1">API Key</label>
-            <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={cin7ApiKey} onChange={e => setCin7ApiKey(e.target.value)} placeholder="API key..." />
+            <input className="w-full p-2 border rounded text-sm font-mono" type="password" autoComplete="new-password" value={cin7ApiKey} onChange={e => setCin7ApiKey(e.target.value)} placeholder={credentialPresence.Cin7ApiKey ? 'Saved; leave blank to retain' : 'API key...'} />
           </div>
           <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
             <button onClick={testCin7Sync} disabled={cin7Loading} className="px-3 py-1.5 bg-teal-500 text-white rounded text-xs font-medium hover:bg-teal-600 transition">
@@ -1818,10 +1683,12 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
               </button>
             </div>
           </div>
-          {cin7Result && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto max-h-32">{JSON.stringify(cin7Result, null, 2)}</pre>}
+          {cin7Result && <p role={cin7Result.success ? 'status' : 'alert'}>{cin7Result.message || cin7Result.error || (cin7Result.success ? 'Connection verified.' : 'Connection could not be verified.')}</p>}
         </div>
+        )}
 
         {/* Klaviyo */}
+        {provider === 'klaviyo' && (
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
@@ -1840,7 +1707,8 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
               type="password"
               value={klaviyoApiKey}
               onChange={e => setKlaviyoApiKey(e.target.value)}
-              placeholder="pk_..."
+              autoComplete="new-password"
+              placeholder={credentialPresence.KlaviyoApiKey ? 'Saved; leave blank to retain' : 'pk_...'}
             />
             <p className="text-xs text-gray-400 mt-1">Found in Klaviyo → Settings → API Keys → Create Private API Key.</p>
           </div>
@@ -1903,7 +1771,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
             </fieldset>
           </div>
           <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
-            <button onClick={testKlaviyoSync} disabled={klaviyoLoading || !klaviyoApiKey} className="px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition disabled:opacity-40">
+            <button onClick={testKlaviyoSync} disabled={klaviyoLoading || (!klaviyoApiKey && !credentialPresence.KlaviyoApiKey)} className="px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition disabled:opacity-40">
               {klaviyoLoading ? 'Testing...' : 'Test Connection'}
             </button>
             <div className="flex items-center gap-2">
@@ -1919,9 +1787,11 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
               : <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 w-full">❌ {klaviyoResult.error}</p>
           )}
         </div>
+        )}
 
         {/* Gmail */}
-        <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4 col-span-2">
+        {provider === 'gmail' && (
+        <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
               <div style={{ width: 28, height: 28, borderRadius: 6, background: '#EA4335', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1964,11 +1834,11 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Client Secret</label>
-                <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={gmailClientSecret} onChange={e => setGmailClientSecret(e.target.value)} placeholder="GOCSPX-..." />
+                <input className="w-full p-2 border rounded text-sm font-mono" type="password" autoComplete="new-password" value={gmailClientSecret} onChange={e => setGmailClientSecret(e.target.value)} placeholder={credentialPresence.GmailClientSecret ? 'Saved; leave blank to retain' : 'GOCSPX-...'} />
               </div>
             </div>
             <div className="flex items-center gap-3 mt-2">
-              <button onClick={() => saveCard('gmail')} disabled={savingCard === 'gmail' || !gmailClientId || !gmailClientSecret} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
+              <button onClick={() => saveCard('gmail')} disabled={savingCard === 'gmail' || !gmailClientId || (!gmailClientSecret && !credentialPresence.GmailClientSecret)} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
                 {savingCard === 'gmail' ? 'Saving…' : 'Save credentials'}
               </button>
               {cardMsgs['gmail'] && <span className="text-xs font-medium">{cardMsgs['gmail']}</span>}
@@ -1994,8 +1864,19 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
                   <button
                     onClick={async () => {
                       if (!confirm('Disconnect Gmail? This removes the stored token.')) return;
-                      setGmailAddress(''); setGmailRefreshToken(''); setGmailResult(null);
-                      setTimeout(() => saveCard('gmail'), 100);
+                      setGmailLoading(true);
+                      try {
+                        const response = await fetch('/api/user/business-connections', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ databaseId: business.databaseId, connections: { GmailAddress: '', GmailRefreshToken: '' } }),
+                        });
+                        const body = await response.json();
+                        if (!response.ok || !body.success) throw new Error(body.error || 'Gmail could not be disconnected.');
+                        setGmailAddress(''); setGmailRefreshToken(''); setGmailResult(null);
+                        setCredentialPresence(previous => ({ ...previous, GmailRefreshToken: false }));
+                      } catch (error) {
+                        setGmailResult({ success: false, error: error instanceof Error ? error.message : 'Gmail could not be disconnected.' });
+                      } finally { setGmailLoading(false); }
                     }}
                     className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200 transition border border-red-200"
                   >
@@ -2011,14 +1892,14 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
             ) : (
               <>
                 <p className="text-xs text-gray-500 mb-3">
-                  {gmailClientId && gmailClientSecret
+                  {gmailClientId && credentialPresence.GmailClientSecret
                     ? 'Credentials saved. Click the button below to sign in with Google and grant Gmail access.'
                     : 'Save your Client ID and Secret above first.'}
                 </p>
                 <a
                   href={`/api/auth/gmail/connect?businessId=${encodeURIComponent(business?.databaseId ?? '')}`}
-                  className={`px-4 py-2 rounded text-sm font-semibold inline-flex items-center gap-2 transition ${gmailClientId && gmailClientSecret ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-400 pointer-events-none'}`}
-                  aria-disabled={!gmailClientId || !gmailClientSecret}
+                  className={`px-4 py-2 rounded text-sm font-semibold inline-flex items-center gap-2 transition ${gmailClientId && credentialPresence.GmailClientSecret ? 'bg-red-700 text-white hover:bg-red-800' : 'bg-gray-200 text-gray-600 pointer-events-none'}`}
+                  aria-disabled={!gmailClientId || !credentialPresence.GmailClientSecret}
                 >
                   <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 1.5 8 7l7-5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
                   Connect Gmail account
@@ -2053,9 +1934,10 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
             )}
           </div>
         </div>
+        )}
 
         {/* Xero */}
-        {xeroStatus?.accountingEnabled && (
+        {provider === 'xero' && xeroStatus?.accountingEnabled && (
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
@@ -2120,33 +2002,6 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
         )}
       </div>
 
-      {/* AI Settings */}
-      <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
-        <h2 className="text-lg font-bold">AI Settings</h2>
-        <div className="w-full">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Gemini Model</label>
-          {availableModels.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">Loading available models...</p>
-          ) : (
-            <select
-              className="w-full p-2 border rounded text-sm"
-              value={geminiModel}
-              onChange={e => setGeminiModel(e.target.value)}
-            >
-              {availableModels.map(m => (
-                <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
-              ))}
-            </select>
-          )}
-          <p className="text-xs text-gray-400 mt-1">Used for AI Brand Profile generation.</p>
-        </div>
-        <div className="w-full flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
-          {cardMsgs['ai'] && <span className="text-xs font-medium">{cardMsgs['ai']}</span>}
-          <button onClick={() => saveCard('ai')} disabled={savingCard === 'ai'} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition">
-            {savingCard === 'ai' ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(), execute: vi.fn(), transaction: vi.fn(), name: vi.fn(),
   rates: vi.fn(), create: vi.fn(), international: vi.fn(), labels: vi.fn(), getLabel: vi.fn(),
 }));
+vi.mock("@/lib/securityCompliance/amazonPiiSuppression", () => ({ assertShippingPiiNotCleared: vi.fn() }));
 vi.mock("@/services/IMSMySQLService", () => ({
   imsQuery: mocks.query, imsExecute: mocks.execute,
   getIMSPool: () => ({ getConnection: async () => ({

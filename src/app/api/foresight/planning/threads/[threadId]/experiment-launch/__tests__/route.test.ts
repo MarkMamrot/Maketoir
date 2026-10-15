@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { session, tier, getForThread, create, getPackageConfirmation, buildPackage, confirmPackage, executionPreflight, getExecution, latestExperiment, runIms, getTimeZone, report } = vi.hoisted(() => ({ session: vi.fn(), tier: vi.fn(), getForThread: vi.fn(), create: vi.fn(), getPackageConfirmation: vi.fn(), buildPackage: vi.fn(), confirmPackage: vi.fn(), executionPreflight: vi.fn(), getExecution: vi.fn(), latestExperiment: vi.fn(), runIms: vi.fn(), getTimeZone: vi.fn(), report: vi.fn() }));
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: session, requireAdminTier: tier }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: runIms }));
+vi.mock('@/lib/ims/integrationAvailability', () => ({
+  assertOptionalIntegrationEnabled: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ DEFAULT_BUSINESS_TIME_ZONE: 'Australia/Sydney', getBusinessTimeZone: getTimeZone }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: report }));
 vi.mock('@/lib/foresight/ForesightMetaExperimentLaunchPackageService', async (importOriginal) => {

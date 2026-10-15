@@ -17,6 +17,7 @@ import { getSalesOrderReadiness } from '@/lib/ims/stockAllocation/readinessServi
 import { imsQuery } from '@/services/IMSMySQLService';
 import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 import { query } from '@/services/MySQLService';
+import { isAmazonPiiWriteConflict } from '@/lib/securityCompliance/amazonPiiDisposal';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -339,6 +340,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         code: e.code,
       }, { status: 409 });
     }
+    if (isAmazonPiiWriteConflict(e)) return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     const message = String(e?.message ?? 'Sales order update failed');
     const isShippedEditConflict = message.includes('cannot be changed after any quantity has been fulfilled');
     if (isShippedEditConflict) {

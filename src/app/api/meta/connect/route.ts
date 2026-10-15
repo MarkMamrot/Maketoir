@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminTier } from '@/lib/sessionUtils';
 import { signMetaOAuthState } from '@/lib/metaOAuth';
 import { buildMetaAuthorizeUrl, metaOAuthConfigured } from '@/services/MetaOAuthService';
+import { assertOptionalIntegrationEnabled, isIntegrationDisabledError } from '@/lib/ims/integrationAvailability';
 
 function appUrl(): string {
   const raw = process.env.APP_URL ?? 'solvantis.com.au';
@@ -12,9 +13,17 @@ function appUrl(): string {
 export async function GET() {
   const { user, response } = requireAdminTier();
   if (response) return response;
-  const returnUrl = `${appUrl()}/setup`;
+  try {
+    await assertOptionalIntegrationEnabled(user.businessId, 'meta');
+  } catch (error) {
+    if (isIntegrationDisabledError(error)) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json({ error: 'Meta integration availability is not ready.' }, { status: 503 });
+  }
+  const returnUrl = `${appUrl()}/ims`;
   if (!metaOAuthConfigured()) {
-    return NextResponse.redirect(`${returnUrl}?metaError=${encodeURIComponent('Meta OAuth is not configured for this deployment.')}`);
+    return NextResponse.redirect(`${returnUrl}?metaError=${encodeURIComponent('Meta OAuth is not configured for this deployment.')}#settings-connection-meta`);
   }
   const nonce = randomBytes(24).toString('base64url');
   const redirectUri = `${appUrl()}/api/meta/callback`;

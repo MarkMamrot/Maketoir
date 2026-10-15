@@ -49,7 +49,8 @@
     ".next-support-updates-3031/types/**/*.ts",
     ".next-invoice-cost-3035/types/**/*.ts",
     ".next-support-pos-3037/types/**/*.ts",
-    ".next-support-attachments-3041/types/**/*.ts"
+    ".next-support-attachments-3041/types/**/*.ts",
+    ".next-dev-3180/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

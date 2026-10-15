@@ -7,6 +7,11 @@ import type { BusinessMembership } from '@/lib/auth/businessMemberships';
 import { recordActiveBusiness } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
+import { passwordExpiresAt, passwordRequiresRenewal } from '@/lib/auth/passwordPolicy';
+
+export class PasswordRenewalRequiredError extends Error {
+  constructor() { super('Your password must be renewed. Use Forgot password, then sign in again.'); }
+}
 
 export function buildAdminSession(user: UserRow, membership: BusinessMembership) {
   return {
@@ -17,6 +22,7 @@ export function buildAdminSession(user: UserRow, membership: BusinessMembership)
     role: user.role ?? 'user',
     tier: user.tier === 'SuperAdmin' ? 'SuperAdmin' : membership.tier,
     userId: user.id,
+    passwordExpiresAt: passwordExpiresAt(user.password_changed_at) ?? undefined,
   };
 }
 
@@ -27,6 +33,7 @@ export async function completeAdminLogin(input: {
   request: Request;
   trustedBrowser?: { token: string; expiresAt: Date } | null;
 }) {
+  if (passwordRequiresRenewal(input.user.password_changed_at)) throw new PasswordRenewalRequiredError();
   const session = buildAdminSession(input.user, input.membership);
   setAdminSessionCookie(session);
   if (input.user.tier !== 'SuperAdmin') {

@@ -3,6 +3,7 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { decrypt } from '@/lib/encryption';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { KlaviyoService } from '@/services/KlaviyoService';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import {
   claimKlaviyoOutbox,
   completeKlaviyoOutbox,
@@ -23,6 +24,7 @@ function safeError(error: unknown): string {
 export interface KlaviyoWorkerDependencies {
   getSettings: typeof KlaviyoSettingsRepository.get;
   getConnection: typeof ConnectionsRepository.get;
+  isIntegrationEnabled: typeof isOptionalIntegrationEnabled;
   decryptKey: typeof decrypt;
   createClient: (apiKey: string) => KlaviyoService;
   recoverStale: typeof recoverStaleKlaviyoOutbox;
@@ -37,6 +39,7 @@ export interface KlaviyoWorkerDependencies {
 const defaultDependencies: KlaviyoWorkerDependencies = {
   getSettings: KlaviyoSettingsRepository.get,
   getConnection: ConnectionsRepository.get,
+  isIntegrationEnabled: isOptionalIntegrationEnabled,
   decryptKey: decrypt,
   createClient: apiKey => new KlaviyoService(apiKey),
   recoverStale: recoverStaleKlaviyoOutbox,
@@ -71,6 +74,7 @@ export async function processKlaviyoOutbox(
   dependencies: KlaviyoWorkerDependencies = defaultDependencies,
 ): Promise<KlaviyoWorkerResult> {
   const result: KlaviyoWorkerResult = { processed: 0, sent: 0, skipped: 0, failed: 0, recovered: 0 };
+  if (!await dependencies.isIntegrationEnabled(input.businessId, 'klaviyo')) return result;
   const settings = await dependencies.getSettings(input.businessId);
   if (!settings.enabled || !settings.profilesEnabled) return result;
   const connection = await dependencies.getConnection(input.businessId);
@@ -80,6 +84,7 @@ export async function processKlaviyoOutbox(
   result.recovered = await dependencies.recoverStale(input.businessId);
   const jobs = await dependencies.listPending(input.businessId, input.limit ?? 25);
   for (const job of jobs) {
+    if (!await dependencies.isIntegrationEnabled(input.businessId, 'klaviyo')) break;
     if (!await dependencies.claim(input.businessId, job.id)) continue;
     result.processed += 1;
     if (!settings.sources[job.source]) {

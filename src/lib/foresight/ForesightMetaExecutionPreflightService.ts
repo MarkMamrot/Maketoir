@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { isOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { MetaAdsReadService } from '@/services/MetaAdsReadService';
 import {
   planMetaBudgetReductionPreflight,
@@ -27,6 +28,9 @@ export const ForesightMetaExecutionPreflightService = {
     recommendationId: number,
     proposalHash: string,
   ): Promise<MetaExecutionPreflightResult> {
+    if (!await isOptionalIntegrationEnabled(businessId, 'meta')) {
+      return blocked('integration_disabled', 'Meta is disabled. Enable it before running a live preflight.');
+    }
     const recommendation = await ForesightRepository.getRecommendation(businessId, recommendationId);
     if (!recommendation) return blocked('recommendation_not_found', 'The recommendation was not found.');
     if (recommendation.state !== 'approved') {

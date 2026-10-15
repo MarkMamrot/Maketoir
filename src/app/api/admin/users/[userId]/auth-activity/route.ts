@@ -51,7 +51,7 @@ export async function GET(_req: Request, context: { params: { userId: string } }
          FROM user_auth_events e
          LEFT JOIN users actor ON actor.id = e.actor_user_id
         WHERE e.user_id = ?
-          AND e.created_at >= DATE_SUB(NOW(3), INTERVAL 90 DAY)
+          AND e.created_at >= DATE_SUB(NOW(3), INTERVAL 12 MONTH)
           AND e.business_id = ?
         ORDER BY e.created_at DESC, e.id DESC
         LIMIT 250`,

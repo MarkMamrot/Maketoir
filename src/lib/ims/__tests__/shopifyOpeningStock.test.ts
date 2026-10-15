@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations } from '../shopifyOpeningStock';
 
 describe('Shopify opening stock', () => {
-  it('maps Warehouse and Kotara by exact normalized location name', () => {
+  it('maps explicitly selected IDs even when location names differ', () => {
     expect(resolveOpeningStockLocations(
       [{ id: 10, name: ' warehouse ', active: true }, { id: 20, name: 'KOTARA', active: true }],
-      [{ id: 1, name: 'Warehouse', active: 1 }, { id: 2, name: 'Kotara', active: 1 }],
+      [{ id: 1, name: 'Ruth Store', active: 1 }, { id: 2, name: 'Office', active: 1 }],
+      [{ shopifyLocationId: 10, solvantisLocationId: 1 }, { shopifyLocationId: 20, solvantisLocationId: 2 }],
     )).toEqual([
-      { name: 'Warehouse', shopifyLocationId: 10, solvantisLocationId: 1 },
-      { name: 'Kotara', shopifyLocationId: 20, solvantisLocationId: 2 },
+      { name: 'Ruth Store', shopifyLocationId: 10, solvantisLocationId: 1 },
+      { name: 'Office', shopifyLocationId: 20, solvantisLocationId: 2 },
     ]);
   });
 
@@ -16,10 +17,17 @@ describe('Shopify opening stock', () => {
     expect(() => resolveOpeningStockLocations(
       [{ id: 10, name: 'Warehouse', active: true }],
       [{ id: 1, name: 'Warehouse' }, { id: 2, name: 'Kotara' }],
-    )).toThrow('Shopify location named Kotara');
+      [{ shopifyLocationId: 20, solvantisLocationId: 2 }],
+    )).toThrow('missing or inactive');
+    expect(() => resolveOpeningStockLocations(
+      [{ id: 10, name: 'Warehouse' }, { id: 20, name: 'Other' }],
+      [{ id: 1, name: 'Warehouse' }],
+      [{ shopifyLocationId: 10, solvantisLocationId: 1 }, { shopifyLocationId: 20, solvantisLocationId: 1 }],
+    )).toThrow('only once');
+    expect(() => resolveOpeningStockLocations([], [], [])).toThrow('Select');
   });
 
-  it('keeps location quantities separate, treats absent levels as zero, and clamps negatives', () => {
+  it('keeps location quantities separate, skips absent levels, and clamps negatives', () => {
     const lines = planOpeningStockLines(
       [
         { variantId: 'v1', inventoryItemId: '100', sku: 'SKU-1' },
@@ -41,8 +49,15 @@ describe('Shopify opening stock', () => {
       expect.objectContaining({ variantId: 'v1', locationName: 'Warehouse', quantity: 8, wasNegative: false }),
       expect.objectContaining({ variantId: 'v2', locationName: 'Warehouse', quantity: 0, wasNegative: true }),
       expect.objectContaining({ variantId: 'v1', locationName: 'Kotara', quantity: 3, wasNegative: false }),
-      expect.objectContaining({ variantId: 'v2', locationName: 'Kotara', quantity: 0, wasNegative: false }),
     ]);
+  });
+
+  it('skips null and invalid levels but imports an explicit zero', () => {
+    const variants = [{ variantId: 'v1', inventoryItemId: '100' }];
+    const locations = [{ name: 'Store', shopifyLocationId: 10, solvantisLocationId: 1 }];
+    expect(planOpeningStockLines(variants, [{ inventoryItemId: '100', locationId: '10', available: null }], locations)).toEqual([]);
+    expect(planOpeningStockLines(variants, [{ inventoryItemId: '100', locationId: '10', available: NaN }], locations)).toEqual([]);
+    expect(planOpeningStockLines(variants, [{ inventoryItemId: '100', locationId: '10', available: 0 }], locations)[0].quantity).toBe(0);
   });
 
   it('selects only variants with a material adjustment at either location', () => {

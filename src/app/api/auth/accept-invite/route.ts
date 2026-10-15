@@ -3,6 +3,8 @@ import { query, execute } from '@/services/MySQLService';
 import { UsersRepository } from '@/lib/db/UsersRepository';
 import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
 import type { UserTier } from '@/lib/sessionUtils';
+import { getPasswordValidation, PasswordPolicyValidationError } from '@/lib/auth/passwordPolicy';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 interface InviteRow {
   id: number;
@@ -66,6 +68,8 @@ export async function POST(req: Request) {
     if (!token || !password) {
       return NextResponse.json({ success: false, error: 'Token and password are required.' }, { status: 400 });
     }
+    const validation = getPasswordValidation(password);
+    if (!validation.isValid) return NextResponse.json({ success: false, error: validation.message }, { status: 400 });
 
     // Atomically claim the invite — prevents concurrent accepts (TOCTOU)
     const claimResult = await execute(
@@ -122,7 +126,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, message: existing ? 'Business access added. You can now log in.' : 'Account created. You can now log in.' });
   } catch (error: any) {
+    if (error instanceof PasswordPolicyValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
     console.error('Accept invite error:', error);
+    await reportRuntimeIssue({ source: 'auth.invite', operation: 'accept_invite', title: 'Invite acceptance failed', error });
     return NextResponse.json({ success: false, error: 'Failed to create account. Please try again.' }, { status: 500 });
   }
 }

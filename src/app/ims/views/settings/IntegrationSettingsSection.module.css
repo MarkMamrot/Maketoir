@@ -1,0 +1,14 @@
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 16px; margin: 20px 0; }
+.card { border: 1px solid var(--sv-etch); border-radius: 8px; background: var(--sv-bg-2); padding: 20px; margin-bottom: 16px; min-width: 0; }
+.cards .card { margin: 0; }
+.cardHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.card h2 { margin: 0; color: var(--sv-text-strong); }
+.card p { color: var(--sv-text-dim); line-height: 1.55; margin: 8px 0 14px; }
+.state { border: 1px solid var(--sv-etch); color: var(--sv-text-main); background: var(--sv-bg-1); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+.state[data-enabled="true"] { border-color: #086b68; background: #dcefed; color: #064e4b; }
+.toggle { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+.toggle input { appearance: none; width: 44px !important; height: 26px !important; border: 1px solid var(--sv-etch); border-radius: 20px; background: #64748b; position: relative; cursor: pointer; flex-shrink: 0; }
+.toggle input::before { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; }
+.toggle input:checked { background: var(--sv-action); border-color: var(--sv-action); }
+.toggle input:checked::before { left: 21px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }

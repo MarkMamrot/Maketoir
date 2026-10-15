@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 const mocks = vi.hoisted(() => ({ gate: vi.fn(), query: vi.fn(), poll: vi.fn(), report: vi.fn() }));
 vi.mock('@/lib/cron/settings', () => ({ checkCronJobEnabled: mocks.gate }));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.query }));
-vi.mock('@/lib/securityCompliance/amazonDeliveryPolling', () => ({ pollAmazonDeliveryEvidence: mocks.poll }));
+vi.mock('@/lib/securityCompliance/amazonDeliveryPolling', () => ({ pollOnlineChannelDeliveryEvidence: mocks.poll }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 import { POST } from '../route';
 const request = (authorized = true) => new Request('http://localhost/api/ims/channels/amazon/delivery/cron', {
@@ -16,7 +16,7 @@ beforeEach(() => {
   mocks.poll.mockResolvedValue({ attempted: 1, delivered: 1, pending: 0, failed: 0, deferred: 0 }); mocks.report.mockResolvedValue(null);
 });
 afterEach(() => vi.unstubAllEnvs());
-describe('scheduled Amazon delivery evidence', () => {
+describe('scheduled online-channel delivery evidence', () => {
   it('gates authentication and the master flag before any tenant or provider work', async () => {
     expect((await POST(request(false))).status).toBe(401);
     expect(mocks.gate).not.toHaveBeenCalled();
@@ -24,10 +24,13 @@ describe('scheduled Amazon delivery evidence', () => {
     expect(await (await POST(request())).json()).toMatchObject({ skipped: true });
     expect(mocks.query).not.toHaveBeenCalled(); expect(mocks.poll).not.toHaveBeenCalled();
   });
-  it('includes previously dispatched orders even when their Amazon channel is disabled, while respecting business pauses', async () => {
+  it('includes all IMS businesses without requiring a current channel registration, while respecting business pauses', async () => {
     expect((await POST(request())).status).toBe(200);
     expect(mocks.query.mock.calls[0][0]).toContain('b.deleted_at IS NULL');
     expect(mocks.query.mock.calls[0][0]).toContain('automation_paused');
+    expect(mocks.query.mock.calls[0][0]).toContain('b.has_ims = 1');
+    expect(mocks.query.mock.calls[0][0]).toContain('OR b.ims_db_name IS NOT NULL');
+    expect(mocks.query.mock.calls[0][0]).not.toContain('sales_channel_instances');
     expect(mocks.query.mock.calls[0][0]).not.toContain('instance.is_enabled');
     expect(mocks.poll).toHaveBeenCalledWith('tenant-a', expect.any(Map), expect.any(Number));
   });

@@ -1,5 +1,6 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { MetaAdsReadService } from '@/services/MetaAdsReadService';
 import { buildMetaExperimentLaunchPackage, type MetaExperimentLaunchPackage } from './metaExperimentLaunchPackage';
 import { ForesightCampaignExperimentRepository } from './repositories/ForesightCampaignExperimentRepository';
@@ -16,6 +17,11 @@ export const ForesightMetaExperimentLaunchPackageService = {
     controlCampaignId?: string | null;
     treatmentCampaignId?: string | null;
   }): Promise<MetaExperimentLaunchPackage> {
+    try {
+      await assertOptionalIntegrationEnabled(businessId, 'meta');
+    } catch {
+      throw new MetaExperimentLaunchPackageValidationError('Meta is disabled or its integration availability is not ready.');
+    }
     const [experiment, review, connection] = await Promise.all([
       ForesightCampaignExperimentRepository.latest(businessId, threadId),
       ForesightCampaignExperimentRepository.latestReview(businessId, threadId),

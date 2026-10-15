@@ -87,7 +87,7 @@ export default function AmazonDeliveryEvidenceView({ onHelp }: { onHelp: () => v
         <p>Original buyer delivery only, for the active business. No stock, order status, customer details or PII disposal is changed.</p></div>
       <button type="button" onClick={onHelp}>Delivery evidence help</button>
     </div>
-    <p>Automatic tracking supports dispatched Australia Post eParcel articles prepared in Solvantis. The hourly job starts Off in Admin &gt; Cron Jobs; enable it only after storage and tracking access are verified. Missing article IDs, unsupported carriers and unavailable tracking require manual verification, not an assumed delivery date.</p>
+    <p>Automatic tracking supports dispatched Australia Post eParcel articles prepared in Solvantis. Enable Amazon delivery tracking for the active business in IMS Settings &gt; Shipping. The hourly Online channel delivery tracking job starts Off in Admin &gt; Cron Jobs; enable it only after storage and tracking access are verified. Missing article IDs, unsupported carriers and unavailable tracking require manual verification, not an assumed delivery date. This review and the 30-day PII rules remain Amazon-only.</p>
     <form onSubmit={event => { event.preventDefault(); void load(); }}>
       <label className={styles.role}>Local Amazon sales order ID
         <input inputMode="numeric" value={orderId} disabled={busy} onChange={event => { setOrderId(event.target.value); setReport(null); setVoidId(null); setNotice(''); }} required />

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { BrandProfileRepository, type BrandProfileRow } from '@/lib/db/BrandProfileRepository';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { assertOptionalIntegrationEnabled } from '@/lib/ims/integrationAvailability';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { MetaAdsReadService } from '@/services/MetaAdsReadService';
@@ -60,6 +61,7 @@ async function fetchMedia(urlValue: string, mode: 'image' | 'video_frame'): Prom
 }
 
 async function resolveMedia(businessId: string, creative: ForesightCreativeRow) {
+  await assertOptionalIntegrationEnabled(businessId, creative.source === 'google_ads' ? 'google' : 'meta');
   const connection = await ConnectionsRepository.get(businessId);
   if (creative.source === 'google_ads') {
     if (creative.creative_kind !== 'asset' || !connection?.google_ads_customer_id || !connection.google_ads_refresh_token) return null;
@@ -96,6 +98,7 @@ export function createForesightCreativeAssessmentService(dependencies: Dependenc
     }): Promise<ForesightCreativeAssessmentRow> {
       const creative = await dependencies.getCreative(input.businessId, input.creativeId);
       if (!creative) throw new Error('Creative not found.');
+      await assertOptionalIntegrationEnabled(input.businessId, creative.source === 'google_ads' ? 'google' : 'meta');
       try {
         const [profile, prompt] = await Promise.all([
           dependencies.getBrandProfile(input.businessId),

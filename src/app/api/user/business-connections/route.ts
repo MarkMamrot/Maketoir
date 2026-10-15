@@ -4,6 +4,8 @@ import { ConnectionsRepository, CONNECTION_SECRET_FIELDS } from '@/lib/db/Connec
 import { encrypt, decrypt } from '@/lib/encryption';
 import { assertShopifyEnabled, getOnlineChannelCapabilities, isOnlineChannelDisabledError } from '@/lib/ims/businessOperations';
 import { normalizeShopifyShopDomain, type ShopifyAuthMode } from '@/lib/shopifyCredentials';
+import { preserveDisabledDefaultBeforeCredentialSave, type OptionalIntegrationProvider } from '@/lib/ims/integrationAvailability';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function requireSession() {
   const session = cookies().get('marketoir_session');
@@ -108,6 +110,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'Shopify connection settings saved.' });
     }
 
+    const connectionKeys = Object.keys(connections as Record<string, unknown>);
+    const providerKeys: Record<OptionalIntegrationProvider, string[]> = {
+      cin7: ['Cin7AccountId', 'Cin7ApiKey'],
+      google: ['GoogleAdsCustomerId', 'GoogleAdsRefreshToken', 'GA4PropertyId'],
+      meta: ['MetaAdAccountId', 'MetaAccessToken'],
+      klaviyo: ['KlaviyoApiKey'],
+      gmail: ['GmailAddress', 'GmailRefreshToken', 'GmailClientId', 'GmailClientSecret'],
+    };
+    await Promise.all(
+      (Object.entries(providerKeys) as Array<[OptionalIntegrationProvider, string[]]>)
+        .filter(([, keys]) => keys.some(key => connectionKeys.includes(key)))
+        .map(([provider]) => preserveDisabledDefaultBeforeCredentialSave(databaseId, provider)),
+    );
+
     // Encrypt secret fields before storing
     const toSave: Record<string, string> = {};
     for (const [key, val] of Object.entries(connections as Record<string, string>)) {
@@ -119,6 +135,13 @@ export async function POST(req: Request) {
     if (isOnlineChannelDisabledError(error)) {
       return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
     }
+    await reportRuntimeIssue({
+      businessId: databaseId,
+      source: 'user.business-connections',
+      operation: 'save_credentials',
+      title: 'Business connection settings could not be saved',
+      error,
+    }).catch(() => null);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
