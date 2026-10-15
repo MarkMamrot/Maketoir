@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Owner password is required when an owner email is given.' }, { status: 400 });
   }
   if (ownerEmail && ownerPasswordMode === 'manual') {
-    const validation = getPasswordValidation(ownerPassword, ownerEmail);
+    const validation = getPasswordValidation(ownerPassword, ownerEmail, ownerName);
     if (!validation.isValid) return NextResponse.json({ error: validation.message }, { status: 400 });
   }
   if (imsDbName && !/^[a-zA-Z0-9_]{1,60}$/.test(imsDbName)) {

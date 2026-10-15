@@ -58,23 +58,24 @@ export const SECURITY_POLICIES: readonly SecurityPolicy[] = [
   {
     id: 'identity-access',
     title: 'Identity, Passwords and Access Management',
-    version: '1.0',
+    version: '1.1',
     reviewCadence: 'Quarterly access reviews; annual policy review',
     roles: ['policyOwner', 'accessOwner'],
     summary: [
-      'Use individually identified accounts, MFA, and least-privilege access.',
+      'Use individually identified platform accounts, MFA, and least-privilege access across all businesses, not a separate Amazon login system.',
       'Require passwords of at least 12 characters with mixed case, numbers, and special characters; renew within 365 days.',
       'Review access quarterly and revoke departed or changed-role access within 24 hours.',
     ],
     sections: [
       { heading: 'Account identification and authorization', paragraphs: [
-        'Every person accessing systems handling Amazon Information must use a separate named account. Shared user accounts and shared passwords are prohibited. Grant only access required for an authorized operational, support, or security task.',
+        'Every named Solvantis platform user, including SuperAdmins, Admins, staff and Advisors, must use an individual account with MFA. These platform controls apply across businesses, not only Amazon-connected accounts. Shared user accounts and shared passwords are prohibited. Cashier PINs, customer wholesale access and native-shop customer sign-ins remain separate workflows and must not be represented as covered by the named-platform password controls.',
         'Maintain a record of account owner, approved access, purpose, approver, and review date across Solvantis, hosting, databases, source control, and device management. Review personnel and service access quarterly. Remove or adjust access within 24 hours of termination or role change.',
       ] },
       { heading: 'Password and MFA requirements', paragraphs: [
-        'Enforce a minimum of 12 characters, uppercase and lowercase letters, numbers, and special characters. Passwords must not contain the user name. Reject reuse of the last 10 passwords; retain only secure password hashes for history. Require a minimum password age of one day except for documented compromise or recovery handling, and a maximum age of 365 days.',
-        'Apply validation to all creation, invitation, reset, and change routes on the server. Expired credentials must not permit normal access until renewed. Revoke affected sessions and remembered-browser access following credential compromise, access removal, or password changes.',
-        'Require MFA for all human accounts accessing systems handling Amazon Information, using approved factors. Document and resolve any external service that cannot meet the requirement. Lock or restrict accounts after no more than 10 unsuccessful login attempts and record suspicious activity.',
+        'Enforce a minimum of 12 characters, uppercase and lowercase letters, numbers, and non-whitespace special characters. Passwords must not contain name components, username or sign-in email. The supported maximum is 72 UTF-8 bytes so password hashing does not silently truncate input. Reject reuse of the last 10 passwords; retain only secure hashes for history. Require a minimum password age of one day and a maximum age of 365 days. Initial setup and renewal of legacy credentials with an unknown age establish the first recorded change date.',
+        'Apply validation to all creation, invitation, reset, and change routes on the server. Unknown-age, expired or noncompliant credentials must be renewed before the next platform sign-in. Password changes revoke pending MFA sessions and remembered-browser access and clear the current browser session; other already-issued signed sessions retain their existing maximum eight-hour lifetime. New sessions are also capped at the recorded password-expiry deadline. There is no per-request account-state lookup or immediate per-user revocation of existing signed sessions.',
+        'For suspected compromise, do not wait for a routine password-change interval: invoke incident response, contain access, revoke affected service credentials and use authorized emergency platform-wide session invalidation where needed. A routine password-reset request must not be used as an undocumented bypass of the one-day minimum or password history.',
+        'Keep the existing platform MFA enrollment/challenge, one-time recovery codes and rotating remembered-browser controls. Platform password and MFA failure limits are account-wide across source IPs: five failed attempts trigger a 30-minute lockout, which is stricter than a ten-attempt maximum. Existing MFA preauthentication attempt limits remain in force. Document and resolve any external service that cannot meet the required MFA and credential controls.',
       ] },
       { heading: 'Support access and enforcement', paragraphs: [
         'Developer access to customer information must be tied to a recorded authorized task and limited to the minimum data and time needed. Do not browse customer records without a business reason.',
@@ -140,7 +141,7 @@ export const SECURITY_POLICIES: readonly SecurityPolicy[] = [
   {
     id: 'logging-monitoring',
     title: 'Security Logging and Monitoring',
-    version: '1.0',
+    version: '1.1',
     reviewCadence: 'Security log review at least every 14 days',
     roles: ['policyOwner', 'logReviewer', 'incidentLead'],
     summary: [
@@ -152,9 +153,12 @@ export const SECURITY_POLICIES: readonly SecurityPolicy[] = [
       { heading: 'Events and protection', paragraphs: [
         'Record sign-in successes and failures, lockouts, MFA events, access changes, privileged business-context changes, PII access and exports, key operations, security configuration changes, approvals, and deployments. Capture actor, timestamp, action, outcome, and safe reference without raw buyer data or secret values.',
         'Retain security logs for a minimum of 12 months. Restrict read access, protect logs against unauthorized modification and deletion, and monitor logging and archive failures. An application history view with a shorter retention period does not replace the security archive.',
+        'Reuse the existing platform authentication activity store for successful and failed sign-ins, lockouts, required password renewal, MFA failures/enrollment/recovery/remembered-browser use, password reset requests and password changes. Keep these events for at least 12 calendar months; do not silently purge them after 90 days or allow account deletion to cascade into retained audit entries. Database write guards reject audit-entry edits and deletion inside the retention window. This does not recover activity already deleted under an earlier retention setting.',
+        'The platform authentication trail is not a complete audit of every PII access, export, key operation, provider event or deployment. Review and retain the corresponding hosting, source-control, key-service and other restricted logs separately. Do not certify complete security-event coverage or immutable external archives merely because application authentication logging is enabled.',
       ] },
       { heading: 'Review and alerting', paragraphs: [
         'The log reviewer must complete and record a review at least every 14 days, including review period, findings, investigator, follow-up actions, and evidence. Track overdue reviews and escalate them to the policy owner.',
+        'Record completed reviews in Security & Compliance with the reviewed UTC period, safe findings/action summary and restricted evidence reference. The signed-in approver, current policy fingerprint and saved responsibility revision are recorded automatically. Backdated coverage does not extend the review deadline. Records are append-only; correct mistakes with an additional entry. Due dates are displayed, but review work and reminder emails are not performed automatically.',
         'Configure alerts for repeated failed sign-ins, unusual privileged access, unexpected access changes, suspicious exports, key misuse, and endpoint security events. Respond promptly rather than waiting for the next scheduled review.',
       ] },
       { heading: 'Investigation and operational issues', paragraphs: [

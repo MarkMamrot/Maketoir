@@ -12,7 +12,7 @@ Use Team to invite a colleague with the appropriate tier, then let them complete
 - Confirm the selected business and email address.
 - Choose the least privileged tier that covers the person's work in this business.
 - Choose **Set by Email** so the person creates their own password, then check the result.
-- Open **Security** beside a user to send a one-hour password reset link or review their last 90 days of authentication activity.
+- Open **Security** beside a user to send a one-hour password reset link or review their last 12 months of authentication activity.
 - Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.
 - Keep passwords, authenticator codes, and recovery codes private.
 - Export business data only when authorised to handle the file.
@@ -62,15 +62,26 @@ Users enrolled in two or more businesses can choose the active business from the
 6. Select **Create** once.
 7. Read the success or error message before trying again.
 8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.
-9. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.
+9. The colleague must complete multi-factor authentication and store their own recovery codes securely. A valid remembered browser can satisfy the existing trusted-browser check.
+
+## Platform password and sign-in rules
+
+Named platform accounts, including SuperAdmins, Admins, staff and Advisors, use the same password and multi-factor sign-in rules. These rules do not change cashier PINs or separate wholesale and online-shop customer sign-ins.
+
+- Passwords require at least 12 characters, uppercase and lowercase letters, a number, and a non-whitespace special character.
+- Passwords must not contain the person's name, username, or full sign-in email. Control characters are not accepted, and the maximum is 72 UTF-8 bytes; non-English characters can use more than one byte.
+- The current password and the previous nine passwords cannot be reused.
+- A known-age password must normally be at least one day old before replacement and must be renewed after 365 days. Accounts without a recorded password age must renew at their next sign-in, with no grace period.
+- Five unsuccessful platform sign-in attempts trigger a 30-minute account-wide lock; changing network or IP address does not bypass it.
+- Use **Forgot password** when renewal is required. If a suspected compromise needs urgent action during the one-day minimum age, contact the responsible administrator for incident containment rather than repeatedly requesting links.
 
 ## Password resets and authentication activity
 
 Admins and SuperAdmins can open **Settings > Users**, select **Security** beside a user in the active business, and send that person a password reset email. The administrator never chooses or sees the password. Sending a new link invalidates earlier unused links, and each link expires after one hour.
 
-The Security panel shows successful completed logins, password reset emails sent by an administrator, and completed password changes from the last 90 days. Entries can include the client IP address, browser description, and an approximate city, region, and country when the hosting network supplies that information. Approximate location may be unavailable or inaccurate. Only Admins and SuperAdmins for the active business can view this history, and records older than 90 days are removed automatically.
+The Security panel shows the latest 250 entries from the last 12 calendar months. Activity includes completed and failed sign-ins, lockouts, password-renewal requirements, MFA failures/enrollment, recovery-code and trusted-browser use, reset-email requests, and completed password changes. Entries can include the client IP address, browser description, and an approximate city, region, and country when the hosting network supplies that information. Approximate location may be unavailable or inaccurate. Only Admins and SuperAdmins for the active business can view this account history. Older activity is removed automatically; previously deleted history cannot be recovered.
 
-Changing a password revokes remembered browsers and incomplete authentication challenges. Existing authenticator enrollment and recovery codes remain with the account.
+Changing a password revokes remembered browsers and incomplete authentication challenges and signs out the browser completing the reset. Existing authenticator enrollment and recovery codes remain with the account. Other already-issued platform sessions can remain valid for their existing maximum eight-hour lifetime; a routine reset does not immediately revoke every browser. New sessions cannot extend past the password's expiry. Suspected compromise requires the separate incident-containment process.
 
 If the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.
 

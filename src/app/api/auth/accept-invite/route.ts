@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     if (!token || !password) {
       return NextResponse.json({ success: false, error: 'Token and password are required.' }, { status: 400 });
     }
-    const validation = getPasswordValidation(password);
+    const validation = getPasswordValidation(password, undefined, name);
     if (!validation.isValid) return NextResponse.json({ success: false, error: validation.message }, { status: 400 });
 
     // Atomically claim the invite — prevents concurrent accepts (TOCTOU)

@@ -7,11 +7,7 @@ import type { BusinessMembership } from '@/lib/auth/businessMemberships';
 import { recordActiveBusiness } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
-import { passwordExpiresAt, passwordRequiresRenewal } from '@/lib/auth/passwordPolicy';
-
-export class PasswordRenewalRequiredError extends Error {
-  constructor() { super('Your password must be renewed. Use Forgot password, then sign in again.'); }
-}
+import { passwordExpiresAt, passwordRequiresRenewal, PasswordRenewalRequiredError } from '@/lib/auth/passwordPolicy';
 
 export function buildAdminSession(user: UserRow, membership: BusinessMembership) {
   return {

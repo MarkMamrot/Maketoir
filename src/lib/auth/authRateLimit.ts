@@ -5,6 +5,7 @@ import { getPool } from '@/services/MySQLService';
 const DEFAULT_THRESHOLD = 5;
 const DEFAULT_WINDOW_SECONDS = 15 * 60;
 const DEFAULT_LOCK_SECONDS = 15 * 60;
+export const PLATFORM_AUTH_LOCK_SECONDS = 30 * 60;
 
 interface RateLimitRow extends RowDataPacket {
   failure_count: number;

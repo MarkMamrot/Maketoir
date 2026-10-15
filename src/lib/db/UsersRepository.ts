@@ -53,7 +53,8 @@ export const UsersRepository = {
     tier?: UserTier;
     requirePasswordSetup?: boolean;
   }): Promise<number> {
-    const validation = getPasswordValidation(data.password, data.requirePasswordSetup ? undefined : data.username ?? data.email);
+    const validation = getPasswordValidation(data.password, data.requirePasswordSetup ? undefined : data.username,
+      data.requirePasswordSetup ? undefined : data.name, data.requirePasswordSetup ? undefined : data.email);
     if (!validation.isValid) throw new PasswordPolicyValidationError(validation.message);
     const hash = await bcrypt.hash(data.password, 12);
     const result = await execute(

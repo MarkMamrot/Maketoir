@@ -10,7 +10,7 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const passwordValidation = getPasswordValidation(form.password);
+  const passwordValidation = getPasswordValidation(form.password, form.email, form.name);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));

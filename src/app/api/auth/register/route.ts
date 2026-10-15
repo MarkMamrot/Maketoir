@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
     }
-    const passwordValidation = getPasswordValidation(password, email);
+    const passwordValidation = getPasswordValidation(password, email, name);
     if (!passwordValidation.isValid) {
       return NextResponse.json({ success: false, error: passwordValidation.message }, { status: 400 });
     }

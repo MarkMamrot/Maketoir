@@ -37,7 +37,7 @@ describe('authentication activity', () => {
     });
   });
 
-  it('purges expired activity and records the event', async () => {
+  it('records the event before purging activity strictly older than 12 calendar months', async () => {
     const request = new Request('https://app.example.com/login', {
       headers: { 'x-real-ip': '2001:db8::1' },
     });
@@ -49,10 +49,30 @@ describe('authentication activity', () => {
       request,
     });
 
-    expect(mocks.execute.mock.calls[0][0]).toContain('INTERVAL 12 MONTH');
-    expect(mocks.execute.mock.calls[1][1]).toEqual([
+    expect(mocks.execute.mock.calls[1][0]).toContain('created_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 12 MONTH)');
+    expect(mocks.execute.mock.calls[0][1]).toEqual([
       'biz-1', 42, 'login_success', null, '2001:db8::1', null, null, null, null,
     ]);
+  });
+
+  it('retains an unidentified failed attempt and reports maintenance failure separately', async () => {
+    mocks.execute.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('purge unavailable'));
+    await recordAuthEvent({ eventType: 'login_failure', request: new Request('https://app.example.com/login') });
+    expect(mocks.execute.mock.calls[0][1].slice(0, 4)).toEqual([null, null, 'login_failure', null]);
+    expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({ operation: 'purge_expired_auth_events' }));
+  });
+
+  it('does not hide failure of the runtime issue recorder', async () => {
+    mocks.execute.mockRejectedValueOnce(new Error('storage unavailable'));
+    mocks.reportRuntimeIssue.mockRejectedValueOnce(new Error('issue recorder unavailable'));
+    await expect(recordAuthEvent({ eventType: 'login_failure', request: new Request('https://app.example.com/login') }))
+      .rejects.toThrow('issue recorder unavailable');
+  });
+
+  it('strips encoded controls from coarse location headers', () => {
+    expect(getAuthRequestMetadata(new Request('https://app.example.com', {
+      headers: { 'x-vercel-ip-city': 'City%00Name' },
+    })).city).toBe('CityName');
   });
 
   it('reports storage failures without rejecting the authentication action', async () => {

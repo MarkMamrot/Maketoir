@@ -9,6 +9,7 @@ vi.mock('@/components/help/UnifiedHelpDrawer', () => ({
   UnifiedHelpDrawer: ({ open, currentContext }: { open: boolean; currentContext: string }) =>
     open ? <div>Policy Help: {currentContext}</div> : null,
 }));
+vi.mock('../SecurityPolicyEvidenceView', () => ({ default: () => null }));
 import SecurityComplianceView from '../SecurityComplianceView';
 
 const fetchMock = vi.fn();
@@ -32,7 +33,7 @@ describe('Security & Compliance workspace', () => {
     expect(screen.getAllByDisplayValue('Marek Mamrot')).toHaveLength(11);
     expect(screen.getByRole('heading', { name: 'Quick summary' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Detailed policy' })).toBeTruthy();
-    expect(screen.getByText('Draft policies - controls are not certified')).toBeTruthy();
+    expect(screen.getByText('Documented policies - controls are not certified')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save responsibilities' }).matches(':disabled')).toBe(false);
   });
 

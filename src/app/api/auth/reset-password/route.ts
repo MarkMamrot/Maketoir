@@ -20,6 +20,8 @@ interface PasswordOwnerRow extends RowDataPacket {
   password_hash: string;
   username: string | null;
   email: string;
+  name: string | null;
+  password_changed_at: Date | string | null;
 }
 
 /**
@@ -30,7 +32,11 @@ export async function POST(req: Request) {
   let resetUserId: number | null = null;
   let resetBusinessId: string | null = null;
   try {
-    const { token, password } = await req.json();
+    const body: unknown = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: 'A valid JSON object is required.' }, { status: 400 });
+    }
+    const { token, password } = body as Record<string, unknown>;
 
     if (typeof token !== 'string' || !token || typeof password !== 'string' || !password) {
       return NextResponse.json({ success: false, error: 'Token and password are required.' }, { status: 400 });
@@ -61,7 +67,9 @@ export async function POST(req: Request) {
         await connection.rollback();
         return NextResponse.json({ success: false, error: 'This reset link has already been used.' }, { status: 400 });
       }
-      if (new Date(row.expires_at).getTime() <= Date.now()) {
+      const expiresAt = new Date(row.expires_at).getTime();
+      if (!Number.isFinite(expiresAt)) throw new Error('Stored reset-link expiry is invalid.');
+      if (expiresAt <= Date.now()) {
         await connection.rollback();
         return NextResponse.json({ success: false, error: 'This reset link has expired. Please request a new one.' }, { status: 400 });
       }
@@ -69,13 +77,18 @@ export async function POST(req: Request) {
       resetBusinessId = row.business_id;
 
       const [owners] = await connection.execute<PasswordOwnerRow[]>(
-        'SELECT password_hash, username, email FROM users WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT password_hash, username, email, name, password_changed_at FROM users WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [row.user_id],
       );
       const owner = owners[0];
       if (!owner) throw new Error('Password reset user no longer exists.');
-      const ownerValidation = getPasswordValidation(password, owner.username ?? owner.email);
+      const ownerValidation = getPasswordValidation(password, owner.username, owner.name, owner.email);
       if (!ownerValidation.isValid) throw new PasswordPolicyValidationError(ownerValidation.message);
+      const changedAt = owner.password_changed_at == null ? null : new Date(owner.password_changed_at).getTime();
+      if (changedAt !== null && !Number.isFinite(changedAt)) throw new Error('Stored password-change date is invalid.');
+      if (changedAt !== null && changedAt + 24 * 60 * 60 * 1000 > Date.now()) {
+        throw new PasswordPolicyValidationError('A password can be changed only once in 24 hours. For suspected compromise, contact the administrator immediately for incident response.');
+      }
       const [history] = await connection.execute<Array<RowDataPacket & { password_hash: string }>>(
         'SELECT password_hash FROM user_password_history WHERE user_id = ? ORDER BY id DESC LIMIT 9',
         [row.user_id],

@@ -3048,12 +3048,14 @@
       "parentId": "setup-connections",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
       ],
       "contextSections": {
         "security-compliance": "Step-by-step",
+        "security-review-evidence": "Security reviews and policy adoption",
         "amazon-pii-inventory": "Amazon PII inventory and dry run",
         "amazon-delivery-evidence": "Amazon delivery evidence",
         "amazon-pii-disposal": "Amazon identifying-field cleanup"
@@ -3064,7 +3066,7 @@
         "setup-cron-jobs"
       ],
       "order": 8,
-      "summary": "Read policies, save responsibilities, review Amazon delivery evidence, and preview or approve targeted identifying-field cleanup.",
+      "summary": "Read policies, save responsibilities, record policy adoption and security reviews, and manage Amazon delivery evidence and identifying-field cleanup.",
       "lastReviewed": "2026-10-15",
       "owner": "security",
       "quickSections": [
@@ -21562,13 +21564,14 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
-      "content": "Security & Compliance is an organization-wide SuperAdmin workspace. It contains draft internal policies with quick summaries above the detailed procedures and named responsibilities.",
+      "content": "Security & Compliance is an organization-wide SuperAdmin workspace. It contains internal policies with quick summaries above the detailed procedures, named responsibilities, and attributed adoption and review records.",
       "sectionId": "setup-security-compliance:1"
     },
     {
@@ -21584,13 +21587,14 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
-      "content": "- Open **Admin > Security & Compliance**.\n- Review the draft-policy warning before treating a document as an operating control.\n- Enter responsible people as text and choose **Save responsibilities**.\n- Select a policy to read its summary, responsible people, review cadence, and detailed version.\n- Choose **Run read-only inventory** to review potential Amazon buyer details and retained copies for the active business.\n- Load an Amazon order under **Amazon delivery evidence** to review carrier checks or record independently verified original buyer delivery.\n- Use **Amazon identifying-field cleanup > Preview cleanup** before approving permanent removal of an eligible order's identifying fields.\n- Use **Help** for the workspace instructions.",
+      "content": "- Open **Admin > Security & Compliance**.\n- Review the warning and adoption status before treating a document as an operating control.\n- Enter responsible people as text and choose **Save responsibilities**.\n- Select a policy to read its summary, responsible people, review cadence, and detailed version.\n- Complete security log reviews at least every 14 days and record the reviewed UTC period, findings, follow-up actions, and restricted evidence reference.\n- Record an explicit policy adoption only after authorising the current document; record later periodic policy reviews separately.\n- Choose **Run read-only inventory** to review potential Amazon buyer details and retained copies for the active business.\n- Load an Amazon order under **Amazon delivery evidence** to review carrier checks or record independently verified original buyer delivery.\n- Use **Amazon identifying-field cleanup > Preview cleanup** before approving permanent removal of an eligible order's identifying fields.\n- Use **Help** for the workspace instructions.",
       "sectionId": "setup-security-compliance:2"
     },
     {
@@ -21606,13 +21610,14 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
-      "content": "All responsibility names initially default to **Marek Mamrot**. Saved names apply across the internal policies, independently of the selected business. Responsibility names do not create accounts or grant permissions.\n\nEach document is marked **Draft - not yet adopted**. Saving responsibility names does not adopt the policy, schedule reviews, send incident notifications, or enable a technical control.\n\nThe Amazon PII inventory is business-specific. Use the business selector in the header to change its scope; this does not change the organization-wide policy responsibilities.",
+      "content": "All responsibility names initially default to **Marek Mamrot**. Saved names apply across the internal policies, independently of the selected business. Responsibility names do not create accounts or grant permissions.\n\nDocuments without adoption evidence for their current text are marked **Draft - not yet adopted**. Saving responsibility names does not adopt a policy. Adoption records are human attestations, not certification that every control operates. The workspace displays due dates but does not send automatic review reminders or incident notifications.\n\nThe Amazon PII inventory is business-specific. Use the business selector in the header to change its scope; this does not change the organization-wide policy responsibilities.",
       "sectionId": "setup-security-compliance:3"
     },
     {
@@ -21628,13 +21633,14 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
-      "content": "Sign in with a SuperAdmin account and identify the people who will own each responsibility.\n\n> **Warning:** These are draft procedures, not evidence of implemented security controls. Assigning a person does not grant access or certify compliance.",
+      "content": "Sign in with a SuperAdmin account and identify the people who will own each responsibility.\n\n> **Warning:** Documented policies and recorded attestations do not certify implemented security controls. Assigning a person does not grant access or certify compliance.",
       "sectionId": "setup-security-compliance:4"
     },
     {
@@ -21650,6 +21656,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21672,6 +21679,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21685,6 +21693,29 @@
       "id": "setup-security-compliance:7",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
+      "heading": "Security reviews and policy adoption",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Security & Compliance",
+      "topicId": "setup-security-compliance",
+      "contexts": [
+        "security-compliance",
+        "security-review-evidence",
+        "amazon-pii-inventory",
+        "amazon-delivery-evidence",
+        "amazon-pii-disposal"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-15",
+      "content": "1. Save the responsibility names first. Resolve unsaved changes or a stale revision before recording evidence.\n2. In **Security reviews and policy adoption**, choose **Security log review**, **Adopt policy**, or **Periodic policy review**.\n3. For a log review, select the reviewed UTC date period and choose **Load platform authentication history**. Entries cover all platform businesses and can include unidentified failed attempts. Load older pages as needed; each page contains up to 250 entries. Reload to include events that arrived after the first load.\n4. Review relevant Runtime Issues and restricted hosting, source-control, and other security logs as well. The authentication history is not a complete record of every sensitive-data access, deployment, or key-management event.\n5. Enter a concise summary of what was actually reviewed or authorised, findings, follow-up owners/actions, and a safe reference to supporting evidence. Do not copy credentials, customer information, or raw logs into these fields.\n6. Tick the explicit acknowledgement and choose **Record evidence**. Check the confirmation and the new history entry.\n\nThe signed-in account, current policy text/version, saved responsibility revision, and time are attributed to each entry. Evidence is append-only: record a separate correction rather than overwriting a previous entry. The latest 100 entries are displayed.\n\nSecurity log reviews are due at least every 14 days. Recording an old reviewed period does not move the deadline forward as though current logs had been reviewed. Incident-response policy reviews are due every six calendar months; other policy documents are due annually. These dates do not replace additional operational review frequencies in the detailed policy.\n\nA periodic policy review requires adoption of the current policy text. Changed policy text requires fresh adoption evidence. If a page reports that its policy text changed, refresh it and read the current text before recording evidence.",
+      "sectionId": "setup-security-compliance:7"
+    },
+    {
+      "id": "setup-security-compliance:8",
+      "documentId": "setup-security-compliance",
+      "title": "Security and Compliance Policies",
       "heading": "Reading the data retention policy",
       "audiences": [
         "ims"
@@ -21694,6 +21725,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21701,10 +21733,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
       "content": "The draft policy calls for removing Amazon buyer PII within 30 days after delivery and using **Amazon Customer** as a generic label. A necessary non-PII order reference may remain for reconciliation; it must not preserve a hidden lookup to deleted buyer details.\n\nChanging a display name alone is not disposal: delivery details, shipment copies, documents, and other retained identifying information also need to be removed. The workspace offers a manual, targeted identifying-field cleanup, not scheduled deletion or certification that every retained copy is removed.",
-      "sectionId": "setup-security-compliance:7"
+      "sectionId": "setup-security-compliance:8"
     },
     {
-      "id": "setup-security-compliance:8",
+      "id": "setup-security-compliance:9",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Amazon identifying-field cleanup",
@@ -21716,6 +21748,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21723,10 +21756,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
       "content": "1. Select the intended business in the Admin header.\n2. Enter the local Amazon sales order ID and choose **Preview cleanup**. This reads counts and eligibility without changing customer data or contacting Amazon or a carrier.\n3. Review the exact deadline, fields, affected-record counts and blockers. Buyer values are not displayed in this preview.\n4. Resolve missing delivery evidence, outstanding parcels, incomplete operational work, shared identifying customers or shared label PDFs before proceeding. An expired deadline does not waive these checks; investigate blocked overdue records promptly.\n5. For an eligible order, type the displayed **CLEAR AMAZON PII** confirmation including its local order ID, then choose **Approve identifying-field cleanup**.\n6. Check the completion message. Identifying fields are cleared, but separate review of retained copies is still required.\n\nThe deadline is exactly 30 days after the earliest active verified original buyer delivery. This is a maximum retention deadline, not a required waiting period: earlier approved cleanup is allowed once delivery and operational checks are satisfied. Future-dated delivery evidence blocks approval until corrected. An order must have resolved fulfilment and delivery evidence for its original prepared parcels; a verified whole-order delivery entry can cover those parcels. Later delivery or polling does not reset the deadline. A preview expires after 15 minutes and is rejected if the order, customer or reviewed snapshots change, or the active business changes.\n\nCleanup targets delivery addresses; an exclusive customer's name, email, phone, address and other explicit identifying fields; and known buyer fields inside shipment recipients, amendment snapshots and linked channel payloads. Existing generic shared customers remain untouched and are protected against later addition of identifying details. An exclusive identifying customer becomes **Amazon Customer** without changing its ID or financial ownership. Shared, externally mapped or financially active identifying customers require manual resolution.\n\nProduct descriptions, free-text notes, purchase-order text, refund references, amounts, quantities, tax, stock and customer-credit balances are not automatically removed or changed. Presence of text alone does not identify buyer PII. Known buyer fields are removed without replacing entire operational payloads.\n\nOld in-app shipping label access is disabled because the PDF may contain a buyer's address. This does not delete a PDF already downloaded or held by a carrier. A label PDF shared with another order blocks cleanup until the shared copy is resolved.\n\nApproval records the signed-in approver, delivery deadline, time and safe counts without saving the old identifying values. Repeating the same approval is safe; changing an approval or reusing it for a different cleanup is rejected. Missing platform readiness disables cleanup rather than offering an unsafe fallback.\n\nAfter approval, Amazon order synchronization continues to update operational status but cannot restore the cleared address. Protected customer and shipment fields cannot be repopulated through ordinary writes, and old recipient copies or labels cannot be regenerated. These protections depend on the retained cleanup record and installed write controls; they do not certify arbitrary external imports or restored databases.\n\n**Retained-copy boundary:** Notes, documents, exports, logs, caches, carrier-held copies and backups remain separate review areas. Backup deletion and restoration automation are not part of this workflow. Provider expiry has not been verified here. A successful identifying-field cleanup must not be described as complete removal of all Amazon PII or proof of the full retention policy.",
-      "sectionId": "setup-security-compliance:8"
+      "sectionId": "setup-security-compliance:9"
     },
     {
-      "id": "setup-security-compliance:9",
+      "id": "setup-security-compliance:10",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Amazon PII inventory and dry run",
@@ -21738,6 +21771,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21745,10 +21779,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
       "content": "1. Select the intended business in the Admin header, then open **Security & Compliance**.\n2. Choose **Run read-only inventory**. The report does not delete or change orders and does not contact Amazon or a carrier.\n3. Check coverage warnings before interpreting the numbers. An unavailable source is not a zero count; partial results cover only available sources.\n4. Review structured address/contact fields, shipment recipients, amendment history, stored label links, order and linked credit-note descriptions, free-text fields and channel payloads.\n5. Use **Next order page** and **Previous order page** for order-linked candidates. Counts cover the whole active business, not just the displayed page.\n6. Review generated documents, downloads, exports, carrier tracking identifiers and links, retained evidence references or fingerprints, logs, support copies, backups, processor-held data and manually reassigned or unlinked customer/refund records separately. References need classification and a justified retention purpose; they must not preserve a hidden lookup to deleted buyer details.\n\nThe report shows counts, local order IDs, validated Amazon references and dates, not buyer names, addresses, phone numbers, raw payloads or label links. Label contents are not downloaded.\n\nWhere delivery evidence is available, the earliest verified original buyer-delivery timestamp sets a review deadline exactly 30 days later. This includes split shipments: a later parcel does not move the earlier review deadline. The report counts potential-PII orders that have reached this delivery-based review deadline. It does not treat populated fields or unreviewed content as confirmed PII; **Confirmed overdue** therefore remains **Not assessable** until classification is complete.\n\nOrders without verified delivery still need investigation. Age of 30 or more UTC calendar days is a separate priority-review measure, not a substitute delivery date or permission for indefinite retention. Shipment completion, fulfilment and return-delivery dates must never start the buyer-delivery clock. Unavailable delivery evidence is shown as unavailable, not zero.\n\nNon-empty text and payloads may contain only product descriptions or operational references. They require review, not automatic deletion. Linked contacts may be shared with other orders; deleting a shared customer would be unsafe. Source counts measure records rather than unique buyers and must not be added together. Amazon event/job counts also include records that cannot be linked to a local order.\n\nNo candidate is approved for automatic disposal. Zero results do not prove that external or unclassified copies have been removed. If a scan fails, old results are cleared and the failure is shown; run the inventory again to retry.",
-      "sectionId": "setup-security-compliance:9"
+      "sectionId": "setup-security-compliance:10"
     },
     {
-      "id": "setup-security-compliance:10",
+      "id": "setup-security-compliance:11",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Amazon delivery evidence",
@@ -21760,6 +21794,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21767,10 +21802,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
       "content": "### Automatic carrier tracking\n\nThe **Online channel delivery tracking** scheduled job runs hourly when its master switch is On and Amazon delivery tracking is On for the active business in **IMS Settings > Sales & Customers > Shipping**. The master starts **Off** until the evidence storage and carrier tracking access have been verified. Business channel-type defaults are Amazon On, Shopify Off and Solvantis Online Store Off. An existing Australia Post shipping account may still need permission to use tracking.\n\nAutomatic verification supports Australia Post eParcel article IDs on original Amazon parcels prepared and marked dispatched in Solvantis. It does not infer delivery from a consignment summary, a label, a shipping status, a return, or a missing tracking response. Unsupported carriers, external shipments without prepared parcel records, missing article IDs, ambiguous dates and unrecognized delivery events need manual verification.\n\nThe job checks bounded batches, spaces carrier requests, retries pending articles and reports operational errors in Runtime Issues. Once a parcel has active verified evidence, it does not need repeated polling. Only a matched original article with a recognized delivery event and explicit timezone can provide automatic evidence. Raw carrier responses, event locations and recipient details are not saved as evidence.\n\nBusiness-wide **Pause scheduled automation**, the master job switch and the business's Amazon delivery tracking switch stop future polls, not work already in progress. Disabling an Amazon store connection does not erase delivery evidence or remove tracking of already dispatched parcels while its channel-type switch and the delivery job remain enabled. Pausing or late polling does not extend a recorded review deadline: the actual delivery timestamp, not the check time, is used. The inventory, manual evidence workflow and 30-day PII review rules remain Amazon-only even when another online channel type is enabled for carrier tracking.\n\n### Manual verification and corrections\n\n1. Select the intended business and enter the **local Amazon sales order ID** under **Amazon delivery evidence**.\n2. Choose **Load delivery evidence**. Read the known dispatched parcels, last-check outcomes, earliest verified delivery and recent history.\n3. Independently verify original buyer delivery. Choose a specific dispatched parcel, or **Order's first original buyer delivery** for an externally shipped or legacy order. For split orders, the order-level fallback must use the first original delivery, not the final parcel.\n4. Enter the actual delivery timestamp with a timezone, such as `2026-10-15T14:43:09+11:00`. Unzoned, invalid and future dates are rejected.\n5. Select **carrier-portal**, **amazon-proof** or **recipient-confirmation** and enter a non-personal record code such as `TICKET-123`. Do not paste buyer details, URLs, credentials, screenshots or raw carrier responses into the code.\n6. Confirm the verification statement and choose **Save verified delivery**. The signed-in account is recorded as the verifier; the policy responsibility name is not used as an account identity.\n7. Reload the order and run the read-only inventory again to see the persisted evidence and updated deadline.\n\nEvidence history is append-only. To correct factually incorrect manual evidence, choose **Void incorrect manual evidence**, select the reason, and choose **Confirm factual correction**. The original record remains visible with the correction and verified actor. A valid correction can change the calculated deadline; it is not a retention-policy exception. Carrier evidence cannot be voided here: investigate suspected carrier errors in Runtime Issues before considering disposal.\n\nThe page shows the latest 50 history records. Deadline calculations use all active evidence, not just the visible page. A verified parcel does not prove that the whole order has arrived, and a first-delivery fallback does not certify every parcel. Missing parcels and external copies remain review obligations.\n\nNeither automatic nor manual verification changes stock, financial records, order status, customer information or PII. **Automatic anonymization and deletion remain disabled.**",
-      "sectionId": "setup-security-compliance:10"
+      "sectionId": "setup-security-compliance:11"
     },
     {
-      "id": "setup-security-compliance:10.1",
+      "id": "setup-security-compliance:11.1",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Amazon delivery evidence > Automatic carrier tracking",
@@ -21782,6 +21817,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21789,10 +21825,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-15",
       "content": "The **Online channel delivery tracking** scheduled job runs hourly when its master switch is On and Amazon delivery tracking is On for the active business in **IMS Settings > Sales & Customers > Shipping**. The master starts **Off** until the evidence storage and carrier tracking access have been verified. Business channel-type defaults are Amazon On, Shopify Off and Solvantis Online Store Off. An existing Australia Post shipping account may still need permission to use tracking.\n\nAutomatic verification supports Australia Post eParcel article IDs on original Amazon parcels prepared and marked dispatched in Solvantis. It does not infer delivery from a consignment summary, a label, a shipping status, a return, or a missing tracking response. Unsupported carriers, external shipments without prepared parcel records, missing article IDs, ambiguous dates and unrecognized delivery events need manual verification.\n\nThe job checks bounded batches, spaces carrier requests, retries pending articles and reports operational errors in Runtime Issues. Once a parcel has active verified evidence, it does not need repeated polling. Only a matched original article with a recognized delivery event and explicit timezone can provide automatic evidence. Raw carrier responses, event locations and recipient details are not saved as evidence.\n\nBusiness-wide **Pause scheduled automation**, the master job switch and the business's Amazon delivery tracking switch stop future polls, not work already in progress. Disabling an Amazon store connection does not erase delivery evidence or remove tracking of already dispatched parcels while its channel-type switch and the delivery job remain enabled. Pausing or late polling does not extend a recorded review deadline: the actual delivery timestamp, not the check time, is used. The inventory, manual evidence workflow and 30-day PII review rules remain Amazon-only even when another online channel type is enabled for carrier tracking.",
-      "sectionId": "setup-security-compliance:10"
+      "sectionId": "setup-security-compliance:11"
     },
     {
-      "id": "setup-security-compliance:10.2",
+      "id": "setup-security-compliance:11.2",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Amazon delivery evidence > Manual verification and corrections",
@@ -21804,6 +21840,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21811,10 +21848,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-15",
       "content": "1. Select the intended business and enter the **local Amazon sales order ID** under **Amazon delivery evidence**.\n2. Choose **Load delivery evidence**. Read the known dispatched parcels, last-check outcomes, earliest verified delivery and recent history.\n3. Independently verify original buyer delivery. Choose a specific dispatched parcel, or **Order's first original buyer delivery** for an externally shipped or legacy order. For split orders, the order-level fallback must use the first original delivery, not the final parcel.\n4. Enter the actual delivery timestamp with a timezone, such as `2026-10-15T14:43:09+11:00`. Unzoned, invalid and future dates are rejected.\n5. Select **carrier-portal**, **amazon-proof** or **recipient-confirmation** and enter a non-personal record code such as `TICKET-123`. Do not paste buyer details, URLs, credentials, screenshots or raw carrier responses into the code.\n6. Confirm the verification statement and choose **Save verified delivery**. The signed-in account is recorded as the verifier; the policy responsibility name is not used as an account identity.\n7. Reload the order and run the read-only inventory again to see the persisted evidence and updated deadline.\n\nEvidence history is append-only. To correct factually incorrect manual evidence, choose **Void incorrect manual evidence**, select the reason, and choose **Confirm factual correction**. The original record remains visible with the correction and verified actor. A valid correction can change the calculated deadline; it is not a retention-policy exception. Carrier evidence cannot be voided here: investigate suspected carrier errors in Runtime Issues before considering disposal.\n\nThe page shows the latest 50 history records. Deadline calculations use all active evidence, not just the visible page. A verified parcel does not prove that the whole order has arrived, and a first-delivery fallback does not certify every parcel. Missing parcels and external copies remain review obligations.\n\nNeither automatic nor manual verification changes stock, financial records, order status, customer information or PII. **Automatic anonymization and deletion remain disabled.**",
-      "sectionId": "setup-security-compliance:10"
+      "sectionId": "setup-security-compliance:11"
     },
     {
-      "id": "setup-security-compliance:11",
+      "id": "setup-security-compliance:12",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Troubleshooting",
@@ -21826,6 +21863,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21833,10 +21871,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
       "content": "| Symptom | What to do |\n| --- | --- |\n| Saved values are unavailable | Reload and resolve the reported failure before saving |\n| Responsibilities changed in another session | Reload saved values, review them, and reapply only the intended edits |\n| A field is rejected | Enter a non-empty name of up to 120 characters without control characters |\n| Names appear unchanged in the policy detail | Save the edits first; the detail shows saved responsibilities |\n| A document is still marked Draft | Names have been assigned, but policy adoption and control verification are separate work |\n| Confirmed overdue shows Not assessable | Delivery evidence can set a review deadline, but content still needs classification before PII can be confirmed |\n| A delivery review deadline is missing | Obtain verified original buyer-delivery evidence; do not substitute shipping or return dates |\n| Delivery storage is unavailable | Resolve the reported setup failure before saving evidence or enabling the scheduled job |\n| Carrier checks fail or stay unverified | Review Runtime Issues and account tracking access, then use independently verified manual evidence if available |\n| A save result could not be confirmed | Reload the evidence history before changing or resubmitting details |\n| An inventory source is Unavailable | Check the active business and the coverage warning in Runtime Issues; do not interpret it as zero |\n| Inventory has zero candidates | Review unlinked payloads and the areas outside the automatic scan before drawing a disposal conclusion |",
-      "sectionId": "setup-security-compliance:11"
+      "sectionId": "setup-security-compliance:12"
     },
     {
-      "id": "setup-security-compliance:12",
+      "id": "setup-security-compliance:13",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Worked examples",
@@ -21848,6 +21886,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21855,10 +21894,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
       "content": "### Assigning an incident backup\n\nOpen **Admin > Security & Compliance**, replace the incident backup name, and choose **Save responsibilities**. Select **Incident Response and Amazon Notification** to check the saved assignment. Confirm the person's availability separately; saving their name does not test an incident notification or establish a working backup arrangement.\n\n### Reviewing Amazon retention\n\nSelect **Data Classification, Privacy and Retention**. The summary explains the 30-day-after-delivery target and the generic **Amazon Customer** label; the detailed procedure covers other copies of identifying information. Use this as the policy target, not as evidence that order anonymization already runs.\n\n### Split shipment with late tracking\n\nA parcel was delivered at `2026-09-01T10:00:00+10:00`; a second parcel arrived on 10 September. Even if the first event is collected on 12 September, the earliest original delivery remains 1 September. Its exact 30-day review deadline is `2026-10-01T00:00:00.000Z`. The second delivery and later check do not restart the clock. Review the earlier parcel's copies and shared identifying information while checking any outstanding fulfilment needs; do not treat the report as deletion approval.\n\n### Investigating an older Amazon order\n\nRun the inventory for the intended business. An order aged 45 days with a recipient snapshot is flagged for priority review, but this is not proof that the order was delivered 30 days ago. Obtain verified original delivery evidence and review all linked copies before setting a disposal deadline. The dry run changes nothing.",
-      "sectionId": "setup-security-compliance:12"
+      "sectionId": "setup-security-compliance:13"
     },
     {
-      "id": "setup-security-compliance:12.1",
+      "id": "setup-security-compliance:13.1",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Worked examples > Assigning an incident backup",
@@ -21870,6 +21909,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21877,10 +21917,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-15",
       "content": "Open **Admin > Security & Compliance**, replace the incident backup name, and choose **Save responsibilities**. Select **Incident Response and Amazon Notification** to check the saved assignment. Confirm the person's availability separately; saving their name does not test an incident notification or establish a working backup arrangement.",
-      "sectionId": "setup-security-compliance:12"
+      "sectionId": "setup-security-compliance:13"
     },
     {
-      "id": "setup-security-compliance:12.2",
+      "id": "setup-security-compliance:13.2",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Worked examples > Reviewing Amazon retention",
@@ -21892,6 +21932,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21899,10 +21940,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-15",
       "content": "Select **Data Classification, Privacy and Retention**. The summary explains the 30-day-after-delivery target and the generic **Amazon Customer** label; the detailed procedure covers other copies of identifying information. Use this as the policy target, not as evidence that order anonymization already runs.",
-      "sectionId": "setup-security-compliance:12"
+      "sectionId": "setup-security-compliance:13"
     },
     {
-      "id": "setup-security-compliance:12.3",
+      "id": "setup-security-compliance:13.3",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Worked examples > Split shipment with late tracking",
@@ -21914,6 +21955,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21921,10 +21963,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-15",
       "content": "A parcel was delivered at `2026-09-01T10:00:00+10:00`; a second parcel arrived on 10 September. Even if the first event is collected on 12 September, the earliest original delivery remains 1 September. Its exact 30-day review deadline is `2026-10-01T00:00:00.000Z`. The second delivery and later check do not restart the clock. Review the earlier parcel's copies and shared identifying information while checking any outstanding fulfilment needs; do not treat the report as deletion approval.",
-      "sectionId": "setup-security-compliance:12"
+      "sectionId": "setup-security-compliance:13"
     },
     {
-      "id": "setup-security-compliance:12.4",
+      "id": "setup-security-compliance:13.4",
       "documentId": "setup-security-compliance",
       "title": "Security and Compliance Policies",
       "heading": "Worked examples > Investigating an older Amazon order",
@@ -21936,6 +21978,7 @@
       "topicId": "setup-security-compliance",
       "contexts": [
         "security-compliance",
+        "security-review-evidence",
         "amazon-pii-inventory",
         "amazon-delivery-evidence",
         "amazon-pii-disposal"
@@ -21943,7 +21986,7 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-15",
       "content": "Run the inventory for the intended business. An order aged 45 days with a recipient snapshot is flagged for priority review, but this is not proof that the order was delivered 30 days ago. Obtain verified original delivery evidence and review all linked copies before setting a disposal deadline. The dry run changes nothing.",
-      "sectionId": "setup-security-compliance:12"
+      "sectionId": "setup-security-compliance:13"
     },
     {
       "id": "setup-team-access-security:1",
@@ -21980,7 +22023,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-13",
-      "content": "- Confirm the selected business and email address.\n- Choose the least privileged tier that covers the person's work in this business.\n- Choose **Set by Email** so the person creates their own password, then check the result.\n- Open **Security** beside a user to send a one-hour password reset link or review their last 90 days of authentication activity.\n- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file.",
+      "content": "- Confirm the selected business and email address.\n- Choose the least privileged tier that covers the person's work in this business.\n- Choose **Set by Email** so the person creates their own password, then check the result.\n- Open **Security** beside a user to send a one-hour password reset link or review their last 12 months of authentication activity.\n- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file.",
       "sectionId": "setup-team-access-security:2"
     },
     {
@@ -22075,11 +22118,30 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-13",
-      "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. In **Password**, keep **Set by Email** selected. Use **Set Manually** only when an authorised support process specifically requires it.\n6. Select **Create** once.\n7. Read the success or error message before trying again.\n8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.\n9. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.",
+      "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. In **Password**, keep **Set by Email** selected. Use **Set Manually** only when an authorised support process specifically requires it.\n6. Select **Create** once.\n7. Read the success or error message before trying again.\n8. Ask the colleague to use the one-hour password setup link and complete the sign-in steps shown to them.\n9. The colleague must complete multi-factor authentication and store their own recovery codes securely. A valid remembered browser can satisfy the existing trusted-browser check.",
       "sectionId": "setup-team-access-security:7"
     },
     {
       "id": "setup-team-access-security:8",
+      "documentId": "setup-team-access-security",
+      "title": "Team Access and Security",
+      "heading": "Platform password and sign-in rules",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "Settings > Users",
+      "topicId": "setup-team-access-security",
+      "contexts": [
+        "team"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-13",
+      "content": "Named platform accounts, including SuperAdmins, Admins, staff and Advisors, use the same password and multi-factor sign-in rules. These rules do not change cashier PINs or separate wholesale and online-shop customer sign-ins.\n\n- Passwords require at least 12 characters, uppercase and lowercase letters, a number, and a non-whitespace special character.\n- Passwords must not contain the person's name, username, or full sign-in email. Control characters are not accepted, and the maximum is 72 UTF-8 bytes; non-English characters can use more than one byte.\n- The current password and the previous nine passwords cannot be reused.\n- A known-age password must normally be at least one day old before replacement and must be renewed after 365 days. Accounts without a recorded password age must renew at their next sign-in, with no grace period.\n- Five unsuccessful platform sign-in attempts trigger a 30-minute account-wide lock; changing network or IP address does not bypass it.\n- Use **Forgot password** when renewal is required. If a suspected compromise needs urgent action during the one-day minimum age, contact the responsible administrator for incident containment rather than repeatedly requesting links.",
+      "sectionId": "setup-team-access-security:8"
+    },
+    {
+      "id": "setup-team-access-security:9",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Password resets and authentication activity",
@@ -22094,11 +22156,11 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-13",
-      "content": "Admins and SuperAdmins can open **Settings > Users**, select **Security** beside a user in the active business, and send that person a password reset email. The administrator never chooses or sees the password. Sending a new link invalidates earlier unused links, and each link expires after one hour.\n\nThe Security panel shows successful completed logins, password reset emails sent by an administrator, and completed password changes from the last 90 days. Entries can include the client IP address, browser description, and an approximate city, region, and country when the hosting network supplies that information. Approximate location may be unavailable or inaccurate. Only Admins and SuperAdmins for the active business can view this history, and records older than 90 days are removed automatically.\n\nChanging a password revokes remembered browsers and incomplete authentication challenges. Existing authenticator enrollment and recovery codes remain with the account.\n\nIf the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.",
-      "sectionId": "setup-team-access-security:8"
+      "content": "Admins and SuperAdmins can open **Settings > Users**, select **Security** beside a user in the active business, and send that person a password reset email. The administrator never chooses or sees the password. Sending a new link invalidates earlier unused links, and each link expires after one hour.\n\nThe Security panel shows the latest 250 entries from the last 12 calendar months. Activity includes completed and failed sign-ins, lockouts, password-renewal requirements, MFA failures/enrollment, recovery-code and trusted-browser use, reset-email requests, and completed password changes. Entries can include the client IP address, browser description, and an approximate city, region, and country when the hosting network supplies that information. Approximate location may be unavailable or inaccurate. Only Admins and SuperAdmins for the active business can view this account history. Older activity is removed automatically; previously deleted history cannot be recovered.\n\nChanging a password revokes remembered browsers and incomplete authentication challenges and signs out the browser completing the reset. Existing authenticator enrollment and recovery codes remain with the account. Other already-issued platform sessions can remain valid for their existing maximum eight-hour lifetime; a routine reset does not immediately revoke every browser. New sessions cannot extend past the password's expiry. Suspected compromise requires the separate incident-containment process.\n\nIf the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.",
+      "sectionId": "setup-team-access-security:9"
     },
     {
-      "id": "setup-team-access-security:9",
+      "id": "setup-team-access-security:10",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Role and security decisions",
@@ -22114,10 +22176,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-13",
       "content": "| Decision | Choose | Reason |\n| --- | --- | --- |\n| Person only needs normal application work | User | Limits team-management access |\n| Person must manage setup and invite others | Admin | Grants full application access and invitation rights |\n| Email address may be wrong | Stop | Confirm it before sending an invitation |\n| Someone asks for a sign-in or recovery code | Do not share | Codes belong only to the account holder |\n| Business export is needed | Use Data Export only when authorised | The downloaded file contains business information even though protected connection details are excluded |",
-      "sectionId": "setup-team-access-security:9"
+      "sectionId": "setup-team-access-security:10"
     },
     {
-      "id": "setup-team-access-security:10",
+      "id": "setup-team-access-security:11",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Troubleshooting",
@@ -22133,10 +22195,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-13",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Password setup email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before creating or sending another link |\n| Location shows as unavailable | The hosting network did not supply coarse location information | Use the timestamp and IP address when reviewing the event; do not treat location as exact proof |\n| Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |\n| User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |\n| User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |\n| User has different permissions after switching | Their tier differs between businesses | Review the tier assigned in the currently selected business |\n| User loses access to one business | Their enrollment in that business was removed | They can continue using any other business where they remain enrolled |\n| Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |\n| Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |\n| Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |",
-      "sectionId": "setup-team-access-security:10"
+      "sectionId": "setup-team-access-security:11"
     },
     {
-      "id": "setup-team-access-security:11",
+      "id": "setup-team-access-security:12",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Worked examples",
@@ -22152,10 +22214,10 @@
       "sourcePriority": 8,
       "lastReviewed": "2026-10-13",
       "content": "### Invite a store coordinator\n\nThe coordinator needs products, reports, and normal workflows but will not manage users. Invite their confirmed work email as **User** and ask them to complete their own sign-in setup.\n\n### Invite an operations administrator\n\nThe operations lead is responsible for connections and team invitations. After confirming that responsibility, invite them as **Admin**. Do not send them another person's password or recovery codes.",
-      "sectionId": "setup-team-access-security:11"
+      "sectionId": "setup-team-access-security:12"
     },
     {
-      "id": "setup-team-access-security:11.1",
+      "id": "setup-team-access-security:12.1",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Worked examples > Invite a store coordinator",
@@ -22171,10 +22233,10 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-13",
       "content": "The coordinator needs products, reports, and normal workflows but will not manage users. Invite their confirmed work email as **User** and ask them to complete their own sign-in setup.",
-      "sectionId": "setup-team-access-security:11"
+      "sectionId": "setup-team-access-security:12"
     },
     {
-      "id": "setup-team-access-security:11.2",
+      "id": "setup-team-access-security:12.2",
       "documentId": "setup-team-access-security",
       "title": "Team Access and Security",
       "heading": "Worked examples > Invite an operations administrator",
@@ -22190,7 +22252,7 @@
       "sourcePriority": 0,
       "lastReviewed": "2026-10-13",
       "content": "The operations lead is responsible for connections and team invitations. After confirming that responsibility, invite them as **Admin**. Do not send them another person's password or recovery codes.",
-      "sectionId": "setup-team-access-security:11"
+      "sectionId": "setup-team-access-security:12"
     },
     {
       "id": "shared-plain-language-glossary:1",

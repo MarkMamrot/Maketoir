@@ -1,0 +1,26 @@
+[
+  {
+    "name": "guard_auth_events_update",
+    "table": "user_auth_events",
+    "event": "UPDATE",
+    "body": "BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Authentication audit entries cannot be modified'; END"
+  },
+  {
+    "name": "guard_auth_events_retention",
+    "table": "user_auth_events",
+    "event": "DELETE",
+    "body": "BEGIN IF OLD.created_at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 12 MONTH) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Authentication audit entries must be retained for at least 12 months'; END IF; END"
+  },
+  {
+    "name": "guard_policy_evidence_update",
+    "table": "security_policy_evidence",
+    "event": "UPDATE",
+    "body": "BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Security policy evidence cannot be modified; append a correction'; END"
+  },
+  {
+    "name": "guard_policy_evidence_delete",
+    "table": "security_policy_evidence",
+    "event": "DELETE",
+    "body": "BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Security policy evidence cannot be deleted'; END"
+  }
+]

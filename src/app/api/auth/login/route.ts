@@ -21,13 +21,14 @@ import {
   createAuthRateLimitSubject,
   getAuthRateLimit,
   recordAuthFailure,
+  PLATFORM_AUTH_LOCK_SECONDS,
 } from '@/lib/auth/authRateLimit';
 import { resolveLoginMembership, recordActiveBusiness } from '@/lib/auth/businessMemberships';
 import { BusinessApplicationsRepository } from '@/lib/db/BusinessApplicationsRepository';
 import { setPendingApplicantCookie } from '@/lib/auth/pendingApplicantCookies';
 import { query } from '@/services/MySQLService';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
-import { getPasswordValidation, passwordExpiresAt, passwordRequiresRenewal } from '@/lib/auth/passwordPolicy';
+import { getPasswordValidation, passwordExpiresAt, passwordRequiresRenewal, PasswordRenewalRequiredError } from '@/lib/auth/passwordPolicy';
 
 async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: string): Promise<boolean> {
   let hostname = '';
@@ -83,12 +84,12 @@ export async function POST(req: Request) {
     const user = await UsersRepository.findByEmail(email);
     const valid = user ? await UsersRepository.verifyPassword(user, password) : false;
     if (!user || !valid) {
-      await recordAuthFailure({ action: 'password-login', subjectHash: rateLimitSubject });
+      await recordAuthFailure({ action: 'password-login', subjectHash: rateLimitSubject, lockSeconds: PLATFORM_AUTH_LOCK_SECONDS });
       await recordAuthEvent({ userId: user?.id, businessId: user?.business_id, eventType: 'login_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
     if (passwordRequiresRenewal(user.password_changed_at)
-      || !getPasswordValidation(password, user.username ?? user.email).isValid) {
+      || !getPasswordValidation(password, user.username, user.name, user.email).isValid) {
       clearAdminSessionCookie();
       clearMfaTrustCookie();
       await recordAuthEvent({ userId: user.id, businessId: user.business_id, eventType: 'password_renewal_required', request: req });
@@ -195,6 +196,9 @@ export async function POST(req: Request) {
       nextRoute: purpose === 'enroll' ? '/auth/mfa/enroll' : '/auth/mfa/challenge',
     });
   } catch (error: any) {
+    if (error instanceof PasswordRenewalRequiredError) {
+      return NextResponse.json({ success: false, error: error.message, code: 'password_renewal_required', nextRoute: '/forgot-password' }, { status: 403 });
+    }
     console.error('Login error:', error);
     await reportRuntimeIssue({
       source: 'auth.login',

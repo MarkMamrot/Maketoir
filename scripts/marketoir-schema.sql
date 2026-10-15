@@ -582,8 +582,8 @@ CREATE TABLE IF NOT EXISTS user_auth_events (
   created_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_user_auth_events_user_created (user_id, created_at),
   INDEX idx_user_auth_events_retention (created_at),
-  CONSTRAINT fk_user_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_user_auth_events_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_user_auth_events_retained_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_user_auth_events_retained_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS user_password_history (
@@ -593,6 +593,26 @@ CREATE TABLE IF NOT EXISTS user_password_history (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_password_history_user (user_id, id),
   CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS security_policy_evidence (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  policy_id VARCHAR(64) NOT NULL,
+  event_kind ENUM('log_review','adoption','policy_review') NOT NULL,
+  policy_version VARCHAR(16) NOT NULL,
+  policy_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  assignment_revision INT UNSIGNED NOT NULL,
+  assignments_json JSON NOT NULL,
+  actor_user_id INT NOT NULL,
+  summary VARCHAR(1000) NOT NULL,
+  evidence_reference VARCHAR(500) NOT NULL,
+  review_from DATE NULL,
+  review_through DATE NULL,
+  operation_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  request_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  recorded_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_policy_evidence_operation (operation_key),
+  INDEX idx_policy_evidence_current (policy_id, policy_hash, event_kind, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS super_admin_business_context_events (

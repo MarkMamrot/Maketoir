@@ -43,7 +43,8 @@ export default function AmazonDataHandlingPage() {
 
           <section>
             <h2 className="text-xl font-bold text-slate-950">Retention and disposal</h2>
-            <p className="mt-3 leading-relaxed">Amazon delivery information is retained with the retailer&apos;s sales-order record for as long as that record remains in Solvantis. There is no separate automatic expiry period for this information at present. Retailers can contact us to request deletion; we will review the request with the account owner and applicable business or recordkeeping requirements before deleting or de-identifying information where appropriate. Disconnecting an Amazon account stops its channel authorization but does not by itself remove historical sales-order records.</p>
+            <p className="mt-3 leading-relaxed">Our documented retention policy requires Amazon buyer personally identifiable information to be deleted or irreversibly de-identified no later than 30 days after delivery. This is a maximum retention period, not a minimum waiting period: earlier approved cleanup is permitted once delivery and operational checks are satisfied. Non-identifying order references and financial records may remain for reconciliation without preserving a lookup to removed buyer details.</p>
+            <p className="mt-3 leading-relaxed">Solvantis provides explicitly approved, order-specific cleanup of targeted buyer contact and delivery fields, using Amazon Customer as a generic label where appropriate. This is currently a manual approval process, not automatic 30-day deletion. Downloaded documents, backups, and other retained copies require separate review and disposal; clearing application fields does not certify removal of every copy. Disconnecting an Amazon account stops its channel authorization but does not by itself remove historical sales-order records.</p>
           </section>
 
           <section>

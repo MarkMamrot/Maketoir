@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   completeAdminLogin: vi.fn(),
   reportRuntimeIssue: vi.fn(),
   resolveLoginMembership: vi.fn(),
+  recordAuthEvent: vi.fn(),
 }));
 
 vi.mock('@/lib/db/UsersRepository', () => ({
@@ -37,6 +38,7 @@ vi.mock('@/lib/auth/mfaRepository', () => ({
 vi.mock('@/lib/auth/totp', () => ({ verifyTotpCode: mocks.verifyTotpCode }));
 vi.mock('@/lib/auth/mfaTokens', () => ({ createRecoveryCodes: mocks.createRecoveryCodes }));
 vi.mock('@/lib/auth/authRateLimit', () => ({
+  PLATFORM_AUTH_LOCK_SECONDS: 1800,
   clearAuthRateLimit: mocks.clearAuthRateLimit,
   createAuthRateLimitSubject: mocks.createAuthRateLimitSubject,
   getAuthRateLimit: mocks.getAuthRateLimit,
@@ -46,6 +48,7 @@ vi.mock('@/lib/auth/adminLoginCompletion', () => ({
   completeAdminLogin: mocks.completeAdminLogin,
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/auth/authActivity', () => ({ recordAuthEvent: mocks.recordAuthEvent }));
 vi.mock('@/lib/auth/businessMemberships', () => ({ resolveLoginMembership: mocks.resolveLoginMembership }));
 
 import { POST as verifyEnrollment } from '@/app/api/auth/mfa/enroll/verify/route';
@@ -55,6 +58,7 @@ const USER = {
   id: 42,
   email: 'admin@example.com',
   business_id: 'business-42',
+  password_changed_at: new Date(Date.now() - 2 * 86400000),
 };
 const PREAUTH = {
   id: 9,
@@ -158,6 +162,7 @@ describe('MFA completion routes', () => {
       userId: 42,
       displayLabel: 'Google Chrome browser',
     });
+
     expect(mocks.completeAdminLogin).toHaveBeenCalledWith({
       user: USER,
       membership: MEMBERSHIP,
@@ -165,5 +170,19 @@ describe('MFA completion routes', () => {
       request: expect.any(Request),
       trustedBrowser,
     });
+  });
+
+  it.each(['enroll', 'challenge'])('requires password renewal before mutating %s state', async purpose => {
+    mocks.getActivePreauthSession.mockResolvedValue({ ...PREAUTH, purpose });
+    mocks.findById.mockResolvedValue({ ...USER, password_changed_at: null });
+    const response = await (purpose === 'enroll' ? verifyEnrollment : verifyChallenge)(request(
+      purpose === 'enroll' ? '/api/auth/mfa/enroll/verify' : '/api/auth/mfa/challenge',
+      { preauthToken: 'preauth-token', code: '123456' },
+    ));
+    expect(response.status).toBe(403);
+    expect(mocks.enableTotpWithRecoveryCodes).not.toHaveBeenCalled();
+    expect(mocks.consumePreauthSession).not.toHaveBeenCalled();
+    expect(mocks.completeAdminLogin).not.toHaveBeenCalled();
+    expect(mocks.reportRuntimeIssue).not.toHaveBeenCalled();
   });
 });

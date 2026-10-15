@@ -34,7 +34,7 @@ function AcceptInviteForm() {
     e.preventDefault();
     setError('');
     if (form.password !== form.confirm) { setError('Passwords do not match.'); return; }
-    const validation = getPasswordValidation(form.password, invite?.email);
+    const validation = getPasswordValidation(form.password, invite?.email, form.name);
     if (!validation.isValid) { setError(validation.message); return; }
     setLoading(true);
     try {

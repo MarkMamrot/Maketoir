@@ -13,17 +13,13 @@ import {
   createAuthRateLimitSubject,
   getAuthRateLimit,
   recordAuthFailure,
+  PLATFORM_AUTH_LOCK_SECONDS,
 } from '@/lib/auth/authRateLimit';
-import { completeAdminLogin, PasswordRenewalRequiredError } from '@/lib/auth/adminLoginCompletion';
+import { completeAdminLogin } from '@/lib/auth/adminLoginCompletion';
 import { resolveLoginMembership } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
-
-function getClientIp(req: Request): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || req.headers.get('x-real-ip')?.trim()
-    || 'unknown';
-}
+import { passwordRequiresRenewal, PasswordRenewalRequiredError } from '@/lib/auth/passwordPolicy';
 
 export async function POST(req: Request) {
   try {
@@ -36,7 +32,7 @@ export async function POST(req: Request) {
     if (!preauth) {
       return NextResponse.json({ success: false, error: 'Enrollment session has expired. Please sign in again.' }, { status: 401 });
     }
-    const subject = createAuthRateLimitSubject(String(preauth.userId), getClientIp(req));
+    const subject = createAuthRateLimitSubject(String(preauth.userId));
     const limiter = await getAuthRateLimit('mfa-enroll', subject);
     if (limiter.locked) {
       return NextResponse.json(
@@ -44,6 +40,9 @@ export async function POST(req: Request) {
         { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } },
       );
     }
+    const passwordOwner = await UsersRepository.findById(preauth.userId);
+    if (!passwordOwner) return NextResponse.json({ success: false, error: 'Account not found.' }, { status: 401 });
+    if (passwordRequiresRenewal(passwordOwner.password_changed_at)) throw new PasswordRenewalRequiredError();
 
     const state = await getMfaTotpState(preauth.userId);
     if (!state?.secret) {
@@ -52,7 +51,7 @@ export async function POST(req: Request) {
     const verification = await verifyTotpCode({ secret: state.secret, code });
     if (!verification.valid || verification.timeStep == null) {
       await recordPreauthFailure(preauth.id);
-      await recordAuthFailure({ action: 'mfa-enroll', subjectHash: subject });
+      await recordAuthFailure({ action: 'mfa-enroll', subjectHash: subject, lockSeconds: PLATFORM_AUTH_LOCK_SECONDS });
       await recordAuthEvent({ userId: preauth.userId, eventType: 'mfa_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid authenticator code.' }, { status: 401 });
     }

@@ -140,6 +140,7 @@ export async function POST(req: Request) {
         : `User created with ${userTier} tier.`,
     });
   } catch (err: any) {
+    if (err instanceof PasswordPolicyValidationError) return NextResponse.json({ error: err.message }, { status: 400 });
     console.error('Error creating user:', err);
     return NextResponse.json({ error: err?.message ?? 'Failed to create user.' }, { status: 500 });
   }

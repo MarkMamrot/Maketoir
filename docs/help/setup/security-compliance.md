@@ -1,16 +1,18 @@
 ---
-{"id":"setup-security-compliance","title":"Security and Compliance Policies","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Security & Compliance","product":"setup","format":"task","parentId":"setup-connections","contexts":["security-compliance","amazon-pii-inventory","amazon-delivery-evidence","amazon-pii-disposal"],"contextSections":{"security-compliance":"Step-by-step","amazon-pii-inventory":"Amazon PII inventory and dry run","amazon-delivery-evidence":"Amazon delivery evidence","amazon-pii-disposal":"Amazon identifying-field cleanup"},"relatedTopics":["setup-runtime-issues","setup-team-access-security","setup-cron-jobs"],"order":8,"summary":"Read policies, save responsibilities, review Amazon delivery evidence, and preview or approve targeted identifying-field cleanup.","lastReviewed":"2026-10-15","owner":"security","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Read security policies and assign responsibilities"},"requiredTier":"SuperAdmin"}
+{"id":"setup-security-compliance","title":"Security and Compliance Policies","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Security & Compliance","product":"setup","format":"task","parentId":"setup-connections","contexts":["security-compliance","security-review-evidence","amazon-pii-inventory","amazon-delivery-evidence","amazon-pii-disposal"],"contextSections":{"security-compliance":"Step-by-step","security-review-evidence":"Security reviews and policy adoption","amazon-pii-inventory":"Amazon PII inventory and dry run","amazon-delivery-evidence":"Amazon delivery evidence","amazon-pii-disposal":"Amazon identifying-field cleanup"},"relatedTopics":["setup-runtime-issues","setup-team-access-security","setup-cron-jobs"],"order":8,"summary":"Read policies, save responsibilities, record policy adoption and security reviews, and manage Amazon delivery evidence and identifying-field cleanup.","lastReviewed":"2026-10-15","owner":"security","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Read security policies and assign responsibilities"},"requiredTier":"SuperAdmin"}
 ---
 # Security and Compliance Policies
 
-Security & Compliance is an organization-wide SuperAdmin workspace. It contains draft internal policies with quick summaries above the detailed procedures and named responsibilities.
+Security & Compliance is an organization-wide SuperAdmin workspace. It contains internal policies with quick summaries above the detailed procedures, named responsibilities, and attributed adoption and review records.
 
 ## Main operations
 
 - Open **Admin > Security & Compliance**.
-- Review the draft-policy warning before treating a document as an operating control.
+- Review the warning and adoption status before treating a document as an operating control.
 - Enter responsible people as text and choose **Save responsibilities**.
 - Select a policy to read its summary, responsible people, review cadence, and detailed version.
+- Complete security log reviews at least every 14 days and record the reviewed UTC period, findings, follow-up actions, and restricted evidence reference.
+- Record an explicit policy adoption only after authorising the current document; record later periodic policy reviews separately.
 - Choose **Run read-only inventory** to review potential Amazon buyer details and retained copies for the active business.
 - Load an Amazon order under **Amazon delivery evidence** to review carrier checks or record independently verified original buyer delivery.
 - Use **Amazon identifying-field cleanup > Preview cleanup** before approving permanent removal of an eligible order's identifying fields.
@@ -20,7 +22,7 @@ Security & Compliance is an organization-wide SuperAdmin workspace. It contains 
 
 All responsibility names initially default to **Marek Mamrot**. Saved names apply across the internal policies, independently of the selected business. Responsibility names do not create accounts or grant permissions.
 
-Each document is marked **Draft - not yet adopted**. Saving responsibility names does not adopt the policy, schedule reviews, send incident notifications, or enable a technical control.
+Documents without adoption evidence for their current text are marked **Draft - not yet adopted**. Saving responsibility names does not adopt a policy. Adoption records are human attestations, not certification that every control operates. The workspace displays due dates but does not send automatic review reminders or incident notifications.
 
 The Amazon PII inventory is business-specific. Use the business selector in the header to change its scope; this does not change the organization-wide policy responsibilities.
 
@@ -28,7 +30,7 @@ The Amazon PII inventory is business-specific. Use the business selector in the 
 
 Sign in with a SuperAdmin account and identify the people who will own each responsibility.
 
-> **Warning:** These are draft procedures, not evidence of implemented security controls. Assigning a person does not grant access or certify compliance.
+> **Warning:** Documented policies and recorded attestations do not certify implemented security controls. Assigning a person does not grant access or certify compliance.
 
 ## Step-by-step
 
@@ -44,6 +46,21 @@ Sign in with a SuperAdmin account and identify the people who will own each resp
 Policy owner, incident lead and backup, Amazon notification owner, access owner, privacy owner, key custodian, log reviewer, change implementer and approver, and device owner are editable text assignments. The policy detail shows saved names, not uncommitted edits.
 
 The initial defaults can name the same person for multiple roles. Assign a distinct reviewer before relying on independent change approval and establish a reachable incident backup. A name field does not verify availability, qualifications, account access, or a completed approval.
+
+## Security reviews and policy adoption
+
+1. Save the responsibility names first. Resolve unsaved changes or a stale revision before recording evidence.
+2. In **Security reviews and policy adoption**, choose **Security log review**, **Adopt policy**, or **Periodic policy review**.
+3. For a log review, select the reviewed UTC date period and choose **Load platform authentication history**. Entries cover all platform businesses and can include unidentified failed attempts. Load older pages as needed; each page contains up to 250 entries. Reload to include events that arrived after the first load.
+4. Review relevant Runtime Issues and restricted hosting, source-control, and other security logs as well. The authentication history is not a complete record of every sensitive-data access, deployment, or key-management event.
+5. Enter a concise summary of what was actually reviewed or authorised, findings, follow-up owners/actions, and a safe reference to supporting evidence. Do not copy credentials, customer information, or raw logs into these fields.
+6. Tick the explicit acknowledgement and choose **Record evidence**. Check the confirmation and the new history entry.
+
+The signed-in account, current policy text/version, saved responsibility revision, and time are attributed to each entry. Evidence is append-only: record a separate correction rather than overwriting a previous entry. The latest 100 entries are displayed.
+
+Security log reviews are due at least every 14 days. Recording an old reviewed period does not move the deadline forward as though current logs had been reviewed. Incident-response policy reviews are due every six calendar months; other policy documents are due annually. These dates do not replace additional operational review frequencies in the detailed policy.
+
+A periodic policy review requires adoption of the current policy text. Changed policy text requires fresh adoption evidence. If a page reports that its policy text changed, refresh it and read the current text before recording evidence.
 
 ## Reading the data retention policy
 

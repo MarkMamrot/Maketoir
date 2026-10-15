@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getPasswordValidation } from '@/lib/auth/passwordPolicy';
 
 const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('@/lib/auth/passwordSetupEmail', () => ({ sendPasswordSetupEmail: mocks.
 
 import { POST } from '../route';
 
-function request() {
+function request(overrides: Record<string, unknown> = {}) {
   return new Request('http://localhost/api/admin/onboard', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -37,6 +38,7 @@ function request() {
       ownerEmail: 'owner@example.com',
       ownerName: 'Retail Owner',
       ownerPasswordMode: 'email',
+      ...overrides,
     }),
   });
 }
@@ -66,6 +68,9 @@ describe('POST /api/admin/onboard', () => {
       password: expect.any(String),
       tier: 'Admin',
     }));
+    expect(getPasswordValidation(mocks.createUser.mock.calls[0][0].password).isValid).toBe(true);
+    expect(Buffer.byteLength(mocks.createUser.mock.calls[0][0].password)).toBeLessThanOrEqual(72);
+    expect(mocks.createUser.mock.calls[0][0].requirePasswordSetup).toBe(true);
     expect(mocks.enroll).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       tier: 'Admin',
@@ -92,5 +97,12 @@ describe('POST /api/admin/onboard', () => {
       ownerEmailWarning: 'The password setup email could not be sent.',
     });
     expect(mocks.cleanupFailedBusinessProvision).not.toHaveBeenCalled();
+  });
+
+  it('rejects a noncompliant manual password before provisioning any business', async () => {
+    expect((await POST(request({ ownerPasswordMode: 'manual', ownerPassword: 'weak' }))).status).toBe(400);
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(mocks.provisionBusinessIms).not.toHaveBeenCalled();
+    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 });

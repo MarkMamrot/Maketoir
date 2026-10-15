@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   resolveLoginMembership: vi.fn(),
   recordActiveBusiness: vi.fn(() => Promise.resolve()),
   query: vi.fn(),
+  recordAuthEvent: vi.fn(),
 }));
 
 vi.mock('@/lib/db/UsersRepository', () => ({
@@ -40,6 +41,7 @@ vi.mock('@/lib/auth/mfaRepository', () => ({
   rotateTrustedBrowser: mocks.rotateTrustedBrowser,
 }));
 vi.mock('@/lib/auth/authRateLimit', () => ({
+  PLATFORM_AUTH_LOCK_SECONDS: 1800,
   clearAuthRateLimit: mocks.clearAuthRateLimit,
   createAuthRateLimitSubject: mocks.createAuthRateLimitSubject,
   getAuthRateLimit: mocks.getAuthRateLimit,
@@ -53,6 +55,7 @@ vi.mock('@/lib/auth/businessMemberships', () => ({
   recordActiveBusiness: mocks.recordActiveBusiness,
 }));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.query }));
+vi.mock('@/lib/auth/authActivity', () => ({ recordAuthEvent: mocks.recordAuthEvent }));
 
 import { POST } from '@/app/api/auth/login/route';
 
@@ -65,6 +68,7 @@ const USER = {
   role: 'admin',
   tier: 'Admin',
   mfa_enabled: 0,
+  password_changed_at: new Date(Date.now() - 2 * 86400000),
 };
 
 function loginRequest(body: Record<string, unknown>): Request {
@@ -113,7 +117,7 @@ describe('POST /api/auth/login MFA gate', () => {
 
     const response = await POST(loginRequest({
       email: 'admin@example.com',
-      password: 'correct-password',
+      password: 'CompliantPass7!',
       destination: 'ims',
     }));
     const body = await response.json();
@@ -132,7 +136,7 @@ describe('POST /api/auth/login MFA gate', () => {
 
     const response = await POST(loginRequest({
       email: 'admin@example.com',
-      password: 'correct-password',
+      password: 'CompliantPass7!',
       destination: 'ims',
     }));
 
@@ -143,7 +147,7 @@ describe('POST /api/auth/login MFA gate', () => {
   it('creates enrollment pre-auth without issuing an admin session', async () => {
     const response = await POST(loginRequest({
       email: 'admin@example.com',
-      password: 'correct-password',
+      password: 'CompliantPass7!',
       destination: 'ims',
     }));
     const body = await response.json();
@@ -168,7 +172,7 @@ describe('POST /api/auth/login MFA gate', () => {
 
     const response = await POST(loginRequest({
       email: 'admin@example.com',
-      password: 'correct-password',
+      password: 'CompliantPass7!',
       destination: 'foresight',
     }));
     const body = await response.json();
@@ -190,7 +194,7 @@ describe('POST /api/auth/login MFA gate', () => {
 
     const response = await POST(loginRequest({
       email: 'admin@example.com',
-      password: 'correct-password',
+      password: 'CompliantPass7!',
       destination: 'ims',
     }));
     const body = await response.json();
@@ -215,8 +219,30 @@ describe('POST /api/auth/login MFA gate', () => {
     expect(mocks.recordAuthFailure).toHaveBeenCalledWith({
       action: 'password-login',
       subjectHash: 'subject-hash',
+      lockSeconds: 1800,
     });
     expect(mocks.createPreauthSession).not.toHaveBeenCalled();
     expect(mocks.setAdminSessionCookie).not.toHaveBeenCalled();
+  });
+
+  it.each([null, new Date(Date.now() - 365 * 86400000)])('requires renewal for unknown-age or expired passwords', async changedAt => {
+    mocks.findByEmail.mockResolvedValue({ ...USER, password_changed_at: changedAt });
+    const response = await POST(loginRequest({ email: USER.email, password: 'CompliantPass7!', destination: 'ims' }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: 'password_renewal_required', nextRoute: '/forgot-password' });
+    expect(mocks.clearAdminSessionCookie).toHaveBeenCalled();
+    expect(mocks.clearMfaTrustCookie).toHaveBeenCalled();
+    expect(mocks.createPreauthSession).not.toHaveBeenCalled();
+    expect(mocks.reportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('uses the account rather than IP for rate limiting and logs locked attempts', async () => {
+    mocks.getAuthRateLimit.mockResolvedValue({ locked: true, retryAfterSeconds: 1800 });
+    const response = await POST(loginRequest({ email: USER.email, password: 'CompliantPass7!', destination: 'ims' }));
+    expect(mocks.createAuthRateLimitSubject).toHaveBeenCalledWith(USER.email);
+    expect(response.status).toBe(429);
+    expect(response.headers.get('Retry-After')).toBe('1800');
+    expect(mocks.findByEmail).not.toHaveBeenCalled();
+    expect(mocks.recordAuthEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'login_lockout' }));
   });
 });

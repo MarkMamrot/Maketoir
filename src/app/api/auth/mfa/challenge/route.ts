@@ -15,17 +15,13 @@ import {
   createAuthRateLimitSubject,
   getAuthRateLimit,
   recordAuthFailure,
+  PLATFORM_AUTH_LOCK_SECONDS,
 } from '@/lib/auth/authRateLimit';
-import { completeAdminLogin, PasswordRenewalRequiredError } from '@/lib/auth/adminLoginCompletion';
+import { completeAdminLogin } from '@/lib/auth/adminLoginCompletion';
 import { resolveLoginMembership } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
-
-function getClientIp(req: Request): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || req.headers.get('x-real-ip')?.trim()
-    || 'unknown';
-}
+import { passwordRequiresRenewal, PasswordRenewalRequiredError } from '@/lib/auth/passwordPolicy';
 
 function getBrowserLabel(req: Request): string {
   const userAgent = req.headers.get('user-agent') || '';
@@ -50,7 +46,7 @@ export async function POST(req: Request) {
     if (!preauth) {
       return NextResponse.json({ success: false, error: 'Challenge session has expired. Please sign in again.' }, { status: 401 });
     }
-    const subject = createAuthRateLimitSubject(String(preauth.userId), getClientIp(req));
+    const subject = createAuthRateLimitSubject(String(preauth.userId));
     const limiter = await getAuthRateLimit('mfa-challenge', subject);
     if (limiter.locked) {
       return NextResponse.json(
@@ -58,6 +54,9 @@ export async function POST(req: Request) {
         { status: 429, headers: { 'Retry-After': String(limiter.retryAfterSeconds) } },
       );
     }
+    const passwordOwner = await UsersRepository.findById(preauth.userId);
+    if (!passwordOwner) return NextResponse.json({ success: false, error: 'Account not found.' }, { status: 401 });
+    if (passwordRequiresRenewal(passwordOwner.password_changed_at)) throw new PasswordRenewalRequiredError();
 
     let verified = false;
     if (typeof recoveryCode === 'string' && recoveryCode.trim()) {
@@ -78,7 +77,7 @@ export async function POST(req: Request) {
 
     if (!verified) {
       await recordPreauthFailure(preauth.id);
-      await recordAuthFailure({ action: 'mfa-challenge', subjectHash: subject });
+      await recordAuthFailure({ action: 'mfa-challenge', subjectHash: subject, lockSeconds: PLATFORM_AUTH_LOCK_SECONDS });
       await recordAuthEvent({ userId: preauth.userId, eventType: 'mfa_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid verification code.' }, { status: 401 });
     }

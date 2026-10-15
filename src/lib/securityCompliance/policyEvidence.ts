@@ -45,6 +45,25 @@ export interface PolicyEvidenceState {
 
 export class PolicyEvidenceValidationError extends Error {}
 
+export function validateSecurityReviewPeriod(from: unknown, through: unknown): { from: string; through: string } {
+  const validDay = (day: unknown): day is string => typeof day === 'string'
+    && /^[1-9]\d{3}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day))
+    && new Date(day).toISOString().slice(0, 10) === day;
+  if (!validDay(from) || !validDay(through) || from > through || through > new Date().toISOString().slice(0, 10)) {
+    throw new PolicyEvidenceValidationError('Provide the reviewed UTC date period; future reviews cannot be recorded.');
+  }
+  return { from, through };
+}
+
+export interface AuthenticationReviewData {
+  totalCount: number;
+  hasMore: boolean;
+  entries: Array<{
+    id: number; userId: number | null; actorUserId: number | null; businessId: string | null;
+    eventType: string; ipAddress: string | null; location: string; userAgent: string | null; recordedAt: string;
+  }>;
+}
+
 export function validatePolicyEvidenceRequest(value: unknown): PolicyEvidenceRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new PolicyEvidenceValidationError('Provide a valid policy evidence request.');
@@ -53,9 +72,9 @@ export function validatePolicyEvidenceRequest(value: unknown): PolicyEvidenceReq
   const keys = ['policyId', 'kind', 'expectedRevision', 'policyHash', 'operationKey', 'summary', 'evidenceReference', 'reviewFrom', 'reviewThrough', 'acknowledged'];
   if (Object.keys(input).some(key => !keys.includes(key))
     || typeof input.policyId !== 'string' || !SECURITY_POLICIES.some(policy => policy.id === input.policyId)
-    || !['log_review', 'adoption', 'policy_review'].includes(String(input.kind))
+    || typeof input.kind !== 'string' || !['log_review', 'adoption', 'policy_review'].includes(input.kind)
     || (input.kind === 'log_review' && input.policyId !== 'logging-monitoring')
-    || typeof input.expectedRevision !== 'number' || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0
+    || typeof input.expectedRevision !== 'number' || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 1
     || typeof input.policyHash !== 'string' || !/^[a-f0-9]{64}$/.test(input.policyHash)
     || typeof input.operationKey !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(input.operationKey)
     || input.acknowledged !== true) {
@@ -67,14 +86,9 @@ export function validatePolicyEvidenceRequest(value: unknown): PolicyEvidenceReq
     || input.evidenceReference.trim().length > 500 || /[\u0000-\u001f\u007f]/.test(input.evidenceReference)) {
     throw new PolicyEvidenceValidationError('Provide a review/adoption summary (up to 1,000 characters) and a safe evidence reference (up to 500 characters).');
   }
-  const validDay = (day: unknown): day is string => typeof day === 'string'
-    && /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day))
-    && new Date(day).toISOString().slice(0, 10) === day;
+  let period: { from: string; through: string } | null = null;
   if (input.kind === 'log_review') {
-    if (!validDay(input.reviewFrom) || !validDay(input.reviewThrough) || input.reviewFrom > input.reviewThrough
-      || input.reviewThrough > new Date().toISOString().slice(0, 10)) {
-      throw new PolicyEvidenceValidationError('Provide the reviewed UTC date period; future reviews cannot be recorded.');
-    }
+    period = validateSecurityReviewPeriod(input.reviewFrom, input.reviewThrough);
   } else if (input.reviewFrom !== null || input.reviewThrough !== null) {
     throw new PolicyEvidenceValidationError('Log review dates apply only to security log reviews.');
   }
@@ -82,15 +96,17 @@ export function validatePolicyEvidenceRequest(value: unknown): PolicyEvidenceReq
     policyId: input.policyId, kind: input.kind as PolicyEvidenceKind,
     expectedRevision: input.expectedRevision, policyHash: input.policyHash, operationKey: input.operationKey.toLowerCase(),
     summary: input.summary.trim(), evidenceReference: input.evidenceReference.trim(),
-    reviewFrom: input.kind === 'log_review' ? input.reviewFrom as string : null,
-    reviewThrough: input.kind === 'log_review' ? input.reviewThrough as string : null, acknowledged: true,
+    reviewFrom: period?.from ?? null, reviewThrough: period?.through ?? null, acknowledged: true,
   };
 }
 
-export function nextSecurityLogReviewAt(recordedAt: string): string {
+export function nextSecurityLogReviewAt(recordedAt: string, reviewedThrough?: string | null): string {
   const date = new Date(recordedAt);
   if (!Number.isFinite(date.getTime())) throw new PolicyEvidenceValidationError('Invalid security review date.');
-  return new Date(date.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const coverageDay = reviewedThrough ? validateSecurityReviewPeriod(reviewedThrough, reviewedThrough).through : null;
+  const coverageEnd = coverageDay ? Date.parse(`${coverageDay}T00:00:00.000Z`) + 86400000 : date.getTime();
+  if (!Number.isFinite(coverageEnd)) throw new PolicyEvidenceValidationError('Invalid security review coverage date.');
+  return new Date(Math.min(date.getTime(), coverageEnd) + 14 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export function nextPolicyReviewAt(policyId: string, recordedAt: string): string {

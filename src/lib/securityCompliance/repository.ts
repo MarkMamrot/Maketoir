@@ -1,10 +1,11 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { createHash } from 'node:crypto';
+import guards from '../../../scripts/platform-security-guards.json';
 import { execute, getPool, query } from '@/services/MySQLService';
 import { createDefaultPolicyAssignments, SECURITY_POLICIES, validatePolicyAssignments, type PolicyAssignments, type PolicyAssignmentState } from './policies';
 import {
-  nextPolicyReviewAt, nextSecurityLogReviewAt, validatePolicyEvidenceRequest,
-  type PolicyEvidenceRecord, type PolicyEvidenceRequest, type PolicyEvidenceState,
+  nextPolicyReviewAt, nextSecurityLogReviewAt, validatePolicyEvidenceRequest, validateSecurityReviewPeriod, PolicyEvidenceValidationError,
+  type AuthenticationReviewData, type PolicyEvidenceRecord, type PolicyEvidenceRequest, type PolicyEvidenceState,
 } from './policyEvidence';
 
 interface AssignmentRow extends RowDataPacket {
@@ -51,6 +52,29 @@ async function ensureSchema(): Promise<void> {
         UNIQUE KEY uq_policy_evidence_operation (operation_key),
         INDEX idx_policy_evidence_current (policy_id, policy_hash, event_kind, id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      const existing = await query<RowDataPacket>(
+        "SELECT TRIGGER_NAME, ACTION_STATEMENT, ACTION_TIMING, EVENT_MANIPULATION, EVENT_OBJECT_TABLE FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = 'security_policy_evidence'",
+      );
+      const normalize = (body: string) => body.replace(/\s+/g, ' ').trim();
+      const matches = (row: RowDataPacket, guard: (typeof guards)[number]) => row.ACTION_TIMING === 'BEFORE'
+        && row.EVENT_MANIPULATION === guard.event && row.EVENT_OBJECT_TABLE === guard.table
+        && typeof row.ACTION_STATEMENT === 'string' && normalize(row.ACTION_STATEMENT) === normalize(guard.body);
+      for (const guard of guards.filter(item => item.table === 'security_policy_evidence')) {
+        const installed = existing.find(row => row.TRIGGER_NAME === guard.name);
+        if (installed) {
+          if (!matches(installed, guard)) throw new Error('Security evidence write guard differs; an administrator must review it.');
+        } else {
+          try {
+            await getPool().query(`CREATE TRIGGER \`${guard.name}\` BEFORE ${guard.event} ON \`${guard.table}\` FOR EACH ROW ${guard.body}`);
+          } catch (error) {
+            if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ER_TRG_ALREADY_EXISTS') throw error;
+            const concurrent = await query<RowDataPacket>(
+              'SELECT ACTION_STATEMENT, ACTION_TIMING, EVENT_MANIPULATION, EVENT_OBJECT_TABLE FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = ?', [guard.name],
+            );
+            if (!concurrent[0] || !matches(concurrent[0], guard)) throw error;
+          }
+        }
+      }
     })().catch(error => {
       schemaReady = undefined;
       throw error;
@@ -110,7 +134,7 @@ export async function getPolicyEvidence(): Promise<PolicyEvidenceState> {
          )`, hashes,
     ),
     query<EvidenceRow>('SELECT * FROM security_policy_evidence ORDER BY id DESC LIMIT 100'),
-    query<EvidenceRow>("SELECT * FROM security_policy_evidence WHERE event_kind = 'log_review' ORDER BY id DESC LIMIT 1"),
+    query<EvidenceRow>("SELECT * FROM security_policy_evidence WHERE event_kind = 'log_review' ORDER BY review_through DESC, recorded_at DESC, id DESC LIMIT 1"),
   ]);
   const current = currentRows.map(mapEvidence);
   const lastLogReviewAt = logRows[0] ? mapEvidence(logRows[0]).recordedAt : null;
@@ -118,12 +142,53 @@ export async function getPolicyEvidence(): Promise<PolicyEvidenceState> {
     policies: SECURITY_POLICIES.map(policy => {
       const adoptedAt = current.find(row => row.policyId === policy.id && row.kind === 'adoption')?.recordedAt ?? null;
       const reviewedAt = current.find(row => row.policyId === policy.id && row.kind === 'policy_review')?.recordedAt ?? null;
-      const last = reviewedAt ?? adoptedAt;
+      const last = reviewedAt && adoptedAt ? (reviewedAt > adoptedAt ? reviewedAt : adoptedAt) : reviewedAt ?? adoptedAt;
       return { id: policy.id, hash: policyHash(policy.id), adoptedAt, reviewedAt, nextReviewAt: last ? nextPolicyReviewAt(policy.id, last) : null };
     }),
-    lastLogReviewAt, nextLogReviewAt: lastLogReviewAt ? nextSecurityLogReviewAt(lastLogReviewAt) : null,
+    lastLogReviewAt, nextLogReviewAt: lastLogReviewAt ? nextSecurityLogReviewAt(lastLogReviewAt, logRows[0].review_through
+      ? new Date(logRows[0].review_through).toISOString().slice(0, 10) : null) : null,
     history: historyRows.map(mapEvidence),
   };
+}
+
+export async function getAuthenticationReviewData(input: { from: string; through: string; beforeId?: number }): Promise<AuthenticationReviewData> {
+  const period = validateSecurityReviewPeriod(input.from, input.through);
+  if (Date.parse(period.through) - Date.parse(period.from) >= 366 * 86400000
+    || (input.beforeId !== undefined && (!Number.isSafeInteger(input.beforeId) || input.beforeId <= 0))) {
+    throw new PolicyEvidenceValidationError('Limit authentication history to a year and use a valid page reference.');
+  }
+  interface AuthRow extends RowDataPacket {
+    id: number; user_id: number | null; actor_user_id: number | null; business_id: string | null;
+    event_type: string; ip_address: string | null; city: string | null; region: string | null; country: string | null;
+    user_agent: string | null; created_at: Date | string; matched_count: number;
+  }
+  const rows = await query<AuthRow>(
+    `SELECT /*+ MAX_EXECUTION_TIME(10000) */ * FROM (
+       SELECT id, user_id, actor_user_id, business_id, event_type, ip_address, city, region, country,
+              user_agent, created_at, COUNT(*) OVER() AS matched_count
+         FROM user_auth_events WHERE created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+     ) scoped WHERE (? IS NULL OR id < ?) ORDER BY id DESC LIMIT 251`,
+    [period.from, period.through, input.beforeId ?? null, input.beforeId ?? null],
+  );
+  let totalCount = rows[0] ? Number(rows[0].matched_count) : 0;
+  if (!rows.length && input.beforeId !== undefined) {
+    const counts = await query<RowDataPacket>(
+      `SELECT /*+ MAX_EXECUTION_TIME(10000) */ COUNT(*) AS matched_count
+         FROM user_auth_events WHERE created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)`,
+      [period.from, period.through],
+    );
+    if (!counts[0]) throw new Error('Authentication log counts are unavailable.');
+    totalCount = Number(counts[0].matched_count);
+  }
+  if (!Number.isSafeInteger(totalCount) || totalCount < rows.length) throw new Error('Authentication log counts are invalid.');
+  return { totalCount, hasMore: rows.length > 250, entries: rows.slice(0, 250).map(row => {
+    if (!Number.isSafeInteger(row.id) || row.id <= 0 || !Number.isFinite(new Date(row.created_at).getTime())) {
+      throw new Error('Authentication log metadata is invalid.');
+    }
+    return { id: row.id, userId: row.user_id, actorUserId: row.actor_user_id, businessId: row.business_id,
+      eventType: row.event_type, ipAddress: row.ip_address, location: [row.city, row.region, row.country].filter(Boolean).join(', '),
+      userAgent: row.user_agent, recordedAt: new Date(row.created_at).toISOString() };
+  }) };
 }
 
 export async function savePolicyEvidence(input: {

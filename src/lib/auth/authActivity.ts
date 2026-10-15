@@ -23,7 +23,7 @@ function decodeLocationHeader(value: string | null, maxLength: number): string |
   const cleaned = cleanHeader(value, maxLength * 3);
   if (!cleaned) return null;
   try {
-    return decodeURIComponent(cleaned).slice(0, maxLength);
+    return cleanHeader(decodeURIComponent(cleaned), maxLength);
   } catch {
     return cleaned.slice(0, maxLength);
   }
@@ -48,8 +48,8 @@ export async function recordAuthEvent(input: {
   request: Request;
 }): Promise<void> {
   const metadata = getAuthRequestMetadata(input.request);
+  let inserted = false;
   try {
-    await execute('DELETE FROM user_auth_events WHERE created_at < DATE_SUB(NOW(3), INTERVAL 12 MONTH)');
     await execute(
       `INSERT INTO user_auth_events
         (business_id, user_id, event_type, actor_user_id, ip_address, city, region, country, user_agent)
@@ -66,15 +66,17 @@ export async function recordAuthEvent(input: {
         metadata.userAgent,
       ],
     );
+    inserted = true;
+    await execute('DELETE FROM user_auth_events WHERE created_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 12 MONTH)');
   } catch (error) {
     await reportRuntimeIssue({
       businessId: input.businessId ?? null,
       source: 'auth.activity',
-      operation: 'record_auth_event',
-      title: 'Authentication activity could not be recorded',
+      operation: inserted ? 'purge_expired_auth_events' : 'record_auth_event',
+      title: inserted ? 'Expired authentication activity could not be removed' : 'Authentication activity could not be recorded',
       error,
       context: { userId: input.userId, eventType: input.eventType },
-      reference: { type: 'user', id: input.userId },
+      reference: input.userId ? { type: 'user', id: input.userId } : undefined,
     });
   }
 }

@@ -27,7 +27,7 @@ describe('security policy definitions and responsibilities', () => {
     expect(SECURITY_POLICIES).toHaveLength(7);
     expect(new Set(SECURITY_POLICIES.map(policy => policy.id)).size).toBe(7);
     for (const policy of SECURITY_POLICIES) {
-      expect(policy.version).toBe('1.0');
+      expect(policy.version).toBe(['identity-access', 'logging-monitoring'].includes(policy.id) ? '1.1' : '1.0');
       expect(policy.summary.length).toBeGreaterThanOrEqual(3);
       expect(policy.sections.length).toBeGreaterThanOrEqual(3);
       expect(policy.roles.every(id => POLICY_ROLES.some(role => role.id === id))).toBe(true);

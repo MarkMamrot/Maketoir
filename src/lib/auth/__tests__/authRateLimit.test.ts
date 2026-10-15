@@ -23,6 +23,7 @@ import {
   clearAuthRateLimit,
   createAuthRateLimitSubject,
   recordAuthFailure,
+  PLATFORM_AUTH_LOCK_SECONDS,
 } from '../authRateLimit';
 
 const NOW_MS = Date.UTC(2026, 7, 16, 10, 0, 0);
@@ -101,6 +102,16 @@ describe('authRateLimit', () => {
 
     expect(connection.execute).toHaveBeenCalledOnce();
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('uses 30-minute locks only when the platform override is supplied', async () => {
+    connection.execute.mockResolvedValueOnce([[{
+      failure_count: 4, window_started_at: new Date(NOW_MS - 60000), locked_until: null,
+    }]]).mockResolvedValueOnce([{ affectedRows: 1 }]);
+    expect(PLATFORM_AUTH_LOCK_SECONDS).toBe(1800);
+    await expect(recordAuthFailure({
+      action: 'password-login', subjectHash: 'e'.repeat(64), nowMs: NOW_MS, lockSeconds: PLATFORM_AUTH_LOCK_SECONDS,
+    })).resolves.toEqual({ locked: true, retryAfterSeconds: 1800, failureCount: 5 });
   });
 
   it('clears a limiter after successful full authentication', async () => {

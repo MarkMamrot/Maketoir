@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultPolicyAssignments, SECURITY_POLICIES } from '../policies';
+import guards from '../../../../scripts/platform-security-guards.json';
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(), query: vi.fn(), getConnection: vi.fn(),
   sql: vi.fn(), begin: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
 }));
 vi.mock('@/services/MySQLService', () => ({
-  execute: mocks.execute, query: mocks.query, getPool: () => ({ getConnection: mocks.getConnection }),
+  execute: mocks.execute, query: mocks.query, getPool: () => ({ getConnection: mocks.getConnection, query: mocks.execute }),
 }));
 
 describe('platform policy responsibility persistence', () => {
@@ -14,7 +15,11 @@ describe('platform policy responsibility persistence', () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue({});
-    mocks.query.mockResolvedValue([]);
+    mocks.query.mockImplementation(async (sql: string) => sql.includes('information_schema.TRIGGERS')
+      ? guards.filter(guard => guard.table === 'security_policy_evidence').map(guard => ({
+        TRIGGER_NAME: guard.name, ACTION_STATEMENT: guard.body,
+        ACTION_TIMING: 'BEFORE', EVENT_MANIPULATION: guard.event, EVENT_OBJECT_TABLE: guard.table,
+      })) : []);
     mocks.getConnection.mockResolvedValue({
       execute: mocks.sql, beginTransaction: mocks.begin, commit: mocks.commit,
       rollback: mocks.rollback, release: mocks.release,
@@ -59,7 +64,7 @@ describe('platform policy responsibility persistence', () => {
     expect(mocks.query).not.toHaveBeenCalled();
     completeSchema();
     await expect(loading).resolves.toMatchObject({ history: [] });
-    expect(mocks.query).toHaveBeenCalledTimes(3);
+    expect(mocks.query).toHaveBeenCalledTimes(4);
   });
 
   it('loads saved responsibilities rather than substituting defaults', async () => {

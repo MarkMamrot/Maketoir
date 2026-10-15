@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getPasswordValidation, PasswordPolicyValidationError } from '@/lib/auth/passwordPolicy';
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
@@ -50,6 +51,9 @@ describe('POST /api/admin/users', () => {
       businessId: 'biz-1',
     }));
     expect(mocks.create.mock.calls[0][0].password.length).toBeGreaterThan(40);
+    expect(getPasswordValidation(mocks.create.mock.calls[0][0].password).isValid).toBe(true);
+    expect(Buffer.byteLength(mocks.create.mock.calls[0][0].password)).toBeLessThanOrEqual(72);
+    expect(mocks.create.mock.calls[0][0].requirePasswordSetup).toBe(true);
     expect(mocks.enroll).toHaveBeenCalledWith(expect.objectContaining({ userId: 42, businessId: 'biz-1' }));
     expect(mocks.sendPasswordSetupEmail).toHaveBeenCalledWith({
       userId: 42,
@@ -70,6 +74,16 @@ describe('POST /api/admin/users', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.sendPasswordSetupEmail).not.toHaveBeenCalled();
+  });
+
+  it('surfaces central password-policy rejection as validation without enrollment', async () => {
+    mocks.create.mockRejectedValueOnce(new PasswordPolicyValidationError('Password requirements not met.'));
+    const response = await POST(new Request('http://localhost/api/admin/users', {
+      method: 'POST', body: JSON.stringify({ email: 'new@example.com', passwordMode: 'manual', password: 'weak' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.enroll).not.toHaveBeenCalled();
     expect(mocks.sendPasswordSetupEmail).not.toHaveBeenCalled();
   });
 });
