@@ -17,6 +17,7 @@ import {
 import { completeAdminLogin, PasswordRenewalRequiredError } from '@/lib/auth/adminLoginCompletion';
 import { resolveLoginMembership } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { recordAuthEvent } from '@/lib/auth/authActivity';
 
 function getClientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
     if (!verification.valid || verification.timeStep == null) {
       await recordPreauthFailure(preauth.id);
       await recordAuthFailure({ action: 'mfa-enroll', subjectHash: subject });
+      await recordAuthEvent({ userId: preauth.userId, eventType: 'mfa_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid authenticator code.' }, { status: 401 });
     }
 
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
     if (!membership) {
       return NextResponse.json({ success: false, error: 'Your account is not enrolled in an active business.' }, { status: 403 });
     }
+    await recordAuthEvent({ userId: user.id, businessId: membership.businessId, eventType: 'mfa_enrolled', request: req });
 
     await clearAuthRateLimit('mfa-enroll', subject);
     const completed = await completeAdminLogin({ user, membership, destination: preauth.destination, request: req });

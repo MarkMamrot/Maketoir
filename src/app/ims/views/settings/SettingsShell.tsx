@@ -126,7 +126,7 @@ export function SettingsShell({ active, items, businessName, dirty = false, onNa
         const current = active === item.id;
         const ancestor = path.some(part => part.id === item.id);
         return <li key={item.id}>
-          <button type="button" className={`${styles.navItem} ${depth === 0 ? styles.group : ''}`} style={{ paddingLeft: 14 + depth * 16 }}
+          <button type="button" className={`sv-button-flat ${styles.navItem} ${depth === 0 ? styles.group : ''}`} style={{ paddingLeft: 14 + depth * 16 }}
             aria-expanded={item.children ? open : undefined} aria-current={current ? 'page' : undefined}
             data-ancestor={ancestor || undefined}
             onClick={() => item.children ? setExpanded(previous => open ? previous.filter(id => id !== item.id) : [...previous, item.id]) : request(item.id as SettingsSection)}>

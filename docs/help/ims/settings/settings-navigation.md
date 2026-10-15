@@ -5,6 +5,8 @@
 
 Settings opens over the IMS workspace for the selected business. Expand a group, then select a page. The header shows the current page and its group; Help opens guidance for that page. On a narrow screen, use **Settings navigation** to open the menu.
 
+The menu uses flat rows like the IMS sidebar. The selected page has a highlighted background and a coloured left edge.
+
 ## Main operations
 
 - Check the business name before changing anything.

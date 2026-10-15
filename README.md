@@ -19,7 +19,9 @@ lockfiles change, or dependencies are missing. No Bun migration is required.
   contract, Help, schema or integration tests explicitly for those changes. No matching tests
   is not proof of correctness.
 
-Vitest uses at most four workers to limit contention and memory pressure. Override deliberately
+Vitest uses at most four workers to limit contention and memory pressure, with a 30-second
+per-test timeout for cold route imports and repository-wide contract scans. Assertions and
+failures remain unchanged. Override workers deliberately
 with `npm test -- --maxWorkers=<count>` if measurements justify it. Do not run a full suite and a
 production build concurrently in the same worktree.
 

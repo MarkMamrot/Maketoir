@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultPolicyAssignments } from '../policies';
+import { createDefaultPolicyAssignments, SECURITY_POLICIES } from '../policies';
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(), query: vi.fn(), getConnection: vi.fn(),
@@ -34,6 +34,32 @@ describe('platform policy responsibility persistence', () => {
       assignments: createDefaultPolicyAssignments(), revision: 0, updatedAt: null, updatedBy: null,
     });
     expect(mocks.execute.mock.calls.every(([sql]) => sql.startsWith('CREATE TABLE'))).toBe(true);
+  });
+
+  it('exports policy evidence loading and shares completed schema initialization with assignments', async () => {
+    const { getPolicyAssignments, getPolicyEvidence, savePolicyEvidence, PolicyEvidenceConflictError } = await import('../repository');
+    expect(savePolicyEvidence).toBeTypeOf('function');
+    expect(new PolicyEvidenceConflictError('conflict')).toBeInstanceOf(Error);
+    const [assignments, evidence] = await Promise.all([getPolicyAssignments(), getPolicyEvidence()]);
+    expect(assignments.revision).toBe(0);
+    expect(evidence).toMatchObject({ history: [], lastLogReviewAt: null, nextLogReviewAt: null });
+    expect(evidence.policies).toHaveLength(SECURITY_POLICIES.length);
+    expect(evidence.policies.every(policy => /^[a-f0-9]{64}$/.test(policy.hash))).toBe(true);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
+  });
+
+  it('awaits the evidence table before running any evidence queries', async () => {
+    let completeSchema: () => void = () => {};
+    const pendingSchema = new Promise<void>(resolve => { completeSchema = resolve; });
+    mocks.execute.mockImplementation((sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS security_policy_evidence')
+      ? pendingSchema : Promise.resolve({}));
+    const { getPolicyEvidence } = await import('../repository');
+    const loading = getPolicyEvidence();
+    await vi.waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(3));
+    expect(mocks.query).not.toHaveBeenCalled();
+    completeSchema();
+    await expect(loading).resolves.toMatchObject({ history: [] });
+    expect(mocks.query).toHaveBeenCalledTimes(3);
   });
 
   it('loads saved responsibilities rather than substituting defaults', async () => {

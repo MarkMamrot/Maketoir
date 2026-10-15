@@ -9,6 +9,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     maxWorkers: 4,
+    testTimeout: 30_000,
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
   resolve: {

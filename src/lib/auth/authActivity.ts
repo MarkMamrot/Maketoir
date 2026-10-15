@@ -1,7 +1,9 @@
 import { execute } from '@/services/MySQLService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
-export type AuthEventType = 'login_success' | 'password_reset_requested' | 'password_reset_completed';
+export type AuthEventType = 'login_success' | 'login_failure' | 'login_lockout' | 'password_renewal_required'
+  | 'mfa_failure' | 'mfa_enrolled' | 'mfa_recovery_used' | 'mfa_trust_used'
+  | 'password_reset_requested' | 'password_reset_completed';
 
 export interface AuthRequestMetadata {
   ipAddress: string | null;
@@ -39,7 +41,7 @@ export function getAuthRequestMetadata(req: Request): AuthRequestMetadata {
 }
 
 export async function recordAuthEvent(input: {
-  userId: number;
+  userId?: number | null;
   businessId?: string | null;
   eventType: AuthEventType;
   actorUserId?: number | null;
@@ -54,7 +56,7 @@ export async function recordAuthEvent(input: {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.businessId ?? null,
-        input.userId,
+        input.userId ?? null,
         input.eventType,
         input.actorUserId ?? null,
         metadata.ipAddress,

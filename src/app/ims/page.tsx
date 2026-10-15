@@ -22735,7 +22735,10 @@ function UsersListView() {
                     {['Date', 'Event', 'IP address', 'Location', 'Browser / initiated by'].map(label => <th key={label} style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 700 }}>{label}</th>)}
                   </tr></thead>
                   <tbody>{authEvents.map(event => {
-                    const eventLabel = ({ login_success: 'Successful login', password_reset_requested: 'Reset email sent', password_reset_completed: 'Password changed' } as Record<string, string>)[event.event_type] ?? event.event_type;
+                    const eventLabel = ({ login_success: 'Successful login', login_failure: 'Failed sign-in', login_lockout: 'Sign-in locked',
+                      password_renewal_required: 'Password renewal required', mfa_failure: 'Failed MFA verification', mfa_enrolled: 'MFA enrolled',
+                      mfa_recovery_used: 'MFA recovery used', mfa_trust_used: 'Remembered MFA browser used',
+                      password_reset_requested: 'Reset email sent', password_reset_completed: 'Password changed' } as Record<string, string>)[event.event_type] ?? event.event_type;
                     const location = [event.city, event.region, event.country].filter(Boolean).join(', ') || 'Not available';
                     const actor = event.actor_name || event.actor_email;
                     return <tr key={event.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>

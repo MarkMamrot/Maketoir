@@ -5476,7 +5476,8 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
       const result = await transaction;
       timing.finish();
       if (result instanceof Error) {
-        const t = String(result.type ?? result.message);
+        const { type, message } = result;
+        const t = String(type ?? message);
         if (!/cancel|declin/i.test(String(t))) { setTerminalOutcomeUnknown(true); reportTerminalFailure(); }
         setZellerError(`${isRefund ? 'Refund' : 'Payment'} ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;

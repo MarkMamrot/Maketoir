@@ -56,135 +56,135 @@ async function ensureSchema(): Promise<void> {
       throw error;
     });
   }
+  await schemaReady;
+}
 
-  interface EvidenceRow extends RowDataPacket {
-    id: number;
-    policy_id: string;
-    event_kind: PolicyEvidenceRecord['kind'];
-    policy_version: string;
-    policy_hash: string;
-    assignment_revision: number;
-    actor_user_id: number;
-    summary: string;
-    evidence_reference: string;
-    recorded_at: Date | string;
-    operation_key: string;
-    request_hash: string;
-    review_from: Date | string | null;
-    review_through: Date | string | null;
-  }
+interface EvidenceRow extends RowDataPacket {
+  id: number;
+  policy_id: string;
+  event_kind: PolicyEvidenceRecord['kind'];
+  policy_version: string;
+  policy_hash: string;
+  assignment_revision: number;
+  actor_user_id: number;
+  summary: string;
+  evidence_reference: string;
+  recorded_at: Date | string;
+  operation_key: string;
+  request_hash: string;
+  review_from: Date | string | null;
+  review_through: Date | string | null;
+}
 
-  function policyHash(policyId: string): string {
-    const policy = SECURITY_POLICIES.find(item => item.id === policyId);
-    if (!policy) throw new Error('Unknown security policy.');
-    return createHash('sha256').update(JSON.stringify(policy)).digest('hex');
-  }
+function policyHash(policyId: string): string {
+  const policy = SECURITY_POLICIES.find(item => item.id === policyId);
+  if (!policy) throw new Error('Unknown security policy.');
+  return createHash('sha256').update(JSON.stringify(policy)).digest('hex');
+}
 
-  function mapEvidence(row: EvidenceRow): PolicyEvidenceRecord {
-    if (!Number.isSafeInteger(row.id) || row.id <= 0 || !Number.isSafeInteger(row.actor_user_id) || row.actor_user_id <= 0
-      || !Number.isSafeInteger(row.assignment_revision) || row.assignment_revision < 0
-      || !['log_review', 'adoption', 'policy_review'].includes(row.event_kind)
-      || !Number.isFinite(new Date(row.recorded_at).getTime())) throw new Error('Stored policy evidence is invalid.');
-    return {
-      id: row.id, policyId: row.policy_id, kind: row.event_kind, policyVersion: row.policy_version, policyHash: row.policy_hash,
-      assignmentRevision: row.assignment_revision, actorUserId: row.actor_user_id, summary: row.summary,
-      evidenceReference: row.evidence_reference, recordedAt: new Date(row.recorded_at).toISOString(),
-      reviewFrom: row.review_from ? new Date(row.review_from).toISOString().slice(0, 10) : null,
-      reviewThrough: row.review_through ? new Date(row.review_through).toISOString().slice(0, 10) : null,
-    };
-  }
+function mapEvidence(row: EvidenceRow): PolicyEvidenceRecord {
+  if (!Number.isSafeInteger(row.id) || row.id <= 0 || !Number.isSafeInteger(row.actor_user_id) || row.actor_user_id <= 0
+    || !Number.isSafeInteger(row.assignment_revision) || row.assignment_revision < 0
+    || !['log_review', 'adoption', 'policy_review'].includes(row.event_kind)
+    || !Number.isFinite(new Date(row.recorded_at).getTime())) throw new Error('Stored policy evidence is invalid.');
+  return {
+    id: row.id, policyId: row.policy_id, kind: row.event_kind, policyVersion: row.policy_version, policyHash: row.policy_hash,
+    assignmentRevision: row.assignment_revision, actorUserId: row.actor_user_id, summary: row.summary,
+    evidenceReference: row.evidence_reference, recordedAt: new Date(row.recorded_at).toISOString(),
+    reviewFrom: row.review_from ? new Date(row.review_from).toISOString().slice(0, 10) : null,
+    reviewThrough: row.review_through ? new Date(row.review_through).toISOString().slice(0, 10) : null,
+  };
+}
 
-  export class PolicyEvidenceConflictError extends Error {}
+export class PolicyEvidenceConflictError extends Error {}
 
-  export async function getPolicyEvidence(): Promise<PolicyEvidenceState> {
-    await ensureSchema();
-    const hashes = SECURITY_POLICIES.map(policy => policyHash(policy.id));
-    const [currentRows, historyRows, logRows] = await Promise.all([
-      query<EvidenceRow>(
-        `SELECT * FROM security_policy_evidence WHERE id IN (
+export async function getPolicyEvidence(): Promise<PolicyEvidenceState> {
+  await ensureSchema();
+  const hashes = SECURITY_POLICIES.map(policy => policyHash(policy.id));
+  const [currentRows, historyRows, logRows] = await Promise.all([
+    query<EvidenceRow>(
+      `SELECT * FROM security_policy_evidence WHERE id IN (
            SELECT MAX(id) FROM security_policy_evidence
             WHERE policy_hash IN (${hashes.map(() => '?').join(',')})
             GROUP BY policy_id, event_kind
          )`, hashes,
-      ),
-      query<EvidenceRow>('SELECT * FROM security_policy_evidence ORDER BY id DESC LIMIT 100'),
-      query<EvidenceRow>("SELECT * FROM security_policy_evidence WHERE event_kind = 'log_review' ORDER BY id DESC LIMIT 1"),
-    ]);
-    const current = currentRows.map(mapEvidence);
-    const lastLogReviewAt = logRows[0] ? mapEvidence(logRows[0]).recordedAt : null;
-    return {
-      policies: SECURITY_POLICIES.map(policy => {
-        const adoptedAt = current.find(row => row.policyId === policy.id && row.kind === 'adoption')?.recordedAt ?? null;
-        const reviewedAt = current.find(row => row.policyId === policy.id && row.kind === 'policy_review')?.recordedAt ?? null;
-        const last = reviewedAt ?? adoptedAt;
-        return { id: policy.id, hash: policyHash(policy.id), adoptedAt, reviewedAt, nextReviewAt: last ? nextPolicyReviewAt(policy.id, last) : null };
-      }),
-      lastLogReviewAt, nextLogReviewAt: lastLogReviewAt ? nextSecurityLogReviewAt(lastLogReviewAt) : null,
-      history: historyRows.map(mapEvidence),
-    };
-  }
+    ),
+    query<EvidenceRow>('SELECT * FROM security_policy_evidence ORDER BY id DESC LIMIT 100'),
+    query<EvidenceRow>("SELECT * FROM security_policy_evidence WHERE event_kind = 'log_review' ORDER BY id DESC LIMIT 1"),
+  ]);
+  const current = currentRows.map(mapEvidence);
+  const lastLogReviewAt = logRows[0] ? mapEvidence(logRows[0]).recordedAt : null;
+  return {
+    policies: SECURITY_POLICIES.map(policy => {
+      const adoptedAt = current.find(row => row.policyId === policy.id && row.kind === 'adoption')?.recordedAt ?? null;
+      const reviewedAt = current.find(row => row.policyId === policy.id && row.kind === 'policy_review')?.recordedAt ?? null;
+      const last = reviewedAt ?? adoptedAt;
+      return { id: policy.id, hash: policyHash(policy.id), adoptedAt, reviewedAt, nextReviewAt: last ? nextPolicyReviewAt(policy.id, last) : null };
+    }),
+    lastLogReviewAt, nextLogReviewAt: lastLogReviewAt ? nextSecurityLogReviewAt(lastLogReviewAt) : null,
+    history: historyRows.map(mapEvidence),
+  };
+}
 
-  export async function savePolicyEvidence(input: {
-    request: PolicyEvidenceRequest; actorUserId: number;
-  }): Promise<PolicyEvidenceRecord> {
-    const request = validatePolicyEvidenceRequest(input.request);
-    if (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0) throw new Error('Invalid policy evidence actor.');
-    const hash = createHash('sha256').update(JSON.stringify({ request, actorUserId: input.actorUserId })).digest('hex');
-    await ensureSchema();
-    const connection = await getPool().getConnection();
-    try {
-      await connection.beginTransaction();
-      await connection.execute(
-        'INSERT IGNORE INTO security_policy_assignments (id, assignments_json, revision) VALUES (1, ?, 0)',
-        [JSON.stringify(createDefaultPolicyAssignments())],
-      );
-      const [assignments] = await connection.execute<AssignmentRow[]>(
-        'SELECT assignments_json, revision, updated_by, updated_at FROM security_policy_assignments WHERE id = 1 FOR UPDATE',
-      );
-      if (!assignments[0]) throw new Error('Policy responsibilities could not be locked.');
-      const state = mapRow(assignments[0]);
-      const [existing] = await connection.execute<EvidenceRow[]>(
-        'SELECT * FROM security_policy_evidence WHERE operation_key = ? FOR UPDATE', [request.operationKey],
-      );
-      if (existing[0]) {
-        if (existing[0].request_hash !== hash || existing[0].actor_user_id !== input.actorUserId) {
-          throw new PolicyEvidenceConflictError('This request key belongs to different evidence.');
-        }
-        await connection.commit();
-        return mapEvidence(existing[0]);
+export async function savePolicyEvidence(input: {
+  request: PolicyEvidenceRequest; actorUserId: number;
+}): Promise<PolicyEvidenceRecord> {
+  const request = validatePolicyEvidenceRequest(input.request);
+  if (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0) throw new Error('Invalid policy evidence actor.');
+  const hash = createHash('sha256').update(JSON.stringify({ request, actorUserId: input.actorUserId })).digest('hex');
+  await ensureSchema();
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute(
+      'INSERT IGNORE INTO security_policy_assignments (id, assignments_json, revision) VALUES (1, ?, 0)',
+      [JSON.stringify(createDefaultPolicyAssignments())],
+    );
+    const [assignments] = await connection.execute<AssignmentRow[]>(
+      'SELECT assignments_json, revision, updated_by, updated_at FROM security_policy_assignments WHERE id = 1 FOR UPDATE',
+    );
+    if (!assignments[0]) throw new Error('Policy responsibilities could not be locked.');
+    const state = mapRow(assignments[0]);
+    const [existing] = await connection.execute<EvidenceRow[]>(
+      'SELECT * FROM security_policy_evidence WHERE operation_key = ? FOR UPDATE', [request.operationKey],
+    );
+    if (existing[0]) {
+      if (existing[0].request_hash !== hash || existing[0].actor_user_id !== input.actorUserId) {
+        throw new PolicyEvidenceConflictError('This request key belongs to different evidence.');
       }
-      if (state.revision !== request.expectedRevision || policyHash(request.policyId) !== request.policyHash) {
-        throw new PolicyEvidenceConflictError('The policy or responsibilities changed. Reload before recording evidence.');
-      }
-      if (request.kind === 'policy_review') {
-        const [adoption] = await connection.execute<EvidenceRow[]>(
-          "SELECT * FROM security_policy_evidence WHERE policy_id = ? AND policy_hash = ? AND event_kind = 'adoption' LIMIT 1 FOR UPDATE",
-          [request.policyId, request.policyHash],
-        );
-        if (!adoption[0]) throw new PolicyEvidenceConflictError('Adopt the current policy before recording its periodic review.');
-      }
-      const policy = SECURITY_POLICIES.find(item => item.id === request.policyId)!;
-      const [result] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO security_policy_evidence
+      await connection.commit();
+      return mapEvidence(existing[0]);
+    }
+    if (state.revision !== request.expectedRevision || policyHash(request.policyId) !== request.policyHash) {
+      throw new PolicyEvidenceConflictError('The policy or responsibilities changed. Reload before recording evidence.');
+    }
+    if (request.kind === 'policy_review') {
+      const [adoption] = await connection.execute<EvidenceRow[]>(
+        "SELECT * FROM security_policy_evidence WHERE policy_id = ? AND policy_hash = ? AND event_kind = 'adoption' LIMIT 1 FOR UPDATE",
+        [request.policyId, request.policyHash],
+      );
+      if (!adoption[0]) throw new PolicyEvidenceConflictError('Adopt the current policy before recording its periodic review.');
+    }
+    const policy = SECURITY_POLICIES.find(item => item.id === request.policyId)!;
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO security_policy_evidence
           (policy_id, event_kind, policy_version, policy_hash, assignment_revision, assignments_json, actor_user_id,
            summary, evidence_reference, operation_key, request_hash, review_from, review_through)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [request.policyId, request.kind, policy.version, request.policyHash, state.revision, JSON.stringify(state.assignments),
-          input.actorUserId, request.summary, request.evidenceReference, request.operationKey, hash, request.reviewFrom, request.reviewThrough],
-      );
-      const [saved] = await connection.execute<EvidenceRow[]>('SELECT * FROM security_policy_evidence WHERE id = ?', [result.insertId]);
-      if (!saved[0]) throw new Error('Saved policy evidence could not be verified.');
-      const record = mapEvidence(saved[0]);
-      await connection.commit();
-      return record;
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
+      [request.policyId, request.kind, policy.version, request.policyHash, state.revision, JSON.stringify(state.assignments),
+        input.actorUserId, request.summary, request.evidenceReference, request.operationKey, hash, request.reviewFrom, request.reviewThrough],
+    );
+    const [saved] = await connection.execute<EvidenceRow[]>('SELECT * FROM security_policy_evidence WHERE id = ?', [result.insertId]);
+    if (!saved[0]) throw new Error('Saved policy evidence could not be verified.');
+    const record = mapEvidence(saved[0]);
+    await connection.commit();
+    return record;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
-  await schemaReady;
 }
 
 function mapRow(row: AssignmentRow): PolicyAssignmentState {

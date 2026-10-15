@@ -28,6 +28,7 @@ describe('settings tree and draft protection', () => {
     const user = userEvent.setup();
     const { onNavigate } = shell();
     expect(screen.getByRole('button', { name: 'Business operations' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('navigation', { name: 'Settings' }).querySelectorAll('button:not(.sv-button-flat)').length).toBe(0);
     await user.click(screen.getByRole('button', { name: 'Purchasing' }));
     await user.click(screen.getByRole('button', { name: 'Purchase order documents' }));
     await user.click(screen.getByRole('button', { name: 'Email template' }));

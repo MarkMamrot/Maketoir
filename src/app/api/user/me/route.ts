@@ -4,7 +4,6 @@ import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { findAccessibleBusiness, resolveActorBusinessAccess } from '@/lib/auth/businessAccess';
 import { getAdminSession } from '@/lib/sessionUtils';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { canAccessImsTestFeature } from '@/lib/navigation/imsAutomationNavigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,17 +35,11 @@ export async function GET() {
       onlineChannels = await getOnlineChannelCapabilities(businessId).catch(() => onlineChannels);
     }
 
-    const tier = access.actor.tier === 'SuperAdmin' ? 'SuperAdmin' : activeBusiness.tier;
-    features = {
-      'foresight.marketing': canAccessImsTestFeature(tier, features, 'foresight.marketing'),
-      'ims.ai-helper': canAccessImsTestFeature(tier, features, 'ims.ai-helper'),
-    };
-
     return NextResponse.json({
       name:         access.actor.name ?? '',
       email:        access.actor.email,
       company:      activeBusiness.name,
-      tier,
+      tier:         access.actor.tier === 'SuperAdmin' ? 'SuperAdmin' : activeBusiness.tier,
       businessId,
       activeBusiness,
       hasForesight,

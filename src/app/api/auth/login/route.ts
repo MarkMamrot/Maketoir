@@ -73,6 +73,7 @@ export async function POST(req: Request) {
     const rateLimitSubject = createAuthRateLimitSubject(String(email));
     const rateLimit = await getAuthRateLimit('password-login', rateLimitSubject);
     if (rateLimit.locked) {
+      await recordAuthEvent({ eventType: 'login_lockout', request: req });
       return NextResponse.json(
         { success: false, error: 'Too many sign-in attempts. Please try again later.' },
         { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
@@ -83,12 +84,14 @@ export async function POST(req: Request) {
     const valid = user ? await UsersRepository.verifyPassword(user, password) : false;
     if (!user || !valid) {
       await recordAuthFailure({ action: 'password-login', subjectHash: rateLimitSubject });
+      await recordAuthEvent({ userId: user?.id, businessId: user?.business_id, eventType: 'login_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
     if (passwordRequiresRenewal(user.password_changed_at)
       || !getPasswordValidation(password, user.username ?? user.email).isValid) {
       clearAdminSessionCookie();
       clearMfaTrustCookie();
+      await recordAuthEvent({ userId: user.id, businessId: user.business_id, eventType: 'password_renewal_required', request: req });
       return NextResponse.json({
         success: false, code: 'password_renewal_required',
         error: 'Your password must be renewed before signing in. Use Forgot password to set a compliant password.',
@@ -156,6 +159,7 @@ export async function POST(req: Request) {
       : null;
 
     if (rotatedTrust) {
+      await recordAuthEvent({ userId: user.id, businessId: membership.businessId, eventType: 'mfa_trust_used', request: req });
       setAdminSessionCookie(userData);
       if (user.tier !== 'SuperAdmin') await recordActiveBusiness(user.id, membership.businessId);
       setMfaTrustCookie(rotatedTrust.token, rotatedTrust.expiresAt);

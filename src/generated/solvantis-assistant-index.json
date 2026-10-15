@@ -14459,7 +14459,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
-      "content": "Settings opens over the IMS workspace for the selected business. Expand a group, then select a page. The header shows the current page and its group; Help opens guidance for that page. On a narrow screen, use **Settings navigation** to open the menu.",
+      "content": "Settings opens over the IMS workspace for the selected business. Expand a group, then select a page. The header shows the current page and its group; Help opens guidance for that page. On a narrow screen, use **Settings navigation** to open the menu.\n\nThe menu uses flat rows like the IMS sidebar. The selected page has a highlighted background and a coloured left edge.",
       "sectionId": "ims-settings-navigation:1"
     },
     {

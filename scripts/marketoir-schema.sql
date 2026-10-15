@@ -571,8 +571,8 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
 CREATE TABLE IF NOT EXISTS user_auth_events (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id   VARCHAR(100) NULL,
-  user_id       INT NOT NULL,
-  event_type    ENUM('login_success','password_reset_requested','password_reset_completed') NOT NULL,
+  user_id       INT NULL,
+  event_type    ENUM('login_success','login_failure','login_lockout','password_renewal_required','mfa_failure','mfa_enrolled','mfa_recovery_used','mfa_trust_used','password_reset_requested','password_reset_completed') NOT NULL,
   actor_user_id INT NULL,
   ip_address    VARCHAR(45) NULL,
   city          VARCHAR(100) NULL,
@@ -582,8 +582,8 @@ CREATE TABLE IF NOT EXISTS user_auth_events (
   created_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_user_auth_events_user_created (user_id, created_at),
   INDEX idx_user_auth_events_retention (created_at),
-  CONSTRAINT fk_user_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_user_auth_events_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_user_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_user_auth_events_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS user_password_history (

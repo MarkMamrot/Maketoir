@@ -7,6 +7,7 @@ import { getAdminSession } from '@/lib/sessionUtils';
 import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
 import { randomBytes } from 'crypto';
 import { sendPasswordSetupEmail } from '@/lib/auth/passwordSetupEmail';
+import { PasswordPolicyValidationError } from '@/lib/auth/passwordPolicy';
 
 async function requireAdminOrSuperAdmin() {
   const session = getAdminSession();

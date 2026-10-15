@@ -19,6 +19,7 @@ import {
 import { completeAdminLogin, PasswordRenewalRequiredError } from '@/lib/auth/adminLoginCompletion';
 import { resolveLoginMembership } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { recordAuthEvent } from '@/lib/auth/authActivity';
 
 function getClientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
     if (!verified) {
       await recordPreauthFailure(preauth.id);
       await recordAuthFailure({ action: 'mfa-challenge', subjectHash: subject });
+      await recordAuthEvent({ userId: preauth.userId, eventType: 'mfa_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid verification code.' }, { status: 401 });
     }
     if (!await consumePreauthSession(preauth.id)) {
@@ -93,6 +95,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Your account is not enrolled in an active business.' }, { status: 403 });
     }
     businessId = membership.businessId;
+    if (typeof recoveryCode === 'string' && recoveryCode.trim()) {
+      await recordAuthEvent({ userId: user.id, businessId, eventType: 'mfa_recovery_used', request: req });
+    }
     const trustedBrowser = rememberBrowser === true
       ? await issueTrustedBrowser({ userId: user.id, displayLabel: getBrowserLabel(req) })
       : null;
