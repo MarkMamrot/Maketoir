@@ -12,6 +12,7 @@ import CronJobsView from './CronJobsView';
 import SupportTicketsView from './SupportTicketsView';
 import WorkflowFindingsView from './WorkflowFindingsView';
 import BusinessFeaturesView from './BusinessFeaturesView';
+import SecurityComplianceView from './SecurityComplianceView';
 import { BusinessApplicationsQueue } from './BusinessApplicationsQueue';
 import { BusinessContextSwitcher, switchBusinessContext } from '@/components/BusinessContextSwitcher';
 import { MerchantRateCalculatorView } from '../dashboard/MerchantRateCalculatorView';
@@ -30,7 +31,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'cron-jobs' | 'support-tickets' | 'workflow-findings' | 'merchant-rate-calculator' | 'tyro-certification';
+type View = 'businesses' | 'business-applications' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'cron-jobs' | 'support-tickets' | 'workflow-findings' | 'security-compliance' | 'merchant-rate-calculator' | 'tyro-certification';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -808,6 +809,7 @@ export default function AdminPage() {
             { id: 'cron-jobs', label: 'Cron Jobs' },
             { id: 'support-tickets', label: `Support Tickets${openTicketCount ? ` (${openTicketCount})` : ''}` },
             { id: 'workflow-findings', label: 'Workflow Findings' },
+            { id: 'security-compliance', label: 'Security & Compliance' },
           ] as { id: View; label: string }[]).map(item => (
             <button key={item.id} onClick={() => setView(item.id)} style={S.navBtn(view === item.id)}>{item.label}</button>
           ))}
@@ -834,6 +836,7 @@ export default function AdminPage() {
           {view === 'cron-jobs' && <CronJobsView />}
           {view === 'support-tickets' && <SupportTicketsView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
+          {view === 'security-compliance' && <SecurityComplianceView />}
           {view === 'merchant-rate-calculator' && (
             <div style={{ background: '#fff', color: '#111827', minHeight: '100%', margin: -24, padding: 24 }}>
               <h1 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Merchant Rate Calculator</h1>

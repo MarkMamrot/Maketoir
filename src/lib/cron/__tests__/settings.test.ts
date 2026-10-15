@@ -17,10 +17,11 @@ describe('platform cron controls', () => {
     mocks.report.mockResolvedValue(null);
   });
 
-  it('defaults every registered job to on without writing settings', async () => {
+  it('keeps existing defaults on and delivery evidence off without writing settings', async () => {
     const jobs = await listCronJobSettings();
     expect(jobs).toHaveLength(CRON_JOBS.length);
-    expect(jobs.every(job => job.enabled)).toBe(true);
+    expect(jobs.filter(job => job.id !== 'amazon-delivery-tracking').every(job => job.enabled)).toBe(true);
+    expect(jobs.find(job => job.id === 'amazon-delivery-tracking')?.enabled).toBe(false);
     expect(mocks.execute.mock.calls.every(call => !call[0].startsWith('INSERT'))).toBe(true);
   });
 
@@ -38,6 +39,12 @@ describe('platform cron controls', () => {
 
   it('allows an unconfigured job to run', async () => {
     expect(await checkCronJobEnabled('database-backup')).toBeNull();
+  });
+
+  it('keeps unconfigured delivery tracking off until explicitly enabled', async () => {
+    expect(await (await checkCronJobEnabled('amazon-delivery-tracking'))?.json()).toMatchObject({ skipped: true });
+    mocks.query.mockResolvedValueOnce([{ enabled: 1 }]);
+    expect(await checkCronJobEnabled('amazon-delivery-tracking')).toBeNull();
   });
 
   it('returns a successful skip for a disabled job', async () => {

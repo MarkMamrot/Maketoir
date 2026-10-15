@@ -1,0 +1,27 @@
+name: Amazon Delivery Evidence
+
+on:
+  schedule:
+    - cron: '43 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: amazon-delivery-tracking
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Collect original buyer delivery evidence
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          BODY=$(curl --fail-with-body --max-time 290 -sS -w '\n__STATUS__%{http_code}' \
+            -X POST -H "x-cron-secret: $CRON_SECRET" \
+            "$APP_URL/api/ims/channels/amazon/delivery/cron") || exit 1
+          STATUS=$(echo "$BODY" | tail -1 | sed 's/__STATUS__//')
+          echo "$BODY" | head -n -1
+          [ "$STATUS" = "200" ] || exit 1

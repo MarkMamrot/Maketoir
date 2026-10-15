@@ -32,8 +32,10 @@ import {
   cleanupFailedBusinessProvision,
   deriveProvisionedImsDbName,
   parseSchemaStatements,
+  provisionBusinessIms,
   validateImsSchema,
 } from '../provisionBusiness';
+import { IMS_SCHEMA_IDENTITY_COLUMNS, IMS_SCHEMA_REQUIRED_COLUMNS, IMS_SCHEMA_REQUIRED_INDEXES, IMS_SCHEMA_REQUIRED_TABLES } from '../schemaContract';
 
 describe('IMS schema statement parsing', () => {
   it('does not treat text after a semicolon in a comment as SQL', () => {
@@ -80,6 +82,31 @@ describe('new business IMS provisioning ownership', () => {
 
     expect(first).not.toBe(second);
     expect(first).toMatch(/SameBusiness_businessoneIMS$/);
+  });
+
+  it('automatically provisions and validates both Amazon delivery tables before linking a new tenant', async () => {
+    const requiredColumns = new Map<string, readonly string[]>(Object.entries(IMS_SCHEMA_REQUIRED_COLUMNS));
+    mocks.serverConnection.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('information_schema.COLUMNS')) return [IMS_SCHEMA_REQUIRED_TABLES.flatMap(table =>
+        [...new Set(['business_id', ...(requiredColumns.get(table) ?? [])])].map(column => ({
+          TABLE_NAME: table, COLUMN_NAME: column,
+          COLLATION_NAME: IMS_SCHEMA_IDENTITY_COLUMNS.some(identity => identity === column) ? 'utf8mb4_bin' : 'utf8mb4_unicode_ci',
+        }))), []];
+      if (sql.includes('information_schema.TABLES')) return [
+        IMS_SCHEMA_REQUIRED_TABLES.map(TABLE_NAME => ({ TABLE_NAME, TABLE_COLLATION: 'utf8mb4_unicode_ci' })), []];
+      if (sql.includes('information_schema.STATISTICS')) return [
+        Object.entries(IMS_SCHEMA_REQUIRED_INDEXES).flatMap(([TABLE_NAME, names]) => names.map(INDEX_NAME => ({ TABLE_NAME, INDEX_NAME }))), []];
+      if (sql.includes('information_schema.TRIGGERS')) return [
+        ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid', 'trg_ims_stock_movement_bizid'].map(TRIGGER_NAME => ({ TRIGGER_NAME })), []];
+      return [[], []];
+    });
+    const result = await provisionBusinessIms({ businessId: 'test-new-tenant', businessName: 'Future Retail' });
+    expect(result.created).toBe(true);
+    for (const table of ['ims_amazon_delivery_evidence', 'ims_amazon_delivery_poll_state']) {
+      expect(mocks.serverConnection.query.mock.calls.filter(([sql]) => sql.startsWith(`CREATE TABLE IF NOT EXISTS ${table} (`))).toHaveLength(1);
+    }
+    expect(mocks.serverConnection.query.mock.calls.some(([sql]) => sql.includes('information_schema.STATISTICS'))).toBe(true);
+    expect(mocks.mainExecute).toHaveBeenCalledWith(expect.stringContaining('UPDATE businesses SET ims_db_name'), [result.imsDbName, 'test-new-tenant']);
   });
 
   it('never drops a schema that this request did not create', async () => {

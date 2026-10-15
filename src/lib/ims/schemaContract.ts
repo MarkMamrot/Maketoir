@@ -80,6 +80,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_shipping_batch_memberships',
   'ims_shipping_parcels',
   'ims_shipping_parcel_items',
+  'ims_amazon_delivery_evidence',
+  'ims_amazon_delivery_poll_state',
   'ims_shipping_labels',
   'ims_shipping_amendments',
   'ims_shipping_channel_jobs',
@@ -179,6 +181,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  ims_amazon_delivery_evidence: ['business_id', 'so_id', 'parcel_id', 'kind', 'source', 'delivered_at', 'basis', 'evidence_reference', 'actor_user_id', 'voids_evidence_id', 'operation_key', 'request_hash', 'recorded_at'],
+  ims_amazon_delivery_poll_state: ['business_id', 'parcel_id', 'last_checked_at', 'next_check_at', 'outcome', 'safe_error_code', 'locked_until', 'claim_token'],
   ims_shipping_shipments: ['revision'],
   ims_shipping_batch_memberships: ['business_id', 'shipment_id', 'batch_key', 'revision'],
   ims_shipping_labels: ['shipment_revision'],
@@ -335,6 +339,8 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_amazon_delivery_evidence: ['uq_amazon_delivery_operation', 'uq_amazon_delivery_void', 'idx_amazon_delivery_order', 'idx_amazon_delivery_parcel'],
+  ims_amazon_delivery_poll_state: ['idx_amazon_delivery_due'],
   ims_shipping_amendments: ['uq_shipping_amendment_operation', 'idx_shipping_amendment_status'],
   ims_shipping_labels: ['uq_shipping_label_request'],
   ims_shipping_batch_memberships: ['idx_shipping_batch_membership'],

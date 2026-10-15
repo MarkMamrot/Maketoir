@@ -1690,6 +1690,40 @@ CREATE TABLE IF NOT EXISTS ims_shipping_parcel_items (
   FOREIGN KEY (so_item_id) REFERENCES ims_sales_order_items(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ims_amazon_delivery_evidence (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  so_id                    INT NOT NULL,
+  parcel_id                BIGINT NULL,
+  kind                     ENUM('delivery','void') NOT NULL,
+  source                   ENUM('auspost','manual') NOT NULL,
+  delivered_at             DATETIME(3) NULL,
+  basis                    VARCHAR(32) NOT NULL,
+  evidence_reference       VARCHAR(120) NOT NULL,
+  actor_user_id            INT NULL,
+  voids_evidence_id         BIGINT NULL,
+  operation_key            VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  request_hash             CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  recorded_at              DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_amazon_delivery_operation (business_id, operation_key),
+  UNIQUE KEY uq_amazon_delivery_void (business_id, voids_evidence_id),
+  INDEX idx_amazon_delivery_order (business_id, so_id, kind, delivered_at),
+  INDEX idx_amazon_delivery_parcel (business_id, parcel_id, kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_amazon_delivery_poll_state (
+  business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  parcel_id                BIGINT NOT NULL,
+  last_checked_at          DATETIME(3) NULL,
+  next_check_at            DATETIME(3) NULL,
+  outcome                  ENUM('pending','delivered','error') NULL,
+  safe_error_code          VARCHAR(40) NULL,
+  locked_until             DATETIME(3) NULL,
+  claim_token              CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  PRIMARY KEY (business_id, parcel_id),
+  INDEX idx_amazon_delivery_due (business_id, next_check_at, locked_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS ims_shipping_labels (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id              VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,

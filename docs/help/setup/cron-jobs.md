@@ -22,7 +22,7 @@ SuperAdmins can open **Admin > Cron Jobs** to review and change the master switc
 | External trigger only | The endpoint is available for a separately configured trigger; no built-in schedule is listed |
 | Status unavailable | Status could not be loaded; switches remain unavailable until a successful refresh |
 
-Jobs without a saved master preference default to On. Opening the page does not enable individual integrations or change existing business settings. On is permission to run, not proof that a trigger fired or that an integration is healthy.
+Jobs without a saved master preference default to On, except **Amazon delivery evidence**, which starts Off until its storage and carrier tracking access have been verified. Opening the page does not enable individual integrations or change existing business settings. On is permission to run, not proof that a trigger fired or that an integration is healthy.
 
 ## Before you begin
 
@@ -39,7 +39,9 @@ Jobs without a saved master preference default to On. Opening the page does not 
 5. Read the confirmation and any risk warning. Choose **Cancel** to leave the setting unchanged, or **Turn on** or **Turn off** to save.
 6. Confirm the displayed status changed after the save completed. Use Refresh when you need a fresh status check.
 
-The page includes inventory and channel automation, Amazon orders and fulfilments, returns, Shopify reconciliation, online-sales and Xero accounting, customer service, marketing monitoring and digests, prospect maintenance, AI billing maintenance, Runtime Issues digests, database backups, and Klaviyo outbox delivery.
+The page includes inventory and channel automation, Amazon orders, fulfilments and delivery evidence, returns, Shopify reconciliation, online-sales and Xero accounting, customer service, marketing monitoring and digests, prospect maintenance, AI billing maintenance, Runtime Issues digests, database backups, and Klaviyo outbox delivery.
+
+**Amazon delivery evidence** collects original buyer-delivery events for eligible dispatched Australia Post eParcel articles. Its hourly schedule is UTC. Pausing delays evidence collection but does not extend the 30-day review deadline, change stock or delete buyer data. Use **Security & Compliance > Amazon delivery evidence** for independently verified manual fallback and evidence history.
 
 ## Scope and existing controls
 

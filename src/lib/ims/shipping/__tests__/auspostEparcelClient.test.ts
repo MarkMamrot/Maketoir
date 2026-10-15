@@ -9,6 +9,21 @@ const credentials = {
 };
 
 describe('AusPostEparcelClient', () => {
+  it('uses the official article tracking endpoint with authenticated headers and a timeout', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ tracking_results: [{ tracking_id: 'ARTICLE1',
+      trackable_items: [{ article_id: 'ARTICLE1', status: 'In Transit', events: [] }] }] })));
+    const result = await new AusPostEparcelClient(credentials, fetchImpl as typeof fetch).trackArticles(['ARTICLE1']);
+    expect(result[0].outcome).toBe('pending');
+    expect(fetchImpl).toHaveBeenCalledWith('https://digitalapi.auspost.com.au/shipping/v1/track?tracking_ids=ARTICLE1',
+      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal),
+        headers: expect.objectContaining({ 'account-number': credentials.accountNumber, Authorization: expect.stringMatching(/^Basic /) }) }));
+  });
+  it.each([401, 403, 429, 500])('does not expose vendor payloads in tracking HTTP failures (%s)', async status => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ errors: [{ message: 'PRIVATE BUYER test-password' }] }), { status }));
+    await expect(new AusPostEparcelClient(credentials, fetchImpl as typeof fetch).trackArticles(['ARTICLE1'])).rejects.toThrow(/tracking failed/);
+    try { await new AusPostEparcelClient(credentials, fetchImpl as typeof fetch).trackArticles(['ARTICLE1']); }
+    catch (error) { expect(String(error)).not.toMatch(/PRIVATE|test-password/); }
+  });
   it('updates the existing shipment with existing item IDs using the official PUT body, not a create wrapper', async () => {
     const body = {
       shipment_reference: 'SO-source-reference', customer_reference_1: 'SO-1',

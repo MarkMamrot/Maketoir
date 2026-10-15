@@ -21,6 +21,7 @@ const routeLoaders: Record<string, () => Promise<any>> = {
   'marketing-weekly': () => import('../../../app/api/foresight/digests/cron/route'),
   'amazon-orders': () => import('../../../app/api/ims/channels/amazon/orders/cron/route'),
   'amazon-fulfilments': () => import('../../../app/api/ims/channels/amazon/fulfilments/cron/route'),
+  'amazon-delivery-tracking': () => import('../../../app/api/ims/channels/amazon/delivery/cron/route'),
   'amazon-returns': () => import('../../../app/api/ims/channels/amazon/returns/cron/route'),
   'amazon-inventory': () => import('../../../app/api/ims/channels/amazon/inventory/cron/route'),
   'product-publication': () => import('../../../app/api/ims/channels/product-publication/cron/route'),

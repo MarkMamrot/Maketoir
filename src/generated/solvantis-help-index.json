@@ -6098,7 +6098,7 @@
         {
           "id": "setup-cron-jobs:3",
           "heading": "At a glance",
-          "content": "| State | Meaning |\n| --- | --- |\n| On | The master switch permits future triggered runs; business, integration, and readiness settings still apply |\n| Off | Future triggered runs are skipped before scheduled work begins |\n| External trigger only | The endpoint is available for a separately configured trigger; no built-in schedule is listed |\n| Status unavailable | Status could not be loaded; switches remain unavailable until a successful refresh |\n\nJobs without a saved master preference default to On. Opening the page does not enable individual integrations or change existing business settings. On is permission to run, not proof that a trigger fired or that an integration is healthy.",
+          "content": "| State | Meaning |\n| --- | --- |\n| On | The master switch permits future triggered runs; business, integration, and readiness settings still apply |\n| Off | Future triggered runs are skipped before scheduled work begins |\n| External trigger only | The endpoint is available for a separately configured trigger; no built-in schedule is listed |\n| Status unavailable | Status could not be loaded; switches remain unavailable until a successful refresh |\n\nJobs without a saved master preference default to On, except **Amazon delivery evidence**, which starts Off until its storage and carrier tracking access have been verified. Opening the page does not enable individual integrations or change existing business settings. On is permission to run, not proof that a trigger fired or that an integration is healthy.",
           "presentation": "quick"
         },
         {
@@ -6110,7 +6110,7 @@
         {
           "id": "setup-cron-jobs:5",
           "heading": "Step-by-step",
-          "content": "1. Sign in as a SuperAdmin and open **Admin > Cron Jobs**.\n2. Find the job using search, category, or status.\n3. Check its global status and schedule. Listed schedules use UTC.\n4. Select the job's switch.\n5. Read the confirmation and any risk warning. Choose **Cancel** to leave the setting unchanged, or **Turn on** or **Turn off** to save.\n6. Confirm the displayed status changed after the save completed. Use Refresh when you need a fresh status check.\n\nThe page includes inventory and channel automation, Amazon orders and fulfilments, returns, Shopify reconciliation, online-sales and Xero accounting, customer service, marketing monitoring and digests, prospect maintenance, AI billing maintenance, Runtime Issues digests, database backups, and Klaviyo outbox delivery.",
+          "content": "1. Sign in as a SuperAdmin and open **Admin > Cron Jobs**.\n2. Find the job using search, category, or status.\n3. Check its global status and schedule. Listed schedules use UTC.\n4. Select the job's switch.\n5. Read the confirmation and any risk warning. Choose **Cancel** to leave the setting unchanged, or **Turn on** or **Turn off** to save.\n6. Confirm the displayed status changed after the save completed. Use Refresh when you need a fresh status check.\n\nThe page includes inventory and channel automation, Amazon orders, fulfilments and delivery evidence, returns, Shopify reconciliation, online-sales and Xero accounting, customer service, marketing monitoring and digests, prospect maintenance, AI billing maintenance, Runtime Issues digests, database backups, and Klaviyo outbox delivery.\n\n**Amazon delivery evidence** collects original buyer-delivery events for eligible dispatched Australia Post eParcel articles. Its hourly schedule is UTC. Pausing delays evidence collection but does not extend the 30-day review deadline, change stock or delete buyer data. Use **Security & Compliance > Amazon delivery evidence** for independently verified manual fallback and evidence history.",
           "presentation": "quick"
         },
         {
@@ -6407,6 +6407,115 @@
           "id": "setup-runtime-issues:9",
           "heading": "Worked examples",
           "content": "A missing tenant table that has since been deployed to every active business can be marked fixed after each tenant is verified. The resolution note should identify the completed rollout and state that no business records were changed.\n\nA Shopify fulfilment failure caused by insufficient stock should remain open if the order is still unfulfilled. Stock at another branch does not by itself authorise a transfer or a change of fulfilment location. Recorded incoming stock can support an automatic Shopify fulfilment when it fully covers the shortage; staff must still complete the receipt and verify location stock after the warning.",
+          "presentation": "detail"
+        }
+      ]
+    },
+    {
+      "id": "setup-security-compliance",
+      "title": "Security and Compliance Policies",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Security & Compliance",
+      "product": "setup",
+      "format": "task",
+      "parentId": "setup-connections",
+      "contexts": [
+        "security-compliance",
+        "amazon-pii-inventory",
+        "amazon-delivery-evidence"
+      ],
+      "contextSections": {
+        "security-compliance": "Step-by-step",
+        "amazon-pii-inventory": "Amazon PII inventory and dry run",
+        "amazon-delivery-evidence": "Amazon delivery evidence"
+      },
+      "relatedTopics": [
+        "setup-runtime-issues",
+        "setup-team-access-security",
+        "setup-cron-jobs"
+      ],
+      "order": 8,
+      "summary": "Read internal policies, save responsible people, inventory Amazon PII, and review or manually verify original buyer-delivery evidence.",
+      "lastReviewed": "2026-10-15",
+      "owner": "security",
+      "quickSections": [
+        "Main operations",
+        "At a glance"
+      ],
+      "navigation": {
+        "category": "platform",
+        "label": "Read security policies and assign responsibilities"
+      },
+      "requiredTier": "SuperAdmin",
+      "filename": "docs/help/setup/security-compliance.md",
+      "sections": [
+        {
+          "id": "setup-security-compliance:1",
+          "heading": "Security and Compliance Policies",
+          "content": "Security & Compliance is an organization-wide SuperAdmin workspace. It contains draft internal policies with quick summaries above the detailed procedures and named responsibilities.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:2",
+          "heading": "Main operations",
+          "content": "- Open **Admin > Security & Compliance**.\n- Review the draft-policy warning before treating a document as an operating control.\n- Enter responsible people as text and choose **Save responsibilities**.\n- Select a policy to read its summary, responsible people, review cadence, and detailed version.\n- Choose **Run read-only inventory** to review potential Amazon buyer details and retained copies for the active business.\n- Load an Amazon order under **Amazon delivery evidence** to review carrier checks or record independently verified original buyer delivery.\n- Use **Help** for the workspace instructions.",
+          "presentation": "quick"
+        },
+        {
+          "id": "setup-security-compliance:3",
+          "heading": "At a glance",
+          "content": "All responsibility names initially default to **Marek Mamrot**. Saved names apply across the internal policies, independently of the selected business. Responsibility names do not create accounts or grant permissions.\n\nEach document is marked **Draft - not yet adopted**. Saving responsibility names does not adopt the policy, schedule reviews, send incident notifications, or enable a technical control.\n\nThe Amazon PII inventory is business-specific. Use the business selector in the header to change its scope; this does not change the organization-wide policy responsibilities.",
+          "presentation": "quick"
+        },
+        {
+          "id": "setup-security-compliance:4",
+          "heading": "Before you begin",
+          "content": "Sign in with a SuperAdmin account and identify the people who will own each responsibility.\n\n> **Warning:** These are draft procedures, not evidence of implemented security controls. Assigning a person does not grant access or certify compliance.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:5",
+          "heading": "Step-by-step",
+          "content": "1. Sign in as a SuperAdmin and open **Admin > Security & Compliance**.\n2. Wait for saved responsibilities to load. If loading fails, reload rather than saving the visible defaults.\n3. Edit the relevant responsibility fields. Each field requires a name of up to 120 characters.\n4. Choose **Save responsibilities** and check the success message and saved revision.\n5. Select a policy. Read the quick summary first, then the detailed policy below it.\n6. If another session changed the responsibilities, choose **Reload saved values**, review the current names, and reapply your intended edits. Reloading discards unsaved edits.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:6",
+          "heading": "Responsibility and adoption boundaries",
+          "content": "Policy owner, incident lead and backup, Amazon notification owner, access owner, privacy owner, key custodian, log reviewer, change implementer and approver, and device owner are editable text assignments. The policy detail shows saved names, not uncommitted edits.\n\nThe initial defaults can name the same person for multiple roles. Assign a distinct reviewer before relying on independent change approval and establish a reachable incident backup. A name field does not verify availability, qualifications, account access, or a completed approval.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:7",
+          "heading": "Reading the data retention policy",
+          "content": "The draft policy calls for removing Amazon buyer PII within 30 days after delivery and using **Amazon Customer** as a generic label. A necessary non-PII order reference may remain for reconciliation; it must not preserve a hidden lookup to deleted buyer details.\n\nChanging a display name alone is not disposal: delivery details, shipment copies, documents, and other retained identifying information also need to be removed. This workspace documents the target procedure; it does not run anonymization or deletion.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:8",
+          "heading": "Amazon PII inventory and dry run",
+          "content": "1. Select the intended business in the Admin header, then open **Security & Compliance**.\n2. Choose **Run read-only inventory**. The report does not delete or change orders and does not contact Amazon or a carrier.\n3. Check coverage warnings before interpreting the numbers. An unavailable source is not a zero count; partial results cover only available sources.\n4. Review structured address/contact fields, shipment recipients, amendment history, stored label links, order and linked credit-note descriptions, free-text fields and channel payloads.\n5. Use **Next order page** and **Previous order page** for order-linked candidates. Counts cover the whole active business, not just the displayed page.\n6. Review generated documents, downloads, exports, carrier tracking identifiers and links, retained evidence references or fingerprints, logs, support copies, backups, processor-held data and manually reassigned or unlinked customer/refund records separately. References need classification and a justified retention purpose; they must not preserve a hidden lookup to deleted buyer details.\n\nThe report shows counts, local order IDs, validated Amazon references and dates, not buyer names, addresses, phone numbers, raw payloads or label links. Label contents are not downloaded.\n\nWhere delivery evidence is available, the earliest verified original buyer-delivery timestamp sets a review deadline exactly 30 days later. This includes split shipments: a later parcel does not move the earlier review deadline. The report counts potential-PII orders that have reached this delivery-based review deadline. It does not treat populated fields or unreviewed content as confirmed PII; **Confirmed overdue** therefore remains **Not assessable** until classification is complete.\n\nOrders without verified delivery still need investigation. Age of 30 or more UTC calendar days is a separate priority-review measure, not a substitute delivery date or permission for indefinite retention. Shipment completion, fulfilment and return-delivery dates must never start the buyer-delivery clock. Unavailable delivery evidence is shown as unavailable, not zero.\n\nNon-empty text and payloads may contain only product descriptions or operational references. They require review, not automatic deletion. Linked contacts may be shared with other orders; deleting a shared customer would be unsafe. Source counts measure records rather than unique buyers and must not be added together. Amazon event/job counts also include records that cannot be linked to a local order.\n\nNo candidate is approved for automatic disposal. Zero results do not prove that external or unclassified copies have been removed. If a scan fails, old results are cleared and the failure is shown; run the inventory again to retry.",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:9",
+          "heading": "Amazon delivery evidence",
+          "content": "### Automatic carrier tracking\n\nThe **Amazon delivery evidence** scheduled job runs hourly when its master switch is On. It starts **Off** until the evidence storage and carrier tracking access have been verified. An existing Australia Post shipping account may still need permission to use tracking.\n\nAutomatic verification supports Australia Post eParcel article IDs on original Amazon parcels prepared and marked dispatched in Solvantis. It does not infer delivery from a consignment summary, a label, a shipping status, a return, or a missing tracking response. Unsupported carriers, external shipments without prepared parcel records, missing article IDs, ambiguous dates and unrecognized delivery events need manual verification.\n\nThe job checks bounded batches, spaces carrier requests, retries pending articles and reports operational errors in Runtime Issues. Once a parcel has active verified evidence, it does not need repeated polling. Only a matched original article with a recognized delivery event and explicit timezone can provide automatic evidence. Raw carrier responses, event locations and recipient details are not saved as evidence.\n\nBusiness-wide **Pause scheduled automation** and the master job switch stop future polls. Disabling an Amazon channel does not erase delivery evidence or remove tracking of already dispatched parcels when the delivery job remains enabled. Pausing or late polling does not extend a recorded review deadline: the actual delivery timestamp, not the check time, is used.\n\n### Manual verification and corrections\n\n1. Select the intended business and enter the **local Amazon sales order ID** under **Amazon delivery evidence**.\n2. Choose **Load delivery evidence**. Read the known dispatched parcels, last-check outcomes, earliest verified delivery and recent history.\n3. Independently verify original buyer delivery. Choose a specific dispatched parcel, or **Order's first original buyer delivery** for an externally shipped or legacy order. For split orders, the order-level fallback must use the first original delivery, not the final parcel.\n4. Enter the actual delivery timestamp with a timezone, such as `2026-10-15T14:43:09+11:00`. Unzoned, invalid and future dates are rejected.\n5. Select **carrier-portal**, **amazon-proof** or **recipient-confirmation** and enter a non-personal record code such as `TICKET-123`. Do not paste buyer details, URLs, credentials, screenshots or raw carrier responses into the code.\n6. Confirm the verification statement and choose **Save verified delivery**. The signed-in account is recorded as the verifier; the policy responsibility name is not used as an account identity.\n7. Reload the order and run the read-only inventory again to see the persisted evidence and updated deadline.\n\nEvidence history is append-only. To correct factually incorrect manual evidence, choose **Void incorrect manual evidence**, select the reason, and choose **Confirm factual correction**. The original record remains visible with the correction and verified actor. A valid correction can change the calculated deadline; it is not a retention-policy exception. Carrier evidence cannot be voided here: investigate suspected carrier errors in Runtime Issues before considering disposal.\n\nThe page shows the latest 50 history records. Deadline calculations use all active evidence, not just the visible page. A verified parcel does not prove that the whole order has arrived, and a first-delivery fallback does not certify every parcel. Missing parcels and external copies remain review obligations.\n\nNeither automatic nor manual verification changes stock, financial records, order status, customer information or PII. **Automatic anonymization and deletion remain disabled.**",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:10",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | What to do |\n| --- | --- |\n| Saved values are unavailable | Reload and resolve the reported failure before saving |\n| Responsibilities changed in another session | Reload saved values, review them, and reapply only the intended edits |\n| A field is rejected | Enter a non-empty name of up to 120 characters without control characters |\n| Names appear unchanged in the policy detail | Save the edits first; the detail shows saved responsibilities |\n| A document is still marked Draft | Names have been assigned, but policy adoption and control verification are separate work |\n| Confirmed overdue shows Not assessable | Delivery evidence can set a review deadline, but content still needs classification before PII can be confirmed |\n| A delivery review deadline is missing | Obtain verified original buyer-delivery evidence; do not substitute shipping or return dates |\n| Delivery storage is unavailable | Resolve the reported setup failure before saving evidence or enabling the scheduled job |\n| Carrier checks fail or stay unverified | Review Runtime Issues and account tracking access, then use independently verified manual evidence if available |\n| A save result could not be confirmed | Reload the evidence history before changing or resubmitting details |\n| An inventory source is Unavailable | Check the active business and the coverage warning in Runtime Issues; do not interpret it as zero |\n| Inventory has zero candidates | Review unlinked payloads and the areas outside the automatic scan before drawing a disposal conclusion |",
+          "presentation": "detail"
+        },
+        {
+          "id": "setup-security-compliance:11",
+          "heading": "Worked examples",
+          "content": "### Assigning an incident backup\n\nOpen **Admin > Security & Compliance**, replace the incident backup name, and choose **Save responsibilities**. Select **Incident Response and Amazon Notification** to check the saved assignment. Confirm the person's availability separately; saving their name does not test an incident notification or establish a working backup arrangement.\n\n### Reviewing Amazon retention\n\nSelect **Data Classification, Privacy and Retention**. The summary explains the 30-day-after-delivery target and the generic **Amazon Customer** label; the detailed procedure covers other copies of identifying information. Use this as the policy target, not as evidence that order anonymization already runs.\n\n### Split shipment with late tracking\n\nA parcel was delivered at `2026-09-01T10:00:00+10:00`; a second parcel arrived on 10 September. Even if the first event is collected on 12 September, the earliest original delivery remains 1 September. Its exact 30-day review deadline is `2026-10-01T00:00:00.000Z`. The second delivery and later check do not restart the clock. Review the earlier parcel's copies and shared identifying information while checking any outstanding fulfilment needs; do not treat the report as deletion approval.\n\n### Investigating an older Amazon order\n\nRun the inventory for the intended business. An order aged 45 days with a recipient snapshot is flagged for priority review, but this is not proof that the order was delivered 30 days ago. Obtain verified original delivery evidence and review all linked copies before setting a disposal deadline. The dry run changes nothing.",
           "presentation": "detail"
         }
       ]

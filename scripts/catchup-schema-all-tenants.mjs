@@ -8,6 +8,8 @@
  * --table=ims_shipping_labels, --table=ims_shipping_batch_memberships, and
  * --table=ims_shipping_amendments. Each command covers registered tenants without
  * running unrelated migrations. Optional --schema=registered_schema limits scope.
+ * Amazon delivery evidence rollout: use separate --table=ims_amazon_delivery_evidence
+ * and --table=ims_amazon_delivery_poll_state runs; carrier polling stays Off until verified.
  */
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
@@ -91,6 +93,8 @@ const PRODUCT_BUILD_TABLES = [
   'ims_product_build_reversals',
 ];
 const MISC_TENANT_TABLES = [
+  'ims_amazon_delivery_evidence',
+  'ims_amazon_delivery_poll_state',
   'pos_register_float_corrections',
   'ims_shopify_inventory_queue',
   'ims_po_files',
@@ -1337,6 +1341,28 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_amazon_delivery_evidence', 'id', 'BIGINT AUTO_INCREMENT PRIMARY KEY'],
+  ['ims_amazon_delivery_evidence', 'business_id', 'VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_delivery_evidence', 'so_id', 'INT NOT NULL'],
+  ['ims_amazon_delivery_evidence', 'parcel_id', 'BIGINT NULL'],
+  ['ims_amazon_delivery_evidence', 'kind', "ENUM('delivery','void') NOT NULL"],
+  ['ims_amazon_delivery_evidence', 'source', "ENUM('auspost','manual') NOT NULL"],
+  ['ims_amazon_delivery_evidence', 'delivered_at', 'DATETIME(3) NULL'],
+  ['ims_amazon_delivery_evidence', 'basis', 'VARCHAR(32) NOT NULL'],
+  ['ims_amazon_delivery_evidence', 'evidence_reference', 'VARCHAR(120) NOT NULL'],
+  ['ims_amazon_delivery_evidence', 'actor_user_id', 'INT NULL'],
+  ['ims_amazon_delivery_evidence', 'voids_evidence_id', 'BIGINT NULL'],
+  ['ims_amazon_delivery_evidence', 'operation_key', 'VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_delivery_evidence', 'request_hash', 'CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_delivery_evidence', 'recorded_at', 'DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)'],
+  ['ims_amazon_delivery_poll_state', 'business_id', 'VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
+  ['ims_amazon_delivery_poll_state', 'parcel_id', 'BIGINT NOT NULL'],
+  ['ims_amazon_delivery_poll_state', 'last_checked_at', 'DATETIME(3) NULL'],
+  ['ims_amazon_delivery_poll_state', 'next_check_at', 'DATETIME(3) NULL'],
+  ['ims_amazon_delivery_poll_state', 'outcome', "ENUM('pending','delivered','error') NULL"],
+  ['ims_amazon_delivery_poll_state', 'safe_error_code', 'VARCHAR(40) NULL'],
+  ['ims_amazon_delivery_poll_state', 'locked_until', 'DATETIME(3) NULL'],
+  ['ims_amazon_delivery_poll_state', 'claim_token', 'CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL'],
   ['pos_chat_attachments', 'file_content', 'LONGBLOB NULL AFTER file_size'],
   ['pos_daybook_communication_attachments', 'file_content', 'LONGBLOB NULL AFTER file_size'],
   ['ims_contacts', 'lead_temperature', "ENUM('cold','warm','hot') NULL AFTER shopify_customer_id"],
@@ -1673,6 +1699,11 @@ if (
 }
 
 const INDEXES = [
+  ['ims_amazon_delivery_evidence', 'uq_amazon_delivery_operation', 'UNIQUE KEY uq_amazon_delivery_operation (business_id, operation_key)'],
+  ['ims_amazon_delivery_evidence', 'uq_amazon_delivery_void', 'UNIQUE KEY uq_amazon_delivery_void (business_id, voids_evidence_id)'],
+  ['ims_amazon_delivery_evidence', 'idx_amazon_delivery_order', 'INDEX idx_amazon_delivery_order (business_id, so_id, kind, delivered_at)'],
+  ['ims_amazon_delivery_evidence', 'idx_amazon_delivery_parcel', 'INDEX idx_amazon_delivery_parcel (business_id, parcel_id, kind)'],
+  ['ims_amazon_delivery_poll_state', 'idx_amazon_delivery_due', 'INDEX idx_amazon_delivery_due (business_id, next_check_at, locked_until)'],
   ['ims_shopify_sync_log', 'idx_ssl_channel_created', 'INDEX `idx_ssl_channel_created` (`channel_instance_id`, `created_at`)'],
   ['ims_stock_movements', 'idx_sm_cost_epoch', 'INDEX `idx_sm_cost_epoch` (`business_id`, `cost_epoch_id`, `id`)'],
   ['ims_stock_movements', 'idx_sm_source_line', 'INDEX `idx_sm_source_line` (`business_id`, `reference_type`, `reference_id`, `source_line_id`, `id`)'],

@@ -125,6 +125,16 @@ describe('fresh IMS schema contract', () => {
     }
   });
 
+  it('registers delivery evidence and preserves historical audit records independently of order deletion', () => {
+    for (const table of ['ims_amazon_delivery_evidence', 'ims_amazon_delivery_poll_state']) {
+      expect(catchupSource).toContain(`'${table}'`);
+      expect(catchupSource).toContain(`['${table}', 'business_id'`);
+      expect(tableBody(table)).not.toContain('ON DELETE CASCADE');
+    }
+    expect(tableBody('ims_amazon_delivery_evidence')).toContain("ENUM('delivery','void')");
+    expect(tableBody('ims_amazon_delivery_poll_state')).toContain('PRIMARY KEY (business_id, parcel_id)');
+  });
+
   it('allows Volume-backed product images in fresh and existing tenant schemas', () => {
     expect(tableBody('ims_product_images')).toMatch(/source\s+ENUM\([^\n]*'volume'/);
     expect(catchupSource).toContain("ensureEnumValues(schema, 'ims_product_images', 'source', ['shopify', 'google_drive', 'external', 'volume'])");

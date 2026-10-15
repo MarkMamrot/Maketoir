@@ -36,6 +36,20 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
 ];
 
 describe('canonical Help context coverage', () => {
+  it('maps security policies only for SuperAdmins', () => {
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'security-compliance', userTier: 'SuperAdmin' }))
+      .toMatchObject({ exact: true, topic: { id: 'setup-security-compliance' } });
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'security-compliance', userTier: 'Admin' })?.exact)
+      .toBe(false);
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'amazon-pii-inventory', userTier: 'SuperAdmin' }))
+      .toMatchObject({ exact: true, topic: { id: 'setup-security-compliance' } });
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'amazon-pii-inventory', userTier: 'Admin' })?.exact)
+      .toBe(false);
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'amazon-delivery-evidence', userTier: 'SuperAdmin' }))
+      .toMatchObject({ exact: true, topic: { id: 'setup-security-compliance' } });
+    expect(resolveHelpContext({ audience: 'ims', product: 'setup', context: 'amazon-delivery-evidence', userTier: 'Admin' })?.exact)
+      .toBe(false);
+  });
   it.each(contexts)('maps every $product navigation context exactly', ({ audience, product, ids }) => {
     for (const context of ids) {
       expect(resolveHelpContext({ audience, product, context }), `${product}:${context}`).toEqual(expect.objectContaining({ exact: true }));

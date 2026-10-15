@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { execute, query } from '@/services/MySQLService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { CRON_JOBS, type CronJobId } from './catalog';
+import { CRON_JOBS, cronJobDefaultEnabled, type CronJobId } from './catalog';
 
 interface CronSetting {
   job_id: CronJobId;
@@ -33,7 +33,7 @@ export async function listCronJobSettings() {
   const settings = new Map(rows.map(row => [row.job_id, row]));
   return CRON_JOBS.map(job => {
     const setting = settings.get(job.id);
-    return { ...job, enabled: setting ? Number(setting.enabled) === 1 : true, updatedBy: setting?.updated_by ?? null, updatedAt: setting?.updated_at ?? null };
+    return { ...job, enabled: setting ? Number(setting.enabled) === 1 : cronJobDefaultEnabled(job.id), updatedBy: setting?.updated_by ?? null, updatedAt: setting?.updated_at ?? null };
   });
 }
 
@@ -50,7 +50,7 @@ export async function checkCronJobEnabled(jobId: CronJobId): Promise<NextRespons
   try {
     await ensureSchema();
     const rows = await query<CronSetting>('SELECT enabled FROM cron_job_settings WHERE job_id = ?', [jobId]);
-    if (rows.length && Number(rows[0].enabled) !== 1) {
+    if (rows.length ? Number(rows[0].enabled) !== 1 : !cronJobDefaultEnabled(jobId)) {
       return NextResponse.json({ success: true, skipped: true, reason: 'cron_disabled', jobId });
     }
     return null;

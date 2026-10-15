@@ -6,6 +6,7 @@ import type {
   ShippingCarrierAdapter,
   ShippingManifestCarrierAdapter,
 } from '../types';
+import { AusPostTrackingError, normalizeAusPostArticleTracking, validateTrackingArticleIds, type AusPostArticleTracking } from './tracking';
 
 const PRODUCTION_BASE_URL = 'https://digitalapi.auspost.com.au/shipping/v1';
 
@@ -241,6 +242,26 @@ export class AusPostEparcelClient implements ShippingCarrierAdapter<
     const matches = (response.shipments ?? []).filter(shipment => shipment.shipment_id === shipmentId);
     if (matches.length !== 1) throw new Error('Australia Post did not return the requested shipment.');
     return matches[0];
+  }
+
+  async trackArticles(articleIds: string[], now = new Date()): Promise<AusPostArticleTracking[]> {
+    validateTrackingArticleIds(articleIds);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${PRODUCTION_BASE_URL}/track?tracking_ids=${encodeURIComponent(articleIds.join(','))}`, {
+        headers: this.headers({ Accept: 'application/json' }), signal: AbortSignal.timeout(30_000), cache: 'no-store',
+      });
+    } catch {
+      throw new AusPostTrackingError('transport_error');
+    }
+    if (!response.ok) {
+      throw new AusPostTrackingError(response.status === 429 ? 'rate_limited'
+        : [401, 403].includes(response.status) ? 'tracking_access_denied' : 'carrier_http_error', response.status);
+    }
+    let payload: unknown;
+    try { payload = await response.json(); }
+    catch { throw new AusPostTrackingError('invalid_json'); }
+    return normalizeAusPostArticleTracking(payload, articleIds, now);
   }
 
   createLabels(input: AusPostLabelRequest): Promise<AusPostLabelResponse> {
