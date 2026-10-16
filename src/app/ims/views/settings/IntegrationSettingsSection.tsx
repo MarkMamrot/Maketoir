@@ -38,7 +38,7 @@ export function IntegrationSettingsSection({ businessId, businessName, provider,
   const descriptor = PROVIDERS.find(item => item.id === provider);
   const availability = provider === 'xero' ? { enabled: xeroSaved, configured: false } : provider ? data?.integrations[provider] : undefined;
   const dirty = draftEnabled !== null && draftEnabled !== availability?.enabled;
-  useSettingsDirty(dirty);
+  useSettingsDirty(provider !== 'xero' && dirty);
 
   useEffect(() => { setXeroSaved(xeroEnabled); }, [xeroEnabled]);
   useEffect(() => {
@@ -53,17 +53,18 @@ export function IntegrationSettingsSection({ businessId, businessName, provider,
     return () => { current = false; };
   }, [businessId, version]);
 
-  const save = async () => {
-    if (!provider || draftEnabled === null) return;
-    if (!draftEnabled && !window.confirm(`${provider === 'xero' ? 'New accounting sync and posting will pause. Existing accounting records and credentials are retained.' : descriptor?.impact}\n\nUnsaved connection changes will be discarded. Turn this integration off?`)) return;
+  const save = async (enabled = draftEnabled) => {
+    if (!provider || enabled === null || saving) return;
+    if (!enabled && !window.confirm(`${provider === 'xero' ? 'New accounting sync and posting will pause. Existing accounting records and credentials are retained.' : descriptor?.impact}\n\nUnsaved connection changes will be discarded. Turn this integration off?`)) return;
+    if (provider === 'xero') setDraftEnabled(enabled);
     setSaving(true); setError(''); setMessage('');
     try {
       if (provider === 'xero') {
-        await saveXeroEnabled(draftEnabled);
-        setXeroSaved(draftEnabled);
+        await saveXeroEnabled(enabled);
+        setXeroSaved(enabled);
       } else {
         const response = await fetch('/api/ims/integrations', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, enabled: draftEnabled, expectedBusinessId: businessId }),
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, enabled, expectedBusinessId: businessId }),
         });
         const body: AvailabilityResponse = await response.json();
         if (!response.ok || !body.success) throw new Error(body.error || 'Integration availability could not be saved.');
@@ -71,8 +72,9 @@ export function IntegrationSettingsSection({ businessId, businessName, provider,
         setData(body);
       }
       setDraftEnabled(null);
-      setMessage(draftEnabled ? 'Integration enabled. You can now configure its connection.' : 'Integration turned off. Saved configuration has been retained.');
+      setMessage(enabled ? 'Integration enabled. You can now configure its connection.' : 'Integration turned off. Saved configuration has been retained.');
     } catch (error) {
+      if (provider === 'xero') setDraftEnabled(null);
       setError(error instanceof Error ? error.message : 'Integration availability could not be saved.');
     } finally { setSaving(false); }
   };
@@ -98,13 +100,17 @@ export function IntegrationSettingsSection({ businessId, businessName, provider,
         <div><h2>{descriptor?.label ?? 'Xero'}</h2><p>{descriptor?.purpose ?? 'Accounting connection, posting and reconciliation.'}</p></div>
         <label className={styles.toggle}>Use this integration
           <input type="checkbox" role="switch" checked={draftEnabled ?? availability?.enabled ?? false} disabled={!data.canManage || saving}
-            onChange={event => { setDraftEnabled(event.target.checked); setMessage(''); }} />
+            onChange={event => {
+              if (provider === 'xero') void save(event.target.checked);
+              else { setDraftEnabled(event.target.checked); setMessage(''); }
+            }} />
         </label>
       </div>
       <p>{availability?.enabled ? 'Enabled. Review connection readiness and optional sync policy below.' : 'Off. Dependent activity is paused. Credentials and history are retained; disconnecting is a separate action.'}</p>
       {!data.canManage && <p>Only administrators can change integration availability.</p>}
-      {dirty && <div className={styles.actions}>
-        <button type="button" data-primary onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save availability'}</button>
+      {provider === 'xero' && saving && <p role="status">Saving Xero availability...</p>}
+      {provider !== 'xero' && dirty && <div className={styles.actions}>
+        <button type="button" data-primary onClick={() => void save()} disabled={saving}>{saving ? 'Saving...' : 'Save availability'}</button>
         <button type="button" disabled={saving} onClick={() => { setDraftEnabled(null); setError(''); }}>Cancel</button>
       </div>}
       {message && <p role="status">{message}</p>}

@@ -1,5 +1,5 @@
 ---
-{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","setup-help","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","setup-help":"Finding setup guidance","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Configure Klaviyo customer and sales sync"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"],"navigation":{"category":"integrations","label":"Connect external services"}}
+{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","setup-help","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","setup-help":"Finding setup guidance","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connect Xero","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Configure Klaviyo customer and sales sync"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models","ims-sales-channels"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-10-16","owner":"integrations","quickSections":["Main operations","Choose a Setup area","Connection readiness"],"navigation":{"category":"integrations","label":"Connect external services"}}
 ---
 # Connections and Setup
 
@@ -8,7 +8,7 @@ Use Setup to maintain business information, team access, POS payment options, an
 ## Main operations
 
 - Confirm the selected business before saving anything.
-- Enable the service in **IMS Settings > Integrations**, save availability, then connect the intended external account and check its displayed identity.
+- Enable the service in **IMS Settings > Integrations**, then connect the intended external account and check its displayed identity. Xero saves its availability toggle immediately; other providers use **Save availability**.
 - Test access, then complete the product-specific mappings or settings.
 - Add only the POS payment methods the business accepts.
 - Reconnect expired access before repeating dependent work.
@@ -54,6 +54,15 @@ Turning an integration off pauses new dependent sync and automation but retains 
 A green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.
 
 If Meta monitoring reports that its access token has expired, reconnect the intended Meta account through Connections before retrying monitoring. Repeated expiry reports use the same actionable message; Solvantis does not renew or replace the account's authorisation automatically.
+
+## Connect Xero
+
+1. Open **IMS Settings > Integrations > Xero** for the intended business.
+2. Turn on **Use this integration**. The toggle saves immediately; there is no separate **Save availability** step for Xero.
+3. Once saving succeeds, connection setup appears. Select **Connect to Xero** and authorise the intended organisation, or review the organisation shown if already connected.
+4. Review accounting mappings and posting policies in **Finances** before using accounting workflows.
+
+If saving fails, the toggle returns to its saved value and an error is shown; retry after resolving the error. Turning Xero off asks for confirmation before pausing new accounting sync and posting. Existing credentials and accounting records are retained; disconnecting authorisation is separate.
 
 ## Configure Klaviyo customer and sales sync
 

@@ -2859,7 +2859,7 @@
         "connections": "Connection readiness",
         "pos": "POS setup",
         "shopify": "Connect Shopify",
-        "xero": "Connection readiness",
+        "xero": "Connect Xero",
         "cin7": "Connection readiness",
         "meta": "Connection readiness",
         "google": "Connection readiness",
@@ -2874,7 +2874,7 @@
       ],
       "order": 1,
       "summary": "Choose the right Setup area and understand when a connection is ready for real work.",
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
@@ -14967,7 +14967,7 @@
       ],
       "sourcePriority": 8,
       "lastReviewed": "2026-10-15",
-      "content": "1. Open **Integrations > Overview** and review the required service.\n2. Open that provider's page and turn on **Use this integration**.\n3. Select **Save availability**. Credential setup appears after enablement is saved.\n4. Enter connection details or authorise the external account.\n5. Save the details, then deliberately test access and review downstream policy.\n\nEnabled means the integration is allowed to run. Configuration saved means connection details exist. Neither status by itself proves current access or downstream readiness.\n\nSaved secrets are not prefilled. Leave a saved secret blank to retain it. Cancel restores the saved configuration without contacting the provider.\n\nTurning a provider off pauses new dependent activity and hides its credential form. Saved configuration and history remain available for re-enabling. Disconnect is a separate action that removes the relevant authorisation. Existing configured integrations are retained when these controls are introduced.\n\nKlaviyo's customer and commerce master switch and individual source selections remain separate from provider availability. Turning Gmail off does not stop unrelated transactional or bookkeeping email. Xero mappings and accounting policies remain in Finances.",
+      "content": "1. Open **Integrations > Overview** and review the required service.\n2. Open that provider's page and turn on **Use this integration**.\n3. For Xero, the toggle saves immediately and connection setup appears when saving succeeds. For other providers, select **Save availability** first.\n4. Enter connection details or authorise the external account.\n5. Save the details, then deliberately test access and review downstream policy.\n\nEnabled means the integration is allowed to run. Configuration saved means connection details exist. Neither status by itself proves current access or downstream readiness.\n\nSaved secrets are not prefilled. Leave a saved secret blank to retain it. Cancel restores the saved configuration without contacting the provider.\n\nTurning a provider off pauses new dependent activity and hides its credential form. Saved configuration and history remain available for re-enabling. Disconnect is a separate action that removes the relevant authorisation. Existing configured integrations are retained when these controls are introduced.\n\nKlaviyo's customer and commerce master switch and individual source selections remain separate from provider availability. Turning Gmail off does not stop unrelated transactional or bookkeeping email. Xero mappings and accounting policies remain in Finances.",
       "sectionId": "ims-settings-navigation:9"
     },
     {
@@ -20472,7 +20472,7 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "Use Setup to maintain business information, team access, POS payment options, and supported external connections.",
       "sectionId": "setup-connections:1"
     },
@@ -20500,8 +20500,8 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
-      "content": "- Confirm the selected business before saving anything.\n- Enable the service in **IMS Settings > Integrations**, save availability, then connect the intended external account and check its displayed identity.\n- Test access, then complete the product-specific mappings or settings.\n- Add only the POS payment methods the business accepts.\n- Reconnect expired access before repeating dependent work.",
+      "lastReviewed": "2026-10-16",
+      "content": "- Confirm the selected business before saving anything.\n- Enable the service in **IMS Settings > Integrations**, then connect the intended external account and check its displayed identity. Xero saves its availability toggle immediately; other providers use **Save availability**.\n- Test access, then complete the product-specific mappings or settings.\n- Add only the POS payment methods the business accepts.\n- Reconnect expired access before repeating dependent work.",
       "sectionId": "setup-connections:2"
     },
     {
@@ -20528,7 +20528,7 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Use the native Solvantis Online Store | IMS Settings, then Sales > Online Shop | Native store selected and ready for storefront setup |\n| Choose Gemini models for different AI functions | IMS Settings > AI & Account > AI models | Saved choices for future document, matching, analysis, and customer service requests |\n| Connect Xero, Cin7, Meta, Google, Klaviyo, or Gmail | IMS Settings > Integrations > the provider | Saved availability, connection and displayed status |\n| Connect or configure a Shopify store | IMS > Sales > Sales Channels | One exact store with its own credentials, settings, and status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.",
       "sectionId": "setup-connections:3"
     },
@@ -20556,7 +20556,7 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "In Help, expand **Integrations** for connections and readiness checks, or **Settings & Setup** for business identity and team access. These guides are also available from the IMS Help library alongside everyday operational and POS procedures. Search results can take you directly to the relevant section.\n\nSuperAdmins have a separate **Platform administration** category for business administration, feature rollouts, runtime issues and scheduled jobs. That category and its guides are not available to other users.\n\nSetup Help uses your verified account tier for this category. Being an Admin in an individual business does not make your account a SuperAdmin or unlock platform-only guides.",
       "sectionId": "setup-connections:4"
     },
@@ -20584,12 +20584,40 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "Setup Connections links to individual IMS integration pages. Enablement is saved before connection details are requested. Opening a page does not automatically run an external connection test.\n\nTurning an integration off pauses new dependent sync and automation but retains configuration and history. Disconnecting authorisation is separate. Saved secrets stay blank in the editor; leave them blank to retain the existing value.\n\n| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Import product, stock, sales, and purchasing information into IMS | The intended account can be reached | Ownership, import scope, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.\n\nIf Meta monitoring reports that its access token has expired, reconnect the intended Meta account through Connections before retrying monitoring. Repeated expiry reports use the same actionable message; Solvantis does not renew or replace the account's authorisation automatically.",
       "sectionId": "setup-connections:5"
     },
     {
       "id": "setup-connections:6",
+      "documentId": "setup-connections",
+      "title": "Connections and Setup",
+      "heading": "Connect Xero",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Setup > Connections",
+      "topicId": "setup-connections",
+      "contexts": [
+        "setup",
+        "setup-help",
+        "connections",
+        "pos",
+        "shopify",
+        "xero",
+        "cin7",
+        "meta",
+        "google",
+        "klaviyo"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-16",
+      "content": "1. Open **IMS Settings > Integrations > Xero** for the intended business.\n2. Turn on **Use this integration**. The toggle saves immediately; there is no separate **Save availability** step for Xero.\n3. Once saving succeeds, connection setup appears. Select **Connect to Xero** and authorise the intended organisation, or review the organisation shown if already connected.\n4. Review accounting mappings and posting policies in **Finances** before using accounting workflows.\n\nIf saving fails, the toggle returns to its saved value and an error is shown; retry after resolving the error. Turning Xero off asks for confirmation before pausing new accounting sync and posting. Existing credentials and accounting records are retained; disconnecting authorisation is separate.",
+      "sectionId": "setup-connections:6"
+    },
+    {
+      "id": "setup-connections:7",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Configure Klaviyo customer and sales sync",
@@ -20612,12 +20640,12 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "1. Enable Klaviyo and save availability, then enter and save the private API key and select **Test Connection**.\n2. Turn on **Enable customer and commerce sync**.\n3. Turn on **Sync customer profiles** before selecting any commerce event source.\n4. Select each Solvantis sales source that should send identified commerce events.\n5. For Shopify, first confirm that the store is not already sending the same events directly to Klaviyo, then acknowledge the duplicate-event risk.\n6. Select **Save**.\n\nThe master switch stops all customer and commerce event processing for the business. Each source switch independently controls events from that source. All switches start off. Turning the integration off does not delete Klaviyo profiles or previously delivered events.\n\nSolvantis matches eligible customer contacts using its stable contact identity plus normalized email and phone details. It does not subscribe or unsubscribe people, and it does not treat promotional email or SMS preferences as Klaviyo consent. Identity conflicts stop the affected event for review rather than linking profiles by guesswork.",
-      "sectionId": "setup-connections:6"
+      "sectionId": "setup-connections:7"
     },
     {
-      "id": "setup-connections:7",
+      "id": "setup-connections:8",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Connect Shopify",
@@ -20640,12 +20668,12 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use **Legacy token** only for an existing admin-created custom app that still supplies a permanent Admin API access token.\n\n1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.\n2. Install that app on the intended store.\n3. Open **IMS > Sales > Sales Channels** and choose **Add Sales Channel > Shopify**.\n4. Choose **Dev Dashboard**, then enter the permanent `myshopify.com` store domain, Client ID, and Client secret shown in the app's Settings area.\n5. Save the channel, choose **Test connection**, then activate the store when readiness succeeds.\n6. Choose **Configure** on that store and use **Orders & Inventory** to register or verify its required webhooks.\n\nSolvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.\n\n> **Important:** The Client ID and Client secret are not Admin API access tokens. Enter them only in Dev Dashboard mode. Do not paste a manually generated short-lived token into Legacy token mode.",
-      "sectionId": "setup-connections:7"
+      "sectionId": "setup-connections:8"
     },
     {
-      "id": "setup-connections:8",
+      "id": "setup-connections:9",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "POS setup",
@@ -20668,12 +20696,12 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "POS Settings controls the payment-method names shown on the POS payment screen.\n\n1. Review the current list.\n2. Add, rename, or remove a method.\n3. Select **Save Methods**.\n4. Open POS and confirm the expected choices before taking a sale.\n\n| Change | Effect | External change |\n| --- | --- | --- |\n| Save payment methods | Updates payment choices shown in POS | No external service is changed |",
-      "sectionId": "setup-connections:8"
+      "sectionId": "setup-connections:9"
     },
     {
-      "id": "setup-connections:9",
+      "id": "setup-connections:10",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Safe connection sequence",
@@ -20696,12 +20724,12 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "1. Select the intended business.\n2. Start the connection or enter details only in its protected fields.\n3. Confirm the external organisation, store, account, or property.\n4. Save and use the available status or test action.\n5. Complete downstream mappings and settings in the owning product area.\n6. Run one controlled sync or test and review its result.",
-      "sectionId": "setup-connections:9"
+      "sectionId": "setup-connections:10"
     },
     {
-      "id": "setup-connections:10",
+      "id": "setup-connections:11",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Troubleshooting",
@@ -20724,12 +20752,12 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Connected to the wrong account | The wrong organisation or account was selected during sign-in | Disconnect and reconnect the intended account |\n| Connected but a workflow is unavailable | Required mapping, permission, or product setup is incomplete | Open Integration Readiness and complete the shown dependency |\n| Access expired | The external service no longer accepts the saved authorisation | Reconnect through the normal connection flow |\n| A test fails twice | Account access or setup still needs attention | Stop retries and read the specific status or error |",
-      "sectionId": "setup-connections:10"
+      "sectionId": "setup-connections:11"
     },
     {
-      "id": "setup-connections:11",
+      "id": "setup-connections:12",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Worked examples",
@@ -20752,12 +20780,12 @@
         "klaviyo"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "### Prepare Xero for POS accounting\n\nConnect the intended Xero organisation, confirm its name, then open IMS Xero Setup to complete the required revenue and payment mappings. Run one controlled end-of-day sync and review the Xero result before relying on automation.\n\n### Add a POS payment method\n\nOpen POS Settings, add \"Afterpay\", save the list, and open POS to confirm it appears. This changes the available POS label; it does not create or configure an Afterpay account.",
-      "sectionId": "setup-connections:11"
+      "sectionId": "setup-connections:12"
     },
     {
-      "id": "setup-connections:11.1",
+      "id": "setup-connections:12.1",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Worked examples > Prepare Xero for POS accounting",
@@ -20780,12 +20808,12 @@
         "klaviyo"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "Connect the intended Xero organisation, confirm its name, then open IMS Xero Setup to complete the required revenue and payment mappings. Run one controlled end-of-day sync and review the Xero result before relying on automation.",
-      "sectionId": "setup-connections:11"
+      "sectionId": "setup-connections:12"
     },
     {
-      "id": "setup-connections:11.2",
+      "id": "setup-connections:12.2",
       "documentId": "setup-connections",
       "title": "Connections and Setup",
       "heading": "Worked examples > Add a POS payment method",
@@ -20808,9 +20836,9 @@
         "klaviyo"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-16",
       "content": "Open POS Settings, add \"Afterpay\", save the list, and open POS to confirm it appears. This changes the available POS label; it does not create or configure an Afterpay account.",
-      "sectionId": "setup-connections:11"
+      "sectionId": "setup-connections:12"
     },
     {
       "id": "setup-cron-jobs:1",

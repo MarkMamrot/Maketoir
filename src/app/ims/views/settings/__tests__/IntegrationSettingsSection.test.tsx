@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationSettingsSection } from '../IntegrationSettingsSection';
@@ -26,6 +26,97 @@ describe('enable-first integrations', () => {
     expect(screen.queryByText('Credential setup')).toBeNull();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/ims/integrations');
+  });
+
+  describe('Xero availability', () => {
+    function xeroSection(enabled: boolean, save = vi.fn().mockResolvedValue(undefined)) {
+      render(<IntegrationSettingsSection businessId="sandbox" businessName="Sandbox" provider="xero"
+        onNavigate={vi.fn()} onHelp={vi.fn()} xeroEnabled={enabled} saveXeroEnabled={save} />);
+      return save;
+    }
+
+    it('saves immediately when enabled and shows connection setup only after saving succeeds', async () => {
+      let finishSave!: () => void;
+      const save = vi.fn(() => new Promise<void>(resolve => { finishSave = resolve; }));
+      xeroSection(false, save);
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('switch'));
+
+      expect(save).toHaveBeenCalledExactlyOnceWith(true);
+      expect(screen.getByRole('switch').hasAttribute('disabled')).toBe(true);
+      expect(screen.queryByText('Credential setup')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Save availability' })).toBeNull();
+      expect(screen.getByRole('status').textContent).toBe('Saving Xero availability...');
+
+      await act(async () => finishSave());
+
+      expect(await screen.findByText('Credential setup')).toBeTruthy();
+      expect(screen.getByRole('switch').hasAttribute('disabled')).toBe(false);
+      expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores the saved switch value and allows retry after an enablement failure', async () => {
+      const save = vi.fn().mockRejectedValueOnce(new Error('Xero could not be enabled')).mockResolvedValueOnce(undefined);
+      xeroSection(false, save);
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('switch'));
+
+      expect((await screen.findByRole('alert')).textContent).toBe('Xero could not be enabled');
+      expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(false);
+      expect(screen.queryByText('Credential setup')).toBeNull();
+
+      await user.click(screen.getByRole('switch'));
+      expect(await screen.findByText('Credential setup')).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(save).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not turn Xero off when the pause confirmation is cancelled', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const save = xeroSection(true);
+      const user = userEvent.setup();
+      await screen.findByText('Credential setup');
+
+      await user.click(screen.getByRole('switch'));
+
+      expect(save).not.toHaveBeenCalled();
+      expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(true);
+      expect(screen.getByText('Credential setup')).toBeTruthy();
+    });
+
+    it('saves a confirmed disable immediately and retains the connection on failure', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const save = vi.fn().mockRejectedValueOnce(new Error('Xero could not be disabled')).mockResolvedValueOnce(undefined);
+      xeroSection(true, save);
+      const user = userEvent.setup();
+      await screen.findByText('Credential setup');
+
+      await user.click(screen.getByRole('switch'));
+
+      expect((await screen.findByRole('alert')).textContent).toBe('Xero could not be disabled');
+      expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(true);
+      expect(screen.getByText('Credential setup')).toBeTruthy();
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining('New accounting sync and posting will pause'));
+
+      await user.click(screen.getByRole('switch'));
+
+      await waitFor(() => expect(screen.queryByText('Credential setup')).toBeNull());
+      expect(save).toHaveBeenLastCalledWith(false);
+      expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(false);
+    });
+
+    it('does not allow read-only users to enable Xero', async () => {
+      vi.mocked(fetch).mockResolvedValue(response(false, false));
+      const save = xeroSection(false);
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('switch'));
+
+      expect(screen.getByRole('switch').hasAttribute('disabled')).toBe(true);
+      expect(save).not.toHaveBeenCalled();
+    });
   });
   it('persists enablement before showing setup', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(response()).mockResolvedValueOnce(response(true));

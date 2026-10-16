@@ -72,7 +72,7 @@ In **Payment types & float**, add or remove names in the draft, then select **Sa
 
 1. Open **Integrations > Overview** and review the required service.
 2. Open that provider's page and turn on **Use this integration**.
-3. Select **Save availability**. Credential setup appears after enablement is saved.
+3. For Xero, the toggle saves immediately and connection setup appears when saving succeeds. For other providers, select **Save availability** first.
 4. Enter connection details or authorise the external account.
 5. Save the details, then deliberately test access and review downstream policy.
 
